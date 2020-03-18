@@ -44,3 +44,11 @@ func NewSymTriDiagonal(d0, d1 []float64) (Tri *mat.SymDense) {
     Tri = mat.NewSymDense(len(d0), dd)
     return
 }
+
+func ConstArray(val float64, N int) (v []float64) {
+    v = make([]float64, N)
+    for i := range v {
+        v[i] = val
+    }
+    return
+}
