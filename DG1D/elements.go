@@ -173,7 +173,7 @@ func GradVandermonde1D(r *mat.VecDense, N int) (Vr *mat.Dense) {
     return
 }
 
-func Lift1D(V *mat.Dense, Np, Nfaces, Nfp int) (LIFT *mat.Dense){
+func Lift1D(V *mat.Dense, Np, Nfaces, Nfp int) (LIFT *mat.Dense) {
     Emat := mat.NewDense(Np, Nfaces*Nfp, nil)
     Emat.Set(0,0,1)
     Emat.Set(Np-1,1,1)
@@ -182,3 +182,12 @@ func Lift1D(V *mat.Dense, Np, Nfaces, Nfp int) (LIFT *mat.Dense){
     return
 }
 
+func Normals1D(Nfaces, Nfp, K int) (NX *mat.Dense) {
+    nx := make([]float64, Nfaces*Nfp*K)
+    for i:=0; i<K; i++ {
+        nx[i] = -1
+        nx[i+K] = 1
+    }
+    NX = mat.NewDense(Nfp*Nfaces, K, nx)
+    return
+}
