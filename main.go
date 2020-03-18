@@ -8,16 +8,12 @@ import (
 
 const (
     NODETOL = 1.e-12
-)
-func main() {
-    var (
-        K, N, Nfp, NFaces int
-    )
     K = 10
     N = 8
     Nfp = 1
     NFaces = 2
-    _, _ = Nfp, NFaces
+)
+func main() {
     VX, EToV := SimpleMesh1D(0, 2, K)
     fmt.Printf("VX = \n%v\n", mat.Formatted(VX.T(), mat.Squeeze()))
     fmt.Printf("EToV = \n%v\n", mat.Formatted(EToV.T(), mat.Squeeze()))
