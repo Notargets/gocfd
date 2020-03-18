@@ -1,6 +1,7 @@
 package main
 
 import (
+    "fmt"
     "github.com/notargets/gophys/DG1D"
     "gonum.org/v1/gonum/mat"
 )
@@ -14,21 +15,7 @@ const (
     Np = N+1
 )
 func main() {
-    VX, EToV := SimpleMesh1D(0, 2, K)
-
-    J, R, W := DG1D.JacobiGL(0, 0, N)
-    V := DG1D.Vandermonde1D(N, R)
-    Vinv := mat.NewDense(Np, Np, nil)
-    if err := Vinv.Inverse(V); err != nil {
-        panic("error inverting V")
-    }
-    Vr := DG1D.GradVandermonde1D(R, N)
-    Dr := mat.NewDense(Np, Np, nil)
-    Dr.Product(Vr, Vinv)
-    LIFT := DG1D.Lift1D(V, Np, NFaces, Nfp)
-    NX := DG1D.Normals1D(NFaces, Nfp, K)
-
-    _, _, _, _, _, _ = VX, EToV, J, W, LIFT, NX
+    Startup1D()
 }
 
 func SimpleMesh1D(xmin, xmax float64, K int) (VX *mat.VecDense, EToV *mat.Dense) {
@@ -49,4 +36,21 @@ func SimpleMesh1D(xmin, xmax float64, K int) (VX *mat.VecDense, EToV *mat.Dense)
     return mat.NewVecDense(K+1, x), mat.NewDense(K, 2, elementVertex)
 }
 
+func Startup1D() {
+    VX, EToV := SimpleMesh1D(0, 2, K)
 
+    J, R, W := DG1D.JacobiGL(0, 0, N)
+    V := DG1D.Vandermonde1D(N, R)
+    Vinv := mat.NewDense(Np, Np, nil)
+    if err := Vinv.Inverse(V); err != nil {
+        panic("error inverting V")
+    }
+    Vr := DG1D.GradVandermonde1D(R, N)
+    Dr := mat.NewDense(Np, Np, nil)
+    Dr.Product(Vr, Vinv)
+    LIFT := DG1D.Lift1D(V, Np, NFaces, Nfp)
+    NX := DG1D.Normals1D(NFaces, Nfp, K)
+    fmt.Printf("LIFT = \n%v\n", mat.Formatted(LIFT, mat.Squeeze()))
+
+    _, _, _, _, _, _ = VX, EToV, J, W, LIFT, NX
+}
