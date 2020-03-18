@@ -91,10 +91,6 @@ func JacobiGQ(alpha, beta float64, N int) (J *mat.SymDense, X, W *mat.VecDense) 
 func Vandermonde1D(N int, R *mat.VecDense) (V *mat.Dense) {
     V = mat.NewDense(R.Len(), N+1, nil)
     for j:=0; j<N+1; j++ {
-        //JP := JacobiP(R, 0, 0, j)
-        //for i:=0; i<len(JP); i++ {
-        //    fmt.Printf("JP[%d] = \n%v\n", i, JP[i])
-        //}
         V.SetCol(j, JacobiP(R, 0, 0, j))
     }
     return
@@ -155,6 +151,28 @@ func JacobiP(r *mat.VecDense, alpha, beta float64, N int) (p []float64){
     return
 }
 
+func GradJacobiP(r *mat.VecDense, alpha, beta float64, N int) (p []float64){
+    if N == 0 {
+        p = make([]float64, r.Len())
+        return
+    }
+    p = JacobiP(r, alpha+1, beta+1, N-1)
+    fN := float64(N)
+    fac := math.Sqrt(fN*(fN+alpha+beta+1))
+    for i, val := range p {
+        p[i] = val * fac
+    }
+    return
+}
+
+func GradVandermonde1D(r *mat.VecDense, N int) (Vr *mat.Dense) {
+    Vr = mat.NewDense(r.Len(), N+1, nil)
+    for i:=0; i<N+1; i++ {
+        Vr.SetCol(i, GradJacobiP(r, 0, 0, i))
+    }
+    return
+}
+
 func gamma0(alpha, beta float64) float64 {
     ab1 := alpha+beta + 1.
     a1 := alpha + 1.
@@ -167,5 +185,3 @@ func gamma1(alpha, beta float64) float64 {
     b1 := beta + 1.
     return a1 * b1 * gamma0(alpha, beta) / (ab+3.0)
 }
-
-

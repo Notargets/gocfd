@@ -29,10 +29,11 @@ func main() {
         panic("error inverting V")
     }
     fmt.Printf("Vinv = \n%v\n", mat.Formatted(Vinv, mat.Squeeze()))
-    /*
-    Dr := Vr.Mul(Vinv)
+    Vr := DG1D.GradVandermonde1D(R, N)
+    fmt.Printf("Vr = \n%v\n", mat.Formatted(Vr, mat.Squeeze()))
+    Dr := mat.NewDense(N+1, N+1, nil)
+    Dr.Mul(Vr, Vinv)
     fmt.Printf("Dr = \n%v\n", mat.Formatted(Dr, mat.Squeeze()))
-     */
 }
 
 func SimpleMesh1D(xmin, xmax float64, K int) (VX *mat.VecDense, EToV *mat.Dense) {
