@@ -7,19 +7,29 @@ import (
     "math"
 )
 
+const (
+    NODETOL = 1.e-12
+)
 func main() {
     var (
-        K int
+        K, N, Nfp, NFaces int
     )
     K = 10
+    N = 8
+    Nfp = 1
+    NFaces = 2
+    _, _ = Nfp, NFaces
     VX, EToV := SimpleMesh1D(0, 2, K)
     fmt.Printf("VX = \n%v\n", mat.Formatted(VX.T(), mat.Squeeze()))
     fmt.Printf("EToV = \n%v\n", mat.Formatted(EToV.T(), mat.Squeeze()))
-    J, x, W, Vr := JacobiGQ(1, 1, 6, false)
+
+    J, Vr, R, W := JacobiGL(0, 0, N)
     fmt.Printf("J = \n%v\n", mat.Formatted(J, mat.Squeeze()))
-    fmt.Printf("x = \n%v\n", mat.Formatted(x, mat.Squeeze()))
+    fmt.Printf("R = \n%v\n", mat.Formatted(R, mat.Squeeze()))
     fmt.Printf("Vr = \n%v\n", mat.Formatted(Vr, mat.Squeeze()))
     fmt.Printf("W = \n%v\n", mat.Formatted(W, mat.Squeeze()))
+    V := Vandermonde1D(N, R)
+    fmt.Printf("V = \n%v\n", mat.Formatted(V, mat.Squeeze()))
 }
 
 func SimpleMesh1D(xmin, xmax float64, K int) (VX *mat.VecDense, EToV *mat.Dense) {
@@ -40,24 +50,38 @@ func SimpleMesh1D(xmin, xmax float64, K int) (VX *mat.VecDense, EToV *mat.Dense)
     return mat.NewVecDense(K+1, x), mat.NewDense(K, 2, elementVertex)
 }
 
-/*
-func JacobiGL(alpha, beta float64, N int) (X *mat.VecDense){
+func JacobiGL(alpha, beta float64, N int) (J, Vr mat.Matrix, X, W *mat.VecDense){
     var (
         x = make([]float64, N+1)
+        xint mat.Vector
     )
+    if N == 1 {
+        x[0] = -1
+        x[1] = 1
+        return nil, nil, mat.NewVecDense(N+1, x), nil
+    }
+    J, Vr, xint, W = JacobiGQ(alpha + 1, beta + 1, N-2)
+    x[0] = -1
+    x[N] = 1
+    var iter int
+    for i:=1; i<N; i++ {
+        x[i] = xint.AtVec(iter)
+        iter++
+    }
+    X = mat.NewVecDense(len(x), x)
+    return
 }
- */
 
-func JacobiGQ(alpha, beta float64, N int, doSort bool) (J *mat.SymDense, X, W mat.Vector, Vr *mat.Dense) {
+func JacobiGQ(alpha, beta float64, N int) (J, Vr mat.Matrix, X, W *mat.VecDense) {
     var (
         x, w []float64
-        ab1, a1, b1, fac float64
+        fac float64
         h1, d0, d1 []float64
     )
     if N == 0 {
         x = []float64{-(alpha-beta)/(alpha+beta+2.)}
         w = []float64{2.}
-        return nil, mat.NewVecDense(1, x), mat.NewVecDense(1, w), nil
+        return nil, nil, mat.NewVecDense(1, x), mat.NewVecDense(1, w)
     }
 
     h1 = make([]float64, N+1)
@@ -89,24 +113,108 @@ func JacobiGQ(alpha, beta float64, N int, doSort bool) (J *mat.SymDense, X, W ma
         d1[i] *= math.Sqrt(ip1*(ip1+alpha+beta)*(ip1+alpha)*(ip1+beta)/((val+1.)*(val+3.)))
     }
 
-    J = utils.NewSymTriDiagonal(d0, d1)
+    JJ := utils.NewSymTriDiagonal(d0, d1)
 
     var eig mat.EigenSym
-    ok := eig.Factorize(J, true)
+    ok := eig.Factorize(JJ, true)
     if !ok {
         panic("eigenvalue decomposition failed")
     }
     x = eig.Values(x)
     X = mat.NewVecDense(N+1, x)
 
-    Vr = mat.NewDense(len(x), len(x), nil)
-    eig.VectorsTo(Vr)
-    W = utils.SquareVector(Vr.RowView(0))
-    ab1 = alpha+beta + 1.
-    a1 = alpha + 1.
-    b1 = beta + 1.
-    fac = math.Gamma(a1)*math.Gamma(b1)*math.Pow(2, ab1) / ab1 / math.Gamma(ab1)
-    W = utils.VecScalarMult(fac, W)
+    VVr := mat.NewDense(len(x), len(x), nil)
+    eig.VectorsTo(VVr)
+    W = utils.SquareVector(VVr.RowView(0))
+    W = utils.VecScalarMult(gamma0(alpha, beta), W)
 
-    return J, X, W, Vr
+    return JJ, VVr, X, W
+}
+
+func Vandermonde1D(N int, R *mat.VecDense) (V *mat.Dense) {
+    V = mat.NewDense(R.Len(), N+1, nil)
+    for j:=0; j<N+1; j++ {
+        //JP := JacobiP(R, 0, 0, j)
+        //for i:=0; i<len(JP); i++ {
+        //    fmt.Printf("JP[%d] = \n%v\n", i, JP[i])
+        //}
+        V.SetCol(j, JacobiP(R, 0, 0, j))
+    }
+    return
+}
+
+func JacobiP(r *mat.VecDense, alpha, beta float64, N int) (p []float64){
+    var (
+        Nc = r.Len()
+    )
+    rg := 1./math.Sqrt(gamma0(alpha, beta))
+    if N == 0 {
+       p = constArray(rg, Nc)
+       return
+    }
+    Np1 := N+1
+    pl := make([]float64, Np1*Nc)
+    var iter int
+    for i:=0; i<Nc; i++ {
+        pl[i+iter] = rg
+    }
+
+    iter += Nc // Increment to next row
+    ab := alpha+beta
+    rg1 := 1. / math.Sqrt(gamma1(alpha, beta))
+    for i:=0; i<Nc; i++ {
+        pl[i+iter] = rg1 * ((ab+2.0)*r.AtVec(i)/2.0 + (alpha-beta)/2.0)
+    }
+
+    if N == 1 {
+        p = pl[iter:iter+Nc]
+        return
+    }
+
+    a1 := alpha + 1.
+    b1 := beta + 1.
+    ab1 := ab + 1.
+    aold := 2.0*math.Sqrt(a1*b1/(ab+3.0))/(ab+2.0)
+    PL := mat.NewDense(Np1, Nc, pl)
+    var xrow []float64
+    for i:=0; i<N-1; i++ {
+        ip1 := float64(i+1)
+        ip2 := float64(ip1+1)
+        h1 := 2.0*ip1 + ab
+        anew := 2.0/(h1+2.0)*math.Sqrt(ip2*(ip1+ab1)*(ip1+a1)*(ip1+b1)/(h1+1.0)/(h1+3.0))
+        bnew := - (alpha*alpha - beta*beta)/h1/(h1+2.0)
+        x_bnew := utils.VecConst(-bnew, r.Len())
+        x_bnew.AddVec(x_bnew, r)
+        xi := PL.RawRowView(i)
+        xip1 := PL.RawRowView(i+1)
+        xrow = make([]float64, len(xi))
+        for j := range xi {
+            xrow[j] = 1./(anew*(-aold*xi[j] + x_bnew.AtVec(j)*xip1[j]))
+        }
+        PL.SetRow(i+2, xrow)
+        aold = anew
+    }
+    p = PL.RawRowView(N)
+    return
+}
+
+func gamma0(alpha, beta float64) float64 {
+    ab1 := alpha+beta + 1.
+    a1 := alpha + 1.
+    b1 := beta + 1.
+    return math.Gamma(a1)*math.Gamma(b1)*math.Pow(2, ab1) / ab1 / math.Gamma(ab1)
+}
+func gamma1(alpha, beta float64) float64 {
+    ab := alpha+beta
+    a1 := alpha + 1.
+    b1 := beta + 1.
+    return a1 * b1 * gamma0(alpha, beta) / (ab+3.0)
+}
+
+func constArray(val float64, N int) (v []float64) {
+    v = make([]float64, N)
+    for i := range v {
+        v[i] = val
+    }
+    return
 }

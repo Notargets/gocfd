@@ -2,40 +2,6 @@ package utils
 
 import "gonum.org/v1/gonum/mat"
 
-func VecRange(min, max int) (V *mat.VecDense){
-    var (
-        N int = max - min + 1
-        x = make([]float64, N)
-    )
-    for i:=min; i<=max; i++ {
-        x[i] = float64(i)
-    }
-    V = mat.NewVecDense(N, x)
-    return
-}
-
-func VecConst(val float64, N int) (V mat.Vector){
-    var (
-        x = make([]float64, N)
-    )
-    for i:=0; i<N; i++ {
-        x[i] = val
-    }
-    V = mat.NewVecDense(N, x)
-    return
-}
-
-func VecScalarMult(a float64, v mat.Vector) (vo mat.Vector) {
-    var (
-        d = make([]float64, v.Len())
-        N = v.Len()
-    )
-    for i:=0; i<N; i++ {
-        val := v.AtVec(i)
-        d[i] = val*a
-    }
-    return mat.NewVecDense(N,d)
-}
 
 func NewTriDiagonal(d0, d1, dm1 []float64) (Tri *mat.Dense) {
     dd := make([]float64, len(d0)*len(d0))
@@ -77,16 +43,4 @@ func NewSymTriDiagonal(d0, d1 []float64) (Tri *mat.SymDense) {
     }
     Tri = mat.NewSymDense(len(d0), dd)
     return
-}
-
-func SquareVector(v mat.Vector) (vo mat.Vector) {
-    var (
-        d = make([]float64, v.Len())
-        N = v.Len()
-    )
-    for i:=0; i<N; i++ {
-        val := v.AtVec(i)
-        d[i] = val*val
-    }
-    return mat.NewVecDense(N,d)
 }
