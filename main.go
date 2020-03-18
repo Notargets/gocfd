@@ -32,8 +32,10 @@ func main() {
     Vr := DG1D.GradVandermonde1D(R, N)
     fmt.Printf("Vr = \n%v\n", mat.Formatted(Vr, mat.Squeeze()))
     Dr := mat.NewDense(N+1, N+1, nil)
-    Dr.Mul(Vr, Vinv)
+    Dr.Product(Vr, Vinv)
     fmt.Printf("Dr = \n%v\n", mat.Formatted(Dr, mat.Squeeze()))
+    LIFT := DG1D.Lift1D(V, N+1, NFaces, Nfp)
+    fmt.Printf("LIFT = \n%v\n", mat.Formatted(LIFT, mat.Squeeze()))
 }
 
 func SimpleMesh1D(xmin, xmax float64, K int) (VX *mat.VecDense, EToV *mat.Dense) {
