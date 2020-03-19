@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/notargets/gophys/DG1D"
-	"github.com/notargets/gophys/utils"
+	"github.com/notargets/gofluids/DG1D"
+	"github.com/notargets/gofluids/utils"
 	"gonum.org/v1/gonum/mat"
 )
 

@@ -3,7 +3,7 @@ package DG1D
 import (
 	"math"
 
-	"github.com/notargets/gophys/utils"
+	"github.com/notargets/gofluids/utils"
 	"gonum.org/v1/gonum/mat"
 )
 

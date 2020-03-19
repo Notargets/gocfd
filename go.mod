@@ -1,4 +1,4 @@
-module github.com/notargets/gophys
+module github.com/notargets/gofluids
 
 go 1.14
 
