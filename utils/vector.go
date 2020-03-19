@@ -40,14 +40,14 @@ func VecScalarMult(a float64, v mat.Vector) (vo *mat.VecDense) {
     return mat.NewVecDense(N,d)
 }
 
-func VecScalarAdd(a float64, v mat.Vector) (vo *mat.VecDense) {
+func VecScalarAdd(v *mat.VecDense, a float64) (vo *mat.VecDense) {
     var (
+        dO = v.RawVector().Data
         d = make([]float64, v.Len())
         N = v.Len()
     )
     for i:=0; i<N; i++ {
-        val := v.AtVec(i)
-        d[i] = val+a
+        d[i] = dO[i]+a
     }
     return mat.NewVecDense(N,d)
 }
@@ -64,7 +64,7 @@ func VecAbs(v mat.Vector) (vo *mat.VecDense) {
     return mat.NewVecDense(N,d)
 }
 
-func SquareVector(v mat.Vector) (vo *mat.VecDense) {
+func VecSquare(v mat.Vector) (vo *mat.VecDense) {
     var (
         d = make([]float64, v.Len())
         N = v.Len()
@@ -76,7 +76,7 @@ func SquareVector(v mat.Vector) (vo *mat.VecDense) {
     return mat.NewVecDense(N,d)
 }
 
-func SubVector(V, VI mat.Vector) (R *mat.VecDense) {
+func VecSub(V, VI mat.Vector) (R *mat.VecDense) {
     // vI should contain a list of indices into v
     var (
         n = VI.Len()
@@ -94,11 +94,86 @@ func SubVector(V, VI mat.Vector) (R *mat.VecDense) {
     return
 }
 
-func GetFloat64(v *mat.VecDense) (f []float64) {
-    f = make([]float64, v.Len())
-    for i:=0; i<v.Len(); i++ {
-        f[i] = v.AtVec(i)
+type EvalOp uint8
+
+const (
+    Equal EvalOp = iota
+    Less
+    Greater
+    LessOrEqual
+    GreaterOrEqual
+)
+
+func VecFind(v *mat.VecDense, op EvalOp, target float64, abs bool) (r *mat.VecDense){
+    var (
+        vD = v.RawVector().Data
+        rD []float64
+    )
+    switch op {
+    case Equal:
+        for i, val := range vD {
+            if abs {
+                val = math.Abs(val)
+            }
+            if val == target {
+                rD = append(rD, float64(i))
+            }
+        }
+    case Less:
+        for i, val := range vD {
+            if abs {
+                val = math.Abs(val)
+            }
+            if val < target {
+                rD = append(rD, float64(i))
+            }
+        }
+    case Greater:
+        for i, val := range vD {
+            if abs {
+                val = math.Abs(val)
+            }
+            if val > target {
+                rD = append(rD, float64(i))
+            }
+        }
+    case LessOrEqual:
+        for i, val := range vD {
+            if abs {
+                val = math.Abs(val)
+            }
+            if val <= target {
+                rD = append(rD, float64(i))
+            }
+        }
+    case GreaterOrEqual:
+        for i, val := range vD {
+            if abs {
+                val = math.Abs(val)
+            }
+            if val >= target {
+                rD = append(rD, float64(i))
+            }
+        }
     }
+    r = mat.NewVecDense(len(rD), rD)
     return
 }
 
+func VecConcat(v1, v2 *mat.VecDense) (r *mat.VecDense){
+    var (
+        v1D = v1.RawVector().Data
+        v2D = v2.RawVector().Data
+        N = len(v1D)+len(v2D)
+        rD = make([]float64, N)
+    )
+    for i, val := range v1D {
+        rD[i] = val
+    }
+    offset := len(v1D)
+    for i, val := range v2D {
+        rD[i+offset] = val
+    }
+    r = mat.NewVecDense(N, rD)
+    return
+}

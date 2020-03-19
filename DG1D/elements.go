@@ -82,7 +82,7 @@ func JacobiGQ(alpha, beta float64, N int) (J *mat.SymDense, X, W *mat.VecDense) 
 
     VVr = mat.NewDense(len(x), len(x), nil)
     eig.VectorsTo(VVr)
-    W = utils.SquareVector(VVr.RowView(0))
+    W = utils.VecSquare(VVr.RowView(0))
     W = utils.VecScalarMult(gamma0(alpha, beta), W)
 
     return JJ, X, W

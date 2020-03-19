@@ -56,14 +56,14 @@ func Startup1D() {
     va := EToV.ColView(0)
     vb := EToV.ColView(1)
     sT := mat.NewVecDense(va.Len(), nil)
-    sT.SubVec(utils.SubVector(VX, vb), utils.SubVector(VX, va))
+    sT.SubVec(utils.VecSub(VX, vb), utils.VecSub(VX, va))
 
     // x = ones(Np)*VX(va) + 0.5*(r+1.)*sT(vc);
     ones := utils.VecConst(1, Np)
     mm := mat.NewDense(Np, K, nil)
-    mm.Mul(ones, utils.SubVector(VX, va).T())
+    mm.Mul(ones, utils.VecSub(VX, va).T())
 
-    rr := utils.VecScalarAdd(1, mat.VecDenseCopyOf(R))
+    rr := utils.VecScalarAdd(mat.VecDenseCopyOf(R), 1)
     rr.ScaleVec(0.5, rr)
     X := mat.NewDense(Np, K, nil)
     X.Mul(rr, sT.T())
@@ -71,5 +71,12 @@ func Startup1D() {
     fmt.Printf("X = \n%v\n", mat.Formatted(X, mat.Squeeze()))
 
     JJ, Rx := DG1D.GeometricFactors1D(Dr, X)
-    _, _, _, _, _, _, _, _, _ = VX, EToV, J, W, LIFT, NX, X, JJ, Rx
+
+    fmask1 := utils.VecFind(utils.VecScalarAdd(R, 1), utils.Less, NODETOL, true)
+    fmask2 := utils.VecFind(utils.VecScalarAdd(R, -1), utils.Less, NODETOL, true)
+
+    FMask := utils.VecConcat(fmask1, fmask2)
+    fmt.Printf("FMask = \n%v\n", mat.Formatted(FMask, mat.Squeeze()))
+
+    _, _, _, _, _, _, _, _, _, _ = VX, EToV, J, W, LIFT, NX, X, JJ, Rx, FMask
 }
