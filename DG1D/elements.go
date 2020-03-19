@@ -202,3 +202,22 @@ func GeometricFactors1D(Dr, X *mat.Dense) (J, Rx *mat.Dense) {
 	Rx = utils.MatElementInvert(J)
 	return
 }
+
+func Connect1D(EToV *mat.Dense) (EToE, EToF *mat.Dense) {
+	var (
+		NFaces     = 2
+		K, _       = EToV.Dims()
+		Nv         = K + 1
+		TotalFaces = NFaces * K
+		vn         = mat.NewVecDense(2, []float64{0, 1}) // local face to vertex connections
+	)
+	_, _, _ = Nv, TotalFaces, vn
+	return
+}
+
+func BuildMaps1D(VX, FMask *mat.VecDense,
+	EToV, EToE, EToF *mat.Dense,
+	K, Np, Nfp, NFaces int,
+	NODETOL float64) (mapM, mapP, vmapM, vmapP, mapB, vmapB *mat.Dense) {
+	return
+}

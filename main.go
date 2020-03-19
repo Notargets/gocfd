@@ -79,5 +79,13 @@ func Startup1D() {
 	JJ := utils.MatSubRow(J, FMask)
 	FScale := utils.MatElementInvert(JJ)
 
-	_, _, _, _, _, _, _, _, _, _, _ = VX, EToV, J, W, LIFT, NX, X, JJ, Rx, Fx, FScale
+	EToE, EToF := DG1D.Connect1D(EToV)
+
+	mapM, mapP, vmapM, vmapP, mapB, vmapB :=
+		DG1D.BuildMaps1D(VX, FMask,
+			EToV, EToE, EToF,
+			K, Np, Nfp, NFaces,
+			NODETOL)
+	_, _, _, _, _, _, _, _, _, _, _, _, _ = VX, EToV, J, W, LIFT, NX, X, JJ, Rx, Fx, FScale, EToE, EToF
+	_, _, _, _, _, _ = mapM, mapP, vmapM, vmapP, mapB, vmapB
 }
