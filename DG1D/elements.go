@@ -191,3 +191,13 @@ func Normals1D(Nfaces, Nfp, K int) (NX *mat.Dense) {
     NX = mat.NewDense(Nfp*Nfaces, K, nx)
     return
 }
+
+func GeometricFactors1D(Dr, X *mat.Dense) (J, Rx *mat.Dense) {
+    var (
+        xd, xs int = X.Dims()
+    )
+    J = mat.NewDense(xd, xs, nil)
+    J.Product(Dr,X)
+    Rx = utils.MatElementInvert(J)
+    return
+}

@@ -70,5 +70,6 @@ func Startup1D() {
     X.Add(X, mm)
     fmt.Printf("X = \n%v\n", mat.Formatted(X, mat.Squeeze()))
 
-    _, _, _, _, _, _, _ = VX, EToV, J, W, LIFT, NX, X
+    JJ, Rx := DG1D.GeometricFactors1D(Dr, X)
+    _, _, _, _, _, _, _, _, _ = VX, EToV, J, W, LIFT, NX, X, JJ, Rx
 }
