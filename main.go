@@ -3,6 +3,7 @@ package main
 import (
     "fmt"
     "github.com/notargets/gophys/DG1D"
+    "github.com/notargets/gophys/utils"
     "gonum.org/v1/gonum/mat"
 )
 
@@ -50,7 +51,24 @@ func Startup1D() {
     Dr.Product(Vr, Vinv)
     LIFT := DG1D.Lift1D(V, Np, NFaces, Nfp)
     NX := DG1D.Normals1D(NFaces, Nfp, K)
-    fmt.Printf("LIFT = \n%v\n", mat.Formatted(LIFT, mat.Squeeze()))
 
-    _, _, _, _, _, _ = VX, EToV, J, W, LIFT, NX
+    //fmt.Printf("LIFT = \n%v\n", mat.Formatted(LIFT, mat.Squeeze()))
+    va := EToV.ColView(0)
+    vb := EToV.ColView(1)
+    sT := mat.NewVecDense(va.Len(), nil)
+    sT.SubVec(utils.SubVector(VX, vb), utils.SubVector(VX, va))
+
+    // x = ones(Np)*VX(va) + 0.5*(r+1.)*sT(vc);
+    ones := utils.VecConst(1, Np)
+    mm := mat.NewDense(Np, K, nil)
+    mm.Mul(ones, utils.SubVector(VX, va).T())
+
+    rr := utils.VecScalarAdd(1, mat.VecDenseCopyOf(R))
+    rr.ScaleVec(0.5, rr)
+    X := mat.NewDense(Np, K, nil)
+    X.Mul(rr, sT.T())
+    X.Add(X, mm)
+    fmt.Printf("X = \n%v\n", mat.Formatted(X, mat.Squeeze()))
+
+    _, _, _, _, _, _, _ = VX, EToV, J, W, LIFT, NX, X
 }
