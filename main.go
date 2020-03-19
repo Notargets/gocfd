@@ -42,7 +42,7 @@ func SimpleMesh1D(xmin, xmax float64, K int) (VX *mat.VecDense, EToV *mat.Dense)
 func Startup1D() {
 	VX, EToV := SimpleMesh1D(0, 2, K)
 
-	J, R, W := DG1D.JacobiGL(0, 0, N)
+	_, R, W := DG1D.JacobiGL(0, 0, N)
 	V := DG1D.Vandermonde1D(N, R)
 	Vinv := mat.NewDense(Np, Np, nil)
 	if err := Vinv.Inverse(V); err != nil {
@@ -52,6 +52,7 @@ func Startup1D() {
 	Dr := mat.NewDense(Np, Np, nil)
 	Dr.Product(Vr, Vinv)
 	LIFT := DG1D.Lift1D(V, Np, NFaces, Nfp)
+
 	NX := DG1D.Normals1D(NFaces, Nfp, K)
 
 	//fmt.Printf("LIFT = \n%v\n", mat.Formatted(LIFT, mat.Squeeze()))
@@ -72,7 +73,7 @@ func Startup1D() {
 	X.Add(X, mm)
 	fmt.Printf("X = \n%v\n", mat.Formatted(X, mat.Squeeze()))
 
-	JJ, Rx := DG1D.GeometricFactors1D(Dr, X)
+	J, Rx := DG1D.GeometricFactors1D(Dr, X)
 
 	fmask1 := utils.VecFind(utils.VecScalarAdd(R, 1), utils.Less, NODETOL, true)
 	fmask2 := utils.VecFind(utils.VecScalarAdd(R, -1), utils.Less, NODETOL, true)
@@ -81,6 +82,9 @@ func Startup1D() {
 
 	Fx := utils.MatSubRow(X, FMask)
 	fmt.Printf("Fx = \n%v\n", mat.Formatted(Fx, mat.Squeeze()))
+
+	JJ := utils.MatSubRow(J, FMask)
+	fmt.Printf("JJ = \n%v\n", mat.Formatted(JJ, mat.Squeeze()))
 
 	_, _, _, _, _, _, _, _, _, _ = VX, EToV, J, W, LIFT, NX, X, JJ, Rx, Fx
 }
