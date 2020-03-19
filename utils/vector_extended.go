@@ -1,8 +1,8 @@
 package utils
 
 import (
-    "gonum.org/v1/gonum/blas/blas64"
-    "gonum.org/v1/gonum/mat"
+	"gonum.org/v1/gonum/blas/blas64"
+	"gonum.org/v1/gonum/mat"
 )
 
 // Row is a user-defined Row vector.
@@ -15,7 +15,7 @@ func (v Row) T() mat.Matrix       { return Column(v) }
 
 // RawVector allows fast path computation with the vector.
 func (v Row) RawVector() blas64.Vector {
-    return blas64.Vector{N: len(v), Data: v, Inc: 1}
+	return blas64.Vector{N: len(v), Data: v, Inc: 1}
 }
 
 // Column is a user-defined Column vector.
@@ -28,5 +28,5 @@ func (v Column) T() mat.Matrix       { return Row(v) }
 
 // RawVector allows fast path computation with the vector.
 func (v Column) RawVector() blas64.Vector {
-    return blas64.Vector{N: len(v), Data: v, Inc: 1}
+	return blas64.Vector{N: len(v), Data: v, Inc: 1}
 }
