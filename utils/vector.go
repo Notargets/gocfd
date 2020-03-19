@@ -177,3 +177,11 @@ func VecConcat(v1, v2 *mat.VecDense) (r *mat.VecDense){
     r = mat.NewVecDense(N, rD)
     return
 }
+
+func VecGetF64(v mat.Vector) (r []float64) {
+    r = make([]float64, v.Len())
+    for i:=0; i<v.Len(); i++ {
+       r[i] = v.AtVec(i)
+    }
+    return
+}

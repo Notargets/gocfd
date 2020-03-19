@@ -76,7 +76,9 @@ func Startup1D() {
     fmask2 := utils.VecFind(utils.VecScalarAdd(R, -1), utils.Less, NODETOL, true)
 
     FMask := utils.VecConcat(fmask1, fmask2)
-    fmt.Printf("FMask = \n%v\n", mat.Formatted(FMask, mat.Squeeze()))
 
-    _, _, _, _, _, _, _, _, _, _ = VX, EToV, J, W, LIFT, NX, X, JJ, Rx, FMask
+    Fx := utils.MatSubRow(X, FMask)
+    fmt.Printf("Fx = \n%v\n", mat.Formatted(Fx, mat.Squeeze()))
+
+    _, _, _, _, _, _, _, _, _, _ = VX, EToV, J, W, LIFT, NX, X, JJ, Rx, Fx
 }
