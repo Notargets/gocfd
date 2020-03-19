@@ -85,6 +85,8 @@ func Startup1D() {
 
 	JJ := utils.MatSubRow(J, FMask)
 	fmt.Printf("JJ = \n%v\n", mat.Formatted(JJ, mat.Squeeze()))
+	FScale := utils.MatElementInvert(JJ)
+	fmt.Printf("FScale = \n%v\n", mat.Formatted(FScale, mat.Squeeze()))
 
-	_, _, _, _, _, _, _, _, _, _ = VX, EToV, J, W, LIFT, NX, X, JJ, Rx, Fx
+	_, _, _, _, _, _, _, _, _, _, _ = VX, EToV, J, W, LIFT, NX, X, JJ, Rx, Fx, FScale
 }
