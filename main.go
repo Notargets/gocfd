@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/notargets/gophys/DG1D"
 	"github.com/notargets/gophys/utils"
 	"gonum.org/v1/gonum/mat"
@@ -71,22 +69,15 @@ func Startup1D() {
 	X := mat.NewDense(Np, K, nil)
 	X.Mul(rr, sT.T())
 	X.Add(X, mm)
-	fmt.Printf("X = \n%v\n", mat.Formatted(X, mat.Squeeze()))
 
 	J, Rx := DG1D.GeometricFactors1D(Dr, X)
 
 	fmask1 := utils.VecFind(utils.VecScalarAdd(R, 1), utils.Less, NODETOL, true)
 	fmask2 := utils.VecFind(utils.VecScalarAdd(R, -1), utils.Less, NODETOL, true)
-
 	FMask := utils.VecConcat(fmask1, fmask2)
-
 	Fx := utils.MatSubRow(X, FMask)
-	fmt.Printf("Fx = \n%v\n", mat.Formatted(Fx, mat.Squeeze()))
-
 	JJ := utils.MatSubRow(J, FMask)
-	fmt.Printf("JJ = \n%v\n", mat.Formatted(JJ, mat.Squeeze()))
 	FScale := utils.MatElementInvert(JJ)
-	fmt.Printf("FScale = \n%v\n", mat.Formatted(FScale, mat.Squeeze()))
 
 	_, _, _, _, _, _, _, _, _, _, _ = VX, EToV, J, W, LIFT, NX, X, JJ, Rx, Fx, FScale
 }
