@@ -74,3 +74,18 @@ func MatSubCol(MI mat.Matrix, ColIndices *mat.VecDense) (R *mat.Dense) {
 	}
 	return
 }
+
+func MatFind(MI mat.Matrix, val float64) (rowInd, colInd []int) {
+	var (
+		rows, cols = MI.Dims()
+	)
+	for i := 0; i < rows; i++ {
+		for j := 0; j < cols; j++ {
+			if MI.At(i, j) == val {
+				rowInd = append(rowInd, i)
+				colInd = append(colInd, j)
+			}
+		}
+	}
+	return
+}

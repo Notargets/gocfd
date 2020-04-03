@@ -233,7 +233,10 @@ func Connect1D(EToV *mat.Dense) (EToE, EToF *mat.Dense) {
 	}
 	fmt.Printf("SpFToV = \n%v\n", mat.Formatted(SpFToV.T(), mat.Squeeze()))
 	fmt.Printf("SpFToF = \n%v\n", mat.Formatted(SpFToF.T(), mat.Squeeze()))
-	_ = SpFToV
+	faces1, faces2 := utils.MatFind(SpFToF, 1)
+	_, _ = faces1, faces2
+	fmt.Printf("faces1 = %v\n", faces1)
+	fmt.Printf("faces2 = %v\n", faces2)
 	return
 }
 
