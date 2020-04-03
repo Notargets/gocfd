@@ -1,6 +1,7 @@
 package DG1D
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/james-bowman/sparse"
@@ -214,7 +215,24 @@ func Connect1D(EToV *mat.Dense) (EToE, EToF *mat.Dense) {
 	)
 	_, _, _ = Nv, TotalFaces, vn
 
-	SpFToV := sparse.NewDOK(3, 2)
+	SpFToV_Tmp := sparse.NewDOK(TotalFaces, Nv)
+	var sk int
+	for k := 0; k < K; k++ {
+		for face := 0; face < NFaces; face++ {
+			col := int(vn.AtVec(face))
+			SpFToV_Tmp.Set(sk, int(EToV.At(k, col)), 1)
+			sk++
+		}
+	}
+	SpFToF := sparse.NewCSR(TotalFaces, TotalFaces, nil, nil, nil)
+	SpFToV := SpFToV_Tmp.ToCSR()
+	SpFToF.Mul(SpFToV, SpFToV.T())
+	for i := 0; i < TotalFaces; i++ {
+		v := SpFToF.At(i, i)
+		SpFToF.Set(i, i, v-2)
+	}
+	fmt.Printf("SpFToV = \n%v\n", mat.Formatted(SpFToV.T(), mat.Squeeze()))
+	fmt.Printf("SpFToF = \n%v\n", mat.Formatted(SpFToF.T(), mat.Squeeze()))
 	_ = SpFToV
 	return
 }

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/notargets/gocfd/DG1D"
 	"github.com/notargets/gocfd/utils"
 	"gonum.org/v1/gonum/mat"
@@ -86,6 +88,7 @@ func Startup1D() {
 			EToV, EToE, EToF,
 			K, Np, Nfp, NFaces,
 			NODETOL)
+	fmt.Printf("EToV = \n%v\n", mat.Formatted(EToV.T(), mat.Squeeze()))
 	_, _, _, _, _, _, _, _, _, _, _, _, _ = VX, EToV, J, W, LIFT, NX, X, JJ, Rx, Fx, FScale, EToE, EToF
 	_, _, _, _, _, _ = mapM, mapP, vmapM, vmapP, mapB, vmapB
 }
