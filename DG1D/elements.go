@@ -237,6 +237,20 @@ func Connect1D(EToV *mat.Dense) (EToE, EToF *mat.Dense) {
 	_, _ = faces1, faces2
 	fmt.Printf("faces1 = %v\n", faces1)
 	fmt.Printf("faces2 = %v\n", faces2)
+	//IVec element1 = floor( (faces1-1)/ Nfaces ) + 1;
+	//IVec face1    =   mod( (faces1-1), Nfaces ) + 1;
+	element1 := faces1.ApplyFunc(func(val int) int { return val / NFaces })
+	face1 := faces1.ApplyFunc(func(val int) int { return int(math.Mod(float64(val), float64(NFaces))) })
+	fmt.Printf("element1 = %v\n", element1)
+	fmt.Printf("face1 = %v\n", face1)
+	_, _ = face1, element1
+	//IVec element2 = floor( (faces2-1)/ Nfaces ) + 1;
+	//IVec face2    =   mod( (faces2-1), Nfaces ) + 1;
+	element2 := faces2.ApplyFunc(func(val int) int { return val / NFaces })
+	face2 := faces2.ApplyFunc(func(val int) int { return int(math.Mod(float64(val), float64(NFaces))) })
+	_, _ = face2, element2
+	fmt.Printf("element2 = %v\n", element2)
+	fmt.Printf("face2 = %v\n", face2)
 	return
 }
 
