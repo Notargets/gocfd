@@ -1,2 +1,2 @@
-gofluids:
+gocfd:
 	go fmt ./...  && go install ./...

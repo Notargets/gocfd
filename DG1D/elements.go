@@ -3,7 +3,8 @@ package DG1D
 import (
 	"math"
 
-	"github.com/notargets/gofluids/utils"
+	"github.com/james-bowman/sparse"
+	"github.com/notargets/gocfd/utils"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -212,6 +213,9 @@ func Connect1D(EToV *mat.Dense) (EToE, EToF *mat.Dense) {
 		vn         = mat.NewVecDense(2, []float64{0, 1}) // local face to vertex connections
 	)
 	_, _, _ = Nv, TotalFaces, vn
+
+	SpFToV := sparse.NewDOK(3, 2)
+	_ = SpFToV
 	return
 }
 
