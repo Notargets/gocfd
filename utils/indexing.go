@@ -1,8 +1,17 @@
 package utils
 
-import "gonum.org/v1/gonum/mat"
+import (
+	"fmt"
+
+	"gonum.org/v1/gonum/mat"
+)
 
 type Index []int
+
+func NewRangeOffset(rmin, rmax int) (r Index) {
+	// Input range is "1 based" and converted to zero based index
+	return NewRange(rmin-1, rmax-1)
+}
 
 func NewRange(rmin, rmax int) (r Index) {
 	var (
@@ -47,5 +56,30 @@ func (I Index) Outer(J Index) (A *mat.Dense) {
 		}
 	}
 	A = mat.NewDense(ni, nj, data)
+	return
+}
+
+func (I Index) IndexedAssign(J, Val Index) (err error) {
+	var (
+		nr = len(I)
+		N  = len(J)
+	)
+	switch {
+	case N != len(Val):
+		err = fmt.Errorf("dimension mismatch: index and values should have the same length")
+		return
+	}
+	for i, val := range Val {
+		ji := J[i]
+		switch {
+		case ji < 0:
+			err = fmt.Errorf("dimension bounds error, row index < 0: ji = %v\n", ji)
+			return
+		case ji > nr-1:
+			err = fmt.Errorf("dimension bounds error, row index > max: ji = %v\n", ji)
+			return
+		}
+		I[ji] = val
+	}
 	return
 }
