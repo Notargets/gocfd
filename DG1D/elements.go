@@ -1,7 +1,6 @@
 package DG1D
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/james-bowman/sparse"
@@ -231,26 +230,42 @@ func Connect1D(EToV *mat.Dense) (EToE, EToF *mat.Dense) {
 		v := SpFToF.At(i, i)
 		SpFToF.Set(i, i, v-2)
 	}
-	fmt.Printf("SpFToV = \n%v\n", mat.Formatted(SpFToV.T(), mat.Squeeze()))
-	fmt.Printf("SpFToF = \n%v\n", mat.Formatted(SpFToF.T(), mat.Squeeze()))
+	//fmt.Printf("SpFToV = \n%v\n", mat.Formatted(SpFToV.T(), mat.Squeeze()))
+	//fmt.Printf("SpFToF = \n%v\n", mat.Formatted(SpFToF.T(), mat.Squeeze()))
 	faces1, faces2 := utils.MatFind(SpFToF, 1)
-	_, _ = faces1, faces2
-	fmt.Printf("faces1 = %v\n", faces1)
-	fmt.Printf("faces2 = %v\n", faces2)
-	//IVec element1 = floor( (faces1-1)/ Nfaces ) + 1;
-	//IVec face1    =   mod( (faces1-1), Nfaces ) + 1;
+	/*
+		IVec element1 = floor( (faces1-1)/ Nfaces ) + 1;
+		IVec face1    =   mod( (faces1-1), Nfaces ) + 1;
+	*/
 	element1 := faces1.ApplyFunc(func(val int) int { return val / NFaces })
 	face1 := faces1.ApplyFunc(func(val int) int { return int(math.Mod(float64(val), float64(NFaces))) })
-	fmt.Printf("element1 = %v\n", element1)
-	fmt.Printf("face1 = %v\n", face1)
-	_, _ = face1, element1
-	//IVec element2 = floor( (faces2-1)/ Nfaces ) + 1;
-	//IVec face2    =   mod( (faces2-1), Nfaces ) + 1;
+	/*
+		IVec element2 = floor( (faces2-1)/ Nfaces ) + 1;
+		IVec face2    =   mod( (faces2-1), Nfaces ) + 1;
+	*/
 	element2 := faces2.ApplyFunc(func(val int) int { return val / NFaces })
 	face2 := faces2.ApplyFunc(func(val int) int { return int(math.Mod(float64(val), float64(NFaces))) })
-	_, _ = face2, element2
-	fmt.Printf("element2 = %v\n", element2)
-	fmt.Printf("face2 = %v\n", face2)
+	/*
+	  // Rearrange into Nelements x Nfaces sized arrays
+	  IVec ind = sub2ind(K, Nfaces, element1, face1);
+
+	  EToE = outer(Range(1,K), Ones(Nfaces));
+	  EToF = outer(Ones(K), Range(1,Nfaces));
+
+	  EToE(ind) = element2;
+	  EToF(ind) = face2;
+	*/
+	EToE = utils.NewRange(0, K-1).Outer(utils.NewOnes(NFaces))
+	EToF = utils.NewOnes(K).Outer(utils.NewRange(0, NFaces-1))
+	var err error
+	err = utils.MatIndexedAssign(EToE, element1, face1, element2)
+	if err != nil {
+		panic(err)
+	}
+	err = utils.MatIndexedAssign(EToF, element1, face1, face2)
+	if err != nil {
+		panic(err)
+	}
 	return
 }
 
