@@ -301,24 +301,18 @@ func BuildMaps1D(VX, FMask *mat.VecDense,
 			vmapM(idsL) = nodeids(idsR);  // map face nodes in element k1
 		}
 	*/
-	//vmapM.resize(Nfp*Nfaces*K); vmapP.resize(Nfp*Nfaces*K);
-	//fmt.Printf("FMask = \n%v\n", mat.Formatted(FMask, mat.Squeeze()))
 	var vmapMI = utils.Index(make([]int, Nfp*NFaces*K))
 	idsR := utils.NewFromFloat(FMask.RawVector().Data)
 	for k1 := 0; k1 < K; k1++ {
 		iL1 := k1 * NF
 		iL2 := iL1 + NF
 		idsL := utils.NewRangeOffset(iL1+1, iL2) // sequential indices for element k1
-		//		fmt.Printf("iL1, iL2, idsL, idsR = \n%v, %v, %v\n %v\n", iL1, iL2, idsL, idsR)
 		if err := vmapMI.IndexedAssign(idsL, nodeids.Subset(idsR)); err != nil {
 			panic(err)
 		}
-		//idsR = FMask + k1*Np                // offset Fmask for element k1
-		//vmapM(idsL) = nodeids(idsR)         // map face nodes in element k1
 		idsR.AddInPlace(Np)
 	}
 	fmt.Printf("vmapMI = \n%v\n", vmapMI)
-	//vmapM = mat.NewDense(Nfp*NFaces*K, 1,)
 	/*
 	   DVec one(Nfp, 1.0);
 	   for (k1=1; k1<=K; ++k1) {
