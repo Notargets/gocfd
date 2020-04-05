@@ -21,15 +21,28 @@ func MatElementInvert(M mat.Matrix) (O *mat.Dense) {
 }
 
 func MatSubset(M *mat.Dense, I Index) (r *mat.VecDense) {
-	// Index should contain a list of indices into MI
+	/*
+		Index should contain a list of indices into MI
+		Note: native mat library matrix storage is in column traversal first (row-major) order
+	*/
 	var (
-		Mr   = M.RawMatrix()
-		data = make([]float64, len(I))
+		Mr     = M.RawMatrix()
+		nr, nc = M.Dims()
+		data   = make([]float64, len(I))
 	)
 	for i, ind := range I {
-		data[i] = Mr.Data[ind]
+		data[i] = Mr.Data[RowMajorToColMajor(nr, nc, ind)]
 	}
 	r = mat.NewVecDense(len(I), data)
+	return
+}
+
+func RowMajorToColMajor(nr, nc, ind int) (cind int) {
+	// ind = i + nr * j
+	// ind / nr = 0 + j
+	j := ind / nr
+	i := ind - nr*j
+	cind = j + nc*i
 	return
 }
 

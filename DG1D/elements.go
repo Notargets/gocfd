@@ -3,6 +3,7 @@ package DG1D
 import (
 	"fmt"
 	"math"
+	"os"
 
 	"github.com/james-bowman/sparse"
 	"github.com/notargets/gocfd/utils"
@@ -316,6 +317,7 @@ func BuildMaps1D(VX, FMask *mat.VecDense,
 
 	var one = utils.NewVecConst(Nfp, 1)
 	_ = one
+	//fmt.Printf("X = %v\n", mat.Formatted(X, mat.Squeeze()))
 	for k1 := 0; k1 < K; k1++ {
 		for f1 := 0; f1 < NFaces; f1++ {
 			k2 := int(EToE.At(k1, f1))
@@ -335,9 +337,11 @@ func BuildMaps1D(VX, FMask *mat.VecDense,
 			//fmt.Printf("vidM, vidP = %v, %v\n", vidM, vidP)
 			x1 := utils.MatSubset(X, vidM)
 			x2 := utils.MatSubset(X, vidP)
-			fmt.Printf("x1, x2 = %v, %v\n", mat.Formatted(x1, mat.Squeeze()), mat.Formatted(x2, mat.Squeeze()))
+			//fmt.Printf("x1, x2 = %v, %v\n", mat.Formatted(x1, mat.Squeeze()), mat.Formatted(x2, mat.Squeeze()))
+			_, _ = x1, x2
 		}
 	}
+	os.Exit(1)
 	//fmt.Printf("vmapM = \n%v\n", vmapM)
 	/*
 	   DVec one(Nfp, 1.0);
