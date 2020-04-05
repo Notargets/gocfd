@@ -1,6 +1,7 @@
 package DG1D
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/james-bowman/sparse"
@@ -266,8 +267,8 @@ func Connect1D(EToV *mat.Dense) (EToE, EToF *mat.Dense) {
 	if err != nil {
 		panic(err)
 	}
-	//fmt.Printf("EToE = \n%v\n", mat.Formatted(EToE, mat.Squeeze()))
-	//fmt.Printf("EToF = \n%v\n", mat.Formatted(EToF, mat.Squeeze()))
+	fmt.Printf("EToE = \n%v\n", mat.Formatted(EToE, mat.Squeeze()))
+	fmt.Printf("EToF = \n%v\n", mat.Formatted(EToF, mat.Squeeze()))
 	return
 }
 
@@ -275,5 +276,89 @@ func BuildMaps1D(VX, FMask *mat.VecDense,
 	EToV, EToE, EToF *mat.Dense,
 	K, Np, Nfp, NFaces int,
 	NODETOL float64) (mapM, mapP, vmapM, vmapP, mapB, vmapB *mat.Dense) {
+	/*
+	   IVec idsL, idsR, idsM,idsP, vidM,vidP, idM,idP;
+	   IMat idMP; DMat X1,X2,D;  DVec x1,x2;
+	   int k1=0,f1=0, k2=0,f2=0, skP=0, iL1=0,iL2=0;
+	   int v1=0, v2=0;  double refd = 0.0;
+	   vmapM.resize(Nfp*Nfaces*K); vmapP.resize(Nfp*Nfaces*K);
+	   int NF = Nfp*Nfaces;
+	*/
+	var (
+		k2, f2, skP, iL1, iL2, v1, v2 int
+		refd                          float64
+		NF                            = Nfp * NFaces
+		idsL, idsR                    utils.Index
+	)
+	/*
+	   // number volume nodes consecutively
+	   IVec nodeids = Range(1,Np*K);
+	*/
+	nodeids := utils.NewRangeOffset(1, Np*K)
+	_, _, _, _, _, _, _, _, _, _ = k2, f2, skP, v1, v2, refd, NF, idsL, idsR, nodeids
+	/*
+		// find index of face nodes with respect to volume node ordering
+		for (k1=1; k1<=K; ++k1) {
+			iL1=(k1-1)*NF; iL2=k1*NF;     // define target range in vmapM
+			idsL.range(iL1+1, iL2);       // sequential indices for element k1
+			idsR = Fmask + (k1-1)*Np;     // offset Fmask for element k1
+			vmapM(idsL) = nodeids(idsR);  // map face nodes in element k1
+		}
+	*/
+	for k1 := 0; k1 < K; k1++ {
+		iL1 = k1 * NF
+		iL2 = iL1 + NF
+		idsL = utils.NewRangeOffset(iL1+1, iL2) // sequential indices for element k1
+		fmt.Printf("iL1, iL2, idsL = \n%v, %v, %v\n", iL1, iL2, idsL)
+		//idsR = FMask + k1*Np                // offset Fmask for element k1
+		//vmapM(idsL) = nodeids(idsR)         // map face nodes in element k1
+	}
+	/*
+	   DVec one(Nfp, 1.0);
+	   for (k1=1; k1<=K; ++k1) {
+	       for (f1=1; f1<=Nfaces; ++f1) {
+
+	           // find neighbor
+	           k2 = EToE(k1,f1); f2 = EToF(k1,f1);
+
+	           // reference length of edge
+	           v1 = EToV(k1,f1); v2 = EToV(k1, 1+umMOD(f1,Nfaces));
+	           refd = sqrt(SQ(VX(v1)-VX(v2)));
+
+	           skM = (k1-1)*NF;  // offset to element k1
+	           skP = (k2-1)*NF;  // offset to element k2
+
+	           idsM.range((f1-1)*Nfp+1+skM, f1*Nfp+skM);
+	           idsP.range((f2-1)*Nfp+1+skP, f2*Nfp+skP);
+
+	           // find volume node numbers of left and right nodes
+	           vidM = vmapM(idsM); vidP = vmapM(idsP);
+
+	           x1 = x(vidM); x2 = x(vidP);
+	           X1 = outer(x1,one);
+	           X2 = outer(x2,one);
+
+	           // Compute distance matrix
+	           D = sqr(X1-trans(X2));
+
+	           idMP = find2D( sqrt(abs(D)), '<', NODETOL*refd);
+	           idM=idMP(All,1); idP=idMP(All,2);
+
+	           idM += (f1-1)*Nfp + skM;  // offset ids to {f1,k1}
+	           vmapP(idM) = vidP(idP);   // set external element ids
+
+	           idP += (f2-1)*Nfp + skP;  // offset ids to {f2,k2}
+	       }
+	   }
+
+	   // Create list of boundary nodes
+	   mapB = find(vmapP, '=', vmapM);  vmapB = vmapM(mapB);
+
+	   // Inflow and outflow boundaries, single element vectors for this case
+	   mapI.resize(1); mapO.resize(1);
+	   mapI(1) = 1; mapO(1) = K*Nfaces;
+	   vmapI.resize(1); vmapO.resize(1);
+	   vmapI(1) = 1; vmapO(1) = K*Np;
+	*/
 	return
 }

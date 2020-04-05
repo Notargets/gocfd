@@ -15,13 +15,11 @@ func NewRangeOffset(rmin, rmax int) (r Index) {
 
 func NewRange(rmin, rmax int) (r Index) {
 	var (
-		size = rmax - rmin + 1
+		size = rmax - rmin + 1 // INCLUSIVE RANGE
 	)
 	r = make([]int, size)
-	var ind int
-	for i := rmin; i <= rmax; i++ {
-		r[ind] = i
-		ind++
+	for i := range r {
+		r[i] = i + rmin
 	}
 	return
 }
