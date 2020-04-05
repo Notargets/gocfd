@@ -1,6 +1,10 @@
 package utils
 
-import "gonum.org/v1/gonum/mat"
+import (
+	"math"
+
+	"gonum.org/v1/gonum/mat"
+)
 
 func NewTriDiagonal(d0, d1, dm1 []float64) (Tri *mat.Dense) {
 	dd := make([]float64, len(d0)*len(d0))
@@ -48,6 +52,37 @@ func ConstArray(val float64, N int) (v []float64) {
 	v = make([]float64, N)
 	for i := range v {
 		v[i] = val
+	}
+	return
+}
+
+func POW(x float64, p int) (y float64) {
+	switch p {
+	case 0:
+		y = 1
+	case 1:
+		y = x
+	case 2:
+		y = x * x
+	case 3:
+		y = x * x * x
+	case 4:
+		y = x * x
+		y = y * y
+	case 5:
+		y = x * x
+		y = y * y * x
+	case 6:
+		y = x * x
+		y = y * y * y
+	case 7:
+		y = x * x
+		y = y * y * y * x
+	case 8:
+		y = x * x
+		y = y * y * y * y
+	default:
+		y = math.Pow(x, float64(p))
 	}
 	return
 }

@@ -316,41 +316,50 @@ func BuildMaps1D(VX, FMask *mat.VecDense,
 
 	var one = utils.NewVecConst(Nfp, 1)
 	_ = one
+	for k1 := 0; k1 < K; k1++ {
+		for f1 := 0; f1 < NFaces; f1++ {
+			k2 := int(EToE.At(k1, f1))
+			f2 := int(EToF.At(k1, f1))
+			v1 := int(EToV.At(k1, f1))
+			v2 := int(EToV.At(k1, (f1+1)%NFaces))
+			refd := math.Sqrt(utils.POW(VX.AtVec(v1)-VX.AtVec(v2), 2))
+			_ = refd
+			//fmt.Printf("k2, f2, v1, v2, refd = %v, %v, %v, %v, %-5.2f\n", k2, f2, v1, v2, refd)
+			skM := k1 * NF
+			skP := k2 * NF
+			idsM := utils.NewRangeOffset(1+f1*Nfp+skM, (f1+1)*Nfp+skM)
+			idsP := utils.NewRangeOffset(1+f2*Nfp+skP, (f2+1)*Nfp+skP)
+			//fmt.Printf("idsM, idsP = \n%v\n%v\n", idsM, idsP)
+			vidM := vmapM.Subset(idsM)
+			vidP := vmapM.Subset(idsP)
+			fmt.Printf("vidM, vidP = %v, %v\n", vidM, vidP)
+		}
+	}
 	//fmt.Printf("vmapM = \n%v\n", vmapM)
 	/*
 	   DVec one(Nfp, 1.0);
 	   for (k1=1; k1<=K; ++k1) {
 	       for (f1=1; f1<=Nfaces; ++f1) {
-
 	           // find neighbor
 	           k2 = EToE(k1,f1); f2 = EToF(k1,f1);
-
 	           // reference length of edge
 	           v1 = EToV(k1,f1); v2 = EToV(k1, 1+umMOD(f1,Nfaces));
 	           refd = sqrt(SQ(VX(v1)-VX(v2)));
-
 	           skM = (k1-1)*NF;  // offset to element k1
 	           skP = (k2-1)*NF;  // offset to element k2
-
 	           idsM.range((f1-1)*Nfp+1+skM, f1*Nfp+skM);
 	           idsP.range((f2-1)*Nfp+1+skP, f2*Nfp+skP);
-
 	           // find volume node numbers of left and right nodes
 	           vidM = vmapM(idsM); vidP = vmapM(idsP);
-
 	           x1 = x(vidM); x2 = x(vidP);
 	           X1 = outer(x1,one);
 	           X2 = outer(x2,one);
-
 	           // Compute distance matrix
 	           D = sqr(X1-trans(X2));
-
 	           idMP = find2D( sqrt(abs(D)), '<', NODETOL*refd);
 	           idM=idMP(All,1); idP=idMP(All,2);
-
 	           idM += (f1-1)*Nfp + skM;  // offset ids to {f1,k1}
 	           vmapP(idM) = vidP(idP);   // set external element ids
-
 	           idP += (f2-1)*Nfp + skP;  // offset ids to {f2,k2}
 	       }
 	   }
