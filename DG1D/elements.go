@@ -238,14 +238,14 @@ func Connect1D(EToV *mat.Dense) (EToE, EToF *mat.Dense) {
 		IVec element1 = floor( (faces1-1)/ Nfaces ) + 1;
 		IVec face1    =   mod( (faces1-1), Nfaces ) + 1;
 	*/
-	element1 := faces1.ApplyFunc(func(val int) int { return val / NFaces })
-	face1 := faces1.ApplyFunc(func(val int) int { return int(math.Mod(float64(val), float64(NFaces))) })
+	element1 := faces1.Apply(func(val int) int { return val / NFaces })
+	face1 := faces1.Apply(func(val int) int { return int(math.Mod(float64(val), float64(NFaces))) })
 	/*
 		IVec element2 = floor( (faces2-1)/ Nfaces ) + 1;
 		IVec face2    =   mod( (faces2-1), Nfaces ) + 1;
 	*/
-	element2 := faces2.ApplyFunc(func(val int) int { return val / NFaces })
-	face2 := faces2.ApplyFunc(func(val int) int { return int(math.Mod(float64(val), float64(NFaces))) })
+	element2 := faces2.Apply(func(val int) int { return val / NFaces })
+	face2 := faces2.Apply(func(val int) int { return int(math.Mod(float64(val), float64(NFaces))) })
 	/*
 	  // Rearrange into Nelements x Nfaces sized arrays
 	  IVec ind = sub2ind(K, Nfaces, element1, face1);
@@ -305,14 +305,24 @@ func BuildMaps1D(VX, FMask *mat.VecDense,
 			vmapM(idsL) = nodeids(idsR);  // map face nodes in element k1
 		}
 	*/
+	//vmapM.resize(Nfp*Nfaces*K); vmapP.resize(Nfp*Nfaces*K);
+	fmt.Printf("FMask = \n%v\n", mat.Formatted(FMask, mat.Squeeze()))
+	var vmapMI = utils.Index(make([]int, Nfp*NFaces*K))
+	idsR = utils.NewFromFloat(FMask.RawVector().Data)
 	for k1 := 0; k1 < K; k1++ {
 		iL1 = k1 * NF
 		iL2 = iL1 + NF
 		idsL = utils.NewRangeOffset(iL1+1, iL2) // sequential indices for element k1
-		fmt.Printf("iL1, iL2, idsL = \n%v, %v, %v\n", iL1, iL2, idsL)
+		idsR = utils.NewFromFloat(FMask.RawVector().Data).Add(k1 * Np)
+		fmt.Printf("iL1, iL2, idsL, idsR = \n%v, %v, %v\n %v\n", iL1, iL2, idsL, idsR)
+		if err := vmapMI.IndexedAssign(idsL, nodeids.Subset(idsR)); err != nil {
+			panic(err)
+		}
 		//idsR = FMask + k1*Np                // offset Fmask for element k1
 		//vmapM(idsL) = nodeids(idsR)         // map face nodes in element k1
 	}
+	fmt.Printf("vmapMI = \n%v\n", vmapMI)
+	//vmapM = mat.NewDense(Nfp*NFaces*K, 1,)
 	/*
 	   DVec one(Nfp, 1.0);
 	   for (k1=1; k1<=K; ++k1) {

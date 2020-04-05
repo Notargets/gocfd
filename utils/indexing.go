@@ -17,22 +17,50 @@ func NewRange(rmin, rmax int) (r Index) {
 	var (
 		size = rmax - rmin + 1 // INCLUSIVE RANGE
 	)
-	r = make([]int, size)
+	r = make(Index, size)
 	for i := range r {
 		r[i] = i + rmin
 	}
 	return
 }
 func NewOnes(N int) (r Index) {
-	r = make([]int, N)
+	r = make(Index, N)
 	for i := 0; i < N; i++ {
 		r[i] = 1
 	}
 	return
 }
+func NewFromFloat(IF []float64) (r Index) {
+	r = make(Index, len(IF))
+	for i, val := range IF {
+		r[i] = int(val)
+	}
+	return
+}
 
-func (I Index) ApplyFunc(f func(val int) int) (r Index) {
-	r = make([]int, len(I))
+func (I Index) Add(val int) (r Index) {
+	r = make(Index, len(I))
+	for i, ival := range I {
+		r[i] = val + ival
+	}
+	return r
+}
+func (I Index) AddInPlace(val int) (r Index) {
+	for i := range I {
+		I[i] += val
+	}
+	return I
+}
+func (I Index) Subset(J Index) (r Index) {
+	r = make(Index, len(J))
+	for j, val := range J {
+		r[j] = I[val]
+	}
+	return
+}
+
+func (I Index) Apply(f func(val int) int) (r Index) {
+	r = make(Index, len(I))
 	for i, val := range I {
 		r[i] = f(val)
 	}
