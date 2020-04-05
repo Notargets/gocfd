@@ -285,17 +285,13 @@ func BuildMaps1D(VX, FMask *mat.VecDense,
 	   int NF = Nfp*Nfaces;
 	*/
 	var (
-		k2, f2, skP, iL1, iL2, v1, v2 int
-		refd                          float64
-		NF                            = Nfp * NFaces
-		idsL, idsR                    utils.Index
+		NF = Nfp * NFaces
 	)
 	/*
 	   // number volume nodes consecutively
 	   IVec nodeids = Range(1,Np*K);
 	*/
 	nodeids := utils.NewRangeOffset(1, Np*K)
-	_, _, _, _, _, _, _, _, _, _ = k2, f2, skP, v1, v2, refd, NF, idsL, idsR, nodeids
 	/*
 		// find index of face nodes with respect to volume node ordering
 		for (k1=1; k1<=K; ++k1) {
@@ -306,14 +302,14 @@ func BuildMaps1D(VX, FMask *mat.VecDense,
 		}
 	*/
 	//vmapM.resize(Nfp*Nfaces*K); vmapP.resize(Nfp*Nfaces*K);
-	fmt.Printf("FMask = \n%v\n", mat.Formatted(FMask, mat.Squeeze()))
+	//fmt.Printf("FMask = \n%v\n", mat.Formatted(FMask, mat.Squeeze()))
 	var vmapMI = utils.Index(make([]int, Nfp*NFaces*K))
-	idsR = utils.NewFromFloat(FMask.RawVector().Data)
+	idsR := utils.NewFromFloat(FMask.RawVector().Data)
 	for k1 := 0; k1 < K; k1++ {
-		iL1 = k1 * NF
-		iL2 = iL1 + NF
-		idsL = utils.NewRangeOffset(iL1+1, iL2) // sequential indices for element k1
-		fmt.Printf("iL1, iL2, idsL, idsR = \n%v, %v, %v\n %v\n", iL1, iL2, idsL, idsR)
+		iL1 := k1 * NF
+		iL2 := iL1 + NF
+		idsL := utils.NewRangeOffset(iL1+1, iL2) // sequential indices for element k1
+		//		fmt.Printf("iL1, iL2, idsL, idsR = \n%v, %v, %v\n %v\n", iL1, iL2, idsL, idsR)
 		if err := vmapMI.IndexedAssign(idsL, nodeids.Subset(idsR)); err != nil {
 			panic(err)
 		}
