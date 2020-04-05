@@ -313,13 +313,13 @@ func BuildMaps1D(VX, FMask *mat.VecDense,
 		iL1 = k1 * NF
 		iL2 = iL1 + NF
 		idsL = utils.NewRangeOffset(iL1+1, iL2) // sequential indices for element k1
-		idsR = utils.NewFromFloat(FMask.RawVector().Data).Add(k1 * Np)
 		fmt.Printf("iL1, iL2, idsL, idsR = \n%v, %v, %v\n %v\n", iL1, iL2, idsL, idsR)
 		if err := vmapMI.IndexedAssign(idsL, nodeids.Subset(idsR)); err != nil {
 			panic(err)
 		}
 		//idsR = FMask + k1*Np                // offset Fmask for element k1
 		//vmapM(idsL) = nodeids(idsR)         // map face nodes in element k1
+		idsR.AddInPlace(Np)
 	}
 	fmt.Printf("vmapMI = \n%v\n", vmapMI)
 	//vmapM = mat.NewDense(Nfp*NFaces*K, 1,)
