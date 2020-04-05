@@ -86,7 +86,7 @@ func JacobiGQ(alpha, beta float64, N int) (J *mat.SymDense, X, W *mat.VecDense) 
 	VVr = mat.NewDense(len(x), len(x), nil)
 	eig.VectorsTo(VVr)
 	W = utils.VecSquare(VVr.RowView(0))
-	W = utils.VecScalarMult(gamma0(alpha, beta), W)
+	W = utils.VecScalarMult(W, gamma0(alpha, beta))
 
 	return JJ, X, W
 }
@@ -139,7 +139,7 @@ func JacobiP(r *mat.VecDense, alpha, beta float64, N int) (p []float64) {
 		h1 := 2.0*ip1 + ab
 		anew := 2.0 / (h1 + 2.0) * math.Sqrt(ip2*(ip1+ab1)*(ip1+a1)*(ip1+b1)/(h1+1.0)/(h1+3.0))
 		bnew := -(alpha*alpha - beta*beta) / h1 / (h1 + 2.0)
-		x_bnew := utils.VecConst(-bnew, r.Len())
+		x_bnew := utils.NewVecConst(r.Len(), -bnew)
 		x_bnew.AddVec(x_bnew, r)
 		xi := PL.RawRowView(i)
 		xip1 := PL.RawRowView(i + 1)
@@ -233,19 +233,20 @@ func Connect1D(EToV *mat.Dense) (EToE, EToF *mat.Dense) {
 	}
 	//fmt.Printf("SpFToV = \n%v\n", mat.Formatted(SpFToV.T(), mat.Squeeze()))
 	//fmt.Printf("SpFToF = \n%v\n", mat.Formatted(SpFToF.T(), mat.Squeeze()))
-	faces1, faces2 := utils.MatFind(SpFToF, 1)
+	FacesIndex := utils.MatFind(SpFToF, 1)
+	//faces1, faces2 := utils.MatFind(SpFToF, 1)
 	/*
 		IVec element1 = floor( (faces1-1)/ Nfaces ) + 1;
 		IVec face1    =   mod( (faces1-1), Nfaces ) + 1;
 	*/
-	element1 := faces1.Apply(func(val int) int { return val / NFaces })
-	face1 := faces1.Apply(func(val int) int { return int(math.Mod(float64(val), float64(NFaces))) })
+	element1 := FacesIndex.RI.Apply(func(val int) int { return val / NFaces })
+	face1 := FacesIndex.RI.Apply(func(val int) int { return int(math.Mod(float64(val), float64(NFaces))) })
 	/*
 		IVec element2 = floor( (faces2-1)/ Nfaces ) + 1;
 		IVec face2    =   mod( (faces2-1), Nfaces ) + 1;
 	*/
-	element2 := faces2.Apply(func(val int) int { return val / NFaces })
-	face2 := faces2.Apply(func(val int) int { return int(math.Mod(float64(val), float64(NFaces))) })
+	element2 := FacesIndex.CI.Apply(func(val int) int { return val / NFaces })
+	face2 := FacesIndex.CI.Apply(func(val int) int { return int(math.Mod(float64(val), float64(NFaces))) })
 	/*
 	  // Rearrange into Nelements x Nfaces sized arrays
 	  IVec ind = sub2ind(K, Nfaces, element1, face1);
@@ -273,9 +274,9 @@ func Connect1D(EToV *mat.Dense) (EToE, EToF *mat.Dense) {
 }
 
 func BuildMaps1D(VX, FMask *mat.VecDense,
-	EToV, EToE, EToF *mat.Dense,
+	X, EToV, EToE, EToF *mat.Dense,
 	K, Np, Nfp, NFaces int,
-	NODETOL float64) (mapM, mapP, vmapM, vmapP, mapB, vmapB *mat.Dense) {
+	NODETOL float64) (mapM, mapP, vmapM, vmapP, mapB, vmapB utils.Index) {
 	/*
 	   IVec idsL, idsR, idsM,idsP, vidM,vidP, idM,idP;
 	   IMat idMP; DMat X1,X2,D;  DVec x1,x2;
@@ -301,18 +302,21 @@ func BuildMaps1D(VX, FMask *mat.VecDense,
 			vmapM(idsL) = nodeids(idsR);  // map face nodes in element k1
 		}
 	*/
-	var vmapMI = utils.Index(make([]int, Nfp*NFaces*K))
+	vmapM = make(utils.Index, Nfp*NFaces*K)
 	idsR := utils.NewFromFloat(FMask.RawVector().Data)
 	for k1 := 0; k1 < K; k1++ {
 		iL1 := k1 * NF
 		iL2 := iL1 + NF
 		idsL := utils.NewRangeOffset(iL1+1, iL2) // sequential indices for element k1
-		if err := vmapMI.IndexedAssign(idsL, nodeids.Subset(idsR)); err != nil {
+		if err := vmapM.IndexedAssign(idsL, nodeids.Subset(idsR)); err != nil {
 			panic(err)
 		}
 		idsR.AddInPlace(Np)
 	}
-	fmt.Printf("vmapMI = \n%v\n", vmapMI)
+
+	var one = utils.NewVecConst(Nfp, 1)
+	_ = one
+	//fmt.Printf("vmapM = \n%v\n", vmapM)
 	/*
 	   DVec one(Nfp, 1.0);
 	   for (k1=1; k1<=K; ++k1) {

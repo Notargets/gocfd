@@ -62,9 +62,9 @@ func Startup1D() {
 	sT.SubVec(utils.VecSub(VX, vb), utils.VecSub(VX, va))
 
 	// x = ones(Np)*VX(va) + 0.5*(r+1.)*sT(vc);
-	ones := utils.VecConst(1, Np)
+	ones := utils.NewVecConst(Np, 1)
 	mm := mat.NewDense(Np, K, nil)
-	mm.Mul(ones, utils.VecSub(VX, va).T())
+	mm.Mul(ones, utils.VecSubV(VX, va).T())
 
 	rr := utils.VecScalarAdd(mat.VecDenseCopyOf(R), 1)
 	rr.ScaleVec(0.5, rr)
@@ -85,7 +85,7 @@ func Startup1D() {
 
 	mapM, mapP, vmapM, vmapP, mapB, vmapB :=
 		DG1D.BuildMaps1D(VX, FMask,
-			EToV, EToE, EToF,
+			X, EToV, EToE, EToF,
 			K, Np, Nfp, NFaces,
 			NODETOL)
 	fmt.Printf("EToV = \n%v\n", mat.Formatted(EToV.T(), mat.Squeeze()))

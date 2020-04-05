@@ -6,7 +6,7 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-func VecRange(min, max int) (V *mat.VecDense) {
+func NewVecRange(min, max int) (V *mat.VecDense) {
 	var (
 		N int = max - min + 1
 		x     = make([]float64, N)
@@ -18,7 +18,7 @@ func VecRange(min, max int) (V *mat.VecDense) {
 	return
 }
 
-func VecConst(val float64, N int) (V *mat.VecDense) {
+func NewVecConst(N int, val float64) (V *mat.VecDense) {
 	var (
 		x = make([]float64, N)
 	)
@@ -29,7 +29,7 @@ func VecConst(val float64, N int) (V *mat.VecDense) {
 	return
 }
 
-func VecScalarMult(a float64, v mat.Vector) (vo *mat.VecDense) {
+func VecScalarMult(v mat.Vector, a float64) (vo *mat.VecDense) {
 	var (
 		d = make([]float64, v.Len())
 		N = v.Len()
@@ -77,7 +77,21 @@ func VecSquare(v mat.Vector) (vo *mat.VecDense) {
 	return mat.NewVecDense(N, d)
 }
 
-func VecSub(V, VI mat.Vector) (R *mat.VecDense) {
+func VecSub(V mat.Vector, IndexI interface{}) (R *mat.VecDense) {
+	switch Index := IndexI.(type) {
+	case mat.Vector:
+		R = VecSubV(V, Index)
+	case Index:
+		var r = make([]float64, len(Index))
+		for i, ind := range Index {
+			r[i] = V.AtVec(ind)
+		}
+		R = mat.NewVecDense(len(Index), r)
+	}
+	return
+}
+
+func VecSubV(V, VI mat.Vector) (R *mat.VecDense) {
 	// vI should contain a list of indices into v
 	var (
 		n  = VI.Len()

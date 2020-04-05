@@ -6,6 +6,23 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
+type Index2D struct {
+	RI, CI Index
+	Len    int
+}
+
+func NewIndex2D(RI, CI Index) (I2 Index2D, err error) {
+	if len(RI) != len(CI) {
+		err = fmt.Errorf("lengths of row and column indices must be the same: nr, nc = %v, %v\n", len(RI), len(CI))
+		return
+	}
+	return Index2D{
+		RI:  RI,
+		CI:  CI,
+		Len: len(RI),
+	}, nil
+}
+
 type Index []int
 
 func NewRangeOffset(rmin, rmax int) (r Index) {

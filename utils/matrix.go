@@ -75,9 +75,10 @@ func MatSubCol(MI mat.Matrix, ColIndices *mat.VecDense) (R *mat.Dense) {
 	return
 }
 
-func MatFind(MI mat.Matrix, val float64) (rowInd, colInd Index) {
+func MatFind(MI mat.Matrix, val float64) (I Index2D) {
 	var (
-		rows, cols = MI.Dims()
+		rows, cols     = MI.Dims()
+		rowInd, colInd Index
 	)
 	for j := 0; j < cols; j++ {
 		for i := 0; i < rows; i++ {
@@ -87,6 +88,7 @@ func MatFind(MI mat.Matrix, val float64) (rowInd, colInd Index) {
 			}
 		}
 	}
+	I, _ = NewIndex2D(rowInd, colInd)
 	return
 }
 
