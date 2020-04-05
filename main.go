@@ -77,8 +77,8 @@ func Startup1D() {
 	fmask1 := utils.VecFind(utils.VecScalarAdd(R, 1), utils.Less, NODETOL, true)
 	fmask2 := utils.VecFind(utils.VecScalarAdd(R, -1), utils.Less, NODETOL, true)
 	FMask := utils.VecConcat(fmask1, fmask2)
-	Fx := utils.MatSubRow(X, FMask)
-	JJ := utils.MatSubRow(J, FMask)
+	Fx := utils.MatSubsetRow(X, FMask)
+	JJ := utils.MatSubsetRow(J, FMask)
 	FScale := utils.MatElementInvert(JJ)
 
 	EToE, EToF := DG1D.Connect1D(EToV)

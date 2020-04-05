@@ -332,7 +332,10 @@ func BuildMaps1D(VX, FMask *mat.VecDense,
 			//fmt.Printf("idsM, idsP = \n%v\n%v\n", idsM, idsP)
 			vidM := vmapM.Subset(idsM)
 			vidP := vmapM.Subset(idsP)
-			fmt.Printf("vidM, vidP = %v, %v\n", vidM, vidP)
+			//fmt.Printf("vidM, vidP = %v, %v\n", vidM, vidP)
+			x1 := utils.MatSubset(X, vidM)
+			x2 := utils.MatSubset(X, vidP)
+			fmt.Printf("x1, x2 = %v, %v\n", mat.Formatted(x1, mat.Squeeze()), mat.Formatted(x2, mat.Squeeze()))
 		}
 	}
 	//fmt.Printf("vmapM = \n%v\n", vmapM)

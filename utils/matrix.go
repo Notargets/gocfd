@@ -20,7 +20,20 @@ func MatElementInvert(M mat.Matrix) (O *mat.Dense) {
 	return
 }
 
-func MatSubRow(MI mat.Matrix, RowIndices *mat.VecDense) (R *mat.Dense) {
+func MatSubset(M *mat.Dense, I Index) (r *mat.VecDense) {
+	// Index should contain a list of indices into MI
+	var (
+		Mr   = M.RawMatrix()
+		data = make([]float64, len(I))
+	)
+	for i, ind := range I {
+		data[i] = Mr.Data[ind]
+	}
+	r = mat.NewVecDense(len(I), data)
+	return
+}
+
+func MatSubsetRow(MI mat.Matrix, RowIndices *mat.VecDense) (R *mat.Dense) {
 	// RowIndices should contain a list of row indices into M
 	var (
 		nr, nc = MI.Dims()
@@ -48,7 +61,7 @@ func MatSubRow(MI mat.Matrix, RowIndices *mat.VecDense) (R *mat.Dense) {
 	return
 }
 
-func MatSubCol(MI mat.Matrix, ColIndices *mat.VecDense) (R *mat.Dense) {
+func MatSubsetCol(MI mat.Matrix, ColIndices *mat.VecDense) (R *mat.Dense) {
 	// ColIndices should contain a list of row indices into M
 	var (
 		nr, nc = MI.Dims()
