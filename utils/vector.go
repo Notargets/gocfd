@@ -109,16 +109,6 @@ func VecSubV(V, VI mat.Vector) (R *mat.VecDense) {
 	return
 }
 
-type EvalOp uint8
-
-const (
-	Equal EvalOp = iota
-	Less
-	Greater
-	LessOrEqual
-	GreaterOrEqual
-)
-
 func VecFind(v *mat.VecDense, op EvalOp, target float64, abs bool) (r *mat.VecDense) {
 	var (
 		vD = v.RawVector().Data

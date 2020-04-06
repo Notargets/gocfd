@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"math"
 
 	"gonum.org/v1/gonum/mat"
 )
@@ -109,16 +110,55 @@ func MatSubsetCol(MI mat.Matrix, ColIndices *mat.VecDense) (R *mat.Dense) {
 	return
 }
 
-func MatFind(MI mat.Matrix, val float64) (I Index2D) {
+func MatFind(MI mat.Matrix, op EvalOp, val float64) (I Index2D) {
 	var (
 		rows, cols     = MI.Dims()
 		rowInd, colInd Index
 	)
-	for j := 0; j < cols; j++ {
-		for i := 0; i < rows; i++ {
-			if MI.At(i, j) == val {
-				rowInd = append(rowInd, i)
-				colInd = append(colInd, j)
+	switch op {
+	case Equal:
+		for j := 0; j < cols; j++ {
+			for i := 0; i < rows; i++ {
+				if MI.At(i, j) == val {
+					rowInd = append(rowInd, i)
+					colInd = append(colInd, j)
+				}
+			}
+		}
+	case Less:
+		for j := 0; j < cols; j++ {
+			for i := 0; i < rows; i++ {
+				if MI.At(i, j) < val {
+					rowInd = append(rowInd, i)
+					colInd = append(colInd, j)
+				}
+			}
+		}
+	case LessOrEqual:
+		for j := 0; j < cols; j++ {
+			for i := 0; i < rows; i++ {
+				if MI.At(i, j) <= val {
+					rowInd = append(rowInd, i)
+					colInd = append(colInd, j)
+				}
+			}
+		}
+	case Greater:
+		for j := 0; j < cols; j++ {
+			for i := 0; i < rows; i++ {
+				if MI.At(i, j) > val {
+					rowInd = append(rowInd, i)
+					colInd = append(colInd, j)
+				}
+			}
+		}
+	case GreaterOrEqual:
+		for j := 0; j < cols; j++ {
+			for i := 0; i < rows; i++ {
+				if MI.At(i, j) >= val {
+					rowInd = append(rowInd, i)
+					colInd = append(colInd, j)
+				}
 			}
 		}
 	}
@@ -159,4 +199,25 @@ func MatIndexedAssign(MI *mat.Dense, RI, CI, Val Index) (err error) {
 		MI.Set(RI[i], CI[i], float64(val))
 	}
 	return
+}
+
+func MatInPlace(M *mat.Dense, op MathOp, args ...float64) {
+	var (
+		data = M.RawMatrix().Data
+	)
+	switch op {
+	case Abs:
+		for i, val := range data {
+			data[i] = math.Abs(val)
+		}
+	case Sqrt:
+		for i, val := range data {
+			data[i] = math.Sqrt(val)
+		}
+	case Pow:
+		for i, val := range data {
+			p := int(args[0])
+			data[i] = POW(val, p)
+		}
+	}
 }

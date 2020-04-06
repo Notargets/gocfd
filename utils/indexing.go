@@ -25,6 +25,9 @@ func NewIndex2D(RI, CI Index) (I2 Index2D, err error) {
 
 type Index []int
 
+func NewIndex(N int) (I Index) {
+	return make(Index, N)
+}
 func NewRangeOffset(rmin, rmax int) (r Index) {
 	// Input range is "1 based" and converted to zero based index
 	return NewRange(rmin-1, rmax-1)
@@ -102,11 +105,23 @@ func (I Index) Outer(J Index) (A *mat.Dense) {
 	return
 }
 
-func (I Index) IndexedAssign(J, Val Index) (err error) {
+func (I *Index) IndexedAssign(J, Val Index) (err error) {
 	var (
-		nr = len(I)
+		nr = len(*I)
 		N  = len(J)
 	)
+	if nr == 0 {
+		var jmax int
+		for _, val := range J {
+			if val > jmax {
+				jmax = val
+			}
+		}
+		jmax += 1 // indices are zero based, dimensions not
+		*I = make(Index, jmax)
+		nr = jmax
+		fmt.Println("New jmax = ", jmax)
+	}
 	switch {
 	case N != len(Val):
 		err = fmt.Errorf("dimension mismatch: index and values should have the same length")
@@ -119,10 +134,10 @@ func (I Index) IndexedAssign(J, Val Index) (err error) {
 			err = fmt.Errorf("dimension bounds error, row index < 0: ji = %v\n", ji)
 			return
 		case ji > nr-1:
-			err = fmt.Errorf("dimension bounds error, row index > max: ji = %v\n", ji)
+			err = fmt.Errorf("dimension bounds error, row index > max: ji = %v, max = %v\n", ji, nr-1)
 			return
 		}
-		I[ji] = val
+		(*I)[ji] = val
 	}
 	return
 }

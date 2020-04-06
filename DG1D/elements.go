@@ -234,7 +234,7 @@ func Connect1D(EToV *mat.Dense) (EToE, EToF *mat.Dense) {
 	}
 	//fmt.Printf("SpFToV = \n%v\n", mat.Formatted(SpFToV.T(), mat.Squeeze()))
 	//fmt.Printf("SpFToF = \n%v\n", mat.Formatted(SpFToF.T(), mat.Squeeze()))
-	FacesIndex := utils.MatFind(SpFToF, 1)
+	FacesIndex := utils.MatFind(SpFToF, utils.Equal, 1)
 	//faces1, faces2 := utils.MatFind(SpFToF, 1)
 	/*
 		IVec element1 = floor( (faces1-1)/ Nfaces ) + 1;
@@ -303,7 +303,7 @@ func BuildMaps1D(VX, FMask *mat.VecDense,
 			vmapM(idsL) = nodeids(idsR);  // map face nodes in element k1
 		}
 	*/
-	vmapM = make(utils.Index, Nfp*NFaces*K)
+	vmapM = utils.NewIndex(Nfp * NFaces * K)
 	idsR := utils.NewFromFloat(FMask.RawVector().Data)
 	for k1 := 0; k1 < K; k1++ {
 		iL1 := k1 * NF
@@ -318,6 +318,7 @@ func BuildMaps1D(VX, FMask *mat.VecDense,
 	var one = utils.NewVecConst(Nfp, 1)
 	_ = one
 	//fmt.Printf("X = %v\n", mat.Formatted(X, mat.Squeeze()))
+	vmapP = utils.NewIndex(Nfp * NFaces * K)
 	for k1 := 0; k1 < K; k1++ {
 		for f1 := 0; f1 < NFaces; f1++ {
 			k2 := int(EToE.At(k1, f1))
@@ -337,15 +338,25 @@ func BuildMaps1D(VX, FMask *mat.VecDense,
 			//fmt.Printf("vidM, vidP = %v, %v\n", vidM, vidP)
 			x1 := utils.MatSubset(X, vidM)
 			x2 := utils.MatSubset(X, vidP)
-			fmt.Printf("x1, x2 = %v, %v\n", mat.Formatted(x1, mat.Squeeze()), mat.Formatted(x2, mat.Squeeze()))
+			//fmt.Printf("x1, x2 = %v, %v\n", mat.Formatted(x1, mat.Squeeze()), mat.Formatted(x2, mat.Squeeze()))
 			X1 := utils.VecOuter(x1, one)
 			X2 := utils.VecOuter(x2, one)
 			//fmt.Printf("X1 = %v\n", mat.Formatted(X1, mat.Squeeze()))
 			//fmt.Printf("X2 = %v\n", mat.Formatted(X2, mat.Squeeze()))
 			D := utils.MatCopyEmpty(X1)
 			D.Sub(X1, X2.T())
-			D.Pow(D, 2)
+			utils.MatInPlace(D, utils.Pow, 2)
+			utils.MatInPlace(D, utils.Sqrt)
+			utils.MatInPlace(D, utils.Abs)
 			//fmt.Printf("D = %v\n", mat.Formatted(D, mat.Squeeze()))
+			idMP := utils.MatFind(D, utils.Less, NODETOL*refd)
+			idM := idMP.RI
+			idP := idMP.CI
+			if err := vmapP.IndexedAssign(idM.Add(f1*Nfp+skM), vidP.Subset(idP)); err != nil {
+				panic(err)
+			}
+			//fmt.Printf("vmapP, vidP.Subset(idP) = %v, %v\n", vmapP, vidP.Subset(idP))
+			//fmt.Printf("idMP = %v\n", idMP)
 		}
 	}
 	os.Exit(1)
