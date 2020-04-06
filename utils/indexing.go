@@ -141,3 +141,43 @@ func (I *Index) IndexedAssign(J, Val Index) (err error) {
 	}
 	return
 }
+
+func (I Index) FindVec(op EvalOp, Values Index) (J Index) {
+	/*
+		Each element of Values is compared to the corresponding value of I:
+		if (Values[i] op I[i]): append i to the output index J
+	*/
+	switch op {
+	case Equal:
+		for i, val := range I {
+			if val == Values[i] {
+				J = append(J, i)
+			}
+		}
+	case Less:
+		for i, val := range I {
+			if val < Values[i] {
+				J = append(J, i)
+			}
+		}
+	case LessOrEqual:
+		for i, val := range I {
+			if val <= Values[i] {
+				J = append(J, i)
+			}
+		}
+	case Greater:
+		for i, val := range I {
+			if val > Values[i] {
+				J = append(J, i)
+			}
+		}
+	case GreaterOrEqual:
+		for i, val := range I {
+			if val >= Values[i] {
+				J = append(J, i)
+			}
+		}
+	}
+	return
+}

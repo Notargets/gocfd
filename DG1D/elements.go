@@ -1,9 +1,7 @@
 package DG1D
 
 import (
-	"fmt"
 	"math"
-	"os"
 
 	"github.com/james-bowman/sparse"
 	"github.com/notargets/gocfd/utils"
@@ -269,40 +267,22 @@ func Connect1D(EToV *mat.Dense) (EToE, EToF *mat.Dense) {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("EToE = \n%v\n", mat.Formatted(EToE, mat.Squeeze()))
-	fmt.Printf("EToF = \n%v\n", mat.Formatted(EToF, mat.Squeeze()))
+	//fmt.Printf("EToE = \n%v\n", mat.Formatted(EToE, mat.Squeeze()))
+	//fmt.Printf("EToF = \n%v\n", mat.Formatted(EToF, mat.Squeeze()))
 	return
 }
 
 func BuildMaps1D(VX, FMask *mat.VecDense,
 	X, EToV, EToE, EToF *mat.Dense,
 	K, Np, Nfp, NFaces int,
-	NODETOL float64) (mapM, mapP, vmapM, vmapP, mapB, vmapB utils.Index) {
-	/*
-	   IVec idsL, idsR, idsM,idsP, vidM,vidP, idM,idP;
-	   IMat idMP; DMat X1,X2,D;  DVec x1,x2;
-	   int k1=0,f1=0, k2=0,f2=0, skP=0, iL1=0,iL2=0;
-	   int v1=0, v2=0;  double refd = 0.0;
-	   vmapM.resize(Nfp*Nfaces*K); vmapP.resize(Nfp*Nfaces*K);
-	   int NF = Nfp*Nfaces;
-	*/
+	NODETOL float64) (vmapM, vmapP, mapB, vmapB, mapI, vmapI, mapO, vmapO utils.Index) {
 	var (
 		NF = Nfp * NFaces
 	)
-	/*
-	   // number volume nodes consecutively
-	   IVec nodeids = Range(1,Np*K);
-	*/
+	// number volume nodes consecutively
 	nodeids := utils.NewRangeOffset(1, Np*K)
-	/*
-		// find index of face nodes with respect to volume node ordering
-		for (k1=1; k1<=K; ++k1) {
-			iL1=(k1-1)*NF; iL2=k1*NF;     // define target range in vmapM
-			idsL.range(iL1+1, iL2);       // sequential indices for element k1
-			idsR = Fmask + (k1-1)*Np;     // offset Fmask for element k1
-			vmapM(idsL) = nodeids(idsR);  // map face nodes in element k1
-		}
-	*/
+
+	// find index of face nodes with respect to volume node ordering
 	vmapM = utils.NewIndex(Nfp * NFaces * K)
 	idsR := utils.NewFromFloat(FMask.RawVector().Data)
 	for k1 := 0; k1 < K; k1++ {
@@ -316,8 +296,6 @@ func BuildMaps1D(VX, FMask *mat.VecDense,
 	}
 
 	var one = utils.NewVecConst(Nfp, 1)
-	_ = one
-	//fmt.Printf("X = %v\n", mat.Formatted(X, mat.Squeeze()))
 	vmapP = utils.NewIndex(Nfp * NFaces * K)
 	for k1 := 0; k1 < K; k1++ {
 		for f1 := 0; f1 < NFaces; f1++ {
@@ -326,77 +304,36 @@ func BuildMaps1D(VX, FMask *mat.VecDense,
 			v1 := int(EToV.At(k1, f1))
 			v2 := int(EToV.At(k1, (f1+1)%NFaces))
 			refd := math.Sqrt(utils.POW(VX.AtVec(v1)-VX.AtVec(v2), 2))
-			_ = refd
-			//fmt.Printf("k2, f2, v1, v2, refd = %v, %v, %v, %v, %-5.2f\n", k2, f2, v1, v2, refd)
 			skM := k1 * NF
 			skP := k2 * NF
 			idsM := utils.NewRangeOffset(1+f1*Nfp+skM, (f1+1)*Nfp+skM)
 			idsP := utils.NewRangeOffset(1+f2*Nfp+skP, (f2+1)*Nfp+skP)
-			//fmt.Printf("idsM, idsP = \n%v\n%v\n", idsM, idsP)
 			vidM := vmapM.Subset(idsM)
 			vidP := vmapM.Subset(idsP)
-			//fmt.Printf("vidM, vidP = %v, %v\n", vidM, vidP)
 			x1 := utils.MatSubset(X, vidM)
 			x2 := utils.MatSubset(X, vidP)
-			//fmt.Printf("x1, x2 = %v, %v\n", mat.Formatted(x1, mat.Squeeze()), mat.Formatted(x2, mat.Squeeze()))
 			X1 := utils.VecOuter(x1, one)
 			X2 := utils.VecOuter(x2, one)
-			//fmt.Printf("X1 = %v\n", mat.Formatted(X1, mat.Squeeze()))
-			//fmt.Printf("X2 = %v\n", mat.Formatted(X2, mat.Squeeze()))
 			D := utils.MatCopyEmpty(X1)
 			D.Sub(X1, X2.T())
 			utils.MatInPlace(D, utils.Pow, 2)
 			utils.MatInPlace(D, utils.Sqrt)
 			utils.MatInPlace(D, utils.Abs)
-			//fmt.Printf("D = %v\n", mat.Formatted(D, mat.Squeeze()))
 			idMP := utils.MatFind(D, utils.Less, NODETOL*refd)
 			idM := idMP.RI
 			idP := idMP.CI
 			if err := vmapP.IndexedAssign(idM.Add(f1*Nfp+skM), vidP.Subset(idP)); err != nil {
 				panic(err)
 			}
-			//fmt.Printf("vmapP, vidP.Subset(idP) = %v, %v\n", vmapP, vidP.Subset(idP))
-			//fmt.Printf("idMP = %v\n", idMP)
 		}
 	}
-	os.Exit(1)
-	//fmt.Printf("vmapM = \n%v\n", vmapM)
-	/*
-	   DVec one(Nfp, 1.0);
-	   for (k1=1; k1<=K; ++k1) {
-	       for (f1=1; f1<=Nfaces; ++f1) {
-	           // find neighbor
-	           k2 = EToE(k1,f1); f2 = EToF(k1,f1);
-	           // reference length of edge
-	           v1 = EToV(k1,f1); v2 = EToV(k1, 1+umMOD(f1,Nfaces));
-	           refd = sqrt(SQ(VX(v1)-VX(v2)));
-	           skM = (k1-1)*NF;  // offset to element k1
-	           skP = (k2-1)*NF;  // offset to element k2
-	           idsM.range((f1-1)*Nfp+1+skM, f1*Nfp+skM);
-	           idsP.range((f2-1)*Nfp+1+skP, f2*Nfp+skP);
-	           // find volume node numbers of left and right nodes
-	           vidM = vmapM(idsM); vidP = vmapM(idsP);
-	           x1 = x(vidM); x2 = x(vidP);
-	           X1 = outer(x1,one);
-	           X2 = outer(x2,one);
-	           // Compute distance matrix
-	           D = sqr(X1-trans(X2));
-	           idMP = find2D( sqrt(abs(D)), '<', NODETOL*refd);
-	           idM=idMP(All,1); idP=idMP(All,2);
-	           idM += (f1-1)*Nfp + skM;  // offset ids to {f1,k1}
-	           vmapP(idM) = vidP(idP);   // set external element ids
-	           idP += (f2-1)*Nfp + skP;  // offset ids to {f2,k2}
-	       }
-	   }
 
-	   // Create list of boundary nodes
-	   mapB = find(vmapP, '=', vmapM);  vmapB = vmapM(mapB);
-
-	   // Inflow and outflow boundaries, single element vectors for this case
-	   mapI.resize(1); mapO.resize(1);
-	   mapI(1) = 1; mapO(1) = K*Nfaces;
-	   vmapI.resize(1); vmapO.resize(1);
-	   vmapI(1) = 1; vmapO(1) = K*Np;
-	*/
+	// Create list of boundary nodes
+	mapB = vmapP.FindVec(utils.Equal, vmapM)
+	vmapB = vmapM.Subset(mapB)
+	mapI = utils.NewIndex(1)
+	mapO = utils.NewIndex(1).Add(K*NFaces - 1)
+	vmapI = utils.NewIndex(1)
+	vmapO = utils.NewIndex(1).Add(K*Np - 1)
 	return
 }
