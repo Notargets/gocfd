@@ -166,10 +166,11 @@ func MatFind(MI mat.Matrix, op EvalOp, val float64) (I Index2D) {
 	return
 }
 
-func MatIndexedAssign(MI *mat.Dense, RI, CI, Val Index) (err error) {
+func MatIndexedAssign(MI *mat.Dense, I2 Index2D, Val Index) (err error) {
 	// RI and CI are the row and column indices
 	var (
 		nr, nc = MI.Dims()
+		RI, CI = I2.RI, I2.CI
 		N      = len(RI)
 	)
 	switch {

@@ -258,12 +258,16 @@ func Connect1D(EToV *mat.Dense) (EToE, EToF *mat.Dense) {
 	*/
 	EToE = utils.NewRangeOffset(1, K).Outer(utils.NewOnes(NFaces))
 	EToF = utils.NewOnes(K).Outer(utils.NewRangeOffset(1, NFaces))
+	var I2D utils.Index2D
 	var err error
-	err = utils.MatIndexedAssign(EToE, element1, face1, element2)
+	if I2D, err = utils.NewIndex2D(element1, face1); err != nil {
+		panic(err)
+	}
+	err = utils.MatIndexedAssign(EToE, I2D, element2)
 	if err != nil {
 		panic(err)
 	}
-	err = utils.MatIndexedAssign(EToF, element1, face1, face2)
+	err = utils.MatIndexedAssign(EToF, I2D, face2)
 	if err != nil {
 		panic(err)
 	}
