@@ -7,20 +7,35 @@ import (
 )
 
 type Index2D struct {
-	RI, CI Index
-	Len    int
+	// Ind is the combined index in column-major format
+	RI, CI, Ind Index
+	Len         int
 }
 
-func NewIndex2D(RI, CI Index) (I2 Index2D, err error) {
+func NewIndex2D(nr, nc int, RI, CI Index) (I2 Index2D, err error) {
 	if len(RI) != len(CI) {
 		err = fmt.Errorf("lengths of row and column indices must be the same: nr, nc = %v, %v\n", len(RI), len(CI))
 		return
 	}
-	return Index2D{
+	I2 = Index2D{
 		RI:  RI,
 		CI:  CI,
 		Len: len(RI),
-	}, nil
+	}
+	I2.Ind = make(Index, len(RI))
+	for i, ci := range CI {
+		ri := RI[i]
+		if ci > nc-1 || ci < 0 {
+			err = fmt.Errorf("index dimension exceeds bounds: ci=%v, ciMax=%v\n", ci, nc-1)
+			return
+		}
+		if ri > nr-1 || ri < 0 {
+			err = fmt.Errorf("index dimension exceeds bounds: ri=%v, riMax=%v\n", ri, nr-1)
+			return
+		}
+		I2.Ind[i] = ci + nc*ri
+	}
+	return
 }
 
 type Index []int

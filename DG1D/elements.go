@@ -1,6 +1,7 @@
 package DG1D
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/james-bowman/sparse"
@@ -260,7 +261,8 @@ func Connect1D(EToV *mat.Dense) (EToE, EToF *mat.Dense) {
 	EToF = utils.NewOnes(K).Outer(utils.NewRangeOffset(1, NFaces))
 	var I2D utils.Index2D
 	var err error
-	if I2D, err = utils.NewIndex2D(element1, face1); err != nil {
+	nr, nc := EToE.Dims()
+	if I2D, err = utils.NewIndex2D(nr, nc, element1, face1); err != nil {
 		panic(err)
 	}
 	err = utils.MatIndexedAssign(EToE, I2D, element2)
@@ -271,8 +273,8 @@ func Connect1D(EToV *mat.Dense) (EToE, EToF *mat.Dense) {
 	if err != nil {
 		panic(err)
 	}
-	//fmt.Printf("EToE = \n%v\n", mat.Formatted(EToE, mat.Squeeze()))
-	//fmt.Printf("EToF = \n%v\n", mat.Formatted(EToF, mat.Squeeze()))
+	fmt.Printf("EToE = \n%v\n", mat.Formatted(EToE, mat.Squeeze()))
+	fmt.Printf("EToF = \n%v\n", mat.Formatted(EToF, mat.Squeeze()))
 	return
 }
 

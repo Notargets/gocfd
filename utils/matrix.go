@@ -112,13 +112,13 @@ func MatSubsetCol(MI mat.Matrix, ColIndices *mat.VecDense) (R *mat.Dense) {
 
 func MatFind(MI mat.Matrix, op EvalOp, val float64) (I Index2D) {
 	var (
-		rows, cols     = MI.Dims()
+		nr, nc         = MI.Dims()
 		rowInd, colInd Index
 	)
 	switch op {
 	case Equal:
-		for j := 0; j < cols; j++ {
-			for i := 0; i < rows; i++ {
+		for j := 0; j < nc; j++ {
+			for i := 0; i < nr; i++ {
 				if MI.At(i, j) == val {
 					rowInd = append(rowInd, i)
 					colInd = append(colInd, j)
@@ -126,8 +126,8 @@ func MatFind(MI mat.Matrix, op EvalOp, val float64) (I Index2D) {
 			}
 		}
 	case Less:
-		for j := 0; j < cols; j++ {
-			for i := 0; i < rows; i++ {
+		for j := 0; j < nc; j++ {
+			for i := 0; i < nr; i++ {
 				if MI.At(i, j) < val {
 					rowInd = append(rowInd, i)
 					colInd = append(colInd, j)
@@ -135,8 +135,8 @@ func MatFind(MI mat.Matrix, op EvalOp, val float64) (I Index2D) {
 			}
 		}
 	case LessOrEqual:
-		for j := 0; j < cols; j++ {
-			for i := 0; i < rows; i++ {
+		for j := 0; j < nc; j++ {
+			for i := 0; i < nr; i++ {
 				if MI.At(i, j) <= val {
 					rowInd = append(rowInd, i)
 					colInd = append(colInd, j)
@@ -144,8 +144,8 @@ func MatFind(MI mat.Matrix, op EvalOp, val float64) (I Index2D) {
 			}
 		}
 	case Greater:
-		for j := 0; j < cols; j++ {
-			for i := 0; i < rows; i++ {
+		for j := 0; j < nc; j++ {
+			for i := 0; i < nr; i++ {
 				if MI.At(i, j) > val {
 					rowInd = append(rowInd, i)
 					colInd = append(colInd, j)
@@ -153,8 +153,8 @@ func MatFind(MI mat.Matrix, op EvalOp, val float64) (I Index2D) {
 			}
 		}
 	case GreaterOrEqual:
-		for j := 0; j < cols; j++ {
-			for i := 0; i < rows; i++ {
+		for j := 0; j < nc; j++ {
+			for i := 0; i < nr; i++ {
 				if MI.At(i, j) >= val {
 					rowInd = append(rowInd, i)
 					colInd = append(colInd, j)
@@ -162,42 +162,19 @@ func MatFind(MI mat.Matrix, op EvalOp, val float64) (I Index2D) {
 			}
 		}
 	}
-	I, _ = NewIndex2D(rowInd, colInd)
+	I, _ = NewIndex2D(nr, nc, rowInd, colInd)
 	return
 }
 
 func MatIndexedAssign(MI *mat.Dense, I2 Index2D, Val Index) (err error) {
-	// RI and CI are the row and column indices
 	var (
-		nr, nc = MI.Dims()
-		RI, CI = I2.RI, I2.CI
-		N      = len(RI)
+		data = MI.RawMatrix().Data
 	)
-	switch {
-	case N != len(CI):
-		err = fmt.Errorf("dimension mismatch: RI and CI should have the same length")
-		return
-	case N != len(Val):
-		err = fmt.Errorf("dimension mismatch: Val and RI,CI should have the same length")
-		return
+	if I2.Len != len(Val) {
+		return fmt.Errorf("length of index and values are not equal: len(I2) = %v, len(Val) = %v\n", I2.Len, len(Val))
 	}
 	for i, val := range Val {
-		ri, ci := RI[i], CI[i]
-		switch {
-		case ri < 0:
-			err = fmt.Errorf("dimension bounds error, row index < 0: ri = %v\n", ri)
-			return
-		case ci < 0:
-			err = fmt.Errorf("dimension bounds error, col index < 0: ci = %v\n", ci)
-			return
-		case ri > nr-1:
-			err = fmt.Errorf("dimension bounds error, row index > max: ri = %v\n", ri)
-			return
-		case ci > nc-1:
-			err = fmt.Errorf("dimension bounds error, col index > max: ci = %v\n", ci)
-			return
-		}
-		MI.Set(RI[i], CI[i], float64(val))
+		data[I2.Ind[i]] = float64(val)
 	}
 	return
 }
