@@ -200,3 +200,24 @@ func VecGetF64(v mat.Vector) (r []float64) {
 	}
 	return
 }
+
+func VecOuter(A, B *mat.VecDense) (R *mat.Dense) {
+	var (
+		nr, nc = A.Len(), B.Len()
+	)
+	R = mat.NewDense(nr, nc, nil)
+	for j := 0; j < nc; j++ {
+		x := B.AtVec(j)
+		if x == 1 {
+			R.SetCol(j, A.RawVector().Data)
+		} else {
+			Rdata := R.RawMatrix().Data
+			Adata := A.RawVector().Data
+			// ind = nc * i + j
+			for i, val := range Adata {
+				Rdata[j+nc*i] = x * val
+			}
+		}
+	}
+	return
+}

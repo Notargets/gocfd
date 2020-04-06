@@ -337,8 +337,15 @@ func BuildMaps1D(VX, FMask *mat.VecDense,
 			//fmt.Printf("vidM, vidP = %v, %v\n", vidM, vidP)
 			x1 := utils.MatSubset(X, vidM)
 			x2 := utils.MatSubset(X, vidP)
-			//fmt.Printf("x1, x2 = %v, %v\n", mat.Formatted(x1, mat.Squeeze()), mat.Formatted(x2, mat.Squeeze()))
-			_, _ = x1, x2
+			fmt.Printf("x1, x2 = %v, %v\n", mat.Formatted(x1, mat.Squeeze()), mat.Formatted(x2, mat.Squeeze()))
+			X1 := utils.VecOuter(x1, one)
+			X2 := utils.VecOuter(x2, one)
+			//fmt.Printf("X1 = %v\n", mat.Formatted(X1, mat.Squeeze()))
+			//fmt.Printf("X2 = %v\n", mat.Formatted(X2, mat.Squeeze()))
+			D := utils.MatCopyEmpty(X1)
+			D.Sub(X1, X2.T())
+			D.Pow(D, 2)
+			//fmt.Printf("D = %v\n", mat.Formatted(D, mat.Squeeze()))
 		}
 	}
 	os.Exit(1)

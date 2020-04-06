@@ -20,6 +20,14 @@ func MatElementInvert(M mat.Matrix) (O *mat.Dense) {
 	return
 }
 
+func MatCopyEmpty(M *mat.Dense) (R *mat.Dense) {
+	var (
+		nr, nc = M.Dims()
+	)
+	R = mat.NewDense(nr, nc, nil)
+	return
+}
+
 func MatSubset(M *mat.Dense, I Index) (r *mat.VecDense) {
 	/*
 		Index should contain a list of indices into MI
