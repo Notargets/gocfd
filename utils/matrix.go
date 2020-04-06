@@ -2,7 +2,6 @@ package utils
 
 import (
 	"fmt"
-	"math"
 
 	"gonum.org/v1/gonum/mat"
 )
@@ -179,23 +178,33 @@ func MatIndexedAssign(MI *mat.Dense, I2 Index2D, Val Index) (err error) {
 	return
 }
 
-func MatInPlace(M *mat.Dense, op MathOp, args ...float64) {
+func MatApply(M *mat.Dense, f func(x float64) float64) (R *mat.Dense) {
+	var (
+		nr, nc = M.Dims()
+		data   = M.RawMatrix().Data
+	)
+	R = mat.NewDense(nr, nc, nil)
+	newData := R.RawMatrix().Data
+	for i, val := range data {
+		newData[i] = f(val)
+	}
+	return
+}
+
+func MatApplyInPlace(M *mat.Dense, f func(x float64) float64) {
 	var (
 		data = M.RawMatrix().Data
 	)
-	switch op {
-	case Abs:
-		for i, val := range data {
-			data[i] = math.Abs(val)
-		}
-	case Sqrt:
-		for i, val := range data {
-			data[i] = math.Sqrt(val)
-		}
-	case Pow:
-		for i, val := range data {
-			p := int(args[0])
-			data[i] = POW(val, p)
-		}
+	for i, val := range data {
+		data[i] = f(val)
+	}
+}
+
+func MatPOWInPlace(M *mat.Dense, p int) {
+	var (
+		data = M.RawMatrix().Data
+	)
+	for i, val := range data {
+		data[i] = POW(val, p)
 	}
 }

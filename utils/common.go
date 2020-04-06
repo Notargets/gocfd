@@ -9,11 +9,3 @@ const (
 	LessOrEqual
 	GreaterOrEqual
 )
-
-type MathOp uint8
-
-const (
-	Abs MathOp = iota
-	Sqrt
-	Pow
-)

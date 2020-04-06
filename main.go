@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"math"
+
 	"github.com/notargets/gocfd/DG1D"
 	"github.com/notargets/gocfd/utils"
 	"gonum.org/v1/gonum/mat"
@@ -16,7 +19,9 @@ const (
 )
 
 func main() {
-	Startup1D()
+	X := Startup1D()
+	U := utils.MatApply(X, math.Sin)
+	fmt.Printf("U = \n%v\n", mat.Formatted(U, mat.Squeeze()))
 }
 
 func SimpleMesh1D(xmin, xmax float64, K int) (VX *mat.VecDense, EToV *mat.Dense) {
@@ -37,7 +42,7 @@ func SimpleMesh1D(xmin, xmax float64, K int) (VX *mat.VecDense, EToV *mat.Dense)
 	return mat.NewVecDense(K+1, x), mat.NewDense(K, 2, elementVertex)
 }
 
-func Startup1D() {
+func Startup1D() (X *mat.Dense) {
 	VX, EToV := SimpleMesh1D(0, 2, K)
 
 	_, R, W := DG1D.JacobiGL(0, 0, N)
@@ -65,7 +70,7 @@ func Startup1D() {
 
 	rr := utils.VecScalarAdd(mat.VecDenseCopyOf(R), 1)
 	rr.ScaleVec(0.5, rr)
-	X := mat.NewDense(Np, K, nil)
+	X = mat.NewDense(Np, K, nil)
 	X.Mul(rr, sT.T())
 	X.Add(X, mm)
 
@@ -87,4 +92,5 @@ func Startup1D() {
 			NODETOL)
 	_, _, _, _, _, _ = W, LIFT, NX, Rx, Fx, FScale
 	_, _, _, _, _, _, _, _ = vmapM, vmapP, mapB, vmapB, mapI, vmapI, mapO, vmapO
+	return
 }

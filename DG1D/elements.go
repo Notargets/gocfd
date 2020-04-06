@@ -322,9 +322,9 @@ func BuildMaps1D(VX, FMask *mat.VecDense,
 			X2 := utils.VecOuter(x2, one)
 			D := utils.MatCopyEmpty(X1)
 			D.Sub(X1, X2.T())
-			utils.MatInPlace(D, utils.Pow, 2)
-			utils.MatInPlace(D, utils.Sqrt)
-			utils.MatInPlace(D, utils.Abs)
+			utils.MatPOWInPlace(D, 2)
+			utils.MatApplyInPlace(D, math.Sqrt)
+			utils.MatApplyInPlace(D, math.Abs)
 			idMP := utils.MatFind(D, utils.Less, NODETOL*refd)
 			idM := idMP.RI
 			idP := idMP.CI
