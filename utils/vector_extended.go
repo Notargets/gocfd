@@ -9,7 +9,13 @@ type Vector struct {
 	V *mat.VecDense
 }
 
-func NewVector(n int, data []float64) Vector {
+func NewVector(n int, dataO ...[]float64) Vector {
+	var (
+		data []float64
+	)
+	if len(dataO) != 0 {
+		data = dataO[0]
+	}
 	return Vector{
 		mat.NewVecDense(n, data),
 	}
@@ -92,6 +98,16 @@ func (v Vector) AddScalar(a float64) Vector {
 	)
 	for i := range data {
 		data[i] += a
+	}
+	return v
+}
+
+func (v Vector) Set(a float64) Vector {
+	var (
+		data = v.V.RawVector().Data
+	)
+	for i := range data {
+		data[i] = a
 	}
 	return v
 }
