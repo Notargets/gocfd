@@ -5,6 +5,22 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
+type Vector struct {
+	V *mat.VecDense
+}
+
+// Dims, At and T minimally satisfy the mat.Matrix interface.
+func (v Vector) Dims() (r, c int)         { return v.V.Dims() }
+func (v Vector) At(i, j int) float64      { return v.V.At(i, j) }
+func (v Vector) T() mat.Matrix            { return v.V.T() }
+func (v Vector) AtVec(i int) float64      { return v.V.AtVec(i) }
+func (v Vector) RawVector() blas64.Vector { return v.V.RawVector() }
+func (v Vector) SubVec(a, b Vector)       { v.V.SubVec(a.V, b.V) }
+func (v Vector) Len() int                 { return v.V.Len() }
+
+// Chainable (extended) methods
+func (v Vector) Sub(a Vector) Vector { v.V.SubVec(v.V, a.V); return v }
+
 // Row is a user-defined Row vector.
 type Row []float64
 

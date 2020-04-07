@@ -3,18 +3,59 @@ package utils
 import (
 	"fmt"
 
+	"gonum.org/v1/gonum/blas/blas64"
+
 	"gonum.org/v1/gonum/mat"
 )
 
-func MatElementInvert(M mat.Matrix) (O *mat.Dense) {
+type Matrix struct {
+	M *mat.Dense
+}
+
+// Dims, At and T minimally satisfy the mat.Matrix interface.
+func (m Matrix) Dims() (r, c int)          { return m.M.Dims() }
+func (m Matrix) At(i, j int) float64       { return m.M.At(i, j) }
+func (m Matrix) T() mat.Matrix             { return m.T() }
+func (m Matrix) RawMatrix() blas64.General { return m.M.RawMatrix() }
+
+// Chainable methods (extended)
+func (m Matrix) Sub(a Matrix) Matrix { m.M.Sub(m.M, a.M); return m }
+
+func (m Matrix) SubsetVector(I Index) Vector {
+	return Vector{MatSubset(m.M, I)}
+}
+
+func (m Matrix) Subset(I Index) Matrix {
+	/*
+		Index should contain a list of indices into MI
+		Note: native mat library matrix storage is in column traversal first (row-major) order
+	*/
+	var (
+		Mr     = m.RawMatrix()
+		nr, nc = m.Dims()
+		data   = make([]float64, nr*nc)
+		R      *mat.Dense
+	)
+	for _, ind := range I {
+		data[ind] = Mr.Data[ind]
+	}
+	R = mat.NewDense(nr, nc, data)
+	return Matrix{R}
+}
+
+func (m Matrix) Find(op EvalOp, val float64) (I Index2D) {
+	return MatFind(m.M, op, val)
+}
+
+func MatElementInvert(M mat.Matrix) (R *mat.Dense) {
 	var (
 		d, s = M.Dims()
 	)
-	O = mat.NewDense(d, s, nil)
-	O.CloneFrom(M)
+	R = mat.NewDense(d, s, nil)
+	R.CloneFrom(M)
 	for j := 0; j < s; j++ {
 		for i := 0; i < d; i++ {
-			O.Set(i, j, 1./O.At(i, j))
+			R.Set(i, j, 1./R.At(i, j))
 		}
 	}
 	return
