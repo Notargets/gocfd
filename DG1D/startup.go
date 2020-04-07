@@ -1,6 +1,9 @@
 package DG1D
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/notargets/gocfd/utils"
 	"gonum.org/v1/gonum/mat"
 )
@@ -54,9 +57,17 @@ func Startup1D(K, N, NFaces, Nfp int) (X *mat.Dense) {
 
 	rr := utils.VecScalarAdd(mat.VecDenseCopyOf(R), 1)
 	rr.ScaleVec(0.5, rr)
+
 	X = mat.NewDense(Np, K, nil)
 	X.Mul(rr, sT.T())
 	X.Add(X, mm)
+
+	rrr := utils.Vector{rr}.ToMatrix()
+	ssT := utils.Vector{sT}.Transpose()
+	mmm := utils.Matrix{mm}
+	XX := rrr.Mul(ssT).Add(mmm)
+	fmt.Printf("X = \n%v\nXX = \n%v\n", mat.Formatted(X, mat.Squeeze()), mat.Formatted(XX.M, mat.Squeeze()))
+	os.Exit(1)
 
 	J, Rx := GeometricFactors1D(Dr, X)
 

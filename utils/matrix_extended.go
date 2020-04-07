@@ -12,6 +12,12 @@ type Matrix struct {
 	M *mat.Dense
 }
 
+func NewMatrix(nr, nc int, data []float64) Matrix {
+	return Matrix{
+		mat.NewDense(nr, nc, data),
+	}
+}
+
 // Dims, At and T minimally satisfy the mat.Matrix interface.
 func (m Matrix) Dims() (r, c int)          { return m.M.Dims() }
 func (m Matrix) At(i, j int) float64       { return m.M.At(i, j) }
@@ -19,6 +25,52 @@ func (m Matrix) T() mat.Matrix             { return m.T() }
 func (m Matrix) RawMatrix() blas64.General { return m.M.RawMatrix() }
 
 // Chainable methods (extended)
+func (m Matrix) Col(j int) Vector {
+	var (
+		data   = m.M.RawMatrix().Data
+		nr, _  = m.M.Dims()
+		offset = nr * j
+		vData  = make([]float64, nr)
+	)
+	for i := range vData {
+		vData[i] = data[offset+i]
+	}
+	return Vector{
+		mat.NewVecDense(nr, vData),
+	}
+}
+
+func (m Matrix) Row(i int) Vector {
+	var (
+		data   = m.M.RawMatrix().Data
+		nr, nc = m.M.Dims()
+		vData  = make([]float64, nc)
+	)
+	for j := range vData {
+		vData[j] = data[nr*j+i]
+	}
+	return Vector{
+		mat.NewVecDense(nc, vData),
+	}
+}
+
+func (m Matrix) Mul(A Matrix) Matrix {
+	var (
+		nrM, ncM   = m.M.Dims()
+		nrA, ncA   = A.M.Dims()
+		r          = NewMatrix(nrM, ncA, nil)
+		_, _, _, _ = nrM, ncM, nrA, ncA
+	)
+	fmt.Printf("ncM, nrA = %v, %v\n", ncM, nrA)
+	r.M.Mul(m.M, A)
+	return r
+}
+
+func (m Matrix) Add(A Matrix) Matrix {
+	m.M.Add(m.M, A)
+	return m
+}
+
 func (m Matrix) Sub(a Matrix) Matrix { m.M.Sub(m.M, a.M); return m }
 
 func (m Matrix) SubsetVector(I Index) Vector {
@@ -43,7 +95,17 @@ func (m Matrix) Subset(I Index) Matrix {
 	return Matrix{R}
 }
 
-func (m Matrix) Add(a float64) Matrix {
+func (m Matrix) Scale(a float64) Matrix {
+	var (
+		data = m.M.RawMatrix().Data
+	)
+	for i := range data {
+		data[i] *= a
+	}
+	return m
+}
+
+func (m Matrix) AddScalar(a float64) Matrix {
 	var (
 		data = m.M.RawMatrix().Data
 	)

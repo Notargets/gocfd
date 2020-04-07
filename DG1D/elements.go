@@ -213,8 +213,6 @@ func Connect1D(EToV *mat.Dense) (EToE, EToF *mat.Dense) {
 		TotalFaces = NFaces * K
 		vn         = mat.NewVecDense(2, []float64{0, 1}) // local face to vertex connections
 	)
-	_, _, _ = Nv, TotalFaces, vn
-
 	SpFToV_Tmp := sparse.NewDOK(TotalFaces, Nv)
 	var sk int
 	for k := 0; k < K; k++ {

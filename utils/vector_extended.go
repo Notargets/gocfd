@@ -9,6 +9,12 @@ type Vector struct {
 	V *mat.VecDense
 }
 
+func NewVector(n int, data []float64) Vector {
+	return Vector{
+		mat.NewVecDense(n, data),
+	}
+}
+
 // Dims, At and T minimally satisfy the mat.Matrix interface.
 func (v Vector) Dims() (r, c int)         { return v.V.Dims() }
 func (v Vector) At(i, j int) float64      { return v.V.At(i, j) }
@@ -19,8 +25,49 @@ func (v Vector) SubVec(a, b Vector)       { v.V.SubVec(a.V, b.V) }
 func (v Vector) Len() int                 { return v.V.Len() }
 
 // Chainable (extended) methods
+func (v Vector) Transpose() Matrix {
+	var (
+		nr, nc = v.V.Dims()
+		m      *mat.Dense
+	)
+	m = mat.NewDense(nc, nr, v.V.RawVector().Data)
+	return Matrix{m}
+}
+
+func (v Vector) ToMatrix() Matrix {
+	var (
+		m = mat.NewDense(v.V.Len(), 1, v.V.RawVector().Data)
+	)
+	return Matrix{m}
+}
+
 func (v Vector) Sub(a Vector) Vector { v.V.SubVec(v.V, a.V); return v }
-func (v Vector) Add(a float64) Vector {
+
+func (v Vector) Subset(I Index) Vector {
+	var (
+		data  = v.V.RawVector().Data
+		n     = v.V.Len()
+		dataR = make([]float64, n)
+		r     *mat.VecDense
+	)
+	for i, ind := range I {
+		dataR[i] = data[ind]
+	}
+	r = mat.NewVecDense(n, data)
+	return Vector{r}
+}
+
+func (v Vector) Scale(a float64) Vector {
+	var (
+		data = v.V.RawVector().Data
+	)
+	for i := range data {
+		data[i] *= a
+	}
+	return v
+}
+
+func (v Vector) AddScalar(a float64) Vector {
 	var (
 		data = v.V.RawVector().Data
 	)
