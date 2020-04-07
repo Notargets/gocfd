@@ -20,6 +20,61 @@ func (v Vector) Len() int                 { return v.V.Len() }
 
 // Chainable (extended) methods
 func (v Vector) Sub(a Vector) Vector { v.V.SubVec(v.V, a.V); return v }
+func (v Vector) Add(a float64) Vector {
+	var (
+		data = v.V.RawVector().Data
+	)
+	for i := range data {
+		data[i] += a
+	}
+	return v
+}
+
+func (v Vector) Apply(f func(float64) float64) Vector {
+	var (
+		data = v.V.RawVector().Data
+	)
+	for i, val := range data {
+		data[i] = f(val)
+	}
+	return v
+}
+
+func (v Vector) POW(p int) Vector {
+	var (
+		data = v.V.RawVector().Data
+	)
+	for i, val := range data {
+		data[i] = POW(val, p)
+	}
+	return v
+}
+
+func (v Vector) Min() (min float64) {
+	var (
+		data = v.V.RawVector().Data
+	)
+	min = data[0]
+	for _, val := range data {
+		if val < min {
+			min = val
+		}
+	}
+	return
+}
+
+func (v Vector) Max() (max float64) {
+	var (
+		data = v.V.RawVector().Data
+	)
+	max = data[0]
+	for _, val := range data {
+		if val > max {
+			max = val
+		}
+	}
+	return
+}
 
 // Row is a user-defined Row vector.
 type Row []float64

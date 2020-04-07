@@ -43,6 +43,62 @@ func (m Matrix) Subset(I Index) Matrix {
 	return Matrix{R}
 }
 
+func (m Matrix) Add(a float64) Matrix {
+	var (
+		data = m.M.RawMatrix().Data
+	)
+	for i := range data {
+		data[i] += a
+	}
+	return m
+}
+
+func (m Matrix) Apply(f func(float64) float64) Matrix {
+	var (
+		data = m.M.RawMatrix().Data
+	)
+	for i, val := range data {
+		data[i] = f(val)
+	}
+	return m
+}
+
+func (m Matrix) POW(p int) Matrix {
+	var (
+		data = m.M.RawMatrix().Data
+	)
+	for i, val := range data {
+		data[i] = POW(val, p)
+	}
+	return m
+}
+
+func (m Matrix) Min() (min float64) {
+	var (
+		data = m.M.RawMatrix().Data
+	)
+	min = data[0]
+	for _, val := range data {
+		if val < min {
+			min = val
+		}
+	}
+	return
+}
+
+func (m Matrix) Max() (max float64) {
+	var (
+		data = m.M.RawMatrix().Data
+	)
+	max = data[0]
+	for _, val := range data {
+		if val > max {
+			max = val
+		}
+	}
+	return
+}
+
 func (m Matrix) Find(op EvalOp, val float64) (I Index2D) {
 	return MatFind(m.M, op, val)
 }
