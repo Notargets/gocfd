@@ -1,14 +1,11 @@
 package DG1D
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/notargets/gocfd/utils"
 	"gonum.org/v1/gonum/mat"
 )
 
-func SimpleMesh1D(xmin, xmax float64, K int) (VX *mat.VecDense, EToV *mat.Dense) {
+func SimpleMesh1D(xmin, xmax float64, K int) (VX utils.Vector, EToV utils.Matrix) {
 	// K is the number of elements, there are K+1 vertices
 	var (
 		x             = make([]float64, K+1)
@@ -23,7 +20,7 @@ func SimpleMesh1D(xmin, xmax float64, K int) (VX *mat.VecDense, EToV *mat.Dense)
 		elementVertex[iter+1] = float64(i + 1)
 		iter += 2
 	}
-	return mat.NewVecDense(K+1, x), mat.NewDense(K, 2, elementVertex)
+	return utils.Vector{mat.NewVecDense(K+1, x)}, utils.Matrix{mat.NewDense(K, 2, elementVertex)}
 }
 
 func Startup1D(K, N, NFaces, Nfp int) (X *mat.Dense) {
@@ -45,29 +42,19 @@ func Startup1D(K, N, NFaces, Nfp int) (X *mat.Dense) {
 
 	NX := Normals1D(NFaces, Nfp, K)
 
-	va := EToV.ColView(0)
-	vb := EToV.ColView(1)
-	sT := mat.NewVecDense(va.Len(), nil)
-	sT.SubVec(utils.VecSub(VX, vb), utils.VecSub(VX, va))
+	va := EToV.Col(0).ToIndex()
+	vb := EToV.Col(1).ToIndex()
+	sT := VX.Subset(vb).Subtract(VX.Subset(va))
 
 	// x = ones(Np)*VX(va) + 0.5*(r+1.)*sT(vc);
-	ones := utils.NewVecConst(Np, 1)
-	mm := mat.NewDense(Np, K, nil)
-	mm.Mul(ones, utils.VecSubV(VX, va).T())
+	ones := utils.Vector{utils.NewVecConst(Np, 1)}
+	//mm := utils.Matrix{mat.NewDense(Np, K, nil)}
+	//mm.Mul(ones, utils.VecSubV(VX, va).T())
+	mm := ones.ToMatrix().Mul(VX.Subset(va).Transpose())
 
-	rr := utils.VecScalarAdd(mat.VecDenseCopyOf(R), 1)
-	rr.ScaleVec(0.5, rr)
+	rr := utils.Vector{mat.VecDenseCopyOf(R)}.AddScalar(1).Scale(0.5)
 
-	X = mat.NewDense(Np, K, nil)
-	X.Mul(rr, sT.T())
-	X.Add(X, mm)
-
-	rrr := utils.Vector{rr}.ToMatrix()
-	ssT := utils.Vector{sT}.Transpose()
-	mmm := utils.Matrix{mm}
-	XX := rrr.Mul(ssT).Add(mmm)
-	fmt.Printf("X = \n%v\nXX = \n%v\n", mat.Formatted(X, mat.Squeeze()), mat.Formatted(XX.M, mat.Squeeze()))
-	os.Exit(1)
+	X = rr.ToMatrix().Mul(sT.Transpose()).Add(mm).M
 
 	J, Rx := GeometricFactors1D(Dr, X)
 
@@ -78,11 +65,11 @@ func Startup1D(K, N, NFaces, Nfp int) (X *mat.Dense) {
 	JJ := utils.MatSubsetRow(J, FMask)
 	FScale := utils.MatElementInvert(JJ)
 
-	EToE, EToF := Connect1D(EToV)
+	EToE, EToF := Connect1D(EToV.M)
 
 	vmapM, vmapP, mapB, vmapB, mapI, vmapI, mapO, vmapO :=
-		BuildMaps1D(VX, FMask,
-			X, EToV, EToE, EToF,
+		BuildMaps1D(VX.V, FMask,
+			X, EToV.M, EToE, EToF,
 			K, Np, Nfp, NFaces,
 			utils.NODETOL)
 	_, _, _, _, _, _ = W, LIFT, NX, Rx, Fx, FScale

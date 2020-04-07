@@ -61,8 +61,7 @@ func (m Matrix) Mul(A Matrix) Matrix {
 		r          = NewMatrix(nrM, ncA, nil)
 		_, _, _, _ = nrM, ncM, nrA, ncA
 	)
-	fmt.Printf("ncM, nrA = %v, %v\n", ncM, nrA)
-	r.M.Mul(m.M, A)
+	r.M.Mul(m.M, A.M)
 	return r
 }
 
@@ -71,7 +70,16 @@ func (m Matrix) Add(A Matrix) Matrix {
 	return m
 }
 
-func (m Matrix) Sub(a Matrix) Matrix { m.M.Sub(m.M, a.M); return m }
+func (m Matrix) Subtract(a Matrix) Matrix {
+	var (
+		data  = m.M.RawMatrix().Data
+		dataA = a.M.RawMatrix().Data
+	)
+	for i := range data {
+		data[i] -= dataA[i]
+	}
+	return m
+}
 
 func (m Matrix) SubsetVector(I Index) Vector {
 	return Vector{MatSubset(m.M, I)}

@@ -34,6 +34,17 @@ func (v Vector) Transpose() Matrix {
 	return Matrix{m}
 }
 
+func (v Vector) ToIndex() (I Index) {
+	var (
+		data = v.V.RawVector().Data
+	)
+	I = make(Index, v.Len())
+	for i, val := range data {
+		I[i] = int(val)
+	}
+	return
+}
+
 func (v Vector) ToMatrix() Matrix {
 	var (
 		m = mat.NewDense(v.V.Len(), 1, v.V.RawVector().Data)
@@ -41,19 +52,27 @@ func (v Vector) ToMatrix() Matrix {
 	return Matrix{m}
 }
 
-func (v Vector) Sub(a Vector) Vector { v.V.SubVec(v.V, a.V); return v }
+func (v Vector) Subtract(a Vector) Vector {
+	var (
+		data  = v.V.RawVector().Data
+		dataA = a.V.RawVector().Data
+	)
+	for i := range data {
+		data[i] -= dataA[i]
+	}
+	return v
+}
 
 func (v Vector) Subset(I Index) Vector {
 	var (
 		data  = v.V.RawVector().Data
-		n     = v.V.Len()
-		dataR = make([]float64, n)
+		dataR = make([]float64, len(I))
 		r     *mat.VecDense
 	)
 	for i, ind := range I {
 		dataR[i] = data[ind]
 	}
-	r = mat.NewVecDense(n, data)
+	r = mat.NewVecDense(len(dataR), dataR)
 	return Vector{r}
 }
 
