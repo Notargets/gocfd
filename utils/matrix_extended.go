@@ -178,13 +178,35 @@ func (m Matrix) POW(p int) Matrix {
 }
 
 func (m Matrix) SliceRows(I Index) (R Matrix) {
-	R.M = MatSliceRows(m.M, I)
+	// RowIndices should contain a list of row indices into M
+	var (
+		nr, nc = m.Dims()
+		nI     = len(I)
+	)
+	R = NewMatrix(nI, nc)
+	for i, val := range I {
+		if val > nr-1 || val < 0 {
+			fmt.Printf("index out of bounds: index = %d, max_bounds = %d\n", val, nr-1)
+			panic("unable to subset row from matrix")
+		}
+		R.M.SetRow(i, m.M.RawRowView(val))
+	}
 	return
 }
 
 // Non chainable methods
-func (m Matrix) IndexedAssign(I2 Index2D, Val Index) error {
-	return MatIndexedAssign(m.M, I2, Val)
+func (m Matrix) IndexedAssign(I2 Index2D, Val Index) (err error) {
+	var (
+		data = m.RawMatrix().Data
+	)
+	if I2.Len != len(Val) {
+		err = fmt.Errorf("length of index and values are not equal: len(I2) = %v, len(Val) = %v\n", I2.Len, len(Val))
+		return
+	}
+	for i, val := range Val {
+		data[I2.Ind[i]] = float64(val)
+	}
+	return
 }
 
 func (m Matrix) Inverse() (R Matrix, err error) {
@@ -252,124 +274,17 @@ func (m Matrix) Max() (max float64) {
 }
 
 func (m Matrix) Find(op EvalOp, val float64) (I Index2D) {
-	return MatFind(m.M, op, val)
-}
-
-func (m Matrix) SubsetVector(I Index) Vector {
-	return Vector{MatSubset(m.M, I)}
-}
-
-func MatElementInvert(M mat.Matrix) (R *mat.Dense) {
 	var (
-		d, s = M.Dims()
-	)
-	R = mat.NewDense(d, s, nil)
-	R.CloneFrom(M)
-	for j := 0; j < s; j++ {
-		for i := 0; i < d; i++ {
-			R.Set(i, j, 1./R.At(i, j))
-		}
-	}
-	return
-}
-
-func MatCopyEmpty(M *mat.Dense) (R *mat.Dense) {
-	var (
-		nr, nc = M.Dims()
-	)
-	R = mat.NewDense(nr, nc, nil)
-	return
-}
-
-func MatSubset(M *mat.Dense, I Index) (r *mat.VecDense) {
-	/*
-		Index should contain a list of indices into MI
-		Note: native mat library matrix storage is in column traversal first (row-major) order
-	*/
-	var (
-		Mr     = M.RawMatrix()
-		nr, nc = M.Dims()
-		data   = make([]float64, len(I))
-	)
-	for i, ind := range I {
-		data[i] = Mr.Data[RowMajorToColMajor(nr, nc, ind)]
-	}
-	r = mat.NewVecDense(len(I), data)
-	return
-}
-
-func RowMajorToColMajor(nr, nc, ind int) (cind int) {
-	// ind = i + nr * j
-	// ind / nr = 0 + j
-	j := ind / nr
-	i := ind - nr*j
-	cind = j + nc*i
-	return
-}
-
-func MatSliceRows(MI mat.Matrix, I Index) (R *mat.Dense) {
-	// RowIndices should contain a list of row indices into M
-	var (
-		nr, nc = MI.Dims()
-		nI     = len(I)
-	)
-	R = mat.NewDense(nI, nc, nil)
-	for i, val := range I {
-		if val > nr-1 || val < 0 {
-			fmt.Printf("index out of bounds: index = %d, max_bounds = %d\n", val, nr-1)
-			panic("unable to subset row from matrix")
-		}
-		var rowSlice []float64
-		if M, ok := MI.(*mat.Dense); ok {
-			rowSlice = M.RawRowView(val)
-		} else {
-			rowSlice = make([]float64, nc)
-			for j := 0; j < nc; j++ {
-				rowSlice[j] = MI.At(i, j)
-			}
-		}
-		R.SetRow(i, rowSlice)
-	}
-	return
-}
-
-func MatSliceCols(MI mat.Matrix, ColIndices *mat.VecDense) (R *mat.Dense) {
-	// ColIndices should contain a list of row indices into M
-	var (
-		nr, nc = MI.Dims()
-		ncI    = ColIndices.Len()
-		cI     = ColIndices.RawVector().Data
-	)
-	R = mat.NewDense(nr, ncI, nil)
-	for j, val := range cI {
-		valI := int(val)
-		if valI > nc-1 || valI < 0 {
-			panic("unable to subset row from matrix, index out of bounds")
-		}
-		var colSlice []float64
-		if M, ok := MI.(*mat.Dense); ok {
-			colSlice = VecGetF64(M.ColView(valI))
-		} else {
-			colSlice = make([]float64, nr)
-			for i := 0; i < nr; i++ {
-				colSlice[i] = MI.At(i, j)
-			}
-		}
-		R.SetCol(j, colSlice)
-	}
-	return
-}
-
-func MatFind(MI mat.Matrix, op EvalOp, val float64) (I Index2D) {
-	var (
-		nr, nc         = MI.Dims()
+		nr, nc         = m.Dims()
+		data           = m.RawMatrix().Data
 		rowInd, colInd Index
 	)
 	switch op {
 	case Equal:
 		for j := 0; j < nc; j++ {
 			for i := 0; i < nr; i++ {
-				if MI.At(i, j) == val {
+				ind := i + nr*j
+				if data[ind] == val {
 					rowInd = append(rowInd, i)
 					colInd = append(colInd, j)
 				}
@@ -378,7 +293,8 @@ func MatFind(MI mat.Matrix, op EvalOp, val float64) (I Index2D) {
 	case Less:
 		for j := 0; j < nc; j++ {
 			for i := 0; i < nr; i++ {
-				if MI.At(i, j) < val {
+				ind := i + nr*j
+				if data[ind] < val {
 					rowInd = append(rowInd, i)
 					colInd = append(colInd, j)
 				}
@@ -387,7 +303,8 @@ func MatFind(MI mat.Matrix, op EvalOp, val float64) (I Index2D) {
 	case LessOrEqual:
 		for j := 0; j < nc; j++ {
 			for i := 0; i < nr; i++ {
-				if MI.At(i, j) <= val {
+				ind := i + nr*j
+				if data[ind] <= val {
 					rowInd = append(rowInd, i)
 					colInd = append(colInd, j)
 				}
@@ -396,7 +313,8 @@ func MatFind(MI mat.Matrix, op EvalOp, val float64) (I Index2D) {
 	case Greater:
 		for j := 0; j < nc; j++ {
 			for i := 0; i < nr; i++ {
-				if MI.At(i, j) > val {
+				ind := i + nr*j
+				if data[ind] > val {
 					rowInd = append(rowInd, i)
 					colInd = append(colInd, j)
 				}
@@ -405,7 +323,8 @@ func MatFind(MI mat.Matrix, op EvalOp, val float64) (I Index2D) {
 	case GreaterOrEqual:
 		for j := 0; j < nc; j++ {
 			for i := 0; i < nr; i++ {
-				if MI.At(i, j) >= val {
+				ind := i + nr*j
+				if data[ind] >= val {
 					rowInd = append(rowInd, i)
 					colInd = append(colInd, j)
 				}
@@ -416,46 +335,24 @@ func MatFind(MI mat.Matrix, op EvalOp, val float64) (I Index2D) {
 	return
 }
 
-func MatIndexedAssign(MI *mat.Dense, I2 Index2D, Val Index) (err error) {
+func (m Matrix) SubsetVector(I Index) (V Vector) {
 	var (
-		data = MI.RawMatrix().Data
+		Mr     = m.RawMatrix()
+		nr, nc = m.Dims()
+		data   = make([]float64, len(I))
 	)
-	if I2.Len != len(Val) {
-		return fmt.Errorf("length of index and values are not equal: len(I2) = %v, len(Val) = %v\n", I2.Len, len(Val))
+	for i, ind := range I {
+		data[i] = Mr.Data[RowMajorToColMajor(nr, nc, ind)]
 	}
-	for i, val := range Val {
-		data[I2.Ind[i]] = float64(val)
-	}
+	V = NewVector(len(I), data)
 	return
 }
 
-func MatApply(M *mat.Dense, f func(x float64) float64) (R *mat.Dense) {
-	var (
-		nr, nc = M.Dims()
-		data   = M.RawMatrix().Data
-	)
-	R = mat.NewDense(nr, nc, nil)
-	newData := R.RawMatrix().Data
-	for i, val := range data {
-		newData[i] = f(val)
-	}
+func RowMajorToColMajor(nr, nc, ind int) (cind int) {
+	// ind = i + nr * j
+	// ind / nr = 0 + j
+	j := ind / nr
+	i := ind - nr*j
+	cind = j + nc*i
 	return
-}
-
-func MatApplyInPlace(M *mat.Dense, f func(x float64) float64) {
-	var (
-		data = M.RawMatrix().Data
-	)
-	for i, val := range data {
-		data[i] = f(val)
-	}
-}
-
-func MatPOWInPlace(M *mat.Dense, p int) {
-	var (
-		data = M.RawMatrix().Data
-	)
-	for i, val := range data {
-		data[i] = POW(val, p)
-	}
 }

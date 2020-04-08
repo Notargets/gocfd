@@ -106,7 +106,7 @@ func JacobiP(r utils.Vector, alpha, beta float64, N int) (p []float64) {
 	)
 	rg := 1. / math.Sqrt(gamma0(alpha, beta))
 	if N == 0 {
-		p = utils.ConstArray(rg, Nc)
+		p = utils.ConstArray(Nc, rg)
 		return
 	}
 	Np1 := N + 1

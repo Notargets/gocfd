@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"math"
+
 	"gonum.org/v1/gonum/blas/blas64"
 	"gonum.org/v1/gonum/mat"
 )
@@ -123,12 +125,76 @@ func (v Vector) Copy() Vector {
 }
 
 func (v Vector) Find(op EvalOp, target float64, abs bool) (r Vector) {
-	r.V = VecFind(v.V, op, target, abs)
+	var (
+		vD = v.RawVector().Data
+		rD []float64
+	)
+	switch op {
+	case Equal:
+		for i, val := range vD {
+			if abs {
+				val = math.Abs(val)
+			}
+			if val == target {
+				rD = append(rD, float64(i))
+			}
+		}
+	case Less:
+		for i, val := range vD {
+			if abs {
+				val = math.Abs(val)
+			}
+			if val < target {
+				rD = append(rD, float64(i))
+			}
+		}
+	case Greater:
+		for i, val := range vD {
+			if abs {
+				val = math.Abs(val)
+			}
+			if val > target {
+				rD = append(rD, float64(i))
+			}
+		}
+	case LessOrEqual:
+		for i, val := range vD {
+			if abs {
+				val = math.Abs(val)
+			}
+			if val <= target {
+				rD = append(rD, float64(i))
+			}
+		}
+	case GreaterOrEqual:
+		for i, val := range vD {
+			if abs {
+				val = math.Abs(val)
+			}
+			if val >= target {
+				rD = append(rD, float64(i))
+			}
+		}
+	}
+	r = NewVector(len(rD), rD)
 	return
 }
 
 func (v Vector) Concat(w Vector) (r Vector) {
-	r = Vector{VecConcat(v.V, w.V)}
+	var (
+		v1D = v.RawVector().Data
+		v2D = w.RawVector().Data
+		N   = len(v1D) + len(v2D)
+		rD  = make([]float64, N)
+	)
+	for i, val := range v1D {
+		rD[i] = val
+	}
+	offset := len(v1D)
+	for i, val := range v2D {
+		rD[i+offset] = val
+	}
+	r = NewVector(N, rD)
 	return
 }
 
