@@ -22,14 +22,14 @@ func SimpleMesh1D(xmin, xmax float64, K int) (VX utils.Vector, EToV utils.Matrix
 
 func Startup1D(K, N, NFaces, Nfp int) (X utils.Matrix) {
 	var (
-		Np  = N + 1
-		err error
+		Np   = N + 1
+		err  error
+		Vinv utils.Matrix
 	)
 	VX, EToV := SimpleMesh1D(0, 2, K)
 
 	R, W := JacobiGL(0, 0, N)
 	V := Vandermonde1D(N, R)
-	var Vinv utils.Matrix
 	if Vinv, err = V.Inverse(); err != nil {
 		panic("error inverting V")
 	}
@@ -49,15 +49,13 @@ func Startup1D(K, N, NFaces, Nfp int) (X utils.Matrix) {
 	mm := utils.NewVector(Np).Set(1).Mul(VX.Subset(va))
 	X = R.Copy().AddScalar(1).Scale(0.5).Mul(sT).Add(mm)
 
-	J, Rx := GeometricFactors1D(Dr.M, X.M)
+	J, Rx := GeometricFactors1D(Dr, X)
 
 	fmask1 := R.Copy().AddScalar(1).Find(utils.Less, utils.NODETOL, true)
 	fmask2 := R.Copy().AddScalar(-1).Find(utils.Less, utils.NODETOL, true)
 	FMask := fmask1.Concat(fmask2)
 	Fx := X.SliceRows(FMask.ToIndex())
-	Jm := utils.Matrix{J}
-	JJ := Jm.SliceRows(FMask.ToIndex())
-	FScale := JJ.POW(-1)
+	FScale := J.SliceRows(FMask.ToIndex()).POW(-1)
 
 	EToE, EToF := Connect1D(EToV.M)
 

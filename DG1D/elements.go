@@ -195,13 +195,9 @@ func Normals1D(Nfaces, Nfp, K int) (NX utils.Matrix) {
 	return
 }
 
-func GeometricFactors1D(Dr, X *mat.Dense) (J, Rx *mat.Dense) {
-	var (
-		xd, xs int = X.Dims()
-	)
-	J = mat.NewDense(xd, xs, nil)
-	J.Product(Dr, X)
-	Rx = utils.MatElementInvert(J)
+func GeometricFactors1D(Dr, X utils.Matrix) (J, Rx utils.Matrix) {
+	J = Dr.Mul(X)
+	Rx = J.Copy().POW(-1)
 	return
 }
 
