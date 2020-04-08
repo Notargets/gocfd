@@ -201,13 +201,13 @@ func GeometricFactors1D(Dr, X utils.Matrix) (J, Rx utils.Matrix) {
 	return
 }
 
-func Connect1D(EToV *mat.Dense) (EToE, EToF *mat.Dense) {
+func Connect1D(EToV utils.Matrix) (EToE, EToF utils.Matrix) {
 	var (
 		NFaces     = 2
 		K, _       = EToV.Dims()
 		Nv         = K + 1
 		TotalFaces = NFaces * K
-		vn         = mat.NewVecDense(2, []float64{0, 1}) // local face to vertex connections
+		vn         = utils.NewVector(2, []float64{0, 1}) // local face to vertex connections
 	)
 	SpFToV_Tmp := sparse.NewDOK(TotalFaces, Nv)
 	var sk int
@@ -259,12 +259,10 @@ func Connect1D(EToV *mat.Dense) (EToE, EToF *mat.Dense) {
 	if I2D, err = utils.NewIndex2D(nr, nc, element1, face1); err != nil {
 		panic(err)
 	}
-	err = utils.MatIndexedAssign(EToE, I2D, element2)
-	if err != nil {
+	if err = EToE.IndexedAssign(I2D, element2); err != nil {
 		panic(err)
 	}
-	err = utils.MatIndexedAssign(EToF, I2D, face2)
-	if err != nil {
+	if err = EToF.IndexedAssign(I2D, face2); err != nil {
 		panic(err)
 	}
 	fmt.Printf("EToE = \n%v\n", mat.Formatted(EToE, mat.Squeeze()))
@@ -272,8 +270,8 @@ func Connect1D(EToV *mat.Dense) (EToE, EToF *mat.Dense) {
 	return
 }
 
-func BuildMaps1D(VX, FMask *mat.VecDense,
-	X, EToV, EToE, EToF *mat.Dense,
+func BuildMaps1D(VX, FMask utils.Vector,
+	X, EToV, EToE, EToF utils.Matrix,
 	K, Np, Nfp, NFaces int,
 	NODETOL float64) (vmapM, vmapP, mapB, vmapB, mapI, vmapI, mapO, vmapO utils.Index) {
 	var (
@@ -295,8 +293,10 @@ func BuildMaps1D(VX, FMask *mat.VecDense,
 		idsR.AddInPlace(Np)
 	}
 
-	var one = utils.NewVecConst(Nfp, 1)
+	//var one = utils.NewVecConst(Nfp, 1)
+	var one = utils.NewVector(Nfp).Set(1)
 	vmapP = utils.NewIndex(Nfp * NFaces * K)
+	fmt.Printf("X = \n%v\n", mat.Formatted(X, mat.Squeeze()))
 	for k1 := 0; k1 < K; k1++ {
 		for f1 := 0; f1 < NFaces; f1++ {
 			k2 := int(EToE.At(k1, f1))
@@ -310,15 +310,11 @@ func BuildMaps1D(VX, FMask *mat.VecDense,
 			idsP := utils.NewRangeOffset(1+f2*Nfp+skP, (f2+1)*Nfp+skP)
 			vidM := vmapM.Subset(idsM)
 			vidP := vmapM.Subset(idsP)
-			x1 := utils.MatSubset(X, vidM)
-			x2 := utils.MatSubset(X, vidP)
-			X1 := utils.VecOuter(x1, one)
-			X2 := utils.VecOuter(x2, one)
-			D := utils.MatCopyEmpty(X1)
-			D.Sub(X1, X2.T())
-			utils.MatPOWInPlace(D, 2)
-			utils.MatApplyInPlace(D, math.Sqrt)
-			utils.MatApplyInPlace(D, math.Abs)
+			x1 := X.SubsetVector(vidM)
+			x2 := X.SubsetVector(vidP)
+			X1 := x1.Outer(one)
+			X2 := x2.Outer(one)
+			D := X1.Copy().Subtract(X2.Transpose()).POW(2).Apply(math.Sqrt).Apply(math.Abs)
 			idMP := utils.MatFind(D, utils.Less, NODETOL*refd)
 			idM := idMP.RI
 			idP := idMP.CI

@@ -183,6 +183,10 @@ func (m Matrix) SliceRows(I Index) (R Matrix) {
 }
 
 // Non chainable methods
+func (m Matrix) IndexedAssign(I2 Index2D, Val Index) error {
+	return MatIndexedAssign(m.M, I2, Val)
+}
+
 func (m Matrix) Inverse() (R Matrix, err error) {
 	var (
 		nr, nc = m.Dims()

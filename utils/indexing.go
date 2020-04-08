@@ -2,8 +2,6 @@ package utils
 
 import (
 	"fmt"
-
-	"gonum.org/v1/gonum/mat"
 )
 
 type Index2D struct {
@@ -102,7 +100,7 @@ func (I Index) Apply(f func(val int) int) (r Index) {
 	return
 }
 
-func (I Index) Outer(J Index) (A *mat.Dense) {
+func (I Index) Outer(J Index) (A Matrix) {
 	var (
 		ni   = len(I)
 		nj   = len(J)
@@ -116,7 +114,7 @@ func (I Index) Outer(J Index) (A *mat.Dense) {
 			ind++
 		}
 	}
-	A = mat.NewDense(ni, nj, data)
+	A = NewMatrix(ni, nj, data)
 	return
 }
 

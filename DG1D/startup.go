@@ -57,11 +57,11 @@ func Startup1D(K, N, NFaces, Nfp int) (X utils.Matrix) {
 	Fx := X.SliceRows(FMask.ToIndex())
 	FScale := J.SliceRows(FMask.ToIndex()).POW(-1)
 
-	EToE, EToF := Connect1D(EToV.M)
+	EToE, EToF := Connect1D(EToV)
 
 	vmapM, vmapP, mapB, vmapB, mapI, vmapI, mapO, vmapO :=
-		BuildMaps1D(VX.V, FMask.V,
-			X.M, EToV.M, EToE, EToF,
+		BuildMaps1D(VX, FMask,
+			X, EToV, EToE, EToF,
 			K, Np, Nfp, NFaces,
 			utils.NODETOL)
 	_, _, _, _, _, _ = W, LIFT, NX, Rx, Fx, FScale

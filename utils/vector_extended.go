@@ -204,3 +204,25 @@ func (v Vector) Mul(w Vector) (A Matrix) {
 	}
 	return
 }
+
+func (v Vector) Outer(w Vector) (R Matrix) {
+	var (
+		nr, nc = v.Len(), w.Len()
+		dataV  = v.RawVector().Data
+		dataW  = w.RawVector().Data
+	)
+	R = NewMatrix(nr, nc)
+	for j := 0; j < nc; j++ {
+		x := dataW[j]
+		if x == 1 {
+			R.SetCol(j, dataV)
+		} else {
+			Rdata := R.RawMatrix().Data
+			// ind = nc * i + j
+			for i, val := range dataV {
+				Rdata[j+nc*i] = x * val
+			}
+		}
+	}
+	return
+}
