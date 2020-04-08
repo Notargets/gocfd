@@ -31,8 +31,8 @@ func run(X utils.Matrix) {
 	)
 	_, _ = a, FinalTime
 	_, nc := X.Dims()
-	xmin := X.M.Slice(0, 1, 0, nc)
-	ymin := X.M.Slice(1, 2, 0, nc)
+	xmin := X.Slice(0, 1, 0, nc)
+	ymin := X.Slice(1, 2, 0, nc)
 	fmt.Printf("xmin = \n%v\n", mat.Formatted(xmin, mat.Squeeze()))
 	fmt.Printf("ymin = \n%v\n", mat.Formatted(ymin, mat.Squeeze()))
 	fmt.Printf("X = \n%v\n", mat.Formatted(X, mat.Squeeze()))

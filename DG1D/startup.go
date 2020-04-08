@@ -29,12 +29,6 @@ func Startup1D(K, N, NFaces, Nfp int) (X utils.Matrix) {
 
 	R, W := JacobiGL(0, 0, N)
 	V := Vandermonde1D(N, R)
-	/*
-		Vinv := mat.NewDense(Np, Np, nil)
-		if err := Vinv.Inverse(V); err != nil {
-			panic("error inverting V")
-		}
-	*/
 	var Vinv utils.Matrix
 	if Vinv, err = V.Inverse(); err != nil {
 		panic("error inverting V")
