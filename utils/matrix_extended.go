@@ -12,7 +12,13 @@ type Matrix struct {
 	M *mat.Dense
 }
 
-func NewMatrix(nr, nc int, data []float64) Matrix {
+func NewMatrix(nr, nc int, dataO ...[]float64) Matrix {
+	var (
+		data []float64
+	)
+	if len(dataO) != 0 {
+		data = dataO[0]
+	}
 	return Matrix{
 		mat.NewDense(nr, nc, data),
 	}

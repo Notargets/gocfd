@@ -48,4 +48,7 @@ func TestVector(t *testing.T) {
 	fmt.Printf("v1, v2 = \n%v\n%v\n", mat.Formatted(v1, mat.Squeeze()), mat.Formatted(v2, mat.Squeeze()))
 	fmt.Printf("A = \n%v\n", mat.Formatted(A, mat.Squeeze()))
 	require.Equal(t, vec, A.RawMatrix().Data)
+
+	B := v1.Mul(v2)
+	require.Equal(t, vec, B.RawMatrix().Data)
 }

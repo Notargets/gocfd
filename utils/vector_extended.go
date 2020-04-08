@@ -158,3 +158,22 @@ func (v Vector) ToMatrix() Matrix {
 	)
 	return Matrix{m}
 }
+
+func (v Vector) Mul(w Vector) (A Matrix) {
+	var (
+		dataV = v.V.RawVector().Data
+		dataW = w.V.RawVector().Data
+		nr    = v.Len()
+		nc    = w.Len()
+		dataA []float64
+	)
+	A = NewMatrix(nr, nc)
+	dataA = A.M.RawMatrix().Data
+	for j := 0; j < nc; j++ {
+		for i := 0; i < nr; i++ {
+			ind := nc*i + j
+			dataA[ind] = dataV[i] * dataW[j]
+		}
+	}
+	return
+}
