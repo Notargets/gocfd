@@ -233,14 +233,14 @@ func Connect1D(EToV utils.Matrix) (EToE, EToF utils.Matrix) {
 		IVec element1 = floor( (faces1-1)/ Nfaces ) + 1;
 		IVec face1    =   mod( (faces1-1), Nfaces ) + 1;
 	*/
-	element1 := FacesIndex.RI.Apply(func(val int) int { return val / NFaces })
-	face1 := FacesIndex.RI.Apply(func(val int) int { return int(math.Mod(float64(val), float64(NFaces))) })
+	element1 := FacesIndex.RI.Copy().Apply(func(val int) int { return val / NFaces })
+	face1 := FacesIndex.RI.Copy().Apply(func(val int) int { return int(math.Mod(float64(val), float64(NFaces))) })
 	/*
 		IVec element2 = floor( (faces2-1)/ Nfaces ) + 1;
 		IVec face2    =   mod( (faces2-1), Nfaces ) + 1;
 	*/
-	element2 := FacesIndex.CI.Apply(func(val int) int { return val / NFaces })
-	face2 := FacesIndex.CI.Apply(func(val int) int { return int(math.Mod(float64(val), float64(NFaces))) })
+	element2 := FacesIndex.CI.Copy().Apply(func(val int) int { return val / NFaces })
+	face2 := FacesIndex.CI.Copy().Apply(func(val int) int { return int(math.Mod(float64(val), float64(NFaces))) })
 	/*
 	  // Rearrange into Nelements x Nfaces sized arrays
 	  IVec ind = sub2ind(K, Nfaces, element1, face1);
@@ -290,7 +290,7 @@ func BuildMaps1D(VX, FMask utils.Vector,
 		if err := vmapM.IndexedAssign(idsL, nodeids.Subset(idsR)); err != nil {
 			panic(err)
 		}
-		idsR.AddInPlace(Np)
+		idsR.Add(Np)
 	}
 
 	//var one = utils.NewVecConst(Nfp, 1)
@@ -318,7 +318,7 @@ func BuildMaps1D(VX, FMask utils.Vector,
 			idMP := D.Find(utils.Less, NODETOL*refd)
 			idM := idMP.RI
 			idP := idMP.CI
-			if err := vmapP.IndexedAssign(idM.Add(f1*Nfp+skM), vidP.Subset(idP)); err != nil {
+			if err := vmapP.IndexedAssign(idM.Copy().Add(f1*Nfp+skM), vidP.Subset(idP)); err != nil {
 				panic(err)
 			}
 		}
@@ -327,8 +327,8 @@ func BuildMaps1D(VX, FMask utils.Vector,
 	mapB = vmapP.FindVec(utils.Equal, vmapM)
 	vmapB = vmapM.Subset(mapB)
 	mapI = utils.NewIndex(1)
-	mapO = utils.NewIndex(1).Add(K*NFaces - 1)
+	mapO = utils.NewIndex(1).Copy().Add(K*NFaces - 1)
 	vmapI = utils.NewIndex(1)
-	vmapO = utils.NewIndex(1).Add(K*Np - 1)
+	vmapO = utils.NewIndex(1).Copy().Add(K*Np - 1)
 	return
 }

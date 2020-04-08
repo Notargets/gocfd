@@ -38,6 +38,7 @@ func NewIndex2D(nr, nc int, RI, CI Index) (I2 Index2D, err error) {
 
 type Index []int
 
+// Chainable methods
 func NewIndex(N int) (I Index) {
 	return make(Index, N)
 }
@@ -45,7 +46,6 @@ func NewRangeOffset(rmin, rmax int) (r Index) {
 	// Input range is "1 based" and converted to zero based index
 	return NewRange(rmin-1, rmax-1)
 }
-
 func NewRange(rmin, rmax int) (r Index) {
 	var (
 		size = rmax - rmin + 1 // INCLUSIVE RANGE
@@ -71,19 +71,21 @@ func NewFromFloat(IF []float64) (r Index) {
 	return
 }
 
-func (I Index) Add(val int) (r Index) {
+func (I Index) Copy() (r Index) {
 	r = make(Index, len(I))
 	for i, ival := range I {
-		r[i] = val + ival
+		r[i] = ival
 	}
 	return r
 }
-func (I Index) AddInPlace(val int) (r Index) {
+
+func (I Index) Add(val int) (r Index) {
 	for i := range I {
 		I[i] += val
 	}
 	return I
 }
+
 func (I Index) Subset(J Index) (r Index) {
 	r = make(Index, len(J))
 	for j, val := range J {
@@ -93,13 +95,53 @@ func (I Index) Subset(J Index) (r Index) {
 }
 
 func (I Index) Apply(f func(val int) int) (r Index) {
-	r = make(Index, len(I))
 	for i, val := range I {
-		r[i] = f(val)
+		I[i] = f(val)
 	}
 	return
 }
 
+func (I Index) FindVec(op EvalOp, Values Index) (J Index) {
+	/*
+		Each element of Values is compared to the corresponding value of I:
+		if (Values[i] op I[i]): append i to the output index J
+	*/
+	switch op {
+	case Equal:
+		for i, val := range I {
+			if val == Values[i] {
+				J = append(J, i)
+			}
+		}
+	case Less:
+		for i, val := range I {
+			if val < Values[i] {
+				J = append(J, i)
+			}
+		}
+	case LessOrEqual:
+		for i, val := range I {
+			if val <= Values[i] {
+				J = append(J, i)
+			}
+		}
+	case Greater:
+		for i, val := range I {
+			if val > Values[i] {
+				J = append(J, i)
+			}
+		}
+	case GreaterOrEqual:
+		for i, val := range I {
+			if val >= Values[i] {
+				J = append(J, i)
+			}
+		}
+	}
+	return
+}
+
+// Non chainable methods
 func (I Index) Outer(J Index) (A Matrix) {
 	var (
 		ni   = len(I)
@@ -151,46 +193,6 @@ func (I *Index) IndexedAssign(J, Val Index) (err error) {
 			return
 		}
 		(*I)[ji] = val
-	}
-	return
-}
-
-func (I Index) FindVec(op EvalOp, Values Index) (J Index) {
-	/*
-		Each element of Values is compared to the corresponding value of I:
-		if (Values[i] op I[i]): append i to the output index J
-	*/
-	switch op {
-	case Equal:
-		for i, val := range I {
-			if val == Values[i] {
-				J = append(J, i)
-			}
-		}
-	case Less:
-		for i, val := range I {
-			if val < Values[i] {
-				J = append(J, i)
-			}
-		}
-	case LessOrEqual:
-		for i, val := range I {
-			if val <= Values[i] {
-				J = append(J, i)
-			}
-		}
-	case Greater:
-		for i, val := range I {
-			if val > Values[i] {
-				J = append(J, i)
-			}
-		}
-	case GreaterOrEqual:
-		for i, val := range I {
-			if val >= Values[i] {
-				J = append(J, i)
-			}
-		}
 	}
 	return
 }

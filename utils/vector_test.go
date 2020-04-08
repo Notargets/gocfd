@@ -17,7 +17,7 @@ func TestVector(t *testing.T) {
 		// x = ones(Np)*VX(va) + 0.5*(r+1.)*sT(vc);
 		mm := utils.NewVector(Np).Set(1).ToMatrix().Mul(VX.Subset(va).Transpose())
 		r := utils.Vector{mat.VecDenseCopyOf(R)}
-		X = r.AddScalar(1).Scale(0.5).ToMatrix().Mul(sT.Transpose()).Add(mm).M
+		X = r.AddScalar(1).Scale(0.5).ToMatrix().Mul(sT.Transpose()).AddCopy(mm).M
 	*/
 	N := 3
 	v1 := NewVector(N).Set(1)

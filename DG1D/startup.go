@@ -44,7 +44,6 @@ func Startup1D(K, N, NFaces, Nfp int) (X utils.Matrix) {
 	va := EToV.Col(0).ToIndex()
 	vb := EToV.Col(1).ToIndex()
 	sT := VX.Subset(vb).Subtract(VX.Subset(va))
-
 	// x = ones(Np)*VX(va) + 0.5*(r+1.)*sT(vc);
 	mm := utils.NewVector(Np).Set(1).Mul(VX.Subset(va))
 	X = R.Copy().AddScalar(1).Scale(0.5).Mul(sT).Add(mm)
