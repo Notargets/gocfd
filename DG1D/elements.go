@@ -301,9 +301,6 @@ func BuildMaps1D(VX, FMask utils.Vector,
 		for f1 := 0; f1 < NFaces; f1++ {
 			k2 := int(EToE.At(k1, f1))
 			f2 := int(EToF.At(k1, f1))
-			v1 := int(EToV.At(k1, f1))
-			v2 := int(EToV.At(k1, (f1+1)%NFaces))
-			refd := math.Sqrt(utils.POW(VX.AtVec(v1)-VX.AtVec(v2), 2))
 			skM := k1 * NF
 			skP := k2 * NF
 			idsM := utils.NewRangeOffset(1+f1*Nfp+skM, (f1+1)*Nfp+skM)
@@ -315,7 +312,10 @@ func BuildMaps1D(VX, FMask utils.Vector,
 			X1 := x1.Outer(one)
 			X2 := x2.Outer(one)
 			D := X1.Copy().Subtract(X2.Transpose()).POW(2).Apply(math.Sqrt).Apply(math.Abs)
-			idMP := utils.MatFind(D, utils.Less, NODETOL*refd)
+			v1 := int(EToV.At(k1, f1))
+			v2 := int(EToV.At(k1, (f1+1)%NFaces))
+			refd := math.Sqrt(utils.POW(VX.AtVec(v1)-VX.AtVec(v2), 2))
+			idMP := D.Find(utils.Less, NODETOL*refd)
 			idM := idMP.RI
 			idP := idMP.CI
 			if err := vmapP.IndexedAssign(idM.Add(f1*Nfp+skM), vidP.Subset(idP)); err != nil {
@@ -323,7 +323,6 @@ func BuildMaps1D(VX, FMask utils.Vector,
 			}
 		}
 	}
-
 	// Create list of boundary nodes
 	mapB = vmapP.FindVec(utils.Equal, vmapM)
 	vmapB = vmapM.Subset(mapB)
