@@ -9,29 +9,32 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-func JacobiGL(alpha, beta float64, N int) (J *mat.SymDense, X, W *mat.VecDense) {
+func JacobiGL(alpha, beta float64, N int) (X, W utils.Vector) {
 	var (
 		x    = make([]float64, N+1)
-		xint mat.Vector
+		xint utils.Vector
 	)
 	if N == 1 {
 		x[0] = -1
 		x[1] = 1
-		return nil, mat.NewVecDense(N+1, x), nil
+		X = utils.NewVector(N+1, x)
+		return
 	}
-	J, xint, W = JacobiGQ(alpha+1, beta+1, N-2)
+	xint, W = JacobiGQ(alpha+1, beta+1, N-2)
 	x[0] = -1
 	x[N] = 1
 	var iter int
+	dataXint := xint.V.RawVector().Data
 	for i := 1; i < N; i++ {
-		x[i] = xint.AtVec(iter)
+		//x[i] = xint.AtVec(iter)
+		x[i] = dataXint[iter]
 		iter++
 	}
-	X = mat.NewVecDense(len(x), x)
+	X = utils.NewVector(len(x), x)
 	return
 }
 
-func JacobiGQ(alpha, beta float64, N int) (J *mat.SymDense, X, W *mat.VecDense) {
+func JacobiGQ(alpha, beta float64, N int) (X, W utils.Vector) {
 	var (
 		x, w       []float64
 		fac        float64
@@ -41,7 +44,7 @@ func JacobiGQ(alpha, beta float64, N int) (J *mat.SymDense, X, W *mat.VecDense) 
 	if N == 0 {
 		x = []float64{-(alpha - beta) / (alpha + beta + 2.)}
 		w = []float64{2.}
-		return nil, mat.NewVecDense(1, x), mat.NewVecDense(1, w)
+		return utils.NewVector(len(x), x), utils.NewVector(len(w), w)
 	}
 
 	h1 = make([]float64, N+1)
@@ -81,25 +84,23 @@ func JacobiGQ(alpha, beta float64, N int) (J *mat.SymDense, X, W *mat.VecDense) 
 		panic("eigenvalue decomposition failed")
 	}
 	x = eig.Values(x)
-	X = mat.NewVecDense(N+1, x)
+	X = utils.NewVector(N+1, x)
 
 	VVr = mat.NewDense(len(x), len(x), nil)
 	eig.VectorsTo(VVr)
-	W = utils.VecSquare(VVr.RowView(0))
-	W = utils.VecScalarMult(W, gamma0(alpha, beta))
-
-	return JJ, X, W
+	W = utils.NewVector(len(x), VVr.RawRowView(0)).POW(2).Scale(gamma0(alpha, beta))
+	return X, W
 }
 
-func Vandermonde1D(N int, R *mat.VecDense) (V *mat.Dense) {
-	V = mat.NewDense(R.Len(), N+1, nil)
+func Vandermonde1D(N int, R utils.Vector) (V utils.Matrix) {
+	V = utils.NewMatrix(R.Len(), N+1)
 	for j := 0; j < N+1; j++ {
 		V.SetCol(j, JacobiP(R, 0, 0, j))
 	}
 	return
 }
 
-func JacobiP(r *mat.VecDense, alpha, beta float64, N int) (p []float64) {
+func JacobiP(r utils.Vector, alpha, beta float64, N int) (p []float64) {
 	var (
 		Nc = r.Len()
 	)
@@ -139,8 +140,8 @@ func JacobiP(r *mat.VecDense, alpha, beta float64, N int) (p []float64) {
 		h1 := 2.0*ip1 + ab
 		anew := 2.0 / (h1 + 2.0) * math.Sqrt(ip2*(ip1+ab1)*(ip1+a1)*(ip1+b1)/(h1+1.0)/(h1+3.0))
 		bnew := -(alpha*alpha - beta*beta) / h1 / (h1 + 2.0)
-		x_bnew := utils.NewVecConst(r.Len(), -bnew)
-		x_bnew.AddVec(x_bnew, r)
+		x_bnew := utils.NewVector(r.Len()).Set(-bnew)
+		x_bnew.Add(r)
 		xi := PL.RawRowView(i)
 		xip1 := PL.RawRowView(i + 1)
 		xrow = make([]float64, len(xi))
@@ -154,7 +155,7 @@ func JacobiP(r *mat.VecDense, alpha, beta float64, N int) (p []float64) {
 	return
 }
 
-func GradJacobiP(r *mat.VecDense, alpha, beta float64, N int) (p []float64) {
+func GradJacobiP(r utils.Vector, alpha, beta float64, N int) (p []float64) {
 	if N == 0 {
 		p = make([]float64, r.Len())
 		return
@@ -168,7 +169,7 @@ func GradJacobiP(r *mat.VecDense, alpha, beta float64, N int) (p []float64) {
 	return
 }
 
-func GradVandermonde1D(r *mat.VecDense, N int) (Vr *mat.Dense) {
+func GradVandermonde1D(r utils.Vector, N int) (Vr *mat.Dense) {
 	Vr = mat.NewDense(r.Len(), N+1, nil)
 	for i := 0; i < N+1; i++ {
 		Vr.SetCol(i, GradJacobiP(r, 0, 0, i))

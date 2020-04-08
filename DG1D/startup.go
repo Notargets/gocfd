@@ -29,7 +29,7 @@ func Startup1D(K, N, NFaces, Nfp int) (X *mat.Dense) {
 	)
 	VX, EToV := SimpleMesh1D(0, 2, K)
 
-	_, R, W := JacobiGL(0, 0, N)
+	R, W := JacobiGL(0, 0, N)
 	V := Vandermonde1D(N, R)
 	Vinv := mat.NewDense(Np, Np, nil)
 	if err := Vinv.Inverse(V); err != nil {
@@ -38,7 +38,7 @@ func Startup1D(K, N, NFaces, Nfp int) (X *mat.Dense) {
 	Vr := GradVandermonde1D(R, N)
 	Dr := mat.NewDense(Np, Np, nil)
 	Dr.Product(Vr, Vinv)
-	LIFT := Lift1D(V, Np, NFaces, Nfp)
+	LIFT := Lift1D(V.M, Np, NFaces, Nfp)
 
 	NX := Normals1D(NFaces, Nfp, K)
 
@@ -53,7 +53,7 @@ func Startup1D(K, N, NFaces, Nfp int) (X *mat.Dense) {
 
 	J, Rx := GeometricFactors1D(Dr, X)
 
-	r = utils.Vector{R}
+	r = utils.Vector{R.V}
 	fmask1 := r.Copy().AddScalar(1).Find(utils.Less, utils.NODETOL, true)
 	fmask2 := r.Copy().AddScalar(-1).Find(utils.Less, utils.NODETOL, true)
 	FMask := fmask1.Concat(fmask2)

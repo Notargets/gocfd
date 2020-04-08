@@ -31,6 +31,11 @@ func (m Matrix) T() mat.Matrix             { return m.T() }
 func (m Matrix) RawMatrix() blas64.General { return m.M.RawMatrix() }
 
 // Chainable methods (extended)
+func (m Matrix) SetCol(j int, data []float64) Matrix {
+	m.M.SetCol(j, data)
+	return m
+}
+
 func (m Matrix) Mul(A Matrix) Matrix {
 	var (
 		nrM, ncM   = m.M.Dims()

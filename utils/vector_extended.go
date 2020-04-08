@@ -31,15 +31,6 @@ func (v Vector) SubVec(a, b Vector)       { v.V.SubVec(a.V, b.V) }
 func (v Vector) Len() int                 { return v.V.Len() }
 
 // Chainable (extended) methods
-func (v Vector) Transpose() Matrix {
-	var (
-		nr, nc = v.V.Dims()
-		m      *mat.Dense
-	)
-	m = mat.NewDense(nc, nr, v.V.RawVector().Data)
-	return Matrix{m}
-}
-
 func (v Vector) Subtract(a Vector) Vector {
 	var (
 		data  = v.V.RawVector().Data
@@ -47,6 +38,17 @@ func (v Vector) Subtract(a Vector) Vector {
 	)
 	for i := range data {
 		data[i] -= dataA[i]
+	}
+	return v
+}
+
+func (v Vector) Add(a Vector) Vector {
+	var (
+		data  = v.V.RawVector().Data
+		dataA = a.V.RawVector().Data
+	)
+	for i := range data {
+		data[i] += dataA[i]
 	}
 	return v
 }
@@ -131,6 +133,15 @@ func (v Vector) Concat(w Vector) (r Vector) {
 }
 
 // Non Chainable methods
+func (v Vector) Transpose() Matrix {
+	var (
+		nr, nc = v.V.Dims()
+		m      *mat.Dense
+	)
+	m = mat.NewDense(nc, nr, v.V.RawVector().Data)
+	return Matrix{m}
+}
+
 func (v Vector) ToIndex() (I Index) {
 	var (
 		data = v.V.RawVector().Data
