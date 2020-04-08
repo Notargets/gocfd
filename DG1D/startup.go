@@ -47,9 +47,9 @@ func Startup1D(K, N, NFaces, Nfp int) (X *mat.Dense) {
 	sT := VX.Subset(vb).Subtract(VX.Subset(va))
 
 	// x = ones(Np)*VX(va) + 0.5*(r+1.)*sT(vc);
-	mm := utils.NewVector(Np).Set(1).ToMatrix().Mul(VX.Subset(va).Transpose())
+	mm := utils.NewVector(Np).Set(1).Mul(VX.Subset(va))
 	r := utils.Vector{mat.VecDenseCopyOf(R)}
-	X = r.AddScalar(1).Scale(0.5).ToMatrix().Mul(sT.Transpose()).Add(mm).M
+	X = r.AddScalar(1).Scale(0.5).Mul(sT).Add(mm).M
 
 	J, Rx := GeometricFactors1D(Dr, X)
 
