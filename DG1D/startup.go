@@ -53,9 +53,10 @@ func Startup1D(K, N, NFaces, Nfp int) (X *mat.Dense) {
 
 	J, Rx := GeometricFactors1D(Dr, X)
 
-	fmask1 := utils.VecFind(utils.VecScalarAdd(R, 1), utils.Less, utils.NODETOL, true)
-	fmask2 := utils.VecFind(utils.VecScalarAdd(R, -1), utils.Less, utils.NODETOL, true)
-	FMask := utils.VecConcat(fmask1, fmask2)
+	r = utils.Vector{R}
+	fmask1 := r.Copy().AddScalar(1).Find(utils.Less, utils.NODETOL, true)
+	fmask2 := r.Copy().AddScalar(-1).Find(utils.Less, utils.NODETOL, true)
+	FMask := utils.VecConcat(fmask1.V, fmask2.V)
 	Fx := utils.MatSubsetRow(X, FMask)
 	JJ := utils.MatSubsetRow(J, FMask)
 	FScale := utils.MatElementInvert(JJ)

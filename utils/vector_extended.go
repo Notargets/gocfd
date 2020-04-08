@@ -114,6 +114,17 @@ func (v Vector) POW(p int) Vector {
 	return v
 }
 
+func (v Vector) Copy() Vector {
+	return Vector{
+		mat.VecDenseCopyOf(v.V),
+	}
+}
+
+func (v Vector) Find(op EvalOp, target float64, abs bool) (r Vector) {
+	r.V = VecFind(v.V, op, target, abs)
+	return
+}
+
 // Non Chainable methods
 func (v Vector) ToIndex() (I Index) {
 	var (
