@@ -169,30 +169,29 @@ func GradJacobiP(r utils.Vector, alpha, beta float64, N int) (p []float64) {
 	return
 }
 
-func GradVandermonde1D(r utils.Vector, N int) (Vr *mat.Dense) {
-	Vr = mat.NewDense(r.Len(), N+1, nil)
+func GradVandermonde1D(r utils.Vector, N int) (Vr utils.Matrix) {
+	Vr = utils.NewMatrix(r.Len(), N+1)
 	for i := 0; i < N+1; i++ {
 		Vr.SetCol(i, GradJacobiP(r, 0, 0, i))
 	}
 	return
 }
 
-func Lift1D(V *mat.Dense, Np, Nfaces, Nfp int) (LIFT *mat.Dense) {
-	Emat := mat.NewDense(Np, Nfaces*Nfp, nil)
+func Lift1D(V utils.Matrix, Np, Nfaces, Nfp int) (LIFT utils.Matrix) {
+	Emat := utils.NewMatrix(Np, Nfaces*Nfp)
 	Emat.Set(0, 0, 1)
 	Emat.Set(Np-1, 1, 1)
-	LIFT = mat.NewDense(Np, Nfaces*Nfp, nil)
-	LIFT.Product(V, V.T(), Emat)
+	LIFT = V.Mul(V.Transpose()).Mul(Emat)
 	return
 }
 
-func Normals1D(Nfaces, Nfp, K int) (NX *mat.Dense) {
+func Normals1D(Nfaces, Nfp, K int) (NX utils.Matrix) {
 	nx := make([]float64, Nfaces*Nfp*K)
 	for i := 0; i < K; i++ {
 		nx[i] = -1
 		nx[i+K] = 1
 	}
-	NX = mat.NewDense(Nfp*Nfaces, K, nx)
+	NX = utils.NewMatrix(Nfp*Nfaces, K, nx)
 	return
 }
 

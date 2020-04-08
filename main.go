@@ -19,9 +19,9 @@ const (
 
 func main() {
 	X := DG1D.Startup1D(K, N, NFaces, Nfp)
-	U := utils.MatApply(X, math.Sin)
+	U := utils.MatApply(X.M, math.Sin)
 	fmt.Printf("U = \n%v\n", mat.Formatted(U, mat.Squeeze()))
-	run(X)
+	run(X.M)
 }
 
 func run(X *mat.Dense) {

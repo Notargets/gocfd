@@ -31,6 +31,27 @@ func (m Matrix) T() mat.Matrix             { return m.T() }
 func (m Matrix) RawMatrix() blas64.General { return m.M.RawMatrix() }
 
 // Chainable methods (extended)
+func (m Matrix) Set(i, j int, val float64) Matrix {
+	m.M.Set(i, j, val)
+	return m
+}
+func (m Matrix) Transpose() (R Matrix) {
+	var (
+		nr, nc = m.Dims()
+		data   = m.M.RawMatrix().Data
+	)
+	R = NewMatrix(nc, nr)
+	dataR := R.M.RawMatrix().Data
+	for j := 0; j < nc; j++ {
+		for i := 0; i < nr; i++ {
+			ind := i + nr*j
+			indR := i*nc + j
+			dataR[indR] = data[ind]
+		}
+	}
+	return
+}
+
 func (m Matrix) SetCol(j int, data []float64) Matrix {
 	m.M.SetCol(j, data)
 	return m
@@ -127,6 +148,15 @@ func (m Matrix) SliceRows(I Index) (R Matrix) {
 }
 
 // Non chainable methods
+func (m Matrix) Inverse() (R Matrix, err error) {
+	var (
+		nr, nc = m.Dims()
+	)
+	R = NewMatrix(nr, nc)
+	err = R.M.Inverse(m.M)
+	return
+}
+
 func (m Matrix) Col(j int) Vector {
 	var (
 		data   = m.M.RawMatrix().Data
