@@ -31,6 +31,19 @@ func (m Matrix) T() mat.Matrix             { return m.T() }
 func (m Matrix) RawMatrix() blas64.General { return m.M.RawMatrix() }
 
 // Chainable methods (extended)
+func (m Matrix) Copy() (R Matrix) {
+	var (
+		data   = m.M.RawMatrix().Data
+		nr, nc = m.Dims()
+		dataR  = make([]float64, nr*nc)
+	)
+	for i, val := range data {
+		dataR[i] = val
+	}
+	R = NewMatrix(nr, nc, dataR)
+	return
+}
+
 func (m Matrix) Set(i, j int, val float64) Matrix {
 	m.M.Set(i, j, val)
 	return m

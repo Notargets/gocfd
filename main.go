@@ -19,20 +19,20 @@ const (
 
 func main() {
 	X := DG1D.Startup1D(K, N, NFaces, Nfp)
-	U := utils.MatApply(X.M, math.Sin)
+	U := X.Copy().Apply(math.Sin)
 	fmt.Printf("U = \n%v\n", mat.Formatted(U, mat.Squeeze()))
-	run(X.M)
+	run(X)
 }
 
-func run(X *mat.Dense) {
+func run(X utils.Matrix) {
 	var (
 		a         = 2 * math.Pi
 		FinalTime = 5
 	)
 	_, _ = a, FinalTime
 	_, nc := X.Dims()
-	xmin := X.Slice(0, 1, 0, nc)
-	ymin := X.Slice(1, 2, 0, nc)
+	xmin := X.M.Slice(0, 1, 0, nc)
+	ymin := X.M.Slice(1, 2, 0, nc)
 	fmt.Printf("xmin = \n%v\n", mat.Formatted(xmin, mat.Squeeze()))
 	fmt.Printf("ymin = \n%v\n", mat.Formatted(ymin, mat.Squeeze()))
 	fmt.Printf("X = \n%v\n", mat.Formatted(X, mat.Squeeze()))
