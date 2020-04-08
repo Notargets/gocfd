@@ -73,13 +73,13 @@ func NewFromFloat(IF []float64) (r Index) {
 
 func (I Index) Copy() (r Index) {
 	r = make(Index, len(I))
-	for i, ival := range I {
-		r[i] = ival
+	for i, val := range I {
+		r[i] = val
 	}
 	return r
 }
 
-func (I Index) Add(val int) (r Index) {
+func (I Index) Add(val int) Index {
 	for i := range I {
 		I[i] += val
 	}
@@ -94,11 +94,11 @@ func (I Index) Subset(J Index) (r Index) {
 	return
 }
 
-func (I Index) Apply(f func(val int) int) (r Index) {
+func (I Index) Apply(f func(val int) int) Index {
 	for i, val := range I {
 		I[i] = f(val)
 	}
-	return
+	return I
 }
 
 func (I Index) FindVec(op EvalOp, Values Index) (J Index) {
