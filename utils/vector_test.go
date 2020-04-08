@@ -45,6 +45,7 @@ func TestVector(t *testing.T) {
 		⎣6  9⎦
 	*/
 	vec := []float64{2, 3, 4, 6, 6, 9} // Column major order
+	fmt.Printf("v1, v2 = \n%v\n%v\n", mat.Formatted(v1, mat.Squeeze()), mat.Formatted(v2, mat.Squeeze()))
 	fmt.Printf("A = \n%v\n", mat.Formatted(A, mat.Squeeze()))
 	require.Equal(t, vec, A.RawMatrix().Data)
 }
