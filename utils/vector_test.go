@@ -32,4 +32,19 @@ func TestVector(t *testing.T) {
 	nr, nc := A.Dims()
 	require.Equal(t, N, nr)
 	require.Equal(t, M, nc)
+
+	v1.V.SetVec(0, 1)
+	v1.V.SetVec(1, 2)
+	v1.V.SetVec(2, 3)
+	v2.V.SetVec(0, 2)
+	A = v1.ToMatrix().Mul(v2.Transpose())
+	/*
+		A =
+		⎡2  3⎤
+		⎢4  6⎥
+		⎣6  9⎦
+	*/
+	vec := []float64{2, 3, 4, 6, 6, 9} // Column major order
+	fmt.Printf("A = \n%v\n", mat.Formatted(A, mat.Squeeze()))
+	require.Equal(t, vec, A.RawMatrix().Data)
 }
