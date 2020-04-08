@@ -20,7 +20,7 @@ func SimpleMesh1D(xmin, xmax float64, K int) (VX utils.Vector, EToV utils.Matrix
 		elementVertex[iter+1] = float64(i + 1)
 		iter += 2
 	}
-	return utils.Vector{mat.NewVecDense(K+1, x)}, utils.Matrix{mat.NewDense(K, 2, elementVertex)}
+	return utils.NewVector(K+1, x), utils.NewMatrix(K, 2, elementVertex)
 }
 
 func Startup1D(K, N, NFaces, Nfp int) (X *mat.Dense) {
