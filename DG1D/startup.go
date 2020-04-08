@@ -56,15 +56,17 @@ func Startup1D(K, N, NFaces, Nfp int) (X *mat.Dense) {
 	r = utils.Vector{R}
 	fmask1 := r.Copy().AddScalar(1).Find(utils.Less, utils.NODETOL, true)
 	fmask2 := r.Copy().AddScalar(-1).Find(utils.Less, utils.NODETOL, true)
-	FMask := utils.VecConcat(fmask1.V, fmask2.V)
-	Fx := utils.MatSubsetRow(X, FMask)
-	JJ := utils.MatSubsetRow(J, FMask)
-	FScale := utils.MatElementInvert(JJ)
+	FMask := fmask1.Concat(fmask2)
+	Xm := utils.Matrix{X}
+	Fx := Xm.SliceRows(FMask.ToIndex())
+	Jm := utils.Matrix{J}
+	JJ := Jm.SliceRows(FMask.ToIndex())
+	FScale := JJ.POW(-1)
 
 	EToE, EToF := Connect1D(EToV.M)
 
 	vmapM, vmapP, mapB, vmapB, mapI, vmapI, mapO, vmapO :=
-		BuildMaps1D(VX.V, FMask,
+		BuildMaps1D(VX.V, FMask.V,
 			X, EToV.M, EToE, EToF,
 			K, Np, Nfp, NFaces,
 			utils.NODETOL)

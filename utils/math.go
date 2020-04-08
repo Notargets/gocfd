@@ -56,7 +56,15 @@ func ConstArray(val float64, N int) (v []float64) {
 	return
 }
 
-func POW(x float64, p int) (y float64) {
+func POW(x float64, pp int) (y float64) {
+	var (
+		p       = pp
+		flipped bool
+	)
+	if p < 0 {
+		p = -pp
+		flipped = true
+	}
 	switch p {
 	case 0:
 		y = 1
@@ -83,6 +91,9 @@ func POW(x float64, p int) (y float64) {
 		y = y * y * y * y
 	default:
 		y = math.Pow(x, float64(p))
+	}
+	if flipped {
+		y = 1. / y
 	}
 	return
 }

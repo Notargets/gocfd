@@ -125,6 +125,11 @@ func (v Vector) Find(op EvalOp, target float64, abs bool) (r Vector) {
 	return
 }
 
+func (v Vector) Concat(w Vector) (r Vector) {
+	r = Vector{VecConcat(v.V, w.V)}
+	return
+}
+
 // Non Chainable methods
 func (v Vector) ToIndex() (I Index) {
 	var (

@@ -31,35 +31,6 @@ func (m Matrix) T() mat.Matrix             { return m.T() }
 func (m Matrix) RawMatrix() blas64.General { return m.M.RawMatrix() }
 
 // Chainable methods (extended)
-func (m Matrix) Col(j int) Vector {
-	var (
-		data   = m.M.RawMatrix().Data
-		nr, _  = m.M.Dims()
-		offset = nr * j
-		vData  = make([]float64, nr)
-	)
-	for i := range vData {
-		vData[i] = data[offset+i]
-	}
-	return Vector{
-		mat.NewVecDense(nr, vData),
-	}
-}
-
-func (m Matrix) Row(i int) Vector {
-	var (
-		data   = m.M.RawMatrix().Data
-		nr, nc = m.M.Dims()
-		vData  = make([]float64, nc)
-	)
-	for j := range vData {
-		vData[j] = data[nr*j+i]
-	}
-	return Vector{
-		mat.NewVecDense(nc, vData),
-	}
-}
-
 func (m Matrix) Mul(A Matrix) Matrix {
 	var (
 		nrM, ncM   = m.M.Dims()
@@ -85,10 +56,6 @@ func (m Matrix) Subtract(a Matrix) Matrix {
 		data[i] -= dataA[i]
 	}
 	return m
-}
-
-func (m Matrix) SubsetVector(I Index) Vector {
-	return Vector{MatSubset(m.M, I)}
 }
 
 func (m Matrix) Subset(I Index) Matrix {
@@ -149,6 +116,41 @@ func (m Matrix) POW(p int) Matrix {
 	return m
 }
 
+func (m Matrix) SliceRows(I Index) (R Matrix) {
+	R.M = MatSliceRows(m.M, I)
+	return
+}
+
+// Non chainable methods
+func (m Matrix) Col(j int) Vector {
+	var (
+		data   = m.M.RawMatrix().Data
+		nr, _  = m.M.Dims()
+		offset = nr * j
+		vData  = make([]float64, nr)
+	)
+	for i := range vData {
+		vData[i] = data[offset+i]
+	}
+	return Vector{
+		mat.NewVecDense(nr, vData),
+	}
+}
+
+func (m Matrix) Row(i int) Vector {
+	var (
+		data   = m.M.RawMatrix().Data
+		nr, nc = m.M.Dims()
+		vData  = make([]float64, nc)
+	)
+	for j := range vData {
+		vData[j] = data[nr*j+i]
+	}
+	return Vector{
+		mat.NewVecDense(nc, vData),
+	}
+}
+
 func (m Matrix) Min() (min float64) {
 	var (
 		data = m.M.RawMatrix().Data
@@ -177,6 +179,10 @@ func (m Matrix) Max() (max float64) {
 
 func (m Matrix) Find(op EvalOp, val float64) (I Index2D) {
 	return MatFind(m.M, op, val)
+}
+
+func (m Matrix) SubsetVector(I Index) Vector {
+	return Vector{MatSubset(m.M, I)}
 }
 
 func MatElementInvert(M mat.Matrix) (R *mat.Dense) {
@@ -227,23 +233,21 @@ func RowMajorToColMajor(nr, nc, ind int) (cind int) {
 	return
 }
 
-func MatSubsetRow(MI mat.Matrix, RowIndices *mat.VecDense) (R *mat.Dense) {
+func MatSliceRows(MI mat.Matrix, I Index) (R *mat.Dense) {
 	// RowIndices should contain a list of row indices into M
 	var (
 		nr, nc = MI.Dims()
-		nrI    = RowIndices.Len()
-		rI     = RowIndices.RawVector().Data
+		nI     = len(I)
 	)
-	R = mat.NewDense(nrI, nc, nil)
-	for i, val := range rI {
-		valI := int(val)
-		if valI > nr-1 || valI < 0 {
-			fmt.Printf("index out of bounds: index = %d, max_bounds = %d\n", valI, nr-1)
+	R = mat.NewDense(nI, nc, nil)
+	for i, val := range I {
+		if val > nr-1 || val < 0 {
+			fmt.Printf("index out of bounds: index = %d, max_bounds = %d\n", val, nr-1)
 			panic("unable to subset row from matrix")
 		}
 		var rowSlice []float64
 		if M, ok := MI.(*mat.Dense); ok {
-			rowSlice = M.RawRowView(valI)
+			rowSlice = M.RawRowView(val)
 		} else {
 			rowSlice = make([]float64, nc)
 			for j := 0; j < nc; j++ {
@@ -255,7 +259,7 @@ func MatSubsetRow(MI mat.Matrix, RowIndices *mat.VecDense) (R *mat.Dense) {
 	return
 }
 
-func MatSubsetCol(MI mat.Matrix, ColIndices *mat.VecDense) (R *mat.Dense) {
+func MatSliceCols(MI mat.Matrix, ColIndices *mat.VecDense) (R *mat.Dense) {
 	// ColIndices should contain a list of row indices into M
 	var (
 		nr, nc = MI.Dims()
