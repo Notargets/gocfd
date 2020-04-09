@@ -103,13 +103,13 @@ func (el *Elements1D) BuildMaps1D() {
 	nodeids := utils.NewRangeOffset(1, el.Np*el.K)
 
 	// find index of face nodes with respect to volume node ordering
-	el.vmapM = utils.NewIndex(el.Nfp * el.NFaces * el.K)
+	el.VmapM = utils.NewIndex(el.Nfp * el.NFaces * el.K)
 	idsR := utils.NewFromFloat(el.FMask.RawVector().Data)
 	for k1 := 0; k1 < el.K; k1++ {
 		iL1 := k1 * NF
 		iL2 := iL1 + NF
 		idsL := utils.NewRangeOffset(iL1+1, iL2) // sequential indices for element k1
-		if err := el.vmapM.IndexedAssign(idsL, nodeids.Subset(idsR)); err != nil {
+		if err := el.VmapM.IndexedAssign(idsL, nodeids.Subset(idsR)); err != nil {
 			panic(err)
 		}
 		idsR.Add(el.Np)
@@ -117,7 +117,7 @@ func (el *Elements1D) BuildMaps1D() {
 
 	//var one = utils.NewVecConst(Nfp, 1)
 	var one = utils.NewVector(el.Nfp).Set(1)
-	el.vmapP = utils.NewIndex(el.Nfp * el.NFaces * el.K)
+	el.VmapP = utils.NewIndex(el.Nfp * el.NFaces * el.K)
 	//fmt.Printf("X = \n%v\n", mat.Formatted(X, mat.Squeeze()))
 	for k1 := 0; k1 < el.K; k1++ {
 		for f1 := 0; f1 < el.NFaces; f1++ {
@@ -127,8 +127,8 @@ func (el *Elements1D) BuildMaps1D() {
 			skP := k2 * NF
 			idsM := utils.NewRangeOffset(1+f1*el.Nfp+skM, (f1+1)*el.Nfp+skM)
 			idsP := utils.NewRangeOffset(1+f2*el.Nfp+skP, (f2+1)*el.Nfp+skP)
-			vidM := el.vmapM.Subset(idsM)
-			vidP := el.vmapM.Subset(idsP)
+			vidM := el.VmapM.Subset(idsM)
+			vidP := el.VmapM.Subset(idsP)
 			x1 := el.X.SubsetVector(vidM)
 			x2 := el.X.SubsetVector(vidP)
 			X1 := x1.Outer(one)
@@ -140,17 +140,17 @@ func (el *Elements1D) BuildMaps1D() {
 			idMP := D.Find(utils.Less, utils.NODETOL*refd)
 			idM := idMP.RI
 			idP := idMP.CI
-			if err := el.vmapP.IndexedAssign(idM.Copy().Add(f1*el.Nfp+skM), vidP.Subset(idP)); err != nil {
+			if err := el.VmapP.IndexedAssign(idM.Copy().Add(f1*el.Nfp+skM), vidP.Subset(idP)); err != nil {
 				panic(err)
 			}
 		}
 	}
 	// Create list of boundary nodes
-	el.mapB = el.vmapP.Compare(utils.Equal, el.vmapM)
-	el.vmapB = el.vmapM.Subset(el.mapB)
-	el.mapI = utils.NewIndex(1)
-	el.mapO = utils.NewIndex(1).Copy().Add(el.K*el.NFaces - 1)
-	el.vmapI = utils.NewIndex(1)
-	el.vmapO = utils.NewIndex(1).Copy().Add(el.K*el.Np - 1)
+	el.MapB = el.VmapP.Compare(utils.Equal, el.VmapM)
+	el.VmapB = el.VmapM.Subset(el.MapB)
+	el.MapI = utils.NewIndex(1)
+	el.MapO = utils.NewIndex(1).Copy().Add(el.K*el.NFaces - 1)
+	el.VmapI = utils.NewIndex(1)
+	el.VmapO = utils.NewIndex(1).Copy().Add(el.K*el.Np - 1)
 	return
 }

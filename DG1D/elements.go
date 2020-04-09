@@ -13,8 +13,8 @@ type Elements1D struct {
 	VX, FMask                         utils.Vector
 	EToV, EToE, EToF                  utils.Matrix
 	X, Dr, Rx, FScale, NX, LIFT       utils.Matrix
-	vmapM, vmapP, vmapB, vmapI, vmapO utils.Index
-	mapB, mapI, mapO                  utils.Index
+	VmapM, VmapP, VmapB, VmapI, VmapO utils.Index
+	MapB, MapI, MapO                  utils.Index
 }
 
 func NewElements1D(N int, VX utils.Vector, EToV utils.Matrix) (el *Elements1D) {

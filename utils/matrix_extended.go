@@ -194,6 +194,17 @@ func (m Matrix) SliceRows(I Index) (R Matrix) {
 	return
 }
 
+func (m Matrix) ElementMultiply(A Matrix) Matrix {
+	var (
+		dataM = m.RawMatrix().Data
+		dataA = A.RawMatrix().Data
+	)
+	for i, val := range dataA {
+		dataM[i] *= val
+	}
+	return m
+}
+
 // Non chainable methods
 func (m Matrix) IndexedAssign(I2 Index2D, Val Index) (err error) {
 	var (
