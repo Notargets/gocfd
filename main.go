@@ -26,14 +26,16 @@ func main() {
 func run(X, U utils.Matrix) {
 	var (
 		a         = 2 * math.Pi
-		FinalTime = 5.
+		FinalTime = 10.
 		CFL       = 0.75
 	)
 	_, _, _ = a, FinalTime, CFL
 	xmin := X.Row(1).Subtract(X.Row(0)).Apply(math.Abs).Min()
 	dt := 0.5 * xmin * (CFL / a)
-	Nsteps := math.Ceil(FinalTime / dt)
-	fmt.Printf("Min Dist = %8.6f, dt = %8.6f, Nsteps = %5.2f\n\n", xmin, dt, Nsteps)
+	Ns := math.Ceil(FinalTime / dt)
+	dt = FinalTime / Ns
+	Nsteps := int(Ns)
+	fmt.Printf("Min Dist = %8.6f, dt = %8.6f, Nsteps = %d\n\n", xmin, dt, Nsteps)
 	/*
 	   // outer time step loop
 	   resid = zeros(Np,K); // Runge-Kutta residual storage

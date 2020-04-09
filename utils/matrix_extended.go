@@ -221,12 +221,11 @@ func (m Matrix) Inverse() (R Matrix, err error) {
 func (m Matrix) Col(j int) Vector {
 	var (
 		data   = m.M.RawMatrix().Data
-		nr, _  = m.M.Dims()
-		offset = nr * j
+		nr, nc = m.M.Dims()
 		vData  = make([]float64, nr)
 	)
 	for i := range vData {
-		vData[i] = data[offset+i]
+		vData[i] = data[i*nc+j]
 	}
 	return Vector{
 		mat.NewVecDense(nr, vData),

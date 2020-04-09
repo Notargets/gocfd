@@ -47,6 +47,8 @@ func Startup1D(K, N, NFaces, Nfp int) (X utils.Matrix) {
 	// x = ones(Np)*VX(va) + 0.5*(r+1.)*sT(vc);
 	mm := utils.NewVector(Np).Set(1).Mul(VX.Subset(va))
 	X = R.Copy().AddScalar(1).Scale(0.5).Mul(sT).Add(mm)
+	//fmt.Printf("VX = \n%v\n", mat.Formatted(VX, mat.Squeeze()))
+	//fmt.Printf("X = \n%v\n", mat.Formatted(X, mat.Squeeze()))
 
 	J, Rx := GeometricFactors1D(Dr, X)
 
