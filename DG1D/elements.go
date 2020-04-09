@@ -1,7 +1,6 @@
 package DG1D
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/james-bowman/sparse"
@@ -265,8 +264,8 @@ func Connect1D(EToV utils.Matrix) (EToE, EToF utils.Matrix) {
 	if err = EToF.IndexedAssign(I2D, face2); err != nil {
 		panic(err)
 	}
-	fmt.Printf("EToE = \n%v\n", mat.Formatted(EToE, mat.Squeeze()))
-	fmt.Printf("EToF = \n%v\n", mat.Formatted(EToF, mat.Squeeze()))
+	//fmt.Printf("EToE = \n%v\n", mat.Formatted(EToE, mat.Squeeze()))
+	//fmt.Printf("EToF = \n%v\n", mat.Formatted(EToF, mat.Squeeze()))
 	return
 }
 
@@ -296,7 +295,7 @@ func BuildMaps1D(VX, FMask utils.Vector,
 	//var one = utils.NewVecConst(Nfp, 1)
 	var one = utils.NewVector(Nfp).Set(1)
 	vmapP = utils.NewIndex(Nfp * NFaces * K)
-	fmt.Printf("X = \n%v\n", mat.Formatted(X, mat.Squeeze()))
+	//fmt.Printf("X = \n%v\n", mat.Formatted(X, mat.Squeeze()))
 	for k1 := 0; k1 < K; k1++ {
 		for f1 := 0; f1 < NFaces; f1++ {
 			k2 := int(EToE.At(k1, f1))

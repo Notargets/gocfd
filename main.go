@@ -7,7 +7,6 @@ import (
 	"github.com/notargets/gocfd/DG1D"
 
 	"github.com/notargets/gocfd/utils"
-	"gonum.org/v1/gonum/mat"
 )
 
 const (
@@ -20,38 +19,23 @@ const (
 func main() {
 	X := DG1D.Startup1D(K, N, NFaces, Nfp)
 	U := X.Copy().Apply(math.Sin)
-	fmt.Printf("U = \n%v\n", mat.Formatted(U, mat.Squeeze()))
+	_ = U
+	//fmt.Printf("U = \n%v\n", mat.Formatted(U, mat.Squeeze()))
 	run(X)
 }
 
 func run(X utils.Matrix) {
 	var (
 		a         = 2 * math.Pi
-		FinalTime = 5
+		FinalTime = 5.
+		CFL       = 0.75
 	)
-	_, _ = a, FinalTime
-	_, nc := X.Dims()
-	xmin := X.Slice(0, 1, 0, nc)
-	ymin := X.Slice(1, 2, 0, nc)
-	fmt.Printf("xmin = \n%v\n", mat.Formatted(xmin, mat.Squeeze()))
-	fmt.Printf("ymin = \n%v\n", mat.Formatted(ymin, mat.Squeeze()))
-	fmt.Printf("X = \n%v\n", mat.Formatted(X, mat.Squeeze()))
+	_, _, _ = a, FinalTime, CFL
+	xmin := X.Row(1).Subtract(X.Row(0)).Apply(math.Abs).Min()
+	dt := 0.5 * xmin * (CFL / a)
+	Nsteps := math.Ceil(FinalTime / dt)
+	fmt.Printf("Min Dist = %8.6f, dt = %8.6f, Nsteps = %5.2f\n\n", xmin, dt, Nsteps)
 	/*
-	   double a; // advection speed
-	   double xmin, CFL;
-	   double timelocal;
-
-	   a = 2.*pi;
-
-	   InitRun();
-
-	   // compute time step size
-	   xmin = (abs(x(1,All)-x(2,All))).min_val();
-	   CFL=0.75;
-	   dt   = .5 * (CFL/(2*pi)*xmin);
-	   Nsteps = ceil(FinalTime/dt);
-	   dt = FinalTime/Nsteps;
-
 	   // outer time step loop
 	   resid = zeros(Np,K); // Runge-Kutta residual storage
 	   time = 0;

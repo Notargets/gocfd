@@ -235,12 +235,12 @@ func (m Matrix) Col(j int) Vector {
 
 func (m Matrix) Row(i int) Vector {
 	var (
-		data   = m.M.RawMatrix().Data
-		nr, nc = m.M.Dims()
-		vData  = make([]float64, nc)
+		data  = m.M.RawMatrix().Data
+		_, nc = m.M.Dims()
+		vData = make([]float64, nc)
 	)
 	for j := range vData {
-		vData[j] = data[nr*j+i]
+		vData[j] = data[j+i*nc]
 	}
 	return Vector{
 		mat.NewVecDense(nc, vData),
