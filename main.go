@@ -19,12 +19,11 @@ const (
 func main() {
 	X := DG1D.Startup1D(K, N, NFaces, Nfp)
 	U := X.Copy().Apply(math.Sin)
-	_ = U
 	//fmt.Printf("U = \n%v\n", mat.Formatted(U, mat.Squeeze()))
-	run(X)
+	run(X, U)
 }
 
-func run(X utils.Matrix) {
+func run(X, U utils.Matrix) {
 	var (
 		a         = 2 * math.Pi
 		FinalTime = 5.
