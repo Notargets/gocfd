@@ -40,7 +40,7 @@ func (c *Convection1D) Run() {
 	fmt.Printf("Min Dist = %8.6f, dt = %8.6f, Nsteps = %d\n\n", xmin, dt, Nsteps)
 	U := el.X.Copy().Apply(math.Sin)
 	fmt.Printf("U = \n%v\n", mat.Formatted(U, mat.Squeeze()))
-	timelocal := 0.
+	timelocal := 0.00
 	c.RHS(U, timelocal)
 	/*
 	   // outer time step loop
@@ -64,17 +64,23 @@ func (c *Convection1D) Run() {
 
 func (c *Convection1D) RHS(U utils.Matrix, time float64) (Resid utils.Matrix) {
 	var (
-		uin         = -math.Sin(c.a * time)
-		alpha       = 1. // flux splitting parameter, 0 is full upwinding
-		el          = c.El
-		aNX, aNXabs utils.Matrix
+		uin   float64
+		alpha = 1. // flux splitting parameter, 0 is full upwinding
+		el    = c.El
+		Uflux utils.Matrix
 	)
 	c.RHSOnce.Do(func() {
-		aNX = el.NX.Copy().Scale(0.5 * c.a)
-		aNXabs = aNX.Copy().Apply(math.Abs).Scale(1. - alpha)
+		aNX := el.NX.Copy().Scale(0.5 * c.a)
+		aNXabs := aNX.Copy().Apply(math.Abs).Scale(1. - alpha)
+		Uflux = aNX.Subtract(aNXabs)
 	})
-	dU := U.Subset(el.VmapM).Subtract(U.Subset(el.VmapP)).ElementMultiply(aNX.Subtract(aNXabs))
-	_, _ = dU, uin
+	// Face fluxes
+	dU := U.Subset(el.VmapM).Subtract(U.Subset(el.VmapP)).ElementMultiply(Uflux)
+	// Boundaries
+	// Inflow boundary
+	uin = -math.Sin(c.a * time)
+	dU.SubAssign(el.MapI, U.Copy().Subset(el.VmapI).AddScalar(-uin).ElementMultiply(Uflux.Subset(el.MapI)))
+	dU.SubAssignScalar(el.MapO, 0)
 	fmt.Printf("dU = \n%v\n", mat.Formatted(dU, mat.Squeeze()))
 	/*
 	   double alpha = 1.;

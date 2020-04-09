@@ -205,6 +205,27 @@ func (m Matrix) ElementMultiply(A Matrix) Matrix {
 	return m
 }
 
+func (m Matrix) SubAssign(I Index, A Matrix) Matrix {
+	var (
+		dataM = m.RawMatrix().Data
+		dataA = A.RawMatrix().Data
+	)
+	for _, ind := range I {
+		dataM[ind] = dataA[ind]
+	}
+	return m
+}
+
+func (m Matrix) SubAssignScalar(I Index, val float64) Matrix {
+	var (
+		dataM = m.RawMatrix().Data
+	)
+	for _, ind := range I {
+		dataM[ind] = val
+	}
+	return m
+}
+
 // Non chainable methods
 func (m Matrix) IndexedAssign(I2 Index2D, Val Index) (err error) {
 	var (
