@@ -119,7 +119,7 @@ func (m Matrix) Subtract(a Matrix) Matrix {
 	return m
 }
 
-func (m Matrix) Subset(I Index) Matrix {
+func (m Matrix) Subset(I Index, nrNew, ncNew int) Matrix {
 	/*
 		Index should contain a list of indices into MI
 		Note: native mat library matrix storage is in column traversal first (row-major) order
@@ -127,14 +127,28 @@ func (m Matrix) Subset(I Index) Matrix {
 	var (
 		Mr     = m.RawMatrix()
 		nr, nc = m.Dims()
-		data   = make([]float64, nr*nc)
+		data   = make([]float64, nrNew*ncNew)
 		R      *mat.Dense
 	)
-	for _, ind := range I {
-		data[ind] = Mr.Data[ind]
+	for i, ind := range I {
+		indC := RowMajorToColMajor(nr, nc, ind)
+		indD := RowMajorToColMajor(nrNew, ncNew, i)
+		data[indD] = Mr.Data[indC]
 	}
-	R = mat.NewDense(nr, nc, data)
+	R = mat.NewDense(nrNew, ncNew, data)
 	return Matrix{R}
+}
+
+func (m Matrix) Assign(I Index, A Matrix) Matrix {
+	// Assigns values in M sequentially using values indexed from A
+	var (
+		dataM = m.RawMatrix().Data
+		dataA = A.RawMatrix().Data
+	)
+	for i, ind := range I {
+		dataM[i] = dataA[ind]
+	}
+	return m
 }
 
 func (m Matrix) Scale(a float64) Matrix {
@@ -200,23 +214,13 @@ func (m Matrix) ElementMultiply(A Matrix) Matrix {
 		dataA = A.RawMatrix().Data
 	)
 	for i, val := range dataA {
+		//fmt.Printf("val[%d] = %v, mval = %v\n", i, val, dataM[i])
 		dataM[i] *= val
 	}
 	return m
 }
 
-func (m Matrix) SubAssign(I Index, A Matrix) Matrix {
-	var (
-		dataM = m.RawMatrix().Data
-		dataA = A.RawMatrix().Data
-	)
-	for _, ind := range I {
-		dataM[ind] = dataA[ind]
-	}
-	return m
-}
-
-func (m Matrix) SubAssignScalar(I Index, val float64) Matrix {
+func (m Matrix) AssignScalar(I Index, val float64) Matrix {
 	var (
 		dataM = m.RawMatrix().Data
 	)

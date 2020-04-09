@@ -62,10 +62,10 @@ func (c *Convection1D) Run() {
 	*/
 }
 
-func (c *Convection1D) RHS(U utils.Matrix, time float64) (Resid utils.Matrix) {
+func (c *Convection1D) RHS(U utils.Matrix, time float64) (RHSU utils.Matrix) {
 	var (
 		uin   float64
-		alpha = 1. // flux splitting parameter, 0 is full upwinding
+		alpha = 1.0 // flux splitting parameter, 0 is full upwinding
 		el    = c.El
 		Uflux utils.Matrix
 	)
@@ -75,28 +75,17 @@ func (c *Convection1D) RHS(U utils.Matrix, time float64) (Resid utils.Matrix) {
 		Uflux = aNX.Subtract(aNXabs)
 	})
 	// Face fluxes
-	dU := U.Subset(el.VmapM).Subtract(U.Subset(el.VmapP)).ElementMultiply(Uflux)
+	// du = (u(vmapM)-u(vmapP)).dm(a*nx-(1.-alpha)*abs(a*nx))/2.;
+	duNr := el.Nfp * el.NFaces
+	duNc := el.K
+	dU := U.Subset(el.VmapM, duNr, duNc).Subtract(U.Subset(el.VmapP, duNr, duNc)).ElementMultiply(Uflux)
+
 	// Boundaries
 	// Inflow boundary
 	uin = -math.Sin(c.a * time)
-	dU.SubAssign(el.MapI, U.Copy().Subset(el.VmapI).AddScalar(-uin).ElementMultiply(Uflux.Subset(el.MapI)))
-	dU.SubAssignScalar(el.MapO, 0)
-	fmt.Printf("dU = \n%v\n", mat.Formatted(dU, mat.Squeeze()))
-	/*
-	   double alpha = 1.;
-	   double uin;
-	   DMat du = zeros(Nfp*Nfaces, K);
+	dU.Assign(el.MapI, U.Subset(el.VmapI, duNr, duNc)).AddScalar(-uin).ElementMultiply(Uflux.Subset(el.MapI, duNr, duNc))
+	dU.AssignScalar(el.MapO, 0)
 
-	   // Face fluxes
-	   du = (u(vmapM)-u(vmapP)).dm(a*nx-(1.-alpha)*abs(a*nx))/2.;
-
-	   // Boundaries
-	   // Inflow boundary
-	   uin = -sin(a*time);
-	   du(mapI) = (u(vmapI)-uin).dm(a*nx(mapI)-(1.-alpha)*abs(a*nx(mapI)))/2.;
-	   du(mapO) = 0.;
-
-	   rhsu = -a*rx.dm(Dr*u) + LIFT*(Fscale.dm(du));
-	*/
+	RHSU = el.Rx.Copy().Scale(-c.a).ElementMultiply(el.Dr.Mul(U)).Add(el.LIFT.Mul(el.FScale.ElementMultiply(dU)))
 	return
 }
