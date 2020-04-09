@@ -9,10 +9,10 @@ import (
 )
 
 const (
-	K      = 10
-	N      = 8
-	NFaces = 2
-	Nfp    = 1
+	K      = 10 // Number of elements
+	N      = 8  // Polynomial degree
+	NFaces = 2  // Number of faces per element
+	Nfp    = 1  // Number of points per face
 )
 
 func main() {
