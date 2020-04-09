@@ -40,10 +40,8 @@ func (el *Elements1D) Startup1D() {
 	fmask2 := R.Copy().AddScalar(-1).Find(utils.Less, utils.NODETOL, true)
 	el.FMask = fmask1.Concat(fmask2)
 	el.FScale = J.SliceRows(el.FMask.ToIndex()).POW(-1)
-
 	el.Connect1D()
 	el.BuildMaps1D()
-
 	return
 }
 
@@ -148,7 +146,7 @@ func (el *Elements1D) BuildMaps1D() {
 		}
 	}
 	// Create list of boundary nodes
-	el.mapB = el.vmapP.FindVec(utils.Equal, el.vmapM)
+	el.mapB = el.vmapP.Compare(utils.Equal, el.vmapM)
 	el.vmapB = el.vmapM.Subset(el.mapB)
 	el.mapI = utils.NewIndex(1)
 	el.mapO = utils.NewIndex(1).Copy().Add(el.K*el.NFaces - 1)

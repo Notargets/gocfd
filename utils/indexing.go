@@ -101,7 +101,7 @@ func (I Index) Apply(f func(val int) int) Index {
 	return I
 }
 
-func (I Index) FindVec(op EvalOp, Values Index) (J Index) {
+func (I Index) Compare(op EvalOp, Values Index) (J Index) {
 	/*
 		Each element of Values is compared to the corresponding value of I:
 		if (Values[i] op I[i]): append i to the output index J
