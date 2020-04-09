@@ -8,7 +8,30 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-func JacobiGL(alpha, beta float64, N int) (X, W utils.Vector) {
+type Elements1D struct {
+	K, Np, Nfp, NFaces                int
+	VX, FMask                         utils.Vector
+	EToV, EToE, EToF                  utils.Matrix
+	X, Dr, Rx, FScale, NX, LIFT       utils.Matrix
+	vmapM, vmapP, vmapB, vmapI, vmapO utils.Index
+	mapB, mapI, mapO                  utils.Index
+}
+
+func NewElements1D(K, N, Nfp, NFaces int, VX utils.Vector, EToV utils.Matrix) (el *Elements1D) {
+	// N is the polynomial degree, Np is the number of interpolant points = N+1
+	el = &Elements1D{
+		K:      K,
+		Np:     N + 1,
+		Nfp:    Nfp,
+		NFaces: NFaces,
+		VX:     VX,
+		EToV:   EToV,
+	}
+	el.Startup1D()
+	return
+}
+
+func JacobiGL(alpha, beta float64, N int) (R utils.Vector) {
 	var (
 		x    = make([]float64, N+1)
 		xint utils.Vector
@@ -16,10 +39,10 @@ func JacobiGL(alpha, beta float64, N int) (X, W utils.Vector) {
 	if N == 1 {
 		x[0] = -1
 		x[1] = 1
-		X = utils.NewVector(N+1, x)
+		R = utils.NewVector(N+1, x)
 		return
 	}
-	xint, W = JacobiGQ(alpha+1, beta+1, N-2)
+	xint, _ = JacobiGQ(alpha+1, beta+1, N-2)
 	x[0] = -1
 	x[N] = 1
 	var iter int
@@ -29,7 +52,7 @@ func JacobiGL(alpha, beta float64, N int) (X, W utils.Vector) {
 		x[i] = dataXint[iter]
 		iter++
 	}
-	X = utils.NewVector(len(x), x)
+	R = utils.NewVector(len(x), x)
 	return
 }
 
@@ -271,8 +294,7 @@ func Connect1D(EToV utils.Matrix) (EToE, EToF utils.Matrix) {
 
 func BuildMaps1D(VX, FMask utils.Vector,
 	X, EToV, EToE, EToF utils.Matrix,
-	K, Np, Nfp, NFaces int,
-	NODETOL float64) (vmapM, vmapP, mapB, vmapB, mapI, vmapI, mapO, vmapO utils.Index) {
+	K, Np, Nfp, NFaces int) (vmapM, vmapP, mapB, vmapB, mapI, vmapI, mapO, vmapO utils.Index) {
 	var (
 		NF = Nfp * NFaces
 	)
@@ -314,7 +336,7 @@ func BuildMaps1D(VX, FMask utils.Vector,
 			v1 := int(EToV.At(k1, f1))
 			v2 := int(EToV.At(k1, (f1+1)%NFaces))
 			refd := math.Sqrt(utils.POW(VX.AtVec(v1)-VX.AtVec(v2), 2))
-			idMP := D.Find(utils.Less, NODETOL*refd)
+			idMP := D.Find(utils.Less, utils.NODETOL*refd)
 			idM := idMP.RI
 			idP := idMP.CI
 			if err := vmapP.IndexedAssign(idM.Copy().Add(f1*Nfp+skM), vidP.Subset(idP)); err != nil {

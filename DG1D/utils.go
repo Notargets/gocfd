@@ -1,6 +1,28 @@
 package DG1D
 
-import "math"
+import (
+	"math"
+
+	"github.com/notargets/gocfd/utils"
+)
+
+func SimpleMesh1D(xmin, xmax float64, K int) (VX utils.Vector, EToV utils.Matrix) {
+	// K is the number of elements, there are K+1 vertices
+	var (
+		x             = make([]float64, K+1)
+		elementVertex = make([]float64, K*2)
+	)
+	for i := 0; i < K+1; i++ {
+		x[i] = (xmax-xmin)*float64(i)/float64(K) + xmin
+	}
+	var iter int
+	for i := 0; i < K; i++ {
+		elementVertex[iter] = float64(i)
+		elementVertex[iter+1] = float64(i + 1)
+		iter += 2
+	}
+	return utils.NewVector(K+1, x), utils.NewMatrix(K, 2, elementVertex)
+}
 
 func gamma0(alpha, beta float64) float64 {
 	ab1 := alpha + beta + 1.
