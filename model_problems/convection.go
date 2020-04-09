@@ -72,34 +72,18 @@ func (c *Convection1D) Run() {
 		for INTRK := 0; INTRK < 5; INTRK++ {
 			timelocal = time + dt*rk4c[INTRK]
 			RHSU := c.RHS(U, timelocal)
+			// resid = rk4a(INTRK) * resid + dt * rhsu;
 			resid.Scale(rk4a[INTRK]).Add(RHSU.Scale(dt))
+			// u += rk4b(INTRK) * resid;
 			U.Add(resid.Copy().Scale(rk4b[INTRK]))
 		}
 		time += dt
-		fmt.Printf("max_resid[%d] = %5.2f, time = %8.4f, dt = %8.4f\n", tstep, resid.Max(), time, dt)
-		if tstep == 10 {
-			fmt.Printf("U = \n%v\n", mat.Formatted(U, mat.Squeeze()))
+		fmt.Printf("max_resid[%d] = %8.4f, time = %8.4f, umin = %8.4f, umax = %8.4f\n", tstep, resid.Max(), time, U.Col(0).Min(), U.Col(0).Max())
+		if tstep == 999 {
+			fmt.Printf("Resid = \n%v\n", mat.Formatted(resid, mat.Squeeze()))
 			os.Exit(1)
 		}
 	}
-	/*
-	   // outer time step loop
-	   resid = zeros(Np,K); // Runge-Kutta residual storage
-	   time = 0;
-	   for (tstep=1; tstep<=Nsteps; tstep++) {
-	       for (int INTRK=1; INTRK<=5; INTRK++) {
-	           timelocal = time + rk4c(INTRK) * dt;
-	           this->RHS(u, timelocal, a);
-	           resid = rk4a(INTRK) * resid + dt * rhsu;
-	           u += rk4b(INTRK) * resid;
-	       }
-	       time = time+dt;
-	       //umLOG(1, "max_resid[%d] = %g, time = %g, dt = %g\n", tstep, resid.max_val(), time, dt);
-	       this->Report(false);
-	   }
-	   Summary();
-	   u.print(stdout, "Solution U");
-	*/
 }
 
 func (c *Convection1D) RHS(U utils.Matrix, time float64) (RHSU utils.Matrix) {
@@ -109,7 +93,7 @@ func (c *Convection1D) RHS(U utils.Matrix, time float64) (RHSU utils.Matrix) {
 		el    = c.El
 	)
 	c.RHSOnce.Do(func() {
-		aNX := el.NX.Copy().Scale(0.5 * c.a)
+		aNX := el.NX.Copy().Scale(c.a)
 		aNXabs := aNX.Copy().Apply(math.Abs).Scale(1. - alpha)
 		c.Uflux = aNX.Subtract(aNXabs)
 	})
@@ -117,14 +101,16 @@ func (c *Convection1D) RHS(U utils.Matrix, time float64) (RHSU utils.Matrix) {
 	// du = (u(vmapM)-u(vmapP)).dm(a*nx-(1.-alpha)*abs(a*nx))/2.;
 	duNr := el.Nfp * el.NFaces
 	duNc := el.K
-	dU := U.Subset(el.VmapM, duNr, duNc).Subtract(U.Subset(el.VmapP, duNr, duNc)).ElementMultiply(c.Uflux)
+	dU := U.Subset(el.VmapM, duNr, duNc).Subtract(U.Subset(el.VmapP, duNr, duNc)).ElementMultiply(c.Uflux).Scale(0.5)
 
 	// Boundaries
 	// Inflow boundary
 	uin = -math.Sin(c.a * time)
-	dU.Assign(el.MapI, U.Subset(el.VmapI, duNr, duNc)).AddScalar(-uin).ElementMultiply(c.Uflux.Subset(el.MapI, duNr, duNc))
+	// du(mapI) = (u(vmapI)-uin).dm(a*nx(mapI)-(1.-alpha)*abs(a*nx(mapI)))/2.;
+	dU.Assign(el.MapI, U.Subset(el.VmapI, duNr, duNc)).AddScalar(-uin).ElementMultiply(c.Uflux.Subset(el.MapI, duNr, duNc)).Scale(0.5)
 	dU.AssignScalar(el.MapO, 0)
 
+	// rhsu = -a*rx.dm(Dr*u) + LIFT*(Fscale.dm(du));
 	RHSU = el.Rx.Copy().Scale(-c.a).ElementMultiply(el.Dr.Mul(U)).Add(el.LIFT.Mul(el.FScale.ElementMultiply(dU)))
 	return
 }

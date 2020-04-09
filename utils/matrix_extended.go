@@ -142,11 +142,13 @@ func (m Matrix) Subset(I Index, nrNew, ncNew int) Matrix {
 func (m Matrix) Assign(I Index, A Matrix) Matrix {
 	// Assigns values in M sequentially using values indexed from A
 	var (
-		dataM = m.RawMatrix().Data
-		dataA = A.RawMatrix().Data
+		nr, nc = m.Dims()
+		dataM  = m.RawMatrix().Data
+		dataA  = A.RawMatrix().Data
 	)
-	for i, ind := range I {
-		dataM[i] = dataA[ind]
+	for _, ind := range I {
+		i := RowMajorToColMajor(nr, nc, ind)
+		dataM[i] = dataA[i]
 	}
 	return m
 }
@@ -222,10 +224,12 @@ func (m Matrix) ElementMultiply(A Matrix) Matrix {
 
 func (m Matrix) AssignScalar(I Index, val float64) Matrix {
 	var (
-		dataM = m.RawMatrix().Data
+		dataM  = m.RawMatrix().Data
+		nr, nc = m.Dims()
 	)
 	for _, ind := range I {
-		dataM[ind] = val
+		i := RowMajorToColMajor(nr, nc, ind)
+		dataM[i] = val
 	}
 	return m
 }
