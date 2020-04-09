@@ -1,9 +1,9 @@
 package DG1D
 
 import (
+	"fmt"
 	"math"
 
-	"github.com/james-bowman/sparse"
 	"github.com/notargets/gocfd/utils"
 	"gonum.org/v1/gonum/mat"
 )
@@ -17,7 +17,12 @@ type Elements1D struct {
 	mapB, mapI, mapO                  utils.Index
 }
 
-func NewElements1D(K, N, Nfp, NFaces int, VX utils.Vector, EToV utils.Matrix) (el *Elements1D) {
+func NewElements1D(N int, VX utils.Vector, EToV utils.Matrix) (el *Elements1D) {
+	var (
+		K, NFaces = EToV.Dims()
+		Nfp       = 1 // One point per face in 1D
+	)
+	fmt.Println("Number of Elements, NFaces = ", K, NFaces)
 	// N is the polynomial degree, Np is the number of interpolant points = N+1
 	el = &Elements1D{
 		K:      K,
@@ -220,136 +225,5 @@ func Normals1D(Nfaces, Nfp, K int) (NX utils.Matrix) {
 func GeometricFactors1D(Dr, X utils.Matrix) (J, Rx utils.Matrix) {
 	J = Dr.Mul(X)
 	Rx = J.Copy().POW(-1)
-	return
-}
-
-func Connect1D(EToV utils.Matrix) (EToE, EToF utils.Matrix) {
-	var (
-		NFaces     = 2
-		K, _       = EToV.Dims()
-		Nv         = K + 1
-		TotalFaces = NFaces * K
-		vn         = utils.NewVector(2, []float64{0, 1}) // local face to vertex connections
-	)
-	SpFToV_Tmp := sparse.NewDOK(TotalFaces, Nv)
-	var sk int
-	for k := 0; k < K; k++ {
-		for face := 0; face < NFaces; face++ {
-			col := int(vn.AtVec(face))
-			SpFToV_Tmp.Set(sk, int(EToV.At(k, col)), 1)
-			sk++
-		}
-	}
-	SpFToF := sparse.NewCSR(TotalFaces, TotalFaces, nil, nil, nil)
-	SpFToV := SpFToV_Tmp.ToCSR()
-	SpFToF.Mul(SpFToV, SpFToV.T())
-	for i := 0; i < TotalFaces; i++ {
-		v := SpFToF.At(i, i)
-		SpFToF.Set(i, i, v-2)
-	}
-	//fmt.Printf("SpFToV = \n%v\n", mat.Formatted(SpFToV.T(), mat.Squeeze()))
-	//fmt.Printf("SpFToF = \n%v\n", mat.Formatted(SpFToF.T(), mat.Squeeze()))
-	FacesIndex := utils.MatFind(SpFToF, utils.Equal, 1)
-	//faces1, faces2 := utils.MatFind(SpFToF, 1)
-	/*
-		IVec element1 = floor( (faces1-1)/ Nfaces ) + 1;
-		IVec face1    =   mod( (faces1-1), Nfaces ) + 1;
-	*/
-	element1 := FacesIndex.RI.Copy().Apply(func(val int) int { return val / NFaces })
-	face1 := FacesIndex.RI.Copy().Apply(func(val int) int { return int(math.Mod(float64(val), float64(NFaces))) })
-	/*
-		IVec element2 = floor( (faces2-1)/ Nfaces ) + 1;
-		IVec face2    =   mod( (faces2-1), Nfaces ) + 1;
-	*/
-	element2 := FacesIndex.CI.Copy().Apply(func(val int) int { return val / NFaces })
-	face2 := FacesIndex.CI.Copy().Apply(func(val int) int { return int(math.Mod(float64(val), float64(NFaces))) })
-	/*
-	  // Rearrange into Nelements x Nfaces sized arrays
-	  IVec ind = sub2ind(K, Nfaces, element1, face1);
-
-	  EToE = outer(Range(1,K), Ones(Nfaces));
-	  EToF = outer(Ones(K), Range(1,Nfaces));
-
-	  EToE(ind) = element2;
-	  EToF(ind) = face2;
-	*/
-	EToE = utils.NewRangeOffset(1, K).Outer(utils.NewOnes(NFaces))
-	EToF = utils.NewOnes(K).Outer(utils.NewRangeOffset(1, NFaces))
-	var I2D utils.Index2D
-	var err error
-	nr, nc := EToE.Dims()
-	if I2D, err = utils.NewIndex2D(nr, nc, element1, face1); err != nil {
-		panic(err)
-	}
-	if err = EToE.IndexedAssign(I2D, element2); err != nil {
-		panic(err)
-	}
-	if err = EToF.IndexedAssign(I2D, face2); err != nil {
-		panic(err)
-	}
-	//fmt.Printf("EToE = \n%v\n", mat.Formatted(EToE, mat.Squeeze()))
-	//fmt.Printf("EToF = \n%v\n", mat.Formatted(EToF, mat.Squeeze()))
-	return
-}
-
-func BuildMaps1D(VX, FMask utils.Vector,
-	X, EToV, EToE, EToF utils.Matrix,
-	K, Np, Nfp, NFaces int) (vmapM, vmapP, mapB, vmapB, mapI, vmapI, mapO, vmapO utils.Index) {
-	var (
-		NF = Nfp * NFaces
-	)
-	// number volume nodes consecutively
-	nodeids := utils.NewRangeOffset(1, Np*K)
-
-	// find index of face nodes with respect to volume node ordering
-	vmapM = utils.NewIndex(Nfp * NFaces * K)
-	idsR := utils.NewFromFloat(FMask.RawVector().Data)
-	for k1 := 0; k1 < K; k1++ {
-		iL1 := k1 * NF
-		iL2 := iL1 + NF
-		idsL := utils.NewRangeOffset(iL1+1, iL2) // sequential indices for element k1
-		if err := vmapM.IndexedAssign(idsL, nodeids.Subset(idsR)); err != nil {
-			panic(err)
-		}
-		idsR.Add(Np)
-	}
-
-	//var one = utils.NewVecConst(Nfp, 1)
-	var one = utils.NewVector(Nfp).Set(1)
-	vmapP = utils.NewIndex(Nfp * NFaces * K)
-	//fmt.Printf("X = \n%v\n", mat.Formatted(X, mat.Squeeze()))
-	for k1 := 0; k1 < K; k1++ {
-		for f1 := 0; f1 < NFaces; f1++ {
-			k2 := int(EToE.At(k1, f1))
-			f2 := int(EToF.At(k1, f1))
-			skM := k1 * NF
-			skP := k2 * NF
-			idsM := utils.NewRangeOffset(1+f1*Nfp+skM, (f1+1)*Nfp+skM)
-			idsP := utils.NewRangeOffset(1+f2*Nfp+skP, (f2+1)*Nfp+skP)
-			vidM := vmapM.Subset(idsM)
-			vidP := vmapM.Subset(idsP)
-			x1 := X.SubsetVector(vidM)
-			x2 := X.SubsetVector(vidP)
-			X1 := x1.Outer(one)
-			X2 := x2.Outer(one)
-			D := X1.Copy().Subtract(X2.Transpose()).POW(2).Apply(math.Sqrt).Apply(math.Abs)
-			v1 := int(EToV.At(k1, f1))
-			v2 := int(EToV.At(k1, (f1+1)%NFaces))
-			refd := math.Sqrt(utils.POW(VX.AtVec(v1)-VX.AtVec(v2), 2))
-			idMP := D.Find(utils.Less, utils.NODETOL*refd)
-			idM := idMP.RI
-			idP := idMP.CI
-			if err := vmapP.IndexedAssign(idM.Copy().Add(f1*Nfp+skM), vidP.Subset(idP)); err != nil {
-				panic(err)
-			}
-		}
-	}
-	// Create list of boundary nodes
-	mapB = vmapP.FindVec(utils.Equal, vmapM)
-	vmapB = vmapM.Subset(mapB)
-	mapI = utils.NewIndex(1)
-	mapO = utils.NewIndex(1).Copy().Add(K*NFaces - 1)
-	vmapI = utils.NewIndex(1)
-	vmapO = utils.NewIndex(1).Copy().Add(K*Np - 1)
 	return
 }

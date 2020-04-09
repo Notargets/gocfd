@@ -17,7 +17,7 @@ const (
 
 func main() {
 	VX, EToV := DG1D.SimpleMesh1D(0, 2, K)
-	e1D := DG1D.NewElements1D(K, N, NFaces, Nfp, VX, EToV)
+	e1D := DG1D.NewElements1D(N, VX, EToV)
 	c := model_problems.NewConvection(2*math.Pi, 0.75, 10., e1D)
 	c.Run()
 }
