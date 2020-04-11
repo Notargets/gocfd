@@ -105,7 +105,7 @@ func (c *Convection1D) RHS(U utils.Matrix, time float64) (RHSU utils.Matrix) {
 	dU.AssignScalar(el.MapO, 0)
 
 	// rhsu = -a*rx.dm(Dr*u) + LIFT*(Fscale.dm(du));
-	// TODO: Find bug that causes ElementMultiply to not work when doing "el.FScale.ElementMultiply(du)", but it works the other way around
+	// Important: must change the order from Fscale.dm(du) to du.dm(Fscale) here because the dm overwrites the target
 	RHSU = el.Rx.Copy().Scale(-c.a).ElementMultiply(el.Dr.Mul(U)).Add(el.LIFT.Mul(dU.ElementMultiply(el.FScale)))
 	return
 }

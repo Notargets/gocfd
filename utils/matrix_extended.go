@@ -98,7 +98,7 @@ func (m Matrix) Mul(A Matrix) Matrix {
 	var (
 		nrM, _ = m.M.Dims()
 		_, ncA = A.M.Dims()
-		r      = NewMatrix(nrM, ncA, nil)
+		r      = NewMatrix(nrM, ncA)
 	)
 	r.M.Mul(m.M, A.M)
 	return r
