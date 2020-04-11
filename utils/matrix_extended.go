@@ -3,6 +3,8 @@ package utils
 import (
 	"fmt"
 
+	"gonum.org/v1/gonum/lapack/lapack64"
+
 	"gonum.org/v1/gonum/blas/blas64"
 
 	"gonum.org/v1/gonum/mat"
@@ -81,7 +83,7 @@ func (m Matrix) Transpose() (R Matrix) {
 		for i := 0; i < nr; i++ {
 			ind := i + nr*j
 			indR := i*nc + j
-			dataR[indR] = data[ind]
+			dataR[ind] = data[indR]
 		}
 	}
 	return
@@ -94,17 +96,22 @@ func (m Matrix) SetCol(j int, data []float64) Matrix {
 
 func (m Matrix) Mul(A Matrix) Matrix {
 	var (
-		nrM, ncM   = m.M.Dims()
-		nrA, ncA   = A.M.Dims()
-		r          = NewMatrix(nrM, ncA, nil)
-		_, _, _, _ = nrM, ncM, nrA, ncA
+		nrM, _ = m.M.Dims()
+		_, ncA = A.M.Dims()
+		r      = NewMatrix(nrM, ncA, nil)
 	)
 	r.M.Mul(m.M, A.M)
 	return r
 }
 
 func (m Matrix) Add(A Matrix) Matrix {
-	m.M.Add(m.M, A)
+	var (
+		dataM = m.RawMatrix().Data
+		dataA = A.RawMatrix().Data
+	)
+	for i, val := range dataA {
+		dataM[i] += val
+	}
 	return m
 }
 
@@ -253,8 +260,18 @@ func (m Matrix) Inverse() (R Matrix, err error) {
 	var (
 		nr, nc = m.Dims()
 	)
-	R = NewMatrix(nr, nc)
-	err = R.M.Inverse(m.M)
+	//R = NewMatrix(nr, nc)
+	//err = R.M.Inverse(m.M)
+	R = m.Copy()
+	iPiv := make([]int, nr)
+	if ok := lapack64.Getrf(R.RawMatrix(), iPiv); !ok {
+		err = fmt.Errorf("unable to invert, matrix is singular")
+		return
+	}
+	work := make([]float64, nr*nc)
+	if ok := lapack64.Getri(R.RawMatrix(), iPiv, work, nr*nc); !ok {
+		err = fmt.Errorf("unable to invert, matrix is singular")
+	}
 	return
 }
 

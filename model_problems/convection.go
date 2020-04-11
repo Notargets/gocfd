@@ -3,12 +3,9 @@ package model_problems
 import (
 	"fmt"
 	"math"
-	"os"
 	"sync"
 
 	"github.com/notargets/gocfd/utils"
-
-	"gonum.org/v1/gonum/mat"
 
 	"github.com/notargets/gocfd/DG1D"
 )
@@ -34,6 +31,7 @@ var (
 		2526269341429.0 / 6820363962896.0,
 		2006345519317.0 / 3224310063776.0,
 		2802321613138.0 / 2924317926251.0,
+		1.,
 	}
 )
 
@@ -42,7 +40,7 @@ type Convection1D struct {
 	a, CFL, FinalTime float64
 	El                *DG1D.Elements1D
 	RHSOnce           sync.Once
-	Uflux             utils.Matrix
+	UFlux             utils.Matrix
 }
 
 func NewConvection(a, CFL, FinalTime float64, Elements *DG1D.Elements1D) *Convection1D {
@@ -65,7 +63,7 @@ func (c *Convection1D) Run() {
 	Nsteps := int(Ns)
 	fmt.Printf("Min Dist = %8.6f, dt = %8.6f, Nsteps = %d\n\n", xmin, dt, Nsteps)
 	U := el.X.Copy().Apply(math.Sin)
-	fmt.Printf("U = \n%v\n", mat.Formatted(U, mat.Squeeze()))
+	//fmt.Printf("U = \n%v\n", mat.Formatted(U, mat.Squeeze()))
 	resid := utils.NewMatrix(el.Np, el.K)
 	var time, timelocal float64
 	for tstep := 0; tstep < Nsteps; tstep++ {
@@ -73,16 +71,12 @@ func (c *Convection1D) Run() {
 			timelocal = time + dt*rk4c[INTRK]
 			RHSU := c.RHS(U, timelocal)
 			// resid = rk4a(INTRK) * resid + dt * rhsu;
-			resid.Scale(rk4a[INTRK]).Add(RHSU.Scale(dt))
+			resid.Scale(rk4a[INTRK]).Add(RHSU.Copy().Scale(dt))
 			// u += rk4b(INTRK) * resid;
 			U.Add(resid.Copy().Scale(rk4b[INTRK]))
 		}
 		time += dt
-		fmt.Printf("max_resid[%d] = %8.4f, time = %8.4f, umin = %8.4f, umax = %8.4f\n", tstep, resid.Max(), time, U.Col(0).Min(), U.Col(0).Max())
-		if tstep == 999 {
-			fmt.Printf("Resid = \n%v\n", mat.Formatted(resid, mat.Squeeze()))
-			os.Exit(1)
-		}
+		fmt.Printf("time = %8.4f, max_resid[%d] = %8.4f, umin = %8.4f, umax = %8.4f\n", time, tstep, resid.Max(), U.Col(0).Min(), U.Col(0).Max())
 	}
 }
 
@@ -95,22 +89,23 @@ func (c *Convection1D) RHS(U utils.Matrix, time float64) (RHSU utils.Matrix) {
 	c.RHSOnce.Do(func() {
 		aNX := el.NX.Copy().Scale(c.a)
 		aNXabs := aNX.Copy().Apply(math.Abs).Scale(1. - alpha)
-		c.Uflux = aNX.Subtract(aNXabs)
+		c.UFlux = aNX.Subtract(aNXabs)
 	})
 	// Face fluxes
 	// du = (u(vmapM)-u(vmapP)).dm(a*nx-(1.-alpha)*abs(a*nx))/2.;
 	duNr := el.Nfp * el.NFaces
 	duNc := el.K
-	dU := U.Subset(el.VmapM, duNr, duNc).Subtract(U.Subset(el.VmapP, duNr, duNc)).ElementMultiply(c.Uflux).Scale(0.5)
+	dU := U.Subset(el.VmapM, duNr, duNc).Subtract(U.Subset(el.VmapP, duNr, duNc)).ElementMultiply(c.UFlux).Scale(0.5)
 
 	// Boundaries
 	// Inflow boundary
-	uin = -math.Sin(c.a * time)
 	// du(mapI) = (u(vmapI)-uin).dm(a*nx(mapI)-(1.-alpha)*abs(a*nx(mapI)))/2.;
-	dU.Assign(el.MapI, U.Subset(el.VmapI, duNr, duNc)).AddScalar(-uin).ElementMultiply(c.Uflux.Subset(el.MapI, duNr, duNc)).Scale(0.5)
+	uin = -math.Sin(c.a * time)
+	dU.Assign(el.MapI, U.Subset(el.VmapI, duNr, duNc).AddScalar(-uin).ElementMultiply(c.UFlux.Subset(el.MapI, duNr, duNc)).Scale(0.5))
 	dU.AssignScalar(el.MapO, 0)
 
 	// rhsu = -a*rx.dm(Dr*u) + LIFT*(Fscale.dm(du));
-	RHSU = el.Rx.Copy().Scale(-c.a).ElementMultiply(el.Dr.Mul(U)).Add(el.LIFT.Mul(el.FScale.ElementMultiply(dU)))
+	// TODO: Find bug that causes ElementMultiply to not work when doing "el.FScale.ElementMultiply(du)", but it works the other way around
+	RHSU = el.Rx.Copy().Scale(-c.a).ElementMultiply(el.Dr.Mul(U)).Add(el.LIFT.Mul(dU.ElementMultiply(el.FScale)))
 	return
 }

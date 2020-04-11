@@ -1,6 +1,7 @@
 package DG1D
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/james-bowman/sparse"
@@ -16,6 +17,7 @@ func (el *Elements1D) Startup1D() {
 	R := JacobiGL(0, 0, N)
 	V := Vandermonde1D(N, R)
 	if Vinv, err = V.Inverse(); err != nil {
+		fmt.Println(err)
 		panic("error inverting V")
 	}
 	Vr := GradVandermonde1D(R, N)
