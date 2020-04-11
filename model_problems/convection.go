@@ -71,7 +71,7 @@ func (c *Convection1D) Run() {
 			timelocal = time + dt*rk4c[INTRK]
 			RHSU := c.RHS(U, timelocal)
 			// resid = rk4a(INTRK) * resid + dt * rhsu;
-			resid.Scale(rk4a[INTRK]).Add(RHSU.Copy().Scale(dt))
+			resid.Scale(rk4a[INTRK]).Add(RHSU.Scale(dt))
 			// u += rk4b(INTRK) * resid;
 			U.Add(resid.Copy().Scale(rk4b[INTRK]))
 		}
