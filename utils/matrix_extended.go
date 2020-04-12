@@ -94,14 +94,14 @@ func (m Matrix) SetCol(j int, data []float64) Matrix {
 	return m
 }
 
-func (m Matrix) Mul(A Matrix) Matrix {
+func (m Matrix) Mul(A Matrix) (R Matrix) {
 	var (
 		nrM, _ = m.M.Dims()
 		_, ncA = A.M.Dims()
-		r      = NewMatrix(nrM, ncA)
 	)
-	r.M.Mul(m.M, A.M)
-	return r
+	R = NewMatrix(nrM, ncA)
+	R.M.Mul(m.M, A.M)
+	return R
 }
 
 func (m Matrix) Add(A Matrix) Matrix {
