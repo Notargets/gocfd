@@ -20,6 +20,6 @@ func main() {
 	VX, EToV := DG1D.SimpleMesh1D(0, 2*math.Pi, K)
 	e1D := DG1D.NewElements1D(N, VX, EToV)
 	c := model_problems.NewConvection(2*math.Pi, 0.75, 100000., e1D)
-	c.Run()
+	c.Run(true)
 	fmt.Printf("X = \n%v\n", mat.Formatted(e1D.X, mat.Squeeze()))
 }

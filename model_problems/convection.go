@@ -34,7 +34,7 @@ func NewConvection(a, CFL, FinalTime float64, Elements *DG1D.Elements1D) *Convec
 	}
 }
 
-func (c *Convection1D) Run() {
+func (c *Convection1D) Run(delayGraph bool) {
 	var (
 		el   = c.El
 		rk4a = []float64{
@@ -93,7 +93,9 @@ func (c *Convection1D) Run() {
 		}
 		Time += dt
 		if tstep%1 == 0 {
-			time.Sleep(50 * time.Millisecond)
+			if delayGraph {
+				time.Sleep(50 * time.Millisecond)
+			}
 			if err := chart.AddSeries(chartName,
 				ToFloat32Slice(el.X.Transpose().RawMatrix().Data),
 				ToFloat32Slice(U.Transpose().RawMatrix().Data),
