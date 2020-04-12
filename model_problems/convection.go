@@ -93,7 +93,7 @@ func (c *Convection1D) Run() {
 		}
 		Time += dt
 		if tstep%1 == 0 {
-			time.Sleep(200 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 			if err := chart.AddSeries(chartName,
 				ToFloat32Slice(el.X.Transpose().RawMatrix().Data),
 				ToFloat32Slice(U.Transpose().RawMatrix().Data),
