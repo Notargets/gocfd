@@ -10,6 +10,10 @@ import (
 	"github.com/notargets/gocfd/utils"
 
 	"github.com/notargets/gocfd/DG1D"
+
+	"github.com/notargets/avs/chart2d"
+
+	utils2 "github.com/notargets/avs/utils"
 )
 
 type Convection1D struct {
@@ -64,6 +68,18 @@ func (c *Convection1D) Run() {
 	U := el.X.Copy().Apply(math.Sin)
 	//fmt.Printf("U = \n%v\n", mat.Formatted(U, mat.Squeeze()))
 	resid := utils.NewMatrix(el.Np, el.K)
+	chart := chart2d.NewChart2D(1024, 768, 0, 20, -1, 1)
+	colorMap := utils2.NewColorMap(-1, 1, 1)
+	fmt.Printf("X data = \n%v\n", el.X.Transpose().RawMatrix().Data)
+	chartName := "Advect1D"
+	if err := chart.AddSeries(chartName,
+		ToFloat32Slice(el.X.Transpose().RawMatrix().Data),
+		ToFloat32Slice(U.Transpose().RawMatrix().Data),
+		chart2d.NoGlyph, chart2d.Solid,
+		colorMap.GetRGB(0)); err != nil {
+		panic("unable to add graph series")
+	}
+	go chart.Plot()
 	var time, timelocal float64
 	for tstep := 0; tstep < Nsteps; tstep++ {
 		for INTRK := 0; INTRK < 5; INTRK++ {
@@ -75,7 +91,14 @@ func (c *Convection1D) Run() {
 			U.Add(resid.Copy().Scale(rk4b[INTRK]))
 		}
 		time += dt
-		if tstep%500 == 0 {
+		if tstep%5000 == 0 {
+			if err := chart.AddSeries(chartName,
+				ToFloat32Slice(el.X.Transpose().RawMatrix().Data),
+				ToFloat32Slice(U.Transpose().RawMatrix().Data),
+				chart2d.NoGlyph, chart2d.Solid,
+				colorMap.GetRGB(0)); err != nil {
+				panic("unable to add graph series")
+			}
 			fmt.Printf("time = %8.4f, max_resid[%d] = %8.4f, umin = %8.4f, umax = %8.4f\n", time, tstep, resid.Max(), U.Col(0).Min(), U.Col(0).Max())
 		}
 	}
@@ -110,4 +133,12 @@ func (c *Convection1D) RHS(U utils.Matrix, time float64) (RHSU utils.Matrix) {
 	// Important: must change the order from Fscale.dm(du) to du.dm(Fscale) here because the dm overwrites the target
 	RHSU = el.Rx.Copy().Scale(-c.a).ElementMultiply(el.Dr.Mul(U)).Add(el.LIFT.Mul(dU.ElementMultiply(el.FScale)))
 	return
+}
+
+func ToFloat32Slice(A []float64) (R []float32) {
+	R = make([]float32, len(A))
+	for i, val := range A {
+		R[i] = float32(val)
+	}
+	return R
 }
