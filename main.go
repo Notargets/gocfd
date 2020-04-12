@@ -12,14 +12,12 @@ import (
 )
 
 const (
-	K      = 10 // Number of elements
-	N      = 3  // Polynomial degree
-	NFaces = 2  // Number of faces per element
-	Nfp    = 1  // Number of points per face
+	K = 40 // Number of elements
+	N = 1  // Polynomial degree
 )
 
 func main() {
-	VX, EToV := DG1D.SimpleMesh1D(0, 20, K)
+	VX, EToV := DG1D.SimpleMesh1D(0, 2*math.Pi, K)
 	e1D := DG1D.NewElements1D(N, VX, EToV)
 	c := model_problems.NewConvection(2*math.Pi, 0.75, 100000., e1D)
 	c.Run()

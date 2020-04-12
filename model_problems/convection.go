@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"time"
 
 	"gonum.org/v1/gonum/mat"
 
@@ -68,7 +69,7 @@ func (c *Convection1D) Run() {
 	U := el.X.Copy().Apply(math.Sin)
 	//fmt.Printf("U = \n%v\n", mat.Formatted(U, mat.Squeeze()))
 	resid := utils.NewMatrix(el.Np, el.K)
-	chart := chart2d.NewChart2D(1280, 1024, 0, 20, -1, 1)
+	chart := chart2d.NewChart2D(1280, 1024, float32(el.X.Min()), float32(el.X.Max()), -1, 1)
 	colorMap := utils2.NewColorMap(-1, 1, 1)
 	fmt.Printf("X data = \n%v\n", el.X.Transpose().RawMatrix().Data)
 	chartName := "Advect1D"
@@ -80,18 +81,19 @@ func (c *Convection1D) Run() {
 		panic("unable to add graph series")
 	}
 	go chart.Plot()
-	var time, timelocal float64
+	var Time, timelocal float64
 	for tstep := 0; tstep < Nsteps; tstep++ {
 		for INTRK := 0; INTRK < 5; INTRK++ {
-			timelocal = time + dt*rk4c[INTRK]
+			timelocal = Time + dt*rk4c[INTRK]
 			RHSU := c.RHS(U, timelocal)
 			// resid = rk4a(INTRK) * resid + dt * rhsu;
 			resid.Scale(rk4a[INTRK]).Add(RHSU.Scale(dt))
 			// u += rk4b(INTRK) * resid;
 			U.Add(resid.Copy().Scale(rk4b[INTRK]))
 		}
-		time += dt
-		if tstep%1000 == 0 {
+		Time += dt
+		if tstep%1 == 0 {
+			time.Sleep(200 * time.Millisecond)
 			if err := chart.AddSeries(chartName,
 				ToFloat32Slice(el.X.Transpose().RawMatrix().Data),
 				ToFloat32Slice(U.Transpose().RawMatrix().Data),
@@ -99,7 +101,7 @@ func (c *Convection1D) Run() {
 				colorMap.GetRGB(0)); err != nil {
 				panic("unable to add graph series")
 			}
-			fmt.Printf("time = %8.4f, max_resid[%d] = %8.4f, umin = %8.4f, umax = %8.4f\n", time, tstep, resid.Max(), U.Col(0).Min(), U.Col(0).Max())
+			fmt.Printf("Time = %8.4f, max_resid[%d] = %8.4f, umin = %8.4f, umax = %8.4f\n", Time, tstep, resid.Max(), U.Col(0).Min(), U.Col(0).Max())
 		}
 	}
 	fmt.Printf("U = \n%v\n", mat.Formatted(U, mat.Squeeze()))
