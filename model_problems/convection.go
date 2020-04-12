@@ -68,7 +68,7 @@ func (c *Convection1D) Run() {
 	U := el.X.Copy().Apply(math.Sin)
 	//fmt.Printf("U = \n%v\n", mat.Formatted(U, mat.Squeeze()))
 	resid := utils.NewMatrix(el.Np, el.K)
-	chart := chart2d.NewChart2D(1024, 768, 0, 20, -1, 1)
+	chart := chart2d.NewChart2D(1280, 1024, 0, 20, -1, 1)
 	colorMap := utils2.NewColorMap(-1, 1, 1)
 	fmt.Printf("X data = \n%v\n", el.X.Transpose().RawMatrix().Data)
 	chartName := "Advect1D"
@@ -91,7 +91,7 @@ func (c *Convection1D) Run() {
 			U.Add(resid.Copy().Scale(rk4b[INTRK]))
 		}
 		time += dt
-		if tstep%5000 == 0 {
+		if tstep%1000 == 0 {
 			if err := chart.AddSeries(chartName,
 				ToFloat32Slice(el.X.Transpose().RawMatrix().Data),
 				ToFloat32Slice(U.Transpose().RawMatrix().Data),

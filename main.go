@@ -13,7 +13,7 @@ import (
 
 const (
 	K      = 10 // Number of elements
-	N      = 8  // Polynomial degree
+	N      = 3  // Polynomial degree
 	NFaces = 2  // Number of faces per element
 	Nfp    = 1  // Number of points per face
 )
