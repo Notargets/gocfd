@@ -97,7 +97,7 @@ func (c *Convection1D) Run() {
 			if err := chart.AddSeries(chartName,
 				ToFloat32Slice(el.X.Transpose().RawMatrix().Data),
 				ToFloat32Slice(U.Transpose().RawMatrix().Data),
-				chart2d.NoGlyph, chart2d.Solid,
+				chart2d.CrossGlyph, chart2d.Dashed,
 				colorMap.GetRGB(0)); err != nil {
 				panic("unable to add graph series")
 			}

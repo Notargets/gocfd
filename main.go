@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	K = 40 // Number of elements
-	N = 1  // Polynomial degree
+	K = 10 // Number of elements
+	N = 4  // Polynomial degree
 )
 
 func main() {
