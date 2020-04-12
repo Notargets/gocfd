@@ -73,7 +73,7 @@ func (c *Convection1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	//fmt.Printf("U = \n%v\n", mat.Formatted(U, mat.Squeeze()))
 	resid := utils.NewMatrix(el.Np, el.K)
 	if showGraph {
-		chart = chart2d.NewChart2D(1280, 1024, float32(el.X.Min()), float32(el.X.Max()), -1, 1)
+		chart = chart2d.NewChart2D(1024, 768, float32(el.X.Min()), float32(el.X.Max()), -1, 1)
 		colorMap = utils2.NewColorMap(-1, 1, 1)
 		chartName = "Advect1D"
 		if err := chart.AddSeries(chartName,
