@@ -34,7 +34,7 @@ func NewConvection(a, CFL, FinalTime float64, Elements *DG1D.Elements1D) *Convec
 	}
 }
 
-func (c *Convection1D) Run(delayGraph bool) {
+func (c *Convection1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	var (
 		el   = c.El
 		rk4a = []float64{
@@ -59,6 +59,9 @@ func (c *Convection1D) Run(delayGraph bool) {
 			2802321613138.0 / 2924317926251.0,
 			1.,
 		}
+		chart     *chart2d.Chart2D
+		colorMap  *utils2.ColorMap
+		chartName string
 	)
 	xmin := el.X.Row(1).Subtract(el.X.Row(0)).Apply(math.Abs).Min()
 	dt := 0.5 * xmin * (c.CFL / c.a)
@@ -69,18 +72,19 @@ func (c *Convection1D) Run(delayGraph bool) {
 	U := el.X.Copy().Apply(math.Sin)
 	//fmt.Printf("U = \n%v\n", mat.Formatted(U, mat.Squeeze()))
 	resid := utils.NewMatrix(el.Np, el.K)
-	chart := chart2d.NewChart2D(1280, 1024, float32(el.X.Min()), float32(el.X.Max()), -1, 1)
-	colorMap := utils2.NewColorMap(-1, 1, 1)
-	fmt.Printf("X data = \n%v\n", el.X.Transpose().RawMatrix().Data)
-	chartName := "Advect1D"
-	if err := chart.AddSeries(chartName,
-		ToFloat32Slice(el.X.Transpose().RawMatrix().Data),
-		ToFloat32Slice(U.Transpose().RawMatrix().Data),
-		chart2d.NoGlyph, chart2d.Solid,
-		colorMap.GetRGB(0)); err != nil {
-		panic("unable to add graph series")
+	if showGraph {
+		chart = chart2d.NewChart2D(1280, 1024, float32(el.X.Min()), float32(el.X.Max()), -1, 1)
+		colorMap = utils2.NewColorMap(-1, 1, 1)
+		chartName = "Advect1D"
+		if err := chart.AddSeries(chartName,
+			ToFloat32Slice(el.X.Transpose().RawMatrix().Data),
+			ToFloat32Slice(U.Transpose().RawMatrix().Data),
+			chart2d.NoGlyph, chart2d.Solid,
+			colorMap.GetRGB(0)); err != nil {
+			panic("unable to add graph series")
+		}
+		go chart.Plot()
 	}
-	go chart.Plot()
 	var Time, timelocal float64
 	for tstep := 0; tstep < Nsteps; tstep++ {
 		for INTRK := 0; INTRK < 5; INTRK++ {
@@ -92,9 +96,9 @@ func (c *Convection1D) Run(delayGraph bool) {
 			U.Add(resid.Copy().Scale(rk4b[INTRK]))
 		}
 		Time += dt
-		if tstep%1 == 0 {
-			if delayGraph {
-				time.Sleep(50 * time.Millisecond)
+		if showGraph {
+			if len(graphDelay) != 0 {
+				time.Sleep(graphDelay[0])
 			}
 			if err := chart.AddSeries(chartName,
 				ToFloat32Slice(el.X.Transpose().RawMatrix().Data),
@@ -103,6 +107,8 @@ func (c *Convection1D) Run(delayGraph bool) {
 				colorMap.GetRGB(0)); err != nil {
 				panic("unable to add graph series")
 			}
+		}
+		if tstep%50 == 0 {
 			fmt.Printf("Time = %8.4f, max_resid[%d] = %8.4f, umin = %8.4f, umax = %8.4f\n", Time, tstep, resid.Max(), U.Col(0).Min(), U.Col(0).Max())
 		}
 	}
