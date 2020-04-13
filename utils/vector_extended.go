@@ -23,6 +23,13 @@ func NewVector(n int, dataO ...[]float64) Vector {
 	}
 }
 
+func NewVectorConstant(n int, val float64) Vector {
+	var (
+		dataV = ConstArray(n, val)
+	)
+	return NewVector(n, dataV)
+}
+
 // Dims, At and T minimally satisfy the mat.Matrix interface.
 func (v Vector) Dims() (r, c int)         { return v.V.Dims() }
 func (v Vector) At(i, j int) float64      { return v.V.At(i, j) }
