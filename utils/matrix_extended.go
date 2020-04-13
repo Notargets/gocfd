@@ -12,7 +12,8 @@ import (
 
 type Matrix struct {
 	M        *mat.Dense
-	ReadOnly bool
+	readOnly bool
+	name     string
 }
 
 func NewMatrix(nr, nc int, dataO ...[]float64) Matrix {
@@ -25,6 +26,7 @@ func NewMatrix(nr, nc int, dataO ...[]float64) Matrix {
 	return Matrix{
 		mat.NewDense(nr, nc, data),
 		false,
+		"unnamed - hint: pass a variable name to SetReadOnly()",
 	}
 }
 
@@ -35,14 +37,17 @@ func (m Matrix) T() mat.Matrix             { return m.T() }
 func (m Matrix) RawMatrix() blas64.General { return m.M.RawMatrix() }
 
 // Chainable methods (extended)
-func (m Matrix) SetReadOnly() Matrix {
-	m.ReadOnly = true
-	return m
+func (m *Matrix) SetReadOnly(name ...string) Matrix {
+	if len(name) != 0 {
+		m.name = name[0]
+	}
+	m.readOnly = true
+	return *m
 }
 
-func (m Matrix) SetWritable() Matrix {
-	m.ReadOnly = false
-	return m
+func (m *Matrix) SetWritable() Matrix {
+	m.readOnly = false
+	return *m
 }
 
 func (m Matrix) Slice(I, K, J, L int) (R Matrix) {
@@ -427,8 +432,8 @@ func (m Matrix) SubsetVector(I Index) (V Vector) {
 }
 
 func (m Matrix) checkWritable() {
-	if m.ReadOnly {
-		err := fmt.Errorf("attempt to write to a read only matrix")
+	if m.readOnly {
+		err := fmt.Errorf("attempt to write to a read only matrix named: \"%v\"", m.name)
 		panic(err)
 	}
 }

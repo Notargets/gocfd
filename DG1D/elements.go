@@ -33,6 +33,15 @@ func NewElements1D(N int, VX utils.Vector, EToV utils.Matrix) (el *Elements1D) {
 		EToV:   EToV,
 	}
 	el.Startup1D()
+	el.EToV.SetReadOnly("EToV")
+	el.EToE.SetReadOnly("EToE")
+	el.EToF.SetReadOnly("EToF")
+	el.X.SetReadOnly("X")
+	el.Dr.SetReadOnly("Dr")
+	el.Rx.SetReadOnly("Rx")
+	el.FScale.SetReadOnly("FScale")
+	el.NX.SetReadOnly("NX")
+	el.LIFT.SetReadOnly("LIFT")
 	return
 }
 
