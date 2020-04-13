@@ -11,7 +11,8 @@ import (
 )
 
 type Matrix struct {
-	M *mat.Dense
+	M        *mat.Dense
+	ReadOnly bool
 }
 
 func NewMatrix(nr, nc int, dataO ...[]float64) Matrix {
@@ -23,6 +24,7 @@ func NewMatrix(nr, nc int, dataO ...[]float64) Matrix {
 	}
 	return Matrix{
 		mat.NewDense(nr, nc, data),
+		false,
 	}
 }
 
@@ -33,6 +35,16 @@ func (m Matrix) T() mat.Matrix             { return m.T() }
 func (m Matrix) RawMatrix() blas64.General { return m.M.RawMatrix() }
 
 // Chainable methods (extended)
+func (m Matrix) SetReadOnly() Matrix {
+	m.ReadOnly = true
+	return m
+}
+
+func (m Matrix) SetWritable() Matrix {
+	m.ReadOnly = false
+	return m
+}
+
 func (m Matrix) Slice(I, K, J, L int) (R Matrix) {
 	var (
 		nrR   = K - I
@@ -68,6 +80,7 @@ func (m Matrix) Copy() (R Matrix) {
 }
 
 func (m Matrix) Set(i, j int, val float64) Matrix {
+	m.checkWritable()
 	m.M.Set(i, j, val)
 	return m
 }
@@ -90,6 +103,7 @@ func (m Matrix) Transpose() (R Matrix) {
 }
 
 func (m Matrix) SetCol(j int, data []float64) Matrix {
+	m.checkWritable()
 	m.M.SetCol(j, data)
 	return m
 }
@@ -109,6 +123,7 @@ func (m Matrix) Add(A Matrix) Matrix {
 		dataM = m.RawMatrix().Data
 		dataA = A.RawMatrix().Data
 	)
+	m.checkWritable()
 	for i, val := range dataA {
 		dataM[i] += val
 	}
@@ -120,13 +135,14 @@ func (m Matrix) Subtract(a Matrix) Matrix {
 		data  = m.M.RawMatrix().Data
 		dataA = a.M.RawMatrix().Data
 	)
+	m.checkWritable()
 	for i := range data {
 		data[i] -= dataA[i]
 	}
 	return m
 }
 
-func (m Matrix) Subset(I Index, nrNew, ncNew int) Matrix {
+func (m Matrix) Subset(I Index, nrNew, ncNew int) (R Matrix) {
 	/*
 		Index should contain a list of indices into MI
 		Note: native mat library matrix storage is in column traversal first (row-major) order
@@ -135,15 +151,13 @@ func (m Matrix) Subset(I Index, nrNew, ncNew int) Matrix {
 		Mr     = m.RawMatrix()
 		nr, nc = m.Dims()
 		data   = make([]float64, nrNew*ncNew)
-		R      *mat.Dense
 	)
 	for i, ind := range I {
 		indC := RowMajorToColMajor(nr, nc, ind)
 		indD := RowMajorToColMajor(nrNew, ncNew, i)
 		data[indD] = Mr.Data[indC]
 	}
-	R = mat.NewDense(nrNew, ncNew, data)
-	return Matrix{R}
+	return NewMatrix(nrNew, ncNew, data)
 }
 
 func (m Matrix) Assign(I Index, A Matrix) Matrix {
@@ -153,6 +167,7 @@ func (m Matrix) Assign(I Index, A Matrix) Matrix {
 		dataM  = m.RawMatrix().Data
 		dataA  = A.RawMatrix().Data
 	)
+	m.checkWritable()
 	for _, ind := range I {
 		i := RowMajorToColMajor(nr, nc, ind)
 		dataM[i] = dataA[i]
@@ -164,6 +179,7 @@ func (m Matrix) Scale(a float64) Matrix {
 	var (
 		data = m.M.RawMatrix().Data
 	)
+	m.checkWritable()
 	for i := range data {
 		data[i] *= a
 	}
@@ -174,6 +190,7 @@ func (m Matrix) AddScalar(a float64) Matrix {
 	var (
 		data = m.M.RawMatrix().Data
 	)
+	m.checkWritable()
 	for i := range data {
 		data[i] += a
 	}
@@ -184,6 +201,7 @@ func (m Matrix) Apply(f func(float64) float64) Matrix {
 	var (
 		data = m.M.RawMatrix().Data
 	)
+	m.checkWritable()
 	for i, val := range data {
 		data[i] = f(val)
 	}
@@ -194,6 +212,7 @@ func (m Matrix) POW(p int) Matrix {
 	var (
 		data = m.M.RawMatrix().Data
 	)
+	m.checkWritable()
 	for i, val := range data {
 		data[i] = POW(val, p)
 	}
@@ -222,6 +241,7 @@ func (m Matrix) ElementMultiply(A Matrix) Matrix {
 		dataM = m.RawMatrix().Data
 		dataA = A.RawMatrix().Data
 	)
+	m.checkWritable()
 	for i, val := range dataA {
 		//fmt.Printf("val[%d] = %v, mval = %v\n", i, val, dataM[i])
 		dataM[i] *= val
@@ -234,6 +254,7 @@ func (m Matrix) AssignScalar(I Index, val float64) Matrix {
 		dataM  = m.RawMatrix().Data
 		nr, nc = m.Dims()
 	)
+	m.checkWritable()
 	for _, ind := range I {
 		i := RowMajorToColMajor(nr, nc, ind)
 		dataM[i] = val
@@ -246,6 +267,7 @@ func (m Matrix) IndexedAssign(I2 Index2D, Val Index) (err error) {
 	var (
 		data = m.RawMatrix().Data
 	)
+	m.checkWritable()
 	if I2.Len != len(Val) {
 		err = fmt.Errorf("length of index and values are not equal: len(I2) = %v, len(Val) = %v\n", I2.Len, len(Val))
 		return
@@ -402,6 +424,13 @@ func (m Matrix) SubsetVector(I Index) (V Vector) {
 	}
 	V = NewVector(len(I), data)
 	return
+}
+
+func (m Matrix) checkWritable() {
+	if m.ReadOnly {
+		err := fmt.Errorf("attempt to write to a read only matrix")
+		panic(err)
+	}
 }
 
 func RowMajorToColMajor(nr, nc, ind int) (cind int) {

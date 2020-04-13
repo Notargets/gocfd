@@ -202,10 +202,8 @@ func (v Vector) Concat(w Vector) (r Vector) {
 func (v Vector) Transpose() Matrix {
 	var (
 		nr, nc = v.V.Dims()
-		m      *mat.Dense
 	)
-	m = mat.NewDense(nc, nr, v.V.RawVector().Data)
-	return Matrix{m}
+	return NewMatrix(nc, nr, v.V.RawVector().Data)
 }
 
 func (v Vector) ToIndex() (I Index) {
@@ -246,10 +244,7 @@ func (v Vector) Max() (max float64) {
 }
 
 func (v Vector) ToMatrix() Matrix {
-	var (
-		m = mat.NewDense(v.V.Len(), 1, v.V.RawVector().Data)
-	)
-	return Matrix{m}
+	return NewMatrix(v.V.Len(), 1, v.V.RawVector().Data)
 }
 
 func (v Vector) Mul(w Vector) (A Matrix) {
