@@ -36,29 +36,7 @@ func NewConvection(a, CFL, FinalTime float64, Elements *DG1D.Elements1D) *Convec
 
 func (c *Convection1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	var (
-		el   = c.El
-		rk4a = []float64{
-			0.0,
-			-567301805773.0 / 1357537059087.0,
-			-2404267990393.0 / 2016746695238.0,
-			-3550918686646.0 / 2091501179385.0,
-			-1275806237668.0 / 842570457699.0,
-		}
-		rk4b = []float64{
-			1432997174477.0 / 9575080441755.0,
-			5161836677717.0 / 13612068292357.0,
-			1720146321549.0 / 2090206949498.0,
-			3134564353537.0 / 4481467310338.0,
-			2277821191437.0 / 14882151754819.0,
-		}
-		rk4c = []float64{
-			0.0,
-			1432997174477.0 / 9575080441755.0,
-			2526269341429.0 / 6820363962896.0,
-			2006345519317.0 / 3224310063776.0,
-			2802321613138.0 / 2924317926251.0,
-			1.,
-		}
+		el        = c.El
 		chart     *chart2d.Chart2D
 		colorMap  *utils2.ColorMap
 		chartName string
@@ -88,12 +66,12 @@ func (c *Convection1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	var Time, timelocal float64
 	for tstep := 0; tstep < Nsteps; tstep++ {
 		for INTRK := 0; INTRK < 5; INTRK++ {
-			timelocal = Time + dt*rk4c[INTRK]
+			timelocal = Time + dt*utils.RK4c[INTRK]
 			RHSU := c.RHS(U, timelocal)
 			// resid = rk4a(INTRK) * resid + dt * rhsu;
-			resid.Scale(rk4a[INTRK]).Add(RHSU.Scale(dt))
+			resid.Scale(utils.RK4a[INTRK]).Add(RHSU.Scale(dt))
 			// u += rk4b(INTRK) * resid;
-			U.Add(resid.Copy().Scale(rk4b[INTRK]))
+			U.Add(resid.Copy().Scale(utils.RK4b[INTRK]))
 		}
 		Time += dt
 		if showGraph {
