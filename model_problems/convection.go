@@ -118,7 +118,7 @@ func (c *Convection1D) Run(showGraph bool, graphDelay ...time.Duration) {
 func (c *Convection1D) RHS(U utils.Matrix, time float64) (RHSU utils.Matrix) {
 	var (
 		uin   float64
-		alpha = 1.0 // flux splitting parameter, 0 is full upwinding
+		alpha = 0.0 // flux splitting parameter, 0 is full upwinding
 		el    = c.El
 	)
 	c.RHSOnce.Do(func() {
