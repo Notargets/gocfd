@@ -72,8 +72,8 @@ func (c *Advection1D) Run(showGraph bool, graphDelay ...time.Duration) {
 				time.Sleep(graphDelay[0])
 			}
 			if err := chart.AddSeries(chartName,
-				ToFloat32Slice(el.X.Transpose().RawMatrix().Data),
-				ToFloat32Slice(U.Transpose().RawMatrix().Data),
+				el.X.Transpose().RawMatrix().Data,
+				U.Transpose().RawMatrix().Data,
 				chart2d.CrossGlyph, chart2d.Dashed,
 				colorMap.GetRGB(0)); err != nil {
 				panic("unable to add graph series")
@@ -114,12 +114,4 @@ func (c *Advection1D) RHS(U utils.Matrix, time float64) (RHSU utils.Matrix) {
 	// Important: must change the order from Fscale.dm(du) to du.dm(Fscale) here because the dm overwrites the target
 	RHSU = el.Rx.Copy().Scale(-c.a).ElementMultiply(el.Dr.Mul(U)).Add(el.LIFT.Mul(dU.ElementMultiply(el.FScale)))
 	return
-}
-
-func ToFloat32Slice(A []float64) (R []float32) {
-	R = make([]float32, len(A))
-	for i, val := range A {
-		R[i] = float32(val)
-	}
-	return R
 }
