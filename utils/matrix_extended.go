@@ -50,7 +50,7 @@ func (m *Matrix) SetWritable() Matrix {
 	return *m
 }
 
-func (m Matrix) Slice(I, K, J, L int) (R Matrix) {
+func (m Matrix) Slice(I, K, J, L int) (R Matrix) { // Does not change receiver
 	var (
 		nrR   = K - I
 		ncR   = L - J
@@ -71,7 +71,7 @@ func (m Matrix) Slice(I, K, J, L int) (R Matrix) {
 	return
 }
 
-func (m Matrix) Copy() (R Matrix) {
+func (m Matrix) Copy() (R Matrix) { // Does not change receiver
 	var (
 		data   = m.M.RawMatrix().Data
 		nr, nc = m.Dims()
@@ -84,13 +84,7 @@ func (m Matrix) Copy() (R Matrix) {
 	return
 }
 
-func (m Matrix) Set(i, j int, val float64) Matrix {
-	m.checkWritable()
-	m.M.Set(i, j, val)
-	return m
-}
-
-func (m Matrix) Transpose() (R Matrix) {
+func (m Matrix) Transpose() (R Matrix) { // Does not change receiver
 	var (
 		nr, nc = m.Dims()
 		data   = m.M.RawMatrix().Data
@@ -107,13 +101,7 @@ func (m Matrix) Transpose() (R Matrix) {
 	return
 }
 
-func (m Matrix) SetCol(j int, data []float64) Matrix {
-	m.checkWritable()
-	m.M.SetCol(j, data)
-	return m
-}
-
-func (m Matrix) Mul(A Matrix) (R Matrix) {
+func (m Matrix) Mul(A Matrix) (R Matrix) { // Does not change receiver
 	var (
 		nrM, _ = m.M.Dims()
 		_, ncA = A.M.Dims()
@@ -123,31 +111,7 @@ func (m Matrix) Mul(A Matrix) (R Matrix) {
 	return R
 }
 
-func (m Matrix) Add(A Matrix) Matrix {
-	var (
-		dataM = m.RawMatrix().Data
-		dataA = A.RawMatrix().Data
-	)
-	m.checkWritable()
-	for i, val := range dataA {
-		dataM[i] += val
-	}
-	return m
-}
-
-func (m Matrix) Subtract(a Matrix) Matrix {
-	var (
-		data  = m.M.RawMatrix().Data
-		dataA = a.M.RawMatrix().Data
-	)
-	m.checkWritable()
-	for i := range data {
-		data[i] -= dataA[i]
-	}
-	return m
-}
-
-func (m Matrix) Subset(I Index, nrNew, ncNew int) (R Matrix) {
+func (m Matrix) Subset(I Index, nrNew, ncNew int) (R Matrix) { // Does not change receiver
 	/*
 		Index should contain a list of indices into MI
 		Note: native mat library matrix storage is in column traversal first (row-major) order
@@ -165,66 +129,7 @@ func (m Matrix) Subset(I Index, nrNew, ncNew int) (R Matrix) {
 	return NewMatrix(nrNew, ncNew, data)
 }
 
-func (m Matrix) Assign(I Index, A Matrix) Matrix {
-	// Assigns values in M sequentially using values indexed from A
-	var (
-		nr, nc = m.Dims()
-		dataM  = m.RawMatrix().Data
-		dataA  = A.RawMatrix().Data
-	)
-	m.checkWritable()
-	for _, ind := range I {
-		i := RowMajorToColMajor(nr, nc, ind)
-		dataM[i] = dataA[i]
-	}
-	return m
-}
-
-func (m Matrix) Scale(a float64) Matrix {
-	var (
-		data = m.M.RawMatrix().Data
-	)
-	m.checkWritable()
-	for i := range data {
-		data[i] *= a
-	}
-	return m
-}
-
-func (m Matrix) AddScalar(a float64) Matrix {
-	var (
-		data = m.M.RawMatrix().Data
-	)
-	m.checkWritable()
-	for i := range data {
-		data[i] += a
-	}
-	return m
-}
-
-func (m Matrix) Apply(f func(float64) float64) Matrix {
-	var (
-		data = m.M.RawMatrix().Data
-	)
-	m.checkWritable()
-	for i, val := range data {
-		data[i] = f(val)
-	}
-	return m
-}
-
-func (m Matrix) POW(p int) Matrix {
-	var (
-		data = m.M.RawMatrix().Data
-	)
-	m.checkWritable()
-	for i, val := range data {
-		data[i] = POW(val, p)
-	}
-	return m
-}
-
-func (m Matrix) SliceRows(I Index) (R Matrix) {
+func (m Matrix) SliceRows(I Index) (R Matrix) { // Does not change receiver
 	// RowIndices should contain a list of row indices into M
 	var (
 		nr, nc = m.Dims()
@@ -241,7 +146,101 @@ func (m Matrix) SliceRows(I Index) (R Matrix) {
 	return
 }
 
-func (m Matrix) ElementMultiply(A Matrix) Matrix {
+func (m Matrix) Set(i, j int, val float64) Matrix { // Changes receiver
+	m.checkWritable()
+	m.M.Set(i, j, val)
+	return m
+}
+
+func (m Matrix) SetCol(j int, data []float64) Matrix { // Changes receiver
+	m.checkWritable()
+	m.M.SetCol(j, data)
+	return m
+}
+
+func (m Matrix) Add(A Matrix) Matrix { // Changes receiver
+	var (
+		dataM = m.RawMatrix().Data
+		dataA = A.RawMatrix().Data
+	)
+	m.checkWritable()
+	for i, val := range dataA {
+		dataM[i] += val
+	}
+	return m
+}
+
+func (m Matrix) Subtract(a Matrix) Matrix { // Changes receiver
+	var (
+		data  = m.M.RawMatrix().Data
+		dataA = a.M.RawMatrix().Data
+	)
+	m.checkWritable()
+	for i := range data {
+		data[i] -= dataA[i]
+	}
+	return m
+}
+func (m Matrix) Assign(I Index, A Matrix) Matrix { // Changes receiver
+	// Assigns values in M sequentially using values indexed from A
+	var (
+		nr, nc = m.Dims()
+		dataM  = m.RawMatrix().Data
+		dataA  = A.RawMatrix().Data
+	)
+	m.checkWritable()
+	for _, ind := range I {
+		i := RowMajorToColMajor(nr, nc, ind)
+		dataM[i] = dataA[i]
+	}
+	return m
+}
+
+func (m Matrix) Scale(a float64) Matrix { // Changes receiver
+	var (
+		data = m.M.RawMatrix().Data
+	)
+	m.checkWritable()
+	for i := range data {
+		data[i] *= a
+	}
+	return m
+}
+
+func (m Matrix) AddScalar(a float64) Matrix { // Changes receiver
+	var (
+		data = m.M.RawMatrix().Data
+	)
+	m.checkWritable()
+	for i := range data {
+		data[i] += a
+	}
+	return m
+}
+
+func (m Matrix) Apply(f func(float64) float64) Matrix { // Changes receiver
+	var (
+		data = m.M.RawMatrix().Data
+	)
+	m.checkWritable()
+	for i, val := range data {
+		data[i] = f(val)
+	}
+	return m
+}
+
+func (m Matrix) POW(p int) Matrix { // Changes receiver
+	var (
+		data = m.M.RawMatrix().Data
+	)
+	m.checkWritable()
+	for i, val := range data {
+		data[i] = POW(val, p)
+	}
+	return m
+}
+
+func (m Matrix) ElementMultiply(A Matrix) Matrix { // Changes receiver
 	var (
 		dataM = m.RawMatrix().Data
 		dataA = A.RawMatrix().Data
@@ -254,7 +253,7 @@ func (m Matrix) ElementMultiply(A Matrix) Matrix {
 	return m
 }
 
-func (m Matrix) AssignScalar(I Index, val float64) Matrix {
+func (m Matrix) AssignScalar(I Index, val float64) Matrix { // Changes receiver
 	var (
 		dataM  = m.RawMatrix().Data
 		nr, nc = m.Dims()
@@ -268,7 +267,7 @@ func (m Matrix) AssignScalar(I Index, val float64) Matrix {
 }
 
 // Non chainable methods
-func (m Matrix) IndexedAssign(I2 Index2D, Val Index) (err error) {
+func (m Matrix) IndexedAssign(I2 Index2D, Val Index) (err error) { // Changes receiver
 	var (
 		data = m.RawMatrix().Data
 	)
@@ -287,8 +286,6 @@ func (m Matrix) Inverse() (R Matrix, err error) {
 	var (
 		nr, nc = m.Dims()
 	)
-	//R = NewMatrix(nr, nc)
-	//err = R.M.Inverse(m.M)
 	R = m.Copy()
 	iPiv := make([]int, nr)
 	if ok := lapack64.Getrf(R.RawMatrix(), iPiv); !ok {
@@ -311,9 +308,7 @@ func (m Matrix) Col(j int) Vector {
 	for i := range vData {
 		vData[i] = data[i*nc+j]
 	}
-	return Vector{
-		mat.NewVecDense(nr, vData),
-	}
+	return NewVector(nr, vData)
 }
 
 func (m Matrix) Row(i int) Vector {
@@ -325,9 +320,7 @@ func (m Matrix) Row(i int) Vector {
 	for j := range vData {
 		vData[j] = data[j+i*nc]
 	}
-	return Vector{
-		mat.NewVecDense(nc, vData),
-	}
+	return NewVector(nc, vData)
 }
 
 func (m Matrix) Min() (min float64) {
