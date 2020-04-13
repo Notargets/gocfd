@@ -17,7 +17,7 @@ import (
 	utils2 "github.com/notargets/avs/utils"
 )
 
-type Convection1D struct {
+type Advection1D struct {
 	// Input parameters
 	a, CFL, FinalTime float64
 	El                *DG1D.Elements1D
@@ -25,8 +25,8 @@ type Convection1D struct {
 	UFlux             utils.Matrix
 }
 
-func NewConvection(a, CFL, FinalTime float64, Elements *DG1D.Elements1D) *Convection1D {
-	return &Convection1D{
+func NewAdvection1D(a, CFL, FinalTime float64, Elements *DG1D.Elements1D) *Advection1D {
+	return &Advection1D{
 		a:         a,
 		CFL:       CFL,
 		FinalTime: FinalTime,
@@ -34,7 +34,7 @@ func NewConvection(a, CFL, FinalTime float64, Elements *DG1D.Elements1D) *Convec
 	}
 }
 
-func (c *Convection1D) Run(showGraph bool, graphDelay ...time.Duration) {
+func (c *Advection1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	var (
 		el        = c.El
 		chart     *chart2d.Chart2D
@@ -54,13 +54,6 @@ func (c *Convection1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		chart = chart2d.NewChart2D(1024, 768, float32(el.X.Min()), float32(el.X.Max()), -1, 1)
 		colorMap = utils2.NewColorMap(-1, 1, 1)
 		chartName = "Advect1D"
-		if err := chart.AddSeries(chartName,
-			ToFloat32Slice(el.X.Transpose().RawMatrix().Data),
-			ToFloat32Slice(U.Transpose().RawMatrix().Data),
-			chart2d.NoGlyph, chart2d.Solid,
-			colorMap.GetRGB(0)); err != nil {
-			panic("unable to add graph series")
-		}
 		go chart.Plot()
 	}
 	var Time, timelocal float64
@@ -93,7 +86,7 @@ func (c *Convection1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	fmt.Printf("U = \n%v\n", mat.Formatted(U, mat.Squeeze()))
 }
 
-func (c *Convection1D) RHS(U utils.Matrix, time float64) (RHSU utils.Matrix) {
+func (c *Advection1D) RHS(U utils.Matrix, time float64) (RHSU utils.Matrix) {
 	var (
 		uin   float64
 		alpha = 0.0 // flux splitting parameter, 0 is full upwinding

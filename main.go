@@ -31,7 +31,7 @@ func main() {
 
 	VX, EToV := DG1D.SimpleMesh1D(0, 2*math.Pi, K)
 	e1D := DG1D.NewElements1D(N, VX, EToV)
-	c := model_problems.NewConvection(2*math.Pi, 0.75, 100000., e1D)
+	c := model_problems.NewAdvection1D(2*math.Pi, 0.75, 100000., e1D)
 	c.Run(*Graphptr, Delay*time.Millisecond)
 	fmt.Printf("X = \n%v\n", mat.Formatted(e1D.X, mat.Squeeze()))
 }
