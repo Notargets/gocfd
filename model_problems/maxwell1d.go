@@ -61,18 +61,19 @@ func NewMaxwell1D(CFL, FinalTime float64, N, K int) (c *Maxwell1D) {
 
 func (c *Maxwell1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	var (
-		chart        *chart2d.Chart2D
-		colorMap     *utils2.ColorMap
-		chartName    string
-		el           = c.El
-		resE         = utils.NewMatrix(el.Np, el.K)
-		resH         = utils.NewMatrix(el.Np, el.K)
-		logFrequency = 1
+		chart                  *chart2d.Chart2D
+		colorMap               *utils2.ColorMap
+		chartNameE, chartNameH string
+		el                     = c.El
+		resE                   = utils.NewMatrix(el.Np, el.K)
+		resH                   = utils.NewMatrix(el.Np, el.K)
+		logFrequency           = 1
 	)
 	if showGraph {
 		chart = chart2d.NewChart2D(1024, 768, float32(el.X.Min()), float32(el.X.Max()), -1, 1)
 		colorMap = utils2.NewColorMap(-1, 1, 1)
-		chartName = "Maxwell1D"
+		chartNameE = "E Field"
+		chartNameH = "H Field"
 		go chart.Plot()
 	}
 	xmin := el.X.Row(1).Subtract(el.X.Row(0)).Apply(math.Abs).Min()
@@ -84,11 +85,18 @@ func (c *Maxwell1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	var Time float64
 	for tstep := 0; tstep < Nsteps; tstep++ {
 		if showGraph {
-			if err := chart.AddSeries(chartName,
+			if err := chart.AddSeries(chartNameE,
 				el.X.Transpose().RawMatrix().Data,
 				c.E.Transpose().RawMatrix().Data,
 				chart2d.CrossGlyph, chart2d.Dashed,
 				colorMap.GetRGB(0)); err != nil {
+				panic("unable to add graph series")
+			}
+			if err := chart.AddSeries(chartNameH,
+				el.X.Transpose().RawMatrix().Data,
+				c.H.Transpose().RawMatrix().Data,
+				chart2d.CrossGlyph, chart2d.Dashed,
+				colorMap.GetRGB(0.7)); err != nil {
 				panic("unable to add graph series")
 			}
 			if len(graphDelay) != 0 {
