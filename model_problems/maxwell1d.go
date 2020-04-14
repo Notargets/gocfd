@@ -1,9 +1,13 @@
 package model_problems
 
 import (
+	"fmt"
 	"math"
 	"sync"
 	"time"
+
+	"github.com/notargets/avs/chart2d"
+	utils2 "github.com/notargets/avs/utils"
 
 	"github.com/notargets/gocfd/DG1D"
 	"github.com/notargets/gocfd/utils"
@@ -57,12 +61,52 @@ func NewMaxwell1D(CFL, FinalTime float64, N, K int) (c *Maxwell1D) {
 
 func (c *Maxwell1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	var (
-	//el        = c.El
-	//chart     *chart2d.Chart2D
-	//colorMap  *utils2.ColorMap
-	//chartName string
+		chart        *chart2d.Chart2D
+		colorMap     *utils2.ColorMap
+		chartName    string
+		el           = c.El
+		resE         = utils.NewMatrix(el.Np, el.K)
+		resH         = utils.NewMatrix(el.Np, el.K)
+		logFrequency = 1
 	)
-	c.RHS()
+	if showGraph {
+		chart = chart2d.NewChart2D(1024, 768, float32(el.X.Min()), float32(el.X.Max()), -1, 1)
+		colorMap = utils2.NewColorMap(-1, 1, 1)
+		chartName = "Maxwell1D"
+		go chart.Plot()
+	}
+	xmin := el.X.Row(1).Subtract(el.X.Row(0)).Apply(math.Abs).Min()
+	dt := xmin * c.CFL
+	Nsteps := int(math.Ceil(c.FinalTime / dt))
+	dt = c.FinalTime / float64(Nsteps)
+	Nsteps = 10
+
+	var Time float64
+	for tstep := 0; tstep < Nsteps; tstep++ {
+		if showGraph {
+			if err := chart.AddSeries(chartName,
+				el.X.Transpose().RawMatrix().Data,
+				c.E.Transpose().RawMatrix().Data,
+				chart2d.CrossGlyph, chart2d.Dashed,
+				colorMap.GetRGB(0)); err != nil {
+				panic("unable to add graph series")
+			}
+			if len(graphDelay) != 0 {
+				time.Sleep(graphDelay[0])
+			}
+		}
+		for INTRK := 0; INTRK < 5; INTRK++ {
+			rhsE, rhsH := c.RHS()
+			resE.Scale(utils.RK4a[INTRK]).Add(rhsE.Scale(dt))
+			resH.Scale(utils.RK4a[INTRK]).Add(rhsH.Scale(dt))
+			c.E.Add(resE.Copy().Scale(utils.RK4b[INTRK]))
+			c.H.Add(resH.Copy().Scale(utils.RK4b[INTRK]))
+		}
+		Time += dt
+		if tstep%logFrequency == 0 {
+			fmt.Printf("Time = %8.4f, max_resid[%d] = %8.4f, emin = %8.4f, emax = %8.4f\n", Time, tstep, resE.Max(), c.E.Col(0).Min(), c.E.Col(0).Max())
+		}
+	}
 	return
 }
 

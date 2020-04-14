@@ -6,8 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"gonum.org/v1/gonum/mat"
-
 	"github.com/notargets/gocfd/utils"
 
 	"github.com/notargets/gocfd/DG1D"
@@ -37,19 +35,18 @@ func NewAdvection1D(a, CFL, FinalTime float64, N, K int) *Advection1D {
 
 func (c *Advection1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	var (
-		el        = c.El
-		chart     *chart2d.Chart2D
-		colorMap  *utils2.ColorMap
-		chartName string
+		el           = c.El
+		chart        *chart2d.Chart2D
+		colorMap     *utils2.ColorMap
+		chartName    string
+		logFrequency = 50
 	)
 	xmin := el.X.Row(1).Subtract(el.X.Row(0)).Apply(math.Abs).Min()
 	dt := 0.5 * xmin * (c.CFL / c.a)
 	Ns := math.Ceil(c.FinalTime / dt)
 	dt = c.FinalTime / Ns
 	Nsteps := int(Ns)
-	fmt.Printf("Min Dist = %8.6f, dt = %8.6f, Nsteps = %d\n\n", xmin, dt, Nsteps)
 	U := el.X.Copy().Apply(math.Sin)
-	//fmt.Printf("U = \n%v\n", mat.Formatted(U, mat.Squeeze()))
 	resid := utils.NewMatrix(el.Np, el.K)
 	if showGraph {
 		chart = chart2d.NewChart2D(1024, 768, float32(el.X.Min()), float32(el.X.Max()), -1, 1)
@@ -59,6 +56,18 @@ func (c *Advection1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	}
 	var Time, timelocal float64
 	for tstep := 0; tstep < Nsteps; tstep++ {
+		if showGraph {
+			if err := chart.AddSeries(chartName,
+				el.X.Transpose().RawMatrix().Data,
+				U.Transpose().RawMatrix().Data,
+				chart2d.CrossGlyph, chart2d.Dashed,
+				colorMap.GetRGB(0)); err != nil {
+				panic("unable to add graph series")
+			}
+			if len(graphDelay) != 0 {
+				time.Sleep(graphDelay[0])
+			}
+		}
 		for INTRK := 0; INTRK < 5; INTRK++ {
 			timelocal = Time + dt*utils.RK4c[INTRK]
 			RHSU := c.RHS(U, timelocal)
@@ -68,23 +77,10 @@ func (c *Advection1D) Run(showGraph bool, graphDelay ...time.Duration) {
 			U.Add(resid.Copy().Scale(utils.RK4b[INTRK]))
 		}
 		Time += dt
-		if showGraph {
-			if len(graphDelay) != 0 {
-				time.Sleep(graphDelay[0])
-			}
-			if err := chart.AddSeries(chartName,
-				el.X.Transpose().RawMatrix().Data,
-				U.Transpose().RawMatrix().Data,
-				chart2d.CrossGlyph, chart2d.Dashed,
-				colorMap.GetRGB(0)); err != nil {
-				panic("unable to add graph series")
-			}
-		}
-		if tstep%50 == 0 {
+		if tstep%logFrequency == 0 {
 			fmt.Printf("Time = %8.4f, max_resid[%d] = %8.4f, umin = %8.4f, umax = %8.4f\n", Time, tstep, resid.Max(), U.Col(0).Min(), U.Col(0).Max())
 		}
 	}
-	fmt.Printf("U = \n%v\n", mat.Formatted(U, mat.Squeeze()))
 }
 
 func (c *Advection1D) RHS(U utils.Matrix, time float64) (RHSU utils.Matrix) {
