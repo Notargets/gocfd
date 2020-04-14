@@ -45,7 +45,7 @@ func main() {
 	case Maxwell1D:
 		fallthrough
 	default:
-		C = model_problems.NewMaxwell1D(1.00, 100000., N, K)
+		C = model_problems.NewMaxwell1D(1.0, 100000., N, K)
 	}
 	C.Run(*Graphptr, Delay*time.Millisecond)
 }

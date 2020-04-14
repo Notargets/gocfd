@@ -67,10 +67,10 @@ func (c *Maxwell1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		el                     = c.El
 		resE                   = utils.NewMatrix(el.Np, el.K)
 		resH                   = utils.NewMatrix(el.Np, el.K)
-		logFrequency           = 1
+		logFrequency           = 50
 	)
 	if showGraph {
-		chart = chart2d.NewChart2D(1024, 768, float32(el.X.Min()), float32(el.X.Max()), -1, 1)
+		chart = chart2d.NewChart2D(1920, 1280, float32(el.X.Min()), float32(el.X.Max()), -1, 1)
 		colorMap = utils2.NewColorMap(-1, 1, 1)
 		chartNameE = "E Field"
 		chartNameH = "H Field"
@@ -80,23 +80,16 @@ func (c *Maxwell1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	dt := xmin * c.CFL
 	Nsteps := int(math.Ceil(c.FinalTime / dt))
 	dt = c.FinalTime / float64(Nsteps)
-	Nsteps = 10
 
 	var Time float64
 	for tstep := 0; tstep < Nsteps; tstep++ {
 		if showGraph {
-			if err := chart.AddSeries(chartNameE,
-				el.X.Transpose().RawMatrix().Data,
-				c.E.Transpose().RawMatrix().Data,
-				chart2d.CrossGlyph, chart2d.Dashed,
-				colorMap.GetRGB(0)); err != nil {
+			if err := chart.AddSeries(chartNameE, el.X.Transpose().RawMatrix().Data, c.E.Transpose().RawMatrix().Data,
+				chart2d.CrossGlyph, chart2d.Dashed, colorMap.GetRGB(0)); err != nil {
 				panic("unable to add graph series")
 			}
-			if err := chart.AddSeries(chartNameH,
-				el.X.Transpose().RawMatrix().Data,
-				c.H.Transpose().RawMatrix().Data,
-				chart2d.CrossGlyph, chart2d.Dashed,
-				colorMap.GetRGB(0.7)); err != nil {
+			if err := chart.AddSeries(chartNameH, el.X.Transpose().RawMatrix().Data, c.H.Transpose().RawMatrix().Data,
+				chart2d.CrossGlyph, chart2d.Dashed, colorMap.GetRGB(0.7)); err != nil {
 				panic("unable to add graph series")
 			}
 			if len(graphDelay) != 0 {
@@ -131,11 +124,15 @@ func (c *Maxwell1D) RHS() (RHSE, RHSH utils.Matrix) {
 	dH.AssignVector(el.MapB, c.H.SubsetVector(el.VmapB).Set(0))
 
 	// Upwind fluxes
-	fluxE := c.ZimPM.Copy().Add(c.ZimPP).POW(-1).ElementMultiply(el.NX.Copy().ElementMultiply(c.ZimPP.Copy().ElementMultiply(dH).Subtract(dE)))
-	fluxH := c.YimPM.Copy().Add(c.YimPP).POW(-1).ElementMultiply(el.NX.Copy().ElementMultiply(c.YimPP.Copy().ElementMultiply(dE).Subtract(dH)))
+	fluxE := c.ZimPM.Copy().Add(c.ZimPP).POW(-1).ElementMultiply(el.NX.Copy().ElementMultiply(c.ZimPP).ElementMultiply(dH).Subtract(dE))
+	fluxH := c.YimPM.Copy().Add(c.YimPP).POW(-1).ElementMultiply(el.NX.Copy().ElementMultiply(c.YimPP).ElementMultiply(dE).Subtract(dH))
 
 	RHSE = el.Rx.Copy().Scale(-1).ElementMultiply(el.Dr.Mul(c.H)).Add(el.LIFT.Mul(fluxE.ElementMultiply(el.FScale)).ElementDivide(c.Epsilon))
 	RHSH = el.Rx.Copy().Scale(-1).ElementMultiply(el.Dr.Mul(c.E)).Add(el.LIFT.Mul(fluxH.ElementMultiply(el.FScale)).ElementDivide(c.Mu))
+	/*
+		fmt.Printf("RHSE = \n%v\n", mat.Formatted(RHSE, mat.Squeeze()))
+		fmt.Printf("RHSH = \n%v\n", mat.Formatted(RHSH, mat.Squeeze()))
+	*/
 
 	return
 }

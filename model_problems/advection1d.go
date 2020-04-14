@@ -57,11 +57,8 @@ func (c *Advection1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	var Time, timelocal float64
 	for tstep := 0; tstep < Nsteps; tstep++ {
 		if showGraph {
-			if err := chart.AddSeries(chartName,
-				el.X.Transpose().RawMatrix().Data,
-				U.Transpose().RawMatrix().Data,
-				chart2d.CrossGlyph, chart2d.Dashed,
-				colorMap.GetRGB(0)); err != nil {
+			if err := chart.AddSeries(chartName, el.X.Transpose().RawMatrix().Data, U.Transpose().RawMatrix().Data,
+				chart2d.CrossGlyph, chart2d.Dashed, colorMap.GetRGB(0)); err != nil {
 				panic("unable to add graph series")
 			}
 			if len(graphDelay) != 0 {
