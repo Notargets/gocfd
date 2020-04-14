@@ -111,16 +111,22 @@ func (m Matrix) Mul(A Matrix) (R Matrix) { // Does not change receiver
 	return R
 }
 
-func (m Matrix) Subset(I Index, nrNew, ncNew int) (R Matrix) { // Does not change receiver
+//func (m Matrix) Subset(I Index, nrNew, ncNew int) (R Matrix) { // Does not change receiver
+func (m Matrix) Subset(I Index, newDims ...int) (R Matrix) { // Does not change receiver
 	/*
 		Index should contain a list of indices into MI
 		Note: native mat library matrix storage is in column traversal first (row-major) order
 	*/
 	var (
-		Mr     = m.RawMatrix()
-		nr, nc = m.Dims()
-		data   = make([]float64, nrNew*ncNew)
+		Mr           = m.RawMatrix()
+		nr, nc       = m.Dims()
+		data         []float64
+		nrNew, ncNew = nr, nc
 	)
+	if len(newDims) != 0 {
+		nrNew, ncNew = newDims[0], newDims[1]
+	}
+	data = make([]float64, nrNew*ncNew)
 	for i, ind := range I {
 		indC := RowMajorToColMajor(nr, nc, ind)
 		indD := RowMajorToColMajor(nrNew, ncNew, i)
@@ -181,6 +187,7 @@ func (m Matrix) Subtract(a Matrix) Matrix { // Changes receiver
 	}
 	return m
 }
+
 func (m Matrix) Assign(I Index, A Matrix) Matrix { // Changes receiver
 	// Assigns values in M sequentially using values indexed from A
 	var (
@@ -192,6 +199,21 @@ func (m Matrix) Assign(I Index, A Matrix) Matrix { // Changes receiver
 	for _, ind := range I {
 		i := RowMajorToColMajor(nr, nc, ind)
 		dataM[i] = dataA[i]
+	}
+	return m
+}
+
+func (m Matrix) AssignVector(I Index, A Vector) Matrix { // Changes receiver
+	// Assigns values in M sequentially using values indexed from A
+	var (
+		nr, nc = m.Dims()
+		dataM  = m.RawMatrix().Data
+		dataA  = A.RawVector().Data
+	)
+	m.checkWritable()
+	for i, ind := range I {
+		ii := RowMajorToColMajor(nr, nc, ind)
+		dataM[ii] = dataA[i]
 	}
 	return m
 }
@@ -247,8 +269,19 @@ func (m Matrix) ElementMultiply(A Matrix) Matrix { // Changes receiver
 	)
 	m.checkWritable()
 	for i, val := range dataA {
-		//fmt.Printf("val[%d] = %v, mval = %v\n", i, val, dataM[i])
 		dataM[i] *= val
+	}
+	return m
+}
+
+func (m Matrix) ElementDivide(A Matrix) Matrix { // Changes receiver
+	var (
+		dataM = m.RawMatrix().Data
+		dataA = A.RawMatrix().Data
+	)
+	m.checkWritable()
+	for i, val := range dataA {
+		dataM[i] /= val
 	}
 	return m
 }

@@ -2,15 +2,10 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"math"
 	"time"
 
-	"gonum.org/v1/gonum/mat"
-
 	"github.com/notargets/gocfd/model_problems"
-
-	"github.com/notargets/gocfd/DG1D"
 )
 
 var (
@@ -36,24 +31,21 @@ func main() {
 	Nptr := flag.Int("N", N, "polynomial degree")
 	Delayptr := flag.Int("delay", 200, "milliseconds of delay for plotting")
 	Graphptr := flag.Bool("graph", false, "display a graph while computing solution")
-	ModelRunptr := flag.Int("model", int(ModelRun), "model to run: 0 = Maxwell1D, 1 = Maxwell1D")
+	ModelRunptr := flag.Int("model", int(ModelRun), "model to run: 0 = Advect1D, 1 = Maxwell1D")
 	flag.Parse()
 	K = *Kptr
 	N = *Nptr
 	Delay = time.Duration(*Delayptr)
 	ModelRun = ModelType(*ModelRunptr)
 
-	VX, EToV := DG1D.SimpleMesh1D(0, 2*math.Pi, K)
-	e1D := DG1D.NewElements1D(N, VX, EToV)
 	var C Model
 	switch ModelRun {
 	case Advect1D:
-		C = model_problems.NewAdvection1D(2*math.Pi, 0.75, 100000., e1D)
+		C = model_problems.NewAdvection1D(2*math.Pi, 0.75, 100000., N, K)
 	case Maxwell1D:
 		fallthrough
 	default:
-		C = model_problems.NewMaxwell1D(0.75, 100000., e1D)
+		C = model_problems.NewMaxwell1D(1.00, 100000., N, K)
 	}
 	C.Run(*Graphptr, Delay*time.Millisecond)
-	fmt.Printf("X = \n%v\n", mat.Formatted(e1D.X, mat.Squeeze()))
 }

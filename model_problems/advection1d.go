@@ -25,12 +25,13 @@ type Advection1D struct {
 	UFlux             utils.Matrix
 }
 
-func NewAdvection1D(a, CFL, FinalTime float64, Elements *DG1D.Elements1D) *Advection1D {
+func NewAdvection1D(a, CFL, FinalTime float64, N, K int) *Advection1D {
+	VX, EToV := DG1D.SimpleMesh1D(0, 2*math.Pi, K)
 	return &Advection1D{
 		a:         a,
 		CFL:       CFL,
 		FinalTime: FinalTime,
-		El:        Elements,
+		El:        DG1D.NewElements1D(N, VX, EToV),
 	}
 }
 
