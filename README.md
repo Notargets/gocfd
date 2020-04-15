@@ -10,5 +10,6 @@ This is one of the two model problem solvers currently implemented, a 1D Maxwell
 
 Unlike the advection equation model problem, this solver does have unstable points in the space of K (element count) and N (polynomial degree). So far, it appears that the polynomial degree must be >= 5 for stability, otherwise aliasing occurs, where even/odd modes are excited among grid points.
 
+In the example pictured, there are 80 elements (K=80) and the polynomial degree is 6 (N=6).
 ![](images/Maxwell1D-cavity.PNG)
 ![](images/Maxwell1D-cavity2.PNG)
