@@ -29,7 +29,7 @@ type Model interface {
 func main() {
 	Kptr := flag.Int("K", K, "Number of elements in model")
 	Nptr := flag.Int("N", N, "polynomial degree")
-	Delayptr := flag.Int("delay", 200, "milliseconds of delay for plotting")
+	Delayptr := flag.Int("delay", 0, "milliseconds of delay for plotting")
 	Graphptr := flag.Bool("graph", false, "display a graph while computing solution")
 	ModelRunptr := flag.Int("model", int(ModelRun), "model to run: 0 = Advect1D, 1 = Maxwell1D")
 	flag.Parse()
