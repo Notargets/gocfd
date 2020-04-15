@@ -4,12 +4,12 @@ Awesome CFD solver written in Go
 ## An implementation of the Discontinuous Galerkin Method for solving systems of equations
 
 ### Model Problem Example #1: Advection Equation
-![](images/Advect1D-0.PNG)
+<span style="display:block;text-align:center">![](images/Advect1D-0.PNG)</span>
 
 The first model problem is 1D Advection with a left boundary driven sine wave.
 
 In the example pictured, there are 80 elements (K=80) and the element polynomial degree is 5 (N=5).
-![](images/Advect1D-1.PNG)
+<span style="display:block;text-align:center">![](images/Advect1D-1.PNG)</span>
 
 ### Model Problem Example #2: Maxwell's Equations solved in a 1D Cavity
 ![](images/Maxwell1D-cavity0.PNG)
