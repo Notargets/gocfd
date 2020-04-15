@@ -5,6 +5,7 @@ Awesome CFD solver written in Go
 
 ### Model Problem Example #1: Advection Equation
 ![](images/Advect1D-0.PNG)
+
 The first model problem is 1D Advection with a left boundary driven sine wave.
 
 In the example pictured, there are 80 elements (K=80) and the element polynomial degree is 5 (N=5).
