@@ -50,10 +50,13 @@ In the example pictured, there are 80 elements (K=80) and the element polynomial
 
 #### Initial State
 ![](images/Maxwell1D-cavity0.PNG)
+
 #### Intermediate State
 ![](images/Maxwell1D-cavity.PNG)
+
 #### First Mode
-![](images/Maxwell1D-cavity3.PNG)
+![](images/Maxwell1D-cavity2.PNG)
+
 #### Second Mode
 ![](images/Maxwell1D-cavity4.PNG)
 
