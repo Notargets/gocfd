@@ -1,5 +1,6 @@
 gocfd:
 	go fmt ./...  && go install ./...
+	@printf "run this -> %s \n" "$$"\GOPATH/bin/$@
 
 test:
 	go test ./...

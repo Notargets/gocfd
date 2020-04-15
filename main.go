@@ -9,9 +9,9 @@ import (
 )
 
 var (
-	K        = 10 // Number of elements
-	N        = 6  // Polynomial degree
-	Delay    = time.Duration(200)
+	K        = 60 // Number of elements
+	N        = 8  // Polynomial degree
+	Delay    = time.Duration(0)
 	ModelRun = Maxwell1D
 )
 

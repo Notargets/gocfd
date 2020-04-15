@@ -21,11 +21,11 @@ run this -> $GOPATH/bin/gocfd
 me@home:bash# /gocfd$ gocfd --help
 Usage of gocfd:
   -K int
-        Number of elements in model (default 10)
+        Number of elements in model (default 60)
   -N int
-        polynomial degree (default 6)
+        polynomial degree (default 8)
   -delay int
-        milliseconds of delay for plotting (default 200)
+        milliseconds of delay for plotting (default 0)
   -graph
         display a graph while computing solution
   -model int
