@@ -24,7 +24,7 @@ type Maxwell1D struct {
 }
 
 func NewMaxwell1D(CFL, FinalTime float64, N, K int) (c *Maxwell1D) {
-	VX, EToV := DG1D.SimpleMesh1D(-1, 1, K)
+	VX, EToV := DG1D.SimpleMesh1D(-2, 2, K)
 	c = &Maxwell1D{
 		CFL:       CFL,
 		FinalTime: FinalTime,
@@ -47,7 +47,7 @@ func NewMaxwell1D(CFL, FinalTime float64, N, K int) (c *Maxwell1D) {
 		}
 	})
 	c.H = utils.NewMatrix(c.El.Np, c.El.K)
-	c.Zimp = c.Epsilon.Copy().POW(-1).ElementMultiply(c.Mu).Apply(math.Sqrt)
+	c.Zimp = c.Epsilon.Copy().POW(-1).ElMul(c.Mu).Apply(math.Sqrt)
 	nrF, ncF := c.El.Nfp*c.El.NFaces, c.El.K
 	c.ZimPM = c.Zimp.Subset(c.El.VmapM, nrF, ncF)
 	c.ZimPP = c.Zimp.Subset(c.El.VmapP, nrF, ncF)
@@ -80,6 +80,7 @@ func (c *Maxwell1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	dt := xmin * c.CFL
 	Nsteps := int(math.Ceil(c.FinalTime / dt))
 	dt = c.FinalTime / float64(Nsteps)
+	fmt.Printf("FinalTime = %8.4f, Nsteps = %d, dt = %8.6f\n", c.FinalTime, Nsteps, dt)
 
 	var Time float64
 	for tstep := 0; tstep < Nsteps; tstep++ {
@@ -105,7 +106,7 @@ func (c *Maxwell1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		}
 		Time += dt
 		if tstep%logFrequency == 0 {
-			fmt.Printf("Time = %8.4f, max_resid[%d] = %8.4f, emin = %8.4f, emax = %8.4f\n", Time, tstep, resE.Max(), c.E.Col(0).Min(), c.E.Col(0).Max())
+			fmt.Printf("Time = %8.4f, max_resid[%d] = %8.4f, emin = %8.6f, emax = %8.6f\n", Time, tstep, resE.Max(), c.E.Min(), c.E.Max())
 		}
 	}
 	return
@@ -115,24 +116,24 @@ func (c *Maxwell1D) RHS() (RHSE, RHSH utils.Matrix) {
 	var (
 		nrF, ncF = c.El.Nfp * c.El.NFaces, c.El.K
 		// Field flux differerence across faces
-		dE = c.E.Subset(c.El.VmapM, nrF, ncF).Subtract(c.E.Subset(c.El.VmapP, nrF, ncF))
-		dH = c.H.Subset(c.El.VmapM, nrF, ncF).Subtract(c.H.Subset(c.El.VmapP, nrF, ncF))
-		el = c.El
+		dE           = c.E.Subset(c.El.VmapM, nrF, ncF).Subtract(c.E.Subset(c.El.VmapP, nrF, ncF))
+		dH           = c.H.Subset(c.El.VmapM, nrF, ncF).Subtract(c.H.Subset(c.El.VmapP, nrF, ncF))
+		el           = c.El
+		fluxE, fluxH utils.Matrix
 	)
-	// Homogeneous boundary conditions, Ez = 0 (but note that this means dE is 2x the edge node value?)
-	dE.AssignVector(c.El.MapB, c.E.SubsetVector(el.VmapB).Scale(2))
+	// Homogeneous boundary conditions at the inflow faces, Ez = 0
+	// Reflection BC - Metal boundary - E is zero at shell face, H passes through (Neumann)
+	// E on the boundary face is negative of E inside, so the diff in E at the boundary face is 2E of the interior
+	dE.AssignVector(el.MapB, c.E.SubsetVector(el.VmapB).Scale(2))
+	// H on the boundary face is equal to H inside, so the diff in H at the boundary face is 0
 	dH.AssignVector(el.MapB, c.H.SubsetVector(el.VmapB).Set(0))
 
 	// Upwind fluxes
-	fluxE := c.ZimPM.Copy().Add(c.ZimPP).POW(-1).ElementMultiply(el.NX.Copy().ElementMultiply(c.ZimPP).ElementMultiply(dH).Subtract(dE))
-	fluxH := c.YimPM.Copy().Add(c.YimPP).POW(-1).ElementMultiply(el.NX.Copy().ElementMultiply(c.YimPP).ElementMultiply(dE).Subtract(dH))
+	fluxE = c.ZimPM.Copy().Add(c.ZimPP).POW(-1).ElMul(el.NX.Copy().ElMul(c.ZimPP).ElMul(dH).Subtract(dE))
+	fluxH = c.YimPM.Copy().Add(c.YimPP).POW(-1).ElMul(el.NX.Copy().ElMul(c.YimPP).ElMul(dE).Subtract(dH))
 
-	RHSE = el.Rx.Copy().Scale(-1).ElementMultiply(el.Dr.Mul(c.H)).Add(el.LIFT.Mul(fluxE.ElementMultiply(el.FScale)).ElementDivide(c.Epsilon))
-	RHSH = el.Rx.Copy().Scale(-1).ElementMultiply(el.Dr.Mul(c.E)).Add(el.LIFT.Mul(fluxH.ElementMultiply(el.FScale)).ElementDivide(c.Mu))
-	/*
-		fmt.Printf("RHSE = \n%v\n", mat.Formatted(RHSE, mat.Squeeze()))
-		fmt.Printf("RHSH = \n%v\n", mat.Formatted(RHSH, mat.Squeeze()))
-	*/
+	RHSE = el.Rx.Copy().Scale(-1).ElMul(el.Dr.Mul(c.H)).Add(el.LIFT.Mul(fluxE.ElMul(el.FScale))).ElDiv(c.Epsilon)
+	RHSH = el.Rx.Copy().Scale(-1).ElMul(el.Dr.Mul(c.E)).Add(el.LIFT.Mul(fluxH.ElMul(el.FScale))).ElDiv(c.Mu)
 
 	return
 }

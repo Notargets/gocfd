@@ -262,7 +262,7 @@ func (m Matrix) POW(p int) Matrix { // Changes receiver
 	return m
 }
 
-func (m Matrix) ElementMultiply(A Matrix) Matrix { // Changes receiver
+func (m Matrix) ElMul(A Matrix) Matrix { // Changes receiver
 	var (
 		dataM = m.RawMatrix().Data
 		dataA = A.RawMatrix().Data
@@ -274,7 +274,7 @@ func (m Matrix) ElementMultiply(A Matrix) Matrix { // Changes receiver
 	return m
 }
 
-func (m Matrix) ElementDivide(A Matrix) Matrix { // Changes receiver
+func (m Matrix) ElDiv(A Matrix) Matrix { // Changes receiver
 	var (
 		dataM = m.RawMatrix().Data
 		dataA = A.RawMatrix().Data
