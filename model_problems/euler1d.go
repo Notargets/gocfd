@@ -33,21 +33,22 @@ func NewEuler1D(CFL, FinalTime float64, N, K int) (c *Euler1D) {
 
 func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	var (
-		chart                  *chart2d.Chart2D
-		colorMap               *utils2.ColorMap
-		chartNameE, chartNameH string
-		el                     = c.El
-		resRho                 = utils.NewMatrix(el.Np, el.K)
-		resRhoU                = utils.NewMatrix(el.Np, el.K)
-		resEner                = utils.NewMatrix(el.Np, el.K)
-		logFrequency           = 50
+		chart                          *chart2d.Chart2D
+		colorMap                       *utils2.ColorMap
+		chartRho, chartRhoU, chartEner string
+		el                             = c.El
+		resRho                         = utils.NewMatrix(el.Np, el.K)
+		resRhoU                        = utils.NewMatrix(el.Np, el.K)
+		resEner                        = utils.NewMatrix(el.Np, el.K)
+		logFrequency                   = 50
 	)
 	_, _, _ = resRho, resRhoU, resEner
 	if showGraph {
 		chart = chart2d.NewChart2D(1920, 1280, float32(el.X.Min()), float32(el.X.Max()), -1, 1)
 		colorMap = utils2.NewColorMap(-1, 1, 1)
-		chartNameE = "E Field"
-		chartNameH = "H Field"
+		chartRho = "Density"
+		chartRhoU = "Momentum"
+		chartEner = "Energy"
 		go chart.Plot()
 	}
 	xmin := el.X.Row(1).Subtract(el.X.Row(0)).Apply(math.Abs).Min()
@@ -59,15 +60,15 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	var Time float64
 	for tstep := 0; tstep < Nsteps; tstep++ {
 		if showGraph {
-			if err := chart.AddSeries(chartNameE, el.X.Transpose().RawMatrix().Data, c.Rho.Transpose().RawMatrix().Data,
+			if err := chart.AddSeries(chartRho, el.X.Transpose().RawMatrix().Data, c.Rho.Transpose().RawMatrix().Data,
 				chart2d.CrossGlyph, chart2d.Dashed, colorMap.GetRGB(0)); err != nil {
 				panic("unable to add graph series")
 			}
-			if err := chart.AddSeries(chartNameH, el.X.Transpose().RawMatrix().Data, c.RhoU.Transpose().RawMatrix().Data,
+			if err := chart.AddSeries(chartRhoU, el.X.Transpose().RawMatrix().Data, c.RhoU.Transpose().RawMatrix().Data,
 				chart2d.CrossGlyph, chart2d.Dashed, colorMap.GetRGB(0.7)); err != nil {
 				panic("unable to add graph series")
 			}
-			if err := chart.AddSeries(chartNameH, el.X.Transpose().RawMatrix().Data, c.Ener.Transpose().RawMatrix().Data,
+			if err := chart.AddSeries(chartEner, el.X.Transpose().RawMatrix().Data, c.Ener.Transpose().RawMatrix().Data,
 				chart2d.CrossGlyph, chart2d.Dashed, colorMap.GetRGB(-0.7)); err != nil {
 				panic("unable to add graph series")
 			}
@@ -85,6 +86,31 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		}
 	}
 	return
+}
+
+type State struct {
+	Gamma, Rho, RhoU, Ener float64
+	RhoF, RhoUF, EnerF     float64
+}
+
+func NewState(gamma, rho, rhoU, ener float64) (s *State) {
+	p := ener * (gamma - 1.)
+	q := 0.5 * utils.POW(rhoU, 2) / rho
+	u := rhoU / rho
+	return &State{
+		Gamma: gamma,
+		Rho:   rho,
+		RhoU:  rhoU,
+		Ener:  ener,
+		RhoF:  rhoU,
+		RhoUF: 2*q + p,
+		EnerF: (ener + q + p) * u,
+	}
+}
+
+func NewStateP(gamma, rho, rhoU, p float64) *State {
+	ener := p / (gamma - 1.)
+	return NewState(gamma, rho, rhoU, ener)
 }
 
 func (c *Euler1D) RHS() (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
@@ -107,21 +133,19 @@ func (c *Euler1D) RHS() (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
 		dRhoF  = RhoF.Subset(el.VmapM, nrF, ncF).Subtract(RhoF.Subset(el.VmapP, nrF, ncF))
 		dRhoUF = RhoUF.Subset(el.VmapM, nrF, ncF).Subtract(RhoUF.Subset(el.VmapP, nrF, ncF))
 		dEnerF = EnerF.Subset(el.VmapM, nrF, ncF).Subtract(EnerF.Subset(el.VmapP, nrF, ncF))
+		// Lax-Friedrichs flux component is always used divided by 2, so we pre-scale it
+		LFcDiv2 = LM.Subset(el.VmapM, nrF, ncF).Apply2(math.Max, EnerF.Subset(el.VmapP, nrF, ncF)).Scale(0.5)
+		// Sod's problem: Shock tube with jump in middle
+		In  = NewStateP(gamma, 1, 0, 1)
+		Out = NewStateP(gamma, 0.125, 0, 0.1)
 	)
-	_, _, _, _, _, _, _ = LM, dRho, dRhoU, dEner, dRhoF, dRhoUF, dEnerF
-	// Homogeneous boundary conditions at the inflow faces, Ez = 0
-	// Reflection BC - Metal boundary - E is zero at shell face, H passes through (Neumann)
-	// E on the boundary face is negative of E inside, so the diff in E at the boundary face is 2E of the interior
-	//dE.AssignVector(el.MapB, c.E.SubsetVector(el.VmapB).Scale(2))
-	// H on the boundary face is equal to H inside, so the diff in H at the boundary face is 0
-	//dH.AssignVector(el.MapB, c.H.SubsetVector(el.VmapB).Set(0))
+	// Compute fluxes at interfaces
+	dRhoF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.Copy().ElMul(dRho))
+	dRhoUF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.Copy().ElMul(dRhoU))
+	dEnerF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.Copy().ElMul(dEner))
 
-	// Upwind fluxes
-	//fluxE = c.ZimPM.Copy().Add(c.ZimPP).POW(-1).ElMul(el.NX.Copy().ElMul(c.ZimPP).ElMul(dH).Subtract(dE))
-	//fluxH = c.YimPM.Copy().Add(c.YimPP).POW(-1).ElMul(el.NX.Copy().ElMul(c.YimPP).ElMul(dE).Subtract(dH))
-
-	//RHSE = el.Rx.Copy().Scale(-1).ElMul(el.Dr.Mul(c.H)).Add(el.LIFT.Mul(fluxE.ElMul(el.FScale))).ElDiv(c.Epsilon)
-	//RHSH = el.Rx.Copy().Scale(-1).ElMul(el.Dr.Mul(c.E)).Add(el.LIFT.Mul(fluxH.ElMul(el.FScale))).ElDiv(c.Mu)
+	// Boundary conditions for Sod's problem
+	_, _ = In, Out
 
 	return
 }

@@ -251,6 +251,18 @@ func (m Matrix) Apply(f func(float64) float64) Matrix { // Changes receiver
 	return m
 }
 
+func (m Matrix) Apply2(f func(float64, float64) float64, A Matrix) Matrix { // Changes receiver
+	var (
+		dataM = m.M.RawMatrix().Data
+		dataA = A.RawMatrix().Data
+	)
+	m.checkWritable()
+	for i, val := range dataM {
+		dataM[i] = f(val, dataA[i])
+	}
+	return m
+}
+
 func (m Matrix) POW(p int) Matrix { // Changes receiver
 	var (
 		data = m.M.RawMatrix().Data
