@@ -204,7 +204,7 @@ func (m Matrix) Assign(I Index, A Matrix) Matrix { // Changes receiver
 }
 
 func (m Matrix) AssignVector(I Index, A Vector) Matrix { // Changes receiver
-	// Assigns values in M sequentially using values indexed from A
+	// Assigns values indexed into M using values sequentially from Vector A
 	var (
 		nr, nc = m.Dims()
 		dataM  = m.RawMatrix().Data

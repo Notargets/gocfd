@@ -145,7 +145,29 @@ func (c *Euler1D) RHS() (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
 	dEnerF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.Copy().ElMul(dEner))
 
 	// Boundary conditions for Sod's problem
-	_, _ = In, Out
+	// Inflow
+	lmI := LM.SubsetVector(el.VmapI).Scale(0.5)
+	nxI := el.NX.SubsetVector(el.MapI)
+	dRhoF.Assign(el.MapI, nxI.Outer(RhoF.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.RhoF))))
+	dRhoF.Subtract(lmI.Outer(c.Rho.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.Rho))))
+	dRhoUF.Assign(el.MapI, nxI.Outer(RhoUF.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.RhoUF))))
+	dRhoUF.Subtract(lmI.Outer(c.RhoU.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.RhoU))))
+	dEnerF.Assign(el.MapI, nxI.Outer(EnerF.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.EnerF))))
+	dEnerF.Subtract(lmI.Outer(c.Ener.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.Ener))))
+	// Outflow
+	lmO := LM.SubsetVector(el.VmapO).Scale(0.5)
+	nxO := el.NX.SubsetVector(el.MapO)
+	dRhoF.Assign(el.MapO, nxO.Outer(RhoF.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.RhoF))))
+	dRhoF.Subtract(lmO.Outer(c.Rho.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.Rho))))
+	dRhoUF.Assign(el.MapO, nxO.Outer(RhoUF.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.RhoUF))))
+	dRhoUF.Subtract(lmO.Outer(c.RhoU.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.RhoU))))
+	dEnerF.Assign(el.MapO, nxO.Outer(EnerF.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.EnerF))))
+	dEnerF.Subtract(lmO.Outer(c.Ener.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.Ener))))
+
+	// RHS Computation
+	rhsRho = el.Rx.Copy().Scale(-1).ElMul(el.Dr.Mul(RhoF)).Add(el.LIFT.Mul(dRhoF.ElMul(el.FScale)))
+	rhsRhoU = el.Rx.Copy().Scale(-1).ElMul(el.Dr.Mul(RhoUF)).Add(el.LIFT.Mul(dRhoUF.ElMul(el.FScale)))
+	rhsEner = el.Rx.Copy().Scale(-1).ElMul(el.Dr.Mul(EnerF)).Add(el.LIFT.Mul(dEnerF.ElMul(el.FScale)))
 
 	return
 }
