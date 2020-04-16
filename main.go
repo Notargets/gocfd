@@ -20,6 +20,7 @@ type ModelType uint8
 const (
 	Advect1D ModelType = iota
 	Maxwell1D
+	Euler1D
 )
 
 type Model interface {
@@ -31,7 +32,7 @@ func main() {
 	Nptr := flag.Int("N", N, "polynomial degree")
 	Delayptr := flag.Int("delay", 0, "milliseconds of delay for plotting")
 	Graphptr := flag.Bool("graph", false, "display a graph while computing solution")
-	ModelRunptr := flag.Int("model", int(ModelRun), "model to run: 0 = Advect1D, 1 = Maxwell1D")
+	ModelRunptr := flag.Int("model", int(ModelRun), "model to run: 0 = Advect1D, 1 = Maxwell1D, 2 = Euler1D")
 	flag.Parse()
 	K = *Kptr
 	N = *Nptr
