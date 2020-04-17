@@ -32,6 +32,12 @@ func (el Elements1D) SlopeLimitN(U utils.Matrix) (ULim utils.Matrix) {
 }
 
 func Minmod(vecs ...utils.Vector) (R utils.Vector) {
+	/*
+		Computes minmod across a group of vectors
+		    Input: A, B, C, length N
+				For each element in A, B, C, compose a vector like {a1, b1, c1} and set r1 = minmod(a1,b1,c1)
+			Output: R, length N
+	*/
 	var (
 		W     = len(vecs)
 		dataV = make([]float64, W)
