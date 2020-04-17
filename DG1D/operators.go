@@ -1,6 +1,10 @@
 package DG1D
 
-import "github.com/notargets/gocfd/utils"
+import (
+	"math"
+
+	"github.com/notargets/gocfd/utils"
+)
 
 func (el Elements1D) SlopeLimitN(U utils.Matrix) (ULim utils.Matrix) {
 	var (
@@ -19,6 +23,37 @@ func (el Elements1D) SlopeLimitN(U utils.Matrix) (ULim utils.Matrix) {
 	vkp1 := vk.Subset(1, -1).Concat(vk.Subset(-1, -1))
 
 	// Apply reconstruction to find elements in need of limiting
-	_, _, _, _ = ue1, ue2, vkm1, vkp1
+	vm1 := vk.Copy().Subtract(vkm1)
+	vp1 := vkp1.Copy().Subtract(vk)
+	ve1 := vk.Copy().Subtract(Minmod(vk.Copy().Subtract(ue1), vm1, vp1))
+	ve2 := vk.Copy().Add(Minmod(ue2.Copy().Subtract(vk), vm1, vp1))
+	_, _ = ve1, ve2
 	return
+}
+
+func Minmod(vecs ...utils.Vector) (R utils.Vector) {
+	var (
+		W     = len(vecs)
+		dataV = make([]float64, W)
+		N     = vecs[0].Len()
+		dataR = make([]float64, N)
+	)
+	for i := 0; i < N; i++ {
+		for j := 0; j < W; j++ {
+			dataV[j] = vecs[j].AtVec(i)
+		}
+		dataR[i] = minmod(dataV)
+	}
+	R = utils.NewVector(N, dataR)
+	return
+}
+
+func minmod(a []float64) (r float64) {
+	var (
+		rMin = a[0]
+	)
+	for _, val := range a {
+		rMin = math.Min(rMin, val)
+	}
+	return math.Max(0, rMin)
 }
