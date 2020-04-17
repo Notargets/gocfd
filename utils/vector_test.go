@@ -15,7 +15,7 @@ func TestVector(t *testing.T) {
 	assert.Equal(t, 123, 123, "should be equal")
 	/*
 		// x = ones(Np)*VX(va) + 0.5*(r+1.)*sT(vc);
-		mm := utils.NewVector(Np).Set(1).ToMatrix().Mul(VX.Subset(va).Transpose())
+		mm := utils.NewVector(Np).Set(1).ToMatrix().Mul(VX.SubsetIndex(va).Transpose())
 		r := utils.Vector{mat.VecDenseCopyOf(R)}
 		X = r.AddScalar(1).Scale(0.5).ToMatrix().Mul(sT.Transpose()).AddCopy(mm).M
 	*/

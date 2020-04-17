@@ -10,29 +10,28 @@ import (
 
 func (el *Elements1D) Startup1D() {
 	var (
-		err  error
-		Vinv utils.Matrix
-		N    = el.Np - 1
+		err error
+		N   = el.Np - 1
 	)
 	R := JacobiGL(0, 0, N)
-	V := Vandermonde1D(N, R)
-	if Vinv, err = V.Inverse(); err != nil {
+	el.V = Vandermonde1D(N, R)
+	if el.Vinv, err = el.V.Inverse(); err != nil {
 		fmt.Println(err)
 		panic("error inverting V")
 	}
 	Vr := GradVandermonde1D(R, N)
 
-	el.Dr = Vr.Mul(Vinv)
+	el.Dr = Vr.Mul(el.Vinv)
 
-	el.LIFT = Lift1D(V, el.Np, el.NFaces, el.Nfp)
+	el.LIFT = Lift1D(el.V, el.Np, el.NFaces, el.Nfp)
 
 	el.NX = Normals1D(el.NFaces, el.Nfp, el.K)
 
 	va := el.EToV.Col(0).ToIndex()
 	vb := el.EToV.Col(1).ToIndex()
-	sT := el.VX.Subset(vb).Subtract(el.VX.Subset(va))
+	sT := el.VX.SubsetIndex(vb).Subtract(el.VX.SubsetIndex(va))
 	// x = ones(Np)*VX(va) + 0.5*(r+1.)*sT(vc);
-	mm := utils.NewVector(el.Np).Set(1).Mul(el.VX.Subset(va))
+	mm := utils.NewVector(el.Np).Set(1).Mul(el.VX.SubsetIndex(va))
 	el.X = R.Copy().AddScalar(1).Scale(0.5).Mul(sT).Add(mm)
 
 	var J utils.Matrix

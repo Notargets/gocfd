@@ -42,8 +42,8 @@ func (v Vector) Len() int                 { return v.V.Len() }
 // Chainable (extended) methods
 func (v Vector) Subtract(a Vector) Vector {
 	var (
-		data  = v.V.RawVector().Data
-		dataA = a.V.RawVector().Data
+		data  = v.RawVector().Data
+		dataA = a.RawVector().Data
 	)
 	for i := range data {
 		data[i] -= dataA[i]
@@ -53,8 +53,8 @@ func (v Vector) Subtract(a Vector) Vector {
 
 func (v Vector) Add(a Vector) Vector {
 	var (
-		data  = v.V.RawVector().Data
-		dataA = a.V.RawVector().Data
+		data  = v.RawVector().Data
+		dataA = a.RawVector().Data
 	)
 	for i := range data {
 		data[i] += dataA[i]
@@ -62,9 +62,35 @@ func (v Vector) Add(a Vector) Vector {
 	return v
 }
 
-func (v Vector) Subset(I Index) Vector {
+func (v Vector) Subset(i1, i2 int) Vector {
 	var (
-		data  = v.V.RawVector().Data
+		data  = v.RawVector().Data
+		r     *mat.VecDense
+		dataR []float64
+	)
+	if i1 == i2 {
+		i1 = lim(i1, v.Len())
+		if i2 < 0 {
+			i1 -= 1 // Adjust loop end index to use as direct index
+		}
+		dataR = make([]float64, 1)
+		dataR[0] = data[i1]
+	} else {
+		i1, i2 = lim(i1, v.Len()), lim(i2, v.Len())
+		dataR = make([]float64, i2-i1)
+		var ind int
+		for i := i1; i < i2; i++ {
+			dataR[ind] = data[i]
+			ind++
+		}
+	}
+	r = mat.NewVecDense(len(dataR), dataR)
+	return Vector{r}
+}
+
+func (v Vector) SubsetIndex(I Index) Vector {
+	var (
+		data  = v.RawVector().Data
 		dataR = make([]float64, len(I))
 		r     *mat.VecDense
 	)
@@ -77,7 +103,7 @@ func (v Vector) Subset(I Index) Vector {
 
 func (v Vector) Scale(a float64) Vector {
 	var (
-		data = v.V.RawVector().Data
+		data = v.RawVector().Data
 	)
 	for i := range data {
 		data[i] *= a
@@ -87,7 +113,7 @@ func (v Vector) Scale(a float64) Vector {
 
 func (v Vector) AddScalar(a float64) Vector {
 	var (
-		data = v.V.RawVector().Data
+		data = v.RawVector().Data
 	)
 	for i := range data {
 		data[i] += a
@@ -97,7 +123,7 @@ func (v Vector) AddScalar(a float64) Vector {
 
 func (v Vector) Set(a float64) Vector {
 	var (
-		data = v.V.RawVector().Data
+		data = v.RawVector().Data
 	)
 	for i := range data {
 		data[i] = a
@@ -107,7 +133,7 @@ func (v Vector) Set(a float64) Vector {
 
 func (v Vector) Apply(f func(float64) float64) Vector {
 	var (
-		data = v.V.RawVector().Data
+		data = v.RawVector().Data
 	)
 	for i, val := range data {
 		data[i] = f(val)
@@ -117,7 +143,7 @@ func (v Vector) Apply(f func(float64) float64) Vector {
 
 func (v Vector) POW(p int) Vector {
 	var (
-		data = v.V.RawVector().Data
+		data = v.RawVector().Data
 	)
 	for i, val := range data {
 		data[i] = POW(val, p)
@@ -210,12 +236,12 @@ func (v Vector) Transpose() Matrix {
 	var (
 		nr, nc = v.V.Dims()
 	)
-	return NewMatrix(nc, nr, v.V.RawVector().Data)
+	return NewMatrix(nc, nr, v.RawVector().Data)
 }
 
 func (v Vector) ToIndex() (I Index) {
 	var (
-		data = v.V.RawVector().Data
+		data = v.RawVector().Data
 	)
 	I = make(Index, v.Len())
 	for i, val := range data {
@@ -226,7 +252,7 @@ func (v Vector) ToIndex() (I Index) {
 
 func (v Vector) Min() (min float64) {
 	var (
-		data = v.V.RawVector().Data
+		data = v.RawVector().Data
 	)
 	min = data[0]
 	for _, val := range data {
@@ -239,7 +265,7 @@ func (v Vector) Min() (min float64) {
 
 func (v Vector) Max() (max float64) {
 	var (
-		data = v.V.RawVector().Data
+		data = v.RawVector().Data
 	)
 	max = data[0]
 	for _, val := range data {
@@ -251,12 +277,12 @@ func (v Vector) Max() (max float64) {
 }
 
 func (v Vector) ToMatrix() Matrix {
-	return NewMatrix(v.V.Len(), 1, v.V.RawVector().Data)
+	return NewMatrix(v.V.Len(), 1, v.RawVector().Data)
 }
 
 func (v Vector) Mul(w Vector) (A Matrix) {
 	var (
-		dataV = v.V.RawVector().Data
+		dataV = v.RawVector().Data
 		dataW = w.V.RawVector().Data
 		nr    = v.Len()
 		nc    = w.Len()
@@ -293,4 +319,8 @@ func (v Vector) Outer(w Vector) (R Matrix) {
 		}
 	}
 	return
+}
+
+func (v Vector) Minmod() (val float64) {
+	return math.Max(0, v.Min())
 }

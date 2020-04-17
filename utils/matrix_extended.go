@@ -111,7 +111,7 @@ func (m Matrix) Mul(A Matrix) (R Matrix) { // Does not change receiver
 	return R
 }
 
-//func (m Matrix) Subset(I Index, nrNew, ncNew int) (R Matrix) { // Does not change receiver
+//func (m Matrix) SubsetIndex(I Index, nrNew, ncNew int) (R Matrix) { // Does not change receiver
 func (m Matrix) Subset(I Index, newDims ...int) (R Matrix) { // Does not change receiver
 	/*
 		Index should contain a list of indices into MI
@@ -153,12 +153,36 @@ func (m Matrix) SliceRows(I Index) (R Matrix) { // Does not change receiver
 }
 
 func (m Matrix) Set(i, j int, val float64) Matrix { // Changes receiver
+	var (
+		nr, nc = m.Dims()
+	)
+	i, j = lim(i, nr), lim(j, nc)
 	m.checkWritable()
 	m.M.Set(i, j, val)
 	return m
 }
 
+func (m Matrix) SetRange(i1, i2, j1, j2 int, val float64) Matrix { // Changes receiver
+	var (
+		nr, nc = m.Dims()
+		data   = m.RawMatrix().Data
+	)
+	m.checkWritable()
+	i1, i2, j1, j2 = limRange(i1, i2, j1, j2, nr, nc)
+	for i := i1; i < i2; i++ {
+		for j := j1; j < j2; j++ {
+			ind := i + nr*j
+			data[ind] = val
+		}
+	}
+	return m
+}
+
 func (m Matrix) SetCol(j int, data []float64) Matrix { // Changes receiver
+	var (
+		_, nc = m.Dims()
+	)
+	j = lim(j, nc)
 	m.checkWritable()
 	m.M.SetCol(j, data)
 	return m
@@ -350,6 +374,7 @@ func (m Matrix) Col(j int) Vector {
 		nr, nc = m.M.Dims()
 		vData  = make([]float64, nr)
 	)
+	j = lim(j, nc)
 	for i := range vData {
 		vData[i] = data[i*nc+j]
 	}
@@ -358,10 +383,11 @@ func (m Matrix) Col(j int) Vector {
 
 func (m Matrix) Row(i int) Vector {
 	var (
-		data  = m.M.RawMatrix().Data
-		_, nc = m.M.Dims()
-		vData = make([]float64, nc)
+		data   = m.M.RawMatrix().Data
+		nr, nc = m.M.Dims()
+		vData  = make([]float64, nc)
 	)
+	i = lim(i, nr)
 	for j := range vData {
 		vData[j] = data[j+i*nc]
 	}
@@ -483,4 +509,15 @@ func RowMajorToColMajor(nr, nc, ind int) (cind int) {
 	i := ind - nr*j
 	cind = j + nc*i
 	return
+}
+
+func lim(i, imax int) int {
+	if i < 0 {
+		return imax - i + 1 // Support indexing from end, -1 is imax
+	}
+	return i
+}
+
+func limRange(i1, i2, j1, j2, nr, nc int) (ii1, ii2, jj1, jj2 int) {
+	return lim(i1, nr), lim(i2, nr), lim(j1, nc), lim(j2, nc)
 }

@@ -118,14 +118,15 @@ func (c *Euler1D) RHS() (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
 		el       = c.El
 		nrF, ncF = el.Nfp * el.NFaces, el.K
 		gamma    = 1.4
-		U        = c.RhoU.Copy().ElDiv(c.Rho)                     // Velocity
-		RhoU2    = c.RhoU.Copy().POW(2).Scale(0.5).ElDiv(c.Rho)   // 1/2 * Rho * U^2
-		Pres     = c.Ener.Copy().Subtract(RhoU2).Scale(gamma - 1) // Pressure
-		CVel     = Pres.Copy().ElDiv(c.Rho).Scale(gamma).Apply(math.Sqrt)
-		LM       = U.Copy().Apply(math.Abs).Add(CVel)
-		RhoF     = c.RhoU.Copy()
-		RhoUF    = RhoU2.Scale(2).Add(Pres)
-		EnerF    = c.Ener.Copy().Add(Pres).ElDiv(c.RhoU.Copy().ElDiv(c.Rho))
+		//TODO: Remove COPY() by promoting a state struct allocated above, with an UPDATE() method
+		U     = c.RhoU.Copy().ElDiv(c.Rho)                     // Velocity
+		RhoU2 = c.RhoU.Copy().POW(2).Scale(0.5).ElDiv(c.Rho)   // 1/2 * Rho * U^2
+		Pres  = c.Ener.Copy().Subtract(RhoU2).Scale(gamma - 1) // Pressure
+		CVel  = Pres.Copy().ElDiv(c.Rho).Scale(gamma).Apply(math.Sqrt)
+		LM    = U.Copy().Apply(math.Abs).Add(CVel)
+		RhoF  = c.RhoU.Copy()
+		RhoUF = RhoU2.Scale(2).Add(Pres)
+		EnerF = c.Ener.Copy().Add(Pres).ElDiv(c.RhoU.Copy().ElDiv(c.Rho))
 		// Face jumps in primary and flux variables
 		dRho   = c.Rho.Subset(el.VmapM, nrF, ncF).Subtract(c.Rho.Subset(el.VmapP, nrF, ncF))
 		dRhoU  = c.RhoU.Subset(el.VmapM, nrF, ncF).Subtract(c.RhoU.Subset(el.VmapP, nrF, ncF))

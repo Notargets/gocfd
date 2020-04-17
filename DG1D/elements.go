@@ -13,6 +13,7 @@ type Elements1D struct {
 	VX, FMask                         utils.Vector
 	EToV, EToE, EToF                  utils.Matrix
 	X, Dr, Rx, FScale, NX, LIFT       utils.Matrix
+	V, Vinv                           utils.Matrix
 	VmapM, VmapP, VmapB, VmapI, VmapO utils.Index
 	MapB, MapI, MapO                  utils.Index
 }
@@ -33,6 +34,8 @@ func NewElements1D(N int, VX utils.Vector, EToV utils.Matrix) (el *Elements1D) {
 		EToV:   EToV,
 	}
 	el.Startup1D()
+	el.V.SetReadOnly("V")
+	el.Vinv.SetReadOnly("Vinv")
 	el.EToV.SetReadOnly("EToV")
 	el.EToE.SetReadOnly("EToE")
 	el.EToF.SetReadOnly("EToF")
