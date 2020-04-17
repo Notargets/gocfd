@@ -136,18 +136,42 @@ func (m Matrix) Subset(I Index, newDims ...int) (R Matrix) { // Does not change 
 }
 
 func (m Matrix) SliceRows(I Index) (R Matrix) { // Does not change receiver
-	// RowIndices should contain a list of row indices into M
+	// I should contain a list of row indices into M
 	var (
-		nr, nc = m.Dims()
-		nI     = len(I)
+		nr, nc   = m.Dims()
+		nI       = len(I)
+		maxIndex = nr - 1
 	)
 	R = NewMatrix(nI, nc)
 	for i, val := range I {
-		if val > nr-1 || val < 0 {
-			fmt.Printf("index out of bounds: index = %d, max_bounds = %d\n", val, nr-1)
-			panic("unable to subset row from matrix")
+		if val > maxIndex || val < 0 {
+			fmt.Printf("index out of bounds: index = %d, max_bounds = %d\n", val, maxIndex)
+			panic("unable to subset rows from matrix")
 		}
 		R.M.SetRow(i, m.M.RawRowView(val))
+	}
+	return
+}
+
+func (m Matrix) SliceCols(I Index) (R Matrix) { // Does not change receiver
+	// I should contain a list of column indices into M
+	var (
+		nr, nc   = m.Dims()
+		nI       = len(I)
+		dataM    = m.RawMatrix().Data
+		maxIndex = nc - 1
+		colData  = make([]float64, nr)
+	)
+	R = NewMatrix(nr, nI)
+	for j, val := range I {
+		if val > maxIndex || val < 0 {
+			fmt.Printf("index out of bounds: index = %d, max_bounds = %d\n", val, maxIndex)
+			panic("unable to subset columns from matrix")
+		}
+		for i := 0; i < nr; i++ {
+			colData[i] = dataM[i+nr*j]
+		}
+		R.M.SetCol(j, colData)
 	}
 	return
 }

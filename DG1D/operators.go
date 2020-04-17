@@ -30,6 +30,31 @@ func (el Elements1D) SlopeLimitN(U utils.Matrix) (ULim utils.Matrix) {
 	ve2 := vk.Copy().Add(Minmod(ue2.Copy().Subtract(vk), vm1, vp1))
 	ids := ve1.Subtract(ue1).Find(utils.Greater, eps0, true)
 	ids = ids.Concat(ve2.Subtract(ue2).Find(utils.Greater, eps0, true))
+
+	if ids.Len() != 0 {
+		idsI := ids.ToIndex()
+		// We need to limit the elements in the index
+		// Create a piecewise linear solution for limiting the elements in the index
+		uhl := el.Vinv.Mul(U.SliceCols(idsI))
+		uhl.SetRange(2, -1, 0, -1, 0) // Set all polynomial coefficients higher than linear to 0
+		ul := el.V.Mul(uhl)
+		// Apply slope limiter to specified elements
+		ULim = el.SlopeLimitLin(ul, el.X.SliceCols(idsI), vkm1.SubsetIndex(idsI), vk.SubsetIndex(idsI), vkp1.SubsetIndex(idsI))
+	}
+	return
+}
+
+func (el Elements1D) SlopeLimitLin(ul, xl utils.Matrix, vm1, v0, vp1 utils.Vector) (ULim utils.Matrix) {
+	var (
+		Np       = el.Np
+		ones     = utils.NewVectorConstant(Np, 1)
+		h        = xl.Row(Np - 1).Subtract(xl.Row(0))
+		x0       = ones.Outer(xl.Row(0).Add(h.Copy().Scale(0.5)))
+		hNScaled = ones.Outer(h).POW(-1).Scale(2)
+		ux       = hNScaled.ElMul(el.Dr.Copy().Mul(ul))
+	)
+	ULim = ones.Outer(v0)
+	ULim.Add(xl.Subtract(x0).ElMul(ones.Outer(Minmod(ux.Row(0), vp1.Subtract(v0).ElDiv(h), v0.Subtract(vm1).ElDiv(h)))))
 	return
 }
 

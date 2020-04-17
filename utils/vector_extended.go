@@ -51,6 +51,28 @@ func (v Vector) Subtract(a Vector) Vector {
 	return v
 }
 
+func (v Vector) ElMul(a Vector) Vector {
+	var (
+		data  = v.RawVector().Data
+		dataA = a.RawVector().Data
+	)
+	for i := range data {
+		data[i] *= dataA[i]
+	}
+	return v
+}
+
+func (v Vector) ElDiv(a Vector) Vector {
+	var (
+		data  = v.RawVector().Data
+		dataA = a.RawVector().Data
+	)
+	for i := range data {
+		data[i] /= dataA[i]
+	}
+	return v
+}
+
 func (v Vector) Add(a Vector) Vector {
 	var (
 		data  = v.RawVector().Data
