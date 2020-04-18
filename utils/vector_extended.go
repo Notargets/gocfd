@@ -62,6 +62,89 @@ func (v Vector) ElMul(a Vector) Vector {
 	return v
 }
 
+func (v Vector) Zip(op EvalOp, abs bool, A Vector) (R Vector) {
+	/*
+		Choose each element from v and a based on:
+		if v op a == true {choose v} else {choose a}
+	*/
+	var (
+		N  = v.Len()
+		vD = v.RawVector().Data
+		aD = A.RawVector().Data
+		rD = make([]float64, N)
+	)
+	var target float64
+	switch op {
+	case Equal:
+		for i, val := range vD {
+			target = aD[i]
+			if abs {
+				val = math.Abs(val)
+				target = math.Abs(target)
+			}
+			if val == aD[i] {
+				rD[i] = val
+			} else {
+				rD[i] = target
+			}
+		}
+	case Less:
+		for i, val := range vD {
+			target = aD[i]
+			if abs {
+				val = math.Abs(val)
+				target = math.Abs(target)
+			}
+			if val < target {
+				rD[i] = val
+			} else {
+				rD[i] = target
+			}
+		}
+	case Greater:
+		for i, val := range vD {
+			target = aD[i]
+			if abs {
+				val = math.Abs(val)
+				target = math.Abs(target)
+			}
+			if val > target {
+				rD[i] = val
+			} else {
+				rD[i] = target
+			}
+		}
+	case LessOrEqual:
+		for i, val := range vD {
+			target = aD[i]
+			if abs {
+				val = math.Abs(val)
+				target = math.Abs(target)
+			}
+			if val <= target {
+				rD[i] = val
+			} else {
+				rD[i] = target
+			}
+		}
+	case GreaterOrEqual:
+		for i, val := range vD {
+			target = aD[i]
+			if abs {
+				val = math.Abs(val)
+				target = math.Abs(target)
+			}
+			if val >= target {
+				rD[i] = val
+			} else {
+				rD[i] = target
+			}
+		}
+	}
+	R = NewVector(N, rD)
+	return R
+}
+
 func (v Vector) ElDiv(a Vector) Vector {
 	var (
 		data  = v.RawVector().Data

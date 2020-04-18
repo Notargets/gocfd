@@ -69,7 +69,7 @@ func (c *Advection1D) Run(showGraph bool, graphDelay ...time.Duration) {
 			}
 		}
 		for INTRK := 0; INTRK < 5; INTRK++ {
-			U2 := el.SlopeLimitN(U.Copy())
+			U2 := el.SlopeLimitN(U)
 			//fmt.Println("U2-U = \n%v\n", mat.Formatted(U2.Subtract(U), mat.Squeeze()))
 			fmt.Printf("U2 = \n%v\n", mat.Formatted(U2, mat.Squeeze()))
 			fmt.Printf("U = \n%v\n", mat.Formatted(U, mat.Squeeze()))

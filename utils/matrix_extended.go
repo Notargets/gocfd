@@ -128,7 +128,7 @@ func (m Matrix) Subset(I Index, newDims ...int) (R Matrix) { // Does not change 
 	}
 	data = make([]float64, nrNew*ncNew)
 	for i, ind := range I {
-		// TODO: Fix this - change the upstream to row major
+		// TODO: Fix this - change the upstream to column major
 		indC := RowMajorToColMajor(nr, nc, ind)
 		indD := RowMajorToColMajor(nrNew, ncNew, i)
 		data[indD] = Mr.Data[indC]
@@ -239,6 +239,15 @@ func (m Matrix) Subtract(a Matrix) Matrix { // Changes receiver
 	return m
 }
 
+func (m Matrix) AssignColumns(I Index, A Matrix) Matrix { // Changes receiver
+	// Assigns columns in M to columns indexed from A
+	m.checkWritable()
+	for _, j := range I {
+		m.M.SetCol(j, A.Col(j).RawVector().Data)
+	}
+	return m
+}
+
 func (m Matrix) Assign(I Index, A Matrix) Matrix { // Changes receiver
 	// Assigns values in M sequentially using values indexed from A
 	var (
@@ -248,7 +257,7 @@ func (m Matrix) Assign(I Index, A Matrix) Matrix { // Changes receiver
 	)
 	m.checkWritable()
 	for _, ind := range I {
-		// TODO: Fix this - change the upstream to row major
+		// TODO: Fix this - change the upstream to column major
 		i := RowMajorToColMajor(nr, nc, ind)
 		dataM[i] = dataA[i]
 	}
@@ -264,7 +273,7 @@ func (m Matrix) AssignVector(I Index, A Vector) Matrix { // Changes receiver
 	)
 	m.checkWritable()
 	for i, ind := range I {
-		// TODO: Fix this - change the upstream to row major
+		// TODO: Fix this - change the upstream to column major
 		ii := RowMajorToColMajor(nr, nc, ind)
 		dataM[ii] = dataA[i]
 	}
@@ -358,7 +367,7 @@ func (m Matrix) AssignScalar(I Index, val float64) Matrix { // Changes receiver
 	)
 	m.checkWritable()
 	for _, ind := range I {
-		// TODO: Fix this - change the upstream to row major
+		// TODO: Fix this - change the upstream to column major
 		i := RowMajorToColMajor(nr, nc, ind)
 		dataM[i] = val
 	}
@@ -519,7 +528,7 @@ func (m Matrix) SubsetVector(I Index) (V Vector) {
 		data   = make([]float64, len(I))
 	)
 	for i, ind := range I {
-		// TODO: Fix this - change the upstream to row major
+		// TODO: Fix this - change the upstream to column major
 		data[i] = Mr.Data[RowMajorToColMajor(nr, nc, ind)]
 	}
 	V = NewVector(len(I), data)

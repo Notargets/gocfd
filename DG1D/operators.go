@@ -16,9 +16,7 @@ func (el Elements1D) SlopeLimitN(U utils.Matrix) (ULim utils.Matrix) {
 	)
 	Uh.SetRange(1, -1, 0, -1, 0)
 	Uh = el.V.Mul(Uh)
-	fmt.Printf("Uh = \n%v\n", mat.Formatted(Uh, mat.Squeeze()))
 	vk := Uh.Row(0)
-	fmt.Printf("vk = \n%v\n", mat.Formatted(vk, mat.Squeeze()))
 
 	// End values of each element
 	ue1 := U.Row(0)
@@ -31,20 +29,14 @@ func (el Elements1D) SlopeLimitN(U utils.Matrix) (ULim utils.Matrix) {
 	// Apply reconstruction to find elements in need of limiting
 	vm1 := vk.Copy().Subtract(vkm1)
 	vp1 := vkp1.Copy().Subtract(vk)
-	//vksubue1 := vk.Copy().Subtract(ue1)
-	//mm := Minmod(vksubue1, vm1, vp1)
-	//fmt.Printf("vksubue1 = \n%v\n", mat.Formatted(vksubue1.Transpose(), mat.Squeeze()))
-	//fmt.Printf("vm1 = \n%v\n", mat.Formatted(vm1.Transpose(), mat.Squeeze()))
-	//fmt.Printf("vp1 = \n%v\n", mat.Formatted(vp1.Transpose(), mat.Squeeze()))
-	//fmt.Printf("mm = \n%v\n", mat.Formatted(mm.Transpose(), mat.Squeeze()))
 	ve1 := vk.Copy().Subtract(Minmod(vk.Copy().Subtract(ue1), vm1, vp1))
 	ve2 := vk.Copy().Add(Minmod(ue2.Copy().Subtract(vk), vm1, vp1))
-	ids := ve1.Subtract(ue1).Find(utils.Greater, eps0, true)
-	ids = ids.Concat(ve2.Subtract(ue2).Find(utils.Greater, eps0, true))
-	//fmt.Printf("ve1-ue1 = \n%v\n", mat.Formatted(ve1.Copy().Subtract(ue1).Transpose(), mat.Squeeze()))
-	//fmt.Printf("ids = \n%v\n", mat.Formatted(ids.Transpose(), mat.Squeeze()))
-	//os.Exit(1)
+	veMax := ve1.Subtract(ue1).Zip(utils.Greater, true, ve2.Subtract(ue2))
+	ids := veMax.Find(utils.Greater, eps0, true)
 
+	fmt.Printf("ids = \n%v\n", mat.Formatted(ids.Transpose(), mat.Squeeze()))
+
+	ULim = U.Copy()
 	if ids.Len() != 0 {
 		idsI := ids.ToIndex()
 		// We need to limit the elements in the index
@@ -53,7 +45,7 @@ func (el Elements1D) SlopeLimitN(U utils.Matrix) (ULim utils.Matrix) {
 		uhl.SetRange(2, -1, 0, -1, 0) // Set all polynomial coefficients higher than linear to 0
 		ul := el.V.Mul(uhl)
 		// Apply slope limiter to specified elements
-		ULim = el.SlopeLimitLin(ul, el.X.SliceCols(idsI), vkm1.SubsetIndex(idsI), vk.SubsetIndex(idsI), vkp1.SubsetIndex(idsI))
+		ULim.AssignColumns(idsI, el.SlopeLimitLin(ul, el.X.SliceCols(idsI), vkm1.SubsetIndex(idsI), vk.SubsetIndex(idsI), vkp1.SubsetIndex(idsI)))
 	}
 	return
 }
