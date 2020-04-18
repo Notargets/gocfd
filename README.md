@@ -3,6 +3,8 @@ Awesome CFD solver written in Go
 
 ## An implementation of the Discontinuous Galerkin Method for solving systems of equations
 
+### Credits to Jan S. Hesthaven and Tim Warburton for their excellent text "Nodal Discontinuous Galerkin Methods" (2007)
+
 ## Requirements
 Here is what I'm using:
 ```
