@@ -1,7 +1,10 @@
 package DG1D
 
 import (
+	"fmt"
 	"math"
+
+	"gonum.org/v1/gonum/mat"
 
 	"github.com/notargets/gocfd/utils"
 )
@@ -20,8 +23,8 @@ func (el Elements1D) SlopeLimitN(U utils.Matrix) (ULim utils.Matrix) {
 	ue2 := U.Row(-1)
 
 	// Cell averages
-	vkm1 := vk.Subset(0, 1).Concat(vk.Subset(1, -1))
-	vkp1 := vk.Subset(1, -1).Concat(vk.Subset(-2, -1))
+	vkm1 := vk.Subset(0, 0).Concat(vk.Subset(1, -1))
+	vkp1 := vk.Subset(1, -1).Concat(vk.Subset(-1, -1))
 
 	// Apply reconstruction to find elements in need of limiting
 	vm1 := vk.Copy().Subtract(vkm1)
@@ -30,6 +33,8 @@ func (el Elements1D) SlopeLimitN(U utils.Matrix) (ULim utils.Matrix) {
 	ve2 := vk.Copy().Add(Minmod(ue2.Copy().Subtract(vk), vm1, vp1))
 	ids := ve1.Subtract(ue1).Find(utils.Greater, eps0, true)
 	ids = ids.Concat(ve2.Subtract(ue2).Find(utils.Greater, eps0, true))
+	fmt.Printf("ve1 = \n%v\n", mat.Formatted(ve1.Transpose(), mat.Squeeze()))
+	fmt.Printf("ids = \n%v\n", mat.Formatted(ids.Transpose(), mat.Squeeze()))
 
 	if ids.Len() != 0 {
 		idsI := ids.ToIndex()
