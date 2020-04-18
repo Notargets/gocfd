@@ -198,7 +198,7 @@ func (m Matrix) SetRange(i1, i2, j1, j2 int, val float64) Matrix { // Changes re
 	i1, i2, j1, j2 = limRange(i1, i2, j1, j2, nr, nc)
 	for i := i1; i < i2; i++ {
 		for j := j1; j < j2; j++ {
-			ind := i + nr*j
+			ind := i*nc + j
 			data[ind] = val
 		}
 	}
@@ -565,6 +565,6 @@ func limLoop(ib, ie, imax int) (ibeg, iend int) {
 
 func limRange(i1, i2, j1, j2, nr, nc int) (ii1, ii2, jj1, jj2 int) {
 	ii1, ii2 = limLoop(i1, i2, nr)
-	jj1, jj2 = limLoop(j1, j2, nr)
+	jj1, jj2 = limLoop(j1, j2, nc)
 	return ii1, ii2, jj1, jj2
 }

@@ -1,7 +1,10 @@
 package utils
 
 import (
+	"fmt"
 	"testing"
+
+	"gonum.org/v1/gonum/mat"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -50,6 +53,31 @@ func TestMatrix(t *testing.T) {
 		assert.Equal(t, A, NewMatrix(2, 2, []float64{
 			2, 1,
 			5, 4,
+		}))
+	}
+	// SetRange
+	{
+		M := NewMatrix(2, 3, []float64{
+			1, 2, 3,
+			4, 5, 6,
+		})
+		A := M.Copy().SetRange(0, -1, -2, -2, 0)
+		fmt.Printf("A = \n%v\n", mat.Formatted(A, mat.Squeeze()))
+		assert.Equal(t, A, NewMatrix(2, 3, []float64{
+			1, 0, 3,
+			4, 0, 6,
+		}))
+		A = M.Copy().SetRange(0, -1, -3, -3, 0)
+		fmt.Printf("A = \n%v\n", mat.Formatted(A, mat.Squeeze()))
+		assert.Equal(t, A, NewMatrix(2, 3, []float64{
+			0, 2, 3,
+			0, 5, 6,
+		}))
+		A = M.Copy().SetRange(-1, -1, -2, -2, 0)
+		fmt.Printf("A = \n%v\n", mat.Formatted(A, mat.Squeeze()))
+		assert.Equal(t, A, NewMatrix(2, 3, []float64{
+			1, 2, 3,
+			4, 0, 6,
 		}))
 	}
 }

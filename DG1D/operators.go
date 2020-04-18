@@ -16,25 +16,34 @@ func (el Elements1D) SlopeLimitN(U utils.Matrix) (ULim utils.Matrix) {
 	)
 	Uh.SetRange(1, -1, 0, -1, 0)
 	Uh = el.V.Mul(Uh)
+	fmt.Printf("Uh = \n%v\n", mat.Formatted(Uh, mat.Squeeze()))
 	vk := Uh.Row(0)
+	fmt.Printf("vk = \n%v\n", mat.Formatted(vk, mat.Squeeze()))
 
 	// End values of each element
 	ue1 := U.Row(0)
 	ue2 := U.Row(-1)
 
 	// Cell averages
-	vkm1 := vk.Subset(0, 0).Concat(vk.Subset(1, -1))
+	vkm1 := vk.Subset(0, 0).Concat(vk.Subset(0, -2))
 	vkp1 := vk.Subset(1, -1).Concat(vk.Subset(-1, -1))
 
 	// Apply reconstruction to find elements in need of limiting
 	vm1 := vk.Copy().Subtract(vkm1)
 	vp1 := vkp1.Copy().Subtract(vk)
+	//vksubue1 := vk.Copy().Subtract(ue1)
+	//mm := Minmod(vksubue1, vm1, vp1)
+	//fmt.Printf("vksubue1 = \n%v\n", mat.Formatted(vksubue1.Transpose(), mat.Squeeze()))
+	//fmt.Printf("vm1 = \n%v\n", mat.Formatted(vm1.Transpose(), mat.Squeeze()))
+	//fmt.Printf("vp1 = \n%v\n", mat.Formatted(vp1.Transpose(), mat.Squeeze()))
+	//fmt.Printf("mm = \n%v\n", mat.Formatted(mm.Transpose(), mat.Squeeze()))
 	ve1 := vk.Copy().Subtract(Minmod(vk.Copy().Subtract(ue1), vm1, vp1))
 	ve2 := vk.Copy().Add(Minmod(ue2.Copy().Subtract(vk), vm1, vp1))
 	ids := ve1.Subtract(ue1).Find(utils.Greater, eps0, true)
 	ids = ids.Concat(ve2.Subtract(ue2).Find(utils.Greater, eps0, true))
-	fmt.Printf("ve1 = \n%v\n", mat.Formatted(ve1.Transpose(), mat.Squeeze()))
-	fmt.Printf("ids = \n%v\n", mat.Formatted(ids.Transpose(), mat.Squeeze()))
+	//fmt.Printf("ve1-ue1 = \n%v\n", mat.Formatted(ve1.Copy().Subtract(ue1).Transpose(), mat.Squeeze()))
+	//fmt.Printf("ids = \n%v\n", mat.Formatted(ids.Transpose(), mat.Squeeze()))
+	//os.Exit(1)
 
 	if ids.Len() != 0 {
 		idsI := ids.ToIndex()
@@ -88,10 +97,23 @@ func Minmod(vecs ...utils.Vector) (R utils.Vector) {
 
 func minmod(a []float64) (r float64) {
 	var (
-		rMin = a[0]
+		rMin = math.Abs(a[0])
 	)
+	var signSum int
 	for _, val := range a {
-		rMin = math.Min(rMin, val)
+		if math.Signbit(val) {
+			signSum -= 1
+		} else {
+			signSum += 1
+		}
+		rMin = math.Min(rMin, math.Abs(val))
 	}
-	return math.Max(0, rMin)
+	ss := int(math.Abs(float64(signSum)))
+	sign := signSum / ss
+	switch ss {
+	case len(a):
+		return float64(sign) * rMin
+	default:
+		return 0
+	}
 }
