@@ -92,13 +92,10 @@ func (v Vector) Subset(i1, i2 int) Vector {
 	)
 	if i1 == i2 {
 		i1 = lim(i1, v.Len())
-		if i2 < 0 {
-			i1 -= 1 // Adjust loop end index to use as direct index
-		}
 		dataR = make([]float64, 1)
 		dataR[0] = data[i1]
 	} else {
-		i1, i2 = lim(i1, v.Len()), lim(i2, v.Len())
+		i1, i2 = limLoop(i1, i2, v.Len())
 		dataR = make([]float64, i2-i1)
 		var ind int
 		for i := i1; i < i2; i++ {

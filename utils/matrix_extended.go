@@ -128,6 +128,7 @@ func (m Matrix) Subset(I Index, newDims ...int) (R Matrix) { // Does not change 
 	}
 	data = make([]float64, nrNew*ncNew)
 	for i, ind := range I {
+		// TODO: Fix this - change the upstream to row major
 		indC := RowMajorToColMajor(nr, nc, ind)
 		indD := RowMajorToColMajor(nrNew, ncNew, i)
 		data[indD] = Mr.Data[indC]
@@ -245,6 +246,7 @@ func (m Matrix) Assign(I Index, A Matrix) Matrix { // Changes receiver
 	)
 	m.checkWritable()
 	for _, ind := range I {
+		// TODO: Fix this - change the upstream to row major
 		i := RowMajorToColMajor(nr, nc, ind)
 		dataM[i] = dataA[i]
 	}
@@ -260,6 +262,7 @@ func (m Matrix) AssignVector(I Index, A Vector) Matrix { // Changes receiver
 	)
 	m.checkWritable()
 	for i, ind := range I {
+		// TODO: Fix this - change the upstream to row major
 		ii := RowMajorToColMajor(nr, nc, ind)
 		dataM[ii] = dataA[i]
 	}
@@ -353,6 +356,7 @@ func (m Matrix) AssignScalar(I Index, val float64) Matrix { // Changes receiver
 	)
 	m.checkWritable()
 	for _, ind := range I {
+		// TODO: Fix this - change the upstream to row major
 		i := RowMajorToColMajor(nr, nc, ind)
 		dataM[i] = val
 	}
@@ -513,6 +517,7 @@ func (m Matrix) SubsetVector(I Index) (V Vector) {
 		data   = make([]float64, len(I))
 	)
 	for i, ind := range I {
+		// TODO: Fix this - change the upstream to row major
 		data[i] = Mr.Data[RowMajorToColMajor(nr, nc, ind)]
 	}
 	V = NewVector(len(I), data)
@@ -537,11 +542,21 @@ func RowMajorToColMajor(nr, nc, ind int) (cind int) {
 
 func lim(i, imax int) int {
 	if i < 0 {
-		return imax - i + 1 // Support indexing from end, -1 is imax
+		return imax + i // Support indexing from end, -1 is imax
 	}
 	return i
 }
 
+func limLoop(ib, ie, imax int) (ibeg, iend int) {
+	ibeg = ib
+	if ie < 0 {
+		iend = imax + ie + 1 // Support indexing from end, -1 is imax
+	}
+	return
+}
+
 func limRange(i1, i2, j1, j2, nr, nc int) (ii1, ii2, jj1, jj2 int) {
-	return lim(i1, nr), lim(i2, nr), lim(j1, nc), lim(j2, nc)
+	ii1, ii2 = limLoop(i1, i2, nr)
+	jj1, jj2 = limLoop(j1, j2, nr)
+	return ii1, ii2, jj1, jj2
 }

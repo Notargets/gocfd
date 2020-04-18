@@ -20,8 +20,8 @@ func (el Elements1D) SlopeLimitN(U utils.Matrix) (ULim utils.Matrix) {
 	ue2 := U.Row(-1)
 
 	// Cell averages
-	vkm1 := vk.Subset(0, 1).Concat(vk.Subset(1, -2))
-	vkp1 := vk.Subset(1, -1).Concat(vk.Subset(-1, -1))
+	vkm1 := vk.Subset(0, 1).Concat(vk.Subset(1, -1))
+	vkp1 := vk.Subset(1, -1).Concat(vk.Subset(-2, -1))
 
 	// Apply reconstruction to find elements in need of limiting
 	vm1 := vk.Copy().Subtract(vkm1)
