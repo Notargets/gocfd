@@ -16,18 +16,23 @@ type Matrix struct {
 	name     string
 }
 
-func NewMatrix(nr, nc int, dataO ...[]float64) Matrix {
-	var (
-		data []float64
-	)
+func NewMatrix(nr, nc int, dataO ...[]float64) (R Matrix) {
+	var m *mat.Dense
 	if len(dataO) != 0 {
-		data = dataO[0]
+		m = mat.NewDense(nr, nc, dataO[0])
+		if len(dataO[0]) != nr*nc {
+			err := fmt.Errorf("mismatch in allocation: NewMatrix nr,nc = %v,%v, len(data[0]) = %v\n", nr, nc, len(dataO[0]))
+			panic(err)
+		}
+	} else {
+		m = mat.NewDense(nr, nc, make([]float64, nr*nc))
 	}
-	return Matrix{
-		mat.NewDense(nr, nc, data),
+	R = Matrix{
+		m,
 		false,
 		"unnamed - hint: pass a variable name to SetReadOnly()",
 	}
+	return
 }
 
 // Dims, At and T minimally satisfy the mat.Matrix interface.
@@ -240,10 +245,17 @@ func (m Matrix) Subtract(a Matrix) Matrix { // Changes receiver
 }
 
 func (m Matrix) AssignColumns(I Index, A Matrix) Matrix { // Changes receiver
-	// Assigns columns in M to columns indexed from A
+	var (
+		_, nc = m.Dims()
+	)
+	// Assigns columns in M to columns indexed sequentially from A
 	m.checkWritable()
-	for _, j := range I {
-		m.M.SetCol(j, A.Col(j).RawVector().Data)
+	for i, j := range I {
+		if j > nc-1 {
+			err := fmt.Errorf("bad index value: %v exceeds bounds of %v", j, nc)
+			panic(err)
+		}
+		m.SetCol(j, A.Col(i).RawVector().Data)
 	}
 	return m
 }

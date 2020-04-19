@@ -1,10 +1,7 @@
 package DG1D
 
 import (
-	"fmt"
 	"math"
-
-	"gonum.org/v1/gonum/mat"
 
 	"github.com/notargets/gocfd/utils"
 )
@@ -34,8 +31,6 @@ func (el Elements1D) SlopeLimitN(U utils.Matrix) (ULim utils.Matrix) {
 	veMax := ve1.Subtract(ue1).Zip(utils.Greater, true, ve2.Subtract(ue2))
 	ids := veMax.Find(utils.Greater, eps0, true)
 
-	fmt.Printf("ids = \n%v\n", mat.Formatted(ids.Transpose(), mat.Squeeze()))
-
 	ULim = U.Copy()
 	if ids.Len() != 0 {
 		idsI := ids.ToIndex()
@@ -59,8 +54,7 @@ func (el Elements1D) SlopeLimitLin(ul, xl utils.Matrix, vm1, v0, vp1 utils.Vecto
 		hNScaled = ones.Outer(h).POW(-1).Scale(2)
 		ux       = hNScaled.ElMul(el.Dr.Copy().Mul(ul))
 	)
-	ULim = ones.Outer(v0)
-	ULim.Add(xl.Subtract(x0).ElMul(ones.Outer(Minmod(ux.Row(0), vp1.Subtract(v0).ElDiv(h), v0.Subtract(vm1).ElDiv(h)))))
+	ULim = ones.Outer(v0).Add(xl.Subtract(x0).ElMul(ones.Outer(Minmod(ux.Row(0), vp1.Subtract(v0).ElDiv(h), v0.Subtract(vm1).ElDiv(h)))))
 	return
 }
 
