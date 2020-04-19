@@ -66,7 +66,7 @@ func (c *Advection1D) Run(showGraph bool, graphDelay ...time.Duration) {
 			}
 		}
 		for INTRK := 0; INTRK < 5; INTRK++ {
-			//U = el.SlopeLimitN(U.Copy())
+			// U = el.SlopeLimitN(U)
 			timelocal = Time + dt*utils.RK4c[INTRK]
 			RHSU := c.RHS(U, timelocal)
 			// resid = rk4a(INTRK) * resid + dt * rhsu;

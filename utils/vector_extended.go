@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"math"
 
 	"gonum.org/v1/gonum/blas/blas64"
@@ -37,7 +38,13 @@ func (v Vector) T() mat.Matrix            { return v.V.T() }
 func (v Vector) AtVec(i int) float64      { return v.V.AtVec(i) }
 func (v Vector) RawVector() blas64.Vector { return v.V.RawVector() }
 func (v Vector) SubVec(a, b Vector)       { v.V.SubVec(a.V, b.V) }
-func (v Vector) Len() int                 { return v.V.Len() }
+func (v Vector) Len() int {
+	if v.V != nil {
+		return v.V.Len()
+	} else {
+		return 0
+	}
+}
 
 // Chainable (extended) methods
 func (v Vector) Subtract(a Vector) Vector {
@@ -73,6 +80,10 @@ func (v Vector) Zip(op EvalOp, abs bool, A Vector) (R Vector) {
 		aD = A.RawVector().Data
 		rD = make([]float64, N)
 	)
+	if N != A.Len() {
+		err := fmt.Errorf("dimension mismatch: Zip receiver: %v A: %v\n", N, A.Len())
+		panic(err)
+	}
 	var target float64
 	switch op {
 	case Equal:
@@ -312,6 +323,75 @@ func (v Vector) Find(op EvalOp, target float64, abs bool) (r Vector) {
 		}
 	}
 	r = NewVector(len(rD), rD)
+	return
+}
+
+func (v Vector) FindOr(op EvalOp, target float64, abs bool, A Vector) (r Vector) {
+	var (
+		vD = v.RawVector().Data
+		vA = A.RawVector().Data
+		rD []float64
+	)
+	switch op {
+	case Equal:
+		for i, val := range vD {
+			t2 := vA[i]
+			if abs {
+				val = math.Abs(val)
+				t2 = math.Abs(t2)
+			}
+			if val == target || t2 == target {
+				rD = append(rD, float64(i))
+			}
+		}
+	case Less:
+		for i, val := range vD {
+			t2 := vA[i]
+			if abs {
+				val = math.Abs(val)
+				t2 = math.Abs(t2)
+			}
+			if val < target || t2 < target {
+				rD = append(rD, float64(i))
+			}
+		}
+	case Greater:
+		for i, val := range vD {
+			t2 := vA[i]
+			if abs {
+				val = math.Abs(val)
+				t2 = math.Abs(t2)
+			}
+			if val > target || t2 > target {
+				rD = append(rD, float64(i))
+			}
+		}
+	case LessOrEqual:
+		for i, val := range vD {
+			t2 := vA[i]
+			if abs {
+				val = math.Abs(val)
+				t2 = math.Abs(t2)
+			}
+			if val <= target || t2 <= target {
+				rD = append(rD, float64(i))
+			}
+		}
+	case GreaterOrEqual:
+		for i, val := range vD {
+			t2 := vA[i]
+			if abs {
+				val = math.Abs(val)
+				t2 = math.Abs(t2)
+			}
+			if val >= target || t2 >= target {
+				rD = append(rD, float64(i))
+			}
+		}
+	}
+	if rD != nil {
+		r = NewVector(len(rD), rD)
+	}
 	return
 }
 

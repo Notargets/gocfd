@@ -28,8 +28,10 @@ func (el Elements1D) SlopeLimitN(U utils.Matrix) (ULim utils.Matrix) {
 	vp1 := vkp1.Copy().Subtract(vk)
 	ve1 := vk.Copy().Subtract(Minmod(vk.Copy().Subtract(ue1), vm1, vp1))
 	ve2 := vk.Copy().Add(Minmod(ue2.Copy().Subtract(vk), vm1, vp1))
-	veMax := ve1.Subtract(ue1).Zip(utils.Greater, true, ve2.Subtract(ue2))
-	ids := veMax.Find(utils.Greater, eps0, true)
+
+	ids := ve1.Subtract(ue1).FindOr(utils.Greater, eps0, true, ve2.Subtract(ue2))
+	//fmt.Printf("ids = %v\n", ids.ToIndex())
+	//os.Exit(1)
 
 	ULim = U.Copy()
 	if ids.Len() != 0 {
