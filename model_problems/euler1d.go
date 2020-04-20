@@ -3,8 +3,11 @@ package model_problems
 import (
 	"fmt"
 	"math"
+	"os"
 	"sync"
 	"time"
+
+	"gonum.org/v1/gonum/mat"
 
 	"github.com/notargets/avs/chart2d"
 	utils2 "github.com/notargets/avs/utils"
@@ -15,20 +18,42 @@ import (
 
 type Euler1D struct {
 	// Input parameters
-	CFL, FinalTime  float64
-	El              *DG1D.Elements1D
-	RHSOnce         sync.Once
-	Rho, RhoU, Ener utils.Matrix
+	CFL, FinalTime, Gamma float64
+	El                    *DG1D.Elements1D
+	RHSOnce               sync.Once
+	Rho, RhoU, Ener       utils.Matrix
 }
 
 func NewEuler1D(CFL, FinalTime float64, N, K int) (c *Euler1D) {
 	VX, EToV := DG1D.SimpleMesh1D(-2, 2, K)
 	c = &Euler1D{
 		CFL:       CFL,
+		Gamma:     1.4,
 		FinalTime: FinalTime,
 		El:        DG1D.NewElements1D(N, VX, EToV),
 	}
+	c.InitializeSOD()
 	return
+}
+
+func (c *Euler1D) InitializeSOD() {
+	var (
+		/*
+			In                = NewStateP(c.Gamma, 1, 0, 1)
+			Out               = NewStateP(c.Gamma, 0.125, 0, 0.1)
+		*/
+		el                = c.El
+		MassMatrix, VtInv utils.Matrix
+		err               error
+	)
+	if VtInv, err = el.V.Transpose().Inverse(); err != nil {
+		panic(err)
+	}
+	MassMatrix = VtInv.Mul(el.V)
+	fmt.Printf("MassMatrix = \n%v\n", mat.Formatted(MassMatrix, mat.Squeeze()))
+	MMX := MassMatrix.Mul(el.X)
+	fmt.Printf("MassMatrix*X = \n%v\n", mat.Formatted(MMX, mat.Squeeze()))
+	os.Exit(1)
 }
 
 func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
@@ -117,12 +142,11 @@ func (c *Euler1D) RHS() (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
 	var (
 		el       = c.El
 		nrF, ncF = el.Nfp * el.NFaces, el.K
-		gamma    = 1.4
 		//TODO: Remove COPY() by promoting a state struct allocated above, with an UPDATE() method
-		U     = c.RhoU.Copy().ElDiv(c.Rho)                     // Velocity
-		RhoU2 = c.RhoU.Copy().POW(2).Scale(0.5).ElDiv(c.Rho)   // 1/2 * Rho * U^2
-		Pres  = c.Ener.Copy().Subtract(RhoU2).Scale(gamma - 1) // Pressure
-		CVel  = Pres.Copy().ElDiv(c.Rho).Scale(gamma).Apply(math.Sqrt)
+		U     = c.RhoU.Copy().ElDiv(c.Rho)                       // Velocity
+		RhoU2 = c.RhoU.Copy().POW(2).Scale(0.5).ElDiv(c.Rho)     // 1/2 * Rho * U^2
+		Pres  = c.Ener.Copy().Subtract(RhoU2).Scale(c.Gamma - 1) // Pressure
+		CVel  = Pres.Copy().ElDiv(c.Rho).Scale(c.Gamma).Apply(math.Sqrt)
 		LM    = U.Copy().Apply(math.Abs).Add(CVel)
 		RhoF  = c.RhoU.Copy()
 		RhoUF = RhoU2.Scale(2).Add(Pres)
@@ -137,8 +161,8 @@ func (c *Euler1D) RHS() (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
 		// Lax-Friedrichs flux component is always used divided by 2, so we pre-scale it
 		LFcDiv2 = LM.Subset(el.VmapM, nrF, ncF).Apply2(math.Max, EnerF.Subset(el.VmapP, nrF, ncF)).Scale(0.5)
 		// Sod's problem: Shock tube with jump in middle
-		In  = NewStateP(gamma, 1, 0, 1)
-		Out = NewStateP(gamma, 0.125, 0, 0.1)
+		In  = NewStateP(c.Gamma, 1, 0, 1)
+		Out = NewStateP(c.Gamma, 0.125, 0, 0.1)
 	)
 	// Compute fluxes at interfaces
 	dRhoF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.Copy().ElMul(dRho))

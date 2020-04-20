@@ -547,6 +547,42 @@ func (m Matrix) SubsetVector(I Index) (V Vector) {
 	return
 }
 
+func (m Matrix) SumRows() (V Vector) {
+	/*
+		Calculates the sum of each row to form the output vector, one result per row
+	*/
+	var (
+		nr, nc = m.Dims()
+		dataM  = m.RawMatrix().Data
+		dataV  = make([]float64, nr)
+	)
+	for i := 0; i < nr; i++ {
+		for j := 0; j < nc; j++ {
+			dataV[i] += dataM[i*nc+j]
+		}
+	}
+	V = NewVector(nr, dataV)
+	return
+}
+
+func (m Matrix) SumCols() (V Vector) {
+	/*
+		Calculates the sum of each column to form the output vector, one result per column
+	*/
+	var (
+		nr, nc = m.Dims()
+		dataM  = m.RawMatrix().Data
+		dataV  = make([]float64, nc)
+	)
+	for i := 0; i < nr; i++ {
+		for j := 0; j < nc; j++ {
+			dataV[j] += dataM[i*nc+j]
+		}
+	}
+	V = NewVector(nc, dataV)
+	return
+}
+
 func (m Matrix) checkWritable() {
 	if m.readOnly {
 		err := fmt.Errorf("attempt to write to a read only matrix named: \"%v\"", m.name)

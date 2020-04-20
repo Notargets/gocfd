@@ -80,4 +80,15 @@ func TestMatrix(t *testing.T) {
 			4, 0, 6,
 		}))
 	}
+	// Sum
+	{
+		M := NewMatrix(2, 3, []float64{
+			1, 2, 3,
+			4, 5, 6,
+		})
+		V := M.SumRows()
+		assert.Equal(t, V, NewVector(2, []float64{6, 15}))
+		V = M.SumCols()
+		assert.Equal(t, V, NewVector(3, []float64{5, 7, 9}))
+	}
 }

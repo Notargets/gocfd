@@ -43,6 +43,8 @@ func main() {
 	switch ModelRun {
 	case Advect1D:
 		C = model_problems.NewAdvection1D(2*math.Pi, 0.75, 100000., N, K)
+	case Euler1D:
+		C = model_problems.NewEuler1D(0.75, 100000., N, K)
 	case Maxwell1D:
 		fallthrough
 	default:
