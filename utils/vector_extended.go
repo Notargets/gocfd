@@ -322,7 +322,9 @@ func (v Vector) Find(op EvalOp, target float64, abs bool) (r Vector) {
 			}
 		}
 	}
-	r = NewVector(len(rD), rD)
+	if len(rD) != 0 {
+		r = NewVector(len(rD), rD)
+	}
 	return
 }
 

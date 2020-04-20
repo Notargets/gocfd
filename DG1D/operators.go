@@ -6,7 +6,7 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-func (el Elements1D) SlopeLimitN(U utils.Matrix) (ULim utils.Matrix) {
+func (el Elements1D) SlopeLimitN(U utils.Matrix, M float64) (ULim utils.Matrix) {
 	var (
 		Uh   = el.Vinv.Mul(U)
 		eps0 = 1.0e-8
@@ -26,15 +26,22 @@ func (el Elements1D) SlopeLimitN(U utils.Matrix) (ULim utils.Matrix) {
 	// Apply reconstruction to find elements in need of limiting
 	vm1 := vk.Copy().Subtract(vkm1)
 	vp1 := vkp1.Copy().Subtract(vk)
-	ve1 := vk.Copy().Subtract(Minmod(vk.Copy().Subtract(ue1), vm1, vp1))
-	ve2 := vk.Copy().Add(Minmod(ue2.Copy().Subtract(vk), vm1, vp1))
+	var ve1, ve2 utils.Vector
+	if M == 0 {
+		ve1 = vk.Copy().Subtract(Minmod(vk.Copy().Subtract(ue1), vm1, vp1))
+		ve2 = vk.Copy().Add(Minmod(ue2.Copy().Subtract(vk), vm1, vp1))
+	} else {
+		h := el.X.Row(0).AtVec(1) - el.X.Row(0).AtVec(0)
+		M := 20.
+		ve1 = vk.Copy().Subtract(MinmodB(M, h, vk.Copy().Subtract(ue1), vm1, vp1))
+		ve2 = vk.Copy().Add(MinmodB(M, h, ue2.Copy().Subtract(vk), vm1, vp1))
+	}
 
 	ids := ve1.Subtract(ue1).FindOr(utils.Greater, eps0, true, ve2.Subtract(ue2))
-	//fmt.Printf("ids = %v\n", ids.ToIndex())
-	//os.Exit(1)
 
 	ULim = U.Copy()
 	if ids.Len() != 0 {
+		//fmt.Printf("ids = %v\n", ids.ToIndex())
 		idsI := ids.ToIndex()
 		// We need to limit the elements in the index
 		// Create a piecewise linear solution for limiting the elements in the index
@@ -104,4 +111,36 @@ func minmod(a []float64) (r float64) {
 	default:
 		return 0
 	}
+}
+
+func MinmodB(M, h float64, vecs ...utils.Vector) (R utils.Vector) {
+	/*
+		Computes minmodB across a group of vectors
+		    Input: A, B, C, length N
+				For each element in A, B, C, compose a vector like {a1, b1, c1} and set r1 = minmod(a1,b1,c1)
+			Output: R, length N
+	*/
+	var (
+		W     = len(vecs)
+		dataV = make([]float64, W)
+		N     = vecs[0].Len()
+		dataR = make([]float64, N)
+	)
+	for i := 0; i < N; i++ {
+		dataR[i] = vecs[0].RawVector().Data[i]
+	}
+	// Check for values higher than our limit in the first vector
+	factor := M * utils.POW(h, 2)
+	idsV := vecs[0].Find(utils.Greater, factor, true)
+	if idsV.Len() != 0 {
+		ids := idsV.ToIndex()
+		for _, i := range ids {
+			for j := 0; j < W; j++ {
+				dataV[j] = vecs[j].AtVec(i)
+			}
+			dataR[i] = minmod(dataV)
+		}
+	}
+	R = utils.NewVector(N, dataR)
+	return
 }
