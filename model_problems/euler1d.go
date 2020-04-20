@@ -25,7 +25,7 @@ type Euler1D struct {
 }
 
 func NewEuler1D(CFL, FinalTime float64, N, K int) (c *Euler1D) {
-	VX, EToV := DG1D.SimpleMesh1D(-2, 2, K)
+	VX, EToV := DG1D.SimpleMesh1D(0, 1, K)
 	c = &Euler1D{
 		CFL:       CFL,
 		Gamma:     1.4,
@@ -45,14 +45,19 @@ func (c *Euler1D) InitializeSOD() {
 		el                = c.El
 		MassMatrix, VtInv utils.Matrix
 		err               error
+		npOnes            = utils.NewVectorConstant(el.Np, 1)
 	)
 	if VtInv, err = el.V.Transpose().Inverse(); err != nil {
 		panic(err)
 	}
-	MassMatrix = VtInv.Mul(el.V)
-	fmt.Printf("MassMatrix = \n%v\n", mat.Formatted(MassMatrix, mat.Squeeze()))
-	MMX := MassMatrix.Mul(el.X)
-	fmt.Printf("MassMatrix*X = \n%v\n", mat.Formatted(MMX, mat.Squeeze()))
+	MassMatrix = VtInv.Mul(el.Vinv)
+	CellCenterRValues := MassMatrix.Mul(el.X).SumCols().Scale(0.5)
+	fmt.Printf("CellCenterRValues= \n%v\n", mat.Formatted(CellCenterRValues.Transpose(), mat.Squeeze()))
+	cx := npOnes.Outer(CellCenterRValues)
+	fmt.Printf("cx= \n%v\n", mat.Formatted(cx, mat.Squeeze()))
+	leftHalf := cx.Find(utils.Less, 0.5, false)
+	fmt.Printf("leftHalf= \n%v\n", leftHalf)
+	//cx.IndexedAssign()
 	os.Exit(1)
 }
 

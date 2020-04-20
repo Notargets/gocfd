@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"math"
 
 	"gonum.org/v1/gonum/lapack/lapack64"
 
@@ -471,18 +472,23 @@ func (m Matrix) Max() (max float64) {
 	return
 }
 
-func (m Matrix) Find(op EvalOp, val float64) (I Index2D) {
+func (m Matrix) Find(op EvalOp, val float64, abs bool) (I Index2D) {
 	var (
 		nr, nc         = m.Dims()
 		data           = m.RawMatrix().Data
 		rowInd, colInd Index
 	)
+	var target float64
 	switch op {
 	case Equal:
 		for j := 0; j < nc; j++ {
 			for i := 0; i < nr; i++ {
 				ind := i + nr*j
-				if data[ind] == val {
+				target = data[ind]
+				if abs {
+					target = math.Abs(target)
+				}
+				if target == val {
 					rowInd = append(rowInd, i)
 					colInd = append(colInd, j)
 				}
@@ -492,7 +498,11 @@ func (m Matrix) Find(op EvalOp, val float64) (I Index2D) {
 		for j := 0; j < nc; j++ {
 			for i := 0; i < nr; i++ {
 				ind := i + nr*j
-				if data[ind] < val {
+				target = data[ind]
+				if abs {
+					target = math.Abs(target)
+				}
+				if target < val {
 					rowInd = append(rowInd, i)
 					colInd = append(colInd, j)
 				}
@@ -502,7 +512,11 @@ func (m Matrix) Find(op EvalOp, val float64) (I Index2D) {
 		for j := 0; j < nc; j++ {
 			for i := 0; i < nr; i++ {
 				ind := i + nr*j
-				if data[ind] <= val {
+				target = data[ind]
+				if abs {
+					target = math.Abs(target)
+				}
+				if target <= val {
 					rowInd = append(rowInd, i)
 					colInd = append(colInd, j)
 				}
@@ -512,7 +526,11 @@ func (m Matrix) Find(op EvalOp, val float64) (I Index2D) {
 		for j := 0; j < nc; j++ {
 			for i := 0; i < nr; i++ {
 				ind := i + nr*j
-				if data[ind] > val {
+				target = data[ind]
+				if abs {
+					target = math.Abs(target)
+				}
+				if target > val {
 					rowInd = append(rowInd, i)
 					colInd = append(colInd, j)
 				}
@@ -522,7 +540,11 @@ func (m Matrix) Find(op EvalOp, val float64) (I Index2D) {
 		for j := 0; j < nc; j++ {
 			for i := 0; i < nr; i++ {
 				ind := i + nr*j
-				if data[ind] >= val {
+				target = data[ind]
+				if abs {
+					target = math.Abs(target)
+				}
+				if target >= val {
 					rowInd = append(rowInd, i)
 					colInd = append(colInd, j)
 				}

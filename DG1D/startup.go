@@ -138,7 +138,7 @@ func (el *Elements1D) BuildMaps1D() {
 			v1 := int(el.EToV.At(k1, f1))
 			v2 := int(el.EToV.At(k1, (f1+1)%el.NFaces))
 			refd := math.Sqrt(utils.POW(el.VX.AtVec(v1)-el.VX.AtVec(v2), 2))
-			idMP := D.Find(utils.Less, utils.NODETOL*refd)
+			idMP := D.Find(utils.Less, utils.NODETOL*refd, false)
 			idM := idMP.RI
 			idP := idMP.CI
 			if err := el.VmapP.IndexedAssign(idM.Copy().Add(f1*el.Nfp+skM), vidP.Subset(idP)); err != nil {
