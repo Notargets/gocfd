@@ -5,9 +5,9 @@ import (
 	"math"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/notargets/gocfd/utils"
 
-	"gonum.org/v1/gonum/mat"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestElements1D(t *testing.T) {
@@ -28,6 +28,7 @@ func TestElements1D(t *testing.T) {
 
 		var el *Elements1D
 		el = NewElements1D(N, VX, EToV)
+		// Verify X
 		assert.True(t, near(el.X.At(0, 1), 0.5))
 		assert.True(t, near(el.X.At(3, 1), 1.0))
 		assert.True(t, near(el.X.At(3, 2), 1.5))
@@ -37,15 +38,18 @@ func TestElements1D(t *testing.T) {
 		assert.True(t, near(el.X.SumRows().AtVec(0), 3))
 		assert.True(t, near(el.X.SumRows().AtVec(3), 5))
 
-		fmt.Printf("X = \n%v\n", mat.Formatted(el.X, mat.Squeeze()))
-		fmt.Printf("VX = \n%v\n", mat.Formatted(el.VX, mat.Squeeze()))
-		fmt.Printf("LIFT = \n%v\n", mat.Formatted(el.LIFT, mat.Squeeze()))
+		// Verify LIFT
 		assert.True(t, near(el.LIFT.SumRows().AtVec(0), 6))
 		assert.True(t, near(el.LIFT.SumRows().AtVec(3), 6))
 		assert.True(t, near(el.LIFT.At(2, 0), 0.8944271909))
 		assert.True(t, near(el.LIFT.At(2, 1), -0.8944271909))
 		assert.True(t, near(el.LIFT.At(1, 0), -0.8944271909))
 		assert.True(t, near(el.LIFT.At(1, 1), 0.8944271909))
+
+		// Verify VmapM
+		assert.Equal(t, utils.Index{0, 3, 4, 7, 8, 11, 12, 15}, el.VmapM)
+		fmt.Printf("VmapP = \n%v\n", el.VmapP)
+		assert.Equal(t, utils.Index{0, 4, 3, 8, 7, 12, 11, 15}, el.VmapP)
 	}
 }
 
