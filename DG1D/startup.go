@@ -100,23 +100,20 @@ func (el *Elements1D) BuildMaps1D() {
 	var (
 		NF = el.Nfp * el.NFaces
 	)
-	// number volume nodes consecutively
-	nodeids := utils.NewRangeOffset(1, el.Np*el.K)
+	nodeids := utils.NewRangeOffset(1, el.Np*el.K) // number Np vertices within K elements consecutively
+	idsR := el.FMask.ToIndex()                     // Index of face point locations within Np-wide element
 
-	// find index of face nodes with respect to volume node ordering
-	el.VmapM = utils.NewIndex(el.Nfp * el.NFaces * el.K)
-	idsR := utils.NewFromFloat(el.FMask.RawVector().Data)
-	for k1 := 0; k1 < el.K; k1++ {
-		iL1 := k1 * NF
-		iL2 := iL1 + NF
-		idsL := utils.NewRangeOffset(iL1+1, iL2) // sequential indices for element k1
-		if err := el.VmapM.IndexedAssign(idsL, nodeids.Subset(idsR)); err != nil {
-			panic(err)
+	// find index of face nodes with respect to vertex ordering
+	VmapM_Mat := utils.NewMatrix(NF, el.K)
+	for k := 0; k < el.K; k++ {
+		for f := 0; f < NF; f++ {
+			// idsR contains locations of the faces within a single element
+			faceIndex := el.K*idsR[f] + k // Face Vertex locations within nodeids
+			VmapM_Mat.Set(f, k, float64(nodeids[faceIndex]))
 		}
-		idsR.Add(el.Np)
 	}
-	// Convert index to Col Major
-	el.VmapM.RowMajorToColumnMajor(el.Np, el.K)
+	el.VmapM = utils.NewFromFloat(VmapM_Mat.RawMatrix().Data)
+	el.VmapM = utils.NewFromFloat(el.VmapM.ToMatrixReversed(el.K, NF).RawMatrix().Data) // TODO: Remove when Subset() is fixed
 
 	var one = utils.NewVector(el.Nfp).Set(1)
 	el.VmapP = utils.NewIndex(el.Nfp * el.NFaces * el.K)
@@ -146,6 +143,10 @@ func (el *Elements1D) BuildMaps1D() {
 			}
 		}
 	}
+	//fmt.Printf("VmapP.ToMatrixReversed = \n%v\n", mat.Formatted(el.VmapP.ToMatrixReversed(NF, el.K)))
+	//fmt.Printf("VmapP.ToMatrixReversed.Data = %v\n", el.VmapP.ToMatrixReversed(NF, el.K).RawMatrix().Data)
+	//os.Exit(1)
+
 	// Create list of boundary nodes
 	el.MapB = el.VmapP.Compare(utils.Equal, el.VmapM)
 	el.VmapB = el.VmapM.Subset(el.MapB)

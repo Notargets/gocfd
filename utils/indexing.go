@@ -203,3 +203,38 @@ func (I *Index) IndexedAssign(J, Val Index) (err error) {
 	}
 	return
 }
+
+func (I Index) ToMatrix(nr, nc int) (R Matrix) {
+	var (
+		dataR = make([]float64, nr*nc)
+	)
+	if nr*nc != len(I) {
+		err := fmt.Errorf("dimensions do not match nr, nc = %v, %v, len(I) = %v\n", nr, nc, len(I))
+		panic(err)
+	}
+	for i, val := range I {
+		dataR[i] = float64(val)
+	}
+	R = NewMatrix(nr, nc, dataR)
+	return
+}
+
+func (I Index) ToMatrixReversed(nr, nc int) (R Matrix) {
+	var (
+		dataR = make([]float64, nr*nc)
+	)
+	if nr*nc != len(I) {
+		err := fmt.Errorf("dimensions do not match nr, nc = %v, %v, len(I) = %v\n", nr, nc, len(I))
+		panic(err)
+	}
+	for i, val := range I {
+		ind := RowMajorToColMajor(nr, nc, i)
+		dataR[ind] = float64(val)
+	}
+	R = NewMatrix(nr, nc, dataR)
+	return
+}
+
+func ColMajorIndex(nc, i, j int) (ind int) {
+	return j + nc*i
+}

@@ -51,6 +51,28 @@ func TestElements1D(t *testing.T) {
 		//assert.Equal(t, utils.Index{0, 4, 3, 8, 7, 12, 11, 15}, el.VmapP)
 		assert.Equal(t, utils.Index{0, 12, 1, 13, 2, 14, 3, 15}, el.VmapM)
 		assert.Equal(t, utils.Index{0, 1, 12, 2, 13, 3, 14, 15}, el.VmapP)
+		/*
+			Number of Elements, NFaces =  4 2
+			VmapM.Matrix =
+			⎡ 0   1   2   3⎤
+			⎣12  13  14  15⎦
+			VmapM.Matrix.Data = [0 1 2 3 12 13 14 15]
+			VmapP.Matrix =
+			⎡0  12  13  14⎤
+			⎣1   2   3  15⎦
+			VmapP.Matrix.Data = [0 12 13 14 1 2 3 15]
+		*/
+		NF := el.NFaces * el.Nfp
+		dataVmapM := el.VmapM.ToMatrixReversed(NF, el.K).RawMatrix().Data
+		dataVmapP := el.VmapP.ToMatrixReversed(NF, el.K).RawMatrix().Data
+		assert.Equal(t, dataVmapM, []float64{0, 1, 2, 3, 12, 13, 14, 15})
+		assert.Equal(t, dataVmapP, []float64{0, 12, 13, 14, 1, 2, 3, 15})
+		/*
+			fmt.Printf("VmapM.Matrix = \n%v\n", mat.Formatted(el.VmapM.ToMatrixReversed(NF, el.K), mat.Squeeze()))
+			fmt.Printf("VmapM.Matrix.Data = %v\n", el.VmapM.ToMatrixReversed(NF, el.K).RawMatrix().Data)
+			fmt.Printf("VmapP.Matrix = \n%v\n", mat.Formatted(el.VmapP.ToMatrixReversed(NF, el.K), mat.Squeeze()))
+			fmt.Printf("VmapP.Matrix.Data = %v\n", el.VmapP.ToMatrixReversed(NF, el.K).RawMatrix().Data)
+		*/
 	}
 }
 
