@@ -141,6 +141,13 @@ func (I Index) Compare(op EvalOp, Values Index) (J Index) {
 	return
 }
 
+func (I Index) RowMajorToColumnMajor(nr, nc int) Index {
+	for i, val := range I {
+		I[i] = RowMajorToColMajor(nr, nc, val)
+	}
+	return I
+}
+
 // Non chainable methods
 func (I Index) Outer(J Index) (A Matrix) {
 	var (

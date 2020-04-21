@@ -115,11 +115,11 @@ func (el *Elements1D) BuildMaps1D() {
 		}
 		idsR.Add(el.Np)
 	}
+	// Convert index to Col Major
+	el.VmapM.RowMajorToColumnMajor(el.Np, el.K)
 
-	//var one = utils.NewVecConst(Nfp, 1)
 	var one = utils.NewVector(el.Nfp).Set(1)
 	el.VmapP = utils.NewIndex(el.Nfp * el.NFaces * el.K)
-	//fmt.Printf("X = \n%v\n", mat.Formatted(X, mat.Squeeze()))
 	for k1 := 0; k1 < el.K; k1++ {
 		for f1 := 0; f1 < el.NFaces; f1++ {
 			k2 := int(el.EToE.At(k1, f1))

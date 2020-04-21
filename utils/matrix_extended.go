@@ -61,15 +61,15 @@ func (m Matrix) Slice(I, K, J, L int) (R Matrix) { // Does not change receiver
 		nrR   = K - I
 		ncR   = L - J
 		dataR = make([]float64, nrR*ncR)
-		nr, _ = m.Dims()
+		_, nc = m.Dims()
 		data  = m.M.RawMatrix().Data
 	)
 	for j := J; j < L; j++ {
 		for i := I; i < K; i++ {
-			ind := i + nr*j
+			ind := i*nc + j
 			iR := i - I
 			jR := j - J
-			indR := iR + nrR*jR
+			indR := iR*ncR + jR
 			dataR[indR] = data[ind]
 		}
 	}
@@ -99,9 +99,9 @@ func (m Matrix) Transpose() (R Matrix) { // Does not change receiver
 	dataR := R.M.RawMatrix().Data
 	for j := 0; j < nc; j++ {
 		for i := 0; i < nr; i++ {
-			ind := i + nr*j
-			indR := i*nc + j
-			dataR[ind] = data[indR]
+			ind := i*nc + j
+			indR := i + nr*j
+			dataR[indR] = data[ind]
 		}
 	}
 	return
@@ -135,9 +135,10 @@ func (m Matrix) Subset(I Index, newDims ...int) (R Matrix) { // Does not change 
 	data = make([]float64, nrNew*ncNew)
 	for i, ind := range I {
 		// TODO: Fix this - change the upstream to column major
-		indC := RowMajorToColMajor(nr, nc, ind)
+		//indC := RowMajorToColMajor(nr, nc, ind)
 		indD := RowMajorToColMajor(nrNew, ncNew, i)
-		data[indD] = Mr.Data[indC]
+		//data[indD] = Mr.Data[indC]
+		data[indD] = Mr.Data[ind]
 	}
 	return NewMatrix(nrNew, ncNew, data)
 }
@@ -264,15 +265,12 @@ func (m Matrix) AssignColumns(I Index, A Matrix) Matrix { // Changes receiver
 func (m Matrix) Assign(I Index, A Matrix) Matrix { // Changes receiver
 	// Assigns values in M sequentially using values indexed from A
 	var (
-		nr, nc = m.Dims()
-		dataM  = m.RawMatrix().Data
-		dataA  = A.RawMatrix().Data
+		dataM = m.RawMatrix().Data
+		dataA = A.RawMatrix().Data
 	)
 	m.checkWritable()
 	for _, ind := range I {
-		// TODO: Fix this - change the upstream to column major
-		i := RowMajorToColMajor(nr, nc, ind)
-		dataM[i] = dataA[i]
+		dataM[ind] = dataA[ind]
 	}
 	return m
 }
@@ -280,15 +278,12 @@ func (m Matrix) Assign(I Index, A Matrix) Matrix { // Changes receiver
 func (m Matrix) AssignVector(I Index, A Vector) Matrix { // Changes receiver
 	// Assigns values indexed into M using values sequentially from Vector A
 	var (
-		nr, nc = m.Dims()
-		dataM  = m.RawMatrix().Data
-		dataA  = A.RawVector().Data
+		dataM = m.RawMatrix().Data
+		dataA = A.RawVector().Data
 	)
 	m.checkWritable()
 	for i, ind := range I {
-		// TODO: Fix this - change the upstream to column major
-		ii := RowMajorToColMajor(nr, nc, ind)
-		dataM[ii] = dataA[i]
+		dataM[ind] = dataA[i]
 	}
 	return m
 }
@@ -375,14 +370,11 @@ func (m Matrix) ElDiv(A Matrix) Matrix { // Changes receiver
 
 func (m Matrix) AssignScalar(I Index, val float64) Matrix { // Changes receiver
 	var (
-		dataM  = m.RawMatrix().Data
-		nr, nc = m.Dims()
+		dataM = m.RawMatrix().Data
 	)
 	m.checkWritable()
 	for _, ind := range I {
-		// TODO: Fix this - change the upstream to column major
-		i := RowMajorToColMajor(nr, nc, ind)
-		dataM[i] = val
+		dataM[ind] = val
 	}
 	return m
 }
@@ -483,7 +475,7 @@ func (m Matrix) Find(op EvalOp, val float64, abs bool) (I Index2D) {
 	case Equal:
 		for j := 0; j < nc; j++ {
 			for i := 0; i < nr; i++ {
-				ind := i + nr*j
+				ind := i*nc + j
 				target = data[ind]
 				if abs {
 					target = math.Abs(target)
@@ -497,7 +489,7 @@ func (m Matrix) Find(op EvalOp, val float64, abs bool) (I Index2D) {
 	case Less:
 		for j := 0; j < nc; j++ {
 			for i := 0; i < nr; i++ {
-				ind := i + nr*j
+				ind := i*nc + j
 				target = data[ind]
 				if abs {
 					target = math.Abs(target)
@@ -511,7 +503,7 @@ func (m Matrix) Find(op EvalOp, val float64, abs bool) (I Index2D) {
 	case LessOrEqual:
 		for j := 0; j < nc; j++ {
 			for i := 0; i < nr; i++ {
-				ind := i + nr*j
+				ind := i*nc + j
 				target = data[ind]
 				if abs {
 					target = math.Abs(target)
@@ -525,7 +517,7 @@ func (m Matrix) Find(op EvalOp, val float64, abs bool) (I Index2D) {
 	case Greater:
 		for j := 0; j < nc; j++ {
 			for i := 0; i < nr; i++ {
-				ind := i + nr*j
+				ind := i*nc + j
 				target = data[ind]
 				if abs {
 					target = math.Abs(target)
@@ -539,7 +531,7 @@ func (m Matrix) Find(op EvalOp, val float64, abs bool) (I Index2D) {
 	case GreaterOrEqual:
 		for j := 0; j < nc; j++ {
 			for i := 0; i < nr; i++ {
-				ind := i + nr*j
+				ind := i*nc + j
 				target = data[ind]
 				if abs {
 					target = math.Abs(target)
@@ -557,13 +549,14 @@ func (m Matrix) Find(op EvalOp, val float64, abs bool) (I Index2D) {
 
 func (m Matrix) SubsetVector(I Index) (V Vector) {
 	var (
-		Mr     = m.RawMatrix()
-		nr, nc = m.Dims()
-		data   = make([]float64, len(I))
+		Mr = m.RawMatrix()
+		//nr, nc = m.Dims()
+		data = make([]float64, len(I))
 	)
 	for i, ind := range I {
 		// TODO: Fix this - change the upstream to column major
-		data[i] = Mr.Data[RowMajorToColMajor(nr, nc, ind)]
+		//data[i] = Mr.Data[RowMajorToColMajor(nr, nc, ind)]
+		data[i] = Mr.Data[ind]
 	}
 	V = NewVector(len(I), data)
 	return

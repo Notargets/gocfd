@@ -97,7 +97,6 @@ func (c *Advection1D) RHS(U utils.Matrix, time float64) (RHSU utils.Matrix) {
 	duNr := el.Nfp * el.NFaces
 	duNc := el.K
 	dU := U.Subset(el.VmapM, duNr, duNc).Subtract(U.Subset(el.VmapP, duNr, duNc)).ElMul(c.UFlux).Scale(0.5)
-
 	// Boundaries
 	// Inflow boundary
 	// du(mapI) = (u(vmapI)-uin).dm(a*nx(mapI)-(1.-alpha)*abs(a*nx(mapI)))/2.;

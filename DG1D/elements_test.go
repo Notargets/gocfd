@@ -1,7 +1,6 @@
 package DG1D
 
 import (
-	"fmt"
 	"math"
 	"testing"
 
@@ -47,9 +46,11 @@ func TestElements1D(t *testing.T) {
 		assert.True(t, near(el.LIFT.At(1, 1), 0.8944271909))
 
 		// Verify VmapM
-		assert.Equal(t, utils.Index{0, 3, 4, 7, 8, 11, 12, 15}, el.VmapM)
-		fmt.Printf("VmapP = \n%v\n", el.VmapP)
-		assert.Equal(t, utils.Index{0, 4, 3, 8, 7, 12, 11, 15}, el.VmapP)
+		// Row-major
+		//assert.Equal(t, utils.Index{0, 3, 4, 7, 8, 11, 12, 15}, el.VmapM)
+		//assert.Equal(t, utils.Index{0, 4, 3, 8, 7, 12, 11, 15}, el.VmapP)
+		assert.Equal(t, utils.Index{0, 12, 1, 13, 2, 14, 3, 15}, el.VmapM)
+		assert.Equal(t, utils.Index{0, 1, 12, 2, 13, 3, 14, 15}, el.VmapP)
 	}
 }
 
