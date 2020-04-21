@@ -100,16 +100,15 @@ func (el *Elements1D) BuildMaps1D() {
 	var (
 		NF = el.Nfp * el.NFaces
 	)
-	nodeids := utils.NewRangeOffset(1, el.Np*el.K) // number Np vertices within K elements consecutively
-	idsR := el.FMask.ToIndex()                     // Index of face point locations within Np-wide element
 
 	// find index of face nodes with respect to vertex ordering
+	idsR := el.FMask.ToIndex() // Index of face point locations within element in Np-space
 	VmapM_Mat := utils.NewMatrix(NF, el.K)
 	for k := 0; k < el.K; k++ {
 		for f := 0; f < NF; f++ {
-			// idsR contains locations of the faces within a single element
-			faceIndex := el.K*idsR[f] + k // Face Vertex locations within nodeids
-			VmapM_Mat.Set(f, k, float64(nodeids[faceIndex]))
+			// idsR contains locations of the faces in Np-space within a single element
+			faceIndex := el.K*idsR[f] + k // Face Vertex locations in vertex coordinates
+			VmapM_Mat.Set(f, k, float64(faceIndex))
 		}
 	}
 	el.VmapM = utils.NewFromFloat(VmapM_Mat.RawMatrix().Data)
