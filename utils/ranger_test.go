@@ -53,5 +53,13 @@ func TestRanger(t *testing.T) {
 		assert.Equal(t, Index{0}, index)
 		index = my3d.Range(0, ":", 0)
 		assert.Equal(t, Index{0, 1, 2}, index)
+		index = my3d.Range(":", 0, 0)
+		assert.Equal(t, Index{0, 3}, index)
+		index = my3d.Range(0, 0, ":")
+		assert.Equal(t, Index{0, 6, 12, 18}, index)
+		index = my3d.Range(1, 0, ":")
+		assert.Equal(t, Index{3, 9, 15, 21}, index)
+		index = my3d.Range(0, 1, ":")
+		assert.Equal(t, Index{1, 7, 13, 19}, index)
 	}
 }
