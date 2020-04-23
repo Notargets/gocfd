@@ -3,11 +3,8 @@ package model_problems
 import (
 	"fmt"
 	"math"
-	"os"
 	"sync"
 	"time"
-
-	"gonum.org/v1/gonum/mat"
 
 	"github.com/notargets/avs/chart2d"
 	utils2 "github.com/notargets/avs/utils"
@@ -161,7 +158,7 @@ func (c *Euler1D) RHS() (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
 		LM    = U.Copy().Apply(math.Abs).Add(CVel)
 		RhoF  = c.RhoU.Copy()
 		RhoUF = RhoU2.Scale(2).Add(Pres)
-		EnerF = c.Ener.Copy().Add(Pres).ElDiv(c.RhoU.Copy().ElDiv(c.Rho))
+		EnerF = c.Ener.Copy().Add(Pres).ElMul(c.RhoU.Copy().ElDiv(c.Rho))
 		// Face jumps in primary and flux variables
 		dRho   = c.Rho.Subset(el.VmapM, nrF, ncF).Subtract(c.Rho.Subset(el.VmapP, nrF, ncF))
 		dRhoU  = c.RhoU.Subset(el.VmapM, nrF, ncF).Subtract(c.RhoU.Subset(el.VmapP, nrF, ncF))
@@ -177,9 +174,11 @@ func (c *Euler1D) RHS() (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
 	)
 	// Compute fluxes at interfaces
 	dRhoF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.Copy().ElMul(dRho))
-	fmt.Printf("LFcDiv2 = \n%v\n", mat.Formatted(LFcDiv2, mat.Squeeze()))
-	fmt.Printf("dRhoF = \n%v\n", mat.Formatted(dRhoF, mat.Squeeze()))
-	os.Exit(1)
+	//fmt.Printf("EnerF = \n%v\n", mat.Formatted(EnerF, mat.Squeeze()))
+	//fmt.Printf("LM = \n%v\n", mat.Formatted(LM, mat.Squeeze()))
+	//fmt.Printf("LFcDiv2 = \n%v\n", mat.Formatted(LFcDiv2, mat.Squeeze()))
+	//fmt.Printf("dRhoF = \n%v\n", mat.Formatted(dRhoF, mat.Squeeze()))
+	//os.Exit(1)
 	dRhoUF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.Copy().ElMul(dRhoU))
 	dEnerF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.Copy().ElMul(dEner))
 
@@ -187,22 +186,27 @@ func (c *Euler1D) RHS() (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
 	// Inflow
 	lmI := LM.SubsetVector(el.VmapI).Scale(0.5)
 	nxI := el.NX.SubsetVector(el.MapI)
-	//fmt.Printf("lmI, nxI = %v, %v\n", lmI.RawVector().Data, nxI.RawVector().Data)
-	dRhoF.Assign(el.MapI, nxI.Outer(RhoF.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.RhoF))))
-	dRhoF.Subtract(lmI.Outer(c.Rho.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.Rho))))
-	dRhoUF.Assign(el.MapI, nxI.Outer(RhoUF.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.RhoUF))))
-	dRhoUF.Subtract(lmI.Outer(c.RhoU.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.RhoU))))
-	dEnerF.Assign(el.MapI, nxI.Outer(EnerF.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.EnerF))))
-	dEnerF.Subtract(lmI.Outer(c.Ener.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.Ener))))
+	dRhoFIn := nxI.Outer(RhoF.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.RhoF)))
+	dRhoFIn.Subtract(lmI.Outer(c.Rho.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.Rho))))
+	dRhoF.AssignVector(el.MapI, dRhoFIn)
+	dRhoUFIn := nxI.Outer(RhoUF.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.RhoUF)))
+	dRhoUFIn.Subtract(lmI.Outer(c.RhoU.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.RhoU))))
+	dRhoUF.AssignVector(el.MapI, dRhoUFIn)
+	dEnerFIn := nxI.Outer(EnerF.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.EnerF)))
+	dEnerFIn.Subtract(lmI.Outer(c.Ener.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.Ener))))
+	dEnerF.AssignVector(el.MapI, dEnerFIn)
 	// Outflow
 	lmO := LM.SubsetVector(el.VmapO).Scale(0.5)
 	nxO := el.NX.SubsetVector(el.MapO)
-	dRhoF.Assign(el.MapO, nxO.Outer(RhoF.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.RhoF))))
-	dRhoF.Subtract(lmO.Outer(c.Rho.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.Rho))))
-	dRhoUF.Assign(el.MapO, nxO.Outer(RhoUF.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.RhoUF))))
-	dRhoUF.Subtract(lmO.Outer(c.RhoU.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.RhoU))))
-	dEnerF.Assign(el.MapO, nxO.Outer(EnerF.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.EnerF))))
-	dEnerF.Subtract(lmO.Outer(c.Ener.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.Ener))))
+	dRhoFOut := nxO.Outer(RhoF.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.RhoF)))
+	dRhoFOut.Subtract(lmO.Outer(c.Rho.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.Rho))))
+	dRhoF.AssignVector(el.MapO, dRhoFOut)
+	dRhoUFOut := nxO.Outer(RhoUF.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.RhoUF)))
+	dRhoUFOut.Subtract(lmO.Outer(c.RhoU.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.RhoU))))
+	dRhoUF.AssignVector(el.MapO, dRhoUFOut)
+	dEnerFOut := nxO.Outer(EnerF.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.EnerF)))
+	dEnerFOut.Subtract(lmO.Outer(c.Ener.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.Ener))))
+	dEnerF.AssignVector(el.MapO, dEnerFOut)
 
 	// RHS Computation
 	rhsRho = el.Rx.Copy().Scale(-1).ElMul(el.Dr.Mul(RhoF)).Add(el.LIFT.Mul(dRhoF.ElMul(el.FScale)))

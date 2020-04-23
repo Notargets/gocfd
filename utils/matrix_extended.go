@@ -271,15 +271,28 @@ func (m Matrix) Assign(I Index, A Matrix) Matrix { // Changes receiver
 	return m
 }
 
-func (m Matrix) AssignVector(I Index, A Vector) Matrix { // Changes receiver
+//func (m Matrix) AssignVector(I Index, A Vector) Matrix { // Changes receiver
+func (m Matrix) AssignVector(I Index, AI interface{}) Matrix { // Changes receiver
 	// Assigns values indexed into M using values sequentially from Vector A
 	var (
 		dataM = m.RawMatrix().Data
-		dataA = A.RawVector().Data
 	)
 	m.checkWritable()
-	for i, ind := range I {
-		dataM[ind] = dataA[i]
+	switch A := AI.(type) {
+	case Vector:
+		dataA := A.RawVector().Data
+		for i, ind := range I {
+			dataM[ind] = dataA[i]
+		}
+	case Matrix:
+		dataA := A.RawMatrix().Data
+		for i, ind := range I {
+			dataM[ind] = dataA[i]
+		}
+	case Index:
+		for i, ind := range I {
+			dataM[ind] = float64(A[i])
+		}
 	}
 	return m
 }
