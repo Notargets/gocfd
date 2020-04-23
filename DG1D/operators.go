@@ -32,7 +32,6 @@ func (el Elements1D) SlopeLimitN(U utils.Matrix, M float64) (ULim utils.Matrix) 
 		ve2 = vk.Copy().Add(Minmod(ue2.Copy().Subtract(vk), vm1, vp1))
 	} else {
 		h := el.X.Row(0).AtVec(1) - el.X.Row(0).AtVec(0)
-		M := 20.
 		ve1 = vk.Copy().Subtract(MinmodB(M, h, vk.Copy().Subtract(ue1), vm1, vp1))
 		ve2 = vk.Copy().Add(MinmodB(M, h, ue2.Copy().Subtract(vk), vm1, vp1))
 	}

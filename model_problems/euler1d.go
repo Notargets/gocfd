@@ -106,13 +106,9 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		colorMap                       *utils2.ColorMap
 		chartRho, chartRhoU, chartEner string
 		el                             = c.El
-		resRho                         = utils.NewMatrix(el.Np, el.K)
-		resRhoU                        = utils.NewMatrix(el.Np, el.K)
-		resEner                        = utils.NewMatrix(el.Np, el.K)
 		logFrequency                   = 50
 		s                              = c.State
 	)
-	_, _, _ = resRho, resRhoU, resEner
 	if showGraph {
 		chart = chart2d.NewChart2D(1920, 1280, float32(el.X.Min()), float32(el.X.Max()), -.5, 3)
 		colorMap = utils2.NewColorMap(-1, 1, 1)
@@ -124,9 +120,9 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	xmin := el.X.Row(1).Subtract(el.X.Row(0)).Apply(math.Abs).Min()
 	s.Update(c.Rho, c.RhoU, c.Ener)
 	dt := c.CalculateDT(xmin)
-	c.Rho = el.SlopeLimitN(c.Rho, 20)
-	c.RhoU = el.SlopeLimitN(c.RhoU, 20)
-	c.Ener = el.SlopeLimitN(c.Ener, 20)
+	c.Rho = el.SlopeLimitN(c.Rho, 0)
+	c.RhoU = el.SlopeLimitN(c.RhoU, 0)
+	c.Ener = el.SlopeLimitN(c.Ener, 0)
 
 	fmt.Printf("FinalTime = %8.4f, dt = %8.6f\n", c.FinalTime, dt)
 	var Time float64
@@ -159,6 +155,15 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		rho1 := c.Rho.Copy().Add(rhsRho.Scale(dt))
 		rhou1 := c.RhoU.Copy().Add(rhsRhoU.Scale(dt))
 		ener1 := c.Ener.Copy().Add(rhsEner.Scale(dt))
+		/*
+			fmt.Printf("rhsRho = \n%v\n", mat.Formatted(rhsRho, mat.Squeeze()))
+			fmt.Printf("rhsRhoU = \n%v\n", mat.Formatted(rhsRhoU, mat.Squeeze()))
+			fmt.Printf("rhsEner = \n%v\n", mat.Formatted(rhsEner, mat.Squeeze()))
+			fmt.Printf("rho1 = \n%v\n", mat.Formatted(rho1, mat.Squeeze()))
+			fmt.Printf("rhou1 = \n%v\n", mat.Formatted(rhou1, mat.Squeeze()))
+			fmt.Printf("ener1 = \n%v\n", mat.Formatted(ener1, mat.Squeeze()))
+			os.Exit(1)
+		*/
 		// Slope Limit the fields
 		el.SlopeLimitN(rho1, 20)
 		el.SlopeLimitN(rhou1, 20)
@@ -186,7 +191,7 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		c.FinalTime -= dt
 		tstep++
 		if tstep%logFrequency == 0 {
-			fmt.Printf("Time = %8.4f, max_resid[%d] = %8.4f, emin = %8.6f, emax = %8.6f\n", Time, tstep, resEner.Max(), c.Ener.Min(), c.Ener.Max())
+			fmt.Printf("Time = %8.4f, max_resid[%d] = %8.4f, emin = %8.6f, emax = %8.6f\n", Time, tstep, rhsEner.Max(), c.Ener.Min(), c.Ener.Max())
 		}
 	}
 	return
@@ -199,6 +204,7 @@ func (c *Euler1D) CalculateDT(xmin float64) (dt float64) {
 	// min(xmin ./ (abs(U) +C))
 	Factor := s.U.Copy().Apply(math.Abs).Add(s.CVel).Apply(func(val float64) float64 { return xmin / val })
 	dt = c.CFL * Factor.Min()
+	dt = dt / 10000
 	return
 }
 
