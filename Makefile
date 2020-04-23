@@ -10,3 +10,4 @@ builder:
 
 push:
 	docker push gcr.io/gocfd-275017/builder
+
