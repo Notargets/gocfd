@@ -10,3 +10,6 @@ steps:
 - name: gcr.io/gocfd-275017/builder
   args: ["make","test"]
 
+- name: gcr.io/gocfd-275017/builder
+  args: ["go","install","./..."]
+
