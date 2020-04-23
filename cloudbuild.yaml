@@ -1,0 +1,17 @@
+options:
+  env:
+  - GO111MODULE=on
+  - GOPROXY=https://proxy.golang.org
+  volumes:
+  - name: go-modules
+    path: /go
+
+steps:
+- name: gcr.io/gocfd-275017/builder
+  args: ["go","install","./..."]
+
+- name: busybox
+  args:
+  - ls
+  - -l
+  - /go/bin

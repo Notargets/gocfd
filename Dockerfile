@@ -7,6 +7,7 @@ RUN apk add libxi-dev
 RUN apk add libxinerama-dev
 RUN apk add libxrandr-dev
 RUN apk add libxcursor-dev
+RUN apk add mesa-dev
 
 # Configure Go
 ENV GOROOT /usr/lib/go
