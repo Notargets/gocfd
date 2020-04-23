@@ -1,0 +1,17 @@
+FROM ubuntu
+
+RUN apt update
+RUN apt install -y software-properties-common
+RUN add-apt-repository ppa:longsleep/golang-backports
+RUN apt install -y golang-go libx11-dev libxi-dev libxcursor-dev libxrandr-dev libxinerama-dev mesa-common-dev libgl1-mesa-dev
+
+# Configure Go
+ENV GOROOT /usr/lib/go
+ENV GOPATH /go
+ENV PATH /go/bin:$PATH
+
+RUN mkdir -p ${GOPATH}/src ${GOPATH}/bin
+
+WORKDIR $GOPATH
+
+CMD ["make test"]
