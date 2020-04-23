@@ -8,10 +8,4 @@ options:
 
 steps:
 - name: gcr.io/gocfd-275017/builder
-  args: ["go","install","./..."]
-
-- name: busybox
-  args:
-  - ls
-  - -l
-  - /go/bin
+  args: ["make","test]
