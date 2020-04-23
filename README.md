@@ -6,7 +6,7 @@ Awesome CFD solver written in Go
 ### Credits to Jan S. Hesthaven and Tim Warburton for their excellent text "Nodal Discontinuous Galerkin Methods" (2007)
 
 ## Requirements
-Here is what I'm using:
+Here is what I'm using as a platform:
 ```
 me@home:bash# go version
 go version go1.14 linux/amd64
@@ -14,6 +14,11 @@ me@home:bash# cat /etc/os-release
 NAME="Ubuntu"
 VERSION="18.04.4 LTS (Bionic Beaver)"
 ...
+```
+You also need to install some X11 and OpenGL related packages in Ubuntu, like this:
+```
+apt update
+apt install libx11-dev libxi-dev libxcursor-dev libxrandr-dev libxinerama-dev mesa-common-dev libgl1-mesa-dev
 ```
 A proper build should go like this:
 ```
