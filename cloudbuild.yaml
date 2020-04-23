@@ -13,3 +13,5 @@ steps:
 - name: gcr.io/gocfd-275017/builder:v0.0.1
   args: ["go","install","./..."]
 
+- name: gcr.io/cloud-builders/docker
+  args: ["push", "gcr.io/gocfd-275017/builder:v0.0.1"]
