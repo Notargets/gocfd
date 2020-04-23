@@ -7,9 +7,9 @@ options:
     path: /go
 
 steps:
-- name: gcr.io/gocfd-275017/builder
+- name: gcr.io/gocfd-275017/builder:v0.0.0
   args: ["make","test"]
 
-- name: gcr.io/gocfd-275017/builder
+- name: gcr.io/gocfd-275017/builder:v0.0.0
   args: ["go","install","./..."]
 
