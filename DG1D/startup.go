@@ -132,7 +132,7 @@ func (el *Elements1D) BuildMaps1D() {
 			v2 := int(el.EToV.At(k1, (f1+1)%el.NFaces))
 			refd := math.Sqrt(utils.POW(el.VX.AtVec(v1)-el.VX.AtVec(v2), 2))
 			idMP := D.Find(utils.Less, utils.NODETOL*refd, false)
-			if err = vPI.Assign(":", f1, k1, vidP.Subset(idMP.CI)); err != nil {
+			if err = vPI.Assign(":", f1, k1, vidP.Subset(idMP)); err != nil {
 				panic(err)
 			}
 		}

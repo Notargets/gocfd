@@ -460,11 +460,10 @@ func (m Matrix) Max() (max float64) {
 	return
 }
 
-func (m Matrix) Find(op EvalOp, val float64, abs bool) (I Index2D) {
+func (m Matrix) Find(op EvalOp, val float64, abs bool) (I Index) {
 	var (
-		nr, nc         = m.Dims()
-		data           = m.RawMatrix().Data
-		rowInd, colInd Index
+		nr, nc = m.Dims()
+		data   = m.RawMatrix().Data
 	)
 	var target float64
 	switch op {
@@ -477,8 +476,7 @@ func (m Matrix) Find(op EvalOp, val float64, abs bool) (I Index2D) {
 					target = math.Abs(target)
 				}
 				if target == val {
-					rowInd = append(rowInd, i)
-					colInd = append(colInd, j)
+					I = append(I, ind)
 				}
 			}
 		}
@@ -491,8 +489,7 @@ func (m Matrix) Find(op EvalOp, val float64, abs bool) (I Index2D) {
 					target = math.Abs(target)
 				}
 				if target < val {
-					rowInd = append(rowInd, i)
-					colInd = append(colInd, j)
+					I = append(I, ind)
 				}
 			}
 		}
@@ -505,8 +502,7 @@ func (m Matrix) Find(op EvalOp, val float64, abs bool) (I Index2D) {
 					target = math.Abs(target)
 				}
 				if target <= val {
-					rowInd = append(rowInd, i)
-					colInd = append(colInd, j)
+					I = append(I, ind)
 				}
 			}
 		}
@@ -519,8 +515,7 @@ func (m Matrix) Find(op EvalOp, val float64, abs bool) (I Index2D) {
 					target = math.Abs(target)
 				}
 				if target > val {
-					rowInd = append(rowInd, i)
-					colInd = append(colInd, j)
+					I = append(I, ind)
 				}
 			}
 		}
@@ -533,13 +528,11 @@ func (m Matrix) Find(op EvalOp, val float64, abs bool) (I Index2D) {
 					target = math.Abs(target)
 				}
 				if target >= val {
-					rowInd = append(rowInd, i)
-					colInd = append(colInd, j)
+					I = append(I, ind)
 				}
 			}
 		}
 	}
-	I, _ = NewIndex2D(nr, nc, rowInd, colInd)
 	return
 }
 
