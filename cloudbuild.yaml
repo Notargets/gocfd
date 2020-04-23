@@ -8,10 +8,16 @@ options:
 
 steps:
 - name: gcr.io/gocfd-275017/builder:v0.0.1
+  id: test
   args: ["make","test"]
 
 - name: gcr.io/gocfd-275017/builder:v0.0.1
+  id: install
   args: ["go","install","./..."]
 
 - name: gcr.io/cloud-builders/docker
+  id: push_builder
   args: ["push", "gcr.io/gocfd-275017/builder:v0.0.1"]
+  waitFor:
+  - test
+  - install
