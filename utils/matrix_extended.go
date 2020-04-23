@@ -134,11 +134,7 @@ func (m Matrix) Subset(I Index, newDims ...int) (R Matrix) { // Does not change 
 	}
 	data = make([]float64, nrNew*ncNew)
 	for i, ind := range I {
-		// TODO: Fix this - change the upstream to column major
-		//indC := RowMajorToColMajor(nr, nc, ind)
-		indD := RowMajorToColMajor(nrNew, ncNew, i)
-		//data[indD] = Mr.Data[indC]
-		data[indD] = Mr.Data[ind]
+		data[i] = Mr.Data[ind]
 	}
 	return NewMatrix(nrNew, ncNew, data)
 }
@@ -554,8 +550,6 @@ func (m Matrix) SubsetVector(I Index) (V Vector) {
 		data = make([]float64, len(I))
 	)
 	for i, ind := range I {
-		// TODO: Fix this - change the upstream to column major
-		//data[i] = Mr.Data[RowMajorToColMajor(nr, nc, ind)]
 		data[i] = Mr.Data[ind]
 	}
 	V = NewVector(len(I), data)

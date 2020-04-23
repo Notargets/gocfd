@@ -1,16 +1,18 @@
 package utils
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 )
 
 type R1 struct {
-	Max int
+	Max  int
+	Data []int
 }
 
 func NewR1(imax int) R1 {
-	return R1{imax}
+	return R1{imax, nil}
 }
 
 func (r R1) Range(dimI interface{}) Index {
@@ -22,13 +24,58 @@ func (r R1) Range(dimI interface{}) Index {
 
 type R2 struct {
 	Ir, Jr R1
+	Data   []int
 }
 
 func NewR2(imax, jmax int) R2 {
 	return R2{
 		NewR1(imax),
 		NewR1(jmax),
+		nil,
 	}
+}
+
+func (r R2) Dims() (ni, nj int) {
+	ni, nj = r.Ir.Max, r.Jr.Max
+	return
+}
+
+func (r *R2) allocateData() {
+	var (
+		ni, nj = r.Dims()
+	)
+	if len(r.Data) == 0 {
+		r.Data = make([]int, ni*nj)
+	}
+}
+
+func (r *R2) Get(dimI, dimJ interface{}) (V Index) {
+	var (
+		rI = r.Range(dimI, dimJ)
+	)
+	V = make(Index, len(rI))
+	r.allocateData()
+	for i, ind := range rI {
+		V[i] = r.Data[ind]
+	}
+	return
+}
+
+func (r *R2) Index() (V Index) {
+	return r.Data
+}
+
+func (r *R2) Assign(dimI, dimJ interface{}, V Index) (err error) {
+	r.allocateData()
+	rI := r.Range(dimI, dimJ)
+	if len(rI) != len(V) {
+		err = fmt.Errorf("range mismatch: leftLen, rightLen = %v, %v", len(rI), len(V))
+		return
+	}
+	for i, ind := range rI {
+		r.Data[ind] = V[i]
+	}
+	return
 }
 
 func (r R2) Range(dimI, dimJ interface{}) (I Index) {
@@ -51,6 +98,7 @@ func (r R2) Range(dimI, dimJ interface{}) (I Index) {
 
 type R3 struct {
 	Ir, Jr, Kr R1
+	Data       []int
 }
 
 func NewR3(imax, jmax, kmax int) R3 {
@@ -58,7 +106,51 @@ func NewR3(imax, jmax, kmax int) R3 {
 		NewR1(imax),
 		NewR1(jmax),
 		NewR1(kmax),
+		nil,
 	}
+}
+
+func (r R3) Dims() (ni, nj, nk int) {
+	ni, nj, nk = r.Ir.Max, r.Jr.Max, r.Kr.Max
+	return
+}
+
+func (r *R3) allocateData() {
+	var (
+		ni, nj, nk = r.Dims()
+	)
+	if len(r.Data) == 0 {
+		r.Data = make([]int, ni*nj*nk)
+	}
+}
+
+func (r *R3) Assign(dimI, dimJ, dimK interface{}, V Index) (err error) {
+	r.allocateData()
+	rI := r.Range(dimI, dimJ, dimK)
+	if len(rI) != len(V) {
+		err = fmt.Errorf("range mismatch: leftLen, rightLen = %v, %v", len(rI), len(V))
+		return
+	}
+	for i, ind := range rI {
+		r.Data[ind] = V[i]
+	}
+	return
+}
+
+func (r *R3) Index() (V Index) {
+	return r.Data
+}
+
+func (r *R3) Get(dimI, dimJ, dimK interface{}) (V Index) {
+	var (
+		rI = r.Range(dimI, dimJ, dimK)
+	)
+	V = make(Index, len(rI))
+	r.allocateData()
+	for i, ind := range rI {
+		V[i] = r.Data[ind]
+	}
+	return
 }
 
 func (r R3) Range(dimI, dimJ, dimK interface{}) (I Index) {
@@ -66,7 +158,7 @@ func (r R3) Range(dimI, dimJ, dimK interface{}) (I Index) {
 		i1, i2    = ParseDim(dimI, r.Ir.Max)
 		j1, j2    = ParseDim(dimJ, r.Jr.Max)
 		k1, k2    = ParseDim(dimK, r.Kr.Max)
-		ni, nj, _ = r.Ir.Max, r.Jr.Max, r.Kr.Max
+		_, nj, nk = r.Ir.Max, r.Jr.Max, r.Kr.Max
 	)
 	size := (i2 - i1) * (j2 - j1) * (k2 - k1)
 	I = NewIndex(size)
@@ -74,7 +166,7 @@ func (r R3) Range(dimI, dimJ, dimK interface{}) (I Index) {
 	for k := k1; k < k2; k++ {
 		for j := j1; j < j2; j++ {
 			for i := i1; i < i2; i++ {
-				I[ind] = j + nj*(i+ni*k) // Column Major
+				I[ind] = k + nk*(j+nj*i) // Column Major
 				ind++
 			}
 		}

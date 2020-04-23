@@ -98,36 +98,33 @@ func (el *Elements1D) Connect1D() {
 
 func (el *Elements1D) BuildMaps1D() {
 	var (
-		NF = el.Nfp * el.NFaces
+		NF  = el.Nfp * el.NFaces
+		err error
 	)
-
+	vMI := utils.NewR3(el.Nfp, el.NFaces, el.K)
+	nI := utils.NewR2(el.Np, el.K)
 	// find index of face nodes with respect to vertex ordering
 	idsR := el.FMask.ToIndex() // Index of face point locations within element in Np-space
-	VmapM_Mat := utils.NewMatrix(NF, el.K)
 	for k := 0; k < el.K; k++ {
 		for f := 0; f < NF; f++ {
 			// idsR contains locations of the faces in Np-space within a single element
-			faceIndex := el.K*idsR[f] + k // Face Vertex locations in vertex coordinates
-			VmapM_Mat.Set(f, k, float64(faceIndex))
+			if err = vMI.Assign(":", f, k, nI.Range(idsR[f], k)); err != nil {
+				panic(err)
+			}
 		}
 	}
-	el.VmapM = utils.NewFromFloat(VmapM_Mat.RawMatrix().Data)
-	el.VmapM = utils.NewFromFloat(el.VmapM.ToMatrixReversed(el.K, NF).RawMatrix().Data) // TODO: Remove when Subset() is fixed
+	el.VmapM = vMI.Index()
 
+	vPI := utils.NewR3(el.Nfp, el.NFaces, el.K)
 	var one = utils.NewVector(el.Nfp).Set(1)
-	el.VmapP = utils.NewIndex(el.Nfp * el.NFaces * el.K)
 	for k1 := 0; k1 < el.K; k1++ {
 		for f1 := 0; f1 < el.NFaces; f1++ {
 			k2 := int(el.EToE.At(k1, f1))
 			f2 := int(el.EToF.At(k1, f1))
-			skM := k1 * NF
-			skP := k2 * NF
-			idsM := utils.NewRangeOffset(1+f1*el.Nfp+skM, (f1+1)*el.Nfp+skM)
-			idsP := utils.NewRangeOffset(1+f2*el.Nfp+skP, (f2+1)*el.Nfp+skP)
-			vidM := el.VmapM.Subset(idsM)
-			vidP := el.VmapM.Subset(idsP)
-			x1 := el.X.SubsetVector(vidM)
-			x2 := el.X.SubsetVector(vidP)
+			vidM := vMI.Get(":", f1, k1)
+			vidP := vMI.Get(":", f2, k2)
+			x1 := el.X.SubsetVector(vidM) // X values for all face points M
+			x2 := el.X.SubsetVector(vidP) // X values for all face points P
 			X1 := x1.Outer(one)
 			X2 := x2.Outer(one)
 			D := X1.Copy().Subtract(X2.Transpose()).POW(2).Apply(math.Sqrt).Apply(math.Abs)
@@ -135,16 +132,12 @@ func (el *Elements1D) BuildMaps1D() {
 			v2 := int(el.EToV.At(k1, (f1+1)%el.NFaces))
 			refd := math.Sqrt(utils.POW(el.VX.AtVec(v1)-el.VX.AtVec(v2), 2))
 			idMP := D.Find(utils.Less, utils.NODETOL*refd, false)
-			idM := idMP.RI
-			idP := idMP.CI
-			if err := el.VmapP.IndexedAssign(idM.Copy().Add(f1*el.Nfp+skM), vidP.Subset(idP)); err != nil {
+			if err = vPI.Assign(":", f1, k1, vidP.Subset(idMP.CI)); err != nil {
 				panic(err)
 			}
 		}
 	}
-	//fmt.Printf("VmapP.ToMatrixReversed = \n%v\n", mat.Formatted(el.VmapP.ToMatrixReversed(NF, el.K)))
-	//fmt.Printf("VmapP.ToMatrixReversed.Data = %v\n", el.VmapP.ToMatrixReversed(NF, el.K).RawMatrix().Data)
-	//os.Exit(1)
+	el.VmapP = vPI.Index()
 
 	// Create list of boundary nodes
 	el.MapB = el.VmapP.Compare(utils.Equal, el.VmapM)
