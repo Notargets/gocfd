@@ -62,7 +62,7 @@ func (m Matrix) Slice(I, K, J, L int) (R Matrix) { // Does not change receiver
 		ncR   = L - J
 		dataR = make([]float64, nrR*ncR)
 		_, nc = m.Dims()
-		data  = m.M.RawMatrix().Data
+		data  = m.RawMatrix().Data
 	)
 	for j := J; j < L; j++ {
 		for i := I; i < K; i++ {
@@ -79,7 +79,7 @@ func (m Matrix) Slice(I, K, J, L int) (R Matrix) { // Does not change receiver
 
 func (m Matrix) Copy() (R Matrix) { // Does not change receiver
 	var (
-		data   = m.M.RawMatrix().Data
+		data   = m.RawMatrix().Data
 		nr, nc = m.Dims()
 		dataR  = make([]float64, nr*nc)
 	)
@@ -93,7 +93,7 @@ func (m Matrix) Copy() (R Matrix) { // Does not change receiver
 func (m Matrix) Transpose() (R Matrix) { // Does not change receiver
 	var (
 		nr, nc = m.Dims()
-		data   = m.M.RawMatrix().Data
+		data   = m.RawMatrix().Data
 	)
 	R = NewMatrix(nc, nr)
 	dataR := R.M.RawMatrix().Data
@@ -109,7 +109,7 @@ func (m Matrix) Transpose() (R Matrix) { // Does not change receiver
 
 func (m Matrix) Mul(A Matrix) (R Matrix) { // Does not change receiver
 	var (
-		nrM, _ = m.M.Dims()
+		nrM, _ = m.Dims()
 		_, ncA = A.M.Dims()
 	)
 	R = NewMatrix(nrM, ncA)
@@ -232,7 +232,7 @@ func (m Matrix) Add(A Matrix) Matrix { // Changes receiver
 
 func (m Matrix) Subtract(a Matrix) Matrix { // Changes receiver
 	var (
-		data  = m.M.RawMatrix().Data
+		data  = m.RawMatrix().Data
 		dataA = a.M.RawMatrix().Data
 	)
 	m.checkWritable()
@@ -286,7 +286,7 @@ func (m Matrix) AssignVector(I Index, A Vector) Matrix { // Changes receiver
 
 func (m Matrix) Scale(a float64) Matrix { // Changes receiver
 	var (
-		data = m.M.RawMatrix().Data
+		data = m.RawMatrix().Data
 	)
 	m.checkWritable()
 	for i := range data {
@@ -297,7 +297,7 @@ func (m Matrix) Scale(a float64) Matrix { // Changes receiver
 
 func (m Matrix) AddScalar(a float64) Matrix { // Changes receiver
 	var (
-		data = m.M.RawMatrix().Data
+		data = m.RawMatrix().Data
 	)
 	m.checkWritable()
 	for i := range data {
@@ -308,7 +308,7 @@ func (m Matrix) AddScalar(a float64) Matrix { // Changes receiver
 
 func (m Matrix) Apply(f func(float64) float64) Matrix { // Changes receiver
 	var (
-		data = m.M.RawMatrix().Data
+		data = m.RawMatrix().Data
 	)
 	m.checkWritable()
 	for i, val := range data {
@@ -319,7 +319,7 @@ func (m Matrix) Apply(f func(float64) float64) Matrix { // Changes receiver
 
 func (m Matrix) Apply2(f func(float64, float64) float64, A Matrix) Matrix { // Changes receiver
 	var (
-		dataM = m.M.RawMatrix().Data
+		dataM = m.RawMatrix().Data
 		dataA = A.RawMatrix().Data
 	)
 	m.checkWritable()
@@ -331,7 +331,7 @@ func (m Matrix) Apply2(f func(float64, float64) float64, A Matrix) Matrix { // C
 
 func (m Matrix) POW(p int) Matrix { // Changes receiver
 	var (
-		data = m.M.RawMatrix().Data
+		data = m.RawMatrix().Data
 	)
 	m.checkWritable()
 	for i, val := range data {
@@ -410,8 +410,8 @@ func (m Matrix) Inverse() (R Matrix, err error) {
 
 func (m Matrix) Col(j int) Vector {
 	var (
-		data   = m.M.RawMatrix().Data
-		nr, nc = m.M.Dims()
+		data   = m.RawMatrix().Data
+		nr, nc = m.Dims()
 		vData  = make([]float64, nr)
 	)
 	j = lim(j, nc)
@@ -423,8 +423,8 @@ func (m Matrix) Col(j int) Vector {
 
 func (m Matrix) Row(i int) Vector {
 	var (
-		data   = m.M.RawMatrix().Data
-		nr, nc = m.M.Dims()
+		data   = m.RawMatrix().Data
+		nr, nc = m.Dims()
 		vData  = make([]float64, nc)
 	)
 	i = lim(i, nr)
@@ -436,7 +436,7 @@ func (m Matrix) Row(i int) Vector {
 
 func (m Matrix) Min() (min float64) {
 	var (
-		data = m.M.RawMatrix().Data
+		data = m.RawMatrix().Data
 	)
 	min = data[0]
 	for _, val := range data {
@@ -449,7 +449,7 @@ func (m Matrix) Min() (min float64) {
 
 func (m Matrix) Max() (max float64) {
 	var (
-		data = m.M.RawMatrix().Data
+		data = m.RawMatrix().Data
 	)
 	max = data[0]
 	for _, val := range data {

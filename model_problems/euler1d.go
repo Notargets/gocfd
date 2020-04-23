@@ -52,13 +52,19 @@ func (c *Euler1D) InitializeSOD() {
 	}
 	MassMatrix = VtInv.Mul(el.Vinv)
 	CellCenterRValues := MassMatrix.Mul(el.X).SumCols().Scale(0.5)
-	fmt.Printf("CellCenterRValues= \n%v\n", mat.Formatted(CellCenterRValues.Transpose(), mat.Squeeze()))
 	cx := npOnes.Outer(CellCenterRValues)
-	fmt.Printf("cx= \n%v\n", mat.Formatted(cx, mat.Squeeze()))
 	leftHalf := cx.Find(utils.Less, 0.5, false)
-	fmt.Printf("leftHalf= \n%v\n", leftHalf)
-	//cx.IndexedAssign()
-	os.Exit(1)
+	rightHalf := cx.Find(utils.GreaterOrEqual, 0.5, false)
+	// Initialize field variables
+	c.Rho = utils.NewMatrix(el.Np, el.K)
+	c.Rho.AssignScalar(leftHalf, 1)
+	c.Rho.AssignScalar(rightHalf, 0.125)
+	c.RhoU = utils.NewMatrix(el.Np, el.K)
+	c.RhoU.Scale(0)
+	rDiv := 1. / (c.Gamma - 1.)
+	c.Ener = utils.NewMatrix(el.Np, el.K)
+	c.Ener.AssignScalar(leftHalf, rDiv)
+	c.Ener.AssignScalar(rightHalf, 0.1*rDiv)
 }
 
 func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
@@ -74,7 +80,7 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	)
 	_, _, _ = resRho, resRhoU, resEner
 	if showGraph {
-		chart = chart2d.NewChart2D(1920, 1280, float32(el.X.Min()), float32(el.X.Max()), -1, 1)
+		chart = chart2d.NewChart2D(1920, 1280, float32(el.X.Min()), float32(el.X.Max()), -.5, 3)
 		colorMap = utils2.NewColorMap(-1, 1, 1)
 		chartRho = "Density"
 		chartRhoU = "Momentum"
@@ -171,6 +177,9 @@ func (c *Euler1D) RHS() (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
 	)
 	// Compute fluxes at interfaces
 	dRhoF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.Copy().ElMul(dRho))
+	fmt.Printf("LFcDiv2 = \n%v\n", mat.Formatted(LFcDiv2, mat.Squeeze()))
+	fmt.Printf("dRhoF = \n%v\n", mat.Formatted(dRhoF, mat.Squeeze()))
+	os.Exit(1)
 	dRhoUF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.Copy().ElMul(dRhoU))
 	dEnerF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.Copy().ElMul(dEner))
 
@@ -178,6 +187,7 @@ func (c *Euler1D) RHS() (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
 	// Inflow
 	lmI := LM.SubsetVector(el.VmapI).Scale(0.5)
 	nxI := el.NX.SubsetVector(el.MapI)
+	//fmt.Printf("lmI, nxI = %v, %v\n", lmI.RawVector().Data, nxI.RawVector().Data)
 	dRhoF.Assign(el.MapI, nxI.Outer(RhoF.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.RhoF))))
 	dRhoF.Subtract(lmI.Outer(c.Rho.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.Rho))))
 	dRhoUF.Assign(el.MapI, nxI.Outer(RhoUF.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.RhoUF))))
