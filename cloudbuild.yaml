@@ -8,4 +8,5 @@ options:
 
 steps:
 - name: gcr.io/gocfd-275017/builder
-  args: ["make","test]
+  args: ["make","test"]
+
