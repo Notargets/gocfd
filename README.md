@@ -39,6 +39,24 @@ Usage of gocfd:
         model to run: 0 = Advect1D, 1 = Maxwell1D (default 1)
 ```
 
+### Model Problem Example #3: Euler's Equations in 1D - Sod's shock tube
+
+The 1D Euler equations are solved with boundary and initial conditions for the Sod shock tube problem. There is an analytic solution for this case and it is widely used to test shock capturing ability of a solver.
+
+Currently, the stability of the method is not matching what is described in the text examples, likely due to a subtle bug - the result is that the CFL limit is around 0.25. Also, many polynomial degrees exhibit marginal stability - indicating oscillations around the shocks.
+
+Run the example with graphics like this:
+```
+bash# make
+bash# gocfd -model 2 -delay 0 -graph -K 300 -N 8 -CFL 0.25
+```
+
+#### T = 0.0
+![](images/Euler1D-SOD-K300-N8-initial.PNG)
+
+#### T = 0.2
+![](images/Euler1D-SOD-K300-N8.PNG)
+
 ### Model Problem Example #2: Maxwell's Equations solved in a 1D Cavity
 
 The Maxwell equations are solved in a 1D metal cavity with a change of material half way through the domain. The initial condition is a sine wave for the E (electric) field in the left half of the domain, and zero for E and H everywhere else. The E field is zero on the boundary (face flux out = face flux in) and the H field passes through unchanged (face flux zero), corresponding to a metallic boundary.

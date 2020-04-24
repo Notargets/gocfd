@@ -13,6 +13,7 @@ var (
 	N        = 8  // Polynomial degree
 	Delay    = time.Duration(0)
 	ModelRun = Maxwell1D
+	CFL      = 1.0
 )
 
 type ModelType uint8
@@ -33,22 +34,24 @@ func main() {
 	Delayptr := flag.Int("delay", 0, "milliseconds of delay for plotting")
 	Graphptr := flag.Bool("graph", false, "display a graph while computing solution")
 	ModelRunptr := flag.Int("model", int(ModelRun), "model to run: 0 = Advect1D, 1 = Maxwell1D, 2 = Euler1D")
+	CFLptr := flag.Float64("CFL", CFL, "CFL - increase for speedup, decrease for stability")
 	flag.Parse()
 	K = *Kptr
 	N = *Nptr
 	Delay = time.Duration(*Delayptr)
 	ModelRun = ModelType(*ModelRunptr)
+	CFL = *CFLptr
 
 	var C Model
 	switch ModelRun {
 	case Advect1D:
-		C = model_problems.NewAdvection1D(2*math.Pi, 0.75, 100000., N, K)
+		C = model_problems.NewAdvection1D(2*math.Pi, CFL, 100000., N, K)
 	case Euler1D:
-		C = model_problems.NewEuler1D(0.75, 100000., N, K)
+		C = model_problems.NewEuler1D(CFL, 100000., N, K)
 	case Maxwell1D:
 		fallthrough
 	default:
-		C = model_problems.NewMaxwell1D(1.0, 100000., N, K)
+		C = model_problems.NewMaxwell1D(CFL, 100000., N, K)
 	}
 	C.Run(*Graphptr, Delay*time.Millisecond)
 }

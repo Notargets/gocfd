@@ -106,7 +106,7 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		colorMap                       *utils2.ColorMap
 		chartRho, chartRhoU, chartEner string
 		el                             = c.El
-		logFrequency                   = 1
+		logFrequency                   = 50
 		s                              = c.State
 	)
 	if showGraph {
@@ -121,22 +121,22 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	var Time, dt float64
 	var tstep int
 	for c.FinalTime > 0 {
+		c.Rho = el.SlopeLimitN(c.Rho, 20)
+		c.RhoU = el.SlopeLimitN(c.RhoU, 20)
+		c.Ener = el.SlopeLimitN(c.Ener, 20)
 		s.Update(c.Rho, c.RhoU, c.Ener)
-		dt = 0.1 * c.CalculateDT(xmin)
-		c.Rho = el.SlopeLimitN(c.Rho, 0)
-		c.RhoU = el.SlopeLimitN(c.RhoU, 0)
-		c.Ener = el.SlopeLimitN(c.Ener, 0)
+		dt = c.CalculateDT(xmin)
 		if showGraph {
 			if err := chart.AddSeries(chartRho, el.X.Transpose().RawMatrix().Data, c.Rho.Transpose().RawMatrix().Data,
-				chart2d.XGlyph, chart2d.Solid, colorMap.GetRGB(0)); err != nil {
+				chart2d.NoGlyph, chart2d.Solid, colorMap.GetRGB(0)); err != nil {
 				panic("unable to add graph series")
 			}
 			if err := chart.AddSeries(chartRhoU, el.X.Transpose().RawMatrix().Data, c.RhoU.Transpose().RawMatrix().Data,
-				chart2d.XGlyph, chart2d.Solid, colorMap.GetRGB(0.7)); err != nil {
+				chart2d.NoGlyph, chart2d.Solid, colorMap.GetRGB(0.7)); err != nil {
 				panic("unable to add graph series")
 			}
 			if err := chart.AddSeries(chartEner, el.X.Transpose().RawMatrix().Data, c.Ener.Transpose().RawMatrix().Data,
-				chart2d.XGlyph, chart2d.Solid, colorMap.GetRGB(-0.7)); err != nil {
+				chart2d.NoGlyph, chart2d.Solid, colorMap.GetRGB(-0.7)); err != nil {
 				panic("unable to add graph series")
 			}
 			if len(graphDelay) != 0 {
@@ -169,10 +169,6 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		c.Rho.Add(rho2.Scale(2)).Add(rhsRho.Scale(2 * dt)).Scale(1. / 3.)
 		c.RhoU.Add(rhou2.Scale(2)).Add(rhsRhoU.Scale(2 * dt)).Scale(1. / 3.)
 		c.Ener.Add(ener2.Scale(2)).Add(rhsEner.Scale(2 * dt)).Scale(1. / 3.)
-		// Slope Limit the fields
-		el.SlopeLimitN(c.Rho, 20)
-		el.SlopeLimitN(c.RhoU, 20)
-		el.SlopeLimitN(c.Ener, 20)
 
 		Time += dt
 		c.FinalTime -= dt
