@@ -108,6 +108,7 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		el                             = c.El
 		logFrequency                   = 50
 		s                              = c.State
+		slopeLimiterM                  = 20.
 	)
 	if showGraph {
 		chart = chart2d.NewChart2D(1920, 1280, float32(el.X.Min()), float32(el.X.Max()), -.5, 3)
@@ -121,9 +122,9 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	var Time, dt float64
 	var tstep int
 	for c.FinalTime > 0 {
-		c.Rho = el.SlopeLimitN(c.Rho, 20)
-		c.RhoU = el.SlopeLimitN(c.RhoU, 20)
-		c.Ener = el.SlopeLimitN(c.Ener, 20)
+		c.Rho = el.SlopeLimitN(c.Rho, slopeLimiterM)
+		c.RhoU = el.SlopeLimitN(c.RhoU, slopeLimiterM)
+		c.Ener = el.SlopeLimitN(c.Ener, slopeLimiterM)
 		s.Update(c.Rho, c.RhoU, c.Ener)
 		dt = c.CalculateDT(xmin)
 		if showGraph {
@@ -152,23 +153,23 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		rhou1 := c.RhoU.Copy().Add(rhsRhoU.Scale(dt))
 		ener1 := c.Ener.Copy().Add(rhsEner.Scale(dt))
 		// Slope Limit the fields
-		el.SlopeLimitN(rho1, 20)
-		el.SlopeLimitN(rhou1, 20)
-		el.SlopeLimitN(ener1, 20)
+		el.SlopeLimitN(rho1, slopeLimiterM)
+		el.SlopeLimitN(rhou1, slopeLimiterM)
+		el.SlopeLimitN(ener1, slopeLimiterM)
 		// SSP RK Stage 2
 		rhsRho, rhsRhoU, rhsEner = c.RHS(rho1, rhou1, ener1)
 		rho2 := c.Rho.Copy().Scale(3).Add(rho1).Add(rhsRho.Scale(dt)).Scale(0.25)
 		rhou2 := c.RhoU.Copy().Scale(3).Add(rhou1).Add(rhsRhoU.Scale(dt)).Scale(0.25)
 		ener2 := c.Ener.Copy().Scale(3).Add(ener1).Add(rhsEner.Scale(dt)).Scale(0.25)
 		// Slope Limit the fields
-		el.SlopeLimitN(rho2, 20)
-		el.SlopeLimitN(rhou2, 20)
-		el.SlopeLimitN(ener2, 20)
+		el.SlopeLimitN(rho2, slopeLimiterM)
+		el.SlopeLimitN(rhou2, slopeLimiterM)
+		el.SlopeLimitN(ener2, slopeLimiterM)
 		// SSP RK Stage 3
 		rhsRho, rhsRhoU, rhsEner = c.RHS(rho2, rhou2, ener2)
 		c.Rho.Add(rho2.Scale(2)).Add(rhsRho.Scale(2 * dt)).Scale(1. / 3.)
 		c.RhoU.Add(rhou2.Scale(2)).Add(rhsRhoU.Scale(2 * dt)).Scale(1. / 3.)
-		c.Ener.Add(ener2.Scale(2)).Add(rhsEner.Scale(2 * dt)).Scale(1. / 3.)
+		c.Ener.Add(ener2.Scale(2)).Add(rhsEner.Copy().Scale(2 * dt)).Scale(1. / 3.)
 
 		Time += dt
 		c.FinalTime -= dt
@@ -192,12 +193,9 @@ func (c *Euler1D) CalculateDT(xmin float64) (dt float64) {
 
 func (c *Euler1D) RHS(Rho, RhoU, Ener utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
 	var (
-		el       = c.El
-		nrF, ncF = el.Nfp * el.NFaces, el.K
-		s        = c.State
-		// Sod's problem: Shock tube with jump in middle
-		In                                                 = NewStateP(s.Gamma, 1, 0, 1)
-		Out                                                = NewStateP(s.Gamma, 0.125, 0, 0.1)
+		el                                                 = c.El
+		nrF, ncF                                           = el.Nfp * el.NFaces, el.K
+		s                                                  = c.State
 		dRho, dRhoU, dEner, dRhoF, dRhoUF, dEnerF, LFcDiv2 utils.Matrix
 	)
 	s.Update(Rho, RhoU, Ener)
@@ -217,6 +215,24 @@ func (c *Euler1D) RHS(Rho, RhoU, Ener utils.Matrix) (rhsRho, rhsRhoU, rhsEner ut
 	dRhoUF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.Copy().ElMul(dRhoU))
 	dEnerF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.Copy().ElMul(dEner))
 
+	c.BoundaryConditions(Rho, RhoU, Ener, dRhoF, dRhoUF, dEnerF)
+
+	// RHS Computation
+	rhsRho = el.Rx.Copy().Scale(-1).ElMul(el.Dr.Mul(s.RhoF)).Add(el.LIFT.Mul(dRhoF.ElMul(el.FScale)))
+	rhsRhoU = el.Rx.Copy().Scale(-1).ElMul(el.Dr.Mul(s.RhoUF)).Add(el.LIFT.Mul(dRhoUF.ElMul(el.FScale)))
+	rhsEner = el.Rx.Copy().Scale(-1).ElMul(el.Dr.Mul(s.EnerF)).Add(el.LIFT.Mul(dEnerF.ElMul(el.FScale)))
+
+	return
+}
+
+func (c *Euler1D) BoundaryConditions(Rho, RhoU, Ener, dRhoF, dRhoUF, dEnerF utils.Matrix) {
+	var (
+		s  = c.State
+		el = c.El
+		// Sod's problem: Shock tube with jump in middle
+		In  = NewStateP(s.Gamma, 1, 0, 1)
+		Out = NewStateP(s.Gamma, 0.125, 0, 0.1)
+	)
 	// Boundary conditions for Sod's problem
 	// Inflow
 	lmI := s.LM.SubsetVector(el.VmapI).Scale(0.5)
@@ -242,13 +258,6 @@ func (c *Euler1D) RHS(Rho, RhoU, Ener utils.Matrix) (rhsRho, rhsRhoU, rhsEner ut
 	dEnerFOut := nxO.Outer(s.EnerF.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.EnerF)))
 	dEnerFOut.Subtract(lmO.Outer(Ener.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.Ener))))
 	dEnerF.AssignVector(el.MapO, dEnerFOut)
-
-	// RHS Computation
-	rhsRho = el.Rx.Copy().Scale(-1).ElMul(el.Dr.Mul(s.RhoF)).Add(el.LIFT.Mul(dRhoF.ElMul(el.FScale)))
-	rhsRhoU = el.Rx.Copy().Scale(-1).ElMul(el.Dr.Mul(s.RhoUF)).Add(el.LIFT.Mul(dRhoUF.ElMul(el.FScale)))
-	rhsEner = el.Rx.Copy().Scale(-1).ElMul(el.Dr.Mul(s.EnerF)).Add(el.LIFT.Mul(dEnerF.ElMul(el.FScale)))
-
-	return
 }
 
 type State struct {
