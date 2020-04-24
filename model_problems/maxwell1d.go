@@ -86,11 +86,11 @@ func (c *Maxwell1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	for tstep := 0; tstep < Nsteps; tstep++ {
 		if showGraph {
 			if err := chart.AddSeries(chartNameE, el.X.Transpose().RawMatrix().Data, c.E.Transpose().RawMatrix().Data,
-				chart2d.CrossGlyph, chart2d.Dashed, colorMap.GetRGB(0)); err != nil {
+				chart2d.NoGlyph, chart2d.Solid, colorMap.GetRGB(0)); err != nil {
 				panic("unable to add graph series")
 			}
 			if err := chart.AddSeries(chartNameH, el.X.Transpose().RawMatrix().Data, c.H.Transpose().RawMatrix().Data,
-				chart2d.CrossGlyph, chart2d.Dashed, colorMap.GetRGB(0.7)); err != nil {
+				chart2d.NoGlyph, chart2d.Solid, colorMap.GetRGB(0.7)); err != nil {
 				panic("unable to add graph series")
 			}
 			if len(graphDelay) != 0 {
@@ -101,6 +101,8 @@ func (c *Maxwell1D) Run(showGraph bool, graphDelay ...time.Duration) {
 			rhsE, rhsH := c.RHS()
 			resE.Scale(utils.RK4a[INTRK]).Add(rhsE.Scale(dt))
 			resH.Scale(utils.RK4a[INTRK]).Add(rhsH.Scale(dt))
+			el.SlopeLimitN(c.E, 15)
+			el.SlopeLimitN(c.H, 15)
 			c.E.Add(resE.Copy().Scale(utils.RK4b[INTRK]))
 			c.H.Add(resH.Copy().Scale(utils.RK4b[INTRK]))
 		}
