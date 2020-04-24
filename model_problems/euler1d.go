@@ -106,7 +106,7 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		colorMap                       *utils2.ColorMap
 		chartRho, chartRhoU, chartEner string
 		el                             = c.El
-		logFrequency                   = 50
+		logFrequency                   = 1
 		s                              = c.State
 	)
 	if showGraph {
@@ -118,18 +118,14 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		go chart.Plot()
 	}
 	xmin := el.X.Row(1).Subtract(el.X.Row(0)).Apply(math.Abs).Min()
-	s.Update(c.Rho, c.RhoU, c.Ener)
-	dt := c.CalculateDT(xmin)
-	c.Rho = el.SlopeLimitN(c.Rho, 0)
-	c.RhoU = el.SlopeLimitN(c.RhoU, 0)
-	c.Ener = el.SlopeLimitN(c.Ener, 0)
-
-	fmt.Printf("FinalTime = %8.4f, dt = %8.6f\n", c.FinalTime, dt)
-	var Time float64
+	var Time, dt float64
 	var tstep int
 	for c.FinalTime > 0 {
-		dt = c.CalculateDT(xmin)
-		fmt.Printf("LAL here 1, dt = %v\n", dt)
+		s.Update(c.Rho, c.RhoU, c.Ener)
+		dt = 0.1 * c.CalculateDT(xmin)
+		c.Rho = el.SlopeLimitN(c.Rho, 0)
+		c.RhoU = el.SlopeLimitN(c.RhoU, 0)
+		c.Ener = el.SlopeLimitN(c.Ener, 0)
 		if showGraph {
 			if err := chart.AddSeries(chartRho, el.X.Transpose().RawMatrix().Data, c.Rho.Transpose().RawMatrix().Data,
 				chart2d.XGlyph, chart2d.Solid, colorMap.GetRGB(0)); err != nil {
@@ -155,15 +151,6 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		rho1 := c.Rho.Copy().Add(rhsRho.Scale(dt))
 		rhou1 := c.RhoU.Copy().Add(rhsRhoU.Scale(dt))
 		ener1 := c.Ener.Copy().Add(rhsEner.Scale(dt))
-		/*
-			fmt.Printf("rhsRho = \n%v\n", mat.Formatted(rhsRho, mat.Squeeze()))
-			fmt.Printf("rhsRhoU = \n%v\n", mat.Formatted(rhsRhoU, mat.Squeeze()))
-			fmt.Printf("rhsEner = \n%v\n", mat.Formatted(rhsEner, mat.Squeeze()))
-			fmt.Printf("rho1 = \n%v\n", mat.Formatted(rho1, mat.Squeeze()))
-			fmt.Printf("rhou1 = \n%v\n", mat.Formatted(rhou1, mat.Squeeze()))
-			fmt.Printf("ener1 = \n%v\n", mat.Formatted(ener1, mat.Squeeze()))
-			os.Exit(1)
-		*/
 		// Slope Limit the fields
 		el.SlopeLimitN(rho1, 20)
 		el.SlopeLimitN(rhou1, 20)
@@ -179,9 +166,9 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		el.SlopeLimitN(ener2, 20)
 		// SSP RK Stage 3
 		rhsRho, rhsRhoU, rhsEner = c.RHS(rho2, rhou2, ener2)
-		c.Rho.Add(rho2.Scale(2)).Add(rhsRho.Scale(2 * dt)).Scale(1 / 3)
-		c.RhoU.Add(rhou2.Scale(2)).Add(rhsRhoU.Scale(2 * dt)).Scale(1 / 3)
-		c.Ener.Add(ener2.Scale(2)).Add(rhsEner.Scale(2 * dt)).Scale(1 / 3)
+		c.Rho.Add(rho2.Scale(2)).Add(rhsRho.Scale(2 * dt)).Scale(1. / 3.)
+		c.RhoU.Add(rhou2.Scale(2)).Add(rhsRhoU.Scale(2 * dt)).Scale(1. / 3.)
+		c.Ener.Add(ener2.Scale(2)).Add(rhsEner.Scale(2 * dt)).Scale(1. / 3.)
 		// Slope Limit the fields
 		el.SlopeLimitN(c.Rho, 20)
 		el.SlopeLimitN(c.RhoU, 20)
@@ -204,7 +191,6 @@ func (c *Euler1D) CalculateDT(xmin float64) (dt float64) {
 	// min(xmin ./ (abs(U) +C))
 	Factor := s.U.Copy().Apply(math.Abs).Add(s.CVel).Apply(func(val float64) float64 { return xmin / val })
 	dt = c.CFL * Factor.Min()
-	dt = dt / 10000
 	return
 }
 
