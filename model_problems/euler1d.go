@@ -128,15 +128,13 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		el            = c.El
 		logFrequency  = 50
 		s             = c.State
-		slopeLimiterM = 20.
+		slopeLimiterM = 10.
 		limiter       = true
 	)
 	xmin := el.X.Row(1).Subtract(el.X.Row(0)).Apply(math.Abs).Min()
 	var Time, dt float64
 	var tstep int
 	for c.FinalTime > 0 {
-		c.Plot(showGraph, graphDelay)
-
 		/*
 			Third Order Runge-Kutta time advancement
 		*/
@@ -147,6 +145,7 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 			c.RhoU = el.SlopeLimitN(c.RhoU, slopeLimiterM)
 			c.Ener = el.SlopeLimitN(c.Ener, slopeLimiterM)
 		}
+		c.Plot(showGraph, graphDelay)
 		s.Update(c.Rho, c.RhoU, c.Ener)
 		rhsRho, rhsRhoU, rhsEner := c.RHS(c.Rho, c.RhoU, c.Ener)
 		dt = c.CalculateDT(xmin)
