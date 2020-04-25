@@ -134,7 +134,7 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	xmin := el.X.Row(1).Subtract(el.X.Row(0)).Apply(math.Abs).Min()
 	var Time, dt float64
 	var tstep int
-	for c.FinalTime > 0 {
+	for Time < c.FinalTime {
 		/*
 			Third Order Runge-Kutta time advancement
 		*/
@@ -148,7 +148,7 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		c.Plot(showGraph, graphDelay)
 		s.Update(c.Rho, c.RhoU, c.Ener)
 		rhsRho, rhsRhoU, rhsEner := c.RHS(c.Rho, c.RhoU, c.Ener)
-		dt = c.CalculateDT(xmin)
+		dt = c.CalculateDT(xmin, Time)
 		rho1 := c.Rho.Copy().Add(rhsRho.Scale(dt))
 		rhou1 := c.RhoU.Copy().Add(rhsRhoU.Scale(dt))
 		ener1 := c.Ener.Copy().Add(rhsEner.Scale(dt))
@@ -180,22 +180,30 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		c.Ener.Add(ener2.Scale(2)).Add(rhsEner.Copy().Scale(2. * dt)).Scale(1. / 3.)
 
 		Time += dt
-		c.FinalTime -= dt
 		tstep++
-		if tstep%logFrequency == 0 {
+		isDone := math.Abs(Time-c.FinalTime) < 0.00001
+		if tstep%logFrequency == 0 || isDone {
 			fmt.Printf("Time = %8.4f, max_resid[%d] = %8.4f, emin = %8.6f, emax = %8.6f\n", Time, tstep, rhsEner.Max(), c.Ener.Min(), c.Ener.Max())
+			if isDone {
+				for {
+					time.Sleep(time.Second)
+				}
+			}
 		}
 	}
 	return
 }
 
-func (c *Euler1D) CalculateDT(xmin float64) (dt float64) {
+func (c *Euler1D) CalculateDT(xmin, Time float64) (dt float64) {
 	var (
 		s = c.State
 	)
 	// min(xmin ./ (abs(U) +C))
 	Factor := s.U.Copy().Apply(math.Abs).Add(s.CVel).Apply(func(val float64) float64 { return xmin / val })
 	dt = c.CFL * Factor.Min()
+	if dt+Time > c.FinalTime {
+		dt = c.FinalTime - Time
+	}
 	return
 }
 
