@@ -40,6 +40,8 @@ func (c *Advection1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		colorMap     *utils2.ColorMap
 		chartName    string
 		logFrequency = 50
+		limiter      = false
+		limiterM     = 20.
 	)
 	xmin := el.X.Row(1).Subtract(el.X.Row(0)).Apply(math.Abs).Min()
 	dt := 0.5 * xmin * (c.CFL / c.a)
@@ -66,7 +68,9 @@ func (c *Advection1D) Run(showGraph bool, graphDelay ...time.Duration) {
 			}
 		}
 		for INTRK := 0; INTRK < 5; INTRK++ {
-			//U = el.SlopeLimitN(U, 20)
+			if limiter {
+				U = el.SlopeLimitN(U, limiterM)
+			}
 			timelocal = Time + dt*utils.RK4c[INTRK]
 			RHSU := c.RHS(U, timelocal)
 			// resid = rk4a(INTRK) * resid + dt * rhsu;
