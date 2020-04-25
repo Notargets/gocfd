@@ -157,9 +157,9 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		// SSP RK Stage 2
 		// Slope Limit the fields
 		if limiter {
-			el.SlopeLimitN(rho1, slopeLimiterM)
-			el.SlopeLimitN(rhou1, slopeLimiterM)
-			el.SlopeLimitN(ener1, slopeLimiterM)
+			rho1 = el.SlopeLimitN(rho1, slopeLimiterM)
+			rhou1 = el.SlopeLimitN(rhou1, slopeLimiterM)
+			ener1 = el.SlopeLimitN(ener1, slopeLimiterM)
 		}
 		s.Update(rho1, rhou1, ener1)
 		rhsRho, rhsRhoU, rhsEner = c.RHS(rho1, rhou1, ener1)
@@ -170,9 +170,9 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		// SSP RK Stage 3
 		// Slope Limit the fields
 		if limiter {
-			el.SlopeLimitN(rho2, slopeLimiterM)
-			el.SlopeLimitN(rhou2, slopeLimiterM)
-			el.SlopeLimitN(ener2, slopeLimiterM)
+			rho2 = el.SlopeLimitN(rho2, slopeLimiterM)
+			rhou2 = el.SlopeLimitN(rhou2, slopeLimiterM)
+			ener2 = el.SlopeLimitN(ener2, slopeLimiterM)
 		}
 		s.Update(rho2, rhou2, ener2)
 		rhsRho, rhsRhoU, rhsEner = c.RHS(rho2, rhou2, ener2)
