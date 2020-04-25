@@ -225,6 +225,16 @@ func (c *Euler1D) RHS(Rho, RhoU, Ener utils.Matrix) (rhsRho, rhsRhoU, rhsEner ut
 	return
 }
 
+func bFunc(m *utils.Matrix, U, UF utils.Matrix, lm, nx utils.Vector, uIO, ufIO float64, mapi, vmap utils.Index) {
+	var (
+		dUFVec utils.Matrix
+	)
+	dUFVec = nx.Outer(UF.SubsetVector(vmap).Subtract(utils.NewVectorConstant(len(vmap), ufIO)))
+	dUFVec.Subtract(lm.Outer(U.SubsetVector(vmap).Subtract(utils.NewVectorConstant(len(vmap), uIO))))
+	m.AssignVector(mapi, dUFVec)
+	return
+}
+
 func (c *Euler1D) BoundaryConditions(Rho, RhoU, Ener, dRhoF, dRhoUF, dEnerF utils.Matrix) {
 	var (
 		s  = c.State
@@ -233,31 +243,21 @@ func (c *Euler1D) BoundaryConditions(Rho, RhoU, Ener, dRhoF, dRhoUF, dEnerF util
 		In  = NewStateP(s.Gamma, 1, 0, 1)
 		Out = NewStateP(s.Gamma, 0.125, 0, 0.1)
 	)
+
 	// Boundary conditions for Sod's problem
 	// Inflow
 	lmI := s.LM.SubsetVector(el.VmapI).Scale(0.5)
 	nxI := el.NX.SubsetVector(el.MapI)
-	dRhoFIn := nxI.Outer(s.RhoF.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.RhoF)))
-	dRhoFIn.Subtract(lmI.Outer(Rho.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.Rho))))
-	dRhoF.AssignVector(el.MapI, dRhoFIn)
-	dRhoUFIn := nxI.Outer(s.RhoUF.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.RhoUF)))
-	dRhoUFIn.Subtract(lmI.Outer(RhoU.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.RhoU))))
-	dRhoUF.AssignVector(el.MapI, dRhoUFIn)
-	dEnerFIn := nxI.Outer(s.EnerF.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.EnerF)))
-	dEnerFIn.Subtract(lmI.Outer(Ener.SubsetVector(el.VmapI).Subtract(utils.NewVectorConstant(len(el.VmapI), In.Ener))))
-	dEnerF.AssignVector(el.MapI, dEnerFIn)
+	bFunc(&dRhoF, Rho, s.RhoF, lmI, nxI, In.Rho, In.RhoF, el.MapI, el.VmapI)
+	bFunc(&dRhoUF, RhoU, s.RhoUF, lmI, nxI, In.RhoU, In.RhoUF, el.MapI, el.VmapI)
+	bFunc(&dEnerF, Ener, s.EnerF, lmI, nxI, In.Ener, In.EnerF, el.MapI, el.VmapI)
+
 	// Outflow
 	lmO := s.LM.SubsetVector(el.VmapO).Scale(0.5)
 	nxO := el.NX.SubsetVector(el.MapO)
-	dRhoFOut := nxO.Outer(s.RhoF.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.RhoF)))
-	dRhoFOut.Subtract(lmO.Outer(Rho.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.Rho))))
-	dRhoF.AssignVector(el.MapO, dRhoFOut)
-	dRhoUFOut := nxO.Outer(s.RhoUF.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.RhoUF)))
-	dRhoUFOut.Subtract(lmO.Outer(RhoU.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.RhoU))))
-	dRhoUF.AssignVector(el.MapO, dRhoUFOut)
-	dEnerFOut := nxO.Outer(s.EnerF.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.EnerF)))
-	dEnerFOut.Subtract(lmO.Outer(Ener.SubsetVector(el.VmapO).Subtract(utils.NewVectorConstant(len(el.VmapO), Out.Ener))))
-	dEnerF.AssignVector(el.MapO, dEnerFOut)
+	bFunc(&dRhoF, Rho, s.RhoF, lmO, nxO, Out.Rho, Out.RhoF, el.MapO, el.VmapO)
+	bFunc(&dRhoUF, RhoU, s.RhoUF, lmO, nxO, Out.RhoU, Out.RhoUF, el.MapO, el.VmapO)
+	bFunc(&dEnerF, Ener, s.EnerF, lmO, nxO, Out.Ener, Out.EnerF, el.MapO, el.VmapO)
 }
 
 type State struct {

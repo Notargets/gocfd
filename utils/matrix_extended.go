@@ -90,6 +90,17 @@ func (m Matrix) Copy() (R Matrix) { // Does not change receiver
 	return
 }
 
+func (m Matrix) Print(msgI ...string) (o string) {
+	var (
+		name = ""
+	)
+	if len(msgI) != 0 {
+		name = msgI[0]
+	}
+	o = fmt.Sprintf("%s = \n%v\n", name, mat.Formatted(m.M, mat.Squeeze()))
+	return
+}
+
 func (m Matrix) Transpose() (R Matrix) { // Does not change receiver
 	var (
 		nr, nc = m.Dims()
