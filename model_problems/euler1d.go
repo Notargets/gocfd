@@ -119,33 +119,38 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	var tstep int
 	for c.FinalTime > 0 {
 		c.Plot(showGraph, graphDelay)
-		c.Rho = el.SlopeLimitN(c.Rho, slopeLimiterM)
-		c.RhoU = el.SlopeLimitN(c.RhoU, slopeLimiterM)
-		c.Ener = el.SlopeLimitN(c.Ener, slopeLimiterM)
-		s.Update(c.Rho, c.RhoU, c.Ener)
-		dt = c.CalculateDT(xmin)
+
 		/*
 			Third Order Runge-Kutta time advancement
 		*/
 		// SSP RK Stage 1
+		// Slope Limit the fields
+		c.Rho = el.SlopeLimitN(c.Rho, slopeLimiterM)
+		c.RhoU = el.SlopeLimitN(c.RhoU, slopeLimiterM)
+		c.Ener = el.SlopeLimitN(c.Ener, slopeLimiterM)
+		s.Update(c.Rho, c.RhoU, c.Ener)
 		rhsRho, rhsRhoU, rhsEner := c.RHS(c.Rho, c.RhoU, c.Ener)
+		dt = c.CalculateDT(xmin)
 		rho1 := c.Rho.Copy().Add(rhsRho.Scale(dt))
 		rhou1 := c.RhoU.Copy().Add(rhsRhoU.Scale(dt))
 		ener1 := c.Ener.Copy().Add(rhsEner.Scale(dt))
+
+		// SSP RK Stage 2
 		// Slope Limit the fields
 		el.SlopeLimitN(rho1, slopeLimiterM)
 		el.SlopeLimitN(rhou1, slopeLimiterM)
 		el.SlopeLimitN(ener1, slopeLimiterM)
-		// SSP RK Stage 2
+		s.Update(rho1, rhou1, ener1)
 		rhsRho, rhsRhoU, rhsEner = c.RHS(rho1, rhou1, ener1)
 		rho2 := c.Rho.Copy().Scale(3).Add(rho1).Add(rhsRho.Scale(dt)).Scale(0.25)
 		rhou2 := c.RhoU.Copy().Scale(3).Add(rhou1).Add(rhsRhoU.Scale(dt)).Scale(0.25)
 		ener2 := c.Ener.Copy().Scale(3).Add(ener1).Add(rhsEner.Scale(dt)).Scale(0.25)
+
+		// SSP RK Stage 3
 		// Slope Limit the fields
 		el.SlopeLimitN(rho2, slopeLimiterM)
 		el.SlopeLimitN(rhou2, slopeLimiterM)
 		el.SlopeLimitN(ener2, slopeLimiterM)
-		// SSP RK Stage 3
 		rhsRho, rhsRhoU, rhsEner = c.RHS(rho2, rhou2, ener2)
 		c.Rho.Add(rho2.Scale(2)).Add(rhsRho.Scale(2 * dt)).Scale(1. / 3.)
 		c.RhoU.Add(rhou2.Scale(2)).Add(rhsRhoU.Scale(2 * dt)).Scale(1. / 3.)
@@ -178,17 +183,15 @@ func (c *Euler1D) RHS(Rho, RhoU, Ener utils.Matrix) (rhsRho, rhsRhoU, rhsEner ut
 		s                                                  = c.State
 		dRho, dRhoU, dEner, dRhoF, dRhoUF, dEnerF, LFcDiv2 utils.Matrix
 	)
-	s.Update(Rho, RhoU, Ener)
 	// Face jumps in primary and flux variables
 	dRho = Rho.Subset(el.VmapM, nrF, ncF).Subtract(Rho.Subset(el.VmapP, nrF, ncF))
 	dRhoU = RhoU.Subset(el.VmapM, nrF, ncF).Subtract(RhoU.Subset(el.VmapP, nrF, ncF))
 	dEner = Ener.Subset(el.VmapM, nrF, ncF).Subtract(Ener.Subset(el.VmapP, nrF, ncF))
-
 	dRhoF = s.RhoF.Subset(el.VmapM, nrF, ncF).Subtract(s.RhoF.Subset(el.VmapP, nrF, ncF))
 	dRhoUF = s.RhoUF.Subset(el.VmapM, nrF, ncF).Subtract(s.RhoUF.Subset(el.VmapP, nrF, ncF))
 	dEnerF = s.EnerF.Subset(el.VmapM, nrF, ncF).Subtract(s.EnerF.Subset(el.VmapP, nrF, ncF))
 	// Lax-Friedrichs flux component is always used divided by 2, so we pre-scale it
-	LFcDiv2 = s.LM.Subset(el.VmapM, nrF, ncF).Apply2(math.Max, s.EnerF.Subset(el.VmapP, nrF, ncF)).Scale(0.5)
+	LFcDiv2 = s.LM.Subset(el.VmapM, nrF, ncF).Apply2(math.Max, s.LM.Subset(el.VmapP, nrF, ncF)).Scale(0.5)
 
 	// Compute fluxes at interfaces
 	dRhoF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.Copy().ElMul(dRho))
@@ -206,6 +209,7 @@ func (c *Euler1D) RHS(Rho, RhoU, Ener utils.Matrix) (rhsRho, rhsRhoU, rhsEner ut
 }
 
 func bFunc(m *utils.Matrix, U, UF utils.Matrix, lm, nx utils.Vector, uIO, ufIO float64, mapi, vmap utils.Index) {
+	// Characteristic BC using freestream conditions at boundary
 	var (
 		dUFVec utils.Matrix
 	)
@@ -221,7 +225,8 @@ func (c *Euler1D) BoundaryConditions(Rho, RhoU, Ener, dRhoF, dRhoUF, dEnerF util
 		el = c.El
 		// Sod's problem: Shock tube with jump in middle
 		In  = NewStateP(s.Gamma, 1, 0, 1)
-		Out = NewStateP(s.Gamma, 0.125, 0, 0.1)
+		Out = NewStateP(s.Gamma, 1, 0, 1)
+		//Out = NewStateP(s.Gamma, 0.125, 0, 0.1)
 	)
 
 	// Boundary conditions for Sod's problem
@@ -265,6 +270,12 @@ func NewStateP(gamma, rho, rhoU, p float64) *State {
 	return NewState(gamma, rho, rhoU, ener)
 }
 
+func (s *State) Print() (o string) {
+	o = fmt.Sprintf("Rho = %v\nP = %v\nE = %v\nRhoU = %v\nRhoUF = %v\n",
+		s.Rho, s.Ener*(s.Gamma-1.), s.Ener, s.RhoU, s.RhoUF)
+	return
+}
+
 func (c *Euler1D) Plot(showGraph bool, graphDelay []time.Duration) {
 	var (
 		el = c.El
@@ -274,24 +285,21 @@ func (c *Euler1D) Plot(showGraph bool, graphDelay []time.Duration) {
 	}
 	plotOnce.Do(func() {
 		chart = chart2d.NewChart2D(1920, 1280, float32(el.X.Min()), float32(el.X.Max()), -.5, 3)
-		colorMap = utils2.NewColorMap(-1, 1, 1)
+		colorMap = utils2.NewColorMap(0, 1, 1)
 		chartRho = "Density"
 		chartRhoU = "Momentum"
 		chartEner = "Energy"
 		go chart.Plot()
 	})
-	if err := chart.AddSeries(chartRho, el.X.Transpose().RawMatrix().Data, c.Rho.Transpose().RawMatrix().Data,
-		chart2d.NoGlyph, chart2d.Solid, colorMap.GetRGB(0)); err != nil {
-		panic("unable to add graph series")
+	pSeries := func(field utils.Matrix, name string, color float32) {
+		if err := chart.AddSeries(name, el.X.Transpose().RawMatrix().Data, field.Transpose().RawMatrix().Data,
+			chart2d.NoGlyph, chart2d.Solid, colorMap.GetRGB(color)); err != nil {
+			panic("unable to add graph series")
+		}
 	}
-	if err := chart.AddSeries(chartRhoU, el.X.Transpose().RawMatrix().Data, c.RhoU.Transpose().RawMatrix().Data,
-		chart2d.NoGlyph, chart2d.Solid, colorMap.GetRGB(0.7)); err != nil {
-		panic("unable to add graph series")
-	}
-	if err := chart.AddSeries(chartEner, el.X.Transpose().RawMatrix().Data, c.Ener.Transpose().RawMatrix().Data,
-		chart2d.NoGlyph, chart2d.Solid, colorMap.GetRGB(-0.7)); err != nil {
-		panic("unable to add graph series")
-	}
+	pSeries(c.Rho, "Rho", 0)
+	pSeries(c.RhoU, "RhoU", 0.3)
+	pSeries(c.Ener, "Ener", 0.7)
 	if len(graphDelay) != 0 {
 		time.Sleep(graphDelay[0])
 	}
