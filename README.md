@@ -43,19 +43,28 @@ Usage of gocfd:
 
 The 1D Euler equations are solved with boundary and initial conditions for the Sod shock tube problem. There is an analytic solution for this case and it is widely used to test shock capturing ability of a solver.
 
-Currently, the stability of the method is not matching what is described in the text examples, likely due to a subtle bug - the result is that the CFL limit is around 0.25. Also, many polynomial degrees exhibit marginal stability - indicating oscillations around the shocks.
-
 Run the example with graphics like this:
 ```
 bash# make
-bash# gocfd -model 2 -delay 0 -graph -K 300 -N 8 -CFL 0.25
+bash# gocfd -model 2 -graph -K 250 -N 1
 ```
 
-#### T = 0.0
-![](images/Euler1D-SOD-K300-N8-initial.PNG)
+You can also target a final time for the simulation using the "-FinalTime" flag. You will have to use CTRL-C to exit the simulation when it arrives at the target time. This leaves the plot on screen so you can screen cap it.
+```
+bash# gocfd -model 2 -graph -K 250 -N 1 -FinalTime 0.2
+```
 
-#### T = 0.2
-![](images/Euler1D-SOD-K300-N8.PNG)
+#### T = 0.2, 250 Linear Elements
+![](images/Euler1D-SOD-K250-N1-T0.2.PNG)
+
+#### T = 0.2, 250 10th Order Elements
+![](images/Euler1D-SOD-K250-N10-T0.2.PNG)
+
+#### T = 0.2, 500 Linear Elements
+![](images/Euler1D-SOD-K500-N10-T0.2.PNG)
+
+#### T = 0.2, 500 10th Order Elements
+![](images/Euler1D-SOD-K500-N10-T0.2.PNG)
 
 ### Model Problem Example #2: Maxwell's Equations solved in a 1D Cavity
 

@@ -128,7 +128,7 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		el            = c.El
 		logFrequency  = 50
 		s             = c.State
-		slopeLimiterM = 10.
+		slopeLimiterM = 20.
 		limiter       = true
 	)
 	xmin := el.X.Row(1).Subtract(el.X.Row(0)).Apply(math.Abs).Min()
@@ -328,7 +328,7 @@ func (c *Euler1D) Plot(showGraph bool, graphDelay []time.Duration) {
 		return
 	}
 	plotOnce.Do(func() {
-		chart = chart2d.NewChart2D(1920, 1280, float32(el.X.Min()), float32(el.X.Max()), -.5, 3)
+		chart = chart2d.NewChart2D(1024, 768, float32(el.X.Min()), float32(el.X.Max()), -.5, 3)
 		colorMap = utils2.NewColorMap(0, 1, 1)
 		go chart.Plot()
 	})
