@@ -15,6 +15,13 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
+var (
+	plotOnce                       sync.Once
+	chart                          *chart2d.Chart2D
+	colorMap                       *utils2.ColorMap
+	chartRho, chartRhoU, chartEner string
+)
+
 type Euler1D struct {
 	// Input parameters
 	CFL, FinalTime  float64
@@ -102,48 +109,21 @@ func (c *Euler1D) InitializeSOD() {
 
 func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	var (
-		chart                          *chart2d.Chart2D
-		colorMap                       *utils2.ColorMap
-		chartRho, chartRhoU, chartEner string
-		el                             = c.El
-		logFrequency                   = 50
-		s                              = c.State
-		slopeLimiterM                  = 20.
+		el            = c.El
+		logFrequency  = 50
+		s             = c.State
+		slopeLimiterM = 20.
 	)
-	if showGraph {
-		chart = chart2d.NewChart2D(1920, 1280, float32(el.X.Min()), float32(el.X.Max()), -.5, 3)
-		colorMap = utils2.NewColorMap(-1, 1, 1)
-		chartRho = "Density"
-		chartRhoU = "Momentum"
-		chartEner = "Energy"
-		go chart.Plot()
-	}
 	xmin := el.X.Row(1).Subtract(el.X.Row(0)).Apply(math.Abs).Min()
 	var Time, dt float64
 	var tstep int
 	for c.FinalTime > 0 {
+		c.Plot(showGraph, graphDelay)
 		c.Rho = el.SlopeLimitN(c.Rho, slopeLimiterM)
 		c.RhoU = el.SlopeLimitN(c.RhoU, slopeLimiterM)
 		c.Ener = el.SlopeLimitN(c.Ener, slopeLimiterM)
 		s.Update(c.Rho, c.RhoU, c.Ener)
 		dt = c.CalculateDT(xmin)
-		if showGraph {
-			if err := chart.AddSeries(chartRho, el.X.Transpose().RawMatrix().Data, c.Rho.Transpose().RawMatrix().Data,
-				chart2d.NoGlyph, chart2d.Solid, colorMap.GetRGB(0)); err != nil {
-				panic("unable to add graph series")
-			}
-			if err := chart.AddSeries(chartRhoU, el.X.Transpose().RawMatrix().Data, c.RhoU.Transpose().RawMatrix().Data,
-				chart2d.NoGlyph, chart2d.Solid, colorMap.GetRGB(0.7)); err != nil {
-				panic("unable to add graph series")
-			}
-			if err := chart.AddSeries(chartEner, el.X.Transpose().RawMatrix().Data, c.Ener.Transpose().RawMatrix().Data,
-				chart2d.NoGlyph, chart2d.Solid, colorMap.GetRGB(-0.7)); err != nil {
-				panic("unable to add graph series")
-			}
-			if len(graphDelay) != 0 {
-				time.Sleep(graphDelay[0])
-			}
-		}
 		/*
 			Third Order Runge-Kutta time advancement
 		*/
@@ -283,4 +263,36 @@ func NewState(gamma, rho, rhoU, ener float64) (s *State) {
 func NewStateP(gamma, rho, rhoU, p float64) *State {
 	ener := p / (gamma - 1.)
 	return NewState(gamma, rho, rhoU, ener)
+}
+
+func (c *Euler1D) Plot(showGraph bool, graphDelay []time.Duration) {
+	var (
+		el = c.El
+	)
+	if !showGraph {
+		return
+	}
+	plotOnce.Do(func() {
+		chart = chart2d.NewChart2D(1920, 1280, float32(el.X.Min()), float32(el.X.Max()), -.5, 3)
+		colorMap = utils2.NewColorMap(-1, 1, 1)
+		chartRho = "Density"
+		chartRhoU = "Momentum"
+		chartEner = "Energy"
+		go chart.Plot()
+	})
+	if err := chart.AddSeries(chartRho, el.X.Transpose().RawMatrix().Data, c.Rho.Transpose().RawMatrix().Data,
+		chart2d.NoGlyph, chart2d.Solid, colorMap.GetRGB(0)); err != nil {
+		panic("unable to add graph series")
+	}
+	if err := chart.AddSeries(chartRhoU, el.X.Transpose().RawMatrix().Data, c.RhoU.Transpose().RawMatrix().Data,
+		chart2d.NoGlyph, chart2d.Solid, colorMap.GetRGB(0.7)); err != nil {
+		panic("unable to add graph series")
+	}
+	if err := chart.AddSeries(chartEner, el.X.Transpose().RawMatrix().Data, c.Ener.Transpose().RawMatrix().Data,
+		chart2d.NoGlyph, chart2d.Solid, colorMap.GetRGB(-0.7)); err != nil {
+		panic("unable to add graph series")
+	}
+	if len(graphDelay) != 0 {
+		time.Sleep(graphDelay[0])
+	}
 }
