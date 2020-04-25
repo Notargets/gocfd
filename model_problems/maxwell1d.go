@@ -68,6 +68,8 @@ func (c *Maxwell1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		resE                   = utils.NewMatrix(el.Np, el.K)
 		resH                   = utils.NewMatrix(el.Np, el.K)
 		logFrequency           = 50
+		limiter                = false
+		limiterM               = 20.
 	)
 	if showGraph {
 		chart = chart2d.NewChart2D(1920, 1280, float32(el.X.Min()), float32(el.X.Max()), -1, 1)
@@ -98,11 +100,13 @@ func (c *Maxwell1D) Run(showGraph bool, graphDelay ...time.Duration) {
 			}
 		}
 		for INTRK := 0; INTRK < 5; INTRK++ {
+			if limiter {
+				c.E = el.SlopeLimitN(c.E, limiterM)
+				c.H = el.SlopeLimitN(c.H, limiterM)
+			}
 			rhsE, rhsH := c.RHS()
 			resE.Scale(utils.RK4a[INTRK]).Add(rhsE.Scale(dt))
 			resH.Scale(utils.RK4a[INTRK]).Add(rhsH.Scale(dt))
-			el.SlopeLimitN(c.E, 15)
-			el.SlopeLimitN(c.H, 15)
 			c.E.Add(resE.Copy().Scale(utils.RK4b[INTRK]))
 			c.H.Add(resH.Copy().Scale(utils.RK4b[INTRK]))
 		}
