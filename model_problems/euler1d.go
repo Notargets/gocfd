@@ -273,14 +273,14 @@ func (c *Euler1D) BoundaryConditions(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.M
 	bFunc(dEnerF, Ener, EnerF, lmO, nxO, Out.Ener, Out.EnerF, el.MapO, el.VmapO)
 }
 
-func bFunc(m *utils.Matrix, U, UF utils.Matrix, lm, nx utils.Vector, uIO, ufIO float64, mapi, vmap utils.Index) {
+func bFunc(dUF *utils.Matrix, U, UF utils.Matrix, lm, nx utils.Vector, uIO, ufIO float64, mapi, vmap utils.Index) {
 	// Characteristic BC using freestream conditions at boundary
 	var (
 		dUFVec utils.Matrix
 	)
 	dUFVec = nx.Outer(UF.SubsetVector(vmap).Subtract(utils.NewVectorConstant(len(vmap), ufIO))).Scale(0.5)
 	dUFVec.Subtract(lm.Outer(U.SubsetVector(vmap).Subtract(utils.NewVectorConstant(len(vmap), uIO))))
-	m.AssignVector(mapi, dUFVec)
+	dUF.AssignVector(mapi, dUFVec)
 	return
 }
 
