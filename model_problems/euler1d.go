@@ -75,6 +75,8 @@ func NewEuler1D(CFL, FinalTime float64, N, K int) (c *Euler1D) {
 	c.State.Gamma = 1.4
 	c.In = NewStateP(c.State.Gamma, 1, 0, 1)
 	c.Out = NewStateP(c.State.Gamma, 0.125, 0, 0.1)
+	fmt.Printf("Euler Equations in 1 Dimension\nSolving Sod's Shock Tube\n")
+	fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, K)
 	c.InitializeSOD()
 	//c.Out = c.In
 	//c.InitializeFS()
@@ -328,8 +330,8 @@ func (c *Euler1D) Plot(showGraph bool, graphDelay []time.Duration) {
 		return
 	}
 	plotOnce.Do(func() {
-		chart = chart2d.NewChart2D(1024, 768, float32(el.X.Min()), float32(el.X.Max()), -.5, 3)
-		colorMap = utils2.NewColorMap(0, 1, 1)
+		chart = chart2d.NewChart2D(1920, 1280, float32(el.X.Min()), float32(el.X.Max()), -.5, 3)
+		colorMap = utils2.NewColorMap(-1, 1, 1)
 		go chart.Plot()
 	})
 	pSeries := func(field utils.Matrix, name string, color float32) {
@@ -338,8 +340,8 @@ func (c *Euler1D) Plot(showGraph bool, graphDelay []time.Duration) {
 			panic("unable to add graph series")
 		}
 	}
-	pSeries(c.Rho, "Rho", 0)
-	pSeries(c.RhoU, "RhoU", 0.3)
+	pSeries(c.Rho, "Rho", -0.7)
+	pSeries(c.RhoU, "RhoU", 0.0)
 	pSeries(c.Ener, "Ener", 0.7)
 	if len(graphDelay) != 0 {
 		time.Sleep(graphDelay[0])

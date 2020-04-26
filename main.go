@@ -9,11 +9,11 @@ import (
 )
 
 var (
-	K         = 60 // Number of elements
-	N         = 8  // Polynomial degree
+	K         = 1000 // Number of elements
+	N         = 8    // Polynomial degree
 	Delay     = time.Duration(0)
-	ModelRun  = Maxwell1D
-	CFL       = 1.0
+	ModelRun  = Euler1D
+	CFL       = 7.0
 	FinalTime = 100000.
 )
 
@@ -49,12 +49,12 @@ func main() {
 	switch ModelRun {
 	case Advect1D:
 		C = model_problems.NewAdvection1D(2*math.Pi, CFL, FinalTime, N, K)
-	case Euler1D:
-		C = model_problems.NewEuler1D(CFL, FinalTime, N, K)
 	case Maxwell1D:
+		C = model_problems.NewMaxwell1D(CFL, FinalTime, N, K)
+	case Euler1D:
 		fallthrough
 	default:
-		C = model_problems.NewMaxwell1D(CFL, FinalTime, N, K)
+		C = model_problems.NewEuler1D(CFL, FinalTime, N, K)
 	}
 	C.Run(*Graphptr, Delay*time.Millisecond)
 }
