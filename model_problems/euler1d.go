@@ -64,8 +64,8 @@ func (fs *FieldState) Print() {
 	fmt.Printf("LM = \n%v\n", mat.Formatted(fs.LM, mat.Squeeze()))
 }
 
-func NewEuler1D(CFL, FinalTime float64, N, K int) (c *Euler1D) {
-	VX, EToV := DG1D.SimpleMesh1D(0, 1, K)
+func NewEuler1D(CFL, FinalTime, XMax float64, N, K int) (c *Euler1D) {
+	VX, EToV := DG1D.SimpleMesh1D(0, XMax, K)
 	c = &Euler1D{
 		CFL:       CFL,
 		State:     NewFieldState(),
@@ -245,24 +245,6 @@ func (c *Euler1D) RHS(Rho, RhoU, Ener utils.Matrix) (rhsRho, rhsRhoU, rhsEner ut
 	rhsRho = el.Rx.Copy().Scale(-1.).ElMul(el.Dr.Mul(RhoF)).Add(el.LIFT.Mul(dRhoF.ElMul(el.FScale)))
 	rhsRhoU = el.Rx.Copy().Scale(-1.).ElMul(el.Dr.Mul(RhoUF)).Add(el.LIFT.Mul(dRhoUF.ElMul(el.FScale)))
 	rhsEner = el.Rx.Copy().Scale(-1.).ElMul(el.Dr.Mul(EnerF)).Add(el.LIFT.Mul(dEnerF.ElMul(el.FScale)))
-
-	/*
-		fmt.Println(rhsRho.Print("rhsRho"))
-		fmt.Println(rhsRhoU.Print("rhsRhoU"))
-		fmt.Println(rhsEner.Print("rhsEner"))
-		os.Exit(1)
-	*/
-	return
-}
-
-func bFunc(m *utils.Matrix, U, UF utils.Matrix, lm, nx utils.Vector, uIO, ufIO float64, mapi, vmap utils.Index) {
-	// Characteristic BC using freestream conditions at boundary
-	var (
-		dUFVec utils.Matrix
-	)
-	dUFVec = nx.Outer(UF.SubsetVector(vmap).Subtract(utils.NewVectorConstant(len(vmap), ufIO))).Scale(0.5)
-	dUFVec.Subtract(lm.Outer(U.SubsetVector(vmap).Subtract(utils.NewVectorConstant(len(vmap), uIO))))
-	m.AssignVector(mapi, dUFVec)
 	return
 }
 
@@ -289,6 +271,17 @@ func (c *Euler1D) BoundaryConditions(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.M
 	bFunc(dRhoF, Rho, RhoF, lmO, nxO, Out.Rho, Out.RhoF, el.MapO, el.VmapO)
 	bFunc(dRhoUF, RhoU, RhoUF, lmO, nxO, Out.RhoU, Out.RhoUF, el.MapO, el.VmapO)
 	bFunc(dEnerF, Ener, EnerF, lmO, nxO, Out.Ener, Out.EnerF, el.MapO, el.VmapO)
+}
+
+func bFunc(m *utils.Matrix, U, UF utils.Matrix, lm, nx utils.Vector, uIO, ufIO float64, mapi, vmap utils.Index) {
+	// Characteristic BC using freestream conditions at boundary
+	var (
+		dUFVec utils.Matrix
+	)
+	dUFVec = nx.Outer(UF.SubsetVector(vmap).Subtract(utils.NewVectorConstant(len(vmap), ufIO))).Scale(0.5)
+	dUFVec.Subtract(lm.Outer(U.SubsetVector(vmap).Subtract(utils.NewVectorConstant(len(vmap), uIO))))
+	m.AssignVector(mapi, dUFVec)
+	return
 }
 
 type State struct {
