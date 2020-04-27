@@ -34,6 +34,7 @@ type Euler1D struct {
 type FieldState struct {
 	Gamma                float64
 	U, Q, Pres, CVel, LM utils.Matrix
+	Temp                 utils.Matrix
 }
 
 func NewFieldState() (fs *FieldState) {
@@ -49,6 +50,8 @@ func (fs *FieldState) Update(Rho, RhoU, Ener utils.Matrix) {
 	fs.CVel = fs.Pres.Copy().ElDiv(Rho).Scale(fs.Gamma).Apply(math.Sqrt)
 	//  abs(rhou./rho)+cvel
 	fs.LM = fs.U.Copy().Apply(math.Abs).Add(fs.CVel)
+	//	Temp = (Ener - 0.5*(rhou).^2./rho)./rho
+	fs.Temp = Ener.Copy().Subtract(fs.Q).ElDiv(Rho)
 	fs.U.SetReadOnly("U")
 	fs.Q.SetReadOnly("Q")
 	fs.Pres.SetReadOnly("Pres")
@@ -78,7 +81,7 @@ func NewEuler1D(CFL, FinalTime, XMax float64, N, K int) (c *Euler1D) {
 	fmt.Printf("Euler Equations in 1 Dimension\nSolving Sod's Shock Tube\n")
 	fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, K)
 	c.InitializeSOD()
-	//c.Out = c.In
+	c.Out = c.In
 	//c.InitializeFS()
 	return
 }
@@ -147,8 +150,8 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 			c.RhoU = el.SlopeLimitN(c.RhoU, slopeLimiterM)
 			c.Ener = el.SlopeLimitN(c.Ener, slopeLimiterM)
 		}
-		c.Plot(showGraph, graphDelay)
 		s.Update(c.Rho, c.RhoU, c.Ener)
+		c.Plot(showGraph, graphDelay)
 		rhsRho, rhsRhoU, rhsEner := c.RHS(c.Rho, c.RhoU, c.Ener)
 		dt = c.CalculateDT(xmin, Time)
 		rho1 := c.Rho.Copy().Add(rhsRho.Scale(dt))
@@ -323,7 +326,7 @@ func (c *Euler1D) Plot(showGraph bool, graphDelay []time.Duration) {
 		return
 	}
 	plotOnce.Do(func() {
-		chart = chart2d.NewChart2D(1920, 1280, float32(el.X.Min()), float32(el.X.Max()), -.5, 3)
+		chart = chart2d.NewChart2D(1920, 1280, float32(el.X.Min()), float32(el.X.Max()), -1.5, 5)
 		colorMap = utils2.NewColorMap(-1, 1, 1)
 		go chart.Plot()
 	})
@@ -335,7 +338,9 @@ func (c *Euler1D) Plot(showGraph bool, graphDelay []time.Duration) {
 	}
 	pSeries(c.Rho, "Rho", -0.7)
 	pSeries(c.RhoU, "RhoU", 0.0)
-	pSeries(c.Ener, "Ener", 0.7)
+	pSeries(c.Ener, "Ener", 0.6)
+	pSeries(c.State.U, "U", 0.8)
+	pSeries(c.State.Temp, "Temp", 0.9)
 	if len(graphDelay) != 0 {
 		time.Sleep(graphDelay[0])
 	}
