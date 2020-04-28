@@ -130,11 +130,9 @@ func (c *Euler1D) InitializeSOD() {
 
 func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	var (
-		el            = c.El
-		logFrequency  = 50
-		s             = c.State
-		slopeLimiterM = 20.
-		limiter       = true
+		el           = c.El
+		logFrequency = 50
+		//s             = c.State
 	)
 	xmin := el.X.Row(1).Subtract(el.X.Row(0)).Apply(math.Abs).Min()
 	var Time, dt float64
@@ -144,42 +142,21 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 			Third Order Runge-Kutta time advancement
 		*/
 		// SSP RK Stage 1
-		// Slope Limit the fields
-		if limiter {
-			c.Rho = el.SlopeLimitN(c.Rho, slopeLimiterM)
-			c.RhoU = el.SlopeLimitN(c.RhoU, slopeLimiterM)
-			c.Ener = el.SlopeLimitN(c.Ener, slopeLimiterM)
-		}
-		s.Update(c.Rho, c.RhoU, c.Ener)
+		rhsRho, rhsRhoU, rhsEner := c.RHS(&c.Rho, &c.RhoU, &c.Ener)
 		c.Plot(showGraph, graphDelay)
-		rhsRho, rhsRhoU, rhsEner := c.RHS(c.Rho, c.RhoU, c.Ener)
 		dt = c.CalculateDT(xmin, Time)
 		rho1 := c.Rho.Copy().Add(rhsRho.Scale(dt))
 		rhou1 := c.RhoU.Copy().Add(rhsRhoU.Scale(dt))
 		ener1 := c.Ener.Copy().Add(rhsEner.Scale(dt))
 
 		// SSP RK Stage 2
-		// Slope Limit the fields
-		if limiter {
-			rho1 = el.SlopeLimitN(rho1, slopeLimiterM)
-			rhou1 = el.SlopeLimitN(rhou1, slopeLimiterM)
-			ener1 = el.SlopeLimitN(ener1, slopeLimiterM)
-		}
-		s.Update(rho1, rhou1, ener1)
-		rhsRho, rhsRhoU, rhsEner = c.RHS(rho1, rhou1, ener1)
+		rhsRho, rhsRhoU, rhsEner = c.RHS(&rho1, &rhou1, &ener1)
 		rho2 := c.Rho.Copy().Scale(3.).Add(rho1).Add(rhsRho.Scale(dt)).Scale(0.25)
 		rhou2 := c.RhoU.Copy().Scale(3.).Add(rhou1).Add(rhsRhoU.Scale(dt)).Scale(0.25)
 		ener2 := c.Ener.Copy().Scale(3.).Add(ener1).Add(rhsEner.Scale(dt)).Scale(0.25)
 
 		// SSP RK Stage 3
-		// Slope Limit the fields
-		if limiter {
-			rho2 = el.SlopeLimitN(rho2, slopeLimiterM)
-			rhou2 = el.SlopeLimitN(rhou2, slopeLimiterM)
-			ener2 = el.SlopeLimitN(ener2, slopeLimiterM)
-		}
-		s.Update(rho2, rhou2, ener2)
-		rhsRho, rhsRhoU, rhsEner = c.RHS(rho2, rhou2, ener2)
+		rhsRho, rhsRhoU, rhsEner = c.RHS(&rho2, &rhou2, &ener2)
 		c.Rho.Add(rho2.Scale(2)).Add(rhsRho.Scale(2. * dt)).Scale(1. / 3.)
 		c.RhoU.Add(rhou2.Scale(2)).Add(rhsRhoU.Scale(2. * dt)).Scale(1. / 3.)
 		c.Ener.Add(ener2.Scale(2)).Add(rhsEner.Copy().Scale(2. * dt)).Scale(1. / 3.)
@@ -212,17 +189,28 @@ func (c *Euler1D) CalculateDT(xmin, Time float64) (dt float64) {
 	return
 }
 
-func (c *Euler1D) RHS(Rho, RhoU, Ener utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
+func (c *Euler1D) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
 	var (
 		el                                                 = c.El
 		nrF, ncF                                           = el.Nfp * el.NFaces, el.K
 		s                                                  = c.State
-		RhoF                                               = RhoU.Copy()
-		RhoUF                                              = s.Q.Copy().Scale(2.).Add(s.Pres)
-		EnerF                                              = Ener.Copy().Add(s.Pres).ElMul(s.U)
 		dRho, dRhoU, dEner, dRhoF, dRhoUF, dEnerF, LFcDiv2 utils.Matrix
+		Rho, RhoU, Ener                                    = *Rhop, *RhoUp, *Enerp
+		RhoF, RhoUF, EnerF                                 utils.Matrix
+		limiter                                            = true
+		slopeLimiterM                                      = 20.
 	)
-
+	if limiter {
+		// Slope Limit the solution fields
+		*Rhop = el.SlopeLimitN(*Rhop, slopeLimiterM)
+		*RhoUp = el.SlopeLimitN(*RhoUp, slopeLimiterM)
+		*Enerp = el.SlopeLimitN(*Enerp, slopeLimiterM)
+		Rho, RhoU, Ener = *Rhop, *RhoUp, *Enerp
+	}
+	s.Update(Rho, RhoU, Ener)
+	RhoF = RhoU.Copy()
+	RhoUF = s.Q.Copy().Scale(2.).Add(s.Pres)
+	EnerF = Ener.Copy().Add(s.Pres).ElMul(s.U)
 	// Face jumps in primary and flux variables
 	fJump := func(U utils.Matrix) (dU utils.Matrix) {
 		dU = U.Subset(el.VmapM, nrF, ncF).Subtract(U.Subset(el.VmapP, nrF, ncF))
