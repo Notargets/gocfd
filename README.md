@@ -5,7 +5,7 @@ Awesome CFD solver written in Go
 
 ### Credits to Jan S. Hesthaven and Tim Warburton for their excellent text "Nodal Discontinuous Galerkin Methods" (2007)
 
-## Requirements
+## Requirements to run the code
 Here is what I'm using as a platform:
 ```
 me@home:bash# go version
@@ -38,6 +38,14 @@ Usage of gocfd:
   -model int
         model to run: 0 = Advect1D, 1 = Maxwell1D (default 1)
 ```
+### Current Status: Researching Direct Flux Reconstruction methods
+
+During testing of the method in 1D as outlined in the text, it became clear that the slope limiter is quite crude and is degrading the physicality of the solution. The authors were clear that this is just for example use, and now I'm convinced of it!
+
+My first round of research yielded the "Direct Flux Reconstruction" technique from a 2014 paper by Antony Jameson, et al (one of my favorite CFD people of all time). The technique is extremely simple and has the great promise of extending the degree of accuracy to the Flux terms of more complex equations, in addition to enabling the use of flux limiters that have been proven for flows with discontinuities.
+
+In my past CFD experience, discontinuities in solving the Navier Stokes equations are not limited to shock waves. Rather, we find shear flows have discontinuities that are similar enough to shock waves that shock finding techniques used to guide the application of numerical diffusion can be active at the edge of boundary layers and at other critical regions, which often leads to inaccuracies far from shocks. The text's gradient based limiter would clearly suffer from this kind of problem among others.
+
 ### Model Problem Example #3a: Euler's Equations in 1D - Shock Collision
 
 This is an interesting problem because of the temperature remainder after the collision. In the plot, temperature is red, density is blue, and velocity is orange. After the shocks pass out of the domain, the remaining temperature "bubble" can't dissipate, because the Euler equations have no mechanism for temperature diffusion.
