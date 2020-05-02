@@ -508,3 +508,14 @@ func (v Vector) Outer(w Vector) (R Matrix) {
 func (v Vector) Minmod() (val float64) {
 	return math.Max(0, v.Min())
 }
+
+func (v Vector) Print(msgI ...string) (o string) {
+	var (
+		name = ""
+	)
+	if len(msgI) != 0 {
+		name = msgI[0]
+	}
+	o = fmt.Sprintf("%s = \n%8.4f\n", name, mat.Formatted(v.V, mat.Squeeze()))
+	return
+}
