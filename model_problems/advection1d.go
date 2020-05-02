@@ -19,8 +19,10 @@ type Advection1D struct {
 	// Input parameters
 	a, CFL, FinalTime float64
 	El                *DG1D.Elements1D
-	RHSOnce           sync.Once
 	UFlux             utils.Matrix
+	RHSOnce, PlotOnce sync.Once
+	chart             *chart2d.Chart2D
+	colorMap          *utils2.ColorMap
 }
 
 func NewAdvection1D(a, CFL, FinalTime float64, N, K int) *Advection1D {
@@ -36,9 +38,6 @@ func NewAdvection1D(a, CFL, FinalTime float64, N, K int) *Advection1D {
 func (c *Advection1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	var (
 		el           = c.El
-		chart        *chart2d.Chart2D
-		colorMap     *utils2.ColorMap
-		chartName    string
 		logFrequency = 50
 		limiter      = false
 		limiterM     = 20.
@@ -50,23 +49,10 @@ func (c *Advection1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	Nsteps := int(Ns)
 	U := el.X.Copy().Apply(math.Sin)
 	resid := utils.NewMatrix(el.Np, el.K)
-	if showGraph {
-		chart = chart2d.NewChart2D(1024, 768, float32(el.X.Min()), float32(el.X.Max()), -1, 1)
-		colorMap = utils2.NewColorMap(-1, 1, 1)
-		chartName = "Advect1D"
-		go chart.Plot()
-	}
+
 	var Time, timelocal float64
 	for tstep := 0; tstep < Nsteps; tstep++ {
-		if showGraph {
-			if err := chart.AddSeries(chartName, el.X.Transpose().RawMatrix().Data, U.Transpose().RawMatrix().Data,
-				chart2d.CrossGlyph, chart2d.Dashed, colorMap.GetRGB(0)); err != nil {
-				panic("unable to add graph series")
-			}
-			if len(graphDelay) != 0 {
-				time.Sleep(graphDelay[0])
-			}
-		}
+		c.Plot(showGraph, graphDelay, U)
 		for INTRK := 0; INTRK < 5; INTRK++ {
 			if limiter {
 				U = el.SlopeLimitN(U, limiterM)
@@ -112,4 +98,26 @@ func (c *Advection1D) RHS(U utils.Matrix, time float64) (RHSU utils.Matrix) {
 	// Important: must change the order from Fscale.dm(du) to du.dm(Fscale) here because the dm overwrites the target
 	RHSU = el.Rx.Copy().Scale(-c.a).ElMul(el.Dr.Mul(U)).Add(el.LIFT.Mul(dU.ElMul(el.FScale)))
 	return
+}
+
+func (c *Advection1D) Plot(showGraph bool, graphDelay []time.Duration, U utils.Matrix) {
+	var (
+		el = c.El
+	)
+	if !showGraph {
+		return
+	}
+	c.PlotOnce.Do(func() {
+		c.chart = chart2d.NewChart2D(1024, 768, float32(el.X.Min()), float32(el.X.Max()), -1, 1)
+		c.colorMap = utils2.NewColorMap(-1, 1, 1)
+		go c.chart.Plot()
+	})
+
+	if err := c.chart.AddSeries("U", el.X.Transpose().RawMatrix().Data, U.Transpose().RawMatrix().Data,
+		chart2d.CrossGlyph, chart2d.Solid, c.colorMap.GetRGB(0)); err != nil {
+		panic("unable to add graph series")
+	}
+	if len(graphDelay) != 0 {
+		time.Sleep(graphDelay[0])
+	}
 }
