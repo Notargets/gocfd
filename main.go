@@ -24,6 +24,7 @@ const (
 	Advect1D ModelType = iota
 	Maxwell1D
 	Euler1D
+	AdvectDFR
 )
 
 type Model interface {
@@ -54,6 +55,8 @@ func main() {
 		C = model_problems.NewAdvection1D(2*math.Pi, CFL, FinalTime, N, K)
 	case Maxwell1D:
 		C = model_problems.NewMaxwell1D(CFL, FinalTime, N, K)
+	case AdvectDFR:
+		C = model_problems.NewAdvectionDFR(2*math.Pi, CFL, FinalTime, N, K)
 	case Euler1D:
 		fallthrough
 	default:
