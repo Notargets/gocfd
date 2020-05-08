@@ -67,7 +67,7 @@ func (c *AdvectionDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 func (c *AdvectionDFR) RHS(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 	var (
 		uin   float64
-		alpha = 0.0 // flux splitting parameter, 0 is full upwinding
+		alpha = 1.0 // flux splitting parameter, 0 is full upwinding
 		el    = c.El
 	)
 	c.RHSOnce.Do(func() {
@@ -79,7 +79,6 @@ func (c *AdvectionDFR) RHS(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 	// TODO: Figure out why this hack to the inflow BC is needed / working and fix the scheme
 	// it should be -Sin(Time * a), not -Sin(Time * a^2)
 	uin = -math.Sin(c.a * Time)
-	//U.AssignScalar(el.MapI, uin)
 	c.F = U.Copy().Scale(c.a)
 
 	// Face fluxes
@@ -94,28 +93,12 @@ func (c *AdvectionDFR) RHS(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 	dU.AssignScalar(el.MapO, 0)
 
 	// Add the average flux, Avg(Fl, Fr)
-	//Fface := dU.Add(c.F.Subset(el.VmapM, duNr, duNc).Add(c.F.Subset(el.VmapP, duNr, duNc)).Scale(0.5))
-	Fface := c.F.Subset(el.VmapM, duNr, duNc).Add(c.F.Subset(el.VmapP, duNr, duNc)).Scale(0.5)
-	/*
-		fmt.Println(U.Print("U"))
-		fmt.Println(c.F.Print("F"))
-		fmt.Println(Fface.Print("Fface"))
-		fmt.Println("VmapM = ", el.VmapM)
-		fmt.Println("VmapP = ", el.VmapP)
-		fmt.Println(el.EToF.Print("EToF"))
-		fmt.Println(el.EToE.Print("EToE"))
-		os.Exit(1)
-	*/
+	Fface := dU.Add(c.F.Subset(el.VmapM, duNr, duNc).Add(c.F.Subset(el.VmapP, duNr, duNc)).Scale(0.5))
 	// Set the global flux values at the face to the numerical flux
 	c.F.AssignVector(el.VmapM, Fface)
-	//c.F.AssignVector(el.VmapP, Fface)
-	//c.Plot(true, []time.Duration{time.Duration(20000)}, c.F)
-	//time.Sleep(100 * time.Second)
+	c.F.AssignVector(el.VmapP, Fface)
 
-	// rhsu = -a*rx.dm(Dr*u) + LIFT*(Fscale.dm(du));
-	// Important: must change the order from Fscale.dm(du) to du.dm(Fscale) here because the dm overwrites the target
-	//RHSU = el.Rx.Copy().Scale(-c.a).ElMul(el.Dr.Mul(c.F))
-	RHSU = el.Dr.Mul(c.F).Scale(-c.a).ElMul(el.Rx)
+	RHSU = el.Dr.Mul(c.F).ElMul(el.Rx).Scale(-1)
 	return
 }
 
