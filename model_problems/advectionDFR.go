@@ -43,11 +43,12 @@ func (c *AdvectionDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 	dt = c.FinalTime / Ns
 	Nsteps := int(Ns)
 	U := el.X.Copy().Apply(math.Sin)
+	fmt.Printf("Umin, Umax = %8.5f, %8.5f\n", U.Min(), U.Max())
 	resid := utils.NewMatrix(el.Np, el.K)
 
 	var Time, timelocal float64
 	for tstep := 0; tstep < Nsteps; tstep++ {
-		//c.Plot(showGraph, graphDelay, U)
+		c.Plot(showGraph, graphDelay, U)
 		for INTRK := 0; INTRK < 5; INTRK++ {
 			timelocal = Time + dt*utils.RK4c[INTRK]
 			RHSU := c.RHS(U, timelocal)
@@ -56,7 +57,7 @@ func (c *AdvectionDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 			// u += rk4b(INTRK) * resid;
 			U.Add(resid.Copy().Scale(utils.RK4b[INTRK]))
 		}
-		c.Plot(showGraph, graphDelay, c.F)
+		//c.Plot(showGraph, graphDelay, c.F)
 		Time += dt
 		if tstep%logFrequency == 0 {
 			fmt.Printf("Time = %8.4f, max_resid[%d] = %8.4f, umin = %8.4f, umax = %8.4f\n", Time, tstep, resid.Max(), U.Col(0).Min(), U.Col(0).Max())
@@ -67,7 +68,7 @@ func (c *AdvectionDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 func (c *AdvectionDFR) RHS(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 	var (
 		uin   float64
-		alpha = 1.0 // flux splitting parameter, 0 is full upwinding
+		alpha = 0.0 // flux splitting parameter, 0 is full upwinding
 		el    = c.El
 	)
 	c.RHSOnce.Do(func() {
@@ -79,6 +80,7 @@ func (c *AdvectionDFR) RHS(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 	// TODO: Figure out why this hack to the inflow BC is needed / working and fix the scheme
 	// it should be -Sin(Time * a), not -Sin(Time * a^2)
 	uin = -math.Sin(c.a * Time)
+	U.AssignScalar(el.MapI, uin)
 	c.F = U.Copy().Scale(c.a)
 
 	// Face fluxes
@@ -93,7 +95,8 @@ func (c *AdvectionDFR) RHS(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 	dU.AssignScalar(el.MapO, 0)
 
 	// Add the average flux, Avg(Fl, Fr)
-	Fface := dU.Add(c.F.Subset(el.VmapM, duNr, duNc).Add(c.F.Subset(el.VmapP, duNr, duNc)).Scale(0.5))
+	//Fface := dU.Add(c.F.Subset(el.VmapM, duNr, duNc).Add(c.F.Subset(el.VmapP, duNr, duNc)).Scale(0.5))
+	Fface := c.F.Subset(el.VmapM, duNr, duNc).Add(c.F.Subset(el.VmapP, duNr, duNc)).Scale(0.5)
 	// Set the global flux values at the face to the numerical flux
 	c.F.AssignVector(el.VmapM, Fface)
 	c.F.AssignVector(el.VmapP, Fface)
@@ -105,7 +108,7 @@ func (c *AdvectionDFR) RHS(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 func (c *AdvectionDFR) Plot(showGraph bool, graphDelay []time.Duration, U utils.Matrix) {
 	var (
 		el         = c.El
-		pMin, pMax = float32(-7), float32(7)
+		pMin, pMax = float32(-1), float32(1)
 	)
 	if !showGraph {
 		return
