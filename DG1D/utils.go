@@ -15,6 +15,14 @@ func SimpleMesh1D(xmin, xmax float64, K int) (VX utils.Vector, EToV utils.Matrix
 	for i := 0; i < K+1; i++ {
 		x[i] = (xmax-xmin)*float64(i)/float64(K) + xmin
 	}
+	/*
+		Example: K=4, 5 vertices
+			EToV =
+			⎡0.0000  1.0000⎤
+			⎢1.0000  2.0000⎥
+			⎢2.0000  3.0000⎥
+			⎣3.0000  4.0000⎦
+	*/
 	var iter int
 	for i := 0; i < K; i++ {
 		elementVertex[iter] = float64(i)

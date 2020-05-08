@@ -78,8 +78,8 @@ func (c *AdvectionDFR) RHS(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 	// Global Flux
 	// TODO: Figure out why this hack to the inflow BC is needed / working and fix the scheme
 	// it should be -Sin(Time * a), not -Sin(Time * a^2)
-	uin = -math.Sin(c.a * c.a * Time)
-	U.AssignScalar(el.MapI, uin)
+	uin = -math.Sin(c.a * Time)
+	//U.AssignScalar(el.MapI, uin)
 	c.F = U.Copy().Scale(c.a)
 
 	// Face fluxes
@@ -96,9 +96,19 @@ func (c *AdvectionDFR) RHS(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 	// Add the average flux, Avg(Fl, Fr)
 	//Fface := dU.Add(c.F.Subset(el.VmapM, duNr, duNc).Add(c.F.Subset(el.VmapP, duNr, duNc)).Scale(0.5))
 	Fface := c.F.Subset(el.VmapM, duNr, duNc).Add(c.F.Subset(el.VmapP, duNr, duNc)).Scale(0.5)
+	/*
+		fmt.Println(U.Print("U"))
+		fmt.Println(c.F.Print("F"))
+		fmt.Println(Fface.Print("Fface"))
+		fmt.Println("VmapM = ", el.VmapM)
+		fmt.Println("VmapP = ", el.VmapP)
+		fmt.Println(el.EToF.Print("EToF"))
+		fmt.Println(el.EToE.Print("EToE"))
+		os.Exit(1)
+	*/
 	// Set the global flux values at the face to the numerical flux
 	c.F.AssignVector(el.VmapM, Fface)
-	c.F.AssignVector(el.VmapP, Fface)
+	//c.F.AssignVector(el.VmapP, Fface)
 	//c.Plot(true, []time.Duration{time.Duration(20000)}, c.F)
 	//time.Sleep(100 * time.Second)
 

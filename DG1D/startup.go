@@ -52,14 +52,29 @@ func (el *Elements1D) Connect1D() {
 		K, _       = el.EToV.Dims()
 		Nv         = K + 1
 		TotalFaces = NFaces * K
-		vn         = utils.NewVector(2, []float64{0, 1}) // local face to vertex connections
+		vn         = []int{0, 1} // local face to vertex connections
 	)
+	/*
+		EToE: We will find the neighbor elements for each element
+		Example: K = 4, each element has a left and right neighbor:
+		EToE =
+		⎡0.0000  1.0000⎤	Boundary element, left node is itself, right node is 1
+		⎢0.0000  2.0000⎥	Node 1, internal, left is 0, right is 2
+		⎢1.0000  3.0000⎥
+		⎣2.0000  3.0000⎦
+
+		EToF: We will find the neighbor element face number for each element
+		EToF =
+		⎡0.0000  0.0000⎤    Boundary element, face number is arbitrary and the same for R and L
+		⎢1.0000  0.0000⎥	Left neighbor's face number 1, right neighbor's face number 0
+		⎢1.0000  0.0000⎥
+		⎣1.0000  1.0000⎦
+	*/
 	SpFToV_Tmp := sparse.NewDOK(TotalFaces, Nv)
 	var sk int
 	for k := 0; k < K; k++ {
 		for face := 0; face < NFaces; face++ {
-			col := int(vn.AtVec(face))
-			SpFToV_Tmp.Set(sk, int(el.EToV.At(k, col)), 1)
+			SpFToV_Tmp.Set(sk, int(el.EToV.At(k, vn[face])), 1)
 			sk++
 		}
 	}
@@ -70,6 +85,7 @@ func (el *Elements1D) Connect1D() {
 		v := SpFToF.At(i, i)
 		SpFToF.Set(i, i, v-2)
 	}
+	// Find where faces share a vertex with another face
 	FacesIndex := utils.MatFind(SpFToF, utils.Equal, 1)
 
 	element1 := FacesIndex.RI.Copy().Apply(func(val int) int { return val / NFaces })
