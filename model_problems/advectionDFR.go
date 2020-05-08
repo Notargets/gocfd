@@ -77,8 +77,6 @@ func (c *AdvectionDFR) RHS(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 		c.UFlux = aNX.Subtract(aNXabs)
 	})
 	// Global Flux
-	// TODO: Figure out why this hack to the inflow BC is needed / working and fix the scheme
-	// it should be -Sin(Time * a), not -Sin(Time * a^2)
 	uin = -math.Sin(c.a * Time)
 	U.AssignScalar(el.MapI, uin)
 	c.F = U.Copy().Scale(c.a)
@@ -87,12 +85,12 @@ func (c *AdvectionDFR) RHS(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 	// du = (u(vmapM)-u(vmapP)).dm(a*nx-(1.-alpha)*abs(a*nx))/2.;
 	duNr := el.Nfp * el.NFaces
 	duNc := el.K
-	dU := U.Subset(el.VmapM, duNr, duNc).Subtract(U.Subset(el.VmapP, duNr, duNc)).ElMul(c.UFlux).Scale(0.5)
+	//dU := U.Subset(el.VmapM, duNr, duNc).Subtract(U.Subset(el.VmapP, duNr, duNc)).ElMul(c.UFlux).Scale(0.5)
 	// Boundaries
 	// Inflow boundary
 	// du(mapI) = (u(vmapI)-uin).dm(a*nx(mapI)-(1.-alpha)*abs(a*nx(mapI)))/2.;
-	dU.Assign(el.MapI, U.Subset(el.VmapI, duNr, duNc).AddScalar(-uin).ElMul(c.UFlux.Subset(el.MapI, duNr, duNc)).Scale(0.5))
-	dU.AssignScalar(el.MapO, 0)
+	//dU.Assign(el.MapI, U.Subset(el.VmapI, duNr, duNc).AddScalar(-uin).ElMul(c.UFlux.Subset(el.MapI, duNr, duNc)).Scale(0.5))
+	//dU.AssignScalar(el.MapO, 0)
 
 	// Add the average flux, Avg(Fl, Fr)
 	//Fface := dU.Add(c.F.Subset(el.VmapM, duNr, duNc).Add(c.F.Subset(el.VmapP, duNr, duNc)).Scale(0.5))
