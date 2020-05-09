@@ -83,7 +83,6 @@ func (c *AdvectionDFR) RHS(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 
 	// Face fluxes
 	// du = (u(vmapM)-u(vmapP)).dm(a*nx-(1.-alpha)*abs(a*nx))/2.;
-	// TODO: Revisit flux definition - Low order tests (N=1) where the flux impact is highest show flux is aphysical
 	duNr := el.Nfp * el.NFaces
 	duNc := el.K
 	dU := U.Subset(el.VmapM, duNr, duNc).Subtract(U.Subset(el.VmapP, duNr, duNc)).ElMul(c.UFlux).Scale(0.5)
@@ -96,6 +95,22 @@ func (c *AdvectionDFR) RHS(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 
 	// Add the average flux, Avg(Fl, Fr)
 	Fface := dU.Add(c.F.Subset(el.VmapM, duNr, duNc).Add(c.F.Subset(el.VmapP, duNr, duNc)).Scale(0.5))
+
+	/*
+			The flux value on each side of the face is different - average the two sides after each is calculated from the element
+		Example: K = 5
+		Fface = Fface(Nfp*NFaces, K)
+		Note that Fface[face1,element0] ~= Fface[face0,element1], we need to average the two to make them continuous
+		Fface =
+		-0.2658  5.8548   3.9147  -3.4354  -6.0378
+		 5.8841  3.9328  -3.4535  -6.0672  -0.2962
+	*/
+	for k := 0; k < el.K-1; k++ {
+		val := Fface.At(1, k)
+		avg := 0.5 * (val + Fface.M.At(0, k+1))
+		Fface.M.Set(1, k, avg)
+		Fface.M.Set(0, k+1, avg)
+	}
 
 	// Set the global flux values at the face to the numerical flux
 	c.F.AssignVector(el.VmapM, Fface)
