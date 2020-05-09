@@ -3,6 +3,7 @@ package model_problems
 import (
 	"fmt"
 	"math"
+	"os"
 	"sync"
 	"time"
 
@@ -78,24 +79,29 @@ func (c *AdvectionDFR) RHS(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 	})
 	// Global Flux
 	uin = -math.Sin(c.a * Time)
-	U.AssignScalar(el.MapI, uin)
+	//U.AssignScalar(el.MapI, uin)
 	c.F = U.Copy().Scale(c.a)
 
 	// Face fluxes
 	// du = (u(vmapM)-u(vmapP)).dm(a*nx-(1.-alpha)*abs(a*nx))/2.;
 	duNr := el.Nfp * el.NFaces
 	duNc := el.K
-	//dU := U.Subset(el.VmapM, duNr, duNc).Subtract(U.Subset(el.VmapP, duNr, duNc)).ElMul(c.UFlux).Scale(0.5)
+	dU := U.Subset(el.VmapM, duNr, duNc).Subtract(U.Subset(el.VmapP, duNr, duNc)).ElMul(c.UFlux).Scale(0.5)
+
 	// Boundaries
 	// Inflow boundary
 	// du(mapI) = (u(vmapI)-uin).dm(a*nx(mapI)-(1.-alpha)*abs(a*nx(mapI)))/2.;
-	//dU.Assign(el.MapI, U.Subset(el.VmapI, duNr, duNc).AddScalar(-uin).ElMul(c.UFlux.Subset(el.MapI, duNr, duNc)).Scale(0.5))
-	//dU.AssignScalar(el.MapO, 0)
+	dU.Assign(el.MapI, U.Subset(el.VmapI, duNr, duNc).AddScalar(-uin).ElMul(c.UFlux.Subset(el.MapI, duNr, duNc)).Scale(0.5))
+	dU.AssignScalar(el.MapO, 0)
 
 	// Add the average flux, Avg(Fl, Fr)
 	//Fface := dU.Add(c.F.Subset(el.VmapM, duNr, duNc).Add(c.F.Subset(el.VmapP, duNr, duNc)).Scale(0.5))
 	Fface := c.F.Subset(el.VmapM, duNr, duNc).Add(c.F.Subset(el.VmapP, duNr, duNc)).Scale(0.5)
+	fmt.Println(Fface.Print("Fface"))
+	fmt.Println(c.F.Print("F"))
+	os.Exit(1)
 	// Set the global flux values at the face to the numerical flux
+	// TODO: This assignment is not correct - Fface is (Nfp*Nfaces, K) and F is (Np, K)
 	c.F.AssignVector(el.VmapM, Fface)
 	c.F.AssignVector(el.VmapP, Fface)
 
