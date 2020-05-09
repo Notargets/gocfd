@@ -70,6 +70,7 @@ func (c *AdvectionDFR) RHS(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 		uin   float64
 		alpha = 0.0 // flux splitting parameter, 0 is full upwinding
 		el    = c.El
+		limit = true
 	)
 	c.RHSOnce.Do(func() {
 		aNX := el.NX.Copy().Scale(c.a)
@@ -113,6 +114,10 @@ func (c *AdvectionDFR) RHS(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 
 	// Set the global flux values at the face to the numerical flux
 	c.F.AssignVector(el.VmapM, Fface)
+
+	if limit {
+		el.SlopeLimitN(c.F, 20)
+	}
 
 	RHSU = el.Dr.Mul(c.F).ElMul(el.Rx).Scale(-1)
 	return
