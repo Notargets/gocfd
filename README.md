@@ -5,6 +5,38 @@ Awesome CFD solver written in Go
 
 ### Credits to Jan S. Hesthaven and Tim Warburton for their excellent text "Nodal Discontinuous Galerkin Methods" (2007)
 
+### QuickStart
+
+Using Ubuntu Linux, do the following first:
+```
+me@home:bash# sudo apt update
+me@home:bash# sudo apt install libx11-dev libxi-dev libxcursor-dev libxrandr-dev libxinerama-dev mesa-common-dev libgl1-mesa-dev
+me@home:bash# make
+with graphics:
+me@home:bash# export DISPLAY=:0
+me@home:bash# gocfd -graph
+without graphics:
+me@home:bash# gocfd
+```
+
+### Current Status (May 9, 2020): Direct Flux Reconstruction implemented for 1D Advection, moving to implement for the other two 1D model problems
+
+DFR works for Advection (-model 3) and seems to improve accuracy and physicality.
+
+The primary differences between using DFR and traditional Nodal Discontinuous Galerkin:
+1) Instead of using only the primitive variables in the right hand side, we use the Flux directly for a hyperbolic problem
+2) The flux is a globally composed variable and is differentiated after being "reconstructed" to be C(1)
+3) The reconstruction technique follows Jameson(2014) in that we coerce the flux values of each face to be consistent values at each face, then use the same Np Gauss-Lobato nodes and metrics to develop the derivative(s) of flux
+
+For (3) in this case, I used the same Lax-Friedrichs flux calculation from the text, then averaged the values from each side of each face together to make a single consistent face value shared by neighboring elements.
+
+### (May 1, 2020): Researching Direct Flux Reconstruction methods
+During testing of the method in 1D as outlined in the text, it became clear that the slope limiter is quite crude and is degrading the physicality of the solution. The authors were clear that this is just for example use, and now I'm convinced of it!
+
+My first round of research yielded the [Direct Flux Reconstruction](research/filters_and_flux_limiters/Romero2015.pdf) technique from a 2014 paper by Antony Jameson, et al (one of my favorite CFD people of all time). The technique is extremely simple and has the great promise of extending the degree of accuracy to the Flux terms of more complex equations, in addition to enabling the use of flux limiters that have been proven for flows with discontinuities.
+
+In my past CFD experience, discontinuities in solving the Navier Stokes equations are not limited to shock waves. Rather, we find shear flows have discontinuities that are similar enough to shock waves that shock finding techniques used to guide the application of numerical diffusion can be active at the edge of boundary layers and at other critical regions, which often leads to inaccuracies far from shocks. The text's gradient based limiter would clearly suffer from this kind of problem among others.
+
 ## Requirements to run the code
 Here is what I'm using as a platform:
 ```
@@ -22,7 +54,7 @@ apt install libx11-dev libxi-dev libxcursor-dev libxrandr-dev libxinerama-dev me
 ```
 A proper build should go like this:
 ```
-me@home:bash# $ make
+me@home:bash# make
 go fmt ./...  && go install ./...
 run this -> $GOPATH/bin/gocfd
 me@home:bash# /gocfd$ gocfd --help
