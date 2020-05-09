@@ -106,8 +106,7 @@ func (c *AdvectionDFR) RHS(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 		 5.8841  3.9328  -3.4535  -6.0672  -0.2962
 	*/
 	for k := 0; k < el.K-1; k++ {
-		val := Fface.At(1, k)
-		avg := 0.5 * (val + Fface.M.At(0, k+1))
+		avg := 0.5 * (Fface.At(1, k) + Fface.M.At(0, k+1))
 		Fface.M.Set(1, k, avg)
 		Fface.M.Set(0, k+1, avg)
 	}
