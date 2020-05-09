@@ -7,15 +7,20 @@ Awesome CFD solver written in Go
 
 ### QuickStart
 
-Using Ubuntu Linux, do the following first:
+Using Ubuntu Linux, do the following:
 ```
+### Build
 me@home:bash# sudo apt update
 me@home:bash# sudo apt install libx11-dev libxi-dev libxcursor-dev libxrandr-dev libxinerama-dev mesa-common-dev libgl1-mesa-dev
 me@home:bash# make
-with graphics:
+```
+```
+### Run with graphics:
 me@home:bash# export DISPLAY=:0
 me@home:bash# gocfd -graph
-without graphics:
+```
+```
+### Run without graphics:
 me@home:bash# gocfd
 ```
 
