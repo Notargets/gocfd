@@ -3,7 +3,6 @@ package model_problems
 import (
 	"fmt"
 	"math"
-	"os"
 	"sync"
 	"time"
 
@@ -84,6 +83,7 @@ func (c *AdvectionDFR) RHS(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 
 	// Face fluxes
 	// du = (u(vmapM)-u(vmapP)).dm(a*nx-(1.-alpha)*abs(a*nx))/2.;
+	// TODO: Revisit flux definition - Low order tests (N=1) where the flux impact is highest show flux is aphysical
 	duNr := el.Nfp * el.NFaces
 	duNc := el.K
 	dU := U.Subset(el.VmapM, duNr, duNc).Subtract(U.Subset(el.VmapP, duNr, duNc)).ElMul(c.UFlux).Scale(0.5)
@@ -95,15 +95,10 @@ func (c *AdvectionDFR) RHS(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 	dU.AssignScalar(el.MapO, 0)
 
 	// Add the average flux, Avg(Fl, Fr)
-	//Fface := dU.Add(c.F.Subset(el.VmapM, duNr, duNc).Add(c.F.Subset(el.VmapP, duNr, duNc)).Scale(0.5))
-	Fface := c.F.Subset(el.VmapM, duNr, duNc).Add(c.F.Subset(el.VmapP, duNr, duNc)).Scale(0.5)
-	fmt.Println(Fface.Print("Fface"))
-	fmt.Println(c.F.Print("F"))
-	os.Exit(1)
+	Fface := dU.Add(c.F.Subset(el.VmapM, duNr, duNc).Add(c.F.Subset(el.VmapP, duNr, duNc)).Scale(0.5))
+
 	// Set the global flux values at the face to the numerical flux
-	// TODO: This assignment is not correct - Fface is (Nfp*Nfaces, K) and F is (Np, K)
 	c.F.AssignVector(el.VmapM, Fface)
-	c.F.AssignVector(el.VmapP, Fface)
 
 	RHSU = el.Dr.Mul(c.F).ElMul(el.Rx).Scale(-1)
 	return
