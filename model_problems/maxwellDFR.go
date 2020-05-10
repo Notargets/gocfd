@@ -17,10 +17,12 @@ type MaxwellDFR struct {
 	// Input parameters
 	CFL, FinalTime                   float64
 	El                               *DG1D.Elements1D
-	RHSOnce                          sync.Once
+	RHSOnce, PlotOnce                sync.Once
 	E, H                             utils.Matrix
 	Epsilon, Mu                      utils.Matrix
 	Zimp, ZimPM, ZimPP, YimPM, YimPP utils.Matrix
+	chart                            *chart2d.Chart2D
+	colorMap                         *utils2.ColorMap
 }
 
 func NewMaxwellDFR(CFL, FinalTime float64, N, K int) (c *MaxwellDFR) {
@@ -30,6 +32,7 @@ func NewMaxwellDFR(CFL, FinalTime float64, N, K int) (c *MaxwellDFR) {
 		FinalTime: FinalTime,
 		El:        DG1D.NewElements1D(N, VX, EToV),
 	}
+	fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, K)
 	epsData := utils.ConstArray(c.El.K, 1)
 	ones := utils.NewVectorConstant(c.El.Np, 1)
 	for i := c.El.K / 2; i < c.El.K; i++ {
@@ -61,23 +64,13 @@ func NewMaxwellDFR(CFL, FinalTime float64, N, K int) (c *MaxwellDFR) {
 
 func (c *MaxwellDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 	var (
-		chart                  *chart2d.Chart2D
-		colorMap               *utils2.ColorMap
-		chartNameE, chartNameH string
-		el                     = c.El
-		resE                   = utils.NewMatrix(el.Np, el.K)
-		resH                   = utils.NewMatrix(el.Np, el.K)
-		logFrequency           = 50
-		limiter                = false
-		limiterM               = 20.
+		el           = c.El
+		resE         = utils.NewMatrix(el.Np, el.K)
+		resH         = utils.NewMatrix(el.Np, el.K)
+		logFrequency = 50
+		limiter      = false
+		limiterM     = 20.
 	)
-	if showGraph {
-		chart = chart2d.NewChart2D(1920, 1280, float32(el.X.Min()), float32(el.X.Max()), -1, 1)
-		colorMap = utils2.NewColorMap(-1, 1, 1)
-		chartNameE = "E Field"
-		chartNameH = "H Field"
-		go chart.Plot()
-	}
 	xmin := el.X.Row(1).Subtract(el.X.Row(0)).Apply(math.Abs).Min()
 	dt := xmin * c.CFL
 	Nsteps := int(math.Ceil(c.FinalTime / dt))
@@ -86,19 +79,7 @@ func (c *MaxwellDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 
 	var Time float64
 	for tstep := 0; tstep < Nsteps; tstep++ {
-		if showGraph {
-			if err := chart.AddSeries(chartNameE, el.X.Transpose().RawMatrix().Data, c.E.Transpose().RawMatrix().Data,
-				chart2d.NoGlyph, chart2d.Solid, colorMap.GetRGB(0)); err != nil {
-				panic("unable to add graph series")
-			}
-			if err := chart.AddSeries(chartNameH, el.X.Transpose().RawMatrix().Data, c.H.Transpose().RawMatrix().Data,
-				chart2d.NoGlyph, chart2d.Solid, colorMap.GetRGB(0.7)); err != nil {
-				panic("unable to add graph series")
-			}
-			if len(graphDelay) != 0 {
-				time.Sleep(graphDelay[0])
-			}
-		}
+		c.Plot(showGraph, graphDelay, c.E, c.H)
 		for INTRK := 0; INTRK < 5; INTRK++ {
 			if limiter {
 				c.E = el.SlopeLimitN(c.E, limiterM)
@@ -142,4 +123,31 @@ func (c *MaxwellDFR) RHS() (RHSE, RHSH utils.Matrix) {
 	RHSH = el.Rx.Copy().Scale(-1).ElMul(el.Dr.Mul(c.E)).Add(el.LIFT.Mul(fluxH.ElMul(el.FScale))).ElDiv(c.Mu)
 
 	return
+}
+
+func (c *MaxwellDFR) Plot(showGraph bool, graphDelay []time.Duration, E, H utils.Matrix) {
+	var (
+		el         = c.El
+		pMin, pMax = float32(-1), float32(1)
+	)
+	if !showGraph {
+		return
+	}
+	c.PlotOnce.Do(func() {
+		c.chart = chart2d.NewChart2D(1280, 1024, float32(el.X.Min()), float32(el.X.Max()), pMin, pMax)
+		c.colorMap = utils2.NewColorMap(-1, 1, 1)
+		go c.chart.Plot()
+	})
+
+	if err := c.chart.AddSeries("E", el.X.Transpose().RawMatrix().Data, E.Transpose().RawMatrix().Data,
+		chart2d.NoGlyph, chart2d.Solid, c.colorMap.GetRGB(0)); err != nil {
+		panic("unable to add graph series")
+	}
+	if err := c.chart.AddSeries("H", el.X.Transpose().RawMatrix().Data, H.Transpose().RawMatrix().Data,
+		chart2d.NoGlyph, chart2d.Solid, c.colorMap.GetRGB(0.7)); err != nil {
+		panic("unable to add graph series")
+	}
+	if len(graphDelay) != 0 {
+		time.Sleep(graphDelay[0])
+	}
 }
