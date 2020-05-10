@@ -22,8 +22,11 @@ type AdvectionDFR struct {
 	colorMap          *utils2.ColorMap
 }
 
-func NewAdvectionDFR(a, CFL, FinalTime float64, N, K int) *AdvectionDFR {
-	VX, EToV := DG1D.SimpleMesh1D(0, 2*math.Pi, K)
+func NewAdvectionDFR(a, CFL, FinalTime, XMax float64, N, K int) *AdvectionDFR {
+	if XMax == 0 {
+		XMax = 2 * math.Pi
+	}
+	VX, EToV := DG1D.SimpleMesh1D(0, XMax, K)
 	return &AdvectionDFR{
 		a:         a,
 		CFL:       CFL,
@@ -99,10 +102,13 @@ func (c *AdvectionDFR) RHS(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 
 	/*
 			The flux value on each side of the face is different - average the two sides after each is calculated from the element
-		Example: K = 5
+		Example: K = 5 elements, 2 faces per element, one face point per face (assumed)
 		Fface = Fface(Nfp*NFaces, K)
 		Note that Fface[face1,element0] ~= Fface[face0,element1], we need to average the two to make them continuous
-		Fface =
+		Before --> Fface =
+		-0.2658  5.8548   3.9147  -3.4354  -6.0378
+		 5.8841  3.9328  -3.4535  -6.0672  -0.2962
+		After --> Fface =
 		-0.2658  5.8548   3.9147  -3.4354  -6.0378
 		 5.8841  3.9328  -3.4535  -6.0672  -0.2962
 	*/
@@ -132,7 +138,7 @@ func (c *AdvectionDFR) Plot(showGraph bool, graphDelay []time.Duration, U utils.
 		return
 	}
 	c.PlotOnce.Do(func() {
-		c.chart = chart2d.NewChart2D(1024, 768, float32(el.X.Min()), float32(el.X.Max()), pMin, pMax)
+		c.chart = chart2d.NewChart2D(1280, 1024, float32(el.X.Min()), float32(el.X.Max()), pMin, pMax)
 		c.colorMap = utils2.NewColorMap(-1, 1, 1)
 		go c.chart.Plot()
 	})

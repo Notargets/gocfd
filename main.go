@@ -56,7 +56,7 @@ func main() {
 	case Maxwell1D:
 		C = model_problems.NewMaxwell1D(CFL, FinalTime, N, K)
 	case AdvectDFR:
-		C = model_problems.NewAdvectionDFR(2*math.Pi, CFL, FinalTime, N, K)
+		C = model_problems.NewAdvectionDFR(2*math.Pi, CFL, FinalTime, XMax, N, K)
 	case Euler1D:
 		fallthrough
 	default:
