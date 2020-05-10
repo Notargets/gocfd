@@ -49,7 +49,7 @@ func main() {
 
 	K = int(getParam(float64(K), Kptr))
 	N = int(getParam(float64(N), Nptr))
-	CFL = getParam(CFL, CFLptr)
+	CFL = LimitCFL(ModelRun, getParam(CFL, CFLptr))
 	FinalTime = getParam(FinalTime, FTptr)
 	XMax = getParam(XMax, XMaxptr)
 
@@ -71,7 +71,22 @@ func main() {
 	C.Run(*Graphptr, Delay*time.Millisecond)
 }
 
-func LimitCFL(CFL, CFLMax float64) (CFLNew float64) {
+func LimitCFL(ModelRun ModelType, CFL float64) (CFLNew float64) {
+	var (
+		CFLMax float64
+	)
+	switch ModelRun {
+	case Advect1D:
+		CFLMax = 1
+	case Maxwell1D:
+		CFLMax = 1
+	case Euler1D:
+		CFLMax = 3
+	case AdvectDFR:
+		CFLMax = 3
+	case MaxwellDFR:
+		CFLMax = 1
+	}
 	if CFL > CFLMax {
 		fmt.Printf("Input CFL is higher than max CFL for this method\nReplacing with Max CFL: %8.2f\n", CFLMax)
 		return CFLMax
