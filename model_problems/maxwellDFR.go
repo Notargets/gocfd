@@ -117,20 +117,21 @@ func (c *MaxwellDFR) RHS() (RHSE, RHSH utils.Matrix) {
 	// H on the boundary face is equal to H inside, so the diff in H at the boundary face is 0
 	dH.AssignVector(el.MapB, c.H.SubsetVector(el.VmapB).Set(0))
 
-	/*
-		Simple Average Flux
+	fluxType := "anisotropic"
+	switch fluxType {
+	case "average":
 		FaceFluxH = FluxH.Subset(el.VmapM, nrF, ncF).Add(FluxH.Subset(el.VmapP, nrF, ncF)).Scale(0.5)
 		FaceFluxE = FluxE.Subset(el.VmapM, nrF, ncF).Add(FluxE.Subset(el.VmapP, nrF, ncF)).Scale(0.5)
-	*/
-	isotropic := true
-	if !isotropic {
+	case "isotropic":
+		FaceFluxH = FluxH.Subset(el.VmapM, nrF, ncF).Add(FluxH.Subset(el.VmapP, nrF, ncF)).Add(el.NX.Copy().ElMul(dE).ElMul(c.YimPP)).Scale(0.5)
+		FaceFluxE = FluxE.Subset(el.VmapM, nrF, ncF).Add(FluxE.Subset(el.VmapP, nrF, ncF)).Add(el.NX.Copy().ElMul(dH).ElMul(c.ZimPP)).Scale(0.5)
+	case "anisotropic":
+		fallthrough
+	default:
 		FaceFluxH = FluxH.Subset(el.VmapM, nrF, ncF).ElMul(c.ZimPM).Add(FluxH.Subset(el.VmapP, nrF, ncF).ElMul(c.ZimPP)).Add(el.NX.Copy().ElMul(dE))
 		FaceFluxH.ElMul(c.ZimpDenom)
 		FaceFluxE = FluxE.Subset(el.VmapM, nrF, ncF).ElMul(c.YimPM).Add(FluxE.Subset(el.VmapP, nrF, ncF).ElMul(c.YimPP)).Add(el.NX.Copy().ElMul(dH))
 		FaceFluxE.ElMul(c.YimpDenom)
-	} else {
-		FaceFluxH = FluxH.Subset(el.VmapM, nrF, ncF).Add(FluxH.Subset(el.VmapP, nrF, ncF)).Add(el.NX.Copy().ElMul(dE).ElMul(c.YimPP)).Scale(0.5)
-		FaceFluxE = FluxE.Subset(el.VmapM, nrF, ncF).Add(FluxE.Subset(el.VmapP, nrF, ncF)).Add(el.NX.Copy().ElMul(dH).ElMul(c.ZimPP)).Scale(0.5)
 	}
 
 	if false {
