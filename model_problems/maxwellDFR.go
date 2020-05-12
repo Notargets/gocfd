@@ -104,6 +104,7 @@ func (c *MaxwellDFR) RHS() (RHSE, RHSH utils.Matrix) {
 		dE                   = FluxE.Subset(el.VmapM, nrF, ncF).Subtract(FluxE.Subset(el.VmapP, nrF, ncF))
 		dH                   = FluxH.Subset(el.VmapM, nrF, ncF).Subtract(FluxH.Subset(el.VmapP, nrF, ncF))
 		FaceFluxE, FaceFluxH utils.Matrix
+		artificialDissCoeff  = 0.01
 	)
 	c.RHSOnce.Do(func() {
 		c.ZimpDenom = c.ZimPM.Copy().Add(c.ZimPP).POW(-1)
@@ -149,8 +150,16 @@ func (c *MaxwellDFR) RHS() (RHSE, RHSH utils.Matrix) {
 	FluxH.AssignVector(el.VmapM, FaceFluxH)
 	//_, _ = FaceFluxE, FaceFluxH
 
-	RHSE = el.Dr.Mul(FluxH).ElMul(el.Rx).ElDiv(c.Epsilon).Scale(-1)
-	RHSH = el.Dr.Mul(FluxE).ElMul(el.Rx).ElDiv(c.Mu).Scale(-1)
+	// Ad-Hoc 2nd Order Artificial Dissipation
+	ADissE := el.Dr.Mul(el.Dr.Mul(FluxE)).ElMul(el.Rx).Scale(artificialDissCoeff)
+	ADissH := el.Dr.Mul(el.Dr.Mul(FluxH)).ElMul(el.Rx).Scale(artificialDissCoeff)
+
+	RHSE = el.Dr.Mul(FluxH).ElMul(el.Rx).ElDiv(c.Epsilon).Scale(-1).Add(ADissE)
+	RHSH = el.Dr.Mul(FluxE).ElMul(el.Rx).ElDiv(c.Mu).Scale(-1).Add(ADissH)
+	/*
+		RHSE = el.Dr.Mul(FluxH).ElMul(el.Rx).ElDiv(c.Epsilon).Scale(-1)
+		RHSH = el.Dr.Mul(FluxE).ElMul(el.Rx).ElDiv(c.Mu).Scale(-1)
+	*/
 
 	return
 }
