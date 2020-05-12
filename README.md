@@ -12,9 +12,9 @@ If you are interested in reviewing the physics and how it is implemented, look t
 If you want to look at the math / matrix library implementation, take a look at the code in utils/matrix_extended.go and utils/vector_extended.go. I've implemented a chained operator syntax for operations that favors reuse / reduces copying and makes clear the dimensionality of the operands. It is far from perfect and complete, especially WRT value assignment and indexing, as I built the library to emulate and implement what was in the text and matlab, however it is functional / useful. The syntax is somewhat like RPN (reverse polish notation) in that you manage an accumulation of value over chained operations.
 
 For example, the following line implements:
-rhsRho = -Rx .* (Dr * RhoF + LIFT * dRhoF .* Fscale)
+```rhsE = - Dr * FluxH .* Rx ./ epsilon``` Dr is the "Derivative Matrix" and Rx is (1 / J), applying the transform of R to X, and epsilon is the metalic impedance, all applied to the Flux matrix:
 ```
-	rhsRho = el.Rx.Copy().Scale(-1.).ElMul(el.Dr.Mul(RhoF)).Add(el.LIFT.Mul(dRhoF.ElMul(el.FScale)))
+	RHSE = el.Dr.Mul(FluxH).ElMul(el.Rx).ElDiv(c.Epsilon).Scale(-1)
 ```
 
 ### QuickStart
@@ -35,6 +35,8 @@ me@home:bash# gocfd -graph
 ### Run without graphics:
 me@home:bash# gocfd
 ```
+### Update
+DFR works, sort of - if you watch through the instability near the beginning, it stabilizes and gets the right wave graphically and preserves energy and repeating patterns - pretty cool! You can see it as model 4 with default parameters like ```gocfd -model 4 -graph``` The issue is the instability - it scales with N, so is a higher order modal signal - It could be that the Lax Friedrich's flux, which is 1st order, is not providing damping of the higher order modes. But why are there higher order modes? Are these unresolved waves? I can't answer without more looking into it...
 
 ### Current Status (May 9, 2020): Direct Flux Reconstruction implemented for 1D Advection, moving to implement for the other two 1D model problems
 
@@ -42,7 +44,7 @@ DFR works for Advection (-model 3) and seems to improve accuracy and physicality
 
 The primary differences between using DFR and traditional Nodal Discontinuous Galerkin:
 1) Instead of using only the primitive variables in the right hand side, we use the Flux directly for a hyperbolic problem
-2) The flux is a globally composed variable and is differentiated after being "reconstructed" to be C(1)
+2) The flux is a globally composed variable and is differentiated after being "reconstructed" to be C(0)
 3) The reconstruction technique follows Jameson(2014) in that we coerce the flux values of each face to be consistent values at each face, then use the same Np Gauss-Lobato nodes and metrics to develop the derivative(s) of flux
 
 For (3) in this case, I used the same Lax-Friedrichs flux calculation from the text, then averaged the values from each side of each face together to make a single consistent face value shared by neighboring elements.
