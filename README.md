@@ -35,6 +35,8 @@ me@home:bash# gocfd -graph
 ### Run without graphics:
 me@home:bash# gocfd
 ```
+### Update
+DFR works, sort of - if you watch through the instability near the beginning, it stabilizes and gets the right wave graphically and preserves energy and repeating patterns - pretty cool! You can see it as model 4 with default parameters like ```gocfd -model 4 -graph``` The issue is the instability - it scales with N, so is a higher order modal signal - It could be that the Lax Friedrich's flux, which is 1st order, is not providing damping of the higher order modes. But why are there higher order modes? Are these unresolved waves? I can't answer without more looking into it...
 
 ### Current Status (May 9, 2020): Direct Flux Reconstruction implemented for 1D Advection, moving to implement for the other two 1D model problems
 
