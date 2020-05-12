@@ -117,9 +117,9 @@ func Defaults(ModelRun ModelType) (CFL, XMax float64, N, K int) {
 		CFL = 3
 		XMax = 2 * math.Pi
 	case MaxwellDFR:
-		K = 100
+		K = 500
 		N = 3
-		CFL = 0.25
+		CFL = 0.75
 		XMax = 1
 	}
 	return
