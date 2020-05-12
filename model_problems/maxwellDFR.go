@@ -21,6 +21,7 @@ type MaxwellDFR struct {
 	E, H                             utils.Matrix
 	Epsilon, Mu                      utils.Matrix
 	Zimp, ZimPM, ZimPP, YimPM, YimPP utils.Matrix
+	ZimpDenom, YimpDenom             utils.Matrix
 	chart                            *chart2d.Chart2D
 	colorMap                         *utils2.ColorMap
 }
@@ -104,6 +105,10 @@ func (c *MaxwellDFR) RHS() (RHSE, RHSH utils.Matrix) {
 		dH                   = FluxH.Subset(el.VmapM, nrF, ncF).Subtract(FluxH.Subset(el.VmapP, nrF, ncF))
 		FaceFluxE, FaceFluxH utils.Matrix
 	)
+	c.RHSOnce.Do(func() {
+		c.ZimpDenom = c.ZimPM.Copy().Add(c.ZimPP).POW(-1)
+		c.YimpDenom = c.YimPM.Copy().Add(c.YimPP).POW(-1)
+	})
 	//FluxE, FluxH = el.SlopeLimitN(FluxE, 20), el.SlopeLimitN(FluxH, 20)
 	// Homogeneous boundary conditions at the inflow faces, Ez = 0
 	// Reflection BC - Metal boundary - E is zero at shell face, H passes through (Neumann)
@@ -117,10 +122,16 @@ func (c *MaxwellDFR) RHS() (RHSE, RHSH utils.Matrix) {
 		FaceFluxH = FluxH.Subset(el.VmapM, nrF, ncF).Add(FluxH.Subset(el.VmapP, nrF, ncF)).Scale(0.5)
 		FaceFluxE = FluxE.Subset(el.VmapM, nrF, ncF).Add(FluxE.Subset(el.VmapP, nrF, ncF)).Scale(0.5)
 	*/
-	FaceFluxH = c.ZimPM.Copy().Add(c.ZimPP).POW(-1).ElMul(
-		FluxH.Subset(el.VmapM, nrF, ncF).ElMul(c.ZimPM).Add(FluxH.Subset(el.VmapP, nrF, ncF).ElMul(c.ZimPP)).Add(el.NX.Copy().ElMul(dE)))
-	FaceFluxE = c.YimPM.Copy().Add(c.YimPP).POW(-1).ElMul(
-		FluxE.Subset(el.VmapM, nrF, ncF).ElMul(c.YimPM).Add(FluxE.Subset(el.VmapP, nrF, ncF).ElMul(c.YimPP)).Add(el.NX.Copy().ElMul(dH)))
+	isotropic := true
+	if !isotropic {
+		FaceFluxH = FluxH.Subset(el.VmapM, nrF, ncF).ElMul(c.ZimPM).Add(FluxH.Subset(el.VmapP, nrF, ncF).ElMul(c.ZimPP)).Add(el.NX.Copy().ElMul(dE))
+		FaceFluxH.ElMul(c.ZimpDenom)
+		FaceFluxE = FluxE.Subset(el.VmapM, nrF, ncF).ElMul(c.YimPM).Add(FluxE.Subset(el.VmapP, nrF, ncF).ElMul(c.YimPP)).Add(el.NX.Copy().ElMul(dH))
+		FaceFluxE.ElMul(c.YimpDenom)
+	} else {
+		FaceFluxH = FluxH.Subset(el.VmapM, nrF, ncF).Add(FluxH.Subset(el.VmapP, nrF, ncF)).Add(el.NX.Copy().ElMul(dE).ElMul(c.YimPP)).Scale(0.5)
+		FaceFluxE = FluxE.Subset(el.VmapM, nrF, ncF).Add(FluxE.Subset(el.VmapP, nrF, ncF)).Add(el.NX.Copy().ElMul(dH).ElMul(c.ZimPP)).Scale(0.5)
+	}
 
 	if false {
 		for k := 0; k < el.K-1; k++ {
