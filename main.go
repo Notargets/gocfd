@@ -27,6 +27,7 @@ const (
 	Euler1D
 	AdvectDFR
 	MaxwellDFR
+	EulerDFR
 )
 
 type Model interface {
@@ -63,6 +64,8 @@ func main() {
 		C = model_problems.NewAdvectionDFR(2*math.Pi, CFL, FinalTime, XMax, N, K)
 	case MaxwellDFR:
 		C = model_problems.NewMaxwellDFR(CFL, FinalTime, N, K)
+	case EulerDFR:
+		C = model_problems.NewEulerDFR(CFL, FinalTime, XMax, N, K)
 	case Euler1D:
 		fallthrough
 	default:
@@ -80,7 +83,7 @@ func LimitCFL(ModelRun ModelType, CFL float64) (CFLNew float64) {
 		CFLMax = 1
 	case Maxwell1D:
 		CFLMax = 1
-	case Euler1D:
+	case Euler1D, EulerDFR:
 		CFLMax = 3
 	case AdvectDFR:
 		CFLMax = 3
@@ -106,7 +109,7 @@ func Defaults(ModelRun ModelType) (CFL, XMax float64, N, K int) {
 		N = 4
 		CFL = 1
 		XMax = 1
-	case Euler1D:
+	case Euler1D, EulerDFR:
 		K = 500
 		N = 4
 		CFL = 3

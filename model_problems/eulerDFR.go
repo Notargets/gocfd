@@ -6,8 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"gonum.org/v1/gonum/mat"
-
 	"github.com/notargets/avs/chart2d"
 	utils2 "github.com/notargets/avs/utils"
 
@@ -15,7 +13,7 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-type Euler1D struct {
+type EulerDFR struct {
 	// Input parameters
 	CFL, FinalTime  float64
 	El              *DG1D.Elements1D
@@ -28,45 +26,9 @@ type Euler1D struct {
 	colorMap        *utils2.ColorMap
 }
 
-type FieldState struct {
-	Gamma                float64
-	U, Q, Pres, CVel, LM utils.Matrix
-	Temp                 utils.Matrix
-}
-
-func NewFieldState() (fs *FieldState) {
-	return &FieldState{}
-}
-
-func (fs *FieldState) Update(Rho, RhoU, Ener utils.Matrix) {
-	fs.U = RhoU.Copy().ElDiv(Rho)                   // Velocity
-	fs.Q = fs.U.Copy().POW(2).ElMul(Rho).Scale(0.5) // 1/2 * Rho * U^2
-	// (gamma-1.0)*(Ener - 0.5*(rhou).^2./rho)
-	fs.Pres = Ener.Copy().Subtract(fs.Q).Scale(fs.Gamma - 1.) // Pressure
-	// sqrt(gamma*pres./rho)
-	fs.CVel = fs.Pres.Copy().ElDiv(Rho).Scale(fs.Gamma).Apply(math.Sqrt)
-	//  abs(rhou./rho)+cvel
-	fs.LM = fs.U.Copy().Apply(math.Abs).Add(fs.CVel)
-	//	Temp = (Ener - 0.5*(rhou).^2./rho)./rho
-	fs.Temp = Ener.Copy().Subtract(fs.Q).ElDiv(Rho)
-	fs.U.SetReadOnly("U")
-	fs.Q.SetReadOnly("Q")
-	fs.Pres.SetReadOnly("Pres")
-	fs.CVel.SetReadOnly("CVel")
-	fs.LM.SetReadOnly("LM")
-}
-
-func (fs *FieldState) Print() {
-	fmt.Printf("U = \n%v\n", mat.Formatted(fs.U, mat.Squeeze()))
-	fmt.Printf("Q = \n%v\n", mat.Formatted(fs.Q, mat.Squeeze()))
-	fmt.Printf("Pres = \n%v\n", mat.Formatted(fs.Pres, mat.Squeeze()))
-	fmt.Printf("CVel = \n%v\n", mat.Formatted(fs.CVel, mat.Squeeze()))
-	fmt.Printf("LM = \n%v\n", mat.Formatted(fs.LM, mat.Squeeze()))
-}
-
-func NewEuler1D(CFL, FinalTime, XMax float64, N, K int) (c *Euler1D) {
+func NewEulerDFR(CFL, FinalTime, XMax float64, N, K int) (c *EulerDFR) {
 	VX, EToV := DG1D.SimpleMesh1D(0, XMax, K)
-	c = &Euler1D{
+	c = &EulerDFR{
 		CFL:       CFL,
 		State:     NewFieldState(),
 		FinalTime: FinalTime,
@@ -83,7 +45,7 @@ func NewEuler1D(CFL, FinalTime, XMax float64, N, K int) (c *Euler1D) {
 	return
 }
 
-func (c *Euler1D) InitializeFS() {
+func (c *EulerDFR) InitializeFS() {
 	var (
 		el = c.El
 		FS = c.In
@@ -93,7 +55,7 @@ func (c *Euler1D) InitializeFS() {
 	c.Ener = utils.NewMatrix(el.Np, el.K).AddScalar(FS.Ener)
 }
 
-func (c *Euler1D) InitializeSOD() {
+func (c *EulerDFR) InitializeSOD() {
 	var (
 		/*
 			In                = NewStateP(c.Gamma, 1, 0, 1)
@@ -125,7 +87,7 @@ func (c *Euler1D) InitializeSOD() {
 	c.Ener.AssignScalar(rightHalf, 0.1*rDiv)
 }
 
-func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
+func (c *EulerDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 	var (
 		el           = c.El
 		logFrequency = 50
@@ -173,7 +135,7 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 	return
 }
 
-func (c *Euler1D) CalculateDT(xmin, Time float64) (dt float64) {
+func (c *EulerDFR) CalculateDT(xmin, Time float64) (dt float64) {
 	var (
 		s = c.State
 	)
@@ -186,7 +148,7 @@ func (c *Euler1D) CalculateDT(xmin, Time float64) (dt float64) {
 	return
 }
 
-func (c *Euler1D) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
+func (c *EulerDFR) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
 	var (
 		el                                                 = c.El
 		nrF, ncF                                           = el.Nfp * el.NFaces, el.K
@@ -236,7 +198,7 @@ func (c *Euler1D) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEne
 	return
 }
 
-func (c *Euler1D) BoundaryConditions(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, dRhoF, dRhoUF, dEnerF *utils.Matrix) {
+func (c *EulerDFR) BoundaryConditions(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, dRhoF, dRhoUF, dEnerF *utils.Matrix) {
 	var (
 		s  = c.State
 		el = c.El
@@ -261,49 +223,7 @@ func (c *Euler1D) BoundaryConditions(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.M
 	bFunc(dEnerF, Ener, EnerF, lmO, nxO, Out.Ener, Out.EnerF, el.MapO, el.VmapO)
 }
 
-func bFunc(dUF *utils.Matrix, U, UF utils.Matrix, lm, nx utils.Vector, uIO, ufIO float64, mapi, vmap utils.Index) {
-	// Characteristic BC using freestream conditions at boundary
-	var (
-		dUFVec utils.Matrix
-	)
-	dUFVec = nx.Outer(UF.SubsetVector(vmap).Subtract(utils.NewVectorConstant(len(vmap), ufIO))).Scale(0.5)
-	dUFVec.Subtract(lm.Outer(U.SubsetVector(vmap).Subtract(utils.NewVectorConstant(len(vmap), uIO))))
-	dUF.AssignVector(mapi, dUFVec)
-	return
-}
-
-type State struct {
-	Gamma, Rho, RhoU, Ener float64
-	RhoF, RhoUF, EnerF     float64
-}
-
-func NewState(gamma, rho, rhoU, ener float64) (s *State) {
-	p := ener * (gamma - 1.)
-	q := 0.5 * utils.POW(rhoU, 2) / rho
-	u := rhoU / rho
-	return &State{
-		Gamma: gamma,
-		Rho:   rho,
-		RhoU:  rhoU,
-		Ener:  ener,
-		RhoF:  rhoU,
-		RhoUF: 2*q + p,
-		EnerF: (ener + q + p) * u,
-	}
-}
-
-func NewStateP(gamma, rho, rhoU, p float64) *State {
-	ener := p / (gamma - 1.)
-	return NewState(gamma, rho, rhoU, ener)
-}
-
-func (s *State) Print() (o string) {
-	o = fmt.Sprintf("Rho = %v\nP = %v\nE = %v\nRhoU = %v\nRhoUF = %v\n",
-		s.Rho, s.Ener*(s.Gamma-1.), s.Ener, s.RhoU, s.RhoUF)
-	return
-}
-
-func (c *Euler1D) Plot(showGraph bool, graphDelay []time.Duration) {
+func (c *EulerDFR) Plot(showGraph bool, graphDelay []time.Duration) {
 	var (
 		el = c.El
 	)
