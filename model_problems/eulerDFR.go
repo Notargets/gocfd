@@ -160,12 +160,13 @@ func (c *EulerDFR) CalculateDT(xmin, Time float64) (dt float64) {
 
 func (c *EulerDFR) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
 	var (
-		el                                                 = c.El
-		nrF, ncF                                           = el.Nfp * el.NFaces, el.K
-		s                                                  = c.State
-		dRho, dRhoU, dEner, dRhoF, dRhoUF, dEnerF, LFcDiv2 utils.Matrix
-		Rho, RhoU, Ener                                    = *Rhop, *RhoUp, *Enerp
-		RhoF, RhoUF, EnerF                                 utils.Matrix
+		el                 = c.El
+		nrF, ncF           = el.Nfp * el.NFaces, el.K
+		s                  = c.State
+		LFc                utils.Matrix
+		fRho, fRhoU, fEner utils.Matrix
+		Rho, RhoU, Ener    = *Rhop, *RhoUp, *Enerp
+		RhoF, RhoUF, EnerF utils.Matrix
 	)
 	s.Update(Rho, RhoU, Ener)
 	RhoF = RhoU.Copy()
@@ -173,37 +174,31 @@ func (c *EulerDFR) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 	EnerF = Ener.Copy().Add(s.Pres).ElMul(s.U)
 	// Face jumps in primary and flux variables
 	fJump := func(U utils.Matrix) (dU utils.Matrix) {
-		dU = U.Subset(el.VmapM, nrF, ncF).Subtract(U.Subset(el.VmapP, nrF, ncF))
+		dU = U.Subset(el.VmapM, nrF, ncF).Subtract(U.Subset(el.VmapP, nrF, ncF)).ElMul(el.NX)
 		return
 	}
-	dRho = fJump(Rho)
-	dRhoU = fJump(RhoU)
-	dEner = fJump(Ener)
-	dRhoF = fJump(RhoF)
-	dRhoUF = fJump(RhoUF)
-	dEnerF = fJump(EnerF)
-	// Lax-Friedrichs flux component is always used divided by 2, so we pre-scale it
-	LFcDiv2 = s.LM.Subset(el.VmapM, nrF, ncF).Apply2(math.Max, s.LM.Subset(el.VmapP, nrF, ncF)).Scale(0.5)
-
-	// Compute flux differences at interfaces
-	dRhoF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.Copy().ElMul(dRho))
-	dRhoUF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.Copy().ElMul(dRhoU))
-	dEnerF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.ElMul(dEner))
-
-	c.BoundaryConditions(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, &dRhoF, &dRhoUF, &dEnerF)
-
 	// Face flux average
 	fAve := func(U utils.Matrix) (Uavg utils.Matrix) {
 		Uavg = U.Subset(el.VmapM, nrF, ncF).Add(U.Subset(el.VmapP, nrF, ncF)).Scale(0.5)
 		return
 	}
 
-	// Compute Lax-Friedrichs flux and set face flux within global flux
-	RhoF.AssignVector(el.VmapM, fAve(RhoF).Subtract(dRhoF.ElMul(el.NX)))
-	RhoUF.AssignVector(el.VmapM, fAve(RhoUF).Subtract(dRhoUF.ElMul(el.NX)))
-	EnerF.AssignVector(el.VmapM, fAve(EnerF).Subtract(dEnerF.ElMul(el.NX)))
+	// Max eigenvalue
+	LFc = s.LM.Subset(el.VmapM, nrF, ncF).Apply2(math.Max, s.LM.Subset(el.VmapP, nrF, ncF))
 
-	Diss := true
+	// Compute numerical flux at faces
+	fRho = fAve(RhoF).Add(fJump(Rho).ElMul(LFc).Scale(0.5))
+	fRhoU = fAve(RhoUF).Add(fJump(RhoU).ElMul(LFc).Scale(0.5))
+	fEner = fAve(EnerF).Add(fJump(Ener).ElMul(LFc).Scale(0.5))
+
+	// Compute Lax-Friedrichs flux and set face flux within global flux
+	RhoF.AssignVector(el.VmapM, fRho)
+	RhoUF.AssignVector(el.VmapM, fRhoU)
+	EnerF.AssignVector(el.VmapM, fEner)
+
+	c.BoundaryConditions(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, &fRho, &fRhoU, &fEner)
+
+	Diss := false
 	if Diss {
 		Diss2 := 0.12
 		Diss4 := 0.15
