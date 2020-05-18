@@ -199,14 +199,34 @@ func (c *EulerDFR) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 	}
 
 	// Compute Lax-Friedrichs flux and set face flux within global flux
-	RhoF.AssignVector(el.VmapM, fAve(RhoF).Add(dRhoF.ElMul(el.NX).Scale(-1)))
-	RhoUF.AssignVector(el.VmapM, fAve(RhoUF).Add(dRhoUF.ElMul(el.NX).Scale(-1)))
-	EnerF.AssignVector(el.VmapM, fAve(EnerF).Add(dEnerF.ElMul(el.NX).Scale(-1)))
+	RhoF.AssignVector(el.VmapM, fAve(RhoF).Subtract(dRhoF.ElMul(el.NX)))
+	RhoUF.AssignVector(el.VmapM, fAve(RhoUF).Subtract(dRhoUF.ElMul(el.NX)))
+	EnerF.AssignVector(el.VmapM, fAve(EnerF).Subtract(dEnerF.ElMul(el.NX)))
 
-	// Calculate RHS
-	rhsRho = el.Dr.Mul(RhoF).Scale(-1).ElMul(el.Rx)
-	rhsRhoU = el.Dr.Mul(RhoUF).Scale(-1).ElMul(el.Rx)
-	rhsEner = el.Dr.Mul(EnerF).Scale(-1).ElMul(el.Rx)
+	Diss := true
+	if Diss {
+		Diss2 := 0.12
+		Diss4 := 0.15
+		GradRho2 := el.Dr.Mul(el.Dr.Mul(Rho))
+		GradRhoU2 := el.Dr.Mul(el.Dr.Mul(RhoU))
+		GradEner2 := el.Dr.Mul(el.Dr.Mul(Ener))
+		GradRho4 := el.Dr.Mul(el.Dr.Mul(GradRho2))
+		GradRhoU4 := el.Dr.Mul(el.Dr.Mul(GradRhoU2))
+		GradEner4 := el.Dr.Mul(el.Dr.Mul(GradEner2))
+
+		DissRho := GradRho2.Scale(Diss2).Add(GradRho4.Scale(Diss4))
+		DissRhoU := GradRhoU2.Scale(Diss2).Add(GradRhoU4.Scale(Diss4))
+		DissEner := GradEner2.Scale(Diss2).Add(GradEner4.Scale(Diss4))
+		// Calculate RHS
+		rhsRho = el.Dr.Mul(RhoF).Scale(-1).Add(DissRho).ElMul(el.Rx)
+		rhsRhoU = el.Dr.Mul(RhoUF).Scale(-1).Add(DissRhoU).ElMul(el.Rx)
+		rhsEner = el.Dr.Mul(EnerF).Scale(-1).Add(DissEner).ElMul(el.Rx)
+	} else {
+		// Calculate RHS
+		rhsRho = el.Dr.Mul(RhoF).Scale(-1).ElMul(el.Rx)
+		rhsRhoU = el.Dr.Mul(RhoUF).Scale(-1).ElMul(el.Rx)
+		rhsEner = el.Dr.Mul(EnerF).Scale(-1).ElMul(el.Rx)
+	}
 	return
 }
 
