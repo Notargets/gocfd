@@ -104,7 +104,7 @@ func (c *MaxwellDFR) RHS() (RHSE, RHSH utils.Matrix) {
 		dE                   = FluxE.Subset(el.VmapM, nrF, ncF).Subtract(FluxE.Subset(el.VmapP, nrF, ncF))
 		dH                   = FluxH.Subset(el.VmapM, nrF, ncF).Subtract(FluxH.Subset(el.VmapP, nrF, ncF))
 		FaceFluxE, FaceFluxH utils.Matrix
-		aDiss2, aDiss4       = .03, 0.
+		aDiss2, aDiss4       = .03, 0.02
 	)
 	c.RHSOnce.Do(func() {
 		c.ZimpDenom = c.ZimPM.Copy().Add(c.ZimPP).POW(-1)
@@ -135,30 +135,18 @@ func (c *MaxwellDFR) RHS() (RHSE, RHSH utils.Matrix) {
 		FaceFluxE.ElMul(c.YimpDenom)
 	}
 
-	if false {
-		for k := 0; k < el.K-1; k++ {
-			avg := 0.5 * (FaceFluxE.At(1, k) + FaceFluxE.At(0, k+1))
-			FaceFluxE.Set(1, k, avg)
-			FaceFluxE.Set(0, k+1, avg)
-			avg = 0.5 * (FaceFluxH.At(1, k) + FaceFluxH.At(0, k+1))
-			FaceFluxH.Set(1, k, avg)
-			FaceFluxH.Set(0, k+1, avg)
-		}
-	}
-
 	FluxE.AssignVector(el.VmapM, FaceFluxE)
 	FluxH.AssignVector(el.VmapM, FaceFluxH)
-	//_, _ = FaceFluxE, FaceFluxH
 
 	GradE := el.Dr.Mul(FluxE)
 	GradH := el.Dr.Mul(FluxH)
 	GradE2 := el.Dr.Mul(GradE)
 	GradH2 := el.Dr.Mul(GradH)
 	var ADissE, ADissH utils.Matrix
-	if false {
+	if true {
 		// Ad-Hoc 2nd/4th Order Artificial Dissipation
-		GradE4 := el.Dr.Mul(GradE2)
-		GradH4 := el.Dr.Mul(GradH2)
+		GradE4 := el.Dr.Mul(el.Dr.Mul(GradE2))
+		GradH4 := el.Dr.Mul(el.Dr.Mul(GradH2))
 		ADissE = GradE4.Scale(aDiss4).Add(GradE2.Scale(aDiss2))
 		ADissH = GradH4.Scale(aDiss4).Add(GradH2.Scale(aDiss2))
 	} else {
