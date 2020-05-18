@@ -77,9 +77,19 @@ func NewEuler1D(CFL, FinalTime, XMax float64, N, K int) (c *Euler1D) {
 	c.Out = NewStateP(c.State.Gamma, 0.125, 0, 0.1)
 	fmt.Printf("Euler Equations in 1 Dimension\nSolving Sod's Shock Tube\n")
 	fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, K)
-	c.InitializeSOD()
-	c.Out = c.In
-	//c.InitializeFS()
+	prob := "SOD"
+	switch prob {
+	case "SOD":
+		c.InitializeSOD()
+	case "FS":
+		c.Out = c.In
+		c.InitializeFS()
+	case "Collision":
+		fallthrough
+	default:
+		c.Out = c.In
+		c.InitializeSOD()
+	}
 	return
 }
 

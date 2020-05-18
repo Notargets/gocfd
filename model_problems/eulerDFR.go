@@ -39,9 +39,19 @@ func NewEulerDFR(CFL, FinalTime, XMax float64, N, K int) (c *EulerDFR) {
 	c.Out = NewStateP(c.State.Gamma, 0.125, 0, 0.1)
 	fmt.Printf("Euler Equations in 1 Dimension\nSolving Sod's Shock Tube\nDirect Flux Reconstruction, Lax-Friedrichs Flux\n")
 	fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, K)
-	//c.InitializeSOD()
-	c.Out = c.In
-	c.InitializeFS()
+	prob := "SOD"
+	switch prob {
+	case "SOD":
+		c.InitializeSOD()
+	case "FS":
+		c.Out = c.In
+		c.InitializeFS()
+	case "Collision":
+		fallthrough
+	default:
+		c.Out = c.In
+		c.InitializeSOD()
+	}
 	return
 }
 
@@ -156,16 +166,7 @@ func (c *EulerDFR) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 		dRho, dRhoU, dEner, dRhoF, dRhoUF, dEnerF, LFcDiv2 utils.Matrix
 		Rho, RhoU, Ener                                    = *Rhop, *RhoUp, *Enerp
 		RhoF, RhoUF, EnerF                                 utils.Matrix
-		limiter                                            = false
-		slopeLimiterM                                      = 20.
 	)
-	if limiter {
-		// Slope Limit the solution fields
-		*Rhop = el.SlopeLimitN(*Rhop, slopeLimiterM)
-		*RhoUp = el.SlopeLimitN(*RhoUp, slopeLimiterM)
-		*Enerp = el.SlopeLimitN(*Enerp, slopeLimiterM)
-		Rho, RhoU, Ener = *Rhop, *RhoUp, *Enerp
-	}
 	s.Update(Rho, RhoU, Ener)
 	RhoF = RhoU.Copy()
 	RhoUF = s.Q.Copy().Scale(2.).Add(s.Pres)
@@ -191,22 +192,18 @@ func (c *EulerDFR) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 
 	c.BoundaryConditions(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, &dRhoF, &dRhoUF, &dEnerF)
 
-	// Face jumps in primary and flux variables
+	// Face flux average
 	fAve := func(U utils.Matrix) (Uavg utils.Matrix) {
 		Uavg = U.Subset(el.VmapM, nrF, ncF).Add(U.Subset(el.VmapP, nrF, ncF)).Scale(0.5)
 		return
 	}
 
-	RhoFAvg := fAve(RhoF)
-	RhoUFAvg := fAve(RhoUF)
-	EnerFAvg := fAve(EnerF)
-
 	// Compute Lax-Friedrichs flux and set face flux within global flux
-	RhoF.AssignVector(el.VmapM, RhoFAvg.Add(dRhoF))
-	RhoUF.AssignVector(el.VmapM, RhoUFAvg.Add(dRhoUF))
-	EnerF.AssignVector(el.VmapM, EnerFAvg.Add(dEnerF))
+	RhoF.AssignVector(el.VmapM, fAve(RhoF).Add(dRhoF.ElMul(el.NX).Scale(-1)))
+	RhoUF.AssignVector(el.VmapM, fAve(RhoUF).Add(dRhoUF.ElMul(el.NX).Scale(-1)))
+	EnerF.AssignVector(el.VmapM, fAve(EnerF).Add(dEnerF.ElMul(el.NX).Scale(-1)))
 
-	// RHS Computation
+	// Calculate RHS
 	rhsRho = el.Dr.Mul(RhoF).Scale(-1).ElMul(el.Rx)
 	rhsRhoU = el.Dr.Mul(RhoUF).Scale(-1).ElMul(el.Rx)
 	rhsEner = el.Dr.Mul(EnerF).Scale(-1).ElMul(el.Rx)
