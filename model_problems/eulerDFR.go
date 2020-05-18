@@ -37,11 +37,11 @@ func NewEulerDFR(CFL, FinalTime, XMax float64, N, K int) (c *EulerDFR) {
 	c.State.Gamma = 1.4
 	c.In = NewStateP(c.State.Gamma, 1, 0, 1)
 	c.Out = NewStateP(c.State.Gamma, 0.125, 0, 0.1)
-	fmt.Printf("Euler Equations in 1 Dimension\nSolving Sod's Shock Tube\n")
+	fmt.Printf("Euler Equations in 1 Dimension\nSolving Sod's Shock Tube\nDirect Flux Reconstruction, Lax-Friedrichs Flux\n")
 	fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, K)
-	c.InitializeSOD()
+	//c.InitializeSOD()
 	c.Out = c.In
-	//c.InitializeFS()
+	c.InitializeFS()
 	return
 }
 
@@ -156,7 +156,7 @@ func (c *EulerDFR) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 		dRho, dRhoU, dEner, dRhoF, dRhoUF, dEnerF, LFcDiv2 utils.Matrix
 		Rho, RhoU, Ener                                    = *Rhop, *RhoUp, *Enerp
 		RhoF, RhoUF, EnerF                                 utils.Matrix
-		limiter                                            = true
+		limiter                                            = false
 		slopeLimiterM                                      = 20.
 	)
 	if limiter {
@@ -184,17 +184,32 @@ func (c *EulerDFR) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 	// Lax-Friedrichs flux component is always used divided by 2, so we pre-scale it
 	LFcDiv2 = s.LM.Subset(el.VmapM, nrF, ncF).Apply2(math.Max, s.LM.Subset(el.VmapP, nrF, ncF)).Scale(0.5)
 
-	// Compute fluxes at interfaces
+	// Compute flux differences at interfaces
 	dRhoF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.Copy().ElMul(dRho))
 	dRhoUF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.Copy().ElMul(dRhoU))
 	dEnerF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.ElMul(dEner))
 
 	c.BoundaryConditions(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, &dRhoF, &dRhoUF, &dEnerF)
 
+	// Face jumps in primary and flux variables
+	fAve := func(U utils.Matrix) (Uavg utils.Matrix) {
+		Uavg = U.Subset(el.VmapM, nrF, ncF).Add(U.Subset(el.VmapP, nrF, ncF)).Scale(0.5)
+		return
+	}
+
+	RhoFAvg := fAve(RhoF)
+	RhoUFAvg := fAve(RhoUF)
+	EnerFAvg := fAve(EnerF)
+
+	// Compute Lax-Friedrichs flux and set face flux within global flux
+	RhoF.AssignVector(el.VmapM, RhoFAvg.Add(dRhoF))
+	RhoUF.AssignVector(el.VmapM, RhoUFAvg.Add(dRhoUF))
+	EnerF.AssignVector(el.VmapM, EnerFAvg.Add(dEnerF))
+
 	// RHS Computation
-	rhsRho = el.Rx.Copy().Scale(-1.).ElMul(el.Dr.Mul(RhoF)).Add(el.LIFT.Mul(dRhoF.ElMul(el.FScale)))
-	rhsRhoU = el.Rx.Copy().Scale(-1.).ElMul(el.Dr.Mul(RhoUF)).Add(el.LIFT.Mul(dRhoUF.ElMul(el.FScale)))
-	rhsEner = el.Rx.Copy().Scale(-1.).ElMul(el.Dr.Mul(EnerF)).Add(el.LIFT.Mul(dEnerF.ElMul(el.FScale)))
+	rhsRho = el.Dr.Mul(RhoF).Scale(-1).ElMul(el.Rx)
+	rhsRhoU = el.Dr.Mul(RhoUF).Scale(-1).ElMul(el.Rx)
+	rhsEner = el.Dr.Mul(EnerF).Scale(-1).ElMul(el.Rx)
 	return
 }
 
