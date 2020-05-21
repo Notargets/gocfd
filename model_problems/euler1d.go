@@ -6,8 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"gonum.org/v1/gonum/mat"
-
 	"github.com/notargets/avs/chart2d"
 	utils2 "github.com/notargets/avs/utils"
 
@@ -29,9 +27,9 @@ type Euler1D struct {
 }
 
 type FieldState struct {
-	Gamma                float64
-	U, Q, Pres, CVel, LM utils.Matrix
-	Temp                 utils.Matrix
+	Gamma                    float64
+	U, Q, Pres, CVel, LM, Ht utils.Matrix
+	Temp                     utils.Matrix
 }
 
 func NewFieldState() (fs *FieldState) {
@@ -39,6 +37,14 @@ func NewFieldState() (fs *FieldState) {
 }
 
 func (fs *FieldState) Update(Rho, RhoU, Ener utils.Matrix) {
+	/*
+		Calorically Perfect Gas, R = 1
+	*/
+	var (
+		Gamma = 1.4
+		Cv    = 1. / (Gamma - 1.)
+		Cp    = Gamma * Cv
+	)
 	fs.U = RhoU.Copy().ElDiv(Rho)                   // Velocity
 	fs.Q = fs.U.Copy().POW(2).ElMul(Rho).Scale(0.5) // 1/2 * Rho * U^2
 	// (gamma-1.0)*(Ener - 0.5*(rhou).^2./rho)
@@ -49,19 +55,22 @@ func (fs *FieldState) Update(Rho, RhoU, Ener utils.Matrix) {
 	fs.LM = fs.U.Copy().Apply(math.Abs).Add(fs.CVel)
 	//	Temp = (Ener - 0.5*(rhou).^2./rho)./rho
 	fs.Temp = Ener.Copy().Subtract(fs.Q).ElDiv(Rho)
+	fs.Ht = fs.Q.Copy().ElDiv(Rho).Add(fs.Temp.Copy().Scale(Cp))
 	fs.U.SetReadOnly("U")
 	fs.Q.SetReadOnly("Q")
 	fs.Pres.SetReadOnly("Pres")
 	fs.CVel.SetReadOnly("CVel")
 	fs.LM.SetReadOnly("LM")
+	fs.Ht.SetReadOnly("Ht")
 }
 
 func (fs *FieldState) Print() {
-	fmt.Printf("U = \n%v\n", mat.Formatted(fs.U, mat.Squeeze()))
-	fmt.Printf("Q = \n%v\n", mat.Formatted(fs.Q, mat.Squeeze()))
-	fmt.Printf("Pres = \n%v\n", mat.Formatted(fs.Pres, mat.Squeeze()))
-	fmt.Printf("CVel = \n%v\n", mat.Formatted(fs.CVel, mat.Squeeze()))
-	fmt.Printf("LM = \n%v\n", mat.Formatted(fs.LM, mat.Squeeze()))
+	fmt.Println(fs.U.Print("U"))
+	fmt.Println(fs.Q.Print("Q"))
+	fmt.Println(fs.Pres.Print("Pres"))
+	fmt.Println(fs.CVel.Print("CVel"))
+	fmt.Println(fs.LM.Print("LM"))
+	fmt.Println(fs.Ht.Print("Ht"))
 }
 
 func NewEuler1D(CFL, FinalTime, XMax float64, N, K int) (c *Euler1D) {
