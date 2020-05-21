@@ -230,7 +230,7 @@ func (c *Euler1D) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEne
 	dRhoUF = fJump(RhoUF)
 	dEnerF = fJump(EnerF)
 	// Lax-Friedrichs flux component is always used divided by 2, so we pre-scale it
-	LFcDiv2 = s.LM.Subset(el.VmapM, nrF, ncF).Apply2(math.Max, s.LM.Subset(el.VmapP, nrF, ncF)).Scale(0.5)
+	LFcDiv2 = s.LM.Subset(el.VmapM, nrF, ncF).Apply2(s.LM.Subset(el.VmapP, nrF, ncF), math.Max).Scale(0.5)
 
 	// Compute fluxes at interfaces
 	dRhoF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.Copy().ElMul(dRho))

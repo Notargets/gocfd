@@ -193,7 +193,7 @@ func (c *EulerDFR) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 	}
 
 	// Max eigenvalue
-	LFc = s.LM.Subset(el.VmapM, nrF, ncF).Apply2(math.Max, s.LM.Subset(el.VmapP, nrF, ncF))
+	LFc = s.LM.Subset(el.VmapM, nrF, ncF).Apply2(s.LM.Subset(el.VmapP, nrF, ncF), math.Max)
 
 	// Compute numerical flux at faces
 	fRho = fAve(RhoF).Add(fJump(Rho).ElMul(LFc).Scale(0.5))
@@ -265,4 +265,55 @@ func (c *EulerDFR) Plot(showGraph bool, graphDelay []time.Duration) {
 	if len(graphDelay) != 0 {
 		time.Sleep(graphDelay[0])
 	}
+}
+
+func (c *EulerDFR) RoeFlux() {
+	var (
+		el       = c.El
+		nrF, ncF = el.Nfp * el.NFaces, el.K
+		s        = c.State
+	)
+	fL := func(U utils.Matrix) (Ul utils.Matrix) {
+		Ul = U.Subset(el.VmapM, nrF, ncF)
+		return
+	}
+	fR := func(U utils.Matrix) (Ul utils.Matrix) {
+		Ul = U.Subset(el.VmapP, nrF, ncF)
+		return
+	}
+	// Face jumps in primary and flux variables
+	fJump := func(U utils.Matrix) (dU utils.Matrix) {
+		dU = U.Subset(el.VmapM, nrF, ncF).Subtract(U.Subset(el.VmapP, nrF, ncF)).ElMul(el.NX)
+		return
+	}
+	// Face average
+	fAve := func(U utils.Matrix) (Uavg utils.Matrix) {
+		Uavg = U.Subset(el.VmapM, nrF, ncF).Add(U.Subset(el.VmapP, nrF, ncF)).Scale(0.5)
+		return
+	}
+	RhoL, RhoR := fL(c.Rho), fR(c.Rho)
+	UL, UR := fL(s.U), fR(s.U)
+	RhoRL := RhoL.Copy().Apply2(RhoR, func(left, right float64) (res float64) {
+		res = math.Sqrt(left * right)
+		return
+	})
+	URL := RhoL.Copy().Apply4(UL, RhoR, UR, func(rl, ul, rr, ur float64) (res float64) {
+		var (
+			srl, srr = math.Sqrt(rl), math.Sqrt(rr)
+		)
+		res = (srl*ul + srr*ur) / (srl + srr)
+		return
+	})
+
+	_, _, _, _ = fJump, fAve, RhoRL, URL
+
+	/*
+		// Max eigenvalue
+		LFc = s.LM.Subset(el.VmapM, nrF, ncF).Apply2(math.Max, s.LM.Subset(el.VmapP, nrF, ncF))
+
+		// Compute numerical flux at faces
+		fRho = fAve(RhoF).Add(fJump(Rho).ElMul(LFc).Scale(0.5))
+		fRhoU = fAve(RhoUF).Add(fJump(RhoU).ElMul(LFc).Scale(0.5))
+		fEner = fAve(EnerF).Add(fJump(Ener).ElMul(LFc).Scale(0.5))
+	*/
 }
