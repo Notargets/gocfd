@@ -284,12 +284,12 @@ func (c *EulerDFR) RoeFlux() {
 	}
 	// Face jumps in primary and flux variables
 	fJump := func(U utils.Matrix) (dU utils.Matrix) {
-		dU = U.Subset(el.VmapM, nrF, ncF).Subtract(U.Subset(el.VmapP, nrF, ncF)).ElMul(el.NX)
+		dU = U.Subset(el.VmapP, nrF, ncF).Subtract(U.Subset(el.VmapM, nrF, ncF))
 		return
 	}
 	// Face average
 	fAve := func(U utils.Matrix) (Uavg utils.Matrix) {
-		Uavg = U.Subset(el.VmapM, nrF, ncF).Add(U.Subset(el.VmapP, nrF, ncF)).Scale(0.5)
+		Uavg = U.Subset(el.VmapP, nrF, ncF).Add(U.Subset(el.VmapM, nrF, ncF)).Scale(0.5)
 		return
 	}
 	/*
@@ -318,7 +318,23 @@ func (c *EulerDFR) RoeFlux() {
 		res = math.Sqrt((s.Gamma - 1) * (left - right*right*0.5))
 		return
 	})
+	DelRho := fJump(c.Rho)
+	DelU := fJump(s.U)
+	DelP := fJump(s.Pres)
+	DelW1 := DelRho.Copy().Apply3(DelP, aRL, func(drho, dp, arl float64) (res float64) {
+		res = drho - (dp / (arl * arl))
+		return
+	})
+	DelW2 := DelU.Copy().Apply4(DelP, RhoRL, aRL, func(du, dp, rhorl, arl float64) (res float64) {
+		res = du + dp/(rhorl*arl)
+		return
+	})
+	DelW3 := DelU.Copy().Apply4(DelP, RhoRL, aRL, func(du, dp, rhorl, arl float64) (res float64) {
+		res = du - dp/(rhorl*arl)
+		return
+	})
 	_, _, _, _, _, _ = fJump, fAve, RhoRL, URL, HtRL, aRL
+	_, _, _ = DelW1, DelW2, DelW3
 
 	/*
 		// Max eigenvalue
