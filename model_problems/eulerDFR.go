@@ -262,7 +262,7 @@ func (c *EulerDFR) Plot(showGraph bool, graphDelay []time.Duration) {
 	pSeries(c.Ener, "Ener", 0.6)
 	pSeries(c.State.U, "U", 0.8)
 	pSeries(c.State.Temp, "Temp", 0.9)
-	pSeries(c.State.Ht, "Ht", 0.9)
+	pSeries(c.State.Ht, "Ht", -0.9)
 	if len(graphDelay) != 0 {
 		time.Sleep(graphDelay[0])
 	}
@@ -292,21 +292,33 @@ func (c *EulerDFR) RoeFlux() {
 		Uavg = U.Subset(el.VmapM, nrF, ncF).Add(U.Subset(el.VmapP, nrF, ncF)).Scale(0.5)
 		return
 	}
+	/*
+		Calculate the Roe Averaged variables
+	*/
 	RhoL, RhoR := fL(c.Rho), fR(c.Rho)
 	UL, UR := fL(s.U), fR(s.U)
+	HtL, HtR := fL(s.Ht), fR(s.Ht)
 	RhoRL := RhoL.Copy().Apply2(RhoR, func(left, right float64) (res float64) {
 		res = math.Sqrt(left * right)
 		return
 	})
-	URL := RhoL.Copy().Apply4(UL, RhoR, UR, func(rl, ul, rr, ur float64) (res float64) {
-		var (
-			srl, srr = math.Sqrt(rl), math.Sqrt(rr)
-		)
-		res = (srl*ul + srr*ur) / (srl + srr)
+	roeAve := func(uL, uR utils.Matrix) (uRL utils.Matrix) {
+		uRL = RhoL.Copy().Apply4(uL, RhoR, uR, func(rl, ul, rr, ur float64) (res float64) {
+			var (
+				srl, srr = math.Sqrt(rl), math.Sqrt(rr)
+			)
+			res = (srl*ul + srr*ur) / (srl + srr)
+			return
+		})
+		return
+	}
+	URL := roeAve(UL, UR)
+	HtRL := roeAve(HtL, HtR)
+	aRL := HtRL.Copy().Apply2(URL, func(left, right float64) (res float64) {
+		res = math.Sqrt((s.Gamma - 1) * (left - right*right*0.5))
 		return
 	})
-
-	_, _, _, _ = fJump, fAve, RhoRL, URL
+	_, _, _, _, _, _ = fJump, fAve, RhoRL, URL, HtRL, aRL
 
 	/*
 		// Max eigenvalue
