@@ -247,7 +247,7 @@ func (c *EulerDFR) Plot(showGraph bool, graphDelay []time.Duration) {
 		return
 	}
 	c.plotOnce.Do(func() {
-		c.chart = chart2d.NewChart2D(1920, 1280, float32(el.X.Min()), float32(el.X.Max()), -1.5, 5)
+		c.chart = chart2d.NewChart2D(1920, 1280, float32(el.X.Min()), float32(el.X.Max()), -1.5, 10)
 		c.colorMap = utils2.NewColorMap(-1, 1, 1)
 		go c.chart.Plot()
 	})
@@ -262,6 +262,7 @@ func (c *EulerDFR) Plot(showGraph bool, graphDelay []time.Duration) {
 	pSeries(c.Ener, "Ener", 0.6)
 	pSeries(c.State.U, "U", 0.8)
 	pSeries(c.State.Temp, "Temp", 0.9)
+	pSeries(c.State.Ht, "Ht", 0.9)
 	if len(graphDelay) != 0 {
 		time.Sleep(graphDelay[0])
 	}
