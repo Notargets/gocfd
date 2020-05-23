@@ -38,8 +38,8 @@ func NewEulerDFR(CFL, FinalTime, XMax float64, N, K int) (c *EulerDFR) {
 	c.State.Gamma = 1.4
 	c.In = NewStateP(c.State.Gamma, 1, 0, 1)
 	c.Out = NewStateP(c.State.Gamma, 0.125, 0, 0.1)
-	c.fluxType = "Roe"
 	c.fluxType = "LF"
+	c.fluxType = "Roe"
 	fmt.Printf("Euler Equations in 1 Dimension\nSolving Sod's Shock Tube\nDirect Flux Reconstruction, %s Flux\n", c.fluxType)
 	fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, K)
 	prob := "SOD"
@@ -289,6 +289,7 @@ func (c *EulerDFR) RoeFlux(RhoF, RhoUF, EnerF utils.Matrix) (fRho, fRhoU, fEner 
 		nrF, ncF = el.Nfp * el.NFaces, el.K
 		s        = c.State
 	)
+	// TODO: Figure out what should be used for "Left" and "Right" here and in the flux jump
 	fL := func(U utils.Matrix) (Ul utils.Matrix) {
 		Ul = U.Subset(el.VmapM, nrF, ncF)
 		return
@@ -299,7 +300,7 @@ func (c *EulerDFR) RoeFlux(RhoF, RhoUF, EnerF utils.Matrix) (fRho, fRhoU, fEner 
 	}
 	// Face jumps in primary and flux variables
 	fJump := func(U utils.Matrix) (dU utils.Matrix) {
-		dU = U.Subset(el.VmapM, nrF, ncF).Subtract(U.Subset(el.VmapP, nrF, ncF))
+		dU = U.Subset(el.VmapP, nrF, ncF).Subtract(U.Subset(el.VmapM, nrF, ncF)).ElMul(el.NX)
 		return
 	}
 	// Face average
@@ -383,8 +384,8 @@ func (c *EulerDFR) RoeFlux(RhoF, RhoUF, EnerF utils.Matrix) (fRho, fRhoU, fEner 
 		return
 	})
 
-	fRho = fAve(RhoF).Subtract(eRho).Scale(0.5)
-	fRhoU = fAve(RhoUF).Subtract(eRhoU).Scale(0.5)
-	fEner = fAve(EnerF).Subtract(eEner).Scale(0.5)
+	fRho = fAve(RhoF).Subtract(eRho.Scale(0.5))
+	fRhoU = fAve(RhoUF).Subtract(eRhoU.Scale(0.5))
+	fEner = fAve(EnerF).Subtract(eEner.Scale(0.5))
 	return
 }
