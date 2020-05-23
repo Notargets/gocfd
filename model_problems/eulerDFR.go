@@ -24,6 +24,7 @@ type EulerDFR struct {
 	plotOnce        sync.Once
 	chart           *chart2d.Chart2D
 	colorMap        *utils2.ColorMap
+	fluxType        string
 }
 
 func NewEulerDFR(CFL, FinalTime, XMax float64, N, K int) (c *EulerDFR) {
@@ -37,7 +38,9 @@ func NewEulerDFR(CFL, FinalTime, XMax float64, N, K int) (c *EulerDFR) {
 	c.State.Gamma = 1.4
 	c.In = NewStateP(c.State.Gamma, 1, 0, 1)
 	c.Out = NewStateP(c.State.Gamma, 0.125, 0, 0.1)
-	fmt.Printf("Euler Equations in 1 Dimension\nSolving Sod's Shock Tube\nDirect Flux Reconstruction, Lax-Friedrichs Flux\n")
+	c.fluxType = "Roe"
+	c.fluxType = "LF"
+	fmt.Printf("Euler Equations in 1 Dimension\nSolving Sod's Shock Tube\nDirect Flux Reconstruction, %s Flux\n", c.fluxType)
 	fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, K)
 	prob := "SOD"
 	switch prob {
@@ -161,13 +164,11 @@ func (c *EulerDFR) CalculateDT(xmin, Time float64) (dt float64) {
 func (c *EulerDFR) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
 	var (
 		el                 = c.El
-		nrF, ncF           = el.Nfp * el.NFaces, el.K
 		s                  = c.State
-		LFc                utils.Matrix
 		fRho, fRhoU, fEner utils.Matrix
 		Rho, RhoU, Ener    = *Rhop, *RhoUp, *Enerp
 		RhoF, RhoUF, EnerF utils.Matrix
-		limiter            = true
+		limiter            = false
 		slopeLimiterM      = 20.
 	)
 	if limiter {
@@ -181,26 +182,15 @@ func (c *EulerDFR) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 	RhoF = RhoU.Copy()
 	RhoUF = s.Q.Copy().Scale(2.).Add(s.Pres)
 	EnerF = Ener.Copy().Add(s.Pres).ElMul(s.U)
-	// Face jumps in primary and flux variables
-	fJump := func(U utils.Matrix) (dU utils.Matrix) {
-		dU = U.Subset(el.VmapM, nrF, ncF).Subtract(U.Subset(el.VmapP, nrF, ncF)).ElMul(el.NX)
-		return
-	}
-	// Face flux average
-	fAve := func(U utils.Matrix) (Uavg utils.Matrix) {
-		Uavg = U.Subset(el.VmapM, nrF, ncF).Add(U.Subset(el.VmapP, nrF, ncF)).Scale(0.5)
-		return
+
+	switch c.fluxType {
+	case "LF":
+		fRho, fRhoU, fEner = c.LFFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF)
+	case "Roe":
+		fRho, fRhoU, fEner = c.RoeFlux(RhoF, RhoUF, EnerF)
 	}
 
-	// Max eigenvalue
-	LFc = s.LM.Subset(el.VmapM, nrF, ncF).Apply2(s.LM.Subset(el.VmapP, nrF, ncF), math.Max)
-
-	// Compute numerical flux at faces
-	fRho = fAve(RhoF).Add(fJump(Rho).ElMul(LFc).Scale(0.5))
-	fRhoU = fAve(RhoUF).Add(fJump(RhoU).ElMul(LFc).Scale(0.5))
-	fEner = fAve(EnerF).Add(fJump(Ener).ElMul(LFc).Scale(0.5))
-
-	// Compute Lax-Friedrichs flux and set face flux within global flux
+	// Set face flux within global flux
 	RhoF.AssignVector(el.VmapM, fRho)
 	RhoUF.AssignVector(el.VmapM, fRhoU)
 	EnerF.AssignVector(el.VmapM, fEner)
@@ -251,23 +241,48 @@ func (c *EulerDFR) Plot(showGraph bool, graphDelay []time.Duration) {
 		c.colorMap = utils2.NewColorMap(-1, 1, 1)
 		go c.chart.Plot()
 	})
-	pSeries := func(field utils.Matrix, name string, color float32) {
+	pSeries := func(field utils.Matrix, name string, color float32, gl chart2d.GlyphType) {
 		if err := c.chart.AddSeries(name, el.X.Transpose().RawMatrix().Data, field.Transpose().RawMatrix().Data,
-			chart2d.NoGlyph, chart2d.Solid, c.colorMap.GetRGB(color)); err != nil {
+			gl, chart2d.Solid, c.colorMap.GetRGB(color)); err != nil {
 			panic("unable to add graph series")
 		}
 	}
-	pSeries(c.Rho, "Rho", -0.7)
-	pSeries(c.RhoU, "RhoU", 0.0)
-	pSeries(c.Ener, "Ener", 0.6)
-	pSeries(c.State.U, "U", 0.8)
-	pSeries(c.State.Temp, "Temp", 0.9)
-	pSeries(c.State.Ht, "Ht", -0.9)
+	pSeries(c.Rho, "Rho", -0.7, chart2d.NoGlyph)
+	pSeries(c.RhoU, "RhoU", 0.0, chart2d.NoGlyph)
+	pSeries(c.Ener, "Ener", 0.6, chart2d.NoGlyph)
+	pSeries(c.State.U, "U", 0.8, chart2d.NoGlyph)
+	pSeries(c.State.Temp, "Temp", 0.9, chart2d.NoGlyph)
+	pSeries(c.State.Ht, "Ht", -0.9, chart2d.CrossGlyph)
 	if len(graphDelay) != 0 {
 		time.Sleep(graphDelay[0])
 	}
 }
 
+func (c *EulerDFR) LFFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix) (fRho, fRhoU, fEner utils.Matrix) {
+	var (
+		el       = c.El
+		s        = c.State
+		nrF, ncF = el.Nfp * el.NFaces, el.K
+	)
+	// Compute Lax-Friedrichs flux
+	// Face jumps in primary and flux variables
+	fJump := func(U utils.Matrix) (dU utils.Matrix) {
+		dU = U.Subset(el.VmapM, nrF, ncF).Subtract(U.Subset(el.VmapP, nrF, ncF)).ElMul(el.NX)
+		return
+	}
+	// Face flux average
+	fAve := func(U utils.Matrix) (Uavg utils.Matrix) {
+		Uavg = U.Subset(el.VmapM, nrF, ncF).Add(U.Subset(el.VmapP, nrF, ncF)).Scale(0.5)
+		return
+	}
+	// Max eigenvalue
+	LFc := s.LM.Subset(el.VmapM, nrF, ncF).Apply2(s.LM.Subset(el.VmapP, nrF, ncF), math.Max)
+	// Compute numerical flux at faces
+	fRho = fAve(RhoF).Add(fJump(Rho).ElMul(LFc).Scale(0.5))
+	fRhoU = fAve(RhoUF).Add(fJump(RhoU).ElMul(LFc).Scale(0.5))
+	fEner = fAve(EnerF).Add(fJump(Ener).ElMul(LFc).Scale(0.5))
+	return
+}
 func (c *EulerDFR) RoeFlux(RhoF, RhoUF, EnerF utils.Matrix) (fRho, fRhoU, fEner utils.Matrix) {
 	var (
 		el       = c.El
@@ -284,7 +299,7 @@ func (c *EulerDFR) RoeFlux(RhoF, RhoUF, EnerF utils.Matrix) (fRho, fRhoU, fEner 
 	}
 	// Face jumps in primary and flux variables
 	fJump := func(U utils.Matrix) (dU utils.Matrix) {
-		dU = U.Subset(el.VmapP, nrF, ncF).Subtract(U.Subset(el.VmapM, nrF, ncF))
+		dU = U.Subset(el.VmapM, nrF, ncF).Subtract(U.Subset(el.VmapP, nrF, ncF))
 		return
 	}
 	// Face average
