@@ -377,6 +377,18 @@ func (m Matrix) Apply4(A, B, C Matrix, f func(float64, float64, float64, float64
 	return m
 }
 
+func (m Matrix) Apply8(A, B, C, D, E, F, G Matrix, f func(float64, float64, float64, float64, float64, float64, float64, float64) float64) Matrix { // Changes receiver
+	var (
+		dataM                      = m.RawMatrix().Data
+		dA, dB, dC, dD, dE, dF, dG = A.RawMatrix().Data, B.RawMatrix().Data, C.RawMatrix().Data, D.RawMatrix().Data, E.RawMatrix().Data, F.RawMatrix().Data, G.RawMatrix().Data
+	)
+	m.checkWritable()
+	for i, val := range dataM {
+		dataM[i] = f(val, dA[i], dB[i], dC[i], dD[i], dE[i], dF[i], dG[i])
+	}
+	return m
+}
+
 func (m Matrix) POW(p int) Matrix { // Changes receiver
 	var (
 		data = m.RawMatrix().Data

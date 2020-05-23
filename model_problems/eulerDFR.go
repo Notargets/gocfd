@@ -268,7 +268,7 @@ func (c *EulerDFR) Plot(showGraph bool, graphDelay []time.Duration) {
 	}
 }
 
-func (c *EulerDFR) RoeFlux() {
+func (c *EulerDFR) RoeFlux(RhoF, RhoUF, EnerF utils.Matrix) (fRho, fRhoU, fEner utils.Matrix) {
 	var (
 		el       = c.El
 		nrF, ncF = el.Nfp * el.NFaces, el.K
@@ -333,16 +333,43 @@ func (c *EulerDFR) RoeFlux() {
 		res = du - dp/(rhorl*arl)
 		return
 	})
-	_, _, _, _, _, _ = fJump, fAve, RhoRL, URL, HtRL, aRL
-	_, _, _ = DelW1, DelW2, DelW3
+	// Phi is the Harten entropy correction - it modifies the eigenvalues to eliminate aphysical solutions
+	phi := func(eig, del float64) (res float64) {
+		absLam := math.Abs(eig)
+		if absLam >= del {
+			res = absLam
+		} else {
+			res = (eig*eig + del*del) / (2 * del)
+		}
+		return
+	}
+	eRho := URL.Copy().Apply8(aRL, RhoRL, HtRL, DelU, DelW1, DelW2, DelW3, func(url, arl, rhorl, htrl, delu, delw1, delw2, delw3 float64) (res float64) {
+		var (
+			phi1, phi2, phi3 = phi(url, delu), phi(url+arl, delu), phi(url-arl, delu)
+			factor           = rhorl / (2 * arl)
+		)
+		res = phi1*delw1 + factor*phi2*delw2 - factor*phi3*delw3
+		return
+	})
+	eRhoU := URL.Copy().Apply8(aRL, RhoRL, HtRL, DelU, DelW1, DelW2, DelW3, func(url, arl, rhorl, htrl, delu, delw1, delw2, delw3 float64) (res float64) {
+		var (
+			phi1, phi2, phi3 = phi(url, delu), phi(url+arl, delu), phi(url-arl, delu)
+			factor           = rhorl / (2 * arl)
+		)
+		res = url*phi1*delw1 + factor*(url+arl)*phi2*delw2 - factor*(url-arl)*phi3*delw3
+		return
+	})
+	eEner := URL.Copy().Apply8(aRL, RhoRL, HtRL, DelU, DelW1, DelW2, DelW3, func(url, arl, rhorl, htrl, delu, delw1, delw2, delw3 float64) (res float64) {
+		var (
+			phi1, phi2, phi3 = phi(url, delu), phi(url+arl, delu), phi(url-arl, delu)
+			factor           = rhorl / (2 * arl)
+		)
+		res = (0.5*url*url)*phi1*delw1 + factor*(htrl+url*arl)*phi2*delw2 - factor*(htrl-url*arl)*phi3*delw3
+		return
+	})
 
-	/*
-		// Max eigenvalue
-		LFc = s.LM.Subset(el.VmapM, nrF, ncF).Apply2(math.Max, s.LM.Subset(el.VmapP, nrF, ncF))
-
-		// Compute numerical flux at faces
-		fRho = fAve(RhoF).Add(fJump(Rho).ElMul(LFc).Scale(0.5))
-		fRhoU = fAve(RhoUF).Add(fJump(RhoU).ElMul(LFc).Scale(0.5))
-		fEner = fAve(EnerF).Add(fJump(Ener).ElMul(LFc).Scale(0.5))
-	*/
+	fRho = fAve(RhoF).Subtract(eRho).Scale(0.5)
+	fRhoU = fAve(RhoUF).Subtract(eRhoU).Scale(0.5)
+	fEner = fAve(EnerF).Subtract(eEner).Scale(0.5)
+	return
 }
