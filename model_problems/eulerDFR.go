@@ -348,45 +348,39 @@ func (c *EulerDFR) RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix) (fR
 		return
 	}
 	eRho := URL.Copy().Apply8(aRL, RhoRL, HtRL, DelU, DelRho, DelP, el.NX, func(url, arl, rhorl, htrl, delu, delrho, delp, nx float64) (res float64) {
-		ynx := nx
-		nx = 1
 		var (
 			delta            = arl / 20
-			phi1, phi2, phi3 = phi(url*nx-arl, delta), phi(url*nx, delta), phi(url*nx+arl, delta)
+			phi1, phi2, phi3 = phi(url-arl, delta), phi(url, delta), phi(url+arl, delta)
 			ooarl2           = 1 / (arl * arl)
 			f1               = (delp - rhorl*arl*delu) * 0.5 * ooarl2
 			f2               = delrho - delp*ooarl2
 			f3               = (delp + rhorl*arl*delu) * 0.5 * ooarl2
 		)
-		res = ynx * (phi1*f1 + phi2*f2 + phi3*f3)
+		res = nx * (phi1*f1 + phi2*f2 + phi3*f3)
 		return
 	})
 	eRhoU := URL.Copy().Apply8(aRL, RhoRL, HtRL, DelU, DelRho, DelP, el.NX, func(url, arl, rhorl, htrl, delu, delrho, delp, nx float64) (res float64) {
-		ynx := nx
-		nx = 1
 		var (
 			delta            = arl / 20
-			phi1, phi2, phi3 = phi(url*nx-arl, delta), phi(url*nx, delta), phi(url*nx+arl, delta)
+			phi1, phi2, phi3 = phi(url-arl, delta), phi(url, delta), phi(url+arl, delta)
 			ooarl2           = 1 / (arl * arl)
 			f1               = (delp - rhorl*arl*delu) * 0.5 * ooarl2
 			f2               = delrho - delp*ooarl2
 			f3               = (delp + rhorl*arl*delu) * 0.5 * ooarl2
 		)
-		res = ynx * (phi1*f1*(url-arl*nx) + phi2*(f2*url+rhorl*(delu*(1-nx))) + phi3*f3*(url+arl*nx))
+		res = nx * (phi1*f1*(url-arl) + phi2*(f2*url) + phi3*f3*(url+arl))
 		return
 	})
 	eEner := URL.Copy().Apply8(aRL, RhoRL, HtRL, DelU, DelRho, DelP, el.NX, func(url, arl, rhorl, htrl, delu, delrho, delp, nx float64) (res float64) {
-		ynx := nx
-		nx = 1
 		var (
 			delta            = arl / 20
-			phi1, phi2, phi3 = phi(url*nx-arl, delta), phi(url*nx, delta), phi(url*nx+arl, delta)
+			phi1, phi2, phi3 = phi(url-arl, delta), phi(url, delta), phi(url+arl, delta)
 			ooarl2           = 1 / (arl * arl)
 			f1               = (delp - rhorl*arl*delu) * 0.5 * ooarl2
 			f2               = delrho - delp*ooarl2
 			f3               = (delp + rhorl*arl*delu) * 0.5 * ooarl2
 		)
-		res = ynx * (phi1*f1*(htrl-arl*url*nx) + phi2*(f2*url*url*0.5+rhorl*(url*delu*(1-nx))) + phi3*f3*(htrl+url*arl*nx))
+		res = nx * (phi1*f1*(htrl-arl*url) + phi2*(f2*url*url*0.5) + phi3*f3*(htrl+url*arl))
 		return
 	})
 
