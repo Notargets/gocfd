@@ -231,13 +231,14 @@ func (c *EulerDFR) BoundaryConditions(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.
 
 func (c *EulerDFR) Plot(showGraph bool, graphDelay []time.Duration) {
 	var (
-		el = c.El
+		el         = c.El
+		fmin, fmax = float32(-1.5), float32(5)
 	)
 	if !showGraph {
 		return
 	}
 	c.plotOnce.Do(func() {
-		c.chart = chart2d.NewChart2D(1920, 1280, float32(el.X.Min()), float32(el.X.Max()), -1.5, 10)
+		c.chart = chart2d.NewChart2D(1920, 1280, float32(el.X.Min()), float32(el.X.Max()), fmin, fmax)
 		c.colorMap = utils2.NewColorMap(-1, 1, 1)
 		go c.chart.Plot()
 	})
@@ -252,7 +253,7 @@ func (c *EulerDFR) Plot(showGraph bool, graphDelay []time.Duration) {
 	pSeries(c.Ener, "Ener", 0.6, chart2d.NoGlyph)
 	pSeries(c.State.U, "U", 0.8, chart2d.NoGlyph)
 	pSeries(c.State.Temp, "Temp", 0.9, chart2d.NoGlyph)
-	pSeries(c.State.Ht, "Ht", -0.9, chart2d.CrossGlyph)
+	//pSeries(c.State.Ht, "Ht", -0.9, chart2d.CrossGlyph)
 	if len(graphDelay) != 0 {
 		time.Sleep(graphDelay[0])
 	}
@@ -347,39 +348,45 @@ func (c *EulerDFR) RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix) (fR
 		return
 	}
 	eRho := URL.Copy().Apply8(aRL, RhoRL, HtRL, DelU, DelRho, DelP, el.NX, func(url, arl, rhorl, htrl, delu, delrho, delp, nx float64) (res float64) {
+		ynx := nx
+		nx = 1
 		var (
 			delta            = arl / 20
-			phi1, phi2, phi3 = phi(url-arl, delta), phi(url, delta), phi(url+arl, delta)
+			phi1, phi2, phi3 = phi(url*nx-arl, delta), phi(url*nx, delta), phi(url*nx+arl, delta)
 			ooarl2           = 1 / (arl * arl)
 			f1               = (delp - rhorl*arl*delu) * 0.5 * ooarl2
 			f2               = delrho - delp*ooarl2
 			f3               = (delp + rhorl*arl*delu) * 0.5 * ooarl2
 		)
-		res = phi1*f1 + phi2*f2 + phi3*f3
+		res = ynx * (phi1*f1 + phi2*f2 + phi3*f3)
 		return
 	})
 	eRhoU := URL.Copy().Apply8(aRL, RhoRL, HtRL, DelU, DelRho, DelP, el.NX, func(url, arl, rhorl, htrl, delu, delrho, delp, nx float64) (res float64) {
+		ynx := nx
+		nx = 1
 		var (
 			delta            = arl / 20
-			phi1, phi2, phi3 = phi(url-arl, delta), phi(url, delta), phi(url+arl, delta)
+			phi1, phi2, phi3 = phi(url*nx-arl, delta), phi(url*nx, delta), phi(url*nx+arl, delta)
 			ooarl2           = 1 / (arl * arl)
 			f1               = (delp - rhorl*arl*delu) * 0.5 * ooarl2
 			f2               = delrho - delp*ooarl2
 			f3               = (delp + rhorl*arl*delu) * 0.5 * ooarl2
 		)
-		res = phi1*f1*(url-arl) + phi2*(f2*url+rhorl*(delu*(1-nx))) + phi3*f3*(url+arl)
+		res = ynx * (phi1*f1*(url-arl*nx) + phi2*(f2*url+rhorl*(delu*(1-nx))) + phi3*f3*(url+arl*nx))
 		return
 	})
 	eEner := URL.Copy().Apply8(aRL, RhoRL, HtRL, DelU, DelRho, DelP, el.NX, func(url, arl, rhorl, htrl, delu, delrho, delp, nx float64) (res float64) {
+		ynx := nx
+		nx = 1
 		var (
 			delta            = arl / 20
-			phi1, phi2, phi3 = phi(url-arl, delta), phi(url, delta), phi(url+arl, delta)
+			phi1, phi2, phi3 = phi(url*nx-arl, delta), phi(url*nx, delta), phi(url*nx+arl, delta)
 			ooarl2           = 1 / (arl * arl)
 			f1               = (delp - rhorl*arl*delu) * 0.5 * ooarl2
 			f2               = delrho - delp*ooarl2
 			f3               = (delp + rhorl*arl*delu) * 0.5 * ooarl2
 		)
-		res = phi1*f1*(htrl-arl*url) + phi2*(f2*url*url*0.5+rhorl*(url*delu*(1-nx))) + phi3*f3*(htrl+url*arl)
+		res = ynx * (phi1*f1*(htrl-arl*url*nx) + phi2*(f2*url*url*0.5+rhorl*(url*delu*(1-nx))) + phi3*f3*(htrl+url*arl*nx))
 		return
 	})
 
