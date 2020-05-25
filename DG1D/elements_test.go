@@ -67,6 +67,20 @@ func TestElements1D(t *testing.T) {
 			fmt.Printf("VmapP.Matrix.Data = %v\n", el.VmapP.ToMatrixReversed(NF, el.K).RawMatrix().Data)
 		*/
 	}
+	/*
+		Check face mapping
+	*/
+	{
+		K := 4
+		for N := 1; N < 10; N++ {
+			VX, EToV := SimpleMesh1D(0, 2, K)
+			var el *Elements1D
+			el = NewElements1D(N, VX, EToV)
+			facesMX := el.X.Subset(el.VmapM, 2, K)
+			facesPX := el.X.Subset(el.VmapP, 2, K)
+			assert.Equal(t, facesMX, facesPX)
+		}
+	}
 }
 
 func near(a, b float64) (l bool) {

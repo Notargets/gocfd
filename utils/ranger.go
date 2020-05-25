@@ -83,6 +83,7 @@ func (r R2) Range(dimI, dimJ interface{}) (I Index) {
 		i1, i2 = ParseDim(dimI, r.Ir.Max)
 		j1, j2 = ParseDim(dimJ, r.Jr.Max)
 		_, nj  = r.Ir.Max, r.Jr.Max
+		//ni, _  = r.Ir.Max, r.Jr.Max
 	)
 	size := (i2 - i1) * (j2 - j1)
 	I = NewIndex(size)
@@ -90,6 +91,7 @@ func (r R2) Range(dimI, dimJ interface{}) (I Index) {
 	for j := j1; j < j2; j++ {
 		for i := i1; i < i2; i++ {
 			I[ind] = j + nj*i // Column Major
+			//I[ind] = i + ni*j // Row Major
 			ind++
 		}
 	}
@@ -159,6 +161,7 @@ func (r R3) Range(dimI, dimJ, dimK interface{}) (I Index) {
 		j1, j2    = ParseDim(dimJ, r.Jr.Max)
 		k1, k2    = ParseDim(dimK, r.Kr.Max)
 		_, nj, nk = r.Ir.Max, r.Jr.Max, r.Kr.Max
+		//ni, nj, _ = r.Ir.Max, r.Jr.Max, r.Kr.Max
 	)
 	size := (i2 - i1) * (j2 - j1) * (k2 - k1)
 	I = NewIndex(size)
@@ -167,6 +170,7 @@ func (r R3) Range(dimI, dimJ, dimK interface{}) (I Index) {
 		for j := j1; j < j2; j++ {
 			for i := i1; i < i2; i++ {
 				I[ind] = k + nk*(j+nj*i) // Column Major
+				//I[ind] = i + ni*(j+nj*k) // Row Major
 				ind++
 			}
 		}

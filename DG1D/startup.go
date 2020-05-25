@@ -118,13 +118,13 @@ func (el *Elements1D) BuildMaps1D() {
 		err error
 	)
 	vMI := utils.NewR3(el.Nfp, el.NFaces, el.K)
-	nI := utils.NewR2(el.Np, el.K)
+	nodeIDs := utils.NewR2(el.Np, el.K)
 	// find index of face nodes with respect to vertex ordering
-	idsR := el.FMask.ToIndex() // Index of face point locations within element in Np-space
+	idsR := el.FMask.ToIndex() // FMask has the Np vertex location for each face
 	for k := 0; k < el.K; k++ {
 		for f := 0; f < NF; f++ {
 			// idsR contains locations of the faces in Np-space within a single element
-			if err = vMI.Assign(":", f, k, nI.Range(idsR[f], k)); err != nil {
+			if err = vMI.Assign(":", f, k, nodeIDs.Range(idsR[f], k)); err != nil {
 				panic(err)
 			}
 		}
@@ -135,10 +135,12 @@ func (el *Elements1D) BuildMaps1D() {
 	var one = utils.NewVector(el.Nfp).Set(1)
 	for k1 := 0; k1 < el.K; k1++ {
 		for f1 := 0; f1 < el.NFaces; f1++ {
+			// k2, f2 are the coordinates of the connecting face to k1,f1
 			k2 := int(el.EToE.At(k1, f1))
 			f2 := int(el.EToF.At(k1, f1))
 			vidM := vMI.Get(":", f1, k1)
 			vidP := vMI.Get(":", f2, k2)
+			//fmt.Printf("k1, f1 = %v,%v, k2, f2 = %v,%v, vidM, vidP = %v,%v\n", k1, f1, k2, f2, vidM, vidP)
 			x1 := el.X.SubsetVector(vidM) // X values for all face points M
 			x2 := el.X.SubsetVector(vidP) // X values for all face points P
 			X1 := x1.Outer(one)
