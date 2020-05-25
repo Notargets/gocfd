@@ -168,7 +168,7 @@ func (c *EulerDFR) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 		fRho, fRhoU, fEner utils.Matrix
 		Rho, RhoU, Ener    = *Rhop, *RhoUp, *Enerp
 		RhoF, RhoUF, EnerF utils.Matrix
-		limiter            = false
+		limiter            = true
 		slopeLimiterM      = 20.
 	)
 	if limiter {
@@ -187,7 +187,7 @@ func (c *EulerDFR) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 	case "LF":
 		fRho, fRhoU, fEner = c.LFFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF)
 	case "Roe":
-		fRho, fRhoU, fEner = c.RoeFlux(RhoF, RhoUF, EnerF)
+		fRho, fRhoU, fEner = c.RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF)
 	}
 
 	// Set face flux within global flux
@@ -283,13 +283,12 @@ func (c *EulerDFR) LFFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix) (fRh
 	fEner = fAve(EnerF).Add(fJump(Ener).ElMul(LFc).Scale(0.5))
 	return
 }
-func (c *EulerDFR) RoeFlux(RhoF, RhoUF, EnerF utils.Matrix) (fRho, fRhoU, fEner utils.Matrix) {
+func (c *EulerDFR) RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix) (fRho, fRhoU, fEner utils.Matrix) {
 	var (
 		el       = c.El
 		nrF, ncF = el.Nfp * el.NFaces, el.K
 		s        = c.State
 	)
-	// TODO: Figure out what should be used for "Left" and "Right" here and in the flux jump
 	fL := func(U utils.Matrix) (Ul utils.Matrix) {
 		Ul = U.Subset(el.VmapM, nrF, ncF)
 		return
@@ -300,7 +299,7 @@ func (c *EulerDFR) RoeFlux(RhoF, RhoUF, EnerF utils.Matrix) (fRho, fRhoU, fEner 
 	}
 	// Face jumps in primary and flux variables
 	fJump := func(U utils.Matrix) (dU utils.Matrix) {
-		dU = U.Subset(el.VmapP, nrF, ncF).Subtract(U.Subset(el.VmapM, nrF, ncF)).ElMul(el.NX)
+		dU = U.Subset(el.VmapP, nrF, ncF).Subtract(U.Subset(el.VmapM, nrF, ncF))
 		return
 	}
 	// Face average
@@ -311,11 +310,11 @@ func (c *EulerDFR) RoeFlux(RhoF, RhoUF, EnerF utils.Matrix) (fRho, fRhoU, fEner 
 	/*
 		Calculate the Roe Averaged variables
 	*/
-	RhoL, RhoR := fL(c.Rho), fR(c.Rho)
+	RhoL, RhoR := fL(Rho), fR(Rho)
 	UL, UR := fL(s.U), fR(s.U)
 	HtL, HtR := fL(s.Ht), fR(s.Ht)
-	RhoRL := RhoL.Copy().Apply2(RhoR, func(left, right float64) (res float64) {
-		res = math.Sqrt(left * right)
+	RhoRL := RhoL.Copy().Apply2(RhoR, func(rhol, rhor float64) (res float64) {
+		res = math.Sqrt(rhol * rhor)
 		return
 	})
 	roeAve := func(uL, uR utils.Matrix) (uRL utils.Matrix) {
@@ -330,62 +329,65 @@ func (c *EulerDFR) RoeFlux(RhoF, RhoUF, EnerF utils.Matrix) (fRho, fRhoU, fEner 
 	}
 	URL := roeAve(UL, UR)
 	HtRL := roeAve(HtL, HtR)
-	aRL := HtRL.Copy().Apply2(URL, func(left, right float64) (res float64) {
-		res = math.Sqrt((s.Gamma - 1) * (left - right*right*0.5))
+	aRL := HtRL.Copy().Apply2(URL, func(htrl, url float64) (res float64) {
+		res = math.Sqrt((s.Gamma - 1) * (htrl - url*url*0.5))
 		return
 	})
-	DelRho := fJump(c.Rho)
+	DelRho := fJump(Rho)
 	DelU := fJump(s.U)
 	DelP := fJump(s.Pres)
-	DelW1 := DelRho.Copy().Apply3(DelP, aRL, func(drho, dp, arl float64) (res float64) {
-		res = drho - (dp / (arl * arl))
-		return
-	})
-	DelW2 := DelU.Copy().Apply4(DelP, RhoRL, aRL, func(du, dp, rhorl, arl float64) (res float64) {
-		res = du + dp/(rhorl*arl)
-		return
-	})
-	DelW3 := DelU.Copy().Apply4(DelP, RhoRL, aRL, func(du, dp, rhorl, arl float64) (res float64) {
-		res = du - dp/(rhorl*arl)
-		return
-	})
 	// Phi is the Harten entropy correction - it modifies the eigenvalues to eliminate aphysical solutions
 	phi := func(eig, del float64) (res float64) {
 		absLam := math.Abs(eig)
-		if absLam >= del {
+		if absLam > del {
 			res = absLam
 		} else {
 			res = (eig*eig + del*del) / (2 * del)
 		}
 		return
 	}
-	eRho := URL.Copy().Apply8(aRL, RhoRL, HtRL, DelU, DelW1, DelW2, DelW3, func(url, arl, rhorl, htrl, delu, delw1, delw2, delw3 float64) (res float64) {
+	eRho := URL.Copy().Apply8(aRL, RhoRL, HtRL, DelU, DelRho, DelP, el.NX, func(url, arl, rhorl, htrl, delu, delrho, delp, nx float64) (res float64) {
 		var (
-			phi1, phi2, phi3 = phi(url, delu), phi(url+arl, delu), phi(url-arl, delu)
-			factor           = rhorl / (2 * arl)
+			delta            = arl / 20
+			phi1, phi2, phi3 = phi(url*nx-arl, delta), phi(url*nx, delta), phi(url*nx+arl, delta)
+			ooarl2           = 1 / (arl * arl)
+			f1               = (delp - rhorl*arl*delu) * 0.5 * ooarl2
+			f2               = delrho - delp*ooarl2
+			f3               = (delp + rhorl*arl*delu) * 0.5 * ooarl2
 		)
-		res = phi1*delw1 + factor*phi2*delw2 - factor*phi3*delw3
+		res = phi1*f1 + phi2*f2 + phi3*f3
 		return
 	})
-	eRhoU := URL.Copy().Apply8(aRL, RhoRL, HtRL, DelU, DelW1, DelW2, DelW3, func(url, arl, rhorl, htrl, delu, delw1, delw2, delw3 float64) (res float64) {
+	eRhoU := URL.Copy().Apply8(aRL, RhoRL, HtRL, DelU, DelRho, DelP, el.NX, func(url, arl, rhorl, htrl, delu, delrho, delp, nx float64) (res float64) {
 		var (
-			phi1, phi2, phi3 = phi(url, delu), phi(url+arl, delu), phi(url-arl, delu)
-			factor           = rhorl / (2 * arl)
+			delta            = arl / 20
+			phi1, phi2, phi3 = phi(url*nx-arl, delta), phi(url*nx, delta), phi(url*nx+arl, delta)
+			ooarl2           = 1 / (arl * arl)
+			f1               = (delp - rhorl*arl*delu) * 0.5 * ooarl2
+			f2               = delrho - delp*ooarl2
+			f3               = (delp + rhorl*arl*delu) * 0.5 * ooarl2
 		)
-		res = url*phi1*delw1 + factor*(url+arl)*phi2*delw2 - factor*(url-arl)*phi3*delw3
+		res = phi1*f1*(url-arl*nx) + phi2*(f2*url+rhorl*(delu*(1-nx))) + phi3*f3*(url+arl*nx)
 		return
 	})
-	eEner := URL.Copy().Apply8(aRL, RhoRL, HtRL, DelU, DelW1, DelW2, DelW3, func(url, arl, rhorl, htrl, delu, delw1, delw2, delw3 float64) (res float64) {
+	eEner := URL.Copy().Apply8(aRL, RhoRL, HtRL, DelU, DelRho, DelP, el.NX, func(url, arl, rhorl, htrl, delu, delrho, delp, nx float64) (res float64) {
 		var (
-			phi1, phi2, phi3 = phi(url, delu), phi(url+arl, delu), phi(url-arl, delu)
-			factor           = rhorl / (2 * arl)
+			delta            = arl / 20
+			phi1, phi2, phi3 = phi(url*nx-arl, delta), phi(url*nx, delta), phi(url*nx+arl, delta)
+			ooarl2           = 1 / (arl * arl)
+			f1               = (delp - rhorl*arl*delu) * 0.5 * ooarl2
+			f2               = delrho - delp*ooarl2
+			f3               = (delp + rhorl*arl*delu) * 0.5 * ooarl2
 		)
-		res = (0.5*url*url)*phi1*delw1 + factor*(htrl+url*arl)*phi2*delw2 - factor*(htrl-url*arl)*phi3*delw3
+		res = phi1*f1*(htrl-arl*url*nx) + phi2*(f2*url*url*0.5+rhorl*(url*delu*(1-nx))) + phi3*f3*(htrl+url*arl*nx)
 		return
 	})
 
-	fRho = fAve(RhoF).Subtract(eRho.Scale(0.5))
-	fRhoU = fAve(RhoUF).Subtract(eRhoU.Scale(0.5))
-	fEner = fAve(EnerF).Subtract(eEner.Scale(0.5))
+	fRho = fAve(RhoF).Subtract(eRho)
+	fRhoU = fAve(RhoUF).Subtract(eRhoU)
+	fEner = fAve(EnerF).Subtract(eEner)
+	fmt.Println(fRho.Print("fRho"))
+	fmt.Println(fRhoU.Print("fRhoU"))
+	fmt.Println(fEner.Print("fEner"))
 	return
 }
