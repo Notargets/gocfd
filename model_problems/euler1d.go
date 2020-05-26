@@ -24,6 +24,7 @@ type Euler1D struct {
 	plotOnce        sync.Once
 	chart           *chart2d.Chart2D
 	colorMap        *utils2.ColorMap
+	frameCount      int
 }
 
 type FieldState struct {
@@ -159,7 +160,7 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		*/
 		// SSP RK Stage 1
 		rhsRho, rhsRhoU, rhsEner := c.RHS(&c.Rho, &c.RhoU, &c.Ener)
-		c.Plot(showGraph, graphDelay)
+		c.Plot(Time, showGraph, graphDelay)
 		dt = c.CalculateDT(xmin, Time)
 		rho1 := c.Rho.Copy().Add(rhsRho.Scale(dt))
 		rhou1 := c.RhoU.Copy().Add(rhsRhoU.Scale(dt))
@@ -322,7 +323,7 @@ func (s *State) Print() (o string) {
 	return
 }
 
-func (c *Euler1D) Plot(showGraph bool, graphDelay []time.Duration) {
+func (c *Euler1D) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) {
 	var (
 		el = c.El
 	)
@@ -345,6 +346,11 @@ func (c *Euler1D) Plot(showGraph bool, graphDelay []time.Duration) {
 	pSeries(c.Ener, "Ener", 0.6)
 	pSeries(c.State.U, "U", 0.8)
 	pSeries(c.State.Temp, "Temp", 0.9)
+	c.frameCount++
+	check := int(math.Log10(float64(el.K * el.Np / 5)))
+	if c.frameCount%check == 0 {
+		AddAnalyticSod(c.chart, c.colorMap, timeT)
+	}
 	if len(graphDelay) != 0 {
 		time.Sleep(graphDelay[0])
 	}
