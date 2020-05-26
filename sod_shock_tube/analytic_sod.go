@@ -1,7 +1,6 @@
 package sod_shock_tube
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/notargets/gocfd/utils"
@@ -29,12 +28,14 @@ func SOD_calc(t float64) (X, Rho, P, U, E []float64) {
 		x2  = x0 + t*(v_post-c_2)
 		//boundaries (can be set)
 	)
-	fmt.Printf("Sod P_post = %v, sod_func(P_post) = %v\n", P_post, sod_func(P_post))
+	//fmt.Printf("Sod P_post = %v, sod_func(P_post) = %v\n", P_post, sod_func(P_post))
 	_ = c_r
 	tol := 0.00000001
+	midStep := (x2 - x1) / 10.
 	X = []float64{
 		x_min,
 		x1 - tol, x1 + tol,
+		x1 + midStep, x1 + 2*midStep, x1 + 3*midStep, x1 + 4*midStep, x1 + 5*midStep, x1 + 6*midStep, x1 + 7*midStep, x1 + 8*midStep, x1 + 9*midStep, x1 + 10*midStep - 2.*tol,
 		x2 - tol, x2 + tol,
 		x3 - tol, x3 + tol,
 		x4 - tol, x4 + tol,
@@ -75,7 +76,7 @@ func SOD_calc(t float64) (X, Rho, P, U, E []float64) {
 
 func fzero(f func(P float64) (y float64), start float64) float64 {
 	var (
-		tol = 0.0000001
+		tol = 0.00001
 		res float64
 	)
 	start_old := start / 2

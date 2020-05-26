@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/notargets/gocfd/sod_shock_tube"
+
 	"github.com/notargets/avs/chart2d"
 	utils2 "github.com/notargets/avs/utils"
 
@@ -115,7 +117,7 @@ func (c *EulerDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 		*/
 		// SSP RK Stage 1
 		rhsRho, rhsRhoU, rhsEner := c.RHS(&c.Rho, &c.RhoU, &c.Ener)
-		c.Plot(showGraph, graphDelay)
+		c.Plot(Time, showGraph, graphDelay)
 		dt = c.CalculateDT(xmin, Time)
 		rho1 := c.Rho.Copy().Add(rhsRho.Scale(dt))
 		rhou1 := c.RhoU.Copy().Add(rhsRhoU.Scale(dt))
@@ -229,7 +231,7 @@ func (c *EulerDFR) BoundaryConditions(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.
 	bFunc(dEnerF, Ener, EnerF, lmO, nxO, Out.Ener, Out.EnerF, el.MapO, el.VmapO)
 }
 
-func (c *EulerDFR) Plot(showGraph bool, graphDelay []time.Duration) {
+func (c *EulerDFR) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) {
 	var (
 		el         = c.El
 		fmin, fmax = float32(-1.5), float32(5)
@@ -254,6 +256,14 @@ func (c *EulerDFR) Plot(showGraph bool, graphDelay []time.Duration) {
 	pSeries(c.State.U, "U", 0.8, chart2d.NoGlyph)
 	pSeries(c.State.Temp, "Temp", 0.9, chart2d.NoGlyph)
 	//pSeries(c.State.Ht, "Ht", -0.9, chart2d.CrossGlyph)
+	X, Rho, P, U, E := sod_shock_tube.SOD_calc(timeT)
+	_, _ = P, U
+	if err := c.chart.AddSeries("ExactRho", X, Rho, chart2d.XGlyph, chart2d.NoLine, c.colorMap.GetRGB(0.8)); err != nil {
+		panic("unable to add exact solution Rho")
+	}
+	if err := c.chart.AddSeries("ExactE", X, E, chart2d.XGlyph, chart2d.NoLine, c.colorMap.GetRGB(1.0)); err != nil {
+		panic("unable to add exact solution E")
+	}
 	if len(graphDelay) != 0 {
 		time.Sleep(graphDelay[0])
 	}
