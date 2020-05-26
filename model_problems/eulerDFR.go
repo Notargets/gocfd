@@ -120,14 +120,18 @@ func (c *EulerDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 		rhsRho, rhsRhoU, rhsEner := c.RHS(&c.Rho, &c.RhoU, &c.Ener)
 		c.Plot(Time, showGraph, graphDelay)
 		dt = c.CalculateDT(xmin, Time)
-		rho1 := c.Rho.Copy().Add(rhsRho.Scale(dt))
-		rhou1 := c.RhoU.Copy().Add(rhsRhoU.Scale(dt))
-		ener1 := c.Ener.Copy().Add(rhsEner.Scale(dt))
+		update1 := func(u0, rhs float64) (u1 float64) {
+			u1 = u0 + dt*rhs
+			return
+		}
+		rho1 := c.Rho.Copy().Apply2(rhsRho, update1)
+		rhou1 := c.RhoU.Copy().Apply2(rhsRhoU, update1)
+		ener1 := c.Ener.Copy().Apply2(rhsEner, update1)
 
 		// SSP RK Stage 2
 		rhsRho, rhsRhoU, rhsEner = c.RHS(&rho1, &rhou1, &ener1)
 		update2 := func(u0, u1, rhs float64) (u2 float64) {
-			u2 = 0.25 * (3*u0 + u1 + rhs*dt)
+			u2 = (3*u0 + u1 + rhs*dt) * (1. / 4.)
 			return
 		}
 		rho2 := c.Rho.Copy().Apply3(rho1, rhsRho, update2)
