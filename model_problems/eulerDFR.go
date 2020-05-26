@@ -117,8 +117,8 @@ func (c *EulerDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 			Third Order Runge-Kutta time advancement
 		*/
 		// SSP RK Stage 1
-		c.Plot(Time, showGraph, graphDelay)
 		rhsRho, rhsRhoU, rhsEner := c.RHS(&c.Rho, &c.RhoU, &c.Ener)
+		c.Plot(Time, showGraph, graphDelay)
 		dt = c.CalculateDT(xmin, Time)
 		rho1 := c.Rho.Copy().Add(rhsRho.Scale(dt))
 		rhou1 := c.RhoU.Copy().Add(rhsRhoU.Scale(dt))
@@ -134,7 +134,7 @@ func (c *EulerDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 		rhsRho, rhsRhoU, rhsEner = c.RHS(&rho2, &rhou2, &ener2)
 		c.Rho.Add(rho2.Scale(2)).Add(rhsRho.Scale(2. * dt)).Scale(1. / 3.)
 		c.RhoU.Add(rhou2.Scale(2)).Add(rhsRhoU.Scale(2. * dt)).Scale(1. / 3.)
-		c.Ener.Add(ener2.Scale(2)).Add(rhsEner.Copy().Scale(2. * dt)).Scale(1. / 3.)
+		c.Ener.Add(ener2.Scale(2)).Add(rhsEner.Scale(2. * dt)).Scale(1. / 3.)
 
 		Time += dt
 		tstep++
@@ -277,6 +277,10 @@ func AddAnalyticSod(chart *chart2d.Chart2D, colorMap *utils2.ColorMap, timeT flo
 	}
 	if err := chart.AddSeries("ExactE", X, E, chart2d.XGlyph, chart2d.NoLine, colorMap.GetRGB(0.7)); err != nil {
 		panic("unable to add exact solution E")
+	}
+	if math.Abs(timeT-0.2) < 0.001 {
+		fmt.Printf("ExactX = %v\n", X)
+		fmt.Printf("ExactE = %v\n", E)
 	}
 }
 
