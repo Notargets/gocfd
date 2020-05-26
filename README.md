@@ -35,6 +35,14 @@ me@home:bash# gocfd -graph
 ### Run without graphics:
 me@home:bash# gocfd
 ```
+### Update (May 26, 2000): Fixed the Exact solution to the Sod shock tube
+#### T = 0.2, N=3, Galerkin Lax Flux, 500 Elements
+![](images/EulerGKRho1-fixed.PNG)
+
+The shock speed problem I saw yesterday turns out to have been the exact solution :-)
+
+After correcting the exact solution to Sod's shock tube problem, the two Euler solvers match up pretty well all around, with some small differences between them - phew!
+
 ### Update (May 25, 2000): Roe Flux with DFR - Euler 1D compared to Analytic Solution in real time
 #### T = 0.223, N=4, Roe Flux, 600 Elements
 ![](images/EulerDFRRho1.PNG)
