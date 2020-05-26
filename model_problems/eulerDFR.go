@@ -181,10 +181,12 @@ func (c *EulerDFR) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 		*Enerp = el.SlopeLimitN(*Enerp, slopeLimiterM)
 		Rho, RhoU, Ener = *Rhop, *RhoUp, *Enerp
 	}
-	s.Update(Rho, RhoU, Ener)
-	RhoF = RhoU.Copy()
-	RhoUF = s.Q.Copy().Scale(2.).Add(s.Pres)
-	EnerF = Ener.Copy().Add(s.Pres).ElMul(s.U)
+	RhoF, RhoUF, EnerF = s.Update(Rho, RhoU, Ener)
+	/*
+		RhoF = RhoU.Copy()
+		RhoUF = s.Q.Copy().Scale(2.).Add(s.Pres)
+		EnerF = Ener.Copy().Add(s.Pres).ElMul(s.U)
+	*/
 
 	switch c.fluxType {
 	case "LF":

@@ -37,7 +37,7 @@ func NewFieldState() (fs *FieldState) {
 	return &FieldState{}
 }
 
-func (fs *FieldState) Update(Rho, RhoU, Ener utils.Matrix) {
+func (fs *FieldState) Update(Rho, RhoU, Ener utils.Matrix) (RhoF, RhoUF, EnerF utils.Matrix) {
 	/*
 		Calorically Perfect Gas, R = 1
 	*/
@@ -81,6 +81,16 @@ func (fs *FieldState) Update(Rho, RhoU, Ener utils.Matrix) {
 	fs.CVel.SetReadOnly("CVel")
 	fs.LM.SetReadOnly("LM")
 	fs.Ht.SetReadOnly("Ht")
+	RhoF = RhoU.Copy()
+	RhoUF = fs.Q.Copy().Apply2(fs.Pres, func(q, pres float64) (rhouf float64) {
+		rhouf = 2*q + pres
+		return
+	})
+	EnerF = Ener.Copy().Apply3(fs.Pres, fs.U, func(ener, pres, u float64) (enerf float64) {
+		enerf = u * (ener + pres)
+		return
+	})
+	return
 }
 
 func (fs *FieldState) Print() {
@@ -243,10 +253,12 @@ func (c *Euler1D) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEne
 		*Enerp = el.SlopeLimitN(*Enerp, slopeLimiterM)
 		Rho, RhoU, Ener = *Rhop, *RhoUp, *Enerp
 	}
-	s.Update(Rho, RhoU, Ener)
-	RhoF = RhoU.Copy()
-	RhoUF = s.Q.Copy().Scale(2.).Add(s.Pres)
-	EnerF = Ener.Copy().Add(s.Pres).ElMul(s.U)
+	RhoF, RhoUF, EnerF = s.Update(Rho, RhoU, Ener)
+	/*
+		RhoF = RhoU.Copy()
+		RhoUF = s.Q.Copy().Scale(2.).Add(s.Pres)
+		EnerF = Ener.Copy().Add(s.Pres).ElMul(s.U)
+	*/
 	// Face jumps in primary and flux variables
 	fJump := func(U utils.Matrix) (dU utils.Matrix) {
 		dU = U.Subset(el.VmapM, nrF, ncF).Subtract(U.Subset(el.VmapP, nrF, ncF))
