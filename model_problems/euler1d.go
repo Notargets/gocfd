@@ -254,11 +254,7 @@ func (c *Euler1D) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEne
 		Rho, RhoU, Ener = *Rhop, *RhoUp, *Enerp
 	}
 	RhoF, RhoUF, EnerF = s.Update(Rho, RhoU, Ener)
-	/*
-		RhoF = RhoU.Copy()
-		RhoUF = s.Q.Copy().Scale(2.).Add(s.Pres)
-		EnerF = Ener.Copy().Add(s.Pres).ElMul(s.U)
-	*/
+
 	// Face jumps in primary and flux variables
 	fJump := func(U utils.Matrix) (dU utils.Matrix) {
 		dU = U.Subset(el.VmapM, nrF, ncF).Subtract(U.Subset(el.VmapP, nrF, ncF))

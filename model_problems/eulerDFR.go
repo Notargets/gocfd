@@ -182,11 +182,6 @@ func (c *EulerDFR) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 		Rho, RhoU, Ener = *Rhop, *RhoUp, *Enerp
 	}
 	RhoF, RhoUF, EnerF = s.Update(Rho, RhoU, Ener)
-	/*
-		RhoF = RhoU.Copy()
-		RhoUF = s.Q.Copy().Scale(2.).Add(s.Pres)
-		EnerF = Ener.Copy().Add(s.Pres).ElMul(s.U)
-	*/
 
 	switch c.fluxType {
 	case "LF":
@@ -270,7 +265,7 @@ func (c *EulerDFR) Plot(timeT float64, showGraph bool, graphDelay []time.Duratio
 }
 
 func AddAnalyticSod(chart *chart2d.Chart2D, colorMap *utils2.ColorMap, timeT float64) {
-	X, Rho, _, RhoU, E := sod_shock_tube.SOD_calc(timeT)
+	X, Rho, _, RhoU, E, x1, x2, x3, x4 := sod_shock_tube.SOD_calc(timeT)
 	if err := chart.AddSeries("ExactRho", X, Rho, chart2d.XGlyph, chart2d.NoLine, colorMap.GetRGB(-0.7)); err != nil {
 		panic("unable to add exact solution Rho")
 	}
@@ -281,6 +276,7 @@ func AddAnalyticSod(chart *chart2d.Chart2D, colorMap *utils2.ColorMap, timeT flo
 		panic("unable to add exact solution E")
 	}
 	if math.Abs(timeT-0.2) < 0.001 {
+		fmt.Printf("x1, x2, x3, x4 = %v, %v, %v, %v\n", x1, x2, x3, x4)
 		fmt.Printf("ExactX = %v\n", X)
 		fmt.Printf("ExactE = %v\n", E)
 	}
