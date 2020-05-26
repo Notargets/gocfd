@@ -35,9 +35,20 @@ me@home:bash# gocfd -graph
 ### Run without graphics:
 me@home:bash# gocfd
 ```
-### Updates (May 26, 2000): Fixed the Exact solution to the Sod shock tube
+### Updates (May 26, 2000): Verified DFR and Roe Flux after fixing the Exact solution to the Sod shock tube
+#### T = 0.2, N=2, 200 Elements
+DFR Roe (fixed flux) | Galerkin Lax
+:-------------------------:|:-------------------------:
+![](images/eulerDFR-K200-N2-fixedRoe.PNG) | ![](images/eulerGK-K200-N2.PNG)
+
+I removed a term that was present in the 3D version of the flux that doesn't make sense in 1D, and now the contact discontinuity is in the right place and the bump is gone.
+
+Now, when we compare the DFR Roe flux (left) to the Galerkin Lax flux (right), we can see the Roe solution has a steeper contact discontinuity and shock, as we would expect. Both solutions get the locations correctly.
+
+I also optimized some of the DFR code and timed each solution. Surprisingly, the DFR/Roe is slightly faster than the Galerkin/Lax.
+
 #### T = 0.2, N=3, 2000 Elements
-DFR Roe | Galerkin Lax
+DFR Roe (broken flux) | Galerkin Lax
 :-------------------------:|:-------------------------:
 ![](images/EulerDFR-K2000-N3.PNG) | ![](images/EulerGK-K2000-N3.PNG)
 
