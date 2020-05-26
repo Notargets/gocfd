@@ -141,7 +141,7 @@ func (c *EulerDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 		isDone := math.Abs(Time-c.FinalTime) < 0.00001
 		if tstep%logFrequency == 0 || isDone {
 			fmt.Printf("Time = %8.4f, max_resid[%d] = %8.4f, emin = %8.6f, emax = %8.6f\n", Time, tstep, rhsEner.Max(), c.Ener.Min(), c.Ener.Max())
-			if isDone {
+			if isDone && showGraph {
 				for {
 					time.Sleep(time.Second)
 				}
@@ -198,9 +198,21 @@ func (c *EulerDFR) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 	c.BoundaryConditions(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, &fRho, &fRhoU, &fEner)
 
 	// Calculate RHS
-	rhsRho = el.Dr.Mul(RhoF).Scale(-1).ElMul(el.Rx)
-	rhsRhoU = el.Dr.Mul(RhoUF).Scale(-1).ElMul(el.Rx)
-	rhsEner = el.Dr.Mul(EnerF).Scale(-1).ElMul(el.Rx)
+	//rhsRho = el.Dr.Mul(RhoF).Scale(-1).ElMul(el.Rx)
+	rhsRho = el.Dr.Mul(RhoF).Apply2(el.Rx, func(drrhof, rx float64) (rhsrho float64) {
+		rhsrho = -drrhof * rx
+		return
+	})
+	//rhsRhoU = el.Dr.Mul(RhoUF).Scale(-1).ElMul(el.Rx)
+	rhsRhoU = el.Dr.Mul(RhoUF).Apply2(el.Rx, func(drrhouf, rx float64) (rhsurho float64) {
+		rhsurho = -drrhouf * rx
+		return
+	})
+	//rhsEner = el.Dr.Mul(EnerF).Scale(-1).ElMul(el.Rx)
+	rhsEner = el.Dr.Mul(EnerF).Apply2(el.Rx, func(drenerf, rx float64) (rhsener float64) {
+		rhsener = -drenerf * rx
+		return
+	})
 	return
 }
 

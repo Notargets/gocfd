@@ -211,7 +211,7 @@ func (c *Euler1D) Run(showGraph bool, graphDelay ...time.Duration) {
 		isDone := math.Abs(Time-c.FinalTime) < 0.00001
 		if tstep%logFrequency == 0 || isDone {
 			fmt.Printf("Time = %8.4f, max_resid[%d] = %8.4f, emin = %8.6f, emax = %8.6f\n", Time, tstep, rhsEner.Max(), c.Ener.Min(), c.Ener.Max())
-			if isDone {
+			if isDone && showGraph {
 				c.Plot(Time, showGraph, graphDelay)
 				for {
 					time.Sleep(time.Second)
