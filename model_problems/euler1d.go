@@ -325,13 +325,14 @@ func (s *State) Print() (o string) {
 
 func (c *Euler1D) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) {
 	var (
-		el = c.El
+		el         = c.El
+		fmin, fmax = float32(-0.1), float32(2.6)
 	)
 	if !showGraph {
 		return
 	}
 	c.plotOnce.Do(func() {
-		c.chart = chart2d.NewChart2D(1920, 1280, float32(el.X.Min()), float32(el.X.Max()), -1.5, 5)
+		c.chart = chart2d.NewChart2D(1920, 1280, float32(el.X.Min()), float32(el.X.Max()), fmin, fmax)
 		c.colorMap = utils2.NewColorMap(-1, 1, 1)
 		go c.chart.Plot()
 	})
@@ -343,9 +344,9 @@ func (c *Euler1D) Plot(timeT float64, showGraph bool, graphDelay []time.Duration
 	}
 	pSeries(c.Rho, "Rho", -0.7)
 	pSeries(c.RhoU, "RhoU", 0.0)
-	pSeries(c.Ener, "Ener", 0.6)
-	pSeries(c.State.U, "U", 0.8)
-	pSeries(c.State.Temp, "Temp", 0.9)
+	pSeries(c.Ener, "Ener", 0.7)
+	//pSeries(c.State.U, "U", 0.8)
+	//pSeries(c.State.Temp, "Temp", 0.9)
 	c.frameCount++
 	check := int(math.Log10(float64(el.K * el.Np / 5)))
 	if c.frameCount%check == 0 {

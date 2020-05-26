@@ -6,7 +6,7 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-func SOD_calc(t float64) (X, Rho, P, U, E []float64) {
+func SOD_calc(t float64) (X, Rho, P, RhoU, E []float64) {
 	var (
 		x_min, x_max        = 0., 1.
 		x0, rho_l, P_l, u_l = 0.5 * (x_max + x_min), 1., 1., 0.
@@ -30,7 +30,7 @@ func SOD_calc(t float64) (X, Rho, P, U, E []float64) {
 	)
 	//fmt.Printf("Sod P_post = %v, sod_func(P_post) = %v\n", P_post, sod_func(P_post))
 	_ = c_r
-	tol := 0.00000001
+	tol := 0.0001
 	midStep := (x2 - x1) / 10.
 	X = []float64{
 		x_min,
@@ -43,7 +43,8 @@ func SOD_calc(t float64) (X, Rho, P, U, E []float64) {
 	}
 	Rho = make([]float64, len(X))
 	P = make([]float64, len(X))
-	U = make([]float64, len(X))
+	U := make([]float64, len(X))
+	RhoU = make([]float64, len(X))
 	E = make([]float64, len(X))
 	for i, x := range X {
 		switch {
@@ -69,7 +70,8 @@ func SOD_calc(t float64) (X, Rho, P, U, E []float64) {
 			P[i] = P_r
 			U[i] = u_r
 		}
-		E[i] = P[i] / ((gamma - 1.) * Rho[i])
+		E[i] = P[i]/(gamma-1.) + 0.5*U[i]*U[i]*Rho[i]
+		RhoU[i] = Rho[i] * U[i]
 	}
 	return
 }
