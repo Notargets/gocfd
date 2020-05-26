@@ -46,17 +46,35 @@ func (fs *FieldState) Update(Rho, RhoU, Ener utils.Matrix) {
 		Cv    = 1. / (Gamma - 1.)
 		Cp    = Gamma * Cv
 	)
-	fs.U = RhoU.Copy().ElDiv(Rho)                   // Velocity
-	fs.Q = fs.U.Copy().POW(2).ElMul(Rho).Scale(0.5) // 1/2 * Rho * U^2
+	fs.U = RhoU.Copy().ElDiv(Rho) // Velocity
+	fs.Q = fs.U.Copy().Apply2(Rho, func(u, rho float64) (q float64) {
+		q = 0.5 * u * u * rho
+		return
+	})
 	// (gamma-1.0)*(Ener - 0.5*(rhou).^2./rho)
-	fs.Pres = Ener.Copy().Subtract(fs.Q).Scale(fs.Gamma - 1.) // Pressure
+	fs.Pres = Ener.Copy().Apply2(fs.Q, func(e, q float64) (p float64) {
+		p = (e - q) * (fs.Gamma - 1)
+		return
+	})
 	// sqrt(gamma*pres./rho)
-	fs.CVel = fs.Pres.Copy().ElDiv(Rho).Scale(fs.Gamma).Apply(math.Sqrt)
+	fs.CVel = fs.Pres.Copy().Apply2(Rho, func(p, rho float64) (cvel float64) {
+		cvel = math.Sqrt(fs.Gamma * p / rho)
+		return
+	})
 	//  abs(rhou./rho)+cvel
-	fs.LM = fs.U.Copy().Apply(math.Abs).Add(fs.CVel)
+	fs.LM = fs.U.Copy().Apply2(fs.CVel, func(u, cvel float64) (lm float64) {
+		lm = math.Abs(u) + cvel
+		return
+	})
 	//	Temp = (Ener - 0.5*(rhou).^2./rho)./rho
-	fs.Temp = Ener.Copy().Subtract(fs.Q).ElDiv(Rho)
-	fs.Ht = fs.Q.Copy().ElDiv(Rho).Add(fs.Temp.Copy().Scale(Cp))
+	fs.Temp = Ener.Copy().Apply3(fs.Q, Rho, func(e, q, rho float64) (temp float64) {
+		temp = (e - q) / rho
+		return
+	})
+	fs.Ht = fs.Q.Copy().Apply3(Rho, fs.Temp, func(q, rho, temp float64) (ht float64) {
+		ht = Cp * (q/rho + temp)
+		return
+	})
 	fs.U.SetReadOnly("U")
 	fs.Q.SetReadOnly("Q")
 	fs.Pres.SetReadOnly("Pres")
@@ -299,8 +317,8 @@ type State struct {
 }
 
 func NewState(gamma, rho, rhoU, ener float64) (s *State) {
-	p := ener * (gamma - 1.)
 	q := 0.5 * utils.POW(rhoU, 2) / rho
+	p := (ener - q) * (gamma - 1.)
 	u := rhoU / rho
 	return &State{
 		Gamma: gamma,
@@ -314,7 +332,8 @@ func NewState(gamma, rho, rhoU, ener float64) (s *State) {
 }
 
 func NewStateP(gamma, rho, rhoU, p float64) *State {
-	ener := p / (gamma - 1.)
+	q := 0.5 * rhoU * rhoU / rho
+	ener := (p - q) / (gamma - 1.)
 	return NewState(gamma, rho, rhoU, ener)
 }
 
