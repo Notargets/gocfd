@@ -387,7 +387,7 @@ func (c *EulerDFR) RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix) (fR
 			f2               = delrho - delp*ooarl2
 			f3               = (delp + rhorl*arl*delu) * 0.5 * ooarl2
 		)
-		res = nx * (phi1*f1*(url-arl) + phi2*(f2*url) + phi3*f3*(url+arl))
+		res = nx * (phi1*f1*(url-arl) + phi2*(f2*url+rhorl*delu) + phi3*f3*(url+arl))
 		return
 	})
 	eEner := URL.Copy().Apply8(aRL, RhoRL, HtRL, DelU, DelRho, DelP, el.NX, func(url, arl, rhorl, htrl, delu, delrho, delp, nx float64) (res float64) {
@@ -399,17 +399,12 @@ func (c *EulerDFR) RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix) (fR
 			f2               = delrho - delp*ooarl2
 			f3               = (delp + rhorl*arl*delu) * 0.5 * ooarl2
 		)
-		res = nx * (phi1*f1*(htrl-arl*url) + phi2*(f2*url*url*0.5) + phi3*f3*(htrl+url*arl))
+		res = nx * (phi1*f1*(htrl-arl*url) + phi2*(f2*url*url*0.5+rhorl*url*delu) + phi3*f3*(htrl+url*arl))
 		return
 	})
 
 	fRho = fAve(RhoF).Subtract(eRho)
 	fRhoU = fAve(RhoUF).Subtract(eRhoU)
 	fEner = fAve(EnerF).Subtract(eEner)
-	/*
-		fmt.Println(fRho.Print("fRho"))
-		fmt.Println(fRhoU.Print("fRhoU"))
-		fmt.Println(fEner.Print("fEner"))
-	*/
 	return
 }
