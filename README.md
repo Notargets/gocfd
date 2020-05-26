@@ -36,7 +36,7 @@ me@home:bash# gocfd -graph
 me@home:bash# gocfd
 ```
 ### Update (May 25, 2000): Roe Flux with DFR - Euler 1D compared to Analytic Solution in real time
-#### T = 0.0707, N=3, Roe Flux, 1000 Elements
+#### T = 0.223, N=4, Roe Flux, 600 Elements
 ![](images/EulerDFRRho1.PNG)
 
 This is cool - being able to see exactly the errors and successes in realtime. The above is a snap of an interim result where I'm now showing the exact solution in symbols overlaying the simulation in realtime and sure enough we see a phase error on the leading shock wave, along with excellent reproduction of the smooth expansion flow.
