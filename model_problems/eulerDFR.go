@@ -256,16 +256,20 @@ func (c *EulerDFR) Plot(timeT float64, showGraph bool, graphDelay []time.Duratio
 	pSeries(c.State.U, "U", 0.8, chart2d.NoGlyph)
 	pSeries(c.State.Temp, "Temp", 0.9, chart2d.NoGlyph)
 	//pSeries(c.State.Ht, "Ht", -0.9, chart2d.CrossGlyph)
-	X, Rho, P, U, E := sod_shock_tube.SOD_calc(timeT)
-	_, _ = P, U
-	if err := c.chart.AddSeries("ExactRho", X, Rho, chart2d.XGlyph, chart2d.NoLine, c.colorMap.GetRGB(0.8)); err != nil {
-		panic("unable to add exact solution Rho")
-	}
-	if err := c.chart.AddSeries("ExactE", X, E, chart2d.XGlyph, chart2d.NoLine, c.colorMap.GetRGB(1.0)); err != nil {
-		panic("unable to add exact solution E")
-	}
+	AddAnalyticSod(c.chart, c.colorMap, timeT)
 	if len(graphDelay) != 0 {
 		time.Sleep(graphDelay[0])
+	}
+}
+
+func AddAnalyticSod(chart *chart2d.Chart2D, colorMap *utils2.ColorMap, timeT float64) {
+	X, Rho, P, U, E := sod_shock_tube.SOD_calc(timeT)
+	_, _ = P, U
+	if err := chart.AddSeries("ExactRho", X, Rho, chart2d.XGlyph, chart2d.NoLine, colorMap.GetRGB(0.8)); err != nil {
+		panic("unable to add exact solution Rho")
+	}
+	if err := chart.AddSeries("ExactE", X, E, chart2d.XGlyph, chart2d.NoLine, colorMap.GetRGB(1.0)); err != nil {
+		panic("unable to add exact solution E")
 	}
 }
 
