@@ -27,6 +27,7 @@ type EulerDFR struct {
 	chart           *chart2d.Chart2D
 	colorMap        *utils2.ColorMap
 	fluxType        string
+	frameCount      int
 }
 
 func NewEulerDFR(CFL, FinalTime, XMax float64, N, K int) (c *EulerDFR) {
@@ -256,7 +257,11 @@ func (c *EulerDFR) Plot(timeT float64, showGraph bool, graphDelay []time.Duratio
 	pSeries(c.State.U, "U", 0.8, chart2d.NoGlyph)
 	pSeries(c.State.Temp, "Temp", 0.9, chart2d.NoGlyph)
 	//pSeries(c.State.Ht, "Ht", -0.9, chart2d.CrossGlyph)
-	AddAnalyticSod(c.chart, c.colorMap, timeT)
+	c.frameCount++
+	check := int(math.Log10(float64(el.K * el.Np / 5)))
+	if c.frameCount%check == 0 {
+		AddAnalyticSod(c.chart, c.colorMap, timeT)
+	}
 	if len(graphDelay) != 0 {
 		time.Sleep(graphDelay[0])
 	}
