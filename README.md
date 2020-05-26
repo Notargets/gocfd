@@ -35,7 +35,12 @@ me@home:bash# gocfd -graph
 ### Run without graphics:
 me@home:bash# gocfd
 ```
-### Update (May 26, 2000): Fixed the Exact solution to the Sod shock tube
+### Updates (May 26, 2000): Fixed the Exact solution to the Sod shock tube
+#### T = 0.2, N=3, DFR Roe Flux, 2000 Elements
+![](images/EulerDFR-K2000-N3.PNG)
+
+There is a very slight position error for the contact discontinuity in the solution. Also, there is a bump on the left side of the contact discontinuity, an artifact of the underdamped aliasing.
+
 #### T = 0.2, N=3, Galerkin Lax Flux, 500 Elements
 ![](images/EulerGKRho1-fixed.PNG)
 
