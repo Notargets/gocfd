@@ -41,7 +41,7 @@ DFR Roe | Galerkin Lax
 :-------------------------:|:-------------------------:
 ![](images/EulerDFR-K2000-N3.PNG) | ![](images/EulerGK-K2000-N3.PNG)
 
-DFR/Roe: There is a very slight position error for the contact discontinuity in the solution. Also, there is a bump on the left side of the contact discontinuity, an artifact of the underdamped aliasing.
+DFR/Roe versus Galerkin/Lax: In the DFR solution the contact discontinuity is steeper than the GK/Lax solution. There is a very slight position error for the contact discontinuity in the DFR solution and also a bump on the left side of it, an artifact of the underdamped aliasing.
 
 #### T = 0.2, N=3, Galerkin Lax Flux, 500 Elements
 ![](images/EulerGKRho1-fixed.PNG)
