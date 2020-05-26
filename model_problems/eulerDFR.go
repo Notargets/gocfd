@@ -126,15 +126,23 @@ func (c *EulerDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 
 		// SSP RK Stage 2
 		rhsRho, rhsRhoU, rhsEner = c.RHS(&rho1, &rhou1, &ener1)
-		rho2 := c.Rho.Copy().Scale(3.).Add(rho1).Add(rhsRho.Scale(dt)).Scale(0.25)
-		rhou2 := c.RhoU.Copy().Scale(3.).Add(rhou1).Add(rhsRhoU.Scale(dt)).Scale(0.25)
-		ener2 := c.Ener.Copy().Scale(3.).Add(ener1).Add(rhsEner.Scale(dt)).Scale(0.25)
+		update2 := func(u0, u1, rhs float64) (u2 float64) {
+			u2 = 0.25 * (3*u0 + u1 + rhs*dt)
+			return
+		}
+		rho2 := c.Rho.Copy().Apply3(rho1, rhsRho, update2)
+		rhou2 := c.RhoU.Copy().Apply3(rhou1, rhsRhoU, update2)
+		ener2 := c.Ener.Copy().Apply3(ener1, rhsEner, update2)
 
 		// SSP RK Stage 3
 		rhsRho, rhsRhoU, rhsEner = c.RHS(&rho2, &rhou2, &ener2)
-		c.Rho.Add(rho2.Scale(2)).Add(rhsRho.Scale(2. * dt)).Scale(1. / 3.)
-		c.RhoU.Add(rhou2.Scale(2)).Add(rhsRhoU.Scale(2. * dt)).Scale(1. / 3.)
-		c.Ener.Add(ener2.Scale(2)).Add(rhsEner.Scale(2. * dt)).Scale(1. / 3.)
+		update3 := func(u0, u2, rhs float64) (u3 float64) {
+			u3 = (u0 + 2*u2 + 2*dt*rhs) * (1. / 3.)
+			return
+		}
+		c.Rho.Apply3(rho2, rhsRho, update3)
+		c.RhoU.Apply3(rhou2, rhsRhoU, update3)
+		c.Ener.Apply3(ener2, rhsEner, update3)
 
 		Time += dt
 		tstep++
