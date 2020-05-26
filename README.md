@@ -39,9 +39,11 @@ me@home:bash# gocfd
 #### T = 0.223, N=4, Roe Flux, 600 Elements
 ![](images/EulerDFRRho1.PNG)
 
-This is cool - being able to see exactly the errors and successes in realtime. The above is a snap of an interim result where I'm now showing the exact solution in symbols overlaying the simulation in realtime and sure enough we see a phase error on the leading shock wave, along with excellent reproduction of the smooth expansion flow.
+This is cool - being able to see exactly the errors and successes in realtime. The above is a snap of an interim result where I'm now showing the exact solution in symbols overlaying the simulation in realtime and sure enough we see a shock speed error on the leading shock wave, along with excellent reproduction of the smooth expansion flow.
 
-You can recreate this using ``` gocfd -graph -model 5 -CFL 0.75 -N 3 -K 1000```
+I also went back and checked the Galerkin (non-DFR) Euler case and it has the same error in shock propagation speed as the DFR/Roe result, which says there's a common error somewhere. It's good to spend time doing basic accuracy tests!
+
+You can recreate this using ``` gocfd -graph -model 5 -CFL 0.75 -N 4 -K 600```
 
 ### Update (May 12, 2020): DFR and Aliasing, Instability and Fixing it
 On the path to implementing direct flux reconstruction, I found what appeared to be 2nd order aliasing without a clear origin. After consulting Hesthaven(2007) section 5.3, I see that the issue is the interpolation of the flux and subsequently taking the derivative of that interpolated flux. As stated: "the derivative of the interpolation is not the same as the interpolation of the derivative", or put another way, by simply computing the flux from the nodal points of the solution polynomial, we are not treating the flux formally as a polynomial - instead we should perform a formal polynomial fit (projection, instead of interpolation) of the flux prior to using that polynomial to compute derivatives of the flux. The result of using interpolation shown in the text is that we produce an aliasing error into the solution, and their answer is to filter it away instead of using the much more compute intensive projection. The aliasing error also gets worse with increasing N, so the filter should change with N.
