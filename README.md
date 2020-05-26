@@ -36,7 +36,12 @@ me@home:bash# gocfd -graph
 me@home:bash# gocfd
 ```
 ### Updates (May 26, 2000): Verified DFR and Roe Flux after fixing the Exact solution to the Sod shock tube
-#### T = 0.2, N=2, 200 Elements
+#### Resolved DFR/Roe solution compared to exact at T = 0.2, N=3, 2000 Elements
+![](images/EulerDFR-K2000-N3-fixedRoe.PNG)
+
+A highly resolved solution from the DFR/Roe solver looks qualitatively good without bumps or other instability artifacts. The contact discontinuity is in the right place and very sharply resolved.
+
+#### Comparison of DFR/Roe and Galerkin/Lax at T = 0.2, N=2, 200 Elements
 DFR Roe (fixed flux) | Galerkin Lax
 :-------------------------:|:-------------------------:
 ![](images/eulerDFR-K200-N2-fixedRoe.PNG) | ![](images/eulerGK-K200-N2.PNG)
