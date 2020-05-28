@@ -24,16 +24,32 @@ type MaxwellDFR struct {
 	ZimpDenom, YimpDenom             utils.Matrix
 	chart                            *chart2d.Chart2D
 	colorMap                         *utils2.ColorMap
+	model                            ModelType
 }
 
-func NewMaxwellDFR(CFL, FinalTime float64, N, K int) (c *MaxwellDFR) {
+type ModelType uint
+
+const (
+	GK ModelType = iota
+	DFR
+)
+
+var (
+	model_names = []string{
+		"Galerkin Integration, Lax Flux",
+		"DFR Integration, Lax Flux",
+	}
+)
+
+func NewMaxwellDFR(CFL, FinalTime float64, N, K int, model ModelType) (c *MaxwellDFR) {
 	VX, EToV := DG1D.SimpleMesh1D(-2, 2, K)
 	c = &MaxwellDFR{
 		CFL:       CFL,
 		FinalTime: FinalTime,
 		El:        DG1D.NewElements1D(N, VX, EToV),
+		model:     model,
 	}
-	fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, K)
+	fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\nModel Type: %s\n\n", CFL, N, K, model_names[c.model])
 	epsData := utils.ConstArray(c.El.K, 1)
 	ones := utils.NewVectorConstant(c.El.Np, 1)
 	for i := c.El.K / 2; i < c.El.K; i++ {
@@ -69,7 +85,16 @@ func (c *MaxwellDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 		resE         = utils.NewMatrix(el.Np, el.K)
 		resH         = utils.NewMatrix(el.Np, el.K)
 		logFrequency = 50
+		rhs          func() (rhsE, rhsH utils.Matrix)
 	)
+	switch c.model {
+	case GK:
+		rhs = c.RHS_GK
+	case DFR:
+		fallthrough
+	default:
+		rhs = c.RHS_DFR
+	}
 	xmin := el.X.Row(1).Subtract(el.X.Row(0)).Apply(math.Abs).Min()
 	dt := xmin * c.CFL
 	Nsteps := int(math.Ceil(c.FinalTime / dt))
@@ -79,7 +104,7 @@ func (c *MaxwellDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 	var Time float64
 	for tstep := 0; tstep < Nsteps; tstep++ {
 		for INTRK := 0; INTRK < 5; INTRK++ {
-			rhsE, rhsH := c.RHS()
+			rhsE, rhsH := rhs()
 			resE.Scale(utils.RK4a[INTRK]).Add(rhsE.Scale(dt))
 			resH.Scale(utils.RK4a[INTRK]).Add(rhsH.Scale(dt))
 			c.E.Add(resE.Copy().Scale(utils.RK4b[INTRK]))
@@ -94,7 +119,7 @@ func (c *MaxwellDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 	return
 }
 
-func (c *MaxwellDFR) RHS() (RHSE, RHSH utils.Matrix) {
+func (c *MaxwellDFR) RHS_DFR() (RHSE, RHSH utils.Matrix) {
 	var (
 		el       = c.El
 		nrF, ncF = el.Nfp * el.NFaces, el.K
@@ -156,6 +181,32 @@ func (c *MaxwellDFR) RHS() (RHSE, RHSH utils.Matrix) {
 
 	RHSE = GradH.ElDiv(c.Epsilon).Scale(-1).Add(ADissE).ElMul(el.Rx)
 	RHSH = GradE.ElDiv(c.Mu).Scale(-1).Add(ADissH).ElMul(el.Rx)
+
+	return
+}
+
+func (c *MaxwellDFR) RHS_GK() (RHSE, RHSH utils.Matrix) {
+	var (
+		nrF, ncF = c.El.Nfp * c.El.NFaces, c.El.K
+		// Field flux differerence across faces
+		dE           = c.E.Subset(c.El.VmapM, nrF, ncF).Subtract(c.E.Subset(c.El.VmapP, nrF, ncF))
+		dH           = c.H.Subset(c.El.VmapM, nrF, ncF).Subtract(c.H.Subset(c.El.VmapP, nrF, ncF))
+		el           = c.El
+		fluxE, fluxH utils.Matrix
+	)
+	// Homogeneous boundary conditions at the inflow faces, Ez = 0
+	// Reflection BC - Metal boundary - E is zero at shell face, H passes through (Neumann)
+	// E on the boundary face is negative of E inside, so the diff in E at the boundary face is 2E of the interior
+	dE.AssignVector(el.MapB, c.E.SubsetVector(el.VmapB).Scale(2))
+	// H on the boundary face is equal to H inside, so the diff in H at the boundary face is 0
+	dH.AssignVector(el.MapB, c.H.SubsetVector(el.VmapB).Set(0))
+
+	// Upwind fluxes
+	fluxE = c.ZimPM.Copy().Add(c.ZimPP).POW(-1).ElMul(el.NX.Copy().ElMul(c.ZimPP).ElMul(dH).Subtract(dE))
+	fluxH = c.YimPM.Copy().Add(c.YimPP).POW(-1).ElMul(el.NX.Copy().ElMul(c.YimPP).ElMul(dE).Subtract(dH))
+
+	RHSE = el.Rx.Copy().Scale(-1).ElMul(el.Dr.Mul(c.H)).Add(el.LIFT.Mul(fluxE.ElMul(el.FScale))).ElDiv(c.Epsilon)
+	RHSH = el.Rx.Copy().Scale(-1).ElMul(el.Dr.Mul(c.E)).Add(el.LIFT.Mul(fluxH.ElMul(el.FScale))).ElDiv(c.Mu)
 
 	return
 }

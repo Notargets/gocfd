@@ -63,11 +63,11 @@ func main() {
 	case Advect1D:
 		C = Advection1D.NewAdvection1D(2*math.Pi, CFL, FinalTime, N, K)
 	case Maxwell1D:
-		C = Maxwell1D2.NewMaxwell1D(CFL, FinalTime, N, K)
+		C = Maxwell1D2.NewMaxwellDFR(CFL, FinalTime, N, K, Maxwell1D2.GK)
 	case AdvectDFR:
 		C = Advection1D.NewAdvectionDFR(2*math.Pi, CFL, FinalTime, XMax, N, K)
 	case MaxwellDFR:
-		C = Maxwell1D2.NewMaxwellDFR(CFL, FinalTime, N, K)
+		C = Maxwell1D2.NewMaxwellDFR(CFL, FinalTime, N, K, Maxwell1D2.DFR)
 	case EulerDFR_Roe:
 		C = Euler1D2.NewEulerDFR(CFL, FinalTime, XMax, N, K, Euler1D2.Euler_DFR_Roe)
 	case EulerDFR_LF:
