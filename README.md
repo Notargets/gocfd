@@ -5,6 +5,14 @@ Awesome CFD solver written in Go
 
 ### Credits to Jan S. Hesthaven and Tim Warburton for their excellent text "Nodal Discontinuous Galerkin Methods" (2007)
 
+### Objectives - Why do this work?
+
+I studied CFD in graduate school in 1987 and worked for Northrop for 10 years doing CFD to design and debug airplanes and propulsion systems. During my time applying CFD, I had some great success and some notable failures in getting useful results from the CFD analysis. The most common theme in the failures: flows with thermal gradients, shear flows and vortices were handled very poorly by all known usable Finite Volume methods.
+
+Then, last year (2019), I noticed there were some amazing looking results appearing on Youtube and elsewhere showing well resolved turbulent eddies and shear flows using this new "Discontinuous Galerkin Finite Elements" method...
+
+I will be implementing a three dimensional CFD solver using best practices from this new set of methods and I expect to be able to solve flows with chemical reactions, strong temperature gradients and so on..
+
 ### Guide to code review
 
 If you are interested in reviewing the physics and how it is implemented, look through the code in "model_problems". Each file there implements one physics model or an additional numerical method for a model.
