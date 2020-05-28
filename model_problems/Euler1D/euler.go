@@ -26,14 +26,14 @@ type EulerDFR struct {
 	plotOnce        sync.Once
 	chart           *chart2d.Chart2D
 	colorMap        *utils2.ColorMap
-	model           Euler1D_Model
+	model           ModelType
 	frameCount      int
 }
 
-type Euler1D_Model uint
+type ModelType uint
 
 const (
-	Galerkin_LF Euler1D_Model = iota
+	Galerkin_LF ModelType = iota
 	Euler_DFR_LF
 	Euler_DFR_Roe
 )
@@ -46,7 +46,7 @@ var (
 	}
 )
 
-func NewEulerDFR(CFL, FinalTime, XMax float64, N, K int, model Euler1D_Model) (c *EulerDFR) {
+func NewEulerDFR(CFL, FinalTime, XMax float64, N, K int, model ModelType) (c *EulerDFR) {
 	VX, EToV := DG1D.SimpleMesh1D(0, XMax, K)
 	c = &EulerDFR{
 		CFL:       CFL,
