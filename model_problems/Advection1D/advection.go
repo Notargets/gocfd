@@ -20,9 +20,24 @@ type AdvectionDFR struct {
 	RHSOnce, PlotOnce sync.Once
 	chart             *chart2d.Chart2D
 	colorMap          *utils2.ColorMap
+	model             ModelType
 }
 
-func NewAdvectionDFR(a, CFL, FinalTime, XMax float64, N, K int) *AdvectionDFR {
+type ModelType uint
+
+const (
+	GK ModelType = iota
+	DFR
+)
+
+var (
+	model_names = []string{
+		"Galerkin Integration, Lax Flux",
+		"DFR Integration, Lax Flux",
+	}
+)
+
+func NewAdvectionDFR(a, CFL, FinalTime, XMax float64, N, K int, model ModelType) *AdvectionDFR {
 	if XMax == 0 {
 		XMax = 2 * math.Pi
 	}
@@ -32,6 +47,7 @@ func NewAdvectionDFR(a, CFL, FinalTime, XMax float64, N, K int) *AdvectionDFR {
 		CFL:       CFL,
 		FinalTime: FinalTime,
 		El:        DG1D.NewElements1D(N, VX, EToV),
+		model:     model,
 	}
 }
 
@@ -39,7 +55,16 @@ func (c *AdvectionDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 	var (
 		el           = c.El
 		logFrequency = 50
+		rhs          func(U utils.Matrix, Time float64) (RHSU utils.Matrix)
 	)
+	switch c.model {
+	case GK:
+		rhs = c.RHS_GK
+	case DFR:
+		fallthrough
+	default:
+		rhs = c.RHS_DFR
+	}
 	xmin := el.X.Row(1).Subtract(el.X.Row(0)).Apply(math.Abs).Min()
 	dt := 0.5 * xmin * (c.CFL / c.a)
 	Ns := math.Ceil(c.FinalTime / dt)
@@ -54,7 +79,7 @@ func (c *AdvectionDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 		c.Plot(showGraph, graphDelay, U)
 		for INTRK := 0; INTRK < 5; INTRK++ {
 			timelocal = Time + dt*utils.RK4c[INTRK]
-			RHSU := c.RHS(U, timelocal)
+			RHSU := rhs(U, timelocal)
 			// resid = rk4a(INTRK) * resid + dt * rhsu;
 			resid.Scale(utils.RK4a[INTRK]).Add(RHSU.Scale(dt))
 			// u += rk4b(INTRK) * resid;
@@ -68,7 +93,7 @@ func (c *AdvectionDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 	}
 }
 
-func (c *AdvectionDFR) RHS(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
+func (c *AdvectionDFR) RHS_DFR(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 	var (
 		uin   float64
 		alpha = 0.0 // flux splitting parameter, 0 is full upwinding
@@ -126,6 +151,35 @@ func (c *AdvectionDFR) RHS(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 	}
 
 	RHSU = el.Dr.Mul(c.F).ElMul(el.Rx).Scale(-1)
+	return
+}
+
+func (c *AdvectionDFR) RHS_GK(U utils.Matrix, time float64) (RHSU utils.Matrix) {
+	var (
+		uin   float64
+		alpha = 0.0 // flux splitting parameter, 0 is full upwinding
+		el    = c.El
+	)
+	c.RHSOnce.Do(func() {
+		aNX := el.NX.Copy().Scale(c.a)
+		aNXabs := aNX.Copy().Apply(math.Abs).Scale(1. - alpha)
+		c.UFlux = aNX.Subtract(aNXabs)
+	})
+	// Face fluxes
+	// du = (u(vmapM)-u(vmapP)).dm(a*nx-(1.-alpha)*abs(a*nx))/2.;
+	duNr := el.Nfp * el.NFaces
+	duNc := el.K
+	dU := U.Subset(el.VmapM, duNr, duNc).Subtract(U.Subset(el.VmapP, duNr, duNc)).ElMul(c.UFlux).Scale(0.5)
+	// Boundaries
+	// Inflow boundary
+	// du(mapI) = (u(vmapI)-uin).dm(a*nx(mapI)-(1.-alpha)*abs(a*nx(mapI)))/2.;
+	uin = -math.Sin(c.a * time)
+	dU.Assign(el.MapI, U.Subset(el.VmapI, duNr, duNc).AddScalar(-uin).ElMul(c.UFlux.Subset(el.MapI, duNr, duNc)).Scale(0.5))
+	dU.AssignScalar(el.MapO, 0)
+
+	// rhsu = -a*rx.dm(Dr*u) + LIFT*(Fscale.dm(du));
+	// Important: must change the order from Fscale.dm(du) to du.dm(Fscale) here because the dm overwrites the target
+	RHSU = el.Rx.Copy().Scale(-c.a).ElMul(el.Dr.Mul(U)).Add(el.LIFT.Mul(dU.ElMul(el.FScale)))
 	return
 }
 

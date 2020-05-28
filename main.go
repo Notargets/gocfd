@@ -6,17 +6,17 @@ import (
 	"math"
 	"time"
 
-	"github.com/notargets/gocfd/model_problems/Advection1D"
-	Maxwell1D2 "github.com/notargets/gocfd/model_problems/Maxwell1D"
+	"github.com/notargets/gocfd/model_problems/Euler1D"
+	"github.com/notargets/gocfd/model_problems/Maxwell1D"
 
-	Euler1D2 "github.com/notargets/gocfd/model_problems/Euler1D"
+	"github.com/notargets/gocfd/model_problems/Advection1D"
 )
 
 var (
 	K         = 0 // Number of elements
 	N         = 0 // Polynomial degree
 	Delay     = time.Duration(0)
-	ModelRun  = Euler1D
+	ModelRun  = M_1DEuler
 	CFL       = 0.0
 	FinalTime = 100000.
 	XMax      = 0.0
@@ -25,13 +25,13 @@ var (
 type ModelType uint8
 
 const (
-	Advect1D ModelType = iota
-	Maxwell1D
-	Euler1D
-	AdvectDFR
-	MaxwellDFR
-	EulerDFR_Roe
-	EulerDFR_LF
+	M_1DAdvect ModelType = iota
+	M_1DMaxwell
+	M_1DEuler
+	M_1DAdvectDFR
+	M_1DMaxwellDFR
+	M_1DEulerDFR_Roe
+	M_1DEulerDFR_LF
 )
 
 var (
@@ -68,23 +68,22 @@ func main() {
 
 	var C Model
 	switch ModelRun {
-	case Advect1D:
-		C = Advection1D.NewAdvection1D(2*math.Pi, CFL, FinalTime, N, K)
-	case Maxwell1D:
-		C = Maxwell1D2.NewMaxwellDFR(CFL, FinalTime, N, K, Maxwell1D2.GK)
-	case AdvectDFR:
-		C = Advection1D.NewAdvectionDFR(2*math.Pi, CFL, FinalTime, XMax, N, K)
-	case MaxwellDFR:
-		C = Maxwell1D2.NewMaxwellDFR(CFL, FinalTime, N, K, Maxwell1D2.DFR)
-	case EulerDFR_Roe:
-		C = Euler1D2.NewEulerDFR(CFL, FinalTime, XMax, N, K, Euler1D2.Euler_DFR_Roe)
-	case EulerDFR_LF:
-		C = Euler1D2.NewEulerDFR(CFL, FinalTime, XMax, N, K, Euler1D2.Euler_DFR_LF)
-	case Euler1D:
+	case M_1DAdvect:
+		C = Advection1D.NewAdvectionDFR(2*math.Pi, CFL, FinalTime, XMax, N, K, Advection1D.GK)
+	case M_1DMaxwell:
+		C = Maxwell1D.NewMaxwellDFR(CFL, FinalTime, N, K, Maxwell1D.GK)
+	case M_1DAdvectDFR:
+		C = Advection1D.NewAdvectionDFR(2*math.Pi, CFL, FinalTime, XMax, N, K, Advection1D.DFR)
+	case M_1DMaxwellDFR:
+		C = Maxwell1D.NewMaxwellDFR(CFL, FinalTime, N, K, Maxwell1D.DFR)
+	case M_1DEulerDFR_Roe:
+		C = Euler1D.NewEulerDFR(CFL, FinalTime, XMax, N, K, Euler1D.Euler_DFR_Roe)
+	case M_1DEulerDFR_LF:
+		C = Euler1D.NewEulerDFR(CFL, FinalTime, XMax, N, K, Euler1D.Euler_DFR_LF)
+	case M_1DEuler:
 		fallthrough
 	default:
-		//C = model_problems.NewEuler1D(CFL, FinalTime, XMax, N, K)
-		C = Euler1D2.NewEulerDFR(CFL, FinalTime, XMax, N, K, Euler1D2.Galerkin_LF)
+		C = Euler1D.NewEulerDFR(CFL, FinalTime, XMax, N, K, Euler1D.Galerkin_LF)
 	}
 	C.Run(*Graphptr, Delay*time.Millisecond)
 }
