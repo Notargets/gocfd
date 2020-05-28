@@ -123,7 +123,8 @@ func (c *EulerDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 		el           = c.El
 		logFrequency = 50
 		//s             = c.State
-		rhs func(rho, rhou, ener *utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix)
+		rhs  func(rho, rhou, ener *utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix)
+		iRho float64
 	)
 	switch c.model {
 	case Galerkin_LF:
@@ -140,7 +141,7 @@ func (c *EulerDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 		*/
 		// SSP RK Stage 1
 		rhsRho, rhsRhoU, rhsEner := rhs(&c.Rho, &c.RhoU, &c.Ener)
-		c.Plot(Time, showGraph, graphDelay)
+		iRho = c.Plot(Time, showGraph, graphDelay)
 		dt = c.CalculateDT(xmin, Time)
 		update1 := func(u0, rhs float64) (u1 float64) {
 			u1 = u0 + dt*rhs
@@ -176,6 +177,11 @@ func (c *EulerDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 		if tstep%logFrequency == 0 || isDone {
 			fmt.Printf("Time = %8.4f, max_resid[%d] = %8.4f, emin = %8.6f, emax = %8.6f\n", Time, tstep, rhsEner.Max(), c.Ener.Min(), c.Ener.Max())
 			if isDone && showGraph {
+				iRhoModel := integrate(el.X.M.RawMatrix().Data, c.Rho.RawMatrix().Data)
+				logErr := math.Log10(math.Abs(iRho - iRhoModel))
+				if math.Abs(Time-c.FinalTime) < 0.001 {
+					fmt.Printf("Rho Integration Check: Exact = %5.4f, Model = %5.4f, Log10 Error = %5.4f\n", iRho, iRhoModel, logErr)
+				}
 				for {
 					time.Sleep(time.Second)
 				}
@@ -323,7 +329,7 @@ func (c *EulerDFR) BoundaryConditions(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.
 	bFunc(dEnerF, Ener, EnerF, lmO, nxO, Out.Ener, Out.EnerF, el.MapO, el.VmapO)
 }
 
-func (c *EulerDFR) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) {
+func (c *EulerDFR) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) (iRho float64) {
 	var (
 		el         = c.El
 		fmin, fmax = float32(-0.1), float32(2.6)
@@ -345,20 +351,18 @@ func (c *EulerDFR) Plot(timeT float64, showGraph bool, graphDelay []time.Duratio
 	pSeries(c.Rho, "Rho", -0.7, chart2d.NoGlyph)
 	pSeries(c.RhoU, "RhoU", 0.0, chart2d.NoGlyph)
 	pSeries(c.Ener, "Ener", 0.7, chart2d.NoGlyph)
-	//pSeries(c.State.U, "U", 0.8, chart2d.NoGlyph)
-	//pSeries(c.State.Temp, "Temp", 0.9, chart2d.NoGlyph)
-	//pSeries(c.State.Ht, "Ht", -0.9, chart2d.CrossGlyph)
 	c.frameCount++
 	check := int(math.Log10(float64(el.K * el.Np / 5)))
-	if c.frameCount%check == 0 {
-		AddAnalyticSod(c.chart, c.colorMap, timeT)
+	if c.frameCount%check == 0 || math.Abs(timeT-c.FinalTime) < 0.001 {
+		iRho = AddAnalyticSod(c.chart, c.colorMap, timeT, c.FinalTime)
 	}
 	if len(graphDelay) != 0 {
 		time.Sleep(graphDelay[0])
 	}
+	return
 }
 
-func AddAnalyticSod(chart *chart2d.Chart2D, colorMap *utils2.ColorMap, timeT float64) {
+func AddAnalyticSod(chart *chart2d.Chart2D, colorMap *utils2.ColorMap, timeT, timeCheck float64) (iRho float64) {
 	X, Rho, _, RhoU, E, x1, x2, x3, x4 := sod_shock_tube.SOD_calc(timeT)
 	if err := chart.AddSeries("ExactRho", X, Rho, chart2d.XGlyph, chart2d.NoLine, colorMap.GetRGB(-0.7)); err != nil {
 		panic("unable to add exact solution Rho")
@@ -369,11 +373,21 @@ func AddAnalyticSod(chart *chart2d.Chart2D, colorMap *utils2.ColorMap, timeT flo
 	if err := chart.AddSeries("ExactE", X, E, chart2d.XGlyph, chart2d.NoLine, colorMap.GetRGB(0.7)); err != nil {
 		panic("unable to add exact solution E")
 	}
-	if math.Abs(timeT-0.2) < 0.001 {
-		fmt.Printf("x1, x2, x3, x4 = %v, %v, %v, %v\n", x1, x2, x3, x4)
-		fmt.Printf("ExactX = %v\n", X)
-		fmt.Printf("ExactE = %v\n", E)
+	iRho = integrate(X, Rho)
+	if math.Abs(timeT-timeCheck) < 0.001 {
+		_, _, _, _ = x1, x2, x3, x4
 	}
+	return
+}
+
+func integrate(x, u []float64) (result float64) {
+	L := len(x)
+	for i := 0; i < L-1; i++ {
+		delx := x[i+1] - x[i]
+		uave := 0.5 * (u[i+1] + u[i])
+		result += uave * delx
+	}
+	return
 }
 
 func (c *EulerDFR) LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix) (fRho, fRhoU, fEner utils.Matrix) {
