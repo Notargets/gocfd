@@ -1,4 +1,4 @@
-package model_problems
+package Maxwell1D
 
 import (
 	"fmt"

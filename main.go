@@ -6,9 +6,10 @@ import (
 	"math"
 	"time"
 
-	Euler1D2 "github.com/notargets/gocfd/model_problems/Euler1D"
+	"github.com/notargets/gocfd/model_problems/Advection1D"
+	Maxwell1D2 "github.com/notargets/gocfd/model_problems/Maxwell1D"
 
-	"github.com/notargets/gocfd/model_problems"
+	Euler1D2 "github.com/notargets/gocfd/model_problems/Euler1D"
 )
 
 var (
@@ -60,13 +61,13 @@ func main() {
 	var C Model
 	switch ModelRun {
 	case Advect1D:
-		C = model_problems.NewAdvection1D(2*math.Pi, CFL, FinalTime, N, K)
+		C = Advection1D.NewAdvection1D(2*math.Pi, CFL, FinalTime, N, K)
 	case Maxwell1D:
-		C = model_problems.NewMaxwell1D(CFL, FinalTime, N, K)
+		C = Maxwell1D2.NewMaxwell1D(CFL, FinalTime, N, K)
 	case AdvectDFR:
-		C = model_problems.NewAdvectionDFR(2*math.Pi, CFL, FinalTime, XMax, N, K)
+		C = Advection1D.NewAdvectionDFR(2*math.Pi, CFL, FinalTime, XMax, N, K)
 	case MaxwellDFR:
-		C = model_problems.NewMaxwellDFR(CFL, FinalTime, N, K)
+		C = Maxwell1D2.NewMaxwellDFR(CFL, FinalTime, N, K)
 	case EulerDFR_Roe:
 		C = Euler1D2.NewEulerDFR(CFL, FinalTime, XMax, N, K, Euler1D2.Euler_DFR_Roe)
 	case EulerDFR_LF:

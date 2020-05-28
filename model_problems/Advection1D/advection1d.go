@@ -1,4 +1,4 @@
-package model_problems
+package Advection1D
 
 import (
 	"fmt"
