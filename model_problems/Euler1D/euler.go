@@ -176,12 +176,16 @@ func (c *EulerDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 		isDone := math.Abs(Time-c.FinalTime) < 0.00001
 		if tstep%logFrequency == 0 || isDone {
 			fmt.Printf("Time = %8.4f, max_resid[%d] = %8.4f, emin = %8.6f, emax = %8.6f\n", Time, tstep, rhsEner.Max(), c.Ener.Min(), c.Ener.Max())
-			if isDone && showGraph {
+			if isDone {
+				x, rho, _, _, _, _, _, _, _ := sod_shock_tube.SOD_calc(Time)
+				iRho = integrate(x, rho)
 				iRhoModel := integrate(el.X.M.RawMatrix().Data, c.Rho.RawMatrix().Data)
 				logErr := math.Log10(math.Abs(iRho - iRhoModel))
 				if math.Abs(Time-c.FinalTime) < 0.001 {
 					fmt.Printf("Rho Integration Check: Exact = %5.4f, Model = %5.4f, Log10 Error = %5.4f\n", iRho, iRhoModel, logErr)
 				}
+			}
+			if isDone && showGraph {
 				for {
 					time.Sleep(time.Second)
 				}
