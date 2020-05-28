@@ -219,7 +219,7 @@ func (c *EulerDFR) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, r
 
 	switch c.model {
 	case Euler_DFR_LF:
-		fRho, fRhoU, fEner = c.LFFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF)
+		fRho, fRhoU, fEner = c.LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF)
 	case Euler_DFR_Roe:
 		fRho, fRhoU, fEner = c.RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF)
 	}
@@ -376,7 +376,7 @@ func AddAnalyticSod(chart *chart2d.Chart2D, colorMap *utils2.ColorMap, timeT flo
 	}
 }
 
-func (c *EulerDFR) LFFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix) (fRho, fRhoU, fEner utils.Matrix) {
+func (c *EulerDFR) LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix) (fRho, fRhoU, fEner utils.Matrix) {
 	var (
 		el       = c.El
 		s        = c.State

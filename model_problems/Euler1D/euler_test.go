@@ -44,7 +44,7 @@ func TestFlux(t *testing.T) {
 		fmt.Println(EnerF.Print("EnerF"))
 
 		fRho, fRhoU, fEner = c.RoeFlux(c.Rho, c.RhoU, c.Ener, RhoF, RhoUF, EnerF)
-		//fRho, fRhoU, fEner = c.LFFlux(c.Rho, c.RhoU, c.Ener, RhoF, RhoUF, EnerF)
+		//fRho, fRhoU, fEner = c.LaxFlux(c.Rho, c.RhoU, c.Ener, RhoF, RhoUF, EnerF)
 
 		// Set face flux within global flux
 		RhoF.AssignVector(el.VmapM, fRho)
