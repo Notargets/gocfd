@@ -34,6 +34,14 @@ const (
 	EulerDFR_LF
 )
 
+var (
+	max_CFL  = []float64{1, 1, 3, 3, 1, 2.2, 3}
+	def_K    = []int{10, 100, 500, 50, 500, 500, 500}
+	def_N    = []int{3, 4, 4, 4, 3, 4, 4}
+	def_CFL  = []float64{1, 1, 3, 3, 0.75, 2.2, 3}
+	def_XMAX = []float64{2 * math.Pi, 1, 1, 2 * math.Pi, 1, 1, 1}
+)
+
 type Model interface {
 	Run(graph bool, graphDelay ...time.Duration)
 }
@@ -81,24 +89,11 @@ func main() {
 	C.Run(*Graphptr, Delay*time.Millisecond)
 }
 
-func LimitCFL(ModelRun ModelType, CFL float64) (CFLNew float64) {
+func LimitCFL(model ModelType, CFL float64) (CFLNew float64) {
 	var (
 		CFLMax float64
 	)
-	switch ModelRun {
-	case Advect1D:
-		CFLMax = 1
-	case Maxwell1D:
-		CFLMax = 1
-	case Euler1D, EulerDFR_LF:
-		CFLMax = 3
-	case EulerDFR_Roe:
-		CFLMax = 2.2
-	case AdvectDFR:
-		CFLMax = 3
-	case MaxwellDFR:
-		CFLMax = 1
-	}
+	CFLMax = max_CFL[model]
 	if CFL > CFLMax {
 		fmt.Printf("Input CFL is higher than max CFL for this method\nReplacing with Max CFL: %8.2f\n", CFLMax)
 		return CFLMax
@@ -106,40 +101,8 @@ func LimitCFL(ModelRun ModelType, CFL float64) (CFLNew float64) {
 	return CFL
 }
 
-func Defaults(ModelRun ModelType) (CFL, XMax float64, N, K int) {
-	switch ModelRun {
-	case Advect1D:
-		K = 10
-		N = 3
-		CFL = 1
-		XMax = 2 * math.Pi
-	case Maxwell1D:
-		K = 100
-		N = 4
-		CFL = 1
-		XMax = 1
-	case Euler1D, EulerDFR_LF:
-		K = 500
-		N = 4
-		CFL = 3
-		XMax = 1
-	case EulerDFR_Roe:
-		K = 500
-		N = 4
-		CFL = 2.2
-		XMax = 1
-	case AdvectDFR:
-		K = 50
-		N = 4
-		CFL = 3
-		XMax = 2 * math.Pi
-	case MaxwellDFR:
-		K = 500
-		N = 3
-		CFL = 0.75
-		XMax = 1
-	}
-	return
+func Defaults(model ModelType) (CFL, XMax float64, N, K int) {
+	return def_CFL[model], def_XMAX[model], def_N[model], def_K[model]
 }
 
 func getParam(def float64, valP interface{}) float64 {
