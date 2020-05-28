@@ -185,7 +185,8 @@ func (c *Euler) Run(showGraph bool, graphDelay ...time.Duration) {
 				rms_rho, rms_rhou, rms_e := sod_error_calc(el.X, c.Rho, c.RhoU, c.Ener, Time)
 				if math.Abs(Time-c.FinalTime) < 0.001 {
 					fmt.Printf("Rho Integration Check: Exact = %5.4f, Model = %5.4f, Log10 Error = %5.4f\n", iRho, iRhoModel, logErr)
-					fmt.Printf("RMS Errors: Log10 Rho, RhoU, E Error = %5.4f, %5.4f, %5.4f\n", math.Log10(rms_rho), math.Log10(rms_rhou), math.Log10(rms_e))
+					fmt.Printf("K=%v, N=%v, CFL=%v, RMS Errors: Log10 Rho, RhoU, E Error = %5.4f, %5.4f, %5.4f\n",
+						el.K, el.Np-1, c.CFL, math.Log10(rms_rho), math.Log10(rms_rhou), math.Log10(rms_e))
 				}
 				if !showGraph {
 					return
