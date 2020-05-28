@@ -182,11 +182,12 @@ func (c *Euler) Run(showGraph bool, graphDelay ...time.Duration) {
 				iRho = integrate(x, rho)
 				iRhoModel := integrate(el.X.M.RawMatrix().Data, c.Rho.RawMatrix().Data)
 				logErr := math.Log10(math.Abs(iRho - iRhoModel))
-				rms_rho, rms_rhou, rms_e := sod_error_calc(el.X, c.Rho, c.RhoU, c.Ener, Time)
+				rms_rho, rms_rhou, rms_e, max_rho, max_rhou, max_e := sod_error_calc(el.X, c.Rho, c.RhoU, c.Ener, Time)
 				if math.Abs(Time-c.FinalTime) < 0.001 {
 					fmt.Printf("Rho Integration Check: Exact = %5.4f, Model = %5.4f, Log10 Error = %5.4f\n", iRho, iRhoModel, logErr)
-					fmt.Printf("K=%v, N=%v, CFL=%v, RMS Errors: Log10 Rho, RhoU, E Error = %5.4f, %5.4f, %5.4f\n",
-						el.K, el.Np-1, c.CFL, math.Log10(rms_rho), math.Log10(rms_rhou), math.Log10(rms_e))
+					fmt.Printf("K=%v, N=%v, CFL=%v, RMS Errors: Log10 Rho, RhoU, E Error = %5.4f, %5.4f, %5.4f, MaxErr: Rho, RhoU, E = %5.4f, %5.4f, %5.4f\n",
+						el.K, el.Np-1, c.CFL, math.Log10(rms_rho), math.Log10(rms_rhou), math.Log10(rms_e),
+						math.Log10(max_rho), math.Log10(max_rhou), math.Log10(max_e))
 				}
 				if !showGraph {
 					return
@@ -400,7 +401,7 @@ func integrate(x, u []float64) (result float64) {
 	return
 }
 
-func sod_error_calc(X, Rho, RhoU, E utils.Matrix, t float64) (rms_rho, rms_rhou, rms_e float64) {
+func sod_error_calc(X, Rho, RhoU, E utils.Matrix, t float64) (rms_rho, rms_rhou, rms_e, max_rho, max_rhou, max_e float64) {
 	var (
 		Xdata    = X.RawMatrix().Data
 		RhoData  = Rho.RawMatrix().Data
@@ -411,9 +412,16 @@ func sod_error_calc(X, Rho, RhoU, E utils.Matrix, t float64) (rms_rho, rms_rhou,
 	for i, x := range Xdata {
 		sod_rho, _, _, sod_e, sod_rhou := sod.Getx(x)
 		rho, rhou, e := RhoData[i], RhoUData[i], EData[i]
-		rms_rho += utils.POW(rho-sod_rho, 2)
-		rms_rhou += utils.POW(rhou-sod_rhou, 2)
-		rms_e += utils.POW(e-sod_e, 2)
+		rho_err := utils.POW(rho-sod_rho, 2)
+		rhou_err := utils.POW(rhou-sod_rhou, 2)
+		e_err := utils.POW(e-sod_e, 2)
+		rms_rho += rho_err
+		rms_rhou += rhou_err
+		rms_e += e_err
+		rho_err, rhou_err, e_err = math.Sqrt(rho_err), math.Sqrt(rhou_err), math.Sqrt(e_err)
+		max_rho = math.Max(rho_err, max_rho)
+		max_rhou = math.Max(rhou_err, max_rhou)
+		max_e = math.Max(e_err, max_e)
 	}
 	rms_rho = math.Sqrt(rms_rho / float64(len(Xdata)))
 	rms_rhou = math.Sqrt(rms_rhou / float64(len(Xdata)))

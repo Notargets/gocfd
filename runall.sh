@@ -2,10 +2,10 @@
 
 rm -f sysout_* VAL_*
 
-for ((i=2; i<7; i++))
+for ((i=2; i<4; i++))
 do
 	echo "Running N = "$i
-	for ((k=100;k<1601;k*=2))
+	for ((k=100;k<=16000;k*=2))
 	do
 		CASE="VAL_GK_LAX_N="$i
 		MODEL=2
