@@ -18,8 +18,8 @@ func TestFlux(t *testing.T) {
 		K := 4
 		N := 1
 		VX, EToV := DG1D.SimpleMesh1D(0, 1, K)
-		var c *EulerDFR
-		c = &EulerDFR{
+		var c *Euler
+		c = &Euler{
 			CFL:       1,
 			State:     NewFieldState(),
 			FinalTime: 20,

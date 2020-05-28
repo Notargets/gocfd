@@ -12,7 +12,7 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-type AdvectionDFR struct {
+type Advection struct {
 	// Input parameters
 	a, CFL, FinalTime float64
 	El                *DG1D.Elements1D
@@ -37,12 +37,12 @@ var (
 	}
 )
 
-func NewAdvectionDFR(a, CFL, FinalTime, XMax float64, N, K int, model ModelType) *AdvectionDFR {
+func NewAdvection(a, CFL, FinalTime, XMax float64, N, K int, model ModelType) *Advection {
 	if XMax == 0 {
 		XMax = 2 * math.Pi
 	}
 	VX, EToV := DG1D.SimpleMesh1D(0, XMax, K)
-	return &AdvectionDFR{
+	return &Advection{
 		a:         a,
 		CFL:       CFL,
 		FinalTime: FinalTime,
@@ -51,7 +51,7 @@ func NewAdvectionDFR(a, CFL, FinalTime, XMax float64, N, K int, model ModelType)
 	}
 }
 
-func (c *AdvectionDFR) Run(showGraph bool, graphDelay ...time.Duration) {
+func (c *Advection) Run(showGraph bool, graphDelay ...time.Duration) {
 	var (
 		el           = c.El
 		logFrequency = 50
@@ -93,7 +93,7 @@ func (c *AdvectionDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 	}
 }
 
-func (c *AdvectionDFR) RHS_DFR(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
+func (c *Advection) RHS_DFR(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 	var (
 		uin   float64
 		alpha = 0.0 // flux splitting parameter, 0 is full upwinding
@@ -154,7 +154,7 @@ func (c *AdvectionDFR) RHS_DFR(U utils.Matrix, Time float64) (RHSU utils.Matrix)
 	return
 }
 
-func (c *AdvectionDFR) RHS_GK(U utils.Matrix, time float64) (RHSU utils.Matrix) {
+func (c *Advection) RHS_GK(U utils.Matrix, time float64) (RHSU utils.Matrix) {
 	var (
 		uin   float64
 		alpha = 0.0 // flux splitting parameter, 0 is full upwinding
@@ -183,7 +183,7 @@ func (c *AdvectionDFR) RHS_GK(U utils.Matrix, time float64) (RHSU utils.Matrix) 
 	return
 }
 
-func (c *AdvectionDFR) Plot(showGraph bool, graphDelay []time.Duration, U utils.Matrix) {
+func (c *Advection) Plot(showGraph bool, graphDelay []time.Duration, U utils.Matrix) {
 	var (
 		el         = c.El
 		pMin, pMax = float32(-1), float32(1)

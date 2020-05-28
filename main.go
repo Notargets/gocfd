@@ -69,21 +69,21 @@ func main() {
 	var C Model
 	switch ModelRun {
 	case M_1DAdvect:
-		C = Advection1D.NewAdvectionDFR(2*math.Pi, CFL, FinalTime, XMax, N, K, Advection1D.GK)
+		C = Advection1D.NewAdvection(2*math.Pi, CFL, FinalTime, XMax, N, K, Advection1D.GK)
 	case M_1DMaxwell:
-		C = Maxwell1D.NewMaxwellDFR(CFL, FinalTime, N, K, Maxwell1D.GK)
+		C = Maxwell1D.NewMaxwell(CFL, FinalTime, N, K, Maxwell1D.GK)
 	case M_1DAdvectDFR:
-		C = Advection1D.NewAdvectionDFR(2*math.Pi, CFL, FinalTime, XMax, N, K, Advection1D.DFR)
+		C = Advection1D.NewAdvection(2*math.Pi, CFL, FinalTime, XMax, N, K, Advection1D.DFR)
 	case M_1DMaxwellDFR:
-		C = Maxwell1D.NewMaxwellDFR(CFL, FinalTime, N, K, Maxwell1D.DFR)
+		C = Maxwell1D.NewMaxwell(CFL, FinalTime, N, K, Maxwell1D.DFR)
 	case M_1DEulerDFR_Roe:
-		C = Euler1D.NewEulerDFR(CFL, FinalTime, XMax, N, K, Euler1D.Euler_DFR_Roe)
+		C = Euler1D.NewEuler(CFL, FinalTime, XMax, N, K, Euler1D.Euler_DFR_Roe)
 	case M_1DEulerDFR_LF:
-		C = Euler1D.NewEulerDFR(CFL, FinalTime, XMax, N, K, Euler1D.Euler_DFR_LF)
+		C = Euler1D.NewEuler(CFL, FinalTime, XMax, N, K, Euler1D.Euler_DFR_LF)
 	case M_1DEuler:
 		fallthrough
 	default:
-		C = Euler1D.NewEulerDFR(CFL, FinalTime, XMax, N, K, Euler1D.Galerkin_LF)
+		C = Euler1D.NewEuler(CFL, FinalTime, XMax, N, K, Euler1D.Galerkin_LF)
 	}
 	C.Run(*Graphptr, Delay*time.Millisecond)
 }

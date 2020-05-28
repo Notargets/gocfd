@@ -15,7 +15,7 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-type EulerDFR struct {
+type Euler struct {
 	// Input parameters
 	CFL, FinalTime  float64
 	El              *DG1D.Elements1D
@@ -46,9 +46,9 @@ var (
 	}
 )
 
-func NewEulerDFR(CFL, FinalTime, XMax float64, N, K int, model ModelType) (c *EulerDFR) {
+func NewEuler(CFL, FinalTime, XMax float64, N, K int, model ModelType) (c *Euler) {
 	VX, EToV := DG1D.SimpleMesh1D(0, XMax, K)
-	c = &EulerDFR{
+	c = &Euler{
 		CFL:       CFL,
 		State:     NewFieldState(),
 		FinalTime: FinalTime,
@@ -76,7 +76,7 @@ func NewEulerDFR(CFL, FinalTime, XMax float64, N, K int, model ModelType) (c *Eu
 	return
 }
 
-func (c *EulerDFR) InitializeFS() {
+func (c *Euler) InitializeFS() {
 	var (
 		el = c.El
 		FS = c.In
@@ -86,7 +86,7 @@ func (c *EulerDFR) InitializeFS() {
 	c.Ener = utils.NewMatrix(el.Np, el.K).AddScalar(FS.Ener)
 }
 
-func (c *EulerDFR) InitializeSOD() {
+func (c *Euler) InitializeSOD() {
 	var (
 		/*
 			In                = NewStateP(c.Gamma, 1, 0, 1)
@@ -118,7 +118,7 @@ func (c *EulerDFR) InitializeSOD() {
 	c.Ener.AssignScalar(rightHalf, 0.1*rDiv)
 }
 
-func (c *EulerDFR) Run(showGraph bool, graphDelay ...time.Duration) {
+func (c *Euler) Run(showGraph bool, graphDelay ...time.Duration) {
 	var (
 		el           = c.El
 		logFrequency = 50
@@ -173,7 +173,7 @@ func (c *EulerDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 
 		Time += dt
 		tstep++
-		isDone := math.Abs(Time-c.FinalTime) < 0.00001
+		isDone := math.Abs(Time-c.FinalTime) < 0.000001
 		if tstep%logFrequency == 0 || isDone {
 			fmt.Printf("Time = %8.4f, max_resid[%d] = %8.4f, emin = %8.6f, emax = %8.6f\n", Time, tstep, rhsEner.Max(), c.Ener.Min(), c.Ener.Max())
 			if isDone {
@@ -183,6 +183,9 @@ func (c *EulerDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 				logErr := math.Log10(math.Abs(iRho - iRhoModel))
 				if math.Abs(Time-c.FinalTime) < 0.001 {
 					fmt.Printf("Rho Integration Check: Exact = %5.4f, Model = %5.4f, Log10 Error = %5.4f\n", iRho, iRhoModel, logErr)
+				}
+				if !showGraph {
+					return
 				}
 			}
 			if isDone && showGraph {
@@ -195,7 +198,7 @@ func (c *EulerDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 	return
 }
 
-func (c *EulerDFR) CalculateDT(xmin, Time float64) (dt float64) {
+func (c *Euler) CalculateDT(xmin, Time float64) (dt float64) {
 	var (
 		s = c.State
 	)
@@ -208,7 +211,7 @@ func (c *EulerDFR) CalculateDT(xmin, Time float64) (dt float64) {
 	return
 }
 
-func (c *EulerDFR) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
+func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
 	var (
 		el                 = c.El
 		s                  = c.State
@@ -260,7 +263,7 @@ func (c *EulerDFR) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, r
 	return
 }
 
-func (c *EulerDFR) RHS_GK(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
+func (c *Euler) RHS_GK(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
 	var (
 		el                                                 = c.El
 		nrF, ncF                                           = el.Nfp * el.NFaces, el.K
@@ -308,7 +311,7 @@ func (c *EulerDFR) RHS_GK(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rh
 	return
 }
 
-func (c *EulerDFR) BoundaryConditions(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, dRhoF, dRhoUF, dEnerF *utils.Matrix) {
+func (c *Euler) BoundaryConditions(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, dRhoF, dRhoUF, dEnerF *utils.Matrix) {
 	var (
 		s  = c.State
 		el = c.El
@@ -333,7 +336,7 @@ func (c *EulerDFR) BoundaryConditions(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.
 	bFunc(dEnerF, Ener, EnerF, lmO, nxO, Out.Ener, Out.EnerF, el.MapO, el.VmapO)
 }
 
-func (c *EulerDFR) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) (iRho float64) {
+func (c *Euler) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) (iRho float64) {
 	var (
 		el         = c.El
 		fmin, fmax = float32(-0.1), float32(2.6)
@@ -394,7 +397,7 @@ func integrate(x, u []float64) (result float64) {
 	return
 }
 
-func (c *EulerDFR) LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix) (fRho, fRhoU, fEner utils.Matrix) {
+func (c *Euler) LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix) (fRho, fRhoU, fEner utils.Matrix) {
 	var (
 		el       = c.El
 		s        = c.State
@@ -420,7 +423,7 @@ func (c *EulerDFR) LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix) (fR
 	return
 }
 
-func (c *EulerDFR) RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix) (fRho, fRhoU, fEner utils.Matrix) {
+func (c *Euler) RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix) (fRho, fRhoU, fEner utils.Matrix) {
 	var (
 		el       = c.El
 		nrF, ncF = el.Nfp * el.NFaces, el.K

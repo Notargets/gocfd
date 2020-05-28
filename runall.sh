@@ -1,7 +1,14 @@
 #!/bin/bash
 
-for ((i=1; i<5; i++))
+rm -f sysout_*
+
+for ((i=2; i<3; i++))
 do
-	echo $i
-	gocfd -K 8 -N $i -delay 150 -graph >> sysout &
+	echo "Running N = "$i
+	gocfd -model 6 -CFL 1 -K 100 -N $i -FinalTime 0.2 >> sysout_$i
+	gocfd -model 6 -CFL 1 -K 200 -N $i -FinalTime 0.2 >> sysout_$i
+	gocfd -model 6 -CFL 1 -K 400 -N $i -FinalTime 0.2 >> sysout_$i
+	gocfd -model 6 -CFL 1 -K 800 -N $i -FinalTime 0.2 >> sysout_$i
+	gocfd -model 6 -CFL 1 -K 1600 -N $i -FinalTime 0.2 >> sysout_$i
+	gocfd -model 6 -CFL 1 -K 3200 -N $i -FinalTime 0.2 >> sysout_$i
 done

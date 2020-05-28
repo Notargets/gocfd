@@ -13,7 +13,7 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-type MaxwellDFR struct {
+type Maxwell struct {
 	// Input parameters
 	CFL, FinalTime                   float64
 	El                               *DG1D.Elements1D
@@ -41,9 +41,9 @@ var (
 	}
 )
 
-func NewMaxwellDFR(CFL, FinalTime float64, N, K int, model ModelType) (c *MaxwellDFR) {
+func NewMaxwell(CFL, FinalTime float64, N, K int, model ModelType) (c *Maxwell) {
 	VX, EToV := DG1D.SimpleMesh1D(-2, 2, K)
-	c = &MaxwellDFR{
+	c = &Maxwell{
 		CFL:       CFL,
 		FinalTime: FinalTime,
 		El:        DG1D.NewElements1D(N, VX, EToV),
@@ -79,7 +79,7 @@ func NewMaxwellDFR(CFL, FinalTime float64, N, K int, model ModelType) (c *Maxwel
 	return
 }
 
-func (c *MaxwellDFR) Run(showGraph bool, graphDelay ...time.Duration) {
+func (c *Maxwell) Run(showGraph bool, graphDelay ...time.Duration) {
 	var (
 		el           = c.El
 		resE         = utils.NewMatrix(el.Np, el.K)
@@ -119,7 +119,7 @@ func (c *MaxwellDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 	return
 }
 
-func (c *MaxwellDFR) RHS_DFR() (RHSE, RHSH utils.Matrix) {
+func (c *Maxwell) RHS_DFR() (RHSE, RHSH utils.Matrix) {
 	var (
 		el       = c.El
 		nrF, ncF = el.Nfp * el.NFaces, el.K
@@ -185,7 +185,7 @@ func (c *MaxwellDFR) RHS_DFR() (RHSE, RHSH utils.Matrix) {
 	return
 }
 
-func (c *MaxwellDFR) RHS_GK() (RHSE, RHSH utils.Matrix) {
+func (c *Maxwell) RHS_GK() (RHSE, RHSH utils.Matrix) {
 	var (
 		nrF, ncF = c.El.Nfp * c.El.NFaces, c.El.K
 		// Field flux differerence across faces
@@ -211,7 +211,7 @@ func (c *MaxwellDFR) RHS_GK() (RHSE, RHSH utils.Matrix) {
 	return
 }
 
-func (c *MaxwellDFR) Plot(showGraph bool, graphDelay []time.Duration, E, H utils.Matrix) {
+func (c *Maxwell) Plot(showGraph bool, graphDelay []time.Duration, E, H utils.Matrix) {
 	var (
 		el         = c.El
 		pMin, pMax = float32(-1), float32(1)
