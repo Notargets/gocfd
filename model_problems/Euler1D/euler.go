@@ -177,7 +177,8 @@ func (c *Euler) Run(showGraph bool, graphDelay ...time.Duration) {
 		if tstep%logFrequency == 0 || isDone {
 			fmt.Printf("Time = %8.4f, max_resid[%d] = %8.4f, emin = %8.6f, emax = %8.6f\n", Time, tstep, rhsEner.Max(), c.Ener.Min(), c.Ener.Max())
 			if isDone {
-				x, rho, _, _, _, _, _, _, _ := sod_shock_tube.SOD_calc(Time)
+				sod := sod_shock_tube.NewSOD(Time)
+				x, rho, _, _, _ := sod.Get()
 				iRho = integrate(x, rho)
 				iRhoModel := integrate(el.X.M.RawMatrix().Data, c.Rho.RawMatrix().Data)
 				logErr := math.Log10(math.Abs(iRho - iRhoModel))
@@ -219,7 +220,7 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 		Rho, RhoU, Ener    = *Rhop, *RhoUp, *Enerp
 		RhoF, RhoUF, EnerF utils.Matrix
 		limiter            = true
-		slopeLimiterM      = 20.
+		slopeLimiterM      = 0.
 	)
 	if limiter {
 		// Slope Limit the solution fields
@@ -370,7 +371,9 @@ func (c *Euler) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) 
 }
 
 func AddAnalyticSod(chart *chart2d.Chart2D, colorMap *utils2.ColorMap, timeT, timeCheck float64) (iRho float64) {
-	X, Rho, _, RhoU, E, x1, x2, x3, x4 := sod_shock_tube.SOD_calc(timeT)
+	//X, Rho, _, RhoU, E, x1, x2, x3, x4 := sod_shock_tube.SOD_calc(timeT)
+	sod := sod_shock_tube.NewSOD(timeT)
+	X, Rho, _, RhoU, E := sod.Get()
 	if err := chart.AddSeries("ExactRho", X, Rho, chart2d.XGlyph, chart2d.NoLine, colorMap.GetRGB(-0.7)); err != nil {
 		panic("unable to add exact solution Rho")
 	}
@@ -381,9 +384,6 @@ func AddAnalyticSod(chart *chart2d.Chart2D, colorMap *utils2.ColorMap, timeT, ti
 		panic("unable to add exact solution E")
 	}
 	iRho = integrate(X, Rho)
-	if math.Abs(timeT-timeCheck) < 0.001 {
-		_, _, _, _ = x1, x2, x3, x4
-	}
 	return
 }
 
@@ -396,6 +396,19 @@ func integrate(x, u []float64) (result float64) {
 	}
 	return
 }
+
+/*
+func error_calc(x, u1, u2 []float64) (result float64) {
+	L := len(x)
+	for i := 0; i < L-1; i++ {
+		delx := x[i+1] - x[i]
+		u1ave := 0.5 * (u2[i+1] + u2[i])
+		u2ave := 0.5 * (u2[i+1] + u2[i])
+		result += uave * delx
+	}
+	return
+}
+*/
 
 func (c *Euler) LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix) (fRho, fRhoU, fEner utils.Matrix) {
 	var (
