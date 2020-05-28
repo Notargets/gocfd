@@ -1,4 +1,4 @@
-package model_problems
+package Euler1D
 
 import (
 	"fmt"

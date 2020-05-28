@@ -6,6 +6,8 @@ import (
 	"math"
 	"time"
 
+	Euler1D2 "github.com/notargets/gocfd/model_problems/Euler1D"
+
 	"github.com/notargets/gocfd/model_problems"
 )
 
@@ -27,7 +29,8 @@ const (
 	Euler1D
 	AdvectDFR
 	MaxwellDFR
-	EulerDFR
+	EulerDFR_Roe
+	EulerDFR_LF
 )
 
 type Model interface {
@@ -64,12 +67,15 @@ func main() {
 		C = model_problems.NewAdvectionDFR(2*math.Pi, CFL, FinalTime, XMax, N, K)
 	case MaxwellDFR:
 		C = model_problems.NewMaxwellDFR(CFL, FinalTime, N, K)
-	case EulerDFR:
-		C = model_problems.NewEulerDFR(CFL, FinalTime, XMax, N, K)
+	case EulerDFR_Roe:
+		C = Euler1D2.NewEulerDFR(CFL, FinalTime, XMax, N, K, Euler1D2.Euler_DFR_Roe)
+	case EulerDFR_LF:
+		C = Euler1D2.NewEulerDFR(CFL, FinalTime, XMax, N, K, Euler1D2.Euler_DFR_LF)
 	case Euler1D:
 		fallthrough
 	default:
-		C = model_problems.NewEuler1D(CFL, FinalTime, XMax, N, K)
+		//C = model_problems.NewEuler1D(CFL, FinalTime, XMax, N, K)
+		C = Euler1D2.NewEulerDFR(CFL, FinalTime, XMax, N, K, Euler1D2.Galerkin_LF)
 	}
 	C.Run(*Graphptr, Delay*time.Millisecond)
 }
@@ -83,8 +89,10 @@ func LimitCFL(ModelRun ModelType, CFL float64) (CFLNew float64) {
 		CFLMax = 1
 	case Maxwell1D:
 		CFLMax = 1
-	case Euler1D, EulerDFR:
+	case Euler1D, EulerDFR_LF:
 		CFLMax = 3
+	case EulerDFR_Roe:
+		CFLMax = 2.2
 	case AdvectDFR:
 		CFLMax = 3
 	case MaxwellDFR:
@@ -109,10 +117,15 @@ func Defaults(ModelRun ModelType) (CFL, XMax float64, N, K int) {
 		N = 4
 		CFL = 1
 		XMax = 1
-	case Euler1D, EulerDFR:
+	case Euler1D, EulerDFR_LF:
 		K = 500
 		N = 4
 		CFL = 3
+		XMax = 1
+	case EulerDFR_Roe:
+		K = 500
+		N = 4
+		CFL = 2.2
 		XMax = 1
 	case AdvectDFR:
 		K = 50

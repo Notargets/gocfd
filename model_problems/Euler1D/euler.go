@@ -1,4 +1,4 @@
-package model_problems
+package Euler1D
 
 import (
 	"fmt"
@@ -26,24 +26,39 @@ type EulerDFR struct {
 	plotOnce        sync.Once
 	chart           *chart2d.Chart2D
 	colorMap        *utils2.ColorMap
-	fluxType        string
+	model           Euler1D_Model
 	frameCount      int
 }
 
-func NewEulerDFR(CFL, FinalTime, XMax float64, N, K int) (c *EulerDFR) {
+type Euler1D_Model uint
+
+const (
+	Galerkin_LF Euler1D_Model = iota
+	Euler_DFR_LF
+	Euler_DFR_Roe
+)
+
+var (
+	model_names = []string{
+		"Galerkin Integration, Lax Flux",
+		"DFR Integration, Lax Flux",
+		"DFR Integration, Roe Flux",
+	}
+)
+
+func NewEulerDFR(CFL, FinalTime, XMax float64, N, K int, model Euler1D_Model) (c *EulerDFR) {
 	VX, EToV := DG1D.SimpleMesh1D(0, XMax, K)
 	c = &EulerDFR{
 		CFL:       CFL,
 		State:     NewFieldState(),
 		FinalTime: FinalTime,
 		El:        DG1D.NewElements1D(N, VX, EToV),
+		model:     model,
 	}
 	c.State.Gamma = 1.4
 	c.In = NewStateP(c.State.Gamma, 1, 0, 1)
 	c.Out = NewStateP(c.State.Gamma, 0.125, 0, 0.1)
-	c.fluxType = "LF"
-	c.fluxType = "Roe"
-	fmt.Printf("Euler Equations in 1 Dimension\nSolving Sod's Shock Tube\nDirect Flux Reconstruction, %s Flux\n", c.fluxType)
+	fmt.Printf("Euler Equations in 1 Dimension\nSolving Sod's Shock Tube\nModel Type: %s\n", model_names[c.model])
 	fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, K)
 	prob := "SOD"
 	switch prob {
@@ -108,7 +123,14 @@ func (c *EulerDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 		el           = c.El
 		logFrequency = 50
 		//s             = c.State
+		rhs func(rho, rhou, ener *utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix)
 	)
+	switch c.model {
+	case Galerkin_LF:
+		rhs = c.RHS_GK
+	case Euler_DFR_Roe, Euler_DFR_LF:
+		rhs = c.RHS_DFR
+	}
 	xmin := el.X.Row(1).Subtract(el.X.Row(0)).Apply(math.Abs).Min()
 	var Time, dt float64
 	var tstep int
@@ -117,7 +139,7 @@ func (c *EulerDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 			Third Order Runge-Kutta time advancement
 		*/
 		// SSP RK Stage 1
-		rhsRho, rhsRhoU, rhsEner := c.RHS(&c.Rho, &c.RhoU, &c.Ener)
+		rhsRho, rhsRhoU, rhsEner := rhs(&c.Rho, &c.RhoU, &c.Ener)
 		c.Plot(Time, showGraph, graphDelay)
 		dt = c.CalculateDT(xmin, Time)
 		update1 := func(u0, rhs float64) (u1 float64) {
@@ -129,7 +151,7 @@ func (c *EulerDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 		ener1 := c.Ener.Copy().Apply2(rhsEner, update1)
 
 		// SSP RK Stage 2
-		rhsRho, rhsRhoU, rhsEner = c.RHS(&rho1, &rhou1, &ener1)
+		rhsRho, rhsRhoU, rhsEner = rhs(&rho1, &rhou1, &ener1)
 		update2 := func(u0, u1, rhs float64) (u2 float64) {
 			u2 = (3*u0 + u1 + rhs*dt) * (1. / 4.)
 			return
@@ -139,7 +161,7 @@ func (c *EulerDFR) Run(showGraph bool, graphDelay ...time.Duration) {
 		ener2 := c.Ener.Copy().Apply3(ener1, rhsEner, update2)
 
 		// SSP RK Stage 3
-		rhsRho, rhsRhoU, rhsEner = c.RHS(&rho2, &rhou2, &ener2)
+		rhsRho, rhsRhoU, rhsEner = rhs(&rho2, &rhou2, &ener2)
 		update3 := func(u0, u2, rhs float64) (u3 float64) {
 			u3 = (u0 + 2*u2 + 2*dt*rhs) * (1. / 3.)
 			return
@@ -176,7 +198,7 @@ func (c *EulerDFR) CalculateDT(xmin, Time float64) (dt float64) {
 	return
 }
 
-func (c *EulerDFR) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
+func (c *EulerDFR) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
 	var (
 		el                 = c.El
 		s                  = c.State
@@ -195,10 +217,10 @@ func (c *EulerDFR) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 	}
 	RhoF, RhoUF, EnerF = s.Update(Rho, RhoU, Ener)
 
-	switch c.fluxType {
-	case "LF":
+	switch c.model {
+	case Euler_DFR_LF:
 		fRho, fRhoU, fEner = c.LFFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF)
-	case "Roe":
+	case Euler_DFR_Roe:
 		fRho, fRhoU, fEner = c.RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF)
 	}
 
@@ -225,6 +247,54 @@ func (c *EulerDFR) RHS(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 		rhsener = -drenerf * rx
 		return
 	})
+	return
+}
+
+func (c *EulerDFR) RHS_GK(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
+	var (
+		el                                                 = c.El
+		nrF, ncF                                           = el.Nfp * el.NFaces, el.K
+		s                                                  = c.State
+		dRho, dRhoU, dEner, dRhoF, dRhoUF, dEnerF, LFcDiv2 utils.Matrix
+		Rho, RhoU, Ener                                    = *Rhop, *RhoUp, *Enerp
+		RhoF, RhoUF, EnerF                                 utils.Matrix
+		limiter                                            = true
+		slopeLimiterM                                      = 20.
+	)
+	if limiter {
+		// Slope Limit the solution fields
+		*Rhop = el.SlopeLimitN(*Rhop, slopeLimiterM)
+		*RhoUp = el.SlopeLimitN(*RhoUp, slopeLimiterM)
+		*Enerp = el.SlopeLimitN(*Enerp, slopeLimiterM)
+		Rho, RhoU, Ener = *Rhop, *RhoUp, *Enerp
+	}
+	RhoF, RhoUF, EnerF = s.Update(Rho, RhoU, Ener)
+
+	// Face jumps in primary and flux variables
+	fJump := func(U utils.Matrix) (dU utils.Matrix) {
+		dU = U.Subset(el.VmapM, nrF, ncF).Subtract(U.Subset(el.VmapP, nrF, ncF))
+		return
+	}
+	dRho = fJump(Rho)
+	dRhoU = fJump(RhoU)
+	dEner = fJump(Ener)
+	dRhoF = fJump(RhoF)
+	dRhoUF = fJump(RhoUF)
+	dEnerF = fJump(EnerF)
+	// Lax-Friedrichs flux component is always used divided by 2, so we pre-scale it
+	LFcDiv2 = s.LM.Subset(el.VmapM, nrF, ncF).Apply2(s.LM.Subset(el.VmapP, nrF, ncF), math.Max).Scale(0.5)
+
+	// Compute fluxes at interfaces
+	dRhoF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.Copy().ElMul(dRho))
+	dRhoUF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.Copy().ElMul(dRhoU))
+	dEnerF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.ElMul(dEner))
+
+	c.BoundaryConditions(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, &dRhoF, &dRhoUF, &dEnerF)
+
+	// RHS Computation
+	rhsRho = el.Rx.Copy().Scale(-1.).ElMul(el.Dr.Mul(RhoF)).Add(el.LIFT.Mul(dRhoF.ElMul(el.FScale)))
+	rhsRhoU = el.Rx.Copy().Scale(-1.).ElMul(el.Dr.Mul(RhoUF)).Add(el.LIFT.Mul(dRhoUF.ElMul(el.FScale)))
+	rhsEner = el.Rx.Copy().Scale(-1.).ElMul(el.Dr.Mul(EnerF)).Add(el.LIFT.Mul(dEnerF.ElMul(el.FScale)))
 	return
 }
 
@@ -331,6 +401,7 @@ func (c *EulerDFR) LFFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix) (fRh
 	fEner = fAve(EnerF).Add(fJump(Ener).ElMul(LFc).Scale(0.5))
 	return
 }
+
 func (c *EulerDFR) RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix) (fRho, fRhoU, fEner utils.Matrix) {
 	var (
 		el       = c.El
@@ -434,5 +505,123 @@ func (c *EulerDFR) RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix) (fR
 	fRho = fAve(RhoF).Subtract(eRho)
 	fRhoU = fAve(RhoUF).Subtract(eRhoU)
 	fEner = fAve(EnerF).Subtract(eEner)
+	return
+}
+
+type FieldState struct {
+	Gamma                    float64
+	U, Q, Pres, CVel, LM, Ht utils.Matrix
+	Temp                     utils.Matrix
+}
+
+func NewFieldState() (fs *FieldState) {
+	return &FieldState{}
+}
+
+func (fs *FieldState) Update(Rho, RhoU, Ener utils.Matrix) (RhoF, RhoUF, EnerF utils.Matrix) {
+	/*
+		Calorically Perfect Gas, R = 1
+	*/
+	var (
+		Gamma = 1.4
+		Cv    = 1. / (Gamma - 1.)
+		Cp    = Gamma * Cv
+	)
+	fs.U = RhoU.Copy().ElDiv(Rho) // Velocity
+	fs.Q = fs.U.Copy().Apply2(Rho, func(u, rho float64) (q float64) {
+		q = 0.5 * u * u * rho
+		return
+	})
+	// (gamma-1.0)*(Ener - 0.5*(rhou).^2./rho)
+	fs.Pres = Ener.Copy().Apply2(fs.Q, func(e, q float64) (p float64) {
+		p = (e - q) * (fs.Gamma - 1)
+		return
+	})
+	// sqrt(gamma*pres./rho)
+	fs.CVel = fs.Pres.Copy().Apply2(Rho, func(p, rho float64) (cvel float64) {
+		cvel = math.Sqrt(fs.Gamma * p / rho)
+		return
+	})
+	//  abs(rhou./rho)+cvel
+	fs.LM = fs.U.Copy().Apply2(fs.CVel, func(u, cvel float64) (lm float64) {
+		lm = math.Abs(u) + cvel
+		return
+	})
+	//	Temp = (Ener - 0.5*(rhou).^2./rho)./rho
+	fs.Temp = Ener.Copy().Apply3(fs.Q, Rho, func(e, q, rho float64) (temp float64) {
+		temp = (e - q) / rho
+		return
+	})
+	fs.Ht = fs.Q.Copy().Apply3(Rho, fs.Temp, func(q, rho, temp float64) (ht float64) {
+		ht = Cp * (q/rho + temp)
+		return
+	})
+	fs.U.SetReadOnly("U")
+	fs.Q.SetReadOnly("Q")
+	fs.Pres.SetReadOnly("Pres")
+	fs.CVel.SetReadOnly("CVel")
+	fs.LM.SetReadOnly("LM")
+	fs.Ht.SetReadOnly("Ht")
+	RhoF = RhoU.Copy()
+	RhoUF = fs.Q.Copy().Apply2(fs.Pres, func(q, pres float64) (rhouf float64) {
+		rhouf = 2*q + pres
+		return
+	})
+	EnerF = Ener.Copy().Apply3(fs.Pres, fs.U, func(ener, pres, u float64) (enerf float64) {
+		enerf = u * (ener + pres)
+		return
+	})
+	return
+}
+
+func (fs *FieldState) Print() {
+	fmt.Println(fs.U.Print("U"))
+	fmt.Println(fs.Q.Print("Q"))
+	fmt.Println(fs.Pres.Print("Pres"))
+	fmt.Println(fs.CVel.Print("CVel"))
+	fmt.Println(fs.LM.Print("LM"))
+	fmt.Println(fs.Ht.Print("Ht"))
+}
+
+func bFunc(dUF *utils.Matrix, U, UF utils.Matrix, lm, nx utils.Vector, uIO, ufIO float64, mapi, vmap utils.Index) {
+	// Characteristic BC using freestream conditions at boundary
+	var (
+		dUFVec utils.Matrix
+	)
+	dUFVec = nx.Outer(UF.SubsetVector(vmap).Subtract(utils.NewVectorConstant(len(vmap), ufIO))).Scale(0.5)
+	dUFVec.Subtract(lm.Outer(U.SubsetVector(vmap).Subtract(utils.NewVectorConstant(len(vmap), uIO))))
+	dUF.AssignVector(mapi, dUFVec)
+	return
+}
+
+type State struct {
+	Gamma, Rho, RhoU, Ener float64
+	RhoF, RhoUF, EnerF     float64
+}
+
+func NewState(gamma, rho, rhoU, ener float64) (s *State) {
+	q := 0.5 * utils.POW(rhoU, 2) / rho
+	p := (ener - q) * (gamma - 1.)
+	u := rhoU / rho
+	return &State{
+		Gamma: gamma,
+		Rho:   rho,
+		RhoU:  rhoU,
+		Ener:  ener,
+		RhoF:  rhoU,
+		RhoUF: 2*q + p,
+		EnerF: (ener + q + p) * u,
+	}
+}
+
+func NewStateP(gamma, rho, rhoU, p float64) *State {
+	q := 0.5 * rhoU * rhoU / rho
+	ener := (p - q) / (gamma - 1.)
+	return NewState(gamma, rho, rhoU, ener)
+}
+
+func (s *State) Print() (o string) {
+	o = fmt.Sprintf("Rho = %v\nP = %v\nE = %v\nRhoU = %v\nRhoUF = %v\n",
+		s.Rho, s.Ener*(s.Gamma-1.), s.Ener, s.RhoU, s.RhoUF)
 	return
 }
