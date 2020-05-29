@@ -185,8 +185,14 @@ func (c *Euler) Run(showGraph bool, graphDelay ...time.Duration) {
 				rms_rho, rms_rhou, rms_e, max_rho, max_rhou, max_e := sod_error_calc(el.X, c.Rho, c.RhoU, c.Ener, Time)
 				if math.Abs(Time-c.FinalTime) < 0.001 {
 					fmt.Printf("Rho Integration Check: Exact = %5.4f, Model = %5.4f, Log10 Error = %5.4f\n", iRho, iRhoModel, logErr)
-					fmt.Printf("K=%v, N=%v, CFL=%v, RMS Errors: Log10 Rho, RhoU, E Error = %5.4f, %5.4f, %5.4f, MaxErr: Rho, RhoU, E = %5.4f, %5.4f, %5.4f\n",
-						el.K, el.Np-1, c.CFL, math.Log10(rms_rho), math.Log10(rms_rhou), math.Log10(rms_e),
+					/*
+						fmt.Printf("K=%v, N=%v, CFL=%v, RMS Errors: Log10 Rho, RhoU, E Error = %5.4f, %5.4f, %5.4f, MaxErr: Rho, RhoU, E = %5.4f, %5.4f, %5.4f\n",
+							el.K, el.Np-1, c.CFL, math.Log10(rms_rho), math.Log10(rms_rhou), math.Log10(rms_e),
+							math.Log10(max_rho), math.Log10(max_rhou), math.Log10(max_e))
+					*/
+					fmt.Printf("%s\n", "case,K,N,CFL,Log10_Rho_rms,Log10_Rhou_rms,Log10_e_rms,Log10_rho_max,Log10_rhou_max,Log10_e_max")
+					fmt.Printf("%s,%d,%d,%5.4f,%5.4f,%5.4f,%5.4f,%5.4f,%5.4f,%5.4f\n",
+						model_names[c.model], el.K, el.Np-1, c.CFL, math.Log10(rms_rho), math.Log10(rms_rhou), math.Log10(rms_e),
 						math.Log10(max_rho), math.Log10(max_rhou), math.Log10(max_e))
 				}
 				if !showGraph {
