@@ -5,8 +5,11 @@ import (
 	"encoding/csv"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
+
+	"github.com/notargets/gocfd/utils"
 )
 
 var (
@@ -25,11 +28,40 @@ func main() {
 	studies := readCSV(csvFile)
 	for _, cs := range studies {
 		fmt.Printf("Title = %s, Order = %d, CFL = %5.2f\n", cs.title, cs.order, cs.CFL)
-		for i := range cs.numPTS {
-			fmt.Printf("%d, %v, %v, %v, %v, %v, %v\n",
-				cs.numPTS[i], cs.rhoRMS[i], cs.rhouRMS[i], cs.eRMS[i], cs.rhoMAX[i], cs.rhouMAX[i], cs.eMAX[i])
-		}
+		/*
+			for i := range cs.numPTS {
+				fmt.Printf("%5.3f, %5.3f, %5.3f, %5.3f, %5.3f, %5.3f, %5.3f\n",
+					cs.log10meshSpacing[i], cs.rhoRMS[i], cs.rhouRMS[i], cs.eRMS[i], cs.rhoMAX[i], cs.rhouMAX[i], cs.eMAX[i])
+			}
+		*/
+		_, prho := linearFit(cs.log10meshSpacing, cs.rhoRMS)
+		_, prhou := linearFit(cs.log10meshSpacing, cs.rhouRMS)
+		_, pe := linearFit(cs.log10meshSpacing, cs.eRMS)
+		fmt.Printf("rhoRMS, rhouRMS, eRMS convergence order = %5.3f, %5.3f, %5.3f\n", prho, prhou, pe)
 	}
+}
+
+func linearFit(x, y []float64) (alpha, beta float64) {
+	mean := func(x []float64) (res float64) {
+		for _, val := range x {
+			res += val
+		}
+		return res / float64(len(x))
+	}
+	xmean, ymean := mean(x), mean(y)
+	Beta := func(x, y []float64) (res float64) {
+		var (
+			num, div float64
+		)
+		for i, xval := range x {
+			yval := y[i]
+			num += (xval - xmean) * (yval - ymean)
+			div += utils.POW(xval-xmean, 2)
+		}
+		return num / div
+	}
+	beta = Beta(x, y)
+	return ymean - beta*xmean, beta
 }
 
 type ConvergenceStudy struct {
@@ -39,6 +71,7 @@ type ConvergenceStudy struct {
 	CFL                   float64
 	rhoRMS, rhouRMS, eRMS []float64
 	rhoMAX, rhouMAX, eMAX []float64
+	log10meshSpacing      []float64
 }
 
 func NewConvergenceStudy(title string, order int, CFL float64) *ConvergenceStudy {
@@ -51,6 +84,7 @@ func NewConvergenceStudy(title string, order int, CFL float64) *ConvergenceStudy
 
 func (cs *ConvergenceStudy) Add(numPTS int, rhoRMS, rhouRMS, eRMS, rhoMAX, rhouMAX, eMAX float64) {
 	cs.numPTS = append(cs.numPTS, numPTS)
+	cs.log10meshSpacing = append(cs.log10meshSpacing, math.Log10(1./float64(numPTS)))
 	cs.rhoRMS = append(cs.rhoRMS, rhoRMS)
 	cs.rhouRMS = append(cs.rhouRMS, rhouRMS)
 	cs.eRMS = append(cs.eRMS, eRMS)
