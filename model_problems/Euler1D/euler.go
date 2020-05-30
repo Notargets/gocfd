@@ -27,6 +27,7 @@ type Euler struct {
 	chart           *chart2d.Chart2D
 	colorMap        *utils2.ColorMap
 	model           ModelType
+	bc              BC_TYPE
 	frameCount      int
 }
 
@@ -62,12 +63,15 @@ func NewEuler(CFL, FinalTime, XMax float64, N, K int, model ModelType) (c *Euler
 	switch prob {
 	case "SOD":
 		c.InitializeSOD()
+		c.bc = RIEMANN
 	case "FS":
 		c.InitializeFS()
+		c.bc = RIEMANN
 	case "Collision":
 		fallthrough
 	default:
 		c.InitializeSOD()
+		c.bc = RIEMANN
 		c.Out = c.In
 	}
 	return
@@ -235,6 +239,13 @@ func (c *Euler) CalculateDT(xmin, Time float64) (dt float64) {
 	return
 }
 
+type BC_TYPE uint
+
+const (
+	RIEMANN BC_TYPE = iota
+	PERIODIC
+)
+
 func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
 	var (
 		el                 = c.El
@@ -261,8 +272,12 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 		fRho, fRhoU, fEner = c.RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, el.VmapM, el.VmapP)
 	}
 
-	c.RiemannBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, &fRho, &fRhoU, &fEner)
-	//c.PeriodicBC(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, el.VmapI, el.VmapO, &fRho, &fRhoU, &fEner)
+	switch c.bc {
+	case RIEMANN:
+		c.RiemannBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, &fRho, &fRhoU, &fEner)
+	case PERIODIC:
+		c.PeriodicBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, el.VmapI, el.VmapO, &fRho, &fRhoU, &fEner)
+	}
 
 	// Set face flux within global flux
 	RhoF.AssignVector(el.VmapM, fRho)
@@ -327,7 +342,12 @@ func (c *Euler) RHS_GK(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 	dRhoUF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.Copy().ElMul(dRhoU))
 	dEnerF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.ElMul(dEner))
 
-	c.RiemannBC(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, &dRhoF, &dRhoUF, &dEnerF)
+	switch c.bc {
+	case RIEMANN:
+		c.RiemannBC(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, &dRhoF, &dRhoUF, &dEnerF)
+	default:
+		panic("not implemented")
+	}
 
 	// RHS Computation
 	rhsRho = el.Rx.Copy().Scale(-1.).ElMul(el.Dr.Mul(RhoF)).Add(el.LIFT.Mul(dRhoF.ElMul(el.FScale)))
@@ -336,15 +356,26 @@ func (c *Euler) RHS_GK(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 	return
 }
 
-func (c *Euler) PeriodicBC(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapI, vmapO utils.Index, dRhoF, dRhoUF, dEnerF *utils.Matrix) {
+func (c *Euler) PeriodicBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapI, vmapO utils.Index, dRhoF, dRhoUF, dEnerF *utils.Matrix) {
 	// Periodic Boundary condition
 	fRho, fRhoU, fEner := c.RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, vmapI, vmapO)
+	/*
+		fmt.Println(dRhoF.Print("dRhoF before"))
+		fmt.Println(dRhoUF.Print("dRhoUF before"))
+		fmt.Println(dEnerF.Print("dEnerF before"))
+	*/
 	dRhoF.AssignVector(c.El.MapI, fRho)
 	dRhoUF.AssignVector(c.El.MapI, fRhoU)
 	dEnerF.AssignVector(c.El.MapI, fEner)
 	dRhoF.AssignVector(c.El.MapO, fRho)
 	dRhoUF.AssignVector(c.El.MapO, fRhoU)
 	dEnerF.AssignVector(c.El.MapO, fEner)
+	/*
+		fmt.Println(dRhoF.Print("dRhoF after"))
+		fmt.Println(dRhoUF.Print("dRhoUF after"))
+		fmt.Println(dEnerF.Print("dEnerF after"))
+		os.Exit(1)
+	*/
 }
 
 func (c *Euler) RiemannBC(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, dRhoF, dRhoUF, dEnerF *utils.Matrix) {
@@ -467,7 +498,7 @@ func sod_error_calc(X, Rho, RhoU, E utils.Matrix, t float64) (rms_rho, rms_rhou,
 	sod := sod_shock_tube.NewSOD(t)
 	for i, x := range Xdata {
 		// Only validate using flow left of center, excluding the shock and contact discontinuity
-		if x < 0.5 {
+		if x < 0.5 && x > 0.05 {
 			sod_rho, _, _, sod_e, sod_rhou := sod.Getx(x)
 			rho, rhou, e := RhoData[i], RhoUData[i], EData[i]
 			rho_err := utils.POW(rho-sod_rho, 2)
