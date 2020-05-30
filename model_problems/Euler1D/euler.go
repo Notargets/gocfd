@@ -56,8 +56,6 @@ func NewEuler(CFL, FinalTime, XMax float64, N, K int, model ModelType) (c *Euler
 		model:     model,
 	}
 	c.State.Gamma = 1.4
-	c.In = NewStateP(c.State.Gamma, 1, 0, 1)
-	c.Out = NewStateP(c.State.Gamma, 0.125, 0, 0.1)
 	fmt.Printf("Euler Equations in 1 Dimension\nSolving Sod's Shock Tube\nModel Type: %s\n", model_names[c.model])
 	fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, K)
 	prob := "SOD"
@@ -65,18 +63,19 @@ func NewEuler(CFL, FinalTime, XMax float64, N, K int, model ModelType) (c *Euler
 	case "SOD":
 		c.InitializeSOD()
 	case "FS":
-		c.Out = c.In
 		c.InitializeFS()
 	case "Collision":
 		fallthrough
 	default:
-		c.Out = c.In
 		c.InitializeSOD()
+		c.Out = c.In
 	}
 	return
 }
 
 func (c *Euler) InitializeFS() {
+	c.In = NewStateP(c.State.Gamma, 1, 0, 1)
+	c.Out = c.In
 	var (
 		el = c.El
 		FS = c.In
@@ -85,19 +84,16 @@ func (c *Euler) InitializeFS() {
 	c.RhoU = utils.NewMatrix(el.Np, el.K).AddScalar(FS.RhoU)
 	c.Ener = utils.NewMatrix(el.Np, el.K).AddScalar(FS.Ener)
 }
-
 func (c *Euler) InitializeSOD() {
 	var (
-		/*
-			In                = NewStateP(c.Gamma, 1, 0, 1)
-			Out               = NewStateP(c.Gamma, 0.125, 0, 0.1)
-		*/
 		el                = c.El
 		MassMatrix, VtInv utils.Matrix
 		err               error
 		npOnes            = utils.NewVectorConstant(el.Np, 1)
 		s                 = c.State
 	)
+	c.In = NewStateP(c.State.Gamma, 1, 0, 1)
+	c.Out = NewStateP(c.State.Gamma, 0.125, 0, 0.1)
 	if VtInv, err = el.V.Transpose().Inverse(); err != nil {
 		panic(err)
 	}
@@ -116,6 +112,23 @@ func (c *Euler) InitializeSOD() {
 	c.Ener = utils.NewMatrix(el.Np, el.K)
 	c.Ener.AssignScalar(leftHalf, rDiv)
 	c.Ener.AssignScalar(rightHalf, 0.1*rDiv)
+}
+
+func (c *Euler) InitializeDWave() {
+	// TODO: Implement the real case
+	/*
+		Rho(x,t) = 2 + sin(pi *(x-t))
+		U = P = 1
+	*/
+	c.In = NewStateP(c.State.Gamma, 2, 2, 1)
+	c.Out = c.In
+	var (
+		el = c.El
+	)
+	c.Rho = utils.NewMatrix(el.Np, el.K).Apply2(el.X, func(x, base float64) (rho float64) {
+		rho = 2 + math.Sin(math.Pi*x)
+		return
+	})
 }
 
 func (c *Euler) Run(showGraph bool, graphDelay ...time.Duration) {
@@ -191,7 +204,7 @@ func (c *Euler) Run(showGraph bool, graphDelay ...time.Duration) {
 							math.Log10(max_rho), math.Log10(max_rhou), math.Log10(max_e))
 					*/
 					fmt.Printf("%s\n", "case,K,N,CFL,Log10_Rho_rms,Log10_Rhou_rms,Log10_e_rms,Log10_rho_max,Log10_rhou_max,Log10_e_max")
-					fmt.Printf("%s,%d,%d,%5.4f,%5.4f,%5.4f,%5.4f,%5.4f,%5.4f,%5.4f\n",
+					fmt.Printf("\"%s\",%d,%d,%5.4f,%5.4f,%5.4f,%5.4f,%5.4f,%5.4f,%5.4f\n",
 						model_names[c.model], el.K, el.Np-1, c.CFL, math.Log10(rms_rho), math.Log10(rms_rhou), math.Log10(rms_e),
 						math.Log10(max_rho), math.Log10(max_rhou), math.Log10(max_e))
 				}
@@ -243,17 +256,18 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 
 	switch c.model {
 	case Euler_DFR_LF:
-		fRho, fRhoU, fEner = c.LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF)
+		fRho, fRhoU, fEner = c.LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, el.VmapM, el.VmapP)
 	case Euler_DFR_Roe:
-		fRho, fRhoU, fEner = c.RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF)
+		fRho, fRhoU, fEner = c.RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, el.VmapM, el.VmapP)
 	}
+
+	c.RiemannBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, &fRho, &fRhoU, &fEner)
+	//c.PeriodicBC(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, el.VmapI, el.VmapO, &fRho, &fRhoU, &fEner)
 
 	// Set face flux within global flux
 	RhoF.AssignVector(el.VmapM, fRho)
 	RhoUF.AssignVector(el.VmapM, fRhoU)
 	EnerF.AssignVector(el.VmapM, fEner)
-
-	c.BoundaryConditions(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, &fRho, &fRhoU, &fEner)
 
 	// Calculate RHS
 	//rhsRho = el.Dr.Mul(RhoF).Scale(-1).ElMul(el.Rx)
@@ -313,7 +327,7 @@ func (c *Euler) RHS_GK(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 	dRhoUF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.Copy().ElMul(dRhoU))
 	dEnerF.ElMul(el.NX).Scale(0.5).Subtract(LFcDiv2.ElMul(dEner))
 
-	c.BoundaryConditions(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, &dRhoF, &dRhoUF, &dEnerF)
+	c.RiemannBC(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, &dRhoF, &dRhoUF, &dEnerF)
 
 	// RHS Computation
 	rhsRho = el.Rx.Copy().Scale(-1.).ElMul(el.Dr.Mul(RhoF)).Add(el.LIFT.Mul(dRhoF.ElMul(el.FScale)))
@@ -322,7 +336,18 @@ func (c *Euler) RHS_GK(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 	return
 }
 
-func (c *Euler) BoundaryConditions(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, dRhoF, dRhoUF, dEnerF *utils.Matrix) {
+func (c *Euler) PeriodicBC(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapI, vmapO utils.Index, dRhoF, dRhoUF, dEnerF *utils.Matrix) {
+	// Periodic Boundary condition
+	fRho, fRhoU, fEner := c.RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, vmapI, vmapO)
+	dRhoF.AssignVector(c.El.MapI, fRho)
+	dRhoUF.AssignVector(c.El.MapI, fRhoU)
+	dEnerF.AssignVector(c.El.MapI, fEner)
+	dRhoF.AssignVector(c.El.MapO, fRho)
+	dRhoUF.AssignVector(c.El.MapO, fRhoU)
+	dEnerF.AssignVector(c.El.MapO, fEner)
+}
+
+func (c *Euler) RiemannBC(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, dRhoF, dRhoUF, dEnerF *utils.Matrix) {
 	var (
 		s  = c.State
 		el = c.El
@@ -330,7 +355,6 @@ func (c *Euler) BoundaryConditions(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Mat
 		In  = c.In
 		Out = c.Out
 	)
-
 	// Boundary conditions for Sod's problem
 	// Inflow
 	lmI := s.LM.SubsetVector(el.VmapI).Scale(0.5)
@@ -338,7 +362,6 @@ func (c *Euler) BoundaryConditions(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Mat
 	bFunc(dRhoF, Rho, RhoF, lmI, nxI, In.Rho, In.RhoF, el.MapI, el.VmapI)
 	bFunc(dRhoUF, RhoU, RhoUF, lmI, nxI, In.RhoU, In.RhoUF, el.MapI, el.VmapI)
 	bFunc(dEnerF, Ener, EnerF, lmI, nxI, In.Ener, In.EnerF, el.MapI, el.VmapI)
-
 	// Outflow
 	lmO := s.LM.SubsetVector(el.VmapO).Scale(0.5)
 	nxO := el.NX.SubsetVector(el.MapO)
@@ -347,10 +370,34 @@ func (c *Euler) BoundaryConditions(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Mat
 	bFunc(dEnerF, Ener, EnerF, lmO, nxO, Out.Ener, Out.EnerF, el.MapO, el.VmapO)
 }
 
+func (c *Euler) RiemannBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, dRhoF, dRhoUF, dEnerF *utils.Matrix) {
+	var (
+		s  = c.State
+		el = c.El
+		// Sod's problem: Shock tube with jump in middle
+		In  = c.In
+		Out = c.Out
+	)
+	// Boundary conditions for Sod's problem
+	// Inflow
+	lmI := s.LM.SubsetVector(el.VmapI).Scale(0.5)
+	nxI := el.NX.SubsetVector(el.MapI)
+	bFunc_dfr(dRhoF, Rho, RhoF, lmI, nxI, In.Rho, In.RhoF, el.MapI, el.VmapI)
+	bFunc_dfr(dRhoUF, RhoU, RhoUF, lmI, nxI, In.RhoU, In.RhoUF, el.MapI, el.VmapI)
+	bFunc_dfr(dEnerF, Ener, EnerF, lmI, nxI, In.Ener, In.EnerF, el.MapI, el.VmapI)
+	// Outflow
+	lmO := s.LM.SubsetVector(el.VmapO).Scale(0.5)
+	nxO := el.NX.SubsetVector(el.MapO)
+	bFunc_dfr(dRhoF, Rho, RhoF, lmO, nxO, Out.Rho, Out.RhoF, el.MapO, el.VmapO)
+	bFunc_dfr(dRhoUF, RhoU, RhoUF, lmO, nxO, Out.RhoU, Out.RhoUF, el.MapO, el.VmapO)
+	bFunc_dfr(dEnerF, Ener, EnerF, lmO, nxO, Out.Ener, Out.EnerF, el.MapO, el.VmapO)
+}
+
 func (c *Euler) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) (iRho float64) {
 	var (
-		el         = c.El
-		fmin, fmax = float32(-0.1), float32(2.6)
+		el = c.El
+		//fmin, fmax = float32(-0.1), float32(2.6)
+		fmin, fmax = float32(0.0), float32(1.2)
 	)
 	if !showGraph {
 		return
@@ -367,8 +414,8 @@ func (c *Euler) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) 
 		}
 	}
 	pSeries(c.Rho, "Rho", -0.7, chart2d.NoGlyph)
-	pSeries(c.RhoU, "RhoU", 0.0, chart2d.NoGlyph)
-	pSeries(c.Ener, "Ener", 0.7, chart2d.NoGlyph)
+	//pSeries(c.RhoU, "RhoU", 0.0, chart2d.NoGlyph)
+	//pSeries(c.Ener, "Ener", 0.7, chart2d.NoGlyph)
 	c.frameCount++
 	check := int(math.Log10(float64(el.K * el.Np / 5)))
 	if c.frameCount%check == 0 || math.Abs(timeT-c.FinalTime) < 0.001 {
@@ -383,16 +430,19 @@ func (c *Euler) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) 
 func AddAnalyticSod(chart *chart2d.Chart2D, colorMap *utils2.ColorMap, timeT, timeCheck float64) (iRho float64) {
 	//X, Rho, _, RhoU, E, x1, x2, x3, x4 := sod_shock_tube.SOD_calc(timeT)
 	sod := sod_shock_tube.NewSOD(timeT)
-	X, Rho, _, RhoU, E := sod.Get()
+	//X, Rho, _, RhoU, E := sod.Get()
+	X, Rho, _, _, _ := sod.Get()
 	if err := chart.AddSeries("ExactRho", X, Rho, chart2d.XGlyph, chart2d.NoLine, colorMap.GetRGB(-0.7)); err != nil {
 		panic("unable to add exact solution Rho")
 	}
-	if err := chart.AddSeries("ExactRhoU", X, RhoU, chart2d.XGlyph, chart2d.NoLine, colorMap.GetRGB(0.0)); err != nil {
-		panic("unable to add exact solution RhoU")
-	}
-	if err := chart.AddSeries("ExactE", X, E, chart2d.XGlyph, chart2d.NoLine, colorMap.GetRGB(0.7)); err != nil {
-		panic("unable to add exact solution E")
-	}
+	/*
+		if err := chart.AddSeries("ExactRhoU", X, RhoU, chart2d.XGlyph, chart2d.NoLine, colorMap.GetRGB(0.0)); err != nil {
+			panic("unable to add exact solution RhoU")
+		}
+		if err := chart.AddSeries("ExactE", X, E, chart2d.XGlyph, chart2d.NoLine, colorMap.GetRGB(0.7)); err != nil {
+			panic("unable to add exact solution E")
+		}
+	*/
 	iRho = integrate(X, Rho)
 	return
 }
@@ -416,18 +466,21 @@ func sod_error_calc(X, Rho, RhoU, E utils.Matrix, t float64) (rms_rho, rms_rhou,
 	)
 	sod := sod_shock_tube.NewSOD(t)
 	for i, x := range Xdata {
-		sod_rho, _, _, sod_e, sod_rhou := sod.Getx(x)
-		rho, rhou, e := RhoData[i], RhoUData[i], EData[i]
-		rho_err := utils.POW(rho-sod_rho, 2)
-		rhou_err := utils.POW(rhou-sod_rhou, 2)
-		e_err := utils.POW(e-sod_e, 2)
-		rms_rho += rho_err
-		rms_rhou += rhou_err
-		rms_e += e_err
-		rho_err, rhou_err, e_err = math.Sqrt(rho_err), math.Sqrt(rhou_err), math.Sqrt(e_err)
-		max_rho = math.Max(rho_err, max_rho)
-		max_rhou = math.Max(rhou_err, max_rhou)
-		max_e = math.Max(e_err, max_e)
+		// Only validate using flow left of center, excluding the shock and contact discontinuity
+		if x < 0.5 {
+			sod_rho, _, _, sod_e, sod_rhou := sod.Getx(x)
+			rho, rhou, e := RhoData[i], RhoUData[i], EData[i]
+			rho_err := utils.POW(rho-sod_rho, 2)
+			rhou_err := utils.POW(rhou-sod_rhou, 2)
+			e_err := utils.POW(e-sod_e, 2)
+			rms_rho += rho_err
+			rms_rhou += rhou_err
+			rms_e += e_err
+			rho_err, rhou_err, e_err = math.Sqrt(rho_err), math.Sqrt(rhou_err), math.Sqrt(e_err)
+			max_rho = math.Max(rho_err, max_rho)
+			max_rhou = math.Max(rhou_err, max_rhou)
+			max_e = math.Max(e_err, max_e)
+		}
 	}
 	rms_rho = math.Sqrt(rms_rho / float64(len(Xdata)))
 	rms_rhou = math.Sqrt(rms_rhou / float64(len(Xdata)))
@@ -435,7 +488,7 @@ func sod_error_calc(X, Rho, RhoU, E utils.Matrix, t float64) (rms_rho, rms_rhou,
 	return
 }
 
-func (c *Euler) LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix) (fRho, fRhoU, fEner utils.Matrix) {
+func (c *Euler) LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapM, vmapP utils.Index) (fRho, fRhoU, fEner utils.Matrix) {
 	var (
 		el       = c.El
 		s        = c.State
@@ -444,16 +497,16 @@ func (c *Euler) LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix) (fRho,
 	// Compute Lax-Friedrichs flux
 	// Face jumps in primary and flux variables
 	fJump := func(U utils.Matrix) (dU utils.Matrix) {
-		dU = U.Subset(el.VmapM, nrF, ncF).Subtract(U.Subset(el.VmapP, nrF, ncF)).ElMul(el.NX)
+		dU = U.Subset(vmapM, nrF, ncF).Subtract(U.Subset(vmapP, nrF, ncF)).ElMul(el.NX)
 		return
 	}
 	// Face flux average
 	fAve := func(U utils.Matrix) (Uavg utils.Matrix) {
-		Uavg = U.Subset(el.VmapM, nrF, ncF).Add(U.Subset(el.VmapP, nrF, ncF)).Scale(0.5)
+		Uavg = U.Subset(vmapM, nrF, ncF).Add(U.Subset(vmapP, nrF, ncF)).Scale(0.5)
 		return
 	}
 	// Max eigenvalue
-	LFc := s.LM.Subset(el.VmapM, nrF, ncF).Apply2(s.LM.Subset(el.VmapP, nrF, ncF), math.Max)
+	LFc := s.LM.Subset(vmapM, nrF, ncF).Apply2(s.LM.Subset(vmapP, nrF, ncF), math.Max)
 	// Compute numerical flux at faces
 	fRho = fAve(RhoF).Add(fJump(Rho).ElMul(LFc).Scale(0.5))
 	fRhoU = fAve(RhoUF).Add(fJump(RhoU).ElMul(LFc).Scale(0.5))
@@ -461,28 +514,32 @@ func (c *Euler) LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix) (fRho,
 	return
 }
 
-func (c *Euler) RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix) (fRho, fRhoU, fEner utils.Matrix) {
+func (c *Euler) RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapM, vmapP utils.Index) (fRho, fRhoU, fEner utils.Matrix) {
 	var (
 		el       = c.El
-		nrF, ncF = el.Nfp * el.NFaces, el.K
 		s        = c.State
+		nrF, ncF int
 	)
+	nrF, ncF = el.Nfp*el.NFaces, len(vmapM)/2
+	if ncF == 0 {
+		ncF = 1
+	}
 	fL := func(U utils.Matrix) (Ul utils.Matrix) {
-		Ul = U.Subset(el.VmapM, nrF, ncF)
+		Ul = U.Subset(vmapM, nrF, ncF)
 		return
 	}
 	fR := func(U utils.Matrix) (Ul utils.Matrix) {
-		Ul = U.Subset(el.VmapP, nrF, ncF)
+		Ul = U.Subset(vmapP, nrF, ncF)
 		return
 	}
 	// Face jumps in primary and flux variables
 	fJump := func(U utils.Matrix) (dU utils.Matrix) {
-		dU = U.Subset(el.VmapP, nrF, ncF).Subtract(U.Subset(el.VmapM, nrF, ncF))
+		dU = U.Subset(vmapP, nrF, ncF).Subtract(U.Subset(vmapM, nrF, ncF))
 		return
 	}
 	// Face average
 	fAve := func(U utils.Matrix) (Uavg utils.Matrix) {
-		Uavg = U.Subset(el.VmapP, nrF, ncF).Add(U.Subset(el.VmapM, nrF, ncF)).Scale(0.5)
+		Uavg = U.Subset(vmapP, nrF, ncF).Add(U.Subset(vmapM, nrF, ncF)).Scale(0.5)
 		return
 	}
 	/*
@@ -650,6 +707,19 @@ func bFunc(dUF *utils.Matrix, U, UF utils.Matrix, lm, nx utils.Vector, uIO, ufIO
 	dUFVec = nx.Outer(UF.SubsetVector(vmap).Subtract(utils.NewVectorConstant(len(vmap), ufIO))).Scale(0.5)
 	dUFVec.Subtract(lm.Outer(U.SubsetVector(vmap).Subtract(utils.NewVectorConstant(len(vmap), uIO))))
 	dUF.AssignVector(mapi, dUFVec)
+	return
+}
+
+func bFunc_dfr(dUF *utils.Matrix, U, UF utils.Matrix, lm, nx utils.Vector, uIO, ufIO float64, mapi, vmap utils.Index) {
+	// Characteristic BC using freestream conditions at boundary
+	var (
+		dUFVec utils.Matrix
+	)
+	dUFVec = nx.Outer(UF.SubsetVector(vmap).Subtract(utils.NewVectorConstant(len(vmap), ufIO))).Scale(0.5)
+	dUFVec.Subtract(lm.Outer(U.SubsetVector(vmap).Subtract(utils.NewVectorConstant(len(vmap), uIO))))
+	//dUF.AssignVector(mapi, dUFVec)
+	nxI := nx.AtVec(0)
+	dUF.AssignVector(mapi, dUFVec.Scale(-nxI*0.5).Add(UF.Subset(vmap, 1, 1)))
 	return
 }
 
