@@ -20,6 +20,7 @@ var (
 	CFL       = 0.0
 	FinalTime = 100000.
 	XMax      = 0.0
+	Case      = Euler1D.CaseType(0)
 )
 
 type ModelType uint8
@@ -38,8 +39,9 @@ var (
 	max_CFL  = []float64{1, 1, 3, 3, 1, 2.2, 3}
 	def_K    = []int{10, 100, 500, 50, 500, 500, 500}
 	def_N    = []int{3, 4, 4, 4, 3, 4, 4}
-	def_CFL  = []float64{1, 1, 3, 3, 0.75, 2.2, 3}
-	def_XMAX = []float64{2 * math.Pi, 1, 1, 2 * math.Pi, 1, 1, 1}
+	def_CFL  = []float64{1, 1, 3, 3, 0.75, 0.5, 3}
+	def_XMAX = []float64{2 * math.Pi, 1, 1, 2 * math.Pi, 1, 2, 1}
+	def_CASE = []int{0, 0, 0, 0, 0, 0, 0}
 )
 
 type Model interface {
@@ -55,16 +57,19 @@ func main() {
 	CFLptr := flag.Float64("CFL", CFL, "CFL - increase for speedup, decrease for stability")
 	FTptr := flag.Float64("FinalTime", FinalTime, "FinalTime - the target end time for the sim")
 	XMaxptr := flag.Float64("XMax", XMax, "Maximum X coordinate (for Euler) - make sure to increase K with XMax")
+	Caseptr := flag.Int("Case", int(Case), "Case to run, for Euler: 0 = SOD Shock Tube, 1 = Density Wave")
 	flag.Parse()
 	ModelRun = ModelType(*ModelRunptr)
 	Delay = time.Duration(*Delayptr)
-	CFL, XMax, N, K = Defaults(ModelRun)
+	var CaseInt int
+	CFL, XMax, N, K, CaseInt = Defaults(ModelRun)
 
 	K = int(getParam(float64(K), Kptr))
 	N = int(getParam(float64(N), Nptr))
 	CFL = LimitCFL(ModelRun, getParam(CFL, CFLptr))
 	FinalTime = getParam(FinalTime, FTptr)
 	XMax = getParam(XMax, XMaxptr)
+	Case = Euler1D.CaseType(getParam(float64(CaseInt), Caseptr))
 
 	var C Model
 	switch ModelRun {
@@ -77,13 +82,13 @@ func main() {
 	case M_1DMaxwellDFR:
 		C = Maxwell1D.NewMaxwell(CFL, FinalTime, N, K, Maxwell1D.DFR)
 	case M_1DEulerDFR_Roe:
-		C = Euler1D.NewEuler(CFL, FinalTime, XMax, N, K, Euler1D.Euler_DFR_Roe)
+		C = Euler1D.NewEuler(CFL, FinalTime, XMax, N, K, Euler1D.Euler_DFR_Roe, Case)
 	case M_1DEulerDFR_LF:
-		C = Euler1D.NewEuler(CFL, FinalTime, XMax, N, K, Euler1D.Euler_DFR_LF)
+		C = Euler1D.NewEuler(CFL, FinalTime, XMax, N, K, Euler1D.Euler_DFR_LF, Case)
 	case M_1DEuler:
 		fallthrough
 	default:
-		C = Euler1D.NewEuler(CFL, FinalTime, XMax, N, K, Euler1D.Galerkin_LF)
+		C = Euler1D.NewEuler(CFL, FinalTime, XMax, N, K, Euler1D.Galerkin_LF, Case)
 	}
 	C.Run(*Graphptr, Delay*time.Millisecond)
 }
@@ -100,8 +105,8 @@ func LimitCFL(model ModelType, CFL float64) (CFLNew float64) {
 	return CFL
 }
 
-func Defaults(model ModelType) (CFL, XMax float64, N, K int) {
-	return def_CFL[model], def_XMAX[model], def_N[model], def_K[model]
+func Defaults(model ModelType) (CFL, XMax float64, N, K, Case int) {
+	return def_CFL[model], def_XMAX[model], def_N[model], def_K[model], def_CASE[model]
 }
 
 func getParam(def float64, valP interface{}) float64 {

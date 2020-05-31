@@ -28,8 +28,19 @@ type Euler struct {
 	colorMap        *utils2.ColorMap
 	model           ModelType
 	bc              BC_TYPE
+	Case            CaseType
 	frameCount      int
+	useLimiter      bool
 }
+
+type CaseType uint
+
+const (
+	SOD_TUBE CaseType = iota
+	DENSITY_WAVE
+	COLLISION
+	FREESTREAM
+)
 
 type ModelType uint
 
@@ -47,7 +58,7 @@ var (
 	}
 )
 
-func NewEuler(CFL, FinalTime, XMax float64, N, K int, model ModelType) (c *Euler) {
+func NewEuler(CFL, FinalTime, XMax float64, N, K int, model ModelType, Case CaseType) (c *Euler) {
 	VX, EToV := DG1D.SimpleMesh1D(0, XMax, K)
 	c = &Euler{
 		CFL:       CFL,
@@ -55,27 +66,29 @@ func NewEuler(CFL, FinalTime, XMax float64, N, K int, model ModelType) (c *Euler
 		FinalTime: FinalTime,
 		El:        DG1D.NewElements1D(N, VX, EToV),
 		model:     model,
+		Case:      Case,
 	}
 	c.State.Gamma = 1.4
 	fmt.Printf("Euler Equations in 1 Dimension\nSolving Sod's Shock Tube\nModel Type: %s\n", model_names[c.model])
 	fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, K)
-	prob := "DWave"
-	switch prob {
-	case "DWave":
+	switch c.Case {
+	case DENSITY_WAVE:
 		c.InitializeDWave()
 		c.bc = PERIODIC
-	case "SOD":
+	case SOD_TUBE:
 		c.InitializeSOD()
 		c.bc = RIEMANN
-	case "FS":
+		c.useLimiter = true
+	case FREESTREAM:
 		c.InitializeFS()
 		c.bc = RIEMANN
-	case "Collision":
+	case COLLISION:
 		fallthrough
 	default:
 		c.InitializeSOD()
 		c.bc = RIEMANN
 		c.Out = c.In
+		c.useLimiter = true
 	}
 	return
 }
@@ -261,8 +274,8 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 		fRho, fRhoU, fEner utils.Matrix
 		Rho, RhoU, Ener    = *Rhop, *RhoUp, *Enerp
 		RhoF, RhoUF, EnerF utils.Matrix
-		limiter            = false
-		slopeLimiterM      = 0.
+		limiter            = c.useLimiter
+		slopeLimiterM      = 20.
 	)
 	if limiter {
 		// Slope Limit the solution fields
@@ -324,7 +337,7 @@ func (c *Euler) RHS_GK(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 		dRho, dRhoU, dEner, dRhoF, dRhoUF, dEnerF, LFcDiv2 utils.Matrix
 		Rho, RhoU, Ener                                    = *Rhop, *RhoUp, *Enerp
 		RhoF, RhoUF, EnerF                                 utils.Matrix
-		limiter                                            = true
+		limiter                                            = c.useLimiter
 		slopeLimiterM                                      = 20.
 	)
 	if limiter {
@@ -439,11 +452,15 @@ func (c *Euler) RiemannBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, 
 
 func (c *Euler) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) (iRho float64) {
 	var (
-		el = c.El
-		//fmin, fmax = float32(-0.1), float32(2.6)
-		//fmin, fmax = float32(0.0), float32(1.2)
-		fmin, fmax = float32(1.0), float32(4.0)
+		el         = c.El
+		fmin, fmax float32
 	)
+	switch c.Case {
+	case SOD_TUBE:
+		fmin, fmax = float32(-0.1), float32(2.6)
+	case DENSITY_WAVE:
+		fmin, fmax = float32(1.0), float32(4.0)
+	}
 	if !showGraph {
 		return
 	}
@@ -463,7 +480,7 @@ func (c *Euler) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) 
 	pSeries(c.Ener, "Ener", 0.7, chart2d.NoGlyph)
 	c.frameCount++
 	check := int(math.Log10(float64(el.K * el.Np / 5)))
-	if c.bc != PERIODIC && c.frameCount%check == 0 || math.Abs(timeT-c.FinalTime) < 0.001 {
+	if c.Case == SOD_TUBE && c.frameCount%check == 0 || math.Abs(timeT-c.FinalTime) < 0.001 {
 		iRho = AddAnalyticSod(c.chart, c.colorMap, timeT, c.FinalTime)
 	}
 	if len(graphDelay) != 0 {
@@ -473,21 +490,17 @@ func (c *Euler) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) 
 }
 
 func AddAnalyticSod(chart *chart2d.Chart2D, colorMap *utils2.ColorMap, timeT, timeCheck float64) (iRho float64) {
-	//X, Rho, _, RhoU, E, x1, x2, x3, x4 := sod_shock_tube.SOD_calc(timeT)
 	sod := sod_shock_tube.NewSOD(timeT)
-	//X, Rho, _, RhoU, E := sod.Get()
-	X, Rho, _, _, _ := sod.Get()
+	X, Rho, _, RhoU, E := sod.Get()
 	if err := chart.AddSeries("ExactRho", X, Rho, chart2d.XGlyph, chart2d.NoLine, colorMap.GetRGB(-0.7)); err != nil {
 		panic("unable to add exact solution Rho")
 	}
-	/*
-		if err := chart.AddSeries("ExactRhoU", X, RhoU, chart2d.XGlyph, chart2d.NoLine, colorMap.GetRGB(0.0)); err != nil {
-			panic("unable to add exact solution RhoU")
-		}
-		if err := chart.AddSeries("ExactE", X, E, chart2d.XGlyph, chart2d.NoLine, colorMap.GetRGB(0.7)); err != nil {
-			panic("unable to add exact solution E")
-		}
-	*/
+	if err := chart.AddSeries("ExactRhoU", X, RhoU, chart2d.XGlyph, chart2d.NoLine, colorMap.GetRGB(0.0)); err != nil {
+		panic("unable to add exact solution RhoU")
+	}
+	if err := chart.AddSeries("ExactE", X, E, chart2d.XGlyph, chart2d.NoLine, colorMap.GetRGB(0.7)); err != nil {
+		panic("unable to add exact solution E")
+	}
 	iRho = integrate(X, Rho)
 	return
 }
