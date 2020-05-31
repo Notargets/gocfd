@@ -59,8 +59,11 @@ func NewEuler(CFL, FinalTime, XMax float64, N, K int, model ModelType) (c *Euler
 	c.State.Gamma = 1.4
 	fmt.Printf("Euler Equations in 1 Dimension\nSolving Sod's Shock Tube\nModel Type: %s\n", model_names[c.model])
 	fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, K)
-	prob := "SOD"
+	prob := "DWave"
 	switch prob {
+	case "DWave":
+		c.InitializeDWave()
+		c.bc = PERIODIC
 	case "SOD":
 		c.InitializeSOD()
 		c.bc = RIEMANN
@@ -119,7 +122,6 @@ func (c *Euler) InitializeSOD() {
 }
 
 func (c *Euler) InitializeDWave() {
-	// TODO: Implement the real case
 	/*
 		Rho(x,t) = 2 + sin(pi *(x-t))
 		U = P = 1
@@ -129,8 +131,14 @@ func (c *Euler) InitializeDWave() {
 	var (
 		el = c.El
 	)
-	c.Rho = utils.NewMatrix(el.Np, el.K).Apply2(el.X, func(x, base float64) (rho float64) {
+	c.Rho = utils.NewMatrix(el.Np, el.K).Apply2(el.X, func(base, x float64) (rho float64) {
 		rho = 2 + math.Sin(math.Pi*x)
+		return
+	})
+	c.RhoU = c.Rho.Copy()
+	// p = (e - q) * (fs.Gamma - 1)
+	c.Ener = utils.NewMatrix(el.Np, el.K).Apply2(c.Rho, func(base, rho float64) (e float64) {
+		e = 1./(c.State.Gamma-1.) + 0.5*rho
 		return
 	})
 }
@@ -253,7 +261,7 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 		fRho, fRhoU, fEner utils.Matrix
 		Rho, RhoU, Ener    = *Rhop, *RhoUp, *Enerp
 		RhoF, RhoUF, EnerF utils.Matrix
-		limiter            = true
+		limiter            = false
 		slopeLimiterM      = 0.
 	)
 	if limiter {
@@ -278,11 +286,16 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 	case PERIODIC:
 		c.PeriodicBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, el.VmapI, el.VmapO, &fRho, &fRhoU, &fEner)
 	}
+	//fmt.Println(RhoF.Print("RhoF before"))
 
 	// Set face flux within global flux
 	RhoF.AssignVector(el.VmapM, fRho)
 	RhoUF.AssignVector(el.VmapM, fRhoU)
 	EnerF.AssignVector(el.VmapM, fEner)
+	/*
+		fmt.Println(RhoF.Print("RhoF after"))
+		os.Exit(1)
+	*/
 
 	// Calculate RHS
 	//rhsRho = el.Dr.Mul(RhoF).Scale(-1).ElMul(el.Rx)
@@ -428,7 +441,8 @@ func (c *Euler) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) 
 	var (
 		el = c.El
 		//fmin, fmax = float32(-0.1), float32(2.6)
-		fmin, fmax = float32(0.0), float32(1.2)
+		//fmin, fmax = float32(0.0), float32(1.2)
+		fmin, fmax = float32(1.0), float32(4.0)
 	)
 	if !showGraph {
 		return
@@ -445,11 +459,11 @@ func (c *Euler) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) 
 		}
 	}
 	pSeries(c.Rho, "Rho", -0.7, chart2d.NoGlyph)
-	//pSeries(c.RhoU, "RhoU", 0.0, chart2d.NoGlyph)
-	//pSeries(c.Ener, "Ener", 0.7, chart2d.NoGlyph)
+	pSeries(c.RhoU, "RhoU", 0.0, chart2d.NoGlyph)
+	pSeries(c.Ener, "Ener", 0.7, chart2d.NoGlyph)
 	c.frameCount++
 	check := int(math.Log10(float64(el.K * el.Np / 5)))
-	if c.frameCount%check == 0 || math.Abs(timeT-c.FinalTime) < 0.001 {
+	if c.bc != PERIODIC && c.frameCount%check == 0 || math.Abs(timeT-c.FinalTime) < 0.001 {
 		iRho = AddAnalyticSod(c.chart, c.colorMap, timeT, c.FinalTime)
 	}
 	if len(graphDelay) != 0 {
