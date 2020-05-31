@@ -215,23 +215,31 @@ func (c *Euler) Run(showGraph bool, graphDelay ...time.Duration) {
 		if tstep%logFrequency == 0 || isDone {
 			fmt.Printf("Time = %8.4f, max_resid[%d] = %8.4f, emin = %8.6f, emax = %8.6f\n", Time, tstep, rhsEner.Max(), c.Ener.Min(), c.Ener.Max())
 			if isDone {
-				sod := sod_shock_tube.NewSOD(Time)
-				x, rho, _, _, _ := sod.Get()
-				iRho = integrate(x, rho)
-				iRhoModel := integrate(el.X.M.RawMatrix().Data, c.Rho.RawMatrix().Data)
-				logErr := math.Log10(math.Abs(iRho - iRhoModel))
-				rms_rho, rms_rhou, rms_e, max_rho, max_rhou, max_e := sod_error_calc(el.X, c.Rho, c.RhoU, c.Ener, Time)
-				if math.Abs(Time-c.FinalTime) < 0.001 {
-					fmt.Printf("Rho Integration Check: Exact = %5.4f, Model = %5.4f, Log10 Error = %5.4f\n", iRho, iRhoModel, logErr)
-					/*
-						fmt.Printf("K=%v, N=%v, CFL=%v, RMS Errors: Log10 Rho, RhoU, E Error = %5.4f, %5.4f, %5.4f, MaxErr: Rho, RhoU, E = %5.4f, %5.4f, %5.4f\n",
-							el.K, el.Np-1, c.CFL, math.Log10(rms_rho), math.Log10(rms_rhou), math.Log10(rms_e),
+				switch c.Case {
+				case SOD_TUBE:
+					sod := sod_shock_tube.NewSOD(Time)
+					x, rho, _, _, _ := sod.Get()
+					iRho = integrate(x, rho)
+					iRhoModel := integrate(el.X.M.RawMatrix().Data, c.Rho.RawMatrix().Data)
+					logErr := math.Log10(math.Abs(iRho - iRhoModel))
+					rms_rho, rms_rhou, rms_e, max_rho, max_rhou, max_e := sod_error_calc(el.X, c.Rho, c.RhoU, c.Ener, Time)
+					if math.Abs(Time-c.FinalTime) < 0.001 {
+						fmt.Printf("Rho Integration Check: Exact = %5.4f, Model = %5.4f, Log10 Error = %5.4f\n", iRho, iRhoModel, logErr)
+						/*
+							fmt.Printf("K=%v, N=%v, CFL=%v, RMS Errors: Log10 Rho, RhoU, E Error = %5.4f, %5.4f, %5.4f, MaxErr: Rho, RhoU, E = %5.4f, %5.4f, %5.4f\n",
+								el.K, el.Np-1, c.CFL, math.Log10(rms_rho), math.Log10(rms_rhou), math.Log10(rms_e),
+								math.Log10(max_rho), math.Log10(max_rhou), math.Log10(max_e))
+						*/
+						fmt.Printf("%s\n", "case,K,N,CFL,Log10_Rho_rms,Log10_Rhou_rms,Log10_e_rms,Log10_rho_max,Log10_rhou_max,Log10_e_max")
+						fmt.Printf("\"%s\",%d,%d,%5.4f,%5.4f,%5.4f,%5.4f,%5.4f,%5.4f,%5.4f\n",
+							model_names[c.model], el.K, el.Np-1, c.CFL, math.Log10(rms_rho), math.Log10(rms_rhou), math.Log10(rms_e),
 							math.Log10(max_rho), math.Log10(max_rhou), math.Log10(max_e))
-					*/
-					fmt.Printf("%s\n", "case,K,N,CFL,Log10_Rho_rms,Log10_Rhou_rms,Log10_e_rms,Log10_rho_max,Log10_rhou_max,Log10_e_max")
-					fmt.Printf("\"%s\",%d,%d,%5.4f,%5.4f,%5.4f,%5.4f,%5.4f,%5.4f,%5.4f\n",
-						model_names[c.model], el.K, el.Np-1, c.CFL, math.Log10(rms_rho), math.Log10(rms_rhou), math.Log10(rms_e),
-						math.Log10(max_rho), math.Log10(max_rhou), math.Log10(max_e))
+					}
+				case DENSITY_WAVE:
+					rms_rho, max_rho := dwaveErrorCalc(el.X, c.Rho, Time)
+					fmt.Printf("%s\n", "case,K,N,CFL,Log10_Rho_rms,Log10_rho_max")
+					fmt.Printf("\"%s\",%d,%d,%5.4f,%5.4f,%5.4f\n",
+						model_names[c.model], el.K, el.Np-1, c.CFL, math.Log10(rms_rho), math.Log10(max_rho))
 				}
 				if !showGraph {
 					return
@@ -480,12 +488,49 @@ func (c *Euler) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) 
 	pSeries(c.Ener, "Ener", 0.7, chart2d.NoGlyph)
 	c.frameCount++
 	check := int(math.Log10(float64(el.K * el.Np / 5)))
-	if c.Case == SOD_TUBE && c.frameCount%check == 0 || math.Abs(timeT-c.FinalTime) < 0.001 {
-		iRho = AddAnalyticSod(c.chart, c.colorMap, timeT, c.FinalTime)
+	if c.frameCount%check == 0 || math.Abs(timeT-c.FinalTime) < 0.001 {
+		switch c.Case {
+		case SOD_TUBE:
+			iRho = AddAnalyticSod(c.chart, c.colorMap, timeT, c.FinalTime)
+		case DENSITY_WAVE:
+			AddAnalyticDWave(c.chart, c.colorMap, el.X, timeT)
+		}
 	}
 	if len(graphDelay) != 0 {
 		time.Sleep(graphDelay[0])
 	}
+	return
+}
+
+func DWaveCalc(X utils.Matrix, timeT float64) (x, rho []float64) {
+	Rho := X.Copy().Apply(func(x float64) (rho float64) {
+		rho = 2 + math.Sin(math.Pi*(x-timeT))
+		return
+	})
+	x, rho = X.RawMatrix().Data, Rho.RawMatrix().Data
+	return
+}
+
+func AddAnalyticDWave(chart *chart2d.Chart2D, colorMap *utils2.ColorMap, X utils.Matrix, timeT float64) {
+	x, rho := DWaveCalc(X, timeT)
+	if err := chart.AddSeries("ExactRho", x, rho, chart2d.XGlyph, chart2d.NoLine, colorMap.GetRGB(-0.7)); err != nil {
+		panic("unable to add exact solution Rho")
+	}
+	return
+}
+
+func dwaveErrorCalc(X, Rho utils.Matrix, t float64) (rms_rho, max_rho float64) {
+	var (
+		RhoData = Rho.RawMatrix().Data
+	)
+	_, rhoD := DWaveCalc(X, t)
+	for i, rho := range RhoData {
+		rho_err := utils.POW(rho-rhoD[i], 2)
+		rms_rho += rho_err
+		rho_err = math.Sqrt(rho_err)
+		max_rho = math.Max(rho_err, max_rho)
+	}
+	rms_rho = math.Sqrt(rms_rho / float64(len(RhoData)))
 	return
 }
 
