@@ -5,13 +5,20 @@ Awesome CFD solver written in Go
 
 ### Credits to Jan S. Hesthaven and Tim Warburton for their excellent text "Nodal Discontinuous Galerkin Methods" (2007)
 
-### Objectives - Why do this work?
+### Objectives
+
+1) Implement a complete 3D solver for unstructured CFD (and possibly MHD) using the Discontinuous Galerkin (DG) method
+2) Optimize for GPUs and groups of GPUs, taking advantage of the nature of the natural parallelism of DG methods
+3) Prove the accuracy of the CFD solver for predicting flows with turbulence, shear flows and strong temperature gradients
+4) Make the solver available for use as an open source tool
+
+It is important to me that the code implementing the solver be as simple as possible so that it can be further developed and extended. There are other projects that have achieved the above, most notably the [HiFiles](https://hifiles.stanford.edu/) project, which has demonstrated high accuracy for turbulence problems and some transonic flows with shock waves and is open source. I personally find that C++ code is very difficult to understand due to the heavy usage of indirection and abstraction, which makes an already complex subject unnecessarily more difficult. I feel that the Go language makes it easier to develop straightforward, more easily understandable code paths, while providing similar if not equivalent optimality and higher development efficiency than C++.  
+
+### Why do this work?
 
 I studied CFD in graduate school in 1987 and worked for Northrop for 10 years doing CFD to design and debug airplanes and propulsion systems. During my time applying CFD, I had some great success and some notable failures in getting useful results from the CFD analysis. The most common theme in the failures: flows with thermal gradients, shear flows and vortices were handled very poorly by all known usable Finite Volume methods.
 
 Then, last year (2019), I noticed there were some amazing looking results appearing on Youtube and elsewhere showing well resolved turbulent eddies and shear flows using this new "Discontinuous Galerkin Finite Elements" method...
-
-I will be implementing a three dimensional CFD solver using best practices from this new set of methods and I expect to be able to solve flows with chemical reactions, strong temperature gradients and so on..
 
 ### Guide to code review
 
@@ -43,7 +50,23 @@ me@home:bash# gocfd -graph
 ### Run without graphics:
 me@home:bash# gocfd
 ```
-### Updates (May 26, 2000): Verified DFR and Roe Flux after fixing the Exact solution to the Sod shock tube
+### Updates (June 2, 2020): 
+
+Implemented a smooth solution (Density Wave) in the Euler Equations DFR solver and ran convergence studies. The results show a couple of things:
+1) Rapid convergence to machine zero across polynomial order and number of elements
+2) Order of convergence is N, not the optimal (N+1)
+3) Aliasing instability when using the Roe flux
+4) The "SlopeMod" limiter destroys the accuracy of the smooth solution
+
+While it was very nice to see (1) happen, the results of (2) made me take a harder look at the DFR approach implemented now. I had taken the "shortcut" of having set the flux at the element faces, and not modifying the interior flux values, which has the impact of converting the flux into a polynomial of order (N-2) due to the removal of the two faces from the order N basis by forcing their values. It seems that the resulting algorithm has a demonstrated order of (N-1) in convergence rate as a result.
+
+One of the reasons I took the above shortcut is that right now we are using the "Legendre-Gauss-Lobato" (LGL) nodes for the algorithm, per Hesthaven, and the LGL points include the face vertices for each element, which makes it impossible to implement the Jameson DFR approach for DFR.
+
+In the Jameson DFR, the Gauss quadrature points do not include the face vertices. The algorithm sets the flux values at the face vertices, then performs an interpolation across the combination of interior and face (N+1+2) vertices to determine the coefficients of the interior flux polynomial such that the new polynomial passes through all (N+1) interior points in the element and the two face vertices. The resulting flux polynomial is of formal order (N) and resides on the same (N+1) interior points as the solution.
+
+The Jameson DFR algorithm provides an equivalent, but simpler and more efficient (15% faster) way to achieve all of the benefits of DG methods. The DFR solver uses the differential form of the target equations, rather than the integral form, which makes it easier to attack more complex combinations of target equations. DFR has also been extended by Jameson, et al to incorporate spectral methods with entropy stable properties.
+
+### Updates (May 26, 2020): Verified DFR and Roe Flux after fixing the Exact solution to the Sod shock tube
 #### Resolved DFR/Roe solution compared to exact at T = 0.2, N=3, 2000 Elements
 ![](images/EulerDFR-K2000-N3-fixedRoe.PNG)
 
@@ -74,7 +97,7 @@ The shock speed problem I saw yesterday turns out to have been the exact solutio
 
 After correcting the exact solution to Sod's shock tube problem, the two Euler solvers match up pretty well all around, with some small differences between them - phew!
 
-### Update (May 25, 2000): Roe Flux with DFR - Euler 1D compared to Analytic Solution in real time
+### Update (May 25, 2020): Roe Flux with DFR - Euler 1D compared to Analytic Solution in real time
 #### T = 0.223, N=4, Roe Flux, 600 Elements
 ![](images/EulerDFRRho1.PNG)
 
