@@ -124,13 +124,20 @@ func readCSV(csvFile string) (studies map[string]*ConvergenceStudy) {
 			cs = NewConvergenceStudy(title, n, cfl)
 			studies[combTitle] = cs
 		}
-		_, _ = fmt.Sscanf(rec[4], "%f", &rhoRMS)
-		_, _ = fmt.Sscanf(rec[5], "%f", &rhouRMS)
-		_, _ = fmt.Sscanf(rec[6], "%f", &eRMS)
-		_, _ = fmt.Sscanf(rec[7], "%f", &rhoMAX)
-		_, _ = fmt.Sscanf(rec[8], "%f", &rhouMAX)
-		_, _ = fmt.Sscanf(rec[9], "%f", &eMAX)
-		cs.Add(npts, rhoRMS, rhouRMS, eRMS, rhoMAX, rhouMAX, eMAX)
+		switch len(rec) - 4 {
+		case 2:
+			_, _ = fmt.Sscanf(rec[4], "%f", &rhoRMS)
+			_, _ = fmt.Sscanf(rec[5], "%f", &rhoMAX)
+			cs.Add(npts, rhoRMS, 0, 0, rhoMAX, 0, 0)
+		case 6:
+			_, _ = fmt.Sscanf(rec[4], "%f", &rhoRMS)
+			_, _ = fmt.Sscanf(rec[5], "%f", &rhouRMS)
+			_, _ = fmt.Sscanf(rec[6], "%f", &eRMS)
+			_, _ = fmt.Sscanf(rec[7], "%f", &rhoMAX)
+			_, _ = fmt.Sscanf(rec[8], "%f", &rhouMAX)
+			_, _ = fmt.Sscanf(rec[9], "%f", &eMAX)
+			cs.Add(npts, rhoRMS, rhouRMS, eRMS, rhoMAX, rhouMAX, eMAX)
+		}
 	}
 	return
 }

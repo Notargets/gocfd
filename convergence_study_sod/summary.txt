@@ -1,3 +1,4 @@
+# SOD Shock Tube
 Order = 2, CFL =  1.00
 VAL_GK_LAX rhoRMS, rhouRMS, eRMS convergence order = 0.419, 0.415, 0.548
 VAL_DFR_LAX rhoRMS, rhouRMS, eRMS convergence order = 0.475, 0.474, 0.548
@@ -24,3 +25,21 @@ Galerkin Integration, Lax Flux rhoRMS, rhouRMS, eRMS convergence order = 0.862, 
 DFR Integration, Lax Flux rhoRMS, rhouRMS, eRMS convergence order = 0.880, 0.887, 0.889
 DFR Integration, Roe Flux rhoRMS, rhouRMS, eRMS convergence order = 0.803, 0.776, 0.797
 
+# Density Wave, DFR
+
+Order = 2, CFL =  0.50
+Lax Flux rhoRMS, rhouRMS, eRMS convergence order = 1.992
+Roe Flux rhoRMS, rhouRMS, eRMS convergence order = 1.991
+Order = 3, CFL =  0.50
+Roe Flux rhoRMS, rhouRMS, eRMS convergence order = 2.927
+Lax Flux rhoRMS, rhouRMS, eRMS convergence order = 2.931
+Order = 4, CFL =  0.50
+Lax Flux rhoRMS, rhouRMS, eRMS convergence order = 3.974
+Roe Flux rhoRMS, rhouRMS, eRMS convergence order = 3.974
+#Machine precision problems with below
+Order = 5, CFL =  0.50
+Lax Flux rhoRMS, rhouRMS, eRMS convergence order = 3.504
+Roe Flux rhoRMS, rhouRMS, eRMS convergence order = 3.523
+Order = 6, CFL =  0.50
+Roe Flux rhoRMS, rhouRMS, eRMS convergence order = 2.748
+Lax Flux rhoRMS, rhouRMS, eRMS convergence order = 2.995

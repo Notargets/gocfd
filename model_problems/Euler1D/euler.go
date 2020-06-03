@@ -59,6 +59,10 @@ var (
 )
 
 func NewEuler(CFL, FinalTime, XMax float64, N, K int, model ModelType, Case CaseType) (c *Euler) {
+	switch Case {
+	case DENSITY_WAVE:
+		XMax = math.Max(XMax, 2)
+	}
 	VX, EToV := DG1D.SimpleMesh1D(0, XMax, K)
 	c = &Euler{
 		CFL:       CFL,
@@ -69,27 +73,31 @@ func NewEuler(CFL, FinalTime, XMax float64, N, K int, model ModelType, Case Case
 		Case:      Case,
 	}
 	c.State.Gamma = 1.4
-	fmt.Printf("Euler Equations in 1 Dimension\nSolving Sod's Shock Tube\nModel Type: %s\n", model_names[c.model])
-	fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, K)
+	fmt.Printf("Euler Equations in 1 Dimension\n")
 	switch c.Case {
 	case DENSITY_WAVE:
 		c.InitializeDWave()
 		c.bc = PERIODIC
+		fmt.Printf("Solving Density Wave\n")
 	case SOD_TUBE:
 		c.InitializeSOD()
 		c.bc = RIEMANN
 		c.useLimiter = true
+		fmt.Printf("Solving Sod's Shock Tube\n")
 	case FREESTREAM:
 		c.InitializeFS()
 		c.bc = RIEMANN
 	case COLLISION:
 		fallthrough
 	default:
+		fmt.Printf("Solving Shock Collision\n")
 		c.InitializeSOD()
 		c.bc = RIEMANN
 		c.Out = c.In
 		c.useLimiter = true
 	}
+	fmt.Printf("Algorithm: %s\n", model_names[c.model])
+	fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, K)
 	return
 }
 
@@ -318,6 +326,11 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 		os.Exit(1)
 	*/
 
+	// Calculate Dissipation
+	dissRho2 := el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(Rho)).Scale(1.0)))
+	dissRhoU2 := el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(RhoU)).Scale(1.0)))
+	dissEner2 := el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(Ener)).Scale(1.0)))
+
 	// Calculate RHS
 	//rhsRho = el.Dr.Mul(RhoF).Scale(-1).ElMul(el.Rx)
 	rhsRho = el.Dr.Mul(RhoF).Apply2(el.Rx, func(drrhof, rx float64) (rhsrho float64) {
@@ -334,6 +347,13 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 		rhsener = -drenerf * rx
 		return
 	})
+
+	if true {
+		rhsRho.Add(dissRho2)
+		rhsRhoU.Add(dissRhoU2)
+		rhsEner.Add(dissEner2)
+	}
+
 	return
 }
 
