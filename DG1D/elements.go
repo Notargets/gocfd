@@ -9,7 +9,7 @@ import (
 )
 
 type Elements1D struct {
-	K, Np, Nfp, NFaces                int
+	K, Np, NSp, Nfp, NFaces           int // NSp is the number of solution points
 	VX, FMask                         utils.Vector
 	EToV, EToE, EToF                  utils.Matrix
 	X, Dr, Rx, FScale, NX, LIFT       utils.Matrix

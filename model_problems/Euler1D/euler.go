@@ -78,8 +78,10 @@ func NewEuler(CFL, FinalTime, XMax float64, N, K int, model ModelType, Case Case
 		c.El = DG1D.NewElements1D(N+2, VX, EToV)
 		// Change the location of the left/right face points to match Np solution points
 		c.El.VmapM, c.El.VmapP = c.FaceMap()
+		c.El.NSp = c.El.Np - 2
 	case Galerkin_LF:
 		c.El = DG1D.NewElements1D(N, VX, EToV)
+		c.El.NSp = c.El.Np
 	}
 	c.MapSolutionSubset()
 	c.State.Gamma = 1.4
@@ -118,9 +120,9 @@ func (c *Euler) InitializeFS() {
 		el = c.El
 		FS = c.In
 	)
-	c.Rho = utils.NewMatrix(el.Np, el.K).AddScalar(FS.Rho)
-	c.RhoU = utils.NewMatrix(el.Np, el.K).AddScalar(FS.RhoU)
-	c.Ener = utils.NewMatrix(el.Np, el.K).AddScalar(FS.Ener)
+	c.Rho = utils.NewMatrix(el.NSp, el.K).AddScalar(FS.Rho)
+	c.RhoU = utils.NewMatrix(el.NSp, el.K).AddScalar(FS.RhoU)
+	c.Ener = utils.NewMatrix(el.NSp, el.K).AddScalar(FS.Ener)
 }
 
 func (c *Euler) InitializeSOD() {
@@ -128,7 +130,7 @@ func (c *Euler) InitializeSOD() {
 		el                = c.El
 		MassMatrix, VtInv utils.Matrix
 		err               error
-		npOnes            = utils.NewVectorConstant(el.Np, 1)
+		npOnes            = utils.NewVectorConstant(el.NSp, 1)
 		s                 = c.State
 	)
 	c.In = NewStateP(c.State.Gamma, 1, 0, 1)
@@ -142,13 +144,13 @@ func (c *Euler) InitializeSOD() {
 	leftHalf := cx.Find(utils.Less, 0.5, false)
 	rightHalf := cx.Find(utils.GreaterOrEqual, 0.5, false)
 	// Initialize field variables
-	c.Rho = utils.NewMatrix(el.Np, el.K)
+	c.Rho = utils.NewMatrix(el.NSp, el.K)
 	c.Rho.AssignScalar(leftHalf, 1)
 	c.Rho.AssignScalar(rightHalf, 0.125)
-	c.RhoU = utils.NewMatrix(el.Np, el.K)
+	c.RhoU = utils.NewMatrix(el.NSp, el.K)
 	c.RhoU.Scale(0)
 	rDiv := 1. / (s.Gamma - 1.)
-	c.Ener = utils.NewMatrix(el.Np, el.K)
+	c.Ener = utils.NewMatrix(el.NSp, el.K)
 	c.Ener.AssignScalar(leftHalf, rDiv)
 	c.Ener.AssignScalar(rightHalf, 0.1*rDiv)
 }
@@ -163,13 +165,13 @@ func (c *Euler) InitializeDWave() {
 	var (
 		el = c.El
 	)
-	c.Rho = utils.NewMatrix(el.Np, el.K).Apply2(el.X.Subset(c.FluxSubset, el.Np, el.K), func(base, x float64) (rho float64) {
+	c.Rho = utils.NewMatrix(el.NSp, el.K).Apply2(el.X.Subset(c.FluxSubset, el.Np, el.K), func(base, x float64) (rho float64) {
 		rho = 2 + math.Sin(math.Pi*x)
 		return
 	})
 	c.RhoU = c.Rho.Copy()
 	// p = (e - q) * (fs.Gamma - 1)
-	c.Ener = utils.NewMatrix(el.Np, el.K).Apply2(c.Rho, func(base, rho float64) (e float64) {
+	c.Ener = utils.NewMatrix(el.NSp, el.K).Apply2(c.Rho, func(base, rho float64) (e float64) {
 		e = 1./(c.State.Gamma-1.) + 0.5*rho
 		return
 	})
@@ -226,7 +228,7 @@ func (c *Euler) MapSolutionSubset() {
 	)
 	switch c.model {
 	case Euler_DFR_LF, Euler_DFR_Roe:
-		c.FluxRanger = utils.NewR2(el.Np+2, el.K)
+		c.FluxRanger = utils.NewR2(el.Np, el.K)
 		c.FluxSubset = c.FluxRanger.Range("1:-2", ":")
 	case Galerkin_LF:
 		c.FluxRanger = utils.NewR2(el.Np, el.K)
