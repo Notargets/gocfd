@@ -2,11 +2,12 @@ package Euler1D
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
-	"github.com/notargets/gocfd/utils"
+	"github.com/stretchr/testify/assert"
 
-	"github.com/notargets/gocfd/DG1D"
+	"github.com/notargets/gocfd/utils"
 )
 
 func TestFlux(t *testing.T) {
@@ -17,14 +18,10 @@ func TestFlux(t *testing.T) {
 
 		K := 4
 		N := 1
-		VX, EToV := DG1D.SimpleMesh1D(0, 1, K)
 		var c *Euler
-		c = &Euler{
-			CFL:       1,
-			State:     NewFieldState(),
-			FinalTime: 20,
-			El:        DG1D.NewElements1D(N, VX, EToV),
-		}
+		model := Galerkin_LF
+		//model := Euler_DFR_Roe
+		c = NewEuler(1, 20, 1, N, K, model, FREESTREAM)
 		var (
 			el                 = c.El
 			s                  = c.State
@@ -36,10 +33,7 @@ func TestFlux(t *testing.T) {
 		c.Out = NewStateP(c.State.Gamma, 0.125, 0, 0.1)
 		c.InitializeSOD()
 		c.MapSolutionSubset()
-		s.Update(c.Rho, c.RhoU, c.Ener, c.FluxRanger, c.FluxSubset)
-		RhoF = c.RhoU.Copy()
-		RhoUF = s.Q.Copy().Scale(2.).Add(s.Pres)
-		EnerF = c.Ener.Copy().Add(s.Pres).ElMul(s.U)
+		RhoF, RhoUF, EnerF = s.Update(c.Rho, c.RhoU, c.Ener, c.FluxRanger, c.FluxSubset)
 		fmt.Println(RhoF.Print("RhoF"))
 		fmt.Println(RhoUF.Print("RhoUF"))
 		fmt.Println(EnerF.Print("EnerF"))
@@ -54,5 +48,9 @@ func TestFlux(t *testing.T) {
 		fmt.Println(RhoF.Print("RhoF"))
 		fmt.Println(RhoUF.Print("RhoUF"))
 		fmt.Println(EnerF.Print("EnerF"))
+		rhofCheck := utils.NewMatrix(el.Np, el.K, []float64{0, 0, 0.5216, 0, 0, 0.5216, 0, 0})
+		assert.Less(t, rhofCheck.Subtract(RhoF).Apply(math.Abs).Max(), 0.0001)
+		enerfCheck := utils.NewMatrix(el.Np, el.K, []float64{0, 0, 4.0979, 0, 0, 4.0979, 0, 0})
+		assert.Less(t, enerfCheck.Subtract(EnerF).Apply(math.Abs).Max(), 0.0001)
 	}
 }

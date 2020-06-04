@@ -213,6 +213,7 @@ func parseRange(dim string, max int) (i1, i2 int) {
 	if i1, err = strconv.Atoi(splits[0]); err != nil {
 		i1 = 0
 	}
+	i2 = dimInt(i2, max)
 	if len(splits) == 1 {
 		i2 = i1 + 1
 		return
@@ -220,8 +221,20 @@ func parseRange(dim string, max int) (i1, i2 int) {
 	if i2, err = strconv.Atoi(splits[1]); err != nil {
 		i2 = max
 	}
+	i2 = dimInt(i2, max)
 	if i2 == i1 {
 		i2 = i1 + 1
+	}
+	return
+}
+
+func dimInt(input, max int) (res int) {
+	switch {
+	case input < 0:
+		// -1 means max (loop index, so max-1)
+		res = max + input
+	default:
+		res = input
 	}
 	return
 }
