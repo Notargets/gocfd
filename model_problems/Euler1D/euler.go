@@ -31,6 +31,8 @@ type Euler struct {
 	Case            CaseType
 	frameCount      int
 	useLimiter      bool
+	FluxRanger      utils.R2
+	FluxSubset      utils.Index
 }
 
 type CaseType uint
@@ -79,6 +81,7 @@ func NewEuler(CFL, FinalTime, XMax float64, N, K int, model ModelType, Case Case
 	case Galerkin_LF:
 		c.El = DG1D.NewElements1D(N, VX, EToV)
 	}
+	c.MapSolutionSubset()
 	c.State.Gamma = 1.4
 	fmt.Printf("Euler Equations in 1 Dimension\n")
 	switch c.Case {
@@ -160,8 +163,7 @@ func (c *Euler) InitializeDWave() {
 	var (
 		el = c.El
 	)
-	subIdx := c.SolutionSubset()
-	c.Rho = utils.NewMatrix(el.Np, el.K).Apply2(el.X.Subset(subIdx, el.Np, el.K), func(base, x float64) (rho float64) {
+	c.Rho = utils.NewMatrix(el.Np, el.K).Apply2(el.X.Subset(c.FluxSubset, el.Np, el.K), func(base, x float64) (rho float64) {
 		rho = 2 + math.Sin(math.Pi*x)
 		return
 	})
@@ -179,12 +181,12 @@ func (c *Euler) FaceMap() (VmapM, VmapP utils.Index) {
 		    	VmapM(NFaces, K) and VmapP(NFaces, K)
 	*/
 	var (
-		el      = c.El
-		NpxKMap = utils.NewR2(el.Np, el.K)
+		el        = c.El
+		RangerNpK = utils.NewR2(el.Np, el.K)
 	)
 	// Left and right ends for each element
-	indLeft := NpxKMap.Range(0, ":")
-	indRight := NpxKMap.Range(-1, ":")
+	indLeft := RangerNpK.Range(0, ":")
+	indRight := RangerNpK.Range(-1, ":")
 	VmapM = make(utils.Index, 2*len(indLeft))
 	var ind int
 	for i, val := range indLeft {
@@ -207,14 +209,14 @@ func (c *Euler) FaceMap() (VmapM, VmapP utils.Index) {
 		kRight := k + 1
 		kLeft = int(math.Max(0, float64(kLeft)))
 		kRight = int(math.Min(float64(el.Np), float64(kRight)))
-		VmapP[ind] = NpxKMap.Range(nLeft, kLeft)[0]
-		VmapP[ind+1] = NpxKMap.Range(nRight, kRight)[0]
+		VmapP[ind] = RangerNpK.Range(nLeft, kLeft)[0]
+		VmapP[ind+1] = RangerNpK.Range(nRight, kRight)[0]
 		ind += 2
 	}
 	return
 }
 
-func (c *Euler) SolutionSubset() (idx utils.Index) {
+func (c *Euler) MapSolutionSubset() {
 	/*
 		In the DFR approach, there are Np solution points and Np+2 Flux points
 		This index carves the solution points out of a full Np+2 space
@@ -224,11 +226,11 @@ func (c *Euler) SolutionSubset() (idx utils.Index) {
 	)
 	switch c.model {
 	case Euler_DFR_LF, Euler_DFR_Roe:
-		subR2 := utils.NewR2(el.Np+2, el.K)
-		idx = subR2.Range("1:-2", ":")
+		c.FluxRanger = utils.NewR2(el.Np+2, el.K)
+		c.FluxSubset = c.FluxRanger.Range("1:-2", ":")
 	case Galerkin_LF:
-		subR2 := utils.NewR2(el.Np, el.K)
-		idx = subR2.Range(":", ":")
+		c.FluxRanger = utils.NewR2(el.Np, el.K)
+		c.FluxSubset = c.FluxRanger.Range(":", ":")
 	}
 	return
 }
@@ -371,7 +373,7 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 		*Enerp = el.SlopeLimitN(*Enerp, slopeLimiterM)
 		Rho, RhoU, Ener = *Rhop, *RhoUp, *Enerp
 	}
-	RhoF, RhoUF, EnerF = s.Update(Rho, RhoU, Ener)
+	RhoF, RhoUF, EnerF = s.Update(Rho, RhoU, Ener, c.FluxRanger, c.FluxSubset)
 
 	/*
 		Transfer the solution value from the solution point next to the face to the face
@@ -451,7 +453,7 @@ func (c *Euler) RHS_GK(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 		*Enerp = el.SlopeLimitN(*Enerp, slopeLimiterM)
 		Rho, RhoU, Ener = *Rhop, *RhoUp, *Enerp
 	}
-	RhoF, RhoUF, EnerF = s.Update(Rho, RhoU, Ener)
+	RhoF, RhoUF, EnerF = s.Update(Rho, RhoU, Ener, c.FluxRanger, c.FluxSubset)
 
 	// Face jumps in primary and flux variables
 	fJump := func(U utils.Matrix) (dU utils.Matrix) {
@@ -833,7 +835,7 @@ func NewFieldState() (fs *FieldState) {
 	return &FieldState{}
 }
 
-func (fs *FieldState) Update(Rho, RhoU, Ener utils.Matrix) (RhoF, RhoUF, EnerF utils.Matrix) {
+func (fs *FieldState) Update(Rho, RhoU, Ener utils.Matrix, FluxRanger utils.R2, FluxSubset utils.Index) (RhoF, RhoUF, EnerF utils.Matrix) {
 	/*
 		Calorically Perfect Gas, R = 1
 	*/
@@ -877,15 +879,18 @@ func (fs *FieldState) Update(Rho, RhoU, Ener utils.Matrix) (RhoF, RhoUF, EnerF u
 	fs.CVel.SetReadOnly("CVel")
 	fs.LM.SetReadOnly("LM")
 	fs.Ht.SetReadOnly("Ht")
-	RhoF = RhoU.Copy()
-	RhoUF = fs.Q.Copy().Apply2(fs.Pres, func(q, pres float64) (rhouf float64) {
+	RhoF = utils.NewMatrix(FluxRanger.Dims())
+	RhoUF = utils.NewMatrix(FluxRanger.Dims())
+	EnerF = utils.NewMatrix(FluxRanger.Dims())
+	RhoF.AssignVector(FluxSubset, RhoU)
+	RhoUF.AssignVector(FluxSubset, fs.Q.Copy().Apply2(fs.Pres, func(q, pres float64) (rhouf float64) {
 		rhouf = 2*q + pres
 		return
-	})
-	EnerF = Ener.Copy().Apply3(fs.Pres, fs.U, func(ener, pres, u float64) (enerf float64) {
+	}))
+	EnerF.AssignVector(FluxSubset, Ener.Copy().Apply3(fs.Pres, fs.U, func(ener, pres, u float64) (enerf float64) {
 		enerf = u * (ener + pres)
 		return
-	})
+	}))
 	return
 }
 

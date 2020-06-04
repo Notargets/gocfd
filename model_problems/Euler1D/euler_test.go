@@ -35,7 +35,7 @@ func TestFlux(t *testing.T) {
 		c.In = NewStateP(c.State.Gamma, 1, 0, 1)
 		c.Out = NewStateP(c.State.Gamma, 0.125, 0, 0.1)
 		c.InitializeSOD()
-		s.Update(c.Rho, c.RhoU, c.Ener)
+		s.Update(c.Rho, c.RhoU, c.Ener, c.FluxRanger, c.FluxSubset)
 		RhoF = c.RhoU.Copy()
 		RhoUF = s.Q.Copy().Scale(2.).Add(s.Pres)
 		EnerF = c.Ener.Copy().Add(s.Pres).ElMul(s.U)
