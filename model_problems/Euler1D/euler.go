@@ -68,9 +68,16 @@ func NewEuler(CFL, FinalTime, XMax float64, N, K int, model ModelType, Case Case
 		CFL:       CFL,
 		State:     NewFieldState(),
 		FinalTime: FinalTime,
-		El:        DG1D.NewElements1D(N, VX, EToV),
 		model:     model,
 		Case:      Case,
+	}
+	switch model {
+	case Euler_DFR_Roe, Euler_DFR_LF:
+		c.El = DG1D.NewElements1D(N+2, VX, EToV)
+		// Change the location of the left/right face points to match Np solution points
+		c.El.VmapM, c.El.VmapP = c.FaceMap()
+	case Galerkin_LF:
+		c.El = DG1D.NewElements1D(N, VX, EToV)
 	}
 	c.State.Gamma = 1.4
 	fmt.Printf("Euler Equations in 1 Dimension\n")
@@ -112,6 +119,7 @@ func (c *Euler) InitializeFS() {
 	c.RhoU = utils.NewMatrix(el.Np, el.K).AddScalar(FS.RhoU)
 	c.Ener = utils.NewMatrix(el.Np, el.K).AddScalar(FS.Ener)
 }
+
 func (c *Euler) InitializeSOD() {
 	var (
 		el                = c.El
@@ -152,7 +160,8 @@ func (c *Euler) InitializeDWave() {
 	var (
 		el = c.El
 	)
-	c.Rho = utils.NewMatrix(el.Np, el.K).Apply2(el.X, func(base, x float64) (rho float64) {
+	subIdx := c.SolutionSubset()
+	c.Rho = utils.NewMatrix(el.Np, el.K).Apply2(el.X.Subset(subIdx, el.Np, el.K), func(base, x float64) (rho float64) {
 		rho = 2 + math.Sin(math.Pi*x)
 		return
 	})
@@ -164,6 +173,66 @@ func (c *Euler) InitializeDWave() {
 	})
 }
 
+func (c *Euler) FaceMap() (VmapM, VmapP utils.Index) {
+	/*
+				We need a map of left / right face points for each element
+		    	VmapM(NFaces, K) and VmapP(NFaces, K)
+	*/
+	var (
+		el      = c.El
+		NpxKMap = utils.NewR2(el.Np, el.K)
+	)
+	// Left and right ends for each element
+	indLeft := NpxKMap.Range(0, ":")
+	indRight := NpxKMap.Range(-1, ":")
+	VmapM = make(utils.Index, 2*len(indLeft))
+	var ind int
+	for i, val := range indLeft {
+		VmapM[ind] = val
+		VmapM[ind+1] = indRight[i]
+		ind += 2
+	}
+	VmapP = make(utils.Index, 2*el.K)
+	ind = 0
+	for k := 0; k < el.K; k++ {
+		nLeft := el.Np
+		nRight := 0
+		if k == 0 {
+			nLeft = 0
+		}
+		if k == el.K-1 {
+			nRight = el.Np
+		}
+		kLeft := k - 1
+		kRight := k + 1
+		kLeft = int(math.Max(0, float64(kLeft)))
+		kRight = int(math.Min(float64(el.Np), float64(kRight)))
+		VmapP[ind] = NpxKMap.Range(nLeft, kLeft)[0]
+		VmapP[ind+1] = NpxKMap.Range(nRight, kRight)[0]
+		ind += 2
+	}
+	return
+}
+
+func (c *Euler) SolutionSubset() (idx utils.Index) {
+	/*
+		In the DFR approach, there are Np solution points and Np+2 Flux points
+		This index carves the solution points out of a full Np+2 space
+	*/
+	var (
+		el = c.El
+	)
+	switch c.model {
+	case Euler_DFR_LF, Euler_DFR_Roe:
+		subR2 := utils.NewR2(el.Np+2, el.K)
+		idx = subR2.Range("1:-2", ":")
+	case Galerkin_LF:
+		subR2 := utils.NewR2(el.Np, el.K)
+		idx = subR2.Range(":", ":")
+	}
+	return
+}
+
 func (c *Euler) Run(showGraph bool, graphDelay ...time.Duration) {
 	var (
 		el           = c.El
@@ -171,14 +240,16 @@ func (c *Euler) Run(showGraph bool, graphDelay ...time.Duration) {
 		//s             = c.State
 		rhs  func(rho, rhou, ener *utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix)
 		iRho float64
+		xmin float64
 	)
 	switch c.model {
 	case Galerkin_LF:
 		rhs = c.RHS_GK
+		xmin = el.X.Row(1).Subtract(el.X.Row(0)).Apply(math.Abs).Min()
 	case Euler_DFR_Roe, Euler_DFR_LF:
 		rhs = c.RHS_DFR
+		xmin = el.X.Row(2).Subtract(el.X.Row(1)).Apply(math.Abs).Min()
 	}
-	xmin := el.X.Row(1).Subtract(el.X.Row(0)).Apply(math.Abs).Min()
 	var Time, dt float64
 	var tstep int
 	for Time < c.FinalTime {
@@ -302,6 +373,9 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 	}
 	RhoF, RhoUF, EnerF = s.Update(Rho, RhoU, Ener)
 
+	/*
+		Transfer the solution value from the solution point next to the face to the face
+	*/
 	switch c.model {
 	case Euler_DFR_LF:
 		fRho, fRhoU, fEner = c.LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, el.VmapM, el.VmapP)
@@ -326,10 +400,12 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 		os.Exit(1)
 	*/
 
-	// Calculate Dissipation
-	dissRho2 := el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(Rho)).Scale(1.0)))
-	dissRhoU2 := el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(RhoU)).Scale(1.0)))
-	dissEner2 := el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(Ener)).Scale(1.0)))
+	/*
+		// Calculate Dissipation
+		dissRho2 := el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(Rho)).Scale(1.0)))
+		dissRhoU2 := el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(RhoU)).Scale(1.0)))
+		dissEner2 := el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(Ener)).Scale(1.0)))
+	*/
 
 	// Calculate RHS
 	//rhsRho = el.Dr.Mul(RhoF).Scale(-1).ElMul(el.Rx)
@@ -348,11 +424,11 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 		return
 	})
 
-	if true {
+	/*
 		rhsRho.Add(dissRho2)
 		rhsRhoU.Add(dissRhoU2)
 		rhsEner.Add(dissEner2)
-	}
+	*/
 
 	return
 }
