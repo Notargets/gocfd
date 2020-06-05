@@ -422,17 +422,17 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 	rhsRho = el.Dr.Mul(RhoF).Apply2(el.Rx, func(drrhof, rx float64) (rhsrho float64) {
 		rhsrho = -drrhof * rx
 		return
-	})
+	}).Subset(c.FluxSubset, el.NSp, el.K)
 	//rhsRhoU = el.Dr.Mul(RhoUF).Scale(-1).ElMul(el.Rx)
 	rhsRhoU = el.Dr.Mul(RhoUF).Apply2(el.Rx, func(drrhouf, rx float64) (rhsurho float64) {
 		rhsurho = -drrhouf * rx
 		return
-	})
+	}).Subset(c.FluxSubset, el.NSp, el.K)
 	//rhsEner = el.Dr.Mul(EnerF).Scale(-1).ElMul(el.Rx)
 	rhsEner = el.Dr.Mul(EnerF).Apply2(el.Rx, func(drenerf, rx float64) (rhsener float64) {
 		rhsener = -drenerf * rx
 		return
-	})
+	}).Subset(c.FluxSubset, el.NSp, el.K)
 
 	/*
 		rhsRho.Add(dissRho2)
