@@ -18,7 +18,7 @@ import (
 type Euler struct {
 	// Input parameters
 	CFL, FinalTime  float64
-	El              *DG1D.Elements1D
+	El, ESl         *DG1D.Elements1D
 	RHSOnce         sync.Once
 	State           *FieldState
 	Rho, RhoU, Ener utils.Matrix
@@ -78,9 +78,11 @@ func NewEuler(CFL, FinalTime, XMax float64, N, K int, model ModelType, Case Case
 		c.El = DG1D.NewElements1D(N+2, N+1, VX, EToV)
 		// Change the location of the left/right face points to match Np solution points
 		c.El.VmapMS, c.El.VmapPS = c.FaceMap()
+		c.ESl = DG1D.NewElements1D(N, N+1, VX, EToV)
 	case Galerkin_LF:
 		c.El = DG1D.NewElements1D(N, N+1, VX, EToV)
 		c.El.VmapMS, c.El.VmapPS = c.FaceMap()
+		c.ESl = c.El
 	}
 	c.MapSolutionSubset()
 	c.State.Gamma = 1.4
@@ -267,6 +269,12 @@ func (c *Euler) Run(showGraph bool, graphDelay ...time.Duration) {
 		*/
 		// SSP RK Stage 1
 		rhsRho, rhsRhoU, rhsEner := rhs(&c.Rho, &c.RhoU, &c.Ener)
+		/*
+			fmt.Println(c.RhoU.Print("RhoU"))
+			fmt.Println(rhsRhoU.Print("rhsRhoU"))
+			fmt.Printf("xmin, dt = %v, %v\n", xmin, dt)
+			os.Exit(1)
+		*/
 		iRho = c.Plot(Time, showGraph, graphDelay)
 		dt = c.CalculateDT(xmin, Time)
 		update1 := func(u0, rhs float64) (u1 float64) {
@@ -366,25 +374,25 @@ const (
 func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
 	var (
 		el                 = c.El
+		esl                = c.ESl
 		s                  = c.State
 		fRho, fRhoU, fEner utils.Matrix
 		Rho, RhoU, Ener    = *Rhop, *RhoUp, *Enerp
 		RhoF, RhoUF, EnerF utils.Matrix
-		/*
-			limiter            = c.useLimiter
-			slopeLimiterM      = 20.
-		*/
+		limiter            = c.useLimiter
+		slopeLimiterM      = 20.
 	)
-	/*
-		if limiter {
-			// Slope Limit the solution fields
-			*Rhop = el.SlopeLimitN(*Rhop, slopeLimiterM)
-			*RhoUp = el.SlopeLimitN(*RhoUp, slopeLimiterM)
-			*Enerp = el.SlopeLimitN(*Enerp, slopeLimiterM)
-			Rho, RhoU, Ener = *Rhop, *RhoUp, *Enerp
-		}
-	*/
+	if limiter {
+		// Slope Limit the solution fields
+		*Rhop = esl.SlopeLimitN(*Rhop, slopeLimiterM)
+		*RhoUp = esl.SlopeLimitN(*RhoUp, slopeLimiterM)
+		*Enerp = esl.SlopeLimitN(*Enerp, slopeLimiterM)
+		Rho, RhoU, Ener = *Rhop, *RhoUp, *Enerp
+	}
 	RhoF, RhoUF, EnerF = s.Update(Rho, RhoU, Ener, c.FluxRanger, c.FluxSubset)
+	c.CopyBoundary(RhoF)
+	c.CopyBoundary(RhoUF)
+	c.CopyBoundary(EnerF)
 
 	switch c.model {
 	case Euler_DFR_LF:
@@ -399,17 +407,12 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 	case PERIODIC:
 		c.PeriodicBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, el.VmapIS, el.VmapOS, el.VmapI, el.VmapO, &fRho, &fRhoU, &fEner)
 	}
-	//fmt.Println(RhoF.Print("RhoF before"))
-
+	//fmt.Println(fRhoU.Print("fRhoU after BC"))
 	// Set face flux within global flux
 	RhoF.AssignVector(el.VmapM, fRho)
 	RhoUF.AssignVector(el.VmapM, fRhoU)
 	EnerF.AssignVector(el.VmapM, fEner)
-	/*
-		fmt.Println(RhoF.Print("RhoF after"))
-		os.Exit(1)
-	*/
-
+	//fmt.Println(RhoUF.Print("RhoUF after face flux assignment"))
 	/*
 		// Calculate Dissipation
 		dissRho2 := el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(Rho)).Scale(1.0)))
@@ -419,20 +422,25 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 
 	// Calculate RHS
 	//rhsRho = el.Dr.Mul(RhoF).Scale(-1).ElMul(el.Rx)
-	rhsRho = el.Dr.Mul(RhoF).Apply2(el.Rx, func(drrhof, rx float64) (rhsrho float64) {
-		rhsrho = -drrhof * rx
-		return
-	}).Subset(c.FluxSubset, el.NSp, el.K)
-	//rhsRhoU = el.Dr.Mul(RhoUF).Scale(-1).ElMul(el.Rx)
-	rhsRhoU = el.Dr.Mul(RhoUF).Apply2(el.Rx, func(drrhouf, rx float64) (rhsurho float64) {
-		rhsurho = -drrhouf * rx
-		return
-	}).Subset(c.FluxSubset, el.NSp, el.K)
-	//rhsEner = el.Dr.Mul(EnerF).Scale(-1).ElMul(el.Rx)
-	rhsEner = el.Dr.Mul(EnerF).Apply2(el.Rx, func(drenerf, rx float64) (rhsener float64) {
-		rhsener = -drenerf * rx
-		return
-	}).Subset(c.FluxSubset, el.NSp, el.K)
+	/*
+		rhsRho = el.Dr.Mul(RhoF).Apply2(el.Rx, func(drrhof, rx float64) (rhsrho float64) {
+			rhsrho = -drrhof * rx
+			return
+		}).Subset(c.FluxSubset, el.NSp, el.K)
+		//rhsRhoU = el.Dr.Mul(RhoUF).Scale(-1).ElMul(el.Rx)
+		rhsRhoU = el.Dr.Mul(RhoUF).Apply2(el.Rx, func(drrhouf, rx float64) (rhsurho float64) {
+			rhsurho = -drrhouf * rx
+			return
+		}).Subset(c.FluxSubset, el.NSp, el.K)
+		//rhsEner = el.Dr.Mul(EnerF).Scale(-1).ElMul(el.Rx)
+		rhsEner = el.Dr.Mul(EnerF).Apply2(el.Rx, func(drenerf, rx float64) (rhsener float64) {
+			rhsener = -drenerf * rx
+			return
+		}).Subset(c.FluxSubset, el.NSp, el.K)
+	*/
+	rhsRho = el.Dr.Mul(RhoF).Subset(c.FluxSubset, el.NSp, el.K).ElMul(esl.Rx).Scale(-1)
+	rhsRhoU = el.Dr.Mul(RhoUF).Subset(c.FluxSubset, el.NSp, el.K).ElMul(esl.Rx).Scale(-1)
+	rhsEner = el.Dr.Mul(EnerF).Subset(c.FluxSubset, el.NSp, el.K).ElMul(esl.Rx).Scale(-1)
 
 	/*
 		rhsRho.Add(dissRho2)

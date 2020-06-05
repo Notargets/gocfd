@@ -40,7 +40,7 @@ var (
 	def_K    = []int{10, 100, 500, 50, 500, 500, 500}
 	def_N    = []int{3, 4, 4, 4, 3, 4, 4}
 	def_CFL  = []float64{1, 1, 3, 3, 0.75, 0.5, 3}
-	def_XMAX = []float64{2 * math.Pi, 1, 1, 2 * math.Pi, 1, 2, 1}
+	def_XMAX = []float64{2 * math.Pi, 1, 1, 2 * math.Pi, 1, 1, 1}
 	def_CASE = []int{0, 0, 0, 0, 0, 0, 0}
 )
 
