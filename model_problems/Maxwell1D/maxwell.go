@@ -46,7 +46,7 @@ func NewMaxwell(CFL, FinalTime float64, N, K int, model ModelType) (c *Maxwell) 
 	c = &Maxwell{
 		CFL:       CFL,
 		FinalTime: FinalTime,
-		El:        DG1D.NewElements1D(N, VX, EToV),
+		El:        DG1D.NewElements1D(N, 0, VX, EToV),
 		model:     model,
 	}
 	fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\nModel Type: %s\n\n", CFL, N, K, model_names[c.model])

@@ -82,14 +82,23 @@ func (r R2) Range(dimI, dimJ interface{}) (I Index) {
 	var (
 		i1, i2 = ParseDim(dimI, r.Ir.Max)
 		j1, j2 = ParseDim(dimJ, r.Jr.Max)
-		_, nj  = r.Ir.Max, r.Jr.Max
+		//_, nj  = r.Ir.Max, r.Jr.Max
 		//ni, _  = r.Ir.Max, r.Jr.Max
+		ni, nj = r.Ir.Max, r.Jr.Max
 	)
+	switch {
+	case i1 > ni || i2 > ni:
+		msg := fmt.Errorf("first dimension exceeds max, i1, i2, ni = %d, %d, %d\n", i1, i2, ni)
+		panic(msg)
+	case j1 > nj || j2 > nj:
+		msg := fmt.Errorf("first dimension exceeds max, j1, j2, nj = %d, %d, %d\n", j1, j2, nj)
+		panic(msg)
+	}
 	size := (i2 - i1) * (j2 - j1)
 	I = NewIndex(size)
 	var ind int
-	for j := j1; j < j2; j++ {
-		for i := i1; i < i2; i++ {
+	for i := i1; i < i2; i++ {
+		for j := j1; j < j2; j++ {
 			I[ind] = j + nj*i // Column Major
 			//I[ind] = i + ni*j // Row Major
 			ind++
@@ -200,7 +209,8 @@ func ParseDim(dimI interface{}, max int) (i1, i2 int) {
 			i1, i2 = parseRange(dim, max)
 		}
 	case int:
-		i1, i2 = dim, dim+1
+		dimC := dimInt(dim, max)
+		i1, i2 = dimC, dimC+1
 	}
 	return
 }

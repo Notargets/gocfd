@@ -161,8 +161,12 @@ func (el *Elements1D) BuildMaps1D() {
 	el.MapB = el.VmapP.Compare(utils.Equal, el.VmapM)
 	el.VmapB = el.VmapM.Subset(el.MapB)
 	el.MapI = utils.NewIndex(1)
-	el.MapO = utils.NewIndex(1).Copy().Add(el.K*el.NFaces - 1)
+	el.MapO = utils.NewIndex(1).Add(el.K*el.NFaces - 1)
 	el.VmapI = utils.NewIndex(1)
-	el.VmapO = utils.NewIndex(1).Copy().Add(el.K*el.Np - 1)
+	el.VmapO = utils.NewIndex(1).Add(el.K*el.Np - 1)
+	el.VmapI = utils.NewIndex(1)
+	el.VmapO = utils.NewIndex(1).Add(el.K*el.Np - 1)
+	el.VmapIS = utils.NewIndex(1)
+	el.VmapOS = utils.NewIndex(1).Add(el.K*el.NSp - 1)
 	return
 }

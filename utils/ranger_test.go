@@ -45,6 +45,10 @@ func TestRanger(t *testing.T) {
 		assert.Equal(t, Index{0, 4, 8}, index)
 		index = my2d.Range(":", 1)
 		assert.Equal(t, Index{1, 5, 9}, index)
+
+		my2d = NewR2(2, 4)
+		index = my2d.Range(1, 3)
+		assert.Equal(t, 7, index[0])
 	}
 	// R3 indexing
 	{

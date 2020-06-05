@@ -75,13 +75,12 @@ func NewEuler(CFL, FinalTime, XMax float64, N, K int, model ModelType, Case Case
 	}
 	switch model {
 	case Euler_DFR_Roe, Euler_DFR_LF:
-		c.El = DG1D.NewElements1D(N+2, VX, EToV)
+		c.El = DG1D.NewElements1D(N+2, N+1, VX, EToV)
 		// Change the location of the left/right face points to match Np solution points
-		c.El.VmapM, c.El.VmapP = c.FaceMap()
-		c.El.NSp = c.El.Np - 2
+		c.El.VmapMS, c.El.VmapPS = c.FaceMap()
 	case Galerkin_LF:
-		c.El = DG1D.NewElements1D(N, VX, EToV)
-		c.El.NSp = c.El.Np
+		c.El = DG1D.NewElements1D(N, N+1, VX, EToV)
+		c.El.VmapMS, c.El.VmapPS = c.FaceMap()
 	}
 	c.MapSolutionSubset()
 	c.State.Gamma = 1.4
@@ -181,39 +180,45 @@ func (c *Euler) FaceMap() (VmapM, VmapP utils.Index) {
 	/*
 				We need a map of left / right face points for each element
 		    	VmapM(NFaces, K) and VmapP(NFaces, K)
+				The mapping needs to be in column-major form to implement an (NFaces, K) matrix
 	*/
 	var (
 		el        = c.El
-		RangerNpK = utils.NewR2(el.Np, el.K)
+		RangerNpK = utils.NewR2(el.NSp, el.K)
 	)
 	// Left and right ends for each element
 	indLeft := RangerNpK.Range(0, ":")
 	indRight := RangerNpK.Range(-1, ":")
-	VmapM = make(utils.Index, 2*len(indLeft))
+	VmapM = make(utils.Index, 2*el.K)
 	var ind int
 	for i, val := range indLeft {
 		VmapM[ind] = val
-		VmapM[ind+1] = indRight[i]
-		ind += 2
+		VmapM[ind+el.K] = indRight[i]
+		ind++
 	}
 	VmapP = make(utils.Index, 2*el.K)
 	ind = 0
 	for k := 0; k < el.K; k++ {
-		nLeft := el.Np
+		nLeft := el.NSp - 1
 		nRight := 0
 		if k == 0 {
 			nLeft = 0
 		}
 		if k == el.K-1 {
-			nRight = el.Np
+			nRight = el.NSp - 1
 		}
 		kLeft := k - 1
 		kRight := k + 1
 		kLeft = int(math.Max(0, float64(kLeft)))
-		kRight = int(math.Min(float64(el.Np), float64(kRight)))
+		kRight = int(math.Min(float64(el.K-1), float64(kRight)))
+		/*
+			fmt.Printf("nL, kL, nR, kR = %d, %d, %d, %d\n", nLeft, kLeft, nRight, kRight)
+			fmt.Printf("Range Left = %v\n", RangerNpK.Range(nLeft, kLeft))
+			fmt.Printf("Range Right = %v\n", RangerNpK.Range(nRight, kRight))
+		*/
 		VmapP[ind] = RangerNpK.Range(nLeft, kLeft)[0]
-		VmapP[ind+1] = RangerNpK.Range(nRight, kRight)[0]
-		ind += 2
+		VmapP[ind+el.K] = RangerNpK.Range(nRight, kRight)[0]
+		ind++
 	}
 	return
 }
@@ -229,7 +234,7 @@ func (c *Euler) MapSolutionSubset() {
 	switch c.model {
 	case Euler_DFR_LF, Euler_DFR_Roe:
 		c.FluxRanger = utils.NewR2(el.Np, el.K)
-		c.FluxSubset = c.FluxRanger.Range("1:-2", ":")
+		c.FluxSubset = c.FluxRanger.Range("1:-1", ":")
 	case Galerkin_LF:
 		c.FluxRanger = utils.NewR2(el.Np, el.K)
 		c.FluxSubset = c.FluxRanger.Range(":", ":")
@@ -365,33 +370,34 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 		fRho, fRhoU, fEner utils.Matrix
 		Rho, RhoU, Ener    = *Rhop, *RhoUp, *Enerp
 		RhoF, RhoUF, EnerF utils.Matrix
-		limiter            = c.useLimiter
-		slopeLimiterM      = 20.
+		/*
+			limiter            = c.useLimiter
+			slopeLimiterM      = 20.
+		*/
 	)
-	if limiter {
-		// Slope Limit the solution fields
-		*Rhop = el.SlopeLimitN(*Rhop, slopeLimiterM)
-		*RhoUp = el.SlopeLimitN(*RhoUp, slopeLimiterM)
-		*Enerp = el.SlopeLimitN(*Enerp, slopeLimiterM)
-		Rho, RhoU, Ener = *Rhop, *RhoUp, *Enerp
-	}
+	/*
+		if limiter {
+			// Slope Limit the solution fields
+			*Rhop = el.SlopeLimitN(*Rhop, slopeLimiterM)
+			*RhoUp = el.SlopeLimitN(*RhoUp, slopeLimiterM)
+			*Enerp = el.SlopeLimitN(*Enerp, slopeLimiterM)
+			Rho, RhoU, Ener = *Rhop, *RhoUp, *Enerp
+		}
+	*/
 	RhoF, RhoUF, EnerF = s.Update(Rho, RhoU, Ener, c.FluxRanger, c.FluxSubset)
 
-	/*
-		Transfer the solution value from the solution point next to the face to the face
-	*/
 	switch c.model {
 	case Euler_DFR_LF:
 		fRho, fRhoU, fEner = c.LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, el.VmapM, el.VmapP)
 	case Euler_DFR_Roe:
-		fRho, fRhoU, fEner = c.RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, el.VmapM, el.VmapP)
+		fRho, fRhoU, fEner = c.RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, el.VmapMS, el.VmapPS, el.VmapM, el.VmapP)
 	}
 
 	switch c.bc {
 	case RIEMANN:
 		c.RiemannBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, &fRho, &fRhoU, &fEner)
 	case PERIODIC:
-		c.PeriodicBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, el.VmapI, el.VmapO, &fRho, &fRhoU, &fEner)
+		c.PeriodicBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, el.VmapIS, el.VmapOS, el.VmapI, el.VmapO, &fRho, &fRhoU, &fEner)
 	}
 	//fmt.Println(RhoF.Print("RhoF before"))
 
@@ -490,9 +496,9 @@ func (c *Euler) RHS_GK(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 	return
 }
 
-func (c *Euler) PeriodicBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapI, vmapO utils.Index, dRhoF, dRhoUF, dEnerF *utils.Matrix) {
+func (c *Euler) PeriodicBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapIS, vmapOS, vmapI, vmapO utils.Index, dRhoF, dRhoUF, dEnerF *utils.Matrix) {
 	// Periodic Boundary condition
-	fRho, fRhoU, fEner := c.RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, vmapI, vmapO)
+	fRho, fRhoU, fEner := c.RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, vmapIS, vmapOS, vmapI, vmapO)
 	/*
 		fmt.Println(dRhoF.Print("dRhoF before"))
 		fmt.Println(dRhoUF.Print("dRhoUF before"))
@@ -545,17 +551,17 @@ func (c *Euler) RiemannBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, 
 	)
 	// Boundary conditions for Sod's problem
 	// Inflow
-	lmI := s.LM.SubsetVector(el.VmapI).Scale(0.5)
+	lmI := s.LM.SubsetVector(el.VmapIS).Scale(0.5)
 	nxI := el.NX.SubsetVector(el.MapI)
-	bFunc_dfr(dRhoF, Rho, RhoF, lmI, nxI, In.Rho, In.RhoF, el.MapI, el.VmapI)
-	bFunc_dfr(dRhoUF, RhoU, RhoUF, lmI, nxI, In.RhoU, In.RhoUF, el.MapI, el.VmapI)
-	bFunc_dfr(dEnerF, Ener, EnerF, lmI, nxI, In.Ener, In.EnerF, el.MapI, el.VmapI)
+	bFunc_dfr(dRhoF, Rho, RhoF, lmI, nxI, In.Rho, In.RhoF, el.MapI, el.VmapIS, el.VmapI)
+	bFunc_dfr(dRhoUF, RhoU, RhoUF, lmI, nxI, In.RhoU, In.RhoUF, el.MapI, el.VmapIS, el.VmapI)
+	bFunc_dfr(dEnerF, Ener, EnerF, lmI, nxI, In.Ener, In.EnerF, el.MapI, el.VmapIS, el.VmapI)
 	// Outflow
-	lmO := s.LM.SubsetVector(el.VmapO).Scale(0.5)
+	lmO := s.LM.SubsetVector(el.VmapOS).Scale(0.5)
 	nxO := el.NX.SubsetVector(el.MapO)
-	bFunc_dfr(dRhoF, Rho, RhoF, lmO, nxO, Out.Rho, Out.RhoF, el.MapO, el.VmapO)
-	bFunc_dfr(dRhoUF, RhoU, RhoUF, lmO, nxO, Out.RhoU, Out.RhoUF, el.MapO, el.VmapO)
-	bFunc_dfr(dEnerF, Ener, EnerF, lmO, nxO, Out.Ener, Out.EnerF, el.MapO, el.VmapO)
+	bFunc_dfr(dRhoF, Rho, RhoF, lmO, nxO, Out.Rho, Out.RhoF, el.MapO, el.VmapOS, el.VmapO)
+	bFunc_dfr(dRhoUF, RhoU, RhoUF, lmO, nxO, Out.RhoU, Out.RhoUF, el.MapO, el.VmapOS, el.VmapO)
+	bFunc_dfr(dEnerF, Ener, EnerF, lmO, nxO, Out.Ener, Out.EnerF, el.MapO, el.VmapOS, el.VmapO)
 }
 
 func (c *Euler) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) (iRho float64) {
@@ -578,7 +584,14 @@ func (c *Euler) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) 
 		go c.chart.Plot()
 	})
 	pSeries := func(field utils.Matrix, name string, color float32, gl chart2d.GlyphType) {
-		if err := c.chart.AddSeries(name, el.X.Transpose().RawMatrix().Data, field.Transpose().RawMatrix().Data,
+		var (
+			x utils.Matrix
+		)
+		x = el.X
+		if el.NSp != el.Np {
+			x = el.X.Subset(c.FluxSubset, el.NSp, el.K)
+		}
+		if err := c.chart.AddSeries(name, x.Transpose().RawMatrix().Data, field.Transpose().RawMatrix().Data,
 			gl, chart2d.Solid, c.colorMap.GetRGB(color)); err != nil {
 			panic("unable to add graph series")
 		}
@@ -717,7 +730,17 @@ func (c *Euler) LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapM,
 	return
 }
 
-func (c *Euler) RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapM, vmapP utils.Index) (fRho, fRhoU, fEner utils.Matrix) {
+func (c *Euler) CopyBoundary(U utils.Matrix) {
+	var (
+		el = c.El
+	)
+	/*
+		Copy the flux values from the interior to the edge in prep for construction
+	*/
+	U.M.SetRow(0, U.Row(1).RawVector().Data)
+	U.M.SetRow(el.Np-1, U.Row(el.Np-2).RawVector().Data)
+}
+func (c *Euler) RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapMS, vmapPS, vmapM, vmapP utils.Index) (fRho, fRhoU, fEner utils.Matrix) {
 	var (
 		el       = c.El
 		s        = c.State
@@ -728,16 +751,16 @@ func (c *Euler) RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapM,
 		ncF = 1
 	}
 	fL := func(U utils.Matrix) (Ul utils.Matrix) {
-		Ul = U.Subset(vmapM, nrF, ncF)
+		Ul = U.Subset(vmapMS, nrF, ncF)
 		return
 	}
 	fR := func(U utils.Matrix) (Ul utils.Matrix) {
-		Ul = U.Subset(vmapP, nrF, ncF)
+		Ul = U.Subset(vmapPS, nrF, ncF)
 		return
 	}
 	// Face jumps in primary and flux variables
 	fJump := func(U utils.Matrix) (dU utils.Matrix) {
-		dU = U.Subset(vmapP, nrF, ncF).Subtract(U.Subset(vmapM, nrF, ncF))
+		dU = U.Subset(vmapPS, nrF, ncF).Subtract(U.Subset(vmapMS, nrF, ncF))
 		return
 	}
 	// Face average
@@ -916,13 +939,13 @@ func bFunc(dUF *utils.Matrix, U, UF utils.Matrix, lm, nx utils.Vector, uIO, ufIO
 	return
 }
 
-func bFunc_dfr(dUF *utils.Matrix, U, UF utils.Matrix, lm, nx utils.Vector, uIO, ufIO float64, mapi, vmap utils.Index) {
+func bFunc_dfr(dUF *utils.Matrix, U, UF utils.Matrix, lm, nx utils.Vector, uIO, ufIO float64, mapi, vmaps, vmap utils.Index) {
 	// Characteristic BC using freestream conditions at boundary
 	var (
 		dUFVec utils.Matrix
 	)
 	dUFVec = nx.Outer(UF.SubsetVector(vmap).Subtract(utils.NewVectorConstant(len(vmap), ufIO))).Scale(0.5)
-	dUFVec.Subtract(lm.Outer(U.SubsetVector(vmap).Subtract(utils.NewVectorConstant(len(vmap), uIO))))
+	dUFVec.Subtract(lm.Outer(U.SubsetVector(vmaps).Subtract(utils.NewVectorConstant(len(vmaps), uIO))))
 	//dUF.AssignVector(mapi, dUFVec)
 	nxI := nx.AtVec(0)
 	dUF.AssignVector(mapi, dUFVec.Scale(-nxI*0.5).Add(UF.Subset(vmap, 1, 1)))

@@ -26,7 +26,7 @@ func TestElements1D(t *testing.T) {
 		VX, EToV := SimpleMesh1D(0, 2, K)
 
 		var el *Elements1D
-		el = NewElements1D(N, VX, EToV)
+		el = NewElements1D(N, 0, VX, EToV)
 		// Verify X
 		assert.True(t, near(el.X.At(0, 1), 0.5))
 		assert.True(t, near(el.X.At(3, 1), 1.0))
@@ -50,7 +50,7 @@ func TestElements1D(t *testing.T) {
 		assert.Equal(t, utils.Index{0, 1, 2, 3, 12, 13, 14, 15}, el.VmapM)
 		assert.Equal(t, utils.Index{0, 12, 13, 14, 1, 2, 3, 15}, el.VmapP)
 		/*
-			Number of Elements, NFaces =  4 2
+			Number of Elements, NFaces =  2 4
 			VmapM.Matrix =
 			⎡ 0   1   2   3⎤
 			⎣12  13  14  15⎦
@@ -75,7 +75,7 @@ func TestElements1D(t *testing.T) {
 		for N := 1; N < 10; N++ {
 			VX, EToV := SimpleMesh1D(0, 2, K)
 			var el *Elements1D
-			el = NewElements1D(N, VX, EToV)
+			el = NewElements1D(N, 0, VX, EToV)
 			facesMX := el.X.Subset(el.VmapM, 2, K)
 			facesPX := el.X.Subset(el.VmapP, 2, K)
 			assert.Equal(t, facesMX, facesPX)

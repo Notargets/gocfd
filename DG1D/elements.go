@@ -15,10 +15,11 @@ type Elements1D struct {
 	X, Dr, Rx, FScale, NX, LIFT       utils.Matrix
 	V, Vinv                           utils.Matrix
 	VmapM, VmapP, VmapB, VmapI, VmapO utils.Index
+	VmapMS, VmapPS, VmapIS, VmapOS    utils.Index // +/- face points in solution space
 	MapB, MapI, MapO                  utils.Index
 }
 
-func NewElements1D(N int, VX utils.Vector, EToV utils.Matrix) (el *Elements1D) {
+func NewElements1D(N, NSp int, VX utils.Vector, EToV utils.Matrix) (el *Elements1D) {
 	var (
 		K, NFaces = EToV.Dims()
 		Nfp       = 1 // One point per face in 1D
@@ -32,6 +33,7 @@ func NewElements1D(N int, VX utils.Vector, EToV utils.Matrix) (el *Elements1D) {
 		NFaces: NFaces,
 		VX:     VX,
 		EToV:   EToV,
+		NSp:    NSp,
 	}
 	el.Startup1D()
 	el.V.SetReadOnly("V")
