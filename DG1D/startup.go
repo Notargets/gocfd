@@ -157,6 +157,8 @@ func (el *Elements1D) BuildMaps1D() {
 	}
 	el.VmapP = vPI.Index()
 
+	//el.VmapM, el.VmapP = el.FaceMap()
+
 	// Create list of boundary nodes
 	el.MapB = el.VmapP.Compare(utils.Equal, el.VmapM)
 	el.VmapB = el.VmapM.Subset(el.MapB)
@@ -168,5 +170,51 @@ func (el *Elements1D) BuildMaps1D() {
 	el.VmapO = utils.NewIndex(1).Add(el.K*el.Np - 1)
 	el.VmapIS = utils.NewIndex(1)
 	el.VmapOS = utils.NewIndex(1).Add(el.K*el.NSp - 1)
+	return
+}
+
+func (el *Elements1D) FaceMap() (VmapM, VmapP utils.Index) {
+	/*
+				We need a map of left / right face points for each element
+		    	VmapM(NFaces, K) and VmapP(NFaces, K)
+				The mapping needs to be in column-major form to implement an (NFaces, K) matrix
+	*/
+	var (
+		RangerNpK = utils.NewR2(el.NSp, el.K)
+	)
+	// Left and right ends for each element
+	indLeft := RangerNpK.Range(0, ":")
+	indRight := RangerNpK.Range(-1, ":")
+	VmapM = make(utils.Index, 2*el.K)
+	var ind int
+	for i, val := range indLeft {
+		VmapM[ind] = val
+		VmapM[ind+el.K] = indRight[i]
+		ind++
+	}
+	VmapP = make(utils.Index, 2*el.K)
+	ind = 0
+	for k := 0; k < el.K; k++ {
+		nLeft := el.NSp - 1
+		nRight := 0
+		if k == 0 {
+			nLeft = 0
+		}
+		if k == el.K-1 {
+			nRight = el.NSp - 1
+		}
+		kLeft := k - 1
+		kRight := k + 1
+		kLeft = int(math.Max(0, float64(kLeft)))
+		kRight = int(math.Min(float64(el.K-1), float64(kRight)))
+		/*
+			fmt.Printf("nL, kL, nR, kR = %d, %d, %d, %d\n", nLeft, kLeft, nRight, kRight)
+			fmt.Printf("Range Left = %v\n", RangerNpK.Range(nLeft, kLeft))
+			fmt.Printf("Range Right = %v\n", RangerNpK.Range(nRight, kRight))
+		*/
+		VmapP[ind] = RangerNpK.Range(nLeft, kLeft)[0]
+		VmapP[ind+el.K] = RangerNpK.Range(nRight, kRight)[0]
+		ind++
+	}
 	return
 }

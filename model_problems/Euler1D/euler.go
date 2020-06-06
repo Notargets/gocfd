@@ -77,12 +77,14 @@ func NewEuler(CFL, FinalTime, XMax float64, N, K int, model ModelType, Case Case
 	case Euler_DFR_Roe, Euler_DFR_LF:
 		c.El = DG1D.NewElements1D(N+2, N+1, VX, EToV)
 		// Change the location of the left/right face points to match Np solution points
-		c.El.VmapMS, c.El.VmapPS = c.FaceMap()
+		//c.El.VmapMS, c.El.VmapPS = c.FaceMap()
 		c.ESl = DG1D.NewElements1D(N, N+1, VX, EToV)
+		c.El.VmapMS, c.El.VmapPS = c.ESl.VmapM, c.ESl.VmapP
 	case Galerkin_LF:
 		c.El = DG1D.NewElements1D(N, N+1, VX, EToV)
-		c.El.VmapMS, c.El.VmapPS = c.FaceMap()
+		// c.El.VmapMS, c.El.VmapPS = c.FaceMap()
 		c.ESl = c.El
+		c.El.VmapMS, c.El.VmapPS = c.El.VmapM, c.El.VmapP
 	}
 	c.MapSolutionSubset()
 	c.State.Gamma = 1.4
@@ -176,53 +178,6 @@ func (c *Euler) InitializeDWave() {
 		e = 1./(c.State.Gamma-1.) + 0.5*rho
 		return
 	})
-}
-
-func (c *Euler) FaceMap() (VmapM, VmapP utils.Index) {
-	/*
-				We need a map of left / right face points for each element
-		    	VmapM(NFaces, K) and VmapP(NFaces, K)
-				The mapping needs to be in column-major form to implement an (NFaces, K) matrix
-	*/
-	var (
-		el        = c.El
-		RangerNpK = utils.NewR2(el.NSp, el.K)
-	)
-	// Left and right ends for each element
-	indLeft := RangerNpK.Range(0, ":")
-	indRight := RangerNpK.Range(-1, ":")
-	VmapM = make(utils.Index, 2*el.K)
-	var ind int
-	for i, val := range indLeft {
-		VmapM[ind] = val
-		VmapM[ind+el.K] = indRight[i]
-		ind++
-	}
-	VmapP = make(utils.Index, 2*el.K)
-	ind = 0
-	for k := 0; k < el.K; k++ {
-		nLeft := el.NSp - 1
-		nRight := 0
-		if k == 0 {
-			nLeft = 0
-		}
-		if k == el.K-1 {
-			nRight = el.NSp - 1
-		}
-		kLeft := k - 1
-		kRight := k + 1
-		kLeft = int(math.Max(0, float64(kLeft)))
-		kRight = int(math.Min(float64(el.K-1), float64(kRight)))
-		/*
-			fmt.Printf("nL, kL, nR, kR = %d, %d, %d, %d\n", nLeft, kLeft, nRight, kRight)
-			fmt.Printf("Range Left = %v\n", RangerNpK.Range(nLeft, kLeft))
-			fmt.Printf("Range Right = %v\n", RangerNpK.Range(nRight, kRight))
-		*/
-		VmapP[ind] = RangerNpK.Range(nLeft, kLeft)[0]
-		VmapP[ind+el.K] = RangerNpK.Range(nRight, kRight)[0]
-		ind++
-	}
-	return
 }
 
 func (c *Euler) MapSolutionSubset() {
@@ -396,7 +351,7 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 
 	switch c.model {
 	case Euler_DFR_LF:
-		fRho, fRhoU, fEner = c.LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, el.VmapM, el.VmapP)
+		fRho, fRhoU, fEner = c.LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, el.VmapMS, el.VmapPS, el.VmapM, el.VmapP)
 	case Euler_DFR_Roe:
 		fRho, fRhoU, fEner = c.RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, el.VmapMS, el.VmapPS, el.VmapM, el.VmapP)
 	}
@@ -438,9 +393,9 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 			return
 		}).Subset(c.FluxSubset, el.NSp, el.K)
 	*/
-	rhsRho = el.Dr.Mul(RhoF).Subset(c.FluxSubset, el.NSp, el.K).ElMul(esl.Rx).Scale(-1)
-	rhsRhoU = el.Dr.Mul(RhoUF).Subset(c.FluxSubset, el.NSp, el.K).ElMul(esl.Rx).Scale(-1)
-	rhsEner = el.Dr.Mul(EnerF).Subset(c.FluxSubset, el.NSp, el.K).ElMul(esl.Rx).Scale(-1)
+	rhsRho = el.Dr.Mul(RhoF).Scale(-1).ElMul(el.Rx).Subset(c.FluxSubset, el.NSp, el.K)
+	rhsRhoU = el.Dr.Mul(RhoUF).Scale(-1).ElMul(el.Rx).Subset(c.FluxSubset, el.NSp, el.K)
+	rhsEner = el.Dr.Mul(EnerF).Scale(-1).ElMul(el.Rx).Subset(c.FluxSubset, el.NSp, el.K)
 
 	/*
 		rhsRho.Add(dissRho2)
@@ -575,6 +530,7 @@ func (c *Euler) RiemannBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, 
 func (c *Euler) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) (iRho float64) {
 	var (
 		el         = c.El
+		esl        = c.ESl
 		fmin, fmax float32
 	)
 	switch c.Case {
@@ -597,7 +553,7 @@ func (c *Euler) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) 
 		)
 		x = el.X
 		if el.NSp != el.Np {
-			x = el.X.Subset(c.FluxSubset, el.NSp, el.K)
+			x = esl.X
 		}
 		if err := c.chart.AddSeries(name, x.Transpose().RawMatrix().Data, field.Transpose().RawMatrix().Data,
 			gl, chart2d.Solid, c.colorMap.GetRGB(color)); err != nil {
@@ -712,7 +668,7 @@ func sod_error_calc(X, Rho, RhoU, E utils.Matrix, t float64) (rms_rho, rms_rhou,
 	return
 }
 
-func (c *Euler) LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapM, vmapP utils.Index) (fRho, fRhoU, fEner utils.Matrix) {
+func (c *Euler) LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapMS, vmapPS, vmapM, vmapP utils.Index) (fRho, fRhoU, fEner utils.Matrix) {
 	var (
 		el       = c.El
 		s        = c.State
@@ -721,7 +677,7 @@ func (c *Euler) LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapM,
 	// Compute Lax-Friedrichs flux
 	// Face jumps in primary and flux variables
 	fJump := func(U utils.Matrix) (dU utils.Matrix) {
-		dU = U.Subset(vmapM, nrF, ncF).Subtract(U.Subset(vmapP, nrF, ncF)).ElMul(el.NX)
+		dU = U.Subset(vmapMS, nrF, ncF).Subtract(U.Subset(vmapPS, nrF, ncF)).ElMul(el.NX)
 		return
 	}
 	// Face flux average
@@ -730,7 +686,7 @@ func (c *Euler) LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapM,
 		return
 	}
 	// Max eigenvalue
-	LFc := s.LM.Subset(vmapM, nrF, ncF).Apply2(s.LM.Subset(vmapP, nrF, ncF), math.Max)
+	LFc := s.LM.Subset(vmapMS, nrF, ncF).Apply2(s.LM.Subset(vmapPS, nrF, ncF), math.Max)
 	// Compute numerical flux at faces
 	fRho = fAve(RhoF).Add(fJump(Rho).ElMul(LFc).Scale(0.5))
 	fRhoU = fAve(RhoUF).Add(fJump(RhoU).ElMul(LFc).Scale(0.5))
