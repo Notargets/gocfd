@@ -375,25 +375,15 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 
 	// Calculate RHS
 	//rhsRho = el.Dr.Mul(RhoF).Scale(-1).ElMul(el.Rx)
-	/*
-		rhsRho = el.Dr.Mul(RhoF).Apply2(el.Rx, func(drrhof, rx float64) (rhsrho float64) {
-			rhsrho = -drrhof * rx
-			return
-		}).Subset(c.FluxSubset, el.NSp, el.K)
-		//rhsRhoU = el.Dr.Mul(RhoUF).Scale(-1).ElMul(el.Rx)
-		rhsRhoU = el.Dr.Mul(RhoUF).Apply2(el.Rx, func(drrhouf, rx float64) (rhsurho float64) {
-			rhsurho = -drrhouf * rx
-			return
-		}).Subset(c.FluxSubset, el.NSp, el.K)
-		//rhsEner = el.Dr.Mul(EnerF).Scale(-1).ElMul(el.Rx)
-		rhsEner = el.Dr.Mul(EnerF).Apply2(el.Rx, func(drenerf, rx float64) (rhsener float64) {
-			rhsener = -drenerf * rx
-			return
-		}).Subset(c.FluxSubset, el.NSp, el.K)
-	*/
-	rhsRho = el.Dr.Mul(RhoF).Scale(-1).ElMul(el.Rx).Subset(c.FluxSubset, elS.Np, el.K)
-	rhsRhoU = el.Dr.Mul(RhoUF).Scale(-1).ElMul(el.Rx).Subset(c.FluxSubset, elS.Np, el.K)
-	rhsEner = el.Dr.Mul(EnerF).Scale(-1).ElMul(el.Rx).Subset(c.FluxSubset, elS.Np, el.K)
+	//rhsRhoU = el.Dr.Mul(RhoUF).Scale(-1).ElMul(el.Rx)
+	//rhsEner = el.Dr.Mul(EnerF).Scale(-1).ElMul(el.Rx)
+
+	//rhsRho = el.Dr.Mul(RhoF).Scale(-1).ElMul(el.Rx).Subset(c.FluxSubset, elS.Np, el.K)
+	//rhsRhoU = el.Dr.Mul(RhoUF).Scale(-1).ElMul(el.Rx).Subset(c.FluxSubset, elS.Np, el.K)
+	//rhsEner = el.Dr.Mul(EnerF).Scale(-1).ElMul(el.Rx).Subset(c.FluxSubset, elS.Np, el.K)
+	rhsRho = el.Dr.Mul(RhoF).Scale(-1).Subset(c.FluxSubset, elS.Np, el.K).ElMul(elS.Rx)
+	rhsRhoU = el.Dr.Mul(RhoUF).Scale(-1).Subset(c.FluxSubset, elS.Np, el.K).ElMul(elS.Rx)
+	rhsEner = el.Dr.Mul(EnerF).Scale(-1).Subset(c.FluxSubset, elS.Np, el.K).ElMul(elS.Rx)
 
 	/*
 		rhsRho.Add(dissRho2)
@@ -533,10 +523,12 @@ func (c *Euler) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) 
 		fmin, fmax float32
 	)
 	switch c.Case {
-	case SOD_TUBE:
+	case SOD_TUBE, COLLISION:
 		fmin, fmax = float32(-0.1), float32(2.6)
 	case DENSITY_WAVE:
 		fmin, fmax = float32(1.0), float32(4.0)
+	case FREESTREAM:
+		fmin, fmax = float32(-0.1), float32(2.6)
 	}
 	if !showGraph {
 		return
@@ -567,7 +559,7 @@ func (c *Euler) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) 
 	if c.frameCount%check == 0 || math.Abs(timeT-c.FinalTime) < 0.001 {
 		switch c.Case {
 		case SOD_TUBE:
-			iRho = AddAnalyticSod(c.chart, c.colorMap, timeT, c.FinalTime)
+			iRho = AddAnalyticSod(c.chart, c.colorMap, timeT)
 		case DENSITY_WAVE:
 			AddAnalyticDWave(c.chart, c.colorMap, el.X, timeT)
 		}
@@ -610,7 +602,7 @@ func dwaveErrorCalc(X, Rho utils.Matrix, t float64) (rms_rho, max_rho float64) {
 	return
 }
 
-func AddAnalyticSod(chart *chart2d.Chart2D, colorMap *utils2.ColorMap, timeT, timeCheck float64) (iRho float64) {
+func AddAnalyticSod(chart *chart2d.Chart2D, colorMap *utils2.ColorMap, timeT float64) (iRho float64) {
 	sod := sod_shock_tube.NewSOD(timeT)
 	X, Rho, _, RhoU, E := sod.Get()
 	if err := chart.AddSeries("ExactRho", X, Rho, chart2d.XGlyph, chart2d.NoLine, colorMap.GetRGB(-0.7)); err != nil {
