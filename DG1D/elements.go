@@ -8,18 +8,24 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
+type NODE_TYPE uint
+
+const (
+	GAUSS NODE_TYPE = iota
+	GAUSS_LOBATO
+)
+
 type Elements1D struct {
-	K, Np, NSp, Nfp, NFaces           int // NSp is the number of solution points
+	K, Np, Nfp, NFaces                int
 	VX, FMask                         utils.Vector
 	EToV, EToE, EToF                  utils.Matrix
 	X, Dr, Rx, FScale, NX, LIFT       utils.Matrix
 	V, Vinv                           utils.Matrix
 	VmapM, VmapP, VmapB, VmapI, VmapO utils.Index
-	VmapMS, VmapPS, VmapIS, VmapOS    utils.Index // +/- face points in solution space
 	MapB, MapI, MapO                  utils.Index
 }
 
-func NewElements1D(N, NSp int, VX utils.Vector, EToV utils.Matrix) (el *Elements1D) {
+func NewElements1D(N, NSp int, VX utils.Vector, EToV utils.Matrix, ntA ...NODE_TYPE) (el *Elements1D) {
 	var (
 		K, NFaces = EToV.Dims()
 		Nfp       = 1 // One point per face in 1D
@@ -33,9 +39,14 @@ func NewElements1D(N, NSp int, VX utils.Vector, EToV utils.Matrix) (el *Elements
 		NFaces: NFaces,
 		VX:     VX,
 		EToV:   EToV,
-		NSp:    NSp,
 	}
-	el.Startup1D()
+	var nt NODE_TYPE
+	if len(ntA) == 0 {
+		nt = GAUSS_LOBATO
+	} else {
+		nt = ntA[0]
+	}
+	el.Startup1D(nt)
 	el.V.SetReadOnly("V")
 	el.Vinv.SetReadOnly("Vinv")
 	el.EToV.SetReadOnly("EToV")

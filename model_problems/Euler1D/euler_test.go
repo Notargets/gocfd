@@ -20,20 +20,21 @@ func TestFlux(t *testing.T) {
 		model := Galerkin_LF
 		c := NewEuler(1, 20, 1, N, K, model, SOD_TUBE)
 		var (
-			el = c.El
+			el  = c.El
+			elS = c.El_S
 		)
 		assert.Equal(t, utils.Index{0, 1, 2, 3, 4, 5, 6, 7}, el.VmapM)
 		assert.Equal(t, utils.Index{0, 4, 5, 6, 1, 2, 3, 7}, el.VmapP)
-		assert.Equal(t, el.VmapM, el.VmapMS)
-		assert.Equal(t, el.VmapP, el.VmapPS)
+		assert.Equal(t, el.VmapM, elS.VmapM)
+		assert.Equal(t, el.VmapP, elS.VmapP)
 
 		model = Euler_DFR_Roe
 		c = NewEuler(1, 20, 1, N, K, model, SOD_TUBE)
 		el = c.El
 		assert.Equal(t, utils.Index{0, 1, 2, 3, 12, 13, 14, 15}, el.VmapM)
 		assert.Equal(t, utils.Index{0, 12, 13, 14, 1, 2, 3, 15}, el.VmapP)
-		assert.Equal(t, utils.Index{0, 1, 2, 3, 4, 5, 6, 7}, el.VmapMS)
-		assert.Equal(t, utils.Index{0, 4, 5, 6, 1, 2, 3, 7}, el.VmapPS)
+		assert.Equal(t, utils.Index{0, 1, 2, 3, 4, 5, 6, 7}, elS.VmapM)
+		assert.Equal(t, utils.Index{0, 4, 5, 6, 1, 2, 3, 7}, elS.VmapP)
 	}
 	// Galerkin Integration
 	{
@@ -44,13 +45,14 @@ func TestFlux(t *testing.T) {
 		c := NewEuler(1, 20, 1, N, K, model, SOD_TUBE)
 		var (
 			el                 = c.El
+			elS                = c.El_S
 			s                  = c.State
 			fRho, fRhoU, fEner utils.Matrix
 			RhoF, RhoUF, EnerF utils.Matrix
 		)
 		c.MapSolutionSubset()
 		RhoF, RhoUF, EnerF = s.Update(c.Rho, c.RhoU, c.Ener, c.FluxRanger, c.FluxSubset)
-		fRho, fRhoU, fEner = c.RoeFlux(c.Rho, c.RhoU, c.Ener, RhoF, RhoUF, EnerF, el.VmapMS, el.VmapPS, el.VmapM, el.VmapP)
+		fRho, fRhoU, fEner = c.RoeFlux(c.Rho, c.RhoU, c.Ener, RhoF, RhoUF, EnerF, elS.VmapM, elS.VmapP, el.VmapM, el.VmapP)
 		// Set face flux within global flux
 		RhoF.AssignVector(el.VmapM, fRho)
 		RhoUF.AssignVector(el.VmapM, fRhoU)
@@ -69,6 +71,7 @@ func TestFlux(t *testing.T) {
 		c := NewEuler(1, 20, 1, N, K, model, SOD_TUBE)
 		var (
 			el                 = c.El
+			elS                = c.El_S
 			s                  = c.State
 			fRho, fRhoU, fEner utils.Matrix
 			RhoF, RhoUF, EnerF utils.Matrix
@@ -92,7 +95,7 @@ func TestFlux(t *testing.T) {
 		rhoufCheck := utils.NewMatrix(el.Np, el.K, []float64{1, 1, 0.1, 0.1, 1, 1, 0.1, 0.1, 1, 1, 0.1, 0.1, 1, 1, 0.1, 0.1})
 		assert.Less(t, rhoufCheck.Subtract(RhoUF).Apply(math.Abs).Max(), 0.0001)
 
-		fRho, fRhoU, fEner = c.RoeFlux(c.Rho, c.RhoU, c.Ener, RhoF, RhoUF, EnerF, el.VmapMS, el.VmapPS, el.VmapM, el.VmapP)
+		fRho, fRhoU, fEner = c.RoeFlux(c.Rho, c.RhoU, c.Ener, RhoF, RhoUF, EnerF, elS.VmapM, elS.VmapP, el.VmapM, el.VmapP)
 		fRhoUCheck := utils.NewMatrix(2, el.K, []float64{1, 1, 0.55, 0.1, 1, 0.55, 0.1, 0.1})
 		assert.Less(t, fRhoUCheck.Subtract(fRhoU).Apply(math.Abs).Max(), 0.0001)
 		// Set face flux within global flux

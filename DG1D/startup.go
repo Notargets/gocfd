@@ -8,12 +8,18 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-func (el *Elements1D) Startup1D() {
+func (el *Elements1D) Startup1D(nt NODE_TYPE) {
 	var (
 		err error
 		N   = el.Np - 1
+		R   utils.Vector
 	)
-	R := JacobiGL(0, 0, N)
+	switch nt {
+	case GAUSS:
+		R, _ = JacobiGQ(0, 0, N)
+	case GAUSS_LOBATO:
+		R = JacobiGL(0, 0, N)
+	}
 	el.V = Vandermonde1D(N, R)
 	if el.Vinv, err = el.V.Inverse(); err != nil {
 		fmt.Println(err)
@@ -37,10 +43,12 @@ func (el *Elements1D) Startup1D() {
 	var J utils.Matrix
 	J, el.Rx = GeometricFactors1D(el.Dr, el.X)
 
-	fmask1 := R.Copy().AddScalar(1).Find(utils.Less, utils.NODETOL, true)
-	fmask2 := R.Copy().AddScalar(-1).Find(utils.Less, utils.NODETOL, true)
-	el.FMask = fmask1.Concat(fmask2)
-	el.FScale = J.SliceRows(el.FMask.ToIndex()).POW(-1)
+	if nt == GAUSS_LOBATO { // We need FScale for Galerkin on GL nodes, not for Gauss with DFR
+		fmask1 := R.Copy().AddScalar(1).Find(utils.Less, utils.NODETOL, true)
+		fmask2 := R.Copy().AddScalar(-1).Find(utils.Less, utils.NODETOL, true)
+		el.FMask = fmask1.Concat(fmask2)
+		el.FScale = J.SliceRows(el.FMask.ToIndex()).POW(-1)
+	}
 	el.Connect1D()
 	el.BuildMaps1D()
 	return
@@ -123,8 +131,6 @@ func (el *Elements1D) BuildMaps1D() {
 	el.VmapO = utils.NewIndex(1).Add(el.K*el.Np - 1)
 	el.VmapI = utils.NewIndex(1)
 	el.VmapO = utils.NewIndex(1).Add(el.K*el.Np - 1)
-	el.VmapIS = utils.NewIndex(1)
-	el.VmapOS = utils.NewIndex(1).Add(el.K*el.NSp - 1)
 	return
 }
 
