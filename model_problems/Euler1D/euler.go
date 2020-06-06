@@ -200,19 +200,18 @@ func (c *Euler) MapSolutionSubset() {
 func (c *Euler) Run(showGraph bool, graphDelay ...time.Duration) {
 	var (
 		el           = c.El
+		elS          = c.El_S
 		logFrequency = 50
 		//s             = c.State
 		rhs  func(rho, rhou, ener *utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix)
 		iRho float64
-		xmin float64
 	)
+	xmin := elS.X.Row(1).Subtract(elS.X.Row(0)).Apply(math.Abs).Min()
 	switch c.model {
 	case Galerkin_LF:
 		rhs = c.RHS_GK
-		xmin = el.X.Row(1).Subtract(el.X.Row(0)).Apply(math.Abs).Min()
 	case Euler_DFR_Roe, Euler_DFR_LF:
 		rhs = c.RHS_DFR
-		xmin = el.X.Row(2).Subtract(el.X.Row(1)).Apply(math.Abs).Min()
 	}
 	var Time, dt float64
 	var tstep int
