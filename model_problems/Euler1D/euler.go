@@ -18,7 +18,7 @@ import (
 type Euler struct {
 	// Input parameters
 	CFL, FinalTime  float64
-	El, ESl         *DG1D.Elements1D
+	El, El_S        *DG1D.Elements1D
 	RHSOnce         sync.Once
 	State           *FieldState
 	Rho, RhoU, Ener utils.Matrix
@@ -76,14 +76,11 @@ func NewEuler(CFL, FinalTime, XMax float64, N, K int, model ModelType, Case Case
 	switch model {
 	case Euler_DFR_Roe, Euler_DFR_LF:
 		c.El = DG1D.NewElements1D(N+2, N+1, VX, EToV)
-		// Change the location of the left/right face points to match Np solution points
-		//c.El.VmapMS, c.El.VmapPS = c.FaceMap()
-		c.ESl = DG1D.NewElements1D(N, N+1, VX, EToV)
-		c.El.VmapMS, c.El.VmapPS = c.ESl.VmapM, c.ESl.VmapP
+		c.El_S = DG1D.NewElements1D(N, N+1, VX, EToV)
+		c.El.VmapMS, c.El.VmapPS = c.El_S.VmapM, c.El_S.VmapP
 	case Galerkin_LF:
 		c.El = DG1D.NewElements1D(N, N+1, VX, EToV)
-		// c.El.VmapMS, c.El.VmapPS = c.FaceMap()
-		c.ESl = c.El
+		c.El_S = c.El
 		c.El.VmapMS, c.El.VmapPS = c.El.VmapM, c.El.VmapP
 	}
 	c.MapSolutionSubset()
@@ -329,7 +326,7 @@ const (
 func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
 	var (
 		el                 = c.El
-		esl                = c.ESl
+		esl                = c.El_S
 		s                  = c.State
 		fRho, fRhoU, fEner utils.Matrix
 		Rho, RhoU, Ener    = *Rhop, *RhoUp, *Enerp
@@ -530,7 +527,7 @@ func (c *Euler) RiemannBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, 
 func (c *Euler) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) (iRho float64) {
 	var (
 		el         = c.El
-		esl        = c.ESl
+		esl        = c.El_S
 		fmin, fmax float32
 	)
 	switch c.Case {

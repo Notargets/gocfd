@@ -113,52 +113,7 @@ func (el *Elements1D) Connect1D() {
 }
 
 func (el *Elements1D) BuildMaps1D() {
-	var (
-		NF  = el.Nfp * el.NFaces
-		err error
-	)
-	vMI := utils.NewR3(el.Nfp, el.NFaces, el.K)
-	nodeIDs := utils.NewR2(el.Np, el.K)
-	// find index of face nodes with respect to vertex ordering
-	idsR := el.FMask.ToIndex() // FMask has the Np vertex location for each face
-	for k := 0; k < el.K; k++ {
-		for f := 0; f < NF; f++ {
-			// idsR contains locations of the faces in Np-space within a single element
-			if err = vMI.Assign(":", f, k, nodeIDs.Range(idsR[f], k)); err != nil {
-				panic(err)
-			}
-		}
-	}
-	el.VmapM = vMI.Index()
-
-	vPI := utils.NewR3(el.Nfp, el.NFaces, el.K)
-	var one = utils.NewVector(el.Nfp).Set(1)
-	for k1 := 0; k1 < el.K; k1++ {
-		for f1 := 0; f1 < el.NFaces; f1++ {
-			// k2, f2 are the coordinates of the connecting face to k1,f1
-			k2 := int(el.EToE.At(k1, f1))
-			f2 := int(el.EToF.At(k1, f1))
-			vidM := vMI.Get(":", f1, k1)
-			vidP := vMI.Get(":", f2, k2)
-			//fmt.Printf("k1, f1 = %v,%v, k2, f2 = %v,%v, vidM, vidP = %v,%v\n", k1, f1, k2, f2, vidM, vidP)
-			x1 := el.X.SubsetVector(vidM) // X values for all face points M
-			x2 := el.X.SubsetVector(vidP) // X values for all face points P
-			X1 := x1.Outer(one)
-			X2 := x2.Outer(one)
-			D := X1.Copy().Subtract(X2.Transpose()).POW(2).Apply(math.Sqrt).Apply(math.Abs)
-			v1 := int(el.EToV.At(k1, f1))
-			v2 := int(el.EToV.At(k1, (f1+1)%el.NFaces))
-			refd := math.Sqrt(utils.POW(el.VX.AtVec(v1)-el.VX.AtVec(v2), 2))
-			idMP := D.Find(utils.Less, utils.NODETOL*refd, false)
-			if err = vPI.Assign(":", f1, k1, vidP.Subset(idMP)); err != nil {
-				panic(err)
-			}
-		}
-	}
-	el.VmapP = vPI.Index()
-
-	//el.VmapM, el.VmapP = el.FaceMap()
-
+	el.VmapM, el.VmapP = el.FaceMap()
 	// Create list of boundary nodes
 	el.MapB = el.VmapP.Compare(utils.Equal, el.VmapM)
 	el.VmapB = el.VmapM.Subset(el.MapB)
@@ -180,7 +135,7 @@ func (el *Elements1D) FaceMap() (VmapM, VmapP utils.Index) {
 				The mapping needs to be in column-major form to implement an (NFaces, K) matrix
 	*/
 	var (
-		RangerNpK = utils.NewR2(el.NSp, el.K)
+		RangerNpK = utils.NewR2(el.Np, el.K)
 	)
 	// Left and right ends for each element
 	indLeft := RangerNpK.Range(0, ":")
@@ -195,13 +150,13 @@ func (el *Elements1D) FaceMap() (VmapM, VmapP utils.Index) {
 	VmapP = make(utils.Index, 2*el.K)
 	ind = 0
 	for k := 0; k < el.K; k++ {
-		nLeft := el.NSp - 1
+		nLeft := el.Np - 1
 		nRight := 0
 		if k == 0 {
 			nLeft = 0
 		}
 		if k == el.K-1 {
-			nRight = el.NSp - 1
+			nRight = el.Np - 1
 		}
 		kLeft := k - 1
 		kRight := k + 1
