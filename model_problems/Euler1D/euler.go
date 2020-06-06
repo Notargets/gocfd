@@ -97,6 +97,7 @@ func NewEuler(CFL, FinalTime, XMax float64, N, K int, model ModelType, Case Case
 	case FREESTREAM:
 		c.InitializeFS()
 		c.bc = RIEMANN
+		fmt.Printf("Solving Freestream\n")
 	case COLLISION:
 		fallthrough
 	default:
