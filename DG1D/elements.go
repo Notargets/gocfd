@@ -25,7 +25,7 @@ type Elements1D struct {
 	MapB, MapI, MapO                  utils.Index
 }
 
-func NewElements1D(N, NSp int, VX utils.Vector, EToV utils.Matrix, ntA ...NODE_TYPE) (el *Elements1D) {
+func NewElements1D(N int, VX utils.Vector, EToV utils.Matrix, ntA ...NODE_TYPE) (el *Elements1D) {
 	var (
 		K, NFaces = EToV.Dims()
 		Nfp       = 1 // One point per face in 1D

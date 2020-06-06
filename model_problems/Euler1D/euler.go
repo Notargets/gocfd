@@ -75,10 +75,10 @@ func NewEuler(CFL, FinalTime, XMax float64, N, K int, model ModelType, Case Case
 	}
 	switch model {
 	case Euler_DFR_Roe, Euler_DFR_LF:
-		c.El = DG1D.NewElements1D(N+2, N+1, VX, EToV)
-		c.El_S = DG1D.NewElements1D(N, N+1, VX, EToV, DG1D.GAUSS)
+		c.El = DG1D.NewElements1D(N+2, VX, EToV)
+		c.El_S = DG1D.NewElements1D(N, VX, EToV, DG1D.GAUSS)
 	case Galerkin_LF:
-		c.El = DG1D.NewElements1D(N, N+1, VX, EToV)
+		c.El = DG1D.NewElements1D(N, VX, EToV)
 		c.El_S = c.El
 	}
 	c.MapSolutionSubset()

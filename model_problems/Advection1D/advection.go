@@ -46,7 +46,7 @@ func NewAdvection(a, CFL, FinalTime, XMax float64, N, K int, model ModelType) *A
 		a:         a,
 		CFL:       CFL,
 		FinalTime: FinalTime,
-		El:        DG1D.NewElements1D(N, 0, VX, EToV),
+		El:        DG1D.NewElements1D(N, VX, EToV),
 		model:     model,
 	}
 }
