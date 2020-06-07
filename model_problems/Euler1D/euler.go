@@ -116,22 +116,20 @@ func (c *Euler) InitializeFS() {
 	c.In = NewStateP(c.State.Gamma, 1, 0, 1)
 	c.Out = c.In
 	var (
-		el  = c.El
-		elS = c.El_S
-		FS  = c.In
+		el = c.El_S
+		FS = c.In
 	)
-	c.Rho = utils.NewMatrix(elS.Np, el.K).AddScalar(FS.Rho)
-	c.RhoU = utils.NewMatrix(elS.Np, el.K).AddScalar(FS.RhoU)
-	c.Ener = utils.NewMatrix(elS.Np, el.K).AddScalar(FS.Ener)
+	c.Rho = utils.NewMatrix(el.Np, el.K).AddScalar(FS.Rho)
+	c.RhoU = utils.NewMatrix(el.Np, el.K).AddScalar(FS.RhoU)
+	c.Ener = utils.NewMatrix(el.Np, el.K).AddScalar(FS.Ener)
 }
 
 func (c *Euler) InitializeSOD() {
 	var (
-		el                = c.El
-		elS               = c.El_S
+		el                = c.El_S
 		MassMatrix, VtInv utils.Matrix
 		err               error
-		npOnes            = utils.NewVectorConstant(elS.Np, 1)
+		npOnes            = utils.NewVectorConstant(el.Np, 1)
 		s                 = c.State
 	)
 	c.In = NewStateP(c.State.Gamma, 1, 0, 1)
@@ -145,13 +143,13 @@ func (c *Euler) InitializeSOD() {
 	leftHalf := cx.Find(utils.Less, 0.5, false)
 	rightHalf := cx.Find(utils.GreaterOrEqual, 0.5, false)
 	// Initialize field variables
-	c.Rho = utils.NewMatrix(elS.Np, el.K)
+	c.Rho = utils.NewMatrix(el.Np, el.K)
 	c.Rho.AssignScalar(leftHalf, 1)
 	c.Rho.AssignScalar(rightHalf, 0.125)
-	c.RhoU = utils.NewMatrix(elS.Np, el.K)
+	c.RhoU = utils.NewMatrix(el.Np, el.K)
 	c.RhoU.Scale(0)
 	rDiv := 1. / (s.Gamma - 1.)
-	c.Ener = utils.NewMatrix(elS.Np, el.K)
+	c.Ener = utils.NewMatrix(el.Np, el.K)
 	c.Ener.AssignScalar(leftHalf, rDiv)
 	c.Ener.AssignScalar(rightHalf, 0.1*rDiv)
 }
@@ -164,16 +162,15 @@ func (c *Euler) InitializeDWave() {
 	c.In = NewStateP(c.State.Gamma, 2, 2, 1)
 	c.Out = c.In
 	var (
-		el  = c.El
-		elS = c.El_S
+		el = c.El_S
 	)
-	c.Rho = utils.NewMatrix(elS.Np, el.K).Apply2(el.X.Subset(c.FluxSubset, el.Np, el.K), func(base, x float64) (rho float64) {
+	c.Rho = utils.NewMatrix(el.Np, el.K).Apply2(el.X.Subset(c.FluxSubset, el.Np, el.K), func(base, x float64) (rho float64) {
 		rho = 2 + math.Sin(math.Pi*x)
 		return
 	})
 	c.RhoU = c.Rho.Copy()
 	// p = (e - q) * (fs.Gamma - 1)
-	c.Ener = utils.NewMatrix(elS.Np, el.K).Apply2(c.Rho, func(base, rho float64) (e float64) {
+	c.Ener = utils.NewMatrix(el.Np, el.K).Apply2(c.Rho, func(base, rho float64) (e float64) {
 		e = 1./(c.State.Gamma-1.) + 0.5*rho
 		return
 	})
@@ -222,12 +219,6 @@ func (c *Euler) Run(showGraph bool, graphDelay ...time.Duration) {
 		*/
 		// SSP RK Stage 1
 		rhsRho, rhsRhoU, rhsEner := rhs(&c.Rho, &c.RhoU, &c.Ener)
-		/*
-			fmt.Println(c.RhoU.Print("RhoU"))
-			fmt.Println(rhsRhoU.Print("rhsRhoU"))
-			fmt.Printf("xmin, dt = %v, %v\n", xmin, dt)
-			os.Exit(1)
-		*/
 		iRho = c.Plot(Time, showGraph, graphDelay)
 		dt = c.CalculateDT(xmin, Time)
 		update1 := func(u0, rhs float64) (u1 float64) {
@@ -268,10 +259,11 @@ func (c *Euler) Run(showGraph bool, graphDelay ...time.Duration) {
 				case SOD_TUBE:
 					sod := sod_shock_tube.NewSOD(Time)
 					x, rho, _, _, _ := sod.Get()
+					fmt.Printf("SOD Shock Location = %5.4f\n", x[len(x)-2])
 					iRho = integrate(x, rho)
-					iRhoModel := integrate(el.X.M.RawMatrix().Data, c.Rho.RawMatrix().Data)
+					iRhoModel := integrate(elS.X.M.RawMatrix().Data, c.Rho.RawMatrix().Data)
 					logErr := math.Log10(math.Abs(iRho - iRhoModel))
-					rms_rho, rms_rhou, rms_e, max_rho, max_rhou, max_e := sod_error_calc(el.X, c.Rho, c.RhoU, c.Ener, Time)
+					rms_rho, rms_rhou, rms_e, max_rho, max_rhou, max_e := sod_error_calc(elS.X, c.Rho, c.RhoU, c.Ener, Time)
 					if math.Abs(Time-c.FinalTime) < 0.001 {
 						fmt.Printf("Rho Integration Check: Exact = %5.4f, Model = %5.4f, Log10 Error = %5.4f\n", iRho, iRhoModel, logErr)
 						/*
@@ -285,7 +277,7 @@ func (c *Euler) Run(showGraph bool, graphDelay ...time.Duration) {
 							math.Log10(max_rho), math.Log10(max_rhou), math.Log10(max_e))
 					}
 				case DENSITY_WAVE:
-					rms_rho, max_rho := dwaveErrorCalc(el.X, c.Rho, Time)
+					rms_rho, max_rho := dwaveErrorCalc(elS.X, c.Rho, Time)
 					fmt.Printf("%s\n", "case,K,N,CFL,Log10_Rho_rms,Log10_rho_max")
 					fmt.Printf("\"%s\",%d,%d,%5.4f,%5.4f,%5.4f\n",
 						model_names[c.model], el.K, el.Np-1, c.CFL, math.Log10(rms_rho), math.Log10(max_rho))
@@ -381,9 +373,9 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 	//rhsRho = el.Dr.Mul(RhoF).Scale(-1).ElMul(el.Rx).Subset(c.FluxSubset, elS.Np, el.K)
 	//rhsRhoU = el.Dr.Mul(RhoUF).Scale(-1).ElMul(el.Rx).Subset(c.FluxSubset, elS.Np, el.K)
 	//rhsEner = el.Dr.Mul(EnerF).Scale(-1).ElMul(el.Rx).Subset(c.FluxSubset, elS.Np, el.K)
-	rhsRho = el.Dr.Mul(RhoF).Scale(-1).Subset(c.FluxSubset, elS.Np, el.K).ElMul(elS.Rx)
-	rhsRhoU = el.Dr.Mul(RhoUF).Scale(-1).Subset(c.FluxSubset, elS.Np, el.K).ElMul(elS.Rx)
-	rhsEner = el.Dr.Mul(EnerF).Scale(-1).Subset(c.FluxSubset, elS.Np, el.K).ElMul(elS.Rx)
+	rhsRho = el.Dr.Mul(RhoF).Subset(c.FluxSubset, elS.Np, el.K).ElMul(elS.Rx).Scale(-1)
+	rhsRhoU = el.Dr.Mul(RhoUF).Subset(c.FluxSubset, elS.Np, el.K).ElMul(elS.Rx).Scale(-1)
+	rhsEner = el.Dr.Mul(EnerF).Subset(c.FluxSubset, elS.Np, el.K).ElMul(elS.Rx).Scale(-1)
 
 	/*
 		rhsRho.Add(dissRho2)
