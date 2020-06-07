@@ -16,7 +16,7 @@ func (el *Elements1D) Startup1D(nt NODE_TYPE) {
 	)
 	switch nt {
 	case GAUSS:
-		R, _ = JacobiGQ(0, 0, N)
+		R, _ = JacobiGQ(1, 1, N)
 	case GAUSS_LOBATO:
 		R = JacobiGL(0, 0, N)
 	}

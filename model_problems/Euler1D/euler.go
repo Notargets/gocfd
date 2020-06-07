@@ -184,12 +184,11 @@ func (c *Euler) MapSolutionSubset() {
 	var (
 		el = c.El
 	)
+	c.FluxRanger = utils.NewR2(el.Np, el.K)
 	switch c.model {
 	case Euler_DFR_LF, Euler_DFR_Roe:
-		c.FluxRanger = utils.NewR2(el.Np, el.K)
 		c.FluxSubset = c.FluxRanger.Range("1:-1", ":")
 	case Galerkin_LF:
-		c.FluxRanger = utils.NewR2(el.Np, el.K)
 		c.FluxSubset = c.FluxRanger.Range(":", ":")
 	}
 	return
@@ -346,6 +345,7 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 		fRho, fRhoU, fEner = c.RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, elS.VmapM, elS.VmapP, el.VmapM, el.VmapP)
 	}
 
+	//fmt.Println(RhoUF.Print("RhoUF before face flux assignment"))
 	switch c.bc {
 	case RIEMANN:
 		c.RiemannBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, &fRho, &fRhoU, &fEner)
@@ -357,32 +357,19 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 	RhoF.AssignVector(el.VmapM, fRho)
 	RhoUF.AssignVector(el.VmapM, fRhoU)
 	EnerF.AssignVector(el.VmapM, fEner)
-	//fmt.Println(RhoUF.Print("RhoUF after face flux assignment"))
+
 	/*
-		// Calculate Dissipation
-		dissRho2 := el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(Rho)).Scale(1.0)))
-		dissRhoU2 := el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(RhoU)).Scale(1.0)))
-		dissEner2 := el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(el.Dr.Mul(Ener)).Scale(1.0)))
+		fmt.Println(RhoUF.Print("RhoUF after face flux assignment"))
+		fmt.Println(el.X.Print("X"))
+		fmt.Println(elS.X.Print("XS"))
+		fmt.Println(RhoUF.Subset(c.FluxSubset, elS.Np, el.K).Print("RhoUF subset after face flux assignment"))
+		os.Exit(1)
 	*/
 
 	// Calculate RHS
-	//rhsRho = el.Dr.Mul(RhoF).Scale(-1).ElMul(el.Rx)
-	//rhsRhoU = el.Dr.Mul(RhoUF).Scale(-1).ElMul(el.Rx)
-	//rhsEner = el.Dr.Mul(EnerF).Scale(-1).ElMul(el.Rx)
-
-	//rhsRho = el.Dr.Mul(RhoF).Scale(-1).ElMul(el.Rx).Subset(c.FluxSubset, elS.Np, el.K)
-	//rhsRhoU = el.Dr.Mul(RhoUF).Scale(-1).ElMul(el.Rx).Subset(c.FluxSubset, elS.Np, el.K)
-	//rhsEner = el.Dr.Mul(EnerF).Scale(-1).ElMul(el.Rx).Subset(c.FluxSubset, elS.Np, el.K)
-	rhsRho = el.Dr.Mul(RhoF).Subset(c.FluxSubset, elS.Np, el.K).ElMul(elS.Rx).Scale(-1)
-	rhsRhoU = el.Dr.Mul(RhoUF).Subset(c.FluxSubset, elS.Np, el.K).ElMul(elS.Rx).Scale(-1)
-	rhsEner = el.Dr.Mul(EnerF).Subset(c.FluxSubset, elS.Np, el.K).ElMul(elS.Rx).Scale(-1)
-
-	/*
-		rhsRho.Add(dissRho2)
-		rhsRhoU.Add(dissRhoU2)
-		rhsEner.Add(dissEner2)
-	*/
-
+	rhsRho = el.Dr.Mul(RhoF).ElMul(el.Rx).Subset(c.FluxSubset, elS.Np, el.K).Scale(-1)
+	rhsRhoU = el.Dr.Mul(RhoUF).ElMul(el.Rx).Subset(c.FluxSubset, elS.Np, el.K).Scale(-1)
+	rhsEner = el.Dr.Mul(EnerF).ElMul(el.Rx).Subset(c.FluxSubset, elS.Np, el.K).Scale(-1)
 	return
 }
 
