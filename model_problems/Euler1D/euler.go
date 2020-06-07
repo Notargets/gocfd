@@ -433,9 +433,9 @@ func (c *Euler) RHS_GK(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 	}
 
 	// RHS Computation
-	rhsRho = el.Rx.Copy().Scale(-1.).ElMul(el.Dr.Mul(RhoF)).Add(el.LIFT.Mul(dRhoF.ElMul(el.FScale)))
-	rhsRhoU = el.Rx.Copy().Scale(-1.).ElMul(el.Dr.Mul(RhoUF)).Add(el.LIFT.Mul(dRhoUF.ElMul(el.FScale)))
-	rhsEner = el.Rx.Copy().Scale(-1.).ElMul(el.Dr.Mul(EnerF)).Add(el.LIFT.Mul(dEnerF.ElMul(el.FScale)))
+	rhsRho = el.LIFT.Mul(dRhoF.ElMul(el.FScale)).Subtract(el.Dr.Mul(RhoF).ElMul(el.Rx))
+	rhsRhoU = el.LIFT.Mul(dRhoUF.ElMul(el.FScale)).Subtract(el.Dr.Mul(RhoUF).ElMul(el.Rx))
+	rhsEner = el.LIFT.Mul(dEnerF.ElMul(el.FScale)).Subtract(el.Dr.Mul(EnerF).ElMul(el.Rx))
 	return
 }
 
