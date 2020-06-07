@@ -164,7 +164,7 @@ func (c *Euler) InitializeDWave() {
 	var (
 		el = c.El_S
 	)
-	c.Rho = utils.NewMatrix(el.Np, el.K).Apply2(el.X.Subset(c.FluxSubset, el.Np, el.K), func(base, x float64) (rho float64) {
+	c.Rho = utils.NewMatrix(el.Np, el.K).Apply2(el.X, func(base, x float64) (rho float64) {
 		rho = 2 + math.Sin(math.Pi*x)
 		return
 	})
@@ -345,31 +345,22 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 		fRho, fRhoU, fEner = c.RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, elS.VmapM, elS.VmapP, el.VmapM, el.VmapP)
 	}
 
-	//fmt.Println(RhoUF.Print("RhoUF before face flux assignment"))
 	switch c.bc {
 	case RIEMANN:
 		c.RiemannBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, &fRho, &fRhoU, &fEner)
 	case PERIODIC:
 		c.PeriodicBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, elS.VmapI, elS.VmapO, el.VmapI, el.VmapO, &fRho, &fRhoU, &fEner)
 	}
-	//fmt.Println(fRhoU.Print("fRhoU after BC"))
+
 	// Set face flux within global flux
 	RhoF.AssignVector(el.VmapM, fRho)
 	RhoUF.AssignVector(el.VmapM, fRhoU)
 	EnerF.AssignVector(el.VmapM, fEner)
 
-	/*
-		fmt.Println(RhoUF.Print("RhoUF after face flux assignment"))
-		fmt.Println(el.X.Print("X"))
-		fmt.Println(elS.X.Print("XS"))
-		fmt.Println(RhoUF.Subset(c.FluxSubset, elS.Np, el.K).Print("RhoUF subset after face flux assignment"))
-		os.Exit(1)
-	*/
-
 	// Calculate RHS
-	rhsRho = el.Dr.Mul(RhoF).ElMul(el.Rx).Subset(c.FluxSubset, elS.Np, el.K).Scale(-1)
-	rhsRhoU = el.Dr.Mul(RhoUF).ElMul(el.Rx).Subset(c.FluxSubset, elS.Np, el.K).Scale(-1)
-	rhsEner = el.Dr.Mul(EnerF).ElMul(el.Rx).Subset(c.FluxSubset, elS.Np, el.K).Scale(-1)
+	rhsRho = el.Dr.Mul(RhoF).Subset(c.FluxSubset, elS.Np, el.K).ElMul(elS.Rx).Scale(-1)
+	rhsRhoU = el.Dr.Mul(RhoUF).Subset(c.FluxSubset, elS.Np, el.K).ElMul(elS.Rx).Scale(-1)
+	rhsEner = el.Dr.Mul(EnerF).Subset(c.FluxSubset, elS.Np, el.K).ElMul(elS.Rx).Scale(-1)
 	return
 }
 
