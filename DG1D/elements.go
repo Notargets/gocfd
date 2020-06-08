@@ -1,7 +1,6 @@
 package DG1D
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/notargets/gocfd/utils"
@@ -30,7 +29,6 @@ func NewElements1D(N int, VX utils.Vector, EToV utils.Matrix, ntA ...NODE_TYPE) 
 		K, NFaces = EToV.Dims()
 		Nfp       = 1 // One point per face in 1D
 	)
-	fmt.Println("Number of Elements, NFaces = ", K, NFaces)
 	// N is the polynomial degree, Np is the number of interpolant points = N+1
 	el = &Elements1D{
 		K:      K,

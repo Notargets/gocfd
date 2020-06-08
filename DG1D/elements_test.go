@@ -100,6 +100,15 @@ func TestElements1D(t *testing.T) {
 		assert.True(t, nearVec(li_right_edge.RawMatrix().Data, []float64{0, 0, 0, 0, 1}, tolTight))
 		assert.True(t, nearVec(elS.LagrangeInterpolant(-1).RawMatrix().Data, []float64{1.9304, -1.3333, 0.4029}, tolLoose))
 		assert.True(t, nearVec(elS.LagrangeInterpolant(1).RawMatrix().Data, []float64{0.4029, -1.3333, 1.9304}, tolLoose))
+
+		N = 1
+		VX, EToV = SimpleMesh1D(0, 2, K)
+		el = NewElements1D(N+2, VX, EToV)
+		elS = NewElements1D(N, VX, EToV, GAUSS)
+		li_left_edge = elS.LagrangeInterpolant(-1)
+		li_right_edge = elS.LagrangeInterpolant(1)
+		assert.True(t, nearVec(li_left_edge.RawMatrix().Data, []float64{1.6180, -0.6180}, tolLoose))
+		assert.True(t, nearVec(li_right_edge.RawMatrix().Data, []float64{-0.6180, 1.6180}, tolLoose))
 	}
 }
 
