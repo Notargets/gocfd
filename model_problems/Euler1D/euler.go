@@ -200,15 +200,6 @@ func (c *Euler) MapSolutionSubset() {
 	} else {
 		c.FluxSubset = c.FluxRanger.Range(":", ":")
 	}
-	/*
-		switch c.model {
-		case DFR_LaxFriedrichs, DFR_Roe, DFR_Average:
-			c.FluxSubset = c.FluxRanger.Range("1:-1", ":")
-			//c.FluxSubset = c.FluxRanger.Range(":", ":")
-		case Galerkin_LF:
-			c.FluxSubset = c.FluxRanger.Range(":", ":")
-		}
-	*/
 	return
 }
 
