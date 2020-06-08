@@ -51,7 +51,7 @@ func TestFlux(t *testing.T) {
 			RhoF, RhoUF, EnerF utils.Matrix
 		)
 		c.MapSolutionSubset()
-		RhoF, RhoUF, EnerF = s.Update(c.Rho, c.RhoU, c.Ener, c.FluxRanger, c.FluxSubset)
+		RhoF, RhoUF, EnerF = s.Update(c.Rho, c.RhoU, c.Ener, c)
 		fRho, fRhoU, fEner = c.RoeFlux(c.Rho, c.RhoU, c.Ener, RhoF, RhoUF, EnerF, elS.VmapM, elS.VmapP, el.VmapM, el.VmapP)
 		// Set face flux within global flux
 		RhoF.AssignVector(el.VmapM, fRho)
@@ -82,7 +82,7 @@ func TestFlux(t *testing.T) {
 				[ 4  5  6  7 ]
 		*/
 		c.MapSolutionSubset()
-		RhoF, RhoUF, EnerF = s.Update(c.Rho, c.RhoU, c.Ener, c.FluxRanger, c.FluxSubset)
+		RhoF, RhoUF, EnerF = s.Update(c.Rho, c.RhoU, c.Ener, c)
 		c.CopyBoundary(RhoF)
 		c.CopyBoundary(RhoUF)
 		c.CopyBoundary(EnerF)

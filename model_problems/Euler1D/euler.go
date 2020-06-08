@@ -326,14 +326,15 @@ const (
 
 func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix) {
 	var (
-		el                 = c.El
-		elS                = c.El_S
-		s                  = c.State
-		fRho, fRhoU, fEner utils.Matrix
-		Rho, RhoU, Ener    = *Rhop, *RhoUp, *Enerp
-		RhoF, RhoUF, EnerF utils.Matrix
-		limiter            = c.useLimiter
-		slopeLimiterM      = 20.
+		el                          = c.El
+		elS                         = c.El_S
+		s                           = c.State
+		fRho, fRhoU, fEner          utils.Matrix
+		Rho, RhoU, Ener             = *Rhop, *RhoUp, *Enerp
+		RhoF, RhoUF, EnerF          utils.Matrix
+		limiter                     = c.useLimiter
+		slopeLimiterM               = 20.
+		RhoFull, RhoUFull, EnerFull utils.Matrix
 	)
 	if limiter {
 		// Slope Limit the solution fields
@@ -342,27 +343,22 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 		*Enerp = elS.SlopeLimitN(*Enerp, slopeLimiterM)
 		Rho, RhoU, Ener = *Rhop, *RhoUp, *Enerp
 	}
-	RhoF, RhoUF, EnerF = s.Update(Rho, RhoU, Ener, c.FluxRanger, c.FluxSubset)
-	if el.Np != elS.Np {
-		c.InterpolateBoundaries(RhoF)
-		c.InterpolateBoundaries(RhoUF)
-		c.InterpolateBoundaries(EnerF)
-	}
+	RhoFull, RhoUFull, EnerFull, RhoF, RhoUF, EnerF = s.Update(Rho, RhoU, Ener, c)
 
 	switch c.model {
 	case DFR_Average:
-		fRho, fRhoU, fEner = c.AveFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, elS.VmapM, elS.VmapP, el.VmapM, el.VmapP)
+		fRho, fRhoU, fEner = c.AveFlux(RhoFull, RhoUFull, EnerFull, RhoF, RhoUF, EnerF, el.VmapM, el.VmapP)
 	case DFR_LaxFriedrichs:
-		fRho, fRhoU, fEner = c.LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, elS.VmapM, elS.VmapP, el.VmapM, el.VmapP)
+		fRho, fRhoU, fEner = c.LaxFlux(RhoFull, RhoUFull, EnerFull, RhoF, RhoUF, EnerF, el.VmapM, el.VmapP)
 	case DFR_Roe:
-		fRho, fRhoU, fEner = c.RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, elS.VmapM, elS.VmapP, el.VmapM, el.VmapP)
+		fRho, fRhoU, fEner = c.RoeFlux(RhoFull, RhoUFull, EnerFull, RhoF, RhoUF, EnerF, el.VmapM, el.VmapP)
 	}
 
 	switch c.bc {
 	case RIEMANN:
 		c.RiemannBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, &fRho, &fRhoU, &fEner)
 	case PERIODIC:
-		c.PeriodicBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, elS.VmapI, elS.VmapO, el.VmapI, el.VmapO, &fRho, &fRhoU, &fEner)
+		c.PeriodicBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, el.VmapI, el.VmapO, &fRho, &fRhoU, &fEner)
 	}
 
 	//fmt.Println(RhoUF.Print("RhoUF Before Assign"))
@@ -402,7 +398,7 @@ func (c *Euler) RHS_GK(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 		*Enerp = el.SlopeLimitN(*Enerp, slopeLimiterM)
 		Rho, RhoU, Ener = *Rhop, *RhoUp, *Enerp
 	}
-	RhoF, RhoUF, EnerF = s.Update(Rho, RhoU, Ener, c.FluxRanger, c.FluxSubset)
+	_, _, _, RhoF, RhoUF, EnerF = s.Update(Rho, RhoU, Ener, c)
 
 	// Face jumps in primary and flux variables
 	fJump := func(U utils.Matrix) (dU utils.Matrix) {
@@ -437,9 +433,9 @@ func (c *Euler) RHS_GK(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsEn
 	return
 }
 
-func (c *Euler) PeriodicBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapIS, vmapOS, vmapI, vmapO utils.Index, dRhoF, dRhoUF, dEnerF *utils.Matrix) {
+func (c *Euler) PeriodicBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapI, vmapO utils.Index, dRhoF, dRhoUF, dEnerF *utils.Matrix) {
 	// Periodic Boundary condition
-	fRho, fRhoU, fEner := c.RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, vmapIS, vmapOS, vmapI, vmapO)
+	fRho, fRhoU, fEner := c.RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, vmapI, vmapO)
 	/*
 		fmt.Println(dRhoF.Print("dRhoF before"))
 		fmt.Println(dRhoUF.Print("dRhoUF before"))
@@ -649,7 +645,7 @@ func sod_error_calc(X, Rho, RhoU, E utils.Matrix, t float64) (rms_rho, rms_rhou,
 	return
 }
 
-func (c *Euler) AveFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapMS, vmapPS, vmapM, vmapP utils.Index) (fRho, fRhoU, fEner utils.Matrix) {
+func (c *Euler) AveFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapM, vmapP utils.Index) (fRho, fRhoU, fEner utils.Matrix) {
 	var (
 		el       = c.El
 		nrF, ncF = el.Nfp * el.NFaces, el.K
@@ -667,7 +663,7 @@ func (c *Euler) AveFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapMS
 	return
 }
 
-func (c *Euler) LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapMS, vmapPS, vmapM, vmapP utils.Index) (fRho, fRhoU, fEner utils.Matrix) {
+func (c *Euler) LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapM, vmapP utils.Index) (fRho, fRhoU, fEner utils.Matrix) {
 	var (
 		el       = c.El
 		s        = c.State
@@ -676,7 +672,7 @@ func (c *Euler) LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapMS
 	// Compute Lax-Friedrichs flux
 	// Face jumps in primary and flux variables
 	fJump := func(U utils.Matrix) (dU utils.Matrix) {
-		dU = U.Subset(vmapMS, nrF, ncF).Subtract(U.Subset(vmapPS, nrF, ncF)).ElMul(el.NX)
+		dU = U.Subset(vmapM, nrF, ncF).Subtract(U.Subset(vmapP, nrF, ncF)).ElMul(el.NX)
 		return
 	}
 	// Face flux average
@@ -685,7 +681,7 @@ func (c *Euler) LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapMS
 		return
 	}
 	// Max eigenvalue
-	LFc := s.LM.Subset(vmapMS, nrF, ncF).Apply2(s.LM.Subset(vmapPS, nrF, ncF), math.Max)
+	LFc := s.LM.Subset(vmapM, nrF, ncF).Apply2(s.LM.Subset(vmapP, nrF, ncF), math.Max)
 	// Compute numerical flux at faces
 	fRho = fAve(RhoF).Add(fJump(Rho).ElMul(LFc).Scale(0.5))
 	fRhoU = fAve(RhoUF).Add(fJump(RhoU).ElMul(LFc).Scale(0.5))
@@ -709,6 +705,9 @@ func (c *Euler) InterpolateBoundaries(U utils.Matrix) {
 		el  = c.El
 		elS = c.El_S
 	)
+	if elS.Np == el.Np {
+		return
+	}
 	leftRow := c.LeftI.Mul(U.Subset(c.FluxSubset, elS.Np, elS.K)).RawMatrix().Data
 	rightRow := c.RightI.Mul(U.Subset(c.FluxSubset, elS.Np, elS.K)).RawMatrix().Data
 	/*
@@ -718,7 +717,7 @@ func (c *Euler) InterpolateBoundaries(U utils.Matrix) {
 	U.M.SetRow(el.Np-1, rightRow)
 }
 
-func (c *Euler) RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapMS, vmapPS, vmapM, vmapP utils.Index) (fRho, fRhoU, fEner utils.Matrix) {
+func (c *Euler) RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapM, vmapP utils.Index) (fRho, fRhoU, fEner utils.Matrix) {
 	var (
 		el       = c.El
 		s        = c.State
@@ -729,16 +728,16 @@ func (c *Euler) RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapMS
 		ncF = 1
 	}
 	fL := func(U utils.Matrix) (Ul utils.Matrix) {
-		Ul = U.Subset(vmapMS, nrF, ncF)
+		Ul = U.Subset(vmapM, nrF, ncF)
 		return
 	}
 	fR := func(U utils.Matrix) (Ul utils.Matrix) {
-		Ul = U.Subset(vmapPS, nrF, ncF)
+		Ul = U.Subset(vmapP, nrF, ncF)
 		return
 	}
 	// Face jumps in primary and flux variables
 	fJump := func(U utils.Matrix) (dU utils.Matrix) {
-		dU = U.Subset(vmapPS, nrF, ncF).Subtract(U.Subset(vmapMS, nrF, ncF))
+		dU = U.Subset(vmapP, nrF, ncF).Subtract(U.Subset(vmapM, nrF, ncF))
 		return
 	}
 	// Face average
@@ -838,27 +837,33 @@ func NewFieldState() (fs *FieldState) {
 	return &FieldState{}
 }
 
-func (fs *FieldState) Update(Rho, RhoU, Ener utils.Matrix, FluxRanger utils.R2, FluxSubset utils.Index) (RhoF, RhoUF, EnerF utils.Matrix) {
+func (fs *FieldState) Update(Rho, RhoU, Ener utils.Matrix, c *Euler) (RhoFull, RhoUFull, EnerFull, RhoF, RhoUF, EnerF utils.Matrix) {
 	/*
 		Calorically Perfect Gas, R = 1
 	*/
 	var (
-		Gamma = 1.4
-		Cv    = 1. / (Gamma - 1.)
-		Cp    = Gamma * Cv
+		Gamma                  = 1.4
+		Cv                     = 1. / (Gamma - 1.)
+		Cp                     = Gamma * Cv
+		FluxRanger, FluxSubset = c.FluxRanger, c.FluxSubset
 	)
-	fs.U = RhoU.Copy().ElDiv(Rho) // Velocity
-	fs.Q = fs.U.Copy().Apply2(Rho, func(u, rho float64) (q float64) {
+	RhoFull, RhoUFull, EnerFull = utils.NewMatrix(FluxRanger.Dims()), utils.NewMatrix(FluxRanger.Dims()), utils.NewMatrix(FluxRanger.Dims())
+	// Copy the solution at solution points, then interpolate to the edges of the Flux space
+	c.InterpolateBoundaries(RhoFull.AssignVector(FluxSubset, Rho))
+	c.InterpolateBoundaries(RhoUFull.AssignVector(FluxSubset, RhoU))
+	c.InterpolateBoundaries(EnerFull.AssignVector(FluxSubset, Ener))
+	fs.U = RhoUFull.Copy().ElDiv(RhoFull) // Velocity
+	fs.Q = fs.U.Copy().Apply2(RhoFull, func(u, rho float64) (q float64) {
 		q = 0.5 * u * u * rho
 		return
 	})
 	// (gamma-1.0)*(Ener - 0.5*(rhou).^2./rho)
-	fs.Pres = Ener.Copy().Apply2(fs.Q, func(e, q float64) (p float64) {
+	fs.Pres = EnerFull.Copy().Apply2(fs.Q, func(e, q float64) (p float64) {
 		p = (e - q) * (fs.Gamma - 1)
 		return
 	})
 	// sqrt(gamma*pres./rho)
-	fs.CVel = fs.Pres.Copy().Apply2(Rho, func(p, rho float64) (cvel float64) {
+	fs.CVel = fs.Pres.Copy().Apply2(RhoFull, func(p, rho float64) (cvel float64) {
 		cvel = math.Sqrt(fs.Gamma * p / rho)
 		return
 	})
@@ -868,12 +873,24 @@ func (fs *FieldState) Update(Rho, RhoU, Ener utils.Matrix, FluxRanger utils.R2, 
 		return
 	})
 	//	Temp = (Ener - 0.5*(rhou).^2./rho)./rho
-	fs.Temp = Ener.Copy().Apply3(fs.Q, Rho, func(e, q, rho float64) (temp float64) {
+	fs.Temp = EnerFull.Copy().Apply3(fs.Q, RhoFull, func(e, q, rho float64) (temp float64) {
 		temp = (e - q) / rho
 		return
 	})
-	fs.Ht = fs.Q.Copy().Apply3(Rho, fs.Temp, func(q, rho, temp float64) (ht float64) {
+	fs.Ht = fs.Q.Copy().Apply3(RhoFull, fs.Temp, func(q, rho, temp float64) (ht float64) {
 		ht = Cp * (q/rho + temp)
+		return
+	})
+	RhoF = utils.NewMatrix(FluxRanger.Dims())
+	RhoUF = utils.NewMatrix(FluxRanger.Dims())
+	EnerF = utils.NewMatrix(FluxRanger.Dims())
+	RhoF = RhoUFull
+	RhoUF = fs.Q.Copy().Apply2(fs.Pres, func(q, pres float64) (rhouf float64) {
+		rhouf = 2*q + pres
+		return
+	})
+	EnerF = EnerFull.Copy().Apply3(fs.Pres, fs.U, func(ener, pres, u float64) (enerf float64) {
+		enerf = u * (ener + pres)
 		return
 	})
 	fs.U.SetReadOnly("U")
@@ -882,18 +899,6 @@ func (fs *FieldState) Update(Rho, RhoU, Ener utils.Matrix, FluxRanger utils.R2, 
 	fs.CVel.SetReadOnly("CVel")
 	fs.LM.SetReadOnly("LM")
 	fs.Ht.SetReadOnly("Ht")
-	RhoF = utils.NewMatrix(FluxRanger.Dims())
-	RhoUF = utils.NewMatrix(FluxRanger.Dims())
-	EnerF = utils.NewMatrix(FluxRanger.Dims())
-	RhoF.AssignVector(FluxSubset, RhoU)
-	RhoUF.AssignVector(FluxSubset, fs.Q.Copy().Apply2(fs.Pres, func(q, pres float64) (rhouf float64) {
-		rhouf = 2*q + pres
-		return
-	}))
-	EnerF.AssignVector(FluxSubset, Ener.Copy().Apply3(fs.Pres, fs.U, func(ener, pres, u float64) (enerf float64) {
-		enerf = u * (ener + pres)
-		return
-	}))
 	return
 }
 
