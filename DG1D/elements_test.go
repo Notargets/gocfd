@@ -1,6 +1,7 @@
 package DG1D
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -81,10 +82,47 @@ func TestElements1D(t *testing.T) {
 			assert.Equal(t, facesMX, facesPX)
 		}
 	}
+	/*
+		Check interpolation
+	*/
+	{
+		K := 1
+		N := 2
+		VX, EToV := SimpleMesh1D(0, 2, K)
+		var el, elS *Elements1D
+		el = NewElements1D(N+2, VX, EToV)
+		elS = NewElements1D(N, VX, EToV, GAUSS)
+		tolTight := 1.e-08
+		tolLoose := 1.e-03
+		li_left_edge := el.LagrangeInterpolant(-1)
+		assert.True(t, nearVec(li_left_edge.RawVector().Data, []float64{1, 0, 0, 0, 0}, tolTight))
+		li_right_edge := el.LagrangeInterpolant(1)
+		assert.True(t, nearVec(li_right_edge.RawVector().Data, []float64{0, 0, 0, 0, 1}, tolTight))
+		assert.True(t, nearVec(elS.LagrangeInterpolant(-1).RawVector().Data, []float64{1.9304, -1.3333, 0.4029}, tolLoose))
+		assert.True(t, nearVec(elS.LagrangeInterpolant(1).RawVector().Data, []float64{0.4029, -1.3333, 1.9304}, tolLoose))
+	}
 }
 
-func near(a, b float64) (l bool) {
-	if math.Abs(a-b) < 1.e-08*math.Abs(a) {
+func nearVec(a, b []float64, tol float64) (l bool) {
+	for i, val := range a {
+		if !near(b[i], val, tol) {
+			fmt.Printf("Diff = %v, Left[%d] = %v, Right[%d] = %v\n", math.Abs(val-b[i]), i, val, i, b[i])
+			return false
+		}
+	}
+	return true
+}
+
+func near(a, b float64, tolI ...float64) (l bool) {
+	var (
+		tol float64
+	)
+	if len(tolI) == 0 {
+		tol = 1.e-08
+	} else {
+		tol = tolI[0]
+	}
+	if math.Abs(a-b) <= tol*math.Abs(a) {
 		l = true
 	}
 	return

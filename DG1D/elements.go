@@ -17,7 +17,7 @@ const (
 
 type Elements1D struct {
 	K, Np, Nfp, NFaces                int
-	VX, FMask                         utils.Vector
+	R, VX, FMask                      utils.Vector
 	EToV, EToE, EToF                  utils.Matrix
 	X, Dr, Rx, FScale, NX, LIFT       utils.Matrix
 	V, Vinv                           utils.Matrix
@@ -250,5 +250,20 @@ func Normals1D(Nfaces, Nfp, K int) (NX utils.Matrix) {
 func GeometricFactors1D(Dr, X utils.Matrix) (J, Rx utils.Matrix) {
 	J = Dr.Mul(X)
 	Rx = J.Copy().POW(-1)
+	return
+}
+
+func (el *Elements1D) LagrangeInterpolant(r float64) (Li utils.Vector) {
+	Li = utils.NewVectorConstant(el.R.Len(), 1)
+	LiData := Li.RawVector().Data
+	for i, vali := range el.R.RawVector().Data {
+		for j, valj := range el.R.RawVector().Data {
+			if i == j {
+				continue
+			}
+			metric := (r - valj) / (vali - valj)
+			LiData[i] *= metric
+		}
+	}
 	return
 }

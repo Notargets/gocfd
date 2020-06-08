@@ -12,20 +12,19 @@ func (el *Elements1D) Startup1D(nt NODE_TYPE) {
 	var (
 		err error
 		N   = el.Np - 1
-		R   utils.Vector
 	)
 	switch nt {
 	case GAUSS:
-		R, _ = JacobiGQ(1, 1, N)
+		el.R, _ = JacobiGQ(1, 1, N)
 	case GAUSS_LOBATO:
-		R = JacobiGL(0, 0, N)
+		el.R = JacobiGL(0, 0, N)
 	}
-	el.V = Vandermonde1D(N, R)
+	el.V = Vandermonde1D(N, el.R)
 	if el.Vinv, err = el.V.Inverse(); err != nil {
 		fmt.Println(err)
 		panic("error inverting V")
 	}
-	Vr := GradVandermonde1D(R, N)
+	Vr := GradVandermonde1D(el.R, N)
 
 	el.Dr = Vr.Mul(el.Vinv)
 
@@ -38,14 +37,14 @@ func (el *Elements1D) Startup1D(nt NODE_TYPE) {
 	sT := el.VX.SubsetIndex(vb).Subtract(el.VX.SubsetIndex(va))
 	// x = ones(Np)*VX(va) + 0.5*(r+1.)*sT(vc);
 	mm := utils.NewVector(el.Np).Set(1).Mul(el.VX.SubsetIndex(va))
-	el.X = R.Copy().AddScalar(1).Scale(0.5).Mul(sT).Add(mm)
+	el.X = el.R.Copy().AddScalar(1).Scale(0.5).Mul(sT).Add(mm)
 
 	var J utils.Matrix
 	J, el.Rx = GeometricFactors1D(el.Dr, el.X)
 
 	if nt == GAUSS_LOBATO { // We need FScale for Galerkin on GL nodes, not for Gauss with DFR
-		fmask1 := R.Copy().AddScalar(1).Find(utils.Less, utils.NODETOL, true)
-		fmask2 := R.Copy().AddScalar(-1).Find(utils.Less, utils.NODETOL, true)
+		fmask1 := el.R.Copy().AddScalar(1).Find(utils.Less, utils.NODETOL, true)
+		fmask2 := el.R.Copy().AddScalar(-1).Find(utils.Less, utils.NODETOL, true)
 		el.FMask = fmask1.Concat(fmask2)
 		el.FScale = J.SliceRows(el.FMask.ToIndex()).POW(-1)
 	}
