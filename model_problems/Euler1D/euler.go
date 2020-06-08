@@ -79,7 +79,6 @@ func NewEuler(CFL, FinalTime, XMax float64, N, K int, model ModelType, Case Case
 	case DFR_Roe, DFR_LaxFriedrichs, DFR_Average:
 		c.El = DG1D.NewElements1D(N+2, VX, EToV)
 		c.El_S = DG1D.NewElements1D(N, VX, EToV, DG1D.GAUSS)
-		//c.El_S = DG1D.NewElements1D(N+2, VX, EToV)
 	case Galerkin_LF:
 		c.El = DG1D.NewElements1D(N, VX, EToV)
 		c.El_S = c.El
@@ -190,16 +189,24 @@ func (c *Euler) MapSolutionSubset() {
 		This index carves the solution points out of a full Np+2 space
 	*/
 	var (
-		el = c.El
+		el  = c.El
+		elS = c.El_S
 	)
 	c.FluxRanger = utils.NewR2(el.Np, el.K)
-	switch c.model {
-	case DFR_LaxFriedrichs, DFR_Roe, DFR_Average:
+	if el.Np != elS.Np {
 		c.FluxSubset = c.FluxRanger.Range("1:-1", ":")
-		//c.FluxSubset = c.FluxRanger.Range(":", ":")
-	case Galerkin_LF:
+	} else {
 		c.FluxSubset = c.FluxRanger.Range(":", ":")
 	}
+	/*
+		switch c.model {
+		case DFR_LaxFriedrichs, DFR_Roe, DFR_Average:
+			c.FluxSubset = c.FluxRanger.Range("1:-1", ":")
+			//c.FluxSubset = c.FluxRanger.Range(":", ":")
+		case Galerkin_LF:
+			c.FluxSubset = c.FluxRanger.Range(":", ":")
+		}
+	*/
 	return
 }
 
@@ -343,9 +350,11 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 		Rho, RhoU, Ener = *Rhop, *RhoUp, *Enerp
 	}
 	RhoF, RhoUF, EnerF = s.Update(Rho, RhoU, Ener, c.FluxRanger, c.FluxSubset)
-	c.CopyBoundary(RhoF)
-	c.CopyBoundary(RhoUF)
-	c.CopyBoundary(EnerF)
+	if el.Np != elS.Np {
+		c.CopyBoundary(RhoF)
+		c.CopyBoundary(RhoUF)
+		c.CopyBoundary(EnerF)
+	}
 
 	switch c.model {
 	case DFR_Average:
