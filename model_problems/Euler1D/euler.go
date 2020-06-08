@@ -333,17 +333,16 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 		Rho, RhoU, Ener             = *Rhop, *RhoUp, *Enerp
 		RhoF, RhoUF, EnerF          utils.Matrix
 		limiter                     = c.useLimiter
-		slopeLimiterM               = 20.
 		RhoFull, RhoUFull, EnerFull utils.Matrix
 	)
+
+	RhoFull, RhoUFull, EnerFull, RhoF, RhoUF, EnerF = s.Update(Rho, RhoU, Ener, c)
 	if limiter {
 		// Slope Limit the solution fields
-		*Rhop = elS.SlopeLimitN(*Rhop, slopeLimiterM)
-		*RhoUp = elS.SlopeLimitN(*RhoUp, slopeLimiterM)
-		*Enerp = elS.SlopeLimitN(*Enerp, slopeLimiterM)
-		Rho, RhoU, Ener = *Rhop, *RhoUp, *Enerp
+		*Rhop = RhoFull.Subset(c.FluxSubset, elS.Np, elS.K)
+		*RhoUp = RhoUFull.Subset(c.FluxSubset, elS.Np, elS.K)
+		*Enerp = EnerFull.Subset(c.FluxSubset, elS.Np, elS.K)
 	}
-	RhoFull, RhoUFull, EnerFull, RhoF, RhoUF, EnerF = s.Update(Rho, RhoU, Ener, c)
 
 	switch c.model {
 	case DFR_Average:
@@ -356,9 +355,9 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 
 	switch c.bc {
 	case RIEMANN:
-		c.RiemannBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, &fRho, &fRhoU, &fEner)
+		c.RiemannBC_DFR(RhoFull, RhoUFull, EnerFull, RhoF, RhoUF, EnerF, &fRho, &fRhoU, &fEner)
 	case PERIODIC:
-		c.PeriodicBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, el.VmapI, el.VmapO, &fRho, &fRhoU, &fEner)
+		c.PeriodicBC_DFR(RhoFull, RhoUFull, EnerFull, RhoF, RhoUF, EnerF, el.VmapI, el.VmapO, &fRho, &fRhoU, &fEner)
 	}
 
 	//fmt.Println(RhoUF.Print("RhoUF Before Assign"))
@@ -700,7 +699,7 @@ func (c *Euler) CopyBoundary(U utils.Matrix) {
 	U.M.SetRow(el.Np-1, U.Row(el.Np-2).RawVector().Data)
 }
 
-func (c *Euler) InterpolateBoundaries(U utils.Matrix) {
+func (c *Euler) InterpolateBoundaries(U utils.Matrix) (U2 utils.Matrix) {
 	var (
 		el  = c.El
 		elS = c.El_S
@@ -716,6 +715,7 @@ func (c *Euler) InterpolateBoundaries(U utils.Matrix) {
 	*/
 	U.M.SetRow(0, leftRow)
 	U.M.SetRow(el.Np-1, rightRow)
+	return U
 }
 
 func (c *Euler) RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapM, vmapP utils.Index) (fRho, fRhoU, fEner utils.Matrix) {
@@ -847,12 +847,20 @@ func (fs *FieldState) Update(Rho, RhoU, Ener utils.Matrix, c *Euler) (RhoFull, R
 		Cv                     = 1. / (Gamma - 1.)
 		Cp                     = Gamma * Cv
 		FluxRanger, FluxSubset = c.FluxRanger, c.FluxSubset
+		limiter                = c.useLimiter
+		slopeLimiterM          = 20.
+		el                     = c.El
 	)
-	RhoFull, RhoUFull, EnerFull = utils.NewMatrix(FluxRanger.Dims()), utils.NewMatrix(FluxRanger.Dims()), utils.NewMatrix(FluxRanger.Dims())
 	// Copy the solution at solution points, then interpolate to the edges of the Flux space
-	c.InterpolateBoundaries(RhoFull.AssignVector(FluxSubset, Rho))
-	c.InterpolateBoundaries(RhoUFull.AssignVector(FluxSubset, RhoU))
-	c.InterpolateBoundaries(EnerFull.AssignVector(FluxSubset, Ener))
+	RhoFull = c.InterpolateBoundaries(utils.NewMatrix(FluxRanger.Dims()).AssignVector(FluxSubset, Rho))
+	RhoUFull = c.InterpolateBoundaries(utils.NewMatrix(FluxRanger.Dims()).AssignVector(FluxSubset, RhoU))
+	EnerFull = c.InterpolateBoundaries(utils.NewMatrix(FluxRanger.Dims()).AssignVector(FluxSubset, Ener))
+	if limiter {
+		// Slope Limit the solution fields
+		RhoFull = el.SlopeLimitN(RhoFull, slopeLimiterM)
+		RhoUFull = el.SlopeLimitN(RhoUFull, slopeLimiterM)
+		EnerFull = el.SlopeLimitN(EnerFull, slopeLimiterM)
+	}
 	fs.U = RhoUFull.Copy().ElDiv(RhoFull) // Velocity
 	fs.Q = fs.U.Copy().Apply2(RhoFull, func(u, rho float64) (q float64) {
 		q = 0.5 * u * u * rho
