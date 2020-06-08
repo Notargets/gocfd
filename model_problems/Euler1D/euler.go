@@ -353,11 +353,6 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 	}
 	RhoF, RhoUF, EnerF = s.Update(Rho, RhoU, Ener, c.FluxRanger, c.FluxSubset)
 	if el.Np != elS.Np {
-		/*
-			c.CopyBoundary(RhoF)
-			c.CopyBoundary(RhoUF)
-			c.CopyBoundary(EnerF)
-		*/
 		c.InterpolateBoundaries(RhoF)
 		c.InterpolateBoundaries(RhoUF)
 		c.InterpolateBoundaries(EnerF)
