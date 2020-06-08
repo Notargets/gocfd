@@ -360,18 +360,11 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 		c.PeriodicBC_DFR(RhoFull, RhoUFull, EnerFull, RhoF, RhoUF, EnerF, el.VmapI, el.VmapO, &fRho, &fRhoU, &fEner)
 	}
 
-	//fmt.Println(RhoUF.Print("RhoUF Before Assign"))
 	// Set face flux within global flux
 	RhoF.AssignVector(el.VmapM, fRho)
 	RhoUF.AssignVector(el.VmapM, fRhoU)
 	EnerF.AssignVector(el.VmapM, fEner)
 
-	/*
-		fmt.Println(RhoUF.Print("RhoUF After Assign"))
-		fmt.Println(el.Dr.Mul(RhoUF).Print("Dr*RhoUF"))
-		fmt.Println(el.Dr.Mul(RhoUF).ElMul(el.Rx).Print("Dr*RhoUF.*Rx"))
-		os.Exit(1)
-	*/
 	// Calculate RHS
 	rhsRho = el.Dr.Mul(RhoF).Subset(c.FluxSubset, elS.Np, el.K).ElMul(elS.Rx).Scale(-1)
 	rhsRhoU = el.Dr.Mul(RhoUF).Subset(c.FluxSubset, elS.Np, el.K).ElMul(elS.Rx).Scale(-1)
@@ -704,6 +697,7 @@ func (c *Euler) InterpolateBoundaries(U utils.Matrix) (U2 utils.Matrix) {
 		el  = c.El
 		elS = c.El_S
 	)
+	U2 = U
 	if elS.Np == el.Np {
 		return
 	}
@@ -715,7 +709,7 @@ func (c *Euler) InterpolateBoundaries(U utils.Matrix) (U2 utils.Matrix) {
 	*/
 	U.M.SetRow(0, leftRow)
 	U.M.SetRow(el.Np-1, rightRow)
-	return U
+	return
 }
 
 func (c *Euler) RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapM, vmapP utils.Index) (fRho, fRhoU, fEner utils.Matrix) {
@@ -861,6 +855,7 @@ func (fs *FieldState) Update(Rho, RhoU, Ener utils.Matrix, c *Euler) (RhoFull, R
 		RhoUFull = el.SlopeLimitN(RhoUFull, slopeLimiterM)
 		EnerFull = el.SlopeLimitN(EnerFull, slopeLimiterM)
 	}
+
 	fs.U = RhoUFull.Copy().ElDiv(RhoFull) // Velocity
 	fs.Q = fs.U.Copy().Apply2(RhoFull, func(u, rho float64) (q float64) {
 		q = 0.5 * u * u * rho
