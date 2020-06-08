@@ -253,9 +253,9 @@ func GeometricFactors1D(Dr, X utils.Matrix) (J, Rx utils.Matrix) {
 	return
 }
 
-func (el *Elements1D) LagrangeInterpolant(r float64) (Li utils.Vector) {
-	Li = utils.NewVectorConstant(el.R.Len(), 1)
-	LiData := Li.RawVector().Data
+func (el *Elements1D) LagrangeInterpolant(r float64) (Li utils.Matrix) {
+	Li = utils.NewMatrix(1, el.R.Len()).AddScalar(1)
+	LiData := Li.RawMatrix().Data
 	for i, vali := range el.R.RawVector().Data {
 		for j, valj := range el.R.RawVector().Data {
 			if i == j {

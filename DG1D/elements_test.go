@@ -95,11 +95,11 @@ func TestElements1D(t *testing.T) {
 		tolTight := 1.e-08
 		tolLoose := 1.e-03
 		li_left_edge := el.LagrangeInterpolant(-1)
-		assert.True(t, nearVec(li_left_edge.RawVector().Data, []float64{1, 0, 0, 0, 0}, tolTight))
+		assert.True(t, nearVec(li_left_edge.RawMatrix().Data, []float64{1, 0, 0, 0, 0}, tolTight))
 		li_right_edge := el.LagrangeInterpolant(1)
-		assert.True(t, nearVec(li_right_edge.RawVector().Data, []float64{0, 0, 0, 0, 1}, tolTight))
-		assert.True(t, nearVec(elS.LagrangeInterpolant(-1).RawVector().Data, []float64{1.9304, -1.3333, 0.4029}, tolLoose))
-		assert.True(t, nearVec(elS.LagrangeInterpolant(1).RawVector().Data, []float64{0.4029, -1.3333, 1.9304}, tolLoose))
+		assert.True(t, nearVec(li_right_edge.RawMatrix().Data, []float64{0, 0, 0, 0, 1}, tolTight))
+		assert.True(t, nearVec(elS.LagrangeInterpolant(-1).RawMatrix().Data, []float64{1.9304, -1.3333, 0.4029}, tolLoose))
+		assert.True(t, nearVec(elS.LagrangeInterpolant(1).RawMatrix().Data, []float64{0.4029, -1.3333, 1.9304}, tolLoose))
 	}
 }
 

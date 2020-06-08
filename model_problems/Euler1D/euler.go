@@ -33,6 +33,7 @@ type Euler struct {
 	useLimiter      bool
 	FluxRanger      utils.R2
 	FluxSubset      utils.Index
+	LeftI, RightI   utils.Matrix // Interpolating polynomials for left and right edges within solution points element
 }
 
 type CaseType uint
@@ -79,6 +80,7 @@ func NewEuler(CFL, FinalTime, XMax float64, N, K int, model ModelType, Case Case
 	case DFR_Roe, DFR_LaxFriedrichs, DFR_Average:
 		c.El = DG1D.NewElements1D(N+2, VX, EToV)
 		c.El_S = DG1D.NewElements1D(N, VX, EToV, DG1D.GAUSS)
+		c.LeftI, c.RightI = c.El_S.LagrangeInterpolant(-1), c.El_S.LagrangeInterpolant(1)
 	case Galerkin_LF:
 		c.El = DG1D.NewElements1D(N, VX, EToV)
 		c.El_S = c.El
@@ -351,9 +353,14 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 	}
 	RhoF, RhoUF, EnerF = s.Update(Rho, RhoU, Ener, c.FluxRanger, c.FluxSubset)
 	if el.Np != elS.Np {
-		c.CopyBoundary(RhoF)
-		c.CopyBoundary(RhoUF)
-		c.CopyBoundary(EnerF)
+		/*
+			c.CopyBoundary(RhoF)
+			c.CopyBoundary(RhoUF)
+			c.CopyBoundary(EnerF)
+		*/
+		c.InterpolateBoundaries(RhoF)
+		c.InterpolateBoundaries(RhoUF)
+		c.InterpolateBoundaries(EnerF)
 	}
 
 	switch c.model {
@@ -710,6 +717,21 @@ func (c *Euler) CopyBoundary(U utils.Matrix) {
 	U.M.SetRow(0, U.Row(1).RawVector().Data)
 	U.M.SetRow(el.Np-1, U.Row(el.Np-2).RawVector().Data)
 }
+
+func (c *Euler) InterpolateBoundaries(U utils.Matrix) {
+	var (
+		el  = c.El
+		elS = c.El_S
+	)
+	leftRow := c.LeftI.Mul(U.Subset(c.FluxSubset, elS.Np, elS.K)).RawMatrix().Data
+	rightRow := c.RightI.Mul(U.Subset(c.FluxSubset, elS.Np, elS.K)).RawMatrix().Data
+	/*
+		Copy the flux values from the interior to the edge in prep for construction
+	*/
+	U.M.SetRow(0, leftRow)
+	U.M.SetRow(el.Np-1, rightRow)
+}
+
 func (c *Euler) RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapMS, vmapPS, vmapM, vmapP utils.Index) (fRho, fRhoU, fEner utils.Matrix) {
 	var (
 		el       = c.El
