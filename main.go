@@ -33,15 +33,16 @@ const (
 	M_1DMaxwellDFR
 	M_1DEulerDFR_Roe
 	M_1DEulerDFR_LF
+	M_1DEulerDFR_Ave
 )
 
 var (
-	max_CFL  = []float64{1, 1, 3, 3, 1, 2.2, 3}
-	def_K    = []int{10, 100, 500, 50, 500, 500, 500}
-	def_N    = []int{3, 4, 4, 4, 3, 4, 4}
-	def_CFL  = []float64{1, 1, 3, 3, 0.75, 0.5, 3}
-	def_XMAX = []float64{2 * math.Pi, 1, 1, 2 * math.Pi, 1, 1, 1}
-	def_CASE = []int{0, 0, 0, 0, 0, 0, 0}
+	max_CFL  = []float64{1, 1, 3, 3, 1, 2.2, 3, 3}
+	def_K    = []int{10, 100, 500, 50, 500, 500, 500, 40}
+	def_N    = []int{3, 4, 4, 4, 3, 4, 4, 3}
+	def_CFL  = []float64{1, 1, 3, 3, 0.75, 0.5, 3, 0.5}
+	def_XMAX = []float64{2 * math.Pi, 1, 1, 2 * math.Pi, 1, 1, 1, 1}
+	def_CASE = []int{0, 0, 0, 0, 0, 0, 0, 0}
 )
 
 type Model interface {
@@ -82,9 +83,11 @@ func main() {
 	case M_1DMaxwellDFR:
 		C = Maxwell1D.NewMaxwell(CFL, FinalTime, N, K, Maxwell1D.DFR)
 	case M_1DEulerDFR_Roe:
-		C = Euler1D.NewEuler(CFL, FinalTime, XMax, N, K, Euler1D.Euler_DFR_Roe, Case)
+		C = Euler1D.NewEuler(CFL, FinalTime, XMax, N, K, Euler1D.DFR_Roe, Case)
 	case M_1DEulerDFR_LF:
-		C = Euler1D.NewEuler(CFL, FinalTime, XMax, N, K, Euler1D.Euler_DFR_LF, Case)
+		C = Euler1D.NewEuler(CFL, FinalTime, XMax, N, K, Euler1D.DFR_LaxFriedrichs, Case)
+	case M_1DEulerDFR_Ave:
+		C = Euler1D.NewEuler(CFL, FinalTime, XMax, N, K, Euler1D.DFR_Average, Case)
 	case M_1DEuler:
 		fallthrough
 	default:

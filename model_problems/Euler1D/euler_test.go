@@ -28,7 +28,7 @@ func TestFlux(t *testing.T) {
 		assert.Equal(t, el.VmapM, elS.VmapM)
 		assert.Equal(t, el.VmapP, elS.VmapP)
 
-		model = Euler_DFR_Roe
+		model = DFR_Roe
 		c = NewEuler(1, 20, 1, N, K, model, SOD_TUBE)
 		el = c.El
 		assert.Equal(t, utils.Index{0, 1, 2, 3, 12, 13, 14, 15}, el.VmapM)
@@ -41,7 +41,7 @@ func TestFlux(t *testing.T) {
 		K := 4
 		N := 1
 		model := Galerkin_LF
-		//model := Euler_DFR_Roe
+		//model := DFR_Roe
 		c := NewEuler(1, 20, 1, N, K, model, SOD_TUBE)
 		var (
 			el                 = c.El
@@ -66,8 +66,8 @@ func TestFlux(t *testing.T) {
 	{
 		K := 4
 		N := 1
-		model := Euler_DFR_Roe
-		//model := Euler_DFR_Roe
+		model := DFR_Roe
+		//model := DFR_Roe
 		c := NewEuler(1, 20, 1, N, K, model, SOD_TUBE)
 		var (
 			el                 = c.El

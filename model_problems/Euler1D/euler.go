@@ -48,15 +48,17 @@ type ModelType uint
 
 const (
 	Galerkin_LF ModelType = iota
-	Euler_DFR_LF
-	Euler_DFR_Roe
+	DFR_LaxFriedrichs
+	DFR_Roe
+	DFR_Average
 )
 
 var (
 	model_names = []string{
 		"Galerkin Integration, Lax Flux",
-		"DFR Integration, Lax Flux",
+		"DFR Integration, Lax Friedrichs Flux",
 		"DFR Integration, Roe Flux",
+		"DFR Integration, Average Flux",
 	}
 )
 
@@ -74,9 +76,10 @@ func NewEuler(CFL, FinalTime, XMax float64, N, K int, model ModelType, Case Case
 		Case:      Case,
 	}
 	switch model {
-	case Euler_DFR_Roe, Euler_DFR_LF:
+	case DFR_Roe, DFR_LaxFriedrichs, DFR_Average:
 		c.El = DG1D.NewElements1D(N+2, VX, EToV)
 		c.El_S = DG1D.NewElements1D(N, VX, EToV, DG1D.GAUSS)
+		//c.El_S = DG1D.NewElements1D(N+2, VX, EToV)
 	case Galerkin_LF:
 		c.El = DG1D.NewElements1D(N, VX, EToV)
 		c.El_S = c.El
@@ -108,6 +111,11 @@ func NewEuler(CFL, FinalTime, XMax float64, N, K int, model ModelType, Case Case
 		c.useLimiter = true
 	}
 	fmt.Printf("Algorithm: %s\n", model_names[c.model])
+	if c.useLimiter {
+		fmt.Printf("Solution is limited using SlopeLimit\n")
+	} else {
+		fmt.Printf("Solution is not limited\n")
+	}
 	fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, K)
 	return
 }
@@ -186,8 +194,9 @@ func (c *Euler) MapSolutionSubset() {
 	)
 	c.FluxRanger = utils.NewR2(el.Np, el.K)
 	switch c.model {
-	case Euler_DFR_LF, Euler_DFR_Roe:
+	case DFR_LaxFriedrichs, DFR_Roe, DFR_Average:
 		c.FluxSubset = c.FluxRanger.Range("1:-1", ":")
+		//c.FluxSubset = c.FluxRanger.Range(":", ":")
 	case Galerkin_LF:
 		c.FluxSubset = c.FluxRanger.Range(":", ":")
 	}
@@ -207,7 +216,7 @@ func (c *Euler) Run(showGraph bool, graphDelay ...time.Duration) {
 	switch c.model {
 	case Galerkin_LF:
 		rhs = c.RHS_GK
-	case Euler_DFR_Roe, Euler_DFR_LF:
+	case DFR_Roe, DFR_LaxFriedrichs, DFR_Average:
 		rhs = c.RHS_DFR
 	}
 	var Time, dt float64
@@ -339,9 +348,11 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 	c.CopyBoundary(EnerF)
 
 	switch c.model {
-	case Euler_DFR_LF:
+	case DFR_Average:
+		fRho, fRhoU, fEner = c.AveFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, elS.VmapM, elS.VmapP, el.VmapM, el.VmapP)
+	case DFR_LaxFriedrichs:
 		fRho, fRhoU, fEner = c.LaxFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, elS.VmapM, elS.VmapP, el.VmapM, el.VmapP)
-	case Euler_DFR_Roe:
+	case DFR_Roe:
 		fRho, fRhoU, fEner = c.RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, elS.VmapM, elS.VmapP, el.VmapM, el.VmapP)
 	}
 
@@ -352,11 +363,18 @@ func (c *Euler) RHS_DFR(Rhop, RhoUp, Enerp *utils.Matrix) (rhsRho, rhsRhoU, rhsE
 		c.PeriodicBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, elS.VmapI, elS.VmapO, el.VmapI, el.VmapO, &fRho, &fRhoU, &fEner)
 	}
 
+	//fmt.Println(RhoUF.Print("RhoUF Before Assign"))
 	// Set face flux within global flux
 	RhoF.AssignVector(el.VmapM, fRho)
 	RhoUF.AssignVector(el.VmapM, fRhoU)
 	EnerF.AssignVector(el.VmapM, fEner)
 
+	/*
+		fmt.Println(RhoUF.Print("RhoUF After Assign"))
+		fmt.Println(el.Dr.Mul(RhoUF).Print("Dr*RhoUF"))
+		fmt.Println(el.Dr.Mul(RhoUF).ElMul(el.Rx).Print("Dr*RhoUF.*Rx"))
+		os.Exit(1)
+	*/
 	// Calculate RHS
 	rhsRho = el.Dr.Mul(RhoF).Subset(c.FluxSubset, elS.Np, el.K).ElMul(elS.Rx).Scale(-1)
 	rhsRhoU = el.Dr.Mul(RhoUF).Subset(c.FluxSubset, elS.Np, el.K).ElMul(elS.Rx).Scale(-1)
@@ -531,7 +549,7 @@ func (c *Euler) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) 
 		case SOD_TUBE:
 			iRho = AddAnalyticSod(c.chart, c.colorMap, timeT)
 		case DENSITY_WAVE:
-			AddAnalyticDWave(c.chart, c.colorMap, el.X, timeT)
+			AddAnalyticDWave(c.chart, c.colorMap, elS.X, timeT)
 		}
 	}
 	if len(graphDelay) != 0 {
@@ -626,6 +644,24 @@ func sod_error_calc(X, Rho, RhoU, E utils.Matrix, t float64) (rms_rho, rms_rhou,
 	rms_rho = math.Sqrt(rms_rho / float64(len(Xdata)))
 	rms_rhou = math.Sqrt(rms_rhou / float64(len(Xdata)))
 	rms_e = math.Sqrt(rms_e / float64(len(Xdata)))
+	return
+}
+
+func (c *Euler) AveFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, vmapMS, vmapPS, vmapM, vmapP utils.Index) (fRho, fRhoU, fEner utils.Matrix) {
+	var (
+		el       = c.El
+		nrF, ncF = el.Nfp * el.NFaces, el.K
+	)
+	// Compute Lax-Friedrichs flux
+	// Face flux average
+	fAve := func(U utils.Matrix) (Uavg utils.Matrix) {
+		Uavg = U.Subset(vmapM, nrF, ncF).Add(U.Subset(vmapP, nrF, ncF)).Scale(0.5)
+		return
+	}
+	// Compute numerical flux at faces
+	fRho = fAve(RhoF)
+	fRhoU = fAve(RhoUF)
+	fEner = fAve(EnerF)
 	return
 }
 
