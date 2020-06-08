@@ -708,10 +708,11 @@ func (c *Euler) InterpolateBoundaries(U utils.Matrix) {
 	if elS.Np == el.Np {
 		return
 	}
+	// Multiply the interpolation matrix for each edge to get a new edge row for left and right
 	leftRow := c.LeftI.Mul(U.Subset(c.FluxSubset, elS.Np, elS.K)).RawMatrix().Data
 	rightRow := c.RightI.Mul(U.Subset(c.FluxSubset, elS.Np, elS.K)).RawMatrix().Data
 	/*
-		Copy the flux values from the interior to the edge in prep for construction
+		Copy from the interior to the edge in prep for construction
 	*/
 	U.M.SetRow(0, leftRow)
 	U.M.SetRow(el.Np-1, rightRow)
@@ -881,9 +882,6 @@ func (fs *FieldState) Update(Rho, RhoU, Ener utils.Matrix, c *Euler) (RhoFull, R
 		ht = Cp * (q/rho + temp)
 		return
 	})
-	RhoF = utils.NewMatrix(FluxRanger.Dims())
-	RhoUF = utils.NewMatrix(FluxRanger.Dims())
-	EnerF = utils.NewMatrix(FluxRanger.Dims())
 	RhoF = RhoUFull
 	RhoUF = fs.Q.Copy().Apply2(fs.Pres, func(q, pres float64) (rhouf float64) {
 		rhouf = 2*q + pres
@@ -899,6 +897,7 @@ func (fs *FieldState) Update(Rho, RhoU, Ener utils.Matrix, c *Euler) (RhoFull, R
 	fs.CVel.SetReadOnly("CVel")
 	fs.LM.SetReadOnly("LM")
 	fs.Ht.SetReadOnly("Ht")
+	fs.Temp.SetReadOnly("Temp")
 	return
 }
 
