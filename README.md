@@ -16,7 +16,7 @@ It is important to me that the code implementing the solver be as simple as poss
 
 ### Why do this work?
 
-I studied CFD in graduate school in 1987 and worked for Northrop for 10 years doing CFD to design and debug airplanes and propulsion systems. During my time applying CFD, I had some great success and some notable failures in getting useful results from the CFD analysis. The most common theme in the failures: flows with thermal gradients, shear flows and vortices were handled very poorly by all known usable Finite Volume methods.
+I studied CFD in graduate school in 1987 and worked for Northrop for 10 years building and using CFD methods to design and debug airplanes and propulsion systems. During my time applying CFD, I had some great success and some notable failures in getting useful results from the CFD analysis. The most common theme in the failures: flows with thermal gradients, shear flows and vortices were handled very poorly by all known usable Finite Volume methods.
 
 Then, last year (2019), I noticed there were some amazing looking results appearing on Youtube and elsewhere showing well resolved turbulent eddies and shear flows using this new "Discontinuous Galerkin Finite Elements" method...
 
@@ -50,6 +50,39 @@ me@home:bash# gocfd -graph
 ### Run without graphics:
 me@home:bash# gocfd
 ```
+### Updates (June 9, 2020):
+
+Success!
+
+I reworked the DFR solver and now have verified optimal (N+1) convergence on the Euler equations for a density wave (smooth solution). The convergence orders for N=2 through N=6 are:
+```
+DFR Integration, Lax Friedrichs Flux
+Order = 2, convergence order = 2.971
+Order = 3, convergence order = 3.326
+Order = 4, convergence order = 4.906
+Order = 5, convergence order = 5.692
+#Affected by machine zero
+Order = 6, convergence order = 3.994
+
+DFR Integration, Roe Flux
+Order = 2, convergence order = 2.900
+Order = 3, convergence order = 3.342
+Order = 4, convergence order = 4.888
+Order = 5, convergence order = 5.657
+#Affected by machine zero
+Order = 6, convergence order = 4.003
+```
+Note that:
+1) No limiter is used on the smooth solution
+2) Odd orders converge at something less than the optimal rate
+3) Even orders converge at approximately N+1 as reported elsewhere
+
+I've noticed dispersion errors in the odd order solutions for the SOD shock tube when using a limiter - the shock speed is wrong. I'm not sure what causes the odd orders to behave so differently at this point. The difference in convergence rate between even and odd orders suggests there may be a material issue/phenomenon for odd orders, though I haven't found anything different (like a bug) in the process, which leads to a question about the algorithm and odd orders. One thing to think about: Even orders put a solution point in the center of each element, while odd orders do not...
+
+At this point I feel confident that I'm able to move on to multiple dimensions with this approach. I'll definitely need to implement a different and/or augmented limiter approach for solutions with discontinuities, likely to involve a "shock finder" approach that only uses the limiter in regions that need it for stability.
+
+A note on the refactored DFR approach: In the refactored DFR, an N+2 basis is used for the flux that uses (N+3) Legendre-Gauss-Lobato (LGL) points, which include the edges of each element. The solution points use a Gauss basis for the element, which does not include the edge points, and there are (N+1) interior points for the solution. At each solver step, the edge points of the solution are interpolated from the (N+1) solution points to the edges of the (N+3) flux basis and then the flux is computed from the solution primitive variables. The derivative of the flux is then computed on the (N+3) points to form the solution RHS components used in the (N+1) solution. The result is that the flux is a polynomial of order (N), and so is the solution.
+
 ### Updates (June 2, 2020): 
 
 Implemented a smooth solution (Density Wave) in the Euler Equations DFR solver and ran convergence studies. The results show a couple of things:
