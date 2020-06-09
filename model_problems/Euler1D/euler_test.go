@@ -45,14 +45,13 @@ func TestFlux(t *testing.T) {
 		c := NewEuler(1, 20, 1, N, K, model, SOD_TUBE)
 		var (
 			el                 = c.El
-			elS                = c.El_S
 			s                  = c.State
 			fRho, fRhoU, fEner utils.Matrix
 			RhoF, RhoUF, EnerF utils.Matrix
 		)
 		c.MapSolutionSubset()
-		RhoF, RhoUF, EnerF = s.Update(c.Rho, c.RhoU, c.Ener, c)
-		fRho, fRhoU, fEner = c.RoeFlux(c.Rho, c.RhoU, c.Ener, RhoF, RhoUF, EnerF, elS.VmapM, elS.VmapP, el.VmapM, el.VmapP)
+		_, _, _, RhoF, RhoUF, EnerF = s.Update(c.Rho, c.RhoU, c.Ener, c)
+		fRho, fRhoU, fEner = c.RoeFlux(c.Rho, c.RhoU, c.Ener, RhoF, RhoUF, EnerF, el.VmapM, el.VmapP)
 		// Set face flux within global flux
 		RhoF.AssignVector(el.VmapM, fRho)
 		RhoUF.AssignVector(el.VmapM, fRhoU)
@@ -71,7 +70,6 @@ func TestFlux(t *testing.T) {
 		c := NewEuler(1, 20, 1, N, K, model, SOD_TUBE)
 		var (
 			el                 = c.El
-			elS                = c.El_S
 			s                  = c.State
 			fRho, fRhoU, fEner utils.Matrix
 			RhoF, RhoUF, EnerF utils.Matrix
@@ -82,7 +80,8 @@ func TestFlux(t *testing.T) {
 				[ 4  5  6  7 ]
 		*/
 		c.MapSolutionSubset()
-		RhoF, RhoUF, EnerF = s.Update(c.Rho, c.RhoU, c.Ener, c)
+		var RhoFull, RhoUFull, EnerFull utils.Matrix
+		RhoFull, RhoUFull, EnerFull, RhoF, RhoUF, EnerF = s.Update(c.Rho, c.RhoU, c.Ener, c)
 		c.CopyBoundary(RhoF)
 		c.CopyBoundary(RhoUF)
 		c.CopyBoundary(EnerF)
@@ -95,7 +94,7 @@ func TestFlux(t *testing.T) {
 		rhoufCheck := utils.NewMatrix(el.Np, el.K, []float64{1, 1, 0.1, 0.1, 1, 1, 0.1, 0.1, 1, 1, 0.1, 0.1, 1, 1, 0.1, 0.1})
 		assert.Less(t, rhoufCheck.Subtract(RhoUF).Apply(math.Abs).Max(), 0.0001)
 
-		fRho, fRhoU, fEner = c.RoeFlux(c.Rho, c.RhoU, c.Ener, RhoF, RhoUF, EnerF, elS.VmapM, elS.VmapP, el.VmapM, el.VmapP)
+		fRho, fRhoU, fEner = c.RoeFlux(RhoFull, RhoUFull, EnerFull, RhoF, RhoUF, EnerF, el.VmapM, el.VmapP)
 		fRhoUCheck := utils.NewMatrix(2, el.K, []float64{1, 1, 0.55, 0.1, 1, 0.55, 0.1, 0.1})
 		assert.Less(t, fRhoUCheck.Subtract(fRhoU).Apply(math.Abs).Max(), 0.0001)
 		// Set face flux within global flux
