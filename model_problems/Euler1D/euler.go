@@ -281,7 +281,7 @@ func (c *Euler) Run(showGraph bool, graphDelay ...time.Duration) {
 						*/
 						fmt.Printf("%s\n", "case,K,N,CFL,Log10_Rho_rms,Log10_Rhou_rms,Log10_e_rms,Log10_rho_max,Log10_rhou_max,Log10_e_max")
 						fmt.Printf("\"%s\",%d,%d,%5.4f,%5.4f,%5.4f,%5.4f,%5.4f,%5.4f,%5.4f\n",
-							model_names[c.model], el.K, el.Np-1, c.CFL, math.Log10(rms_rho), math.Log10(rms_rhou), math.Log10(rms_e),
+							model_names[c.model], el.K, elS.Np-1, c.CFL, math.Log10(rms_rho), math.Log10(rms_rhou), math.Log10(rms_e),
 							math.Log10(max_rho), math.Log10(max_rhou), math.Log10(max_e))
 					}
 				case DENSITY_WAVE:
