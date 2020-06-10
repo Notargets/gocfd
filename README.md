@@ -83,6 +83,22 @@ At this point I feel confident that I'm able to move on to multiple dimensions w
 
 A note on the refactored DFR approach: In the refactored DFR, an N+2 basis is used for the flux that uses (N+3) Legendre-Gauss-Lobato (LGL) points, which include the edges of each element. The solution points use a Gauss basis for the element, which does not include the edge points, and there are (N+1) interior points for the solution. At each solver step, the edge points of the solution are interpolated from the (N+1) solution points to the edges of the (N+3) flux basis and then the flux is computed from the solution primitive variables. The derivative of the flux is then computed on the (N+3) points to form the solution RHS components used in the (N+1) solution. The result is that the flux is a polynomial of order (N), and so is the solution.
 
+Below is:
+```
+Euler Equations in 1 Dimension
+Solving Sod's Shock Tube
+Algorithm: DFR Integration, Roe Flux
+Solution is limited using SlopeLimit
+CFL =   2.5000, Polynomial Degree N = 8 (1 is linear), Num Elements K = 2000
+
+SOD Shock Location = 0.6753
+Rho Integration Check: Exact = 0.5625, Model = 0.5625, Log10 Error = -4.3576
+case,K,N,CFL,Log10_Rho_rms,Log10_Rhou_rms,Log10_e_rms,Log10_rho_max,Log10_rhou_max,Log10_e_max
+"DFR Integration, Roe Flux",2000,8,2.5000,-2.6913,-2.7635,-2.2407,-1.7183,-1.6491,-1.1754
+```
+![](images/Euler-1D-DFR2-Roe-N8-K2000-0.1.PNG)
+
+
 ### Updates (June 2, 2020): 
 
 Implemented a smooth solution (Density Wave) in the Euler Equations DFR solver and ran convergence studies. The results show a couple of things:

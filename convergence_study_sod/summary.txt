@@ -45,18 +45,18 @@ Roe Flux rhoRMS, rhouRMS, eRMS convergence order = 2.748
 Lax Flux rhoRMS, rhouRMS, eRMS convergence order = 2.995
 
 # Density Wave, DFR2 (refactored to properly interpolate)
-Title = DFR Integration, Lax Friedrichs Flux
-Order = 2, CFL =  0.12 rhoRMS, rhouRMS, eRMS convergence order = 2.971, 0.000, 0.000
-Order = 3, CFL =  0.12 rhoRMS, rhouRMS, eRMS convergence order = 3.326, 0.000, 0.000
-Order = 4, CFL =  0.12 rhoRMS, rhouRMS, eRMS convergence order = 4.906, 0.000, 0.000
-Order = 5, CFL =  0.12 rhoRMS, rhouRMS, eRMS convergence order = 5.692, 0.000, 0.000
+DFR Integration, Lax Friedrichs Flux
+Order = 2, convergence order = 2.971
+Order = 3, convergence order = 3.326
+Order = 4, convergence order = 4.906
+Order = 5, convergence order = 5.692
 #Affected by machine zero
-Order = 6, CFL =  0.12 rhoRMS, rhouRMS, eRMS convergence order = 3.994, 0.000, 0.000
+Order = 6, convergence order = 3.994
 
-Title = DFR Integration, Roe Flux
-Order = 2, CFL =  0.12 rhoRMS, rhouRMS, eRMS convergence order = 2.900, 0.000, 0.000
-Order = 3, CFL =  0.12 rhoRMS, rhouRMS, eRMS convergence order = 3.342, 0.000, 0.000
-Order = 4, CFL =  0.12 rhoRMS, rhouRMS, eRMS convergence order = 4.888, 0.000, 0.000
-Order = 5, CFL =  0.12 rhoRMS, rhouRMS, eRMS convergence order = 5.657, 0.000, 0.000
+DFR Integration, Roe Flux
+Order = 2, convergence order = 2.900
+Order = 3, convergence order = 3.342
+Order = 4, convergence order = 4.888
+Order = 5, convergence order = 5.657
 #Affected by machine zero
-Order = 6, CFL =  0.12 rhoRMS, rhouRMS, eRMS convergence order = 4.003, 0.000, 0.000
+Order = 6, convergence order = 4.003
