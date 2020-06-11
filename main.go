@@ -4,7 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"math"
+	"os"
 	"time"
+
+	"github.com/notargets/gocfd/DG2D"
 
 	"github.com/notargets/gocfd/model_problems/Euler1D"
 	"github.com/notargets/gocfd/model_problems/Maxwell1D"
@@ -21,6 +24,7 @@ var (
 	FinalTime = 100000.
 	XMax      = 0.0
 	Case      = Euler1D.CaseType(0)
+	GridFile  string
 )
 
 type ModelType uint8
@@ -42,7 +46,7 @@ var (
 	def_N    = []int{3, 4, 4, 4, 3, 4, 4, 3}
 	def_CFL  = []float64{1, 1, 3, 3, 0.75, 2.5, 3, 0.5}
 	def_XMAX = []float64{2 * math.Pi, 1, 1, 2 * math.Pi, 1, 1, 1, 1}
-	def_CASE = []int{0, 0, 0, 0, 0, 0, 0, 0}
+	def_CASE = make([]int, 8)
 )
 
 type Model interface {
@@ -59,6 +63,7 @@ func main() {
 	FTptr := flag.Float64("FinalTime", FinalTime, "FinalTime - the target end time for the sim")
 	XMaxptr := flag.Float64("XMax", XMax, "Maximum X coordinate (for Euler) - make sure to increase K with XMax")
 	Caseptr := flag.Int("Case", int(Case), "Case to run, for Euler: 0 = SOD Shock Tube, 1 = Density Wave")
+	GridFileptr := flag.String("gridfile", "", "Grid file to read in Gambit (.neu) format")
 	flag.Parse()
 	ModelRun = ModelType(*ModelRunptr)
 	Delay = time.Duration(*Delayptr)
@@ -71,6 +76,12 @@ func main() {
 	FinalTime = getParam(FinalTime, FTptr)
 	XMax = getParam(XMax, XMaxptr)
 	Case = Euler1D.CaseType(getParam(float64(CaseInt), Caseptr))
+
+	if len(*GridFileptr) != 0 {
+		GridFile = *GridFileptr
+		DG2D.ReadGambit2d(GridFile)
+		os.Exit(1)
+	}
 
 	var C Model
 	switch ModelRun {
