@@ -21,46 +21,40 @@ func ReadGambit2d(filename string) (VX, VY, VZ utils.Vector, EToV utils.Matrix) 
 	}
 	defer file.Close()
 	reader = bufio.NewReader(file)
-	var line string
+
 	// Skip firest six lines
 	skipLines(6, reader)
+
 	// Get dimensions
-	/*
-		Nv      // num nodes in mesh
-		K       // num elements
-		Nmats   // num material groups
-		Nbcs    // num boundary groups
-		Nsd;    // num space dimensions
-	*/
-	var Nv, K, Nmats, Nbcs, Nsd, dum, n int
-	line = getLine(reader)
-	if n, err = fmt.Sscanf(line, "%d %d %d %d %d %d", &Nv, &K, &Nmats, &Nbcs, &Nsd, &dum); err != nil || n < 5 {
-		if err == nil && n < 5 {
-			err = fmt.Errorf("read fewer than 5 dimensions, read %d, need 5\n, line: %s", n, line)
-		}
-		panic(err)
-	}
+	Nv, K, Nmats, Nbcs, Nsd := ReadHeader(reader)
 	skipLines(2, reader)
+
 	fmt.Printf("Nv = %d, K = %d\n", Nv, K)
 	fmt.Printf("Nmats = %d, Nbcs = %d\n%d space dimensions\n", Nmats, Nbcs, Nsd)
 	if Nsd > 3 || Nsd < 2 {
 		panic("space dimensions not 2 or 3")
 	}
-	NFaces, bIs3D, bCoord3D, bElement3D, bTET := GetGeomAttributes(Nsd, false)
+
+	NFaces, bIs3D, bCoord3D, bElement3D, bTET := CalculateGeomAttributes(Nsd, false)
+
 	fmt.Printf("NFaces = %d, bIs3D is %v, bCoord3D is %v, bElement3D is %v, bTET is %v\n",
 		NFaces, bIs3D, bCoord3D, bElement3D, bTET)
+
 	if bCoord3D {
 		VX, VY, VZ = Read3DVertices(Nv, reader)
 	} else {
 		VX, VY = Read2DVertices(Nv, reader)
 	}
 	skipLines(2, reader)
+
+	// Read Elements
 	if bTET {
 		EToV = ReadTets(K, reader)
 	} else {
 		EToV = ReadTris(K, reader)
 	}
 	skipLines(2, reader)
+
 	switch Nsd {
 	case 2:
 		fmt.Printf("Bounding Box:\nXMin/XMax = %5.3f, %5.3f\nYMin/YMax = %5.3f, %5.3f\n",
@@ -69,10 +63,31 @@ func ReadGambit2d(filename string) (VX, VY, VZ utils.Vector, EToV utils.Matrix) 
 		fmt.Printf("Bounding Box:\nXMin/XMax = %5.3f, %5.3f\nYMin/YMax = %5.3f, %5.3f\nZMin/ZMax = %5.3f, %5.3f\n",
 			VX.Min(), VX.Max(), VY.Min(), VY.Max(), VZ.Min(), VZ.Max())
 	}
+
+	matGroups := make(map[int]*Material)
+	// Read material values
+	epsilon := utils.NewVector(K)
+	for i := 0; i < Nmats; i++ {
+		gn, elnum, matval, title := ReadMaterialHeader(reader)
+		matGroups[gn] = &Material{
+			ElementCount:  elnum,
+			MaterialValue: matval,
+			Title:         title,
+		}
+		ReadMaterialGroup(reader, elnum, matval, epsilon)
+		skipLines(2, reader)
+	}
+	fmt.Println(epsilon.Print("epsilon"))
 	return
 }
 
-func GetGeomAttributes(Nsd int, triIn3d bool) (NFaces int, bIs3D, bCoord3D, bElement3D, bTET bool) {
+type Material struct {
+	ElementCount  int
+	MaterialValue float64
+	Title         string
+}
+
+func CalculateGeomAttributes(Nsd int, triIn3d bool) (NFaces int, bIs3D, bCoord3D, bElement3D, bTET bool) {
 	bIs3D = (Nsd == 3)
 	if bIs3D && !triIn3d {
 		NFaces = 4 // Tetrahedra
@@ -109,6 +124,79 @@ func skipLines(n int, reader *bufio.Reader) {
 	}
 }
 
+func ReadMaterialGroup(reader *bufio.Reader, elementCount int, matval float64, epsilon utils.Vector) {
+	var (
+		n       int
+		nn      = make([]int, 10)
+		epsData = epsilon.Data()
+		err     error
+	)
+	numLines := elementCount/10 + 1
+	fmt.Printf("Reading %d lines of materials with %d elements\n", numLines, elementCount)
+	for i := 0; i < numLines; i++ {
+		line := getLine(reader)
+		nargs := 10
+		if n, err = fmt.Sscanf(line, "%d %d %d %d %d %d %d %d %d %d", &nn[0], &nn[1], &nn[2], &nn[3], &nn[4], &nn[5], &nn[6], &nn[7], &nn[8], &nn[9]); err != nil || n < nargs {
+			if !(n < nargs && i == numLines-1) {
+				if err == nil && n < nargs {
+					err = fmt.Errorf("read fewer than %d dimensions, read %d, line: %s", nargs, n, line)
+				}
+				panic(err)
+			}
+		}
+		for j := 0; j < n; j++ {
+			epsData[nn[j]-1] = matval
+		}
+	}
+	return
+}
+
+func ReadMaterialHeader(reader *bufio.Reader) (gn, elnum int, matval float64, title string) {
+	/*
+	   GROUP:           1 ELEMENTS:        977 MATERIAL:      1.000 NFLAGS:          0
+	                     epsilon: 1.000
+	          0
+	*/
+	var (
+		line = getLine(reader)
+		n    int
+		err  error
+	)
+	nargs := 3
+	if n, err = fmt.Sscanf(line, "GROUP: %11d ELEMENTS:%11d MATERIAL:%11f", &gn, &elnum, &matval); err != nil || n < nargs {
+		if err == nil && n < nargs {
+			err = fmt.Errorf("read fewer than %d dimensions, read %d, line: %s", nargs, n, line)
+		}
+		panic(err)
+	}
+	title = getLine(reader)
+	skipLines(1, reader)
+	return
+}
+
+func ReadHeader(reader *bufio.Reader) (Nv, K, Nmats, Nbcs, Nsd int) {
+	/*
+		Nv      // num nodes in mesh
+		K       // num elements
+		Nmats   // num material groups
+		Nbcs    // num boundary groups
+		Nsd;    // num space dimensions
+	*/
+	var (
+		line   = getLine(reader)
+		n, dum int
+		err    error
+	)
+	nargs := 6
+	if n, err = fmt.Sscanf(line, "%d %d %d %d %d %d", &Nv, &K, &Nmats, &Nbcs, &Nsd, &dum); err != nil || n < nargs {
+		if err == nil && n < nargs {
+			err = fmt.Errorf("read fewer than %d dimensions, read %d, line: %s", nargs, n, line)
+		}
+		panic(err)
+	}
+	return
+}
+
 func Read2DVertices(Nv int, reader *bufio.Reader) (VX, VY utils.Vector) {
 	var (
 		line   string
@@ -124,6 +212,7 @@ func Read2DVertices(Nv int, reader *bufio.Reader) (VX, VY utils.Vector) {
 			if err == nil && n < nargs {
 				err = fmt.Errorf("read fewer than required dimensions, read %d, need %d\n, line: %s", n, nargs, line)
 			}
+			err = fmt.Errorf("error reading index, line: %s, err: %s\n", line, err.Error())
 			panic(err)
 		}
 		if n, err = fmt.Sscanf(line, "%d %f %f", &ind, &vx[ind-1], &vy[ind-1]); err != nil || n < nargs {
