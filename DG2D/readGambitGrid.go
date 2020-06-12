@@ -9,12 +9,11 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-func ReadGambit2d(filename string) {
+func ReadGambit2d(filename string) (VX, VY, VZ utils.Vector, EToV utils.Matrix) {
 	var (
-		file       *os.File
-		err        error
-		reader     *bufio.Reader
-		VX, VY, VZ utils.Vector
+		file   *os.File
+		err    error
+		reader *bufio.Reader
 	)
 	fmt.Printf("Reading file named: %s\n", filename)
 	if file, err = os.Open(filename); err != nil {
@@ -55,11 +54,22 @@ func ReadGambit2d(filename string) {
 	} else {
 		VX, VY = Read2DVertices(Nv, reader)
 	}
-	fmt.Println(VX.Print("VX"))
-	fmt.Println(VY.Print("VY"))
-	if bCoord3D {
-		fmt.Println(VZ.Print("VZ"))
+	skipLines(2, reader)
+	if bTET {
+		EToV = ReadTets(K, reader)
+	} else {
+		EToV = ReadTris(K, reader)
 	}
+	skipLines(2, reader)
+	switch Nsd {
+	case 2:
+		fmt.Printf("Bounding Box:\nXMin/XMax = %5.3f, %5.3f\nYMin/YMax = %5.3f, %5.3f\n",
+			VX.Min(), VX.Max(), VY.Min(), VY.Max())
+	case 3:
+		fmt.Printf("Bounding Box:\nXMin/XMax = %5.3f, %5.3f\nYMin/YMax = %5.3f, %5.3f\nZMin/ZMax = %5.3f, %5.3f\n",
+			VX.Min(), VX.Max(), VY.Min(), VY.Max(), VZ.Min(), VZ.Max())
+	}
+	return
 }
 
 func GetGeomAttributes(Nsd int, triIn3d bool) (NFaces int, bIs3D, bCoord3D, bElement3D, bTET bool) {
@@ -149,6 +159,70 @@ func Read3DVertices(Nv int, reader *bufio.Reader) (VX, VY, VZ utils.Vector) {
 			}
 			panic(err)
 		}
+	}
+	return
+}
+
+func ReadTets(K int, reader *bufio.Reader) (EToV utils.Matrix) {
+	//---------------------------------------------
+	// Tetrahedra in 3D:
+	//---------------------------------------------
+	// ENDOFSECTION
+	//    ELEMENTS/CELLS 1.3.0
+	//     1  6  4      248     247     385     265
+	//     2  6  4      248     249     273     397
+	//---------------------------------------------
+	var (
+		line                       string
+		err                        error
+		n, ind, typ, nfaces, nargs int
+	)
+	EToV = utils.NewMatrix(K, 4)
+	for i := 0; i < K; i++ {
+		line = getLine(reader)
+		nargs = 7
+		var n1, n2, n3, n4 int
+		if n, err = fmt.Sscanf(line, "%d %d %d %d %d %d %d", &ind, &typ, &nfaces, &n1, &n2, &n3, &n4); err != nil || n < nargs {
+			if err == nil && n < nargs {
+				err = fmt.Errorf("read fewer than required dimensions, read %d, need %d\n, line: %s", n, nargs, line)
+			}
+			panic(err)
+		}
+		EToV.Set(ind-1, 0, float64(n1))
+		EToV.Set(ind-1, 1, float64(n2))
+		EToV.Set(ind-1, 2, float64(n3))
+		EToV.Set(ind-1, 3, float64(n4))
+	}
+	return
+}
+
+func ReadTris(K int, reader *bufio.Reader) (EToV utils.Matrix) {
+	//-------------------------------------
+	// Triangles in 3D:
+	//-------------------------------------
+	// ENDOFSECTION
+	//    ELEMENTS/CELLS 1.3.0
+	//      1  3  3        1       2       3
+	//      2  3  3        3       2       4
+	var (
+		line                       string
+		err                        error
+		n, ind, typ, nfaces, nargs int
+	)
+	EToV = utils.NewMatrix(K, 3)
+	for i := 0; i < K; i++ {
+		line = getLine(reader)
+		nargs = 6
+		var n1, n2, n3 int
+		if n, err = fmt.Sscanf(line, "%d %d %d %d %d %d", &ind, &typ, &nfaces, &n1, &n2, &n3); err != nil || n < nargs {
+			if err == nil && n < nargs {
+				err = fmt.Errorf("read fewer than required dimensions, read %d, need %d\n, line: %s", n, nargs, line)
+			}
+			panic(err)
+		}
+		EToV.Set(ind-1, 0, float64(n1))
+		EToV.Set(ind-1, 1, float64(n2))
+		EToV.Set(ind-1, 2, float64(n3))
 	}
 	return
 }
