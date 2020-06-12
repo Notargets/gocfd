@@ -21,9 +21,7 @@ func ReadGambit2d(filename string) {
 	reader = bufio.NewReader(file)
 	var line string
 	// Skip firest six lines
-	for i := 0; i < 6; i++ {
-		line = getLine(reader)
-	}
+	skipLines(6, reader)
 	// Get dimensions
 	/*
 		Nv      // num nodes in mesh
@@ -79,4 +77,10 @@ func getLine(reader *bufio.Reader) (line string) {
 	}
 	line = line[:len(line)-1] // Strip away the newline
 	return
+}
+
+func skipLines(n int, reader *bufio.Reader) {
+	for i := 0; i < n; i++ {
+		getLine(reader)
+	}
 }

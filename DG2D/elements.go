@@ -1,7 +1,9 @@
-package DG1D
+package DG2D
 
 import (
 	"math"
+
+	"github.com/notargets/gocfd/DG1D"
 
 	"github.com/notargets/gocfd/utils"
 	"gonum.org/v1/gonum/mat"
@@ -14,7 +16,7 @@ const (
 	GAUSS_LOBATO
 )
 
-type Elements1D struct {
+type Elements2D struct {
 	K, Np, Nfp, NFaces                int
 	R, VX, FMask                      utils.Vector
 	EToV, EToE, EToF                  utils.Matrix
@@ -24,13 +26,13 @@ type Elements1D struct {
 	MapB, MapI, MapO                  utils.Index
 }
 
-func NewElements1D(N int, VX utils.Vector, EToV utils.Matrix, ntA ...NODE_TYPE) (el *Elements1D) {
+func NewElements2D(N int, VX utils.Vector, EToV utils.Matrix, ntA ...NODE_TYPE) (el *Elements2D) {
 	var (
 		K, NFaces = EToV.Dims()
-		Nfp       = 1 // One point per face in 1D
+		Nfp       = 1 // One point per face in 2D
 	)
 	// N is the polynomial degree, Np is the number of interpolant points = N+1
-	el = &Elements1D{
+	el = &Elements2D{
 		K:      K,
 		Np:     N + 1,
 		Nfp:    Nfp,
@@ -44,7 +46,7 @@ func NewElements1D(N int, VX utils.Vector, EToV utils.Matrix, ntA ...NODE_TYPE) 
 	} else {
 		nt = ntA[0]
 	}
-	el.Startup1D(nt)
+	el.Startup2D(nt)
 	el.V.SetReadOnly("V")
 	el.Vinv.SetReadOnly("Vinv")
 	el.EToV.SetReadOnly("EToV")
@@ -138,11 +140,11 @@ func JacobiGQ(alpha, beta float64, N int) (X, W utils.Vector) {
 
 	VVr = mat.NewDense(len(x), len(x), nil)
 	eig.VectorsTo(VVr)
-	W = utils.NewVector(len(x), VVr.RawRowView(0)).POW(2).Scale(Gamma0(alpha, beta))
+	W = utils.NewVector(len(x), VVr.RawRowView(0)).POW(2).Scale(DG1D.Gamma0(alpha, beta))
 	return X, W
 }
 
-func Vandermonde1D(N int, R utils.Vector) (V utils.Matrix) {
+func Vandermonde2D(N int, R utils.Vector) (V utils.Matrix) {
 	V = utils.NewMatrix(R.Len(), N+1)
 	for j := 0; j < N+1; j++ {
 		V.SetCol(j, JacobiP(R, 0, 0, j))
@@ -154,7 +156,7 @@ func JacobiP(r utils.Vector, alpha, beta float64, N int) (p []float64) {
 	var (
 		Nc = r.Len()
 	)
-	rg := 1. / math.Sqrt(Gamma0(alpha, beta))
+	rg := 1. / math.Sqrt(DG1D.Gamma0(alpha, beta))
 	if N == 0 {
 		p = utils.ConstArray(Nc, rg)
 		return
@@ -168,7 +170,7 @@ func JacobiP(r utils.Vector, alpha, beta float64, N int) (p []float64) {
 
 	iter += Nc // Increment to next row
 	ab := alpha + beta
-	rg1 := 1. / math.Sqrt(Gamma1(alpha, beta))
+	rg1 := 1. / math.Sqrt(DG1D.Gamma1(alpha, beta))
 	for i := 0; i < Nc; i++ {
 		pl[i+iter] = rg1 * ((ab+2.0)*r.AtVec(i)/2.0 + (alpha-beta)/2.0)
 	}
@@ -219,7 +221,7 @@ func GradJacobiP(r utils.Vector, alpha, beta float64, N int) (p []float64) {
 	return
 }
 
-func GradVandermonde1D(r utils.Vector, N int) (Vr utils.Matrix) {
+func GradVandermonde2D(r utils.Vector, N int) (Vr utils.Matrix) {
 	Vr = utils.NewMatrix(r.Len(), N+1)
 	for i := 0; i < N+1; i++ {
 		Vr.SetCol(i, GradJacobiP(r, 0, 0, i))
@@ -227,7 +229,7 @@ func GradVandermonde1D(r utils.Vector, N int) (Vr utils.Matrix) {
 	return
 }
 
-func Lift1D(V utils.Matrix, Np, Nfaces, Nfp int) (LIFT utils.Matrix) {
+func Lift2D(V utils.Matrix, Np, Nfaces, Nfp int) (LIFT utils.Matrix) {
 	Emat := utils.NewMatrix(Np, Nfaces*Nfp)
 	Emat.Set(0, 0, 1)
 	Emat.Set(Np-1, 1, 1)
@@ -235,7 +237,7 @@ func Lift1D(V utils.Matrix, Np, Nfaces, Nfp int) (LIFT utils.Matrix) {
 	return
 }
 
-func Normals1D(Nfaces, Nfp, K int) (NX utils.Matrix) {
+func Normals2D(Nfaces, Nfp, K int) (NX utils.Matrix) {
 	nx := make([]float64, Nfaces*Nfp*K)
 	for i := 0; i < K; i++ {
 		nx[i] = -1
@@ -245,13 +247,13 @@ func Normals1D(Nfaces, Nfp, K int) (NX utils.Matrix) {
 	return
 }
 
-func GeometricFactors1D(Dr, X utils.Matrix) (J, Rx utils.Matrix) {
+func GeometricFactors2D(Dr, X utils.Matrix) (J, Rx utils.Matrix) {
 	J = Dr.Mul(X)
 	Rx = J.Copy().POW(-1)
 	return
 }
 
-func (el *Elements1D) LagrangeInterpolant(r float64) (Li utils.Matrix) {
+func (el *Elements2D) LagrangeInterpolant(r float64) (Li utils.Matrix) {
 	Li = utils.NewMatrix(1, el.R.Len()).AddScalar(1)
 	LiData := Li.RawMatrix().Data
 	for i, vali := range el.R.RawVector().Data {
