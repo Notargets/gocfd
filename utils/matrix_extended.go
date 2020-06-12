@@ -41,6 +41,9 @@ func (m Matrix) Dims() (r, c int)          { return m.M.Dims() }
 func (m Matrix) At(i, j int) float64       { return m.M.At(i, j) }
 func (m Matrix) T() mat.Matrix             { return m.T() }
 func (m Matrix) RawMatrix() blas64.General { return m.M.RawMatrix() }
+func (m Matrix) Data() []float64 {
+	return m.RawMatrix().Data
+}
 
 // Chainable methods (extended)
 func (m *Matrix) SetReadOnly(name ...string) Matrix {

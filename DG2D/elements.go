@@ -18,7 +18,7 @@ const (
 
 type Elements2D struct {
 	K, Np, Nfp, NFaces                int
-	R, VX, FMask                      utils.Vector
+	R, VX, VY, VZ, FMask              utils.Vector
 	EToV, EToE, EToF                  utils.Matrix
 	X, Dr, Rx, FScale, NX, LIFT       utils.Matrix
 	V, Vinv                           utils.Matrix

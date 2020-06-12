@@ -45,6 +45,9 @@ func (v Vector) Len() int {
 		return 0
 	}
 }
+func (v Vector) Data() []float64 {
+	return v.RawVector().Data
+}
 
 // Chainable (extended) methods
 func (v Vector) Subtract(a Vector) Vector {
