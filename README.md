@@ -1,5 +1,6 @@
 # gocfd
 Awesome CFD solver written in Go 
+![](images/bump-colored.PNG)
 ![](images/Inlet-small.PNG)
 
 ## An implementation of the Discontinuous Galerkin Method for solving systems of equations
