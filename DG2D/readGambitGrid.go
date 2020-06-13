@@ -32,13 +32,13 @@ type BCFLAG uint8
 
 const (
 	BC_In BCFLAG = iota + 1
-	BC_Out
-	BC_Wall
-	BC_Far
-	BC_Cyl
 	BC_Dirichlet
-	BC_Neuman
 	BC_Slip
+	BC_Far
+	BC_Wall
+	BC_Cyl
+	BC_Neuman
+	BC_Out
 )
 
 /*
@@ -135,11 +135,13 @@ func ReadGambit2d(filename string) (VX, VY, VZ utils.Vector, EToV, BCType utils.
 
 	// Read BCs
 	BCType = ReadBCS(Nbcs, K, NFaces, reader)
-	PlotMesh(VX, VY, EToV)
+	if true {
+		PlotMesh(VX, VY, EToV, BCType)
+	}
 	return
 }
 
-func PlotMesh(VX, VY utils.Vector, EToV utils.Matrix) {
+func PlotMesh(VX, VY utils.Vector, EToV, BCType utils.Matrix) {
 	var (
 		points   []graphics2D.Point
 		trimesh  graphics2D.TriMesh
@@ -152,11 +154,17 @@ func PlotMesh(VX, VY utils.Vector, EToV utils.Matrix) {
 		points[i].X[1] = float32(vyD[i])
 	}
 	trimesh.Triangles = make([]graphics2D.Triangle, K)
-	fmt.Println(EToV.Dims())
+	colorMap := utils2.NewColorMap(0, float32(BC_Out), 1)
+	trimesh.Attributes = make([][]float32, K) // One BC attribute per face
 	for k := 0; k < K; k++ {
 		trimesh.Triangles[k].Nodes[0] = int32(EToV.At(k, 0))
 		trimesh.Triangles[k].Nodes[1] = int32(EToV.At(k, 1))
 		trimesh.Triangles[k].Nodes[2] = int32(EToV.At(k, 2))
+		trimesh.Attributes[k] = []float32{
+			float32(BCType.At(k, 0)),
+			float32(BCType.At(k, 1)),
+			float32(BCType.At(k, 2)),
+		}
 	}
 	trimesh.Geometry = points
 	box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
@@ -170,7 +178,7 @@ func PlotMesh(VX, VY utils.Vector, EToV utils.Matrix) {
 	default:
 		chart = chart2d.NewChart2D(1920, 1920, center.X[0]-float32(yrange/2), center.X[0]+float32(yrange/2), box.XMin[1], box.XMax[1])
 	}
-	colorMap := utils2.NewColorMap(-1, 1, 1)
+	chart.AddColorMap(colorMap)
 	go chart.Plot()
 	white := color.RGBA{
 		R: 255,
@@ -180,7 +188,6 @@ func PlotMesh(VX, VY utils.Vector, EToV utils.Matrix) {
 	}
 	_ = colorMap
 	if err := chart.AddTriMesh("TriMesh", points, trimesh,
-		//chart2d.NoGlyph, chart2d.Solid, colorMap.GetRGB(1.0)); err != nil {
 		chart2d.NoGlyph, chart2d.Solid, white); err != nil {
 		panic("unable to add graph series")
 	}
