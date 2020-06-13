@@ -79,7 +79,7 @@ func main() {
 
 	if len(*GridFileptr) != 0 {
 		GridFile = *GridFileptr
-		DG2D.ReadGambit2d(GridFile)
+		DG2D.ReadGambit2d(GridFile, true)
 		os.Exit(1)
 	}
 

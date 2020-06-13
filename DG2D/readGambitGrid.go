@@ -64,7 +64,7 @@ var faceMap = map[string]BCFLAG{
 	"slip":      BC_Slip,
 }
 
-func ReadGambit2d(filename string) (VX, VY, VZ utils.Vector, EToV, BCType utils.Matrix) {
+func ReadGambit2d(filename string, plotMesh bool) (VX, VY, VZ utils.Vector, EToV, BCType utils.Matrix) {
 	var (
 		file   *os.File
 		err    error
@@ -135,7 +135,7 @@ func ReadGambit2d(filename string) (VX, VY, VZ utils.Vector, EToV, BCType utils.
 
 	// Read BCs
 	BCType = ReadBCS(Nbcs, K, NFaces, reader)
-	if true {
+	if plotMesh {
 		PlotMesh(VX, VY, EToV, BCType)
 	}
 	return
@@ -191,8 +191,13 @@ func PlotMesh(VX, VY utils.Vector, EToV, BCType utils.Matrix) {
 		chart2d.NoGlyph, chart2d.Solid, white); err != nil {
 		panic("unable to add graph series")
 	}
+	var ticks int
 	for {
+		ticks++
 		time.Sleep(time.Second)
+		if ticks > 10 {
+			break
+		}
 	}
 }
 
