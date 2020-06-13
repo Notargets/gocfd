@@ -1,5 +1,6 @@
 # gocfd
 Awesome CFD solver written in Go 
+![](images/Inlet-small.PNG)
 
 ## An implementation of the Discontinuous Galerkin Method for solving systems of equations
 
@@ -50,6 +51,11 @@ me@home:bash# gocfd -graph
 ### Run without graphics:
 me@home:bash# gocfd
 ```
+### Updates (June 13, 2020):
+![](images/Inlet-small.PNG)
+
+Implemented a Gambit formatted mesh reader and updated AVS to plot tri meshes.
+
 ### Updates (June 9, 2020):
 
 Success!
