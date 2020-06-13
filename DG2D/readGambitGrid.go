@@ -3,9 +3,16 @@ package DG2D
 import (
 	"bufio"
 	"fmt"
+	"image/color"
 	"io"
 	"os"
 	"strings"
+	"time"
+
+	"github.com/notargets/avs/chart2d"
+	utils2 "github.com/notargets/avs/utils"
+
+	graphics2D "github.com/notargets/avs/geometry"
 
 	"github.com/notargets/gocfd/utils"
 )
@@ -46,6 +53,8 @@ const (
 */
 var faceMap = map[string]BCFLAG{
 	"inflow":    BC_In,
+	"in":        BC_In,
+	"out":       BC_Out,
 	"outflow":   BC_Out,
 	"wall":      BC_Wall,
 	"far":       BC_Far,
@@ -126,7 +135,58 @@ func ReadGambit2d(filename string) (VX, VY, VZ utils.Vector, EToV, BCType utils.
 
 	// Read BCs
 	BCType = ReadBCS(Nbcs, K, NFaces, reader)
+	PlotMesh(VX, VY, EToV)
 	return
+}
+
+func PlotMesh(VX, VY utils.Vector, EToV utils.Matrix) {
+	var (
+		points   []graphics2D.Point
+		trimesh  graphics2D.TriMesh
+		vxD, vyD = VX.Data(), VY.Data()
+		K, _     = EToV.Dims()
+	)
+	points = make([]graphics2D.Point, VX.Len())
+	for i, vx := range vxD {
+		points[i].X[0] = float32(vx)
+		points[i].X[1] = float32(vyD[i])
+	}
+	trimesh.Triangles = make([]graphics2D.Triangle, K)
+	fmt.Println(EToV.Dims())
+	for k := 0; k < K; k++ {
+		trimesh.Triangles[k].Nodes[0] = int32(EToV.At(k, 0))
+		trimesh.Triangles[k].Nodes[1] = int32(EToV.At(k, 1))
+		trimesh.Triangles[k].Nodes[2] = int32(EToV.At(k, 2))
+	}
+	trimesh.Geometry = points
+	box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
+	center := box.Centroid()
+	xrange := box.XMax[0] - box.XMin[0]
+	yrange := box.XMax[1] - box.XMin[1]
+	var chart *chart2d.Chart2D
+	switch {
+	case xrange > yrange:
+		chart = chart2d.NewChart2D(1920, 1920, box.XMin[0], box.XMax[0], center.X[1]-float32(xrange/2), center.X[1]+float32(xrange/2))
+	default:
+		chart = chart2d.NewChart2D(1920, 1920, center.X[0]-float32(yrange/2), center.X[0]+float32(yrange/2), box.XMin[1], box.XMax[1])
+	}
+	colorMap := utils2.NewColorMap(-1, 1, 1)
+	go chart.Plot()
+	white := color.RGBA{
+		R: 255,
+		G: 255,
+		B: 255,
+		A: 0,
+	}
+	_ = colorMap
+	if err := chart.AddTriMesh("TriMesh", points, trimesh,
+		//chart2d.NoGlyph, chart2d.Solid, colorMap.GetRGB(1.0)); err != nil {
+		chart2d.NoGlyph, chart2d.Solid, white); err != nil {
+		panic("unable to add graph series")
+	}
+	for {
+		time.Sleep(time.Second)
+	}
 }
 
 func ReadBCS(Nbcs, K, NFaces int, reader *bufio.Reader) (BCType utils.Matrix) {
@@ -367,9 +427,9 @@ func ReadTris(K int, reader *bufio.Reader) (EToV utils.Matrix) {
 			}
 			panic(err)
 		}
-		EToV.Set(ind-1, 0, float64(n1))
-		EToV.Set(ind-1, 1, float64(n2))
-		EToV.Set(ind-1, 2, float64(n3))
+		EToV.Set(ind-1, 0, float64(n1-1))
+		EToV.Set(ind-1, 1, float64(n2-1))
+		EToV.Set(ind-1, 2, float64(n3-1))
 	}
 	return
 }
