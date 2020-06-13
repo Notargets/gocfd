@@ -5,9 +5,55 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/notargets/gocfd/utils"
 )
+
+type Material struct {
+	ElementCount  int
+	MaterialValue float64
+	Title         string
+}
+
+type BC struct {
+	Type     BCFLAG
+	ParamMap map[string]float64
+}
+
+type BCFLAG uint8
+
+const (
+	BC_In BCFLAG = iota
+	BC_Out
+	BC_Wall
+	BC_Far
+	BC_Cyl
+	BC_Dirichlet
+	BC_Neuman
+	BC_Slip
+)
+
+/*
+  if      (match_BC(name, "Infl"))  bcflag = BC_In;
+  else if (match_BC(name, "Outf"))  bcflag = BC_Out;
+  else if (match_BC(name, "Wall"))  bcflag = BC_Wall;
+  else if (match_BC(name, "Far" ))  bcflag = BC_Far;
+  else if (match_BC(name, "Cyl" ))  bcflag = BC_Cyl;
+  else if (match_BC(name, "Diri"))  bcflag = BC_Dirichlet;
+  else if (match_BC(name, "Neum"))  bcflag = BC_Neuman;
+  else if (match_BC(name, "Slip"))  bcflag = BC_Slip;
+*/
+var faceMap = map[string]BCFLAG{
+	"Infl": BC_In,
+	"Outf": BC_Out,
+	"Wall": BC_Wall,
+	"Far":  BC_Far,
+	"Cyl":  BC_Cyl,
+	"Diri": BC_Dirichlet,
+	"Neum": BC_Neuman,
+	"Slip": BC_Slip,
+}
 
 func ReadGambit2d(filename string) (VX, VY, VZ utils.Vector, EToV utils.Matrix) {
 	var (
@@ -77,51 +123,59 @@ func ReadGambit2d(filename string) (VX, VY, VZ utils.Vector, EToV utils.Matrix) 
 		ReadMaterialGroup(reader, elnum, matval, epsilon)
 		skipLines(2, reader)
 	}
-	fmt.Println(epsilon.Print("epsilon"))
+
+	// Read BCs
+	BCType := ReadBCS(Nbcs, K, NFaces, reader)
+	fmt.Println(BCType.Print("BCType"))
 	return
 }
 
-type Material struct {
-	ElementCount  int
-	MaterialValue float64
-	Title         string
-}
-
-func CalculateGeomAttributes(Nsd int, triIn3d bool) (NFaces int, bIs3D, bCoord3D, bElement3D, bTET bool) {
-	bIs3D = (Nsd == 3)
-	if bIs3D && !triIn3d {
-		NFaces = 4 // Tetrahedra
-		bCoord3D = true
-		bElement3D = true
-	} else {
-		NFaces = 3 // Triangles
-		bCoord3D = triIn3d
-		bElement3D = false
-	}
-	// Triangles or Tetrahedra?
-	bTET = bElement3D
-	return
-}
-
-func getLine(reader *bufio.Reader) (line string) {
+func ReadBCS(Nbcs, K, NFaces int, reader *bufio.Reader) (BCType utils.Matrix) {
 	var (
-		err error
+		line, bctyp string
+		err         error
+		nargs       int
+		n, bcid     int
 	)
-	line, err = reader.ReadString('\n')
-	if err != nil {
-		if err == io.EOF {
-			err = fmt.Errorf("early end of file")
+	BCType = utils.NewMatrix(K, NFaces)
+	for i := 0; i < Nbcs; i++ {
+		// Read BC header, if BC text is "Cyl", read a float parameter
+		if i != 0 {
+			skipLines(1, reader)
 		}
-		panic(err)
+		line = getLine(reader)
+		if n, err = fmt.Sscanf(line, "%32s", &bctyp); err != nil {
+			panic(err)
+		}
+		bctyp = strings.Trim(bctyp, " ")
+		bt := faceMap[bctyp]
+		var paramf float64
+		var numfaces int
+		switch bctyp {
+		case "Cyl":
+			if n, err = fmt.Sscanf(line, "%32s%8f%8d", &bctyp, &paramf, &numfaces); err != nil {
+				panic(err)
+			}
+		default:
+			if n, err = fmt.Sscanf(line, "%32s%8d%8d", &bctyp, &bcid, &numfaces); err != nil {
+				panic(err)
+			}
+		}
+		for i := 0; i < numfaces; i++ {
+			line = getLine(reader)
+			nargs = 3
+			var n1, n2, n3 int
+			if n, err = fmt.Sscanf(line, "%d %d %d", &n1, &n2, &n3); err != nil || n < nargs {
+				if err == nil && n < nargs {
+					err = fmt.Errorf("read fewer than required dimensions, read %d, need %d\n, line: %s", n, nargs, line)
+				}
+				panic(err)
+			}
+			BCType.Set(n1-1, n3-1, float64(bt))
+		}
+		skipLines(1, reader)
 	}
-	line = line[:len(line)-1] // Strip away the newline
 	return
-}
-
-func skipLines(n int, reader *bufio.Reader) {
-	for i := 0; i < n; i++ {
-		getLine(reader)
-	}
 }
 
 func ReadMaterialGroup(reader *bufio.Reader, elementCount int, matval float64, epsilon utils.Vector) {
@@ -314,4 +368,41 @@ func ReadTris(K int, reader *bufio.Reader) (EToV utils.Matrix) {
 		EToV.Set(ind-1, 2, float64(n3))
 	}
 	return
+}
+
+func CalculateGeomAttributes(Nsd int, triIn3d bool) (NFaces int, bIs3D, bCoord3D, bElement3D, bTET bool) {
+	bIs3D = (Nsd == 3)
+	if bIs3D && !triIn3d {
+		NFaces = 4 // Tetrahedra
+		bCoord3D = true
+		bElement3D = true
+	} else {
+		NFaces = 3 // Triangles
+		bCoord3D = triIn3d
+		bElement3D = false
+	}
+	// Triangles or Tetrahedra?
+	bTET = bElement3D
+	return
+}
+
+func getLine(reader *bufio.Reader) (line string) {
+	var (
+		err error
+	)
+	line, err = reader.ReadString('\n')
+	if err != nil {
+		if err == io.EOF {
+			err = fmt.Errorf("early end of file")
+		}
+		panic(err)
+	}
+	line = line[:len(line)-1] // Strip away the newline
+	return
+}
+
+func skipLines(n int, reader *bufio.Reader) {
+	for i := 0; i < n; i++ {
+		getLine(reader)
+	}
 }
