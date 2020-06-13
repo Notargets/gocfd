@@ -24,7 +24,7 @@ type BC struct {
 type BCFLAG uint8
 
 const (
-	BC_In BCFLAG = iota
+	BC_In BCFLAG = iota + 1
 	BC_Out
 	BC_Wall
 	BC_Far
@@ -45,17 +45,17 @@ const (
   else if (match_BC(name, "Slip"))  bcflag = BC_Slip;
 */
 var faceMap = map[string]BCFLAG{
-	"Infl": BC_In,
-	"Outf": BC_Out,
-	"Wall": BC_Wall,
-	"Far":  BC_Far,
-	"Cyl":  BC_Cyl,
-	"Diri": BC_Dirichlet,
-	"Neum": BC_Neuman,
-	"Slip": BC_Slip,
+	"inflow":    BC_In,
+	"outflow":   BC_Out,
+	"wall":      BC_Wall,
+	"far":       BC_Far,
+	"cyl":       BC_Cyl,
+	"dirichlet": BC_Dirichlet,
+	"neuman":    BC_Neuman,
+	"slip":      BC_Slip,
 }
 
-func ReadGambit2d(filename string) (VX, VY, VZ utils.Vector, EToV utils.Matrix) {
+func ReadGambit2d(filename string) (VX, VY, VZ utils.Vector, EToV, BCType utils.Matrix) {
 	var (
 		file   *os.File
 		err    error
@@ -125,8 +125,7 @@ func ReadGambit2d(filename string) (VX, VY, VZ utils.Vector, EToV utils.Matrix) 
 	}
 
 	// Read BCs
-	BCType := ReadBCS(Nbcs, K, NFaces, reader)
-	fmt.Println(BCType.Print("BCType"))
+	BCType = ReadBCS(Nbcs, K, NFaces, reader)
 	return
 }
 
@@ -144,15 +143,20 @@ func ReadBCS(Nbcs, K, NFaces int, reader *bufio.Reader) (BCType utils.Matrix) {
 			skipLines(1, reader)
 		}
 		line = getLine(reader)
+		fmt.Println(line)
 		if n, err = fmt.Sscanf(line, "%32s", &bctyp); err != nil {
 			panic(err)
 		}
-		bctyp = strings.Trim(bctyp, " ")
+		bctyp = strings.ToLower(strings.Trim(bctyp, " "))
 		bt := faceMap[bctyp]
+		if bt == BCFLAG(0) {
+			err = fmt.Errorf("bc named %s not implemented", bctyp)
+			panic(err)
+		}
 		var paramf float64
 		var numfaces int
 		switch bctyp {
-		case "Cyl":
+		case "cyl":
 			if n, err = fmt.Sscanf(line, "%32s%8f%8d", &bctyp, &paramf, &numfaces); err != nil {
 				panic(err)
 			}
