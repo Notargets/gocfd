@@ -76,7 +76,6 @@ func init() {
 	OneDCmd.Flags().Float64("CFL", CFL, "CFL - increase for speedup, decrease for stability")
 	OneDCmd.Flags().Float64("finalTime", FinalTime, "FinalTime - the target end time for the sim")
 	OneDCmd.Flags().Float64("xMax", XMax, "Maximum X coordinate (for Euler) - make sure to increase K with XMax")
-	OneDCmd.Flags().String("gridfile", "", "Grid file to read in Gambit (.neu) format")
 }
 
 type Model1D struct {

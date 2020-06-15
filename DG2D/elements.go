@@ -30,7 +30,22 @@ func NewElements2D(N int, VX utils.Vector, EToV utils.Matrix, ntA ...NODE_TYPE) 
 	var (
 		K, NFaces = EToV.Dims()
 		Nfp       = 1 // One point per face in 2D
+		// choose order to integrate exactly
+		CubatureOrder = int(math.Floor(2.0 * float64(N+1) * 3.0 / 2.0))
+		NGauss        = int(math.Floor(2.0 * float64(N+1)))
 	)
+	_, _ = CubatureOrder, NGauss
+	/*
+	  // build cubature node data for all elements
+	  CubatureVolumeMesh2D(CubatureOrder);
+
+	  // build Gauss node data for all element faces
+	  GaussFaceMesh2D(NGauss);
+
+	  Resize_cub();           // resize cubature arrays
+	  MapGaussFaceData();     // {nx = gauss.nx}, etc.
+	  PreCalcBdryData();      // gmapB = concat(mapI, mapO), etc.
+	*/
 	// N is the polynomial degree, Np is the number of interpolant points = N+1
 	el = &Elements2D{
 		K:      K,
