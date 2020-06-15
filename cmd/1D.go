@@ -20,7 +20,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/notargets/gocfd/DG2D"
 	"github.com/notargets/gocfd/model_problems/Advection1D"
 	"github.com/notargets/gocfd/model_problems/Euler1D"
 	"github.com/notargets/gocfd/model_problems/Maxwell1D"
@@ -37,28 +36,36 @@ optional live plots of the solutions. For example:
 
 gocfd 1D -graph`,
 	Run: func(cmd *cobra.Command, args []string) {
+		m1d := &Model1D{}
 		fmt.Println("1D called")
 		mr, _ := cmd.Flags().GetInt("model")
-		ModelRun = ModelType1D(mr)
+		m1d.ModelRun = ModelType1D(mr)
 		dr, _ := cmd.Flags().GetInt("delay")
-		Delay = time.Duration(dr)
+		m1d.Delay = time.Duration(dr)
 		Casep, _ := cmd.Flags().GetInt("case")
-		Case = Euler1D.CaseType(Casep)
-		XMax, _ = cmd.Flags().GetFloat64("xMax")
-		FinalTime, _ = cmd.Flags().GetFloat64("finalTime")
-		CFL, _ = cmd.Flags().GetFloat64("CFL")
-		GridFile, _ = cmd.Flags().GetString("gridFile")
-		Graph, _ = cmd.Flags().GetBool("graph")
-		N, _ = cmd.Flags().GetInt("n")
-		K, _ = cmd.Flags().GetInt("k")
-		CFL = LimitCFL(ModelRun, CFL)
-		Run1D()
+		m1d.Case = Euler1D.CaseType(Casep)
+		m1d.XMax, _ = cmd.Flags().GetFloat64("xMax")
+		m1d.FinalTime, _ = cmd.Flags().GetFloat64("finalTime")
+		m1d.CFL, _ = cmd.Flags().GetFloat64("CFL")
+		m1d.Graph, _ = cmd.Flags().GetBool("graph")
+		m1d.N, _ = cmd.Flags().GetInt("n")
+		m1d.K, _ = cmd.Flags().GetInt("k")
+		m1d.CFL = LimitCFL(m1d.ModelRun, m1d.CFL)
+		Run1D(m1d)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(OneDCmd)
-	var CaseInt int
+	var (
+		K         = 0 // Number of elements
+		N         = 0 // Polynomial degree
+		ModelRun  = M_1DEuler
+		CFL       = 0.0
+		FinalTime = 100000.
+		XMax      = 0.0
+		CaseInt   int
+	)
 	CFL, XMax, N, K, CaseInt = Defaults(ModelRun)
 	OneDCmd.Flags().IntP("model", "m", int(ModelRun), "model to run: 0 = Advect1D, 1 = Maxwell1D, 2 = Euler1D")
 	OneDCmd.Flags().IntP("k", "k", K, "Number of elements in model")
@@ -72,18 +79,14 @@ func init() {
 	OneDCmd.Flags().String("gridfile", "", "Grid file to read in Gambit (.neu) format")
 }
 
-var (
-	K         = 0 // Number of elements
-	N         = 0 // Polynomial degree
-	Delay     = time.Duration(0)
-	ModelRun  = M_1DEuler
-	CFL       = 0.0
-	FinalTime = 100000.
-	XMax      = 0.0
-	Case      = Euler1D.CaseType(0)
-	GridFile  string
-	Graph     bool
-)
+type Model1D struct {
+	K, N                 int // Number of elements, Polynomial Degree
+	Delay                time.Duration
+	ModelRun             ModelType1D
+	CFL, FinalTime, XMax float64
+	Case                 Euler1D.CaseType
+	Graph                bool
+}
 
 type ModelType1D uint8
 
@@ -111,33 +114,29 @@ type Model interface {
 	Run(graph bool, graphDelay ...time.Duration)
 }
 
-func Run1D() {
-	if len(GridFile) != 0 {
-		DG2D.ReadGambit2d(GridFile, false)
-	}
-
+func Run1D(m1d *Model1D) {
 	var C Model
-	switch ModelRun {
+	switch m1d.ModelRun {
 	case M_1DAdvect:
-		C = Advection1D.NewAdvection(2*math.Pi, CFL, FinalTime, XMax, N, K, Advection1D.GK)
+		C = Advection1D.NewAdvection(2*math.Pi, m1d.CFL, m1d.FinalTime, m1d.XMax, m1d.N, m1d.K, Advection1D.GK)
 	case M_1DMaxwell:
-		C = Maxwell1D.NewMaxwell(CFL, FinalTime, N, K, Maxwell1D.GK)
+		C = Maxwell1D.NewMaxwell(m1d.CFL, m1d.FinalTime, m1d.N, m1d.K, Maxwell1D.GK)
 	case M_1DAdvectDFR:
-		C = Advection1D.NewAdvection(2*math.Pi, CFL, FinalTime, XMax, N, K, Advection1D.DFR)
+		C = Advection1D.NewAdvection(2*math.Pi, m1d.CFL, m1d.FinalTime, m1d.XMax, m1d.N, m1d.K, Advection1D.DFR)
 	case M_1DMaxwellDFR:
-		C = Maxwell1D.NewMaxwell(CFL, FinalTime, N, K, Maxwell1D.DFR)
+		C = Maxwell1D.NewMaxwell(m1d.CFL, m1d.FinalTime, m1d.N, m1d.K, Maxwell1D.DFR)
 	case M_1DEulerDFR_Roe:
-		C = Euler1D.NewEuler(CFL, FinalTime, XMax, N, K, Euler1D.DFR_Roe, Case)
+		C = Euler1D.NewEuler(m1d.CFL, m1d.FinalTime, m1d.XMax, m1d.N, m1d.K, Euler1D.DFR_Roe, m1d.Case)
 	case M_1DEulerDFR_LF:
-		C = Euler1D.NewEuler(CFL, FinalTime, XMax, N, K, Euler1D.DFR_LaxFriedrichs, Case)
+		C = Euler1D.NewEuler(m1d.CFL, m1d.FinalTime, m1d.XMax, m1d.N, m1d.K, Euler1D.DFR_LaxFriedrichs, m1d.Case)
 	case M_1DEulerDFR_Ave:
-		C = Euler1D.NewEuler(CFL, FinalTime, XMax, N, K, Euler1D.DFR_Average, Case)
+		C = Euler1D.NewEuler(m1d.CFL, m1d.FinalTime, m1d.XMax, m1d.N, m1d.K, Euler1D.DFR_Average, m1d.Case)
 	case M_1DEuler:
 		fallthrough
 	default:
-		C = Euler1D.NewEuler(CFL, FinalTime, XMax, N, K, Euler1D.Galerkin_LF, Case)
+		C = Euler1D.NewEuler(m1d.CFL, m1d.FinalTime, m1d.XMax, m1d.N, m1d.K, Euler1D.Galerkin_LF, m1d.Case)
 	}
-	C.Run(Graph, Delay*time.Millisecond)
+	C.Run(m1d.Graph, m1d.Delay*time.Millisecond)
 }
 
 func LimitCFL(model ModelType1D, CFL float64) (CFLNew float64) {

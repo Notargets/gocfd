@@ -51,16 +51,19 @@ var TwoDCmd = &cobra.Command{
 		m2d.Graph, _ = cmd.Flags().GetBool("graph")
 		m2d.N, _ = cmd.Flags().GetInt("n")
 		m2d.K, _ = cmd.Flags().GetInt("k")
-		m2d.CFL = LimitCFL(ModelRun, CFL)
+		//m2d.CFL = LimitCFL(m2d.ModelRun, m2d.CFL)
 		Run2D(m2d)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(TwoDCmd)
-	var CaseInt int
-	CFL, XMax, N, K, CaseInt = Defaults(ModelRun)
-	TwoDCmd.Flags().IntP("model", "m", int(ModelRun), "model to run: 0 = Advect1D, 1 = Maxwell1D, 2 = Euler1D")
+	var (
+		CFL, FinalTime float64
+		CaseInt        int
+		K, N           int
+	)
+	TwoDCmd.Flags().IntP("model", "m", int(0), "model to run: 0 = Advect1D, 1 = Maxwell1D, 2 = Euler1D")
 	TwoDCmd.Flags().IntP("k", "k", K, "Number of elements in model")
 	TwoDCmd.Flags().IntP("n", "n", N, "polynomial degree")
 	TwoDCmd.Flags().IntP("delay", "d", 0, "milliseconds of delay for plotting")
