@@ -34,7 +34,7 @@ func NewElements2D(N int, VX utils.Vector, EToV utils.Matrix, ntA ...NODE_TYPE) 
 	// N is the polynomial degree, Np is the number of interpolant points = N+1
 	el = &Elements2D{
 		K:      K,
-		Np:     N + 1,
+		Np:     (N + 1) * (N + 2) / 2,
 		Nfp:    Nfp,
 		NFaces: NFaces,
 		VX:     VX,

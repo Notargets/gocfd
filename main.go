@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"math"
-	"os"
 	"time"
 
 	"github.com/notargets/gocfd/DG2D"
@@ -79,8 +78,7 @@ func main() {
 
 	if len(*GridFileptr) != 0 {
 		GridFile = *GridFileptr
-		DG2D.ReadGambit2d(GridFile, true)
-		os.Exit(1)
+		DG2D.ReadGambit2d(GridFile, false)
 	}
 
 	var C Model
