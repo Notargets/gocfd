@@ -39,7 +39,7 @@ gocfd 1D -graph`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("1D called")
 		mr, _ := cmd.Flags().GetInt("model")
-		ModelRun = ModelType(mr)
+		ModelRun = ModelType1D(mr)
 		dr, _ := cmd.Flags().GetInt("delay")
 		Delay = time.Duration(dr)
 		Casep, _ := cmd.Flags().GetInt("case")
@@ -52,7 +52,7 @@ gocfd 1D -graph`,
 		N, _ = cmd.Flags().GetInt("n")
 		K, _ = cmd.Flags().GetInt("k")
 		CFL = LimitCFL(ModelRun, CFL)
-		Run()
+		Run1D()
 	},
 }
 
@@ -85,10 +85,10 @@ var (
 	Graph     bool
 )
 
-type ModelType uint8
+type ModelType1D uint8
 
 const (
-	M_1DAdvect ModelType = iota
+	M_1DAdvect ModelType1D = iota
 	M_1DMaxwell
 	M_1DEuler
 	M_1DAdvectDFR
@@ -111,7 +111,7 @@ type Model interface {
 	Run(graph bool, graphDelay ...time.Duration)
 }
 
-func Run() {
+func Run1D() {
 	if len(GridFile) != 0 {
 		DG2D.ReadGambit2d(GridFile, false)
 	}
@@ -140,7 +140,7 @@ func Run() {
 	C.Run(Graph, Delay*time.Millisecond)
 }
 
-func LimitCFL(model ModelType, CFL float64) (CFLNew float64) {
+func LimitCFL(model ModelType1D, CFL float64) (CFLNew float64) {
 	var (
 		CFLMax float64
 	)
@@ -152,20 +152,6 @@ func LimitCFL(model ModelType, CFL float64) (CFLNew float64) {
 	return CFL
 }
 
-func Defaults(model ModelType) (CFL, XMax float64, N, K, Case int) {
+func Defaults(model ModelType1D) (CFL, XMax float64, N, K, Case int) {
 	return def_CFL[model], def_XMAX[model], def_N[model], def_K[model], def_CASE[model]
-}
-
-func getParam(def float64, valP interface{}) float64 {
-	switch val := valP.(type) {
-	case *int:
-		if *val != 0 {
-			return float64(*val)
-		}
-	case *float64:
-		if *val != 0 {
-			return *val
-		}
-	}
-	return def
 }
