@@ -15,13 +15,11 @@ limitations under the License.
 */
 package cmd
 
-import "C"
 import (
 	"fmt"
 	"time"
 
 	"github.com/notargets/gocfd/DG2D"
-	"github.com/notargets/gocfd/model_problems/Euler1D"
 
 	"github.com/spf13/cobra"
 )
@@ -41,8 +39,6 @@ var TwoDCmd = &cobra.Command{
 		m2d.ModelRun = ModelType2D(mr)
 		dr, _ := cmd.Flags().GetInt("delay")
 		m2d.Delay = time.Duration(dr)
-		Casep, _ := cmd.Flags().GetInt("case")
-		m2d.Case = Euler1D.CaseType(Casep)
 		m2d.FinalTime, _ = cmd.Flags().GetFloat64("finalTime")
 		m2d.CFL, _ = cmd.Flags().GetFloat64("CFL")
 		if m2d.GridFile, err = cmd.Flags().GetString("gridFile"); err != nil {
@@ -51,7 +47,6 @@ var TwoDCmd = &cobra.Command{
 		m2d.Graph, _ = cmd.Flags().GetBool("graph")
 		m2d.N, _ = cmd.Flags().GetInt("n")
 		m2d.K, _ = cmd.Flags().GetInt("k")
-		//m2d.CFL = LimitCFL(m2d.ModelRun, m2d.CFL)
 		Run2D(m2d)
 	},
 }
@@ -60,14 +55,12 @@ func init() {
 	rootCmd.AddCommand(TwoDCmd)
 	var (
 		CFL, FinalTime float64
-		CaseInt        int
 		K, N           int
 	)
-	TwoDCmd.Flags().IntP("model", "m", int(0), "model to run: 0 = Advect1D, 1 = Maxwell1D, 2 = Euler1D")
+	TwoDCmd.Flags().IntP("model", "m", int(0), "model to run")
 	TwoDCmd.Flags().IntP("k", "k", K, "Number of elements in model")
 	TwoDCmd.Flags().IntP("n", "n", N, "polynomial degree")
 	TwoDCmd.Flags().IntP("delay", "d", 0, "milliseconds of delay for plotting")
-	TwoDCmd.Flags().IntP("case", "c", int(CaseInt), "Case to run, for Euler: 0 = SOD Shock Tube, 1 = Density Wave")
 	TwoDCmd.Flags().BoolP("graph", "g", false, "display a graph while computing solution")
 	TwoDCmd.Flags().Float64("CFL", CFL, "CFL - increase for speedup, decrease for stability")
 	TwoDCmd.Flags().Float64("finalTime", FinalTime, "FinalTime - the target end time for the sim")
@@ -79,7 +72,6 @@ type Model2D struct {
 	Delay          time.Duration
 	ModelRun       ModelType2D
 	CFL, FinalTime float64
-	Case           Euler1D.CaseType
 	GridFile       string
 	Graph          bool
 }
@@ -87,14 +79,7 @@ type Model2D struct {
 type ModelType2D uint8
 
 const (
-	M_2DAdvect ModelType2D = iota
-	M_2DMaxwell
-	M_2DEuler
-	M_2DAdvectDFR
-	M_2DMaxwellDFR
-	M_2DEulerDFR_Roe
-	M_2DEulerDFR_LF
-	M_2DEulerDFR_Ave
+	M_2DRoe ModelType2D = iota
 )
 
 func Run2D(m2d *Model2D) {
