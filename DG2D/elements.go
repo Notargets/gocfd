@@ -145,16 +145,17 @@ func Simplex2DP(a, b utils.Vector, i, j int) (P []float64) {
 // Purpose  : Compute (x,y) nodes in equilateral triangle for
 //            polynomial of order N
 func Nodes2D(N int) (x, y utils.Vector) {
-	//DVec blend1,blend2,blend3,warp1,warp2,warp3,warpf1,warpf2,warpf3;
 	var (
-		alpha                                                                           float64
-		Np                                                                              = (N + 1) * (N + 2) / 2
-		L1, L2, L3, blend1, blend2, blend3, warp1, warp2, warp3, warpf1, warpf2, warpf3 utils.Vector
+		alpha                                                               float64
+		Np                                                                  = (N + 1) * (N + 2) / 2
+		L1, L2, L3                                                          utils.Vector
+		blend1, blend2, blend3, warp1, warp2, warp3, warpf1, warpf2, warpf3 []float64
 	)
-	L1, L2, L3, blend1, blend2, blend3, warp1, warp2, warp3, warpf1, warpf2, warpf3, x, y =
-		utils.NewVector(Np), utils.NewVector(Np), utils.NewVector(Np), utils.NewVector(Np), utils.NewVector(Np),
-		utils.NewVector(Np), utils.NewVector(Np), utils.NewVector(Np), utils.NewVector(Np), utils.NewVector(Np),
-		utils.NewVector(Np), utils.NewVector(Np), utils.NewVector(Np), utils.NewVector(Np)
+	L1, L2, L3, x, y =
+		utils.NewVector(Np), utils.NewVector(Np), utils.NewVector(Np), utils.NewVector(Np), utils.NewVector(Np)
+	l1d, l2d, l3d, xd, yd := L1.Data(), L2.Data(), L3.Data(), x.Data(), y.Data()
+	blend1, blend2, blend3, warp1, warp2, warp3 =
+		make([]float64, Np), make([]float64, Np), make([]float64, Np), make([]float64, Np), make([]float64, Np), make([]float64, Np)
 
 	alpopt := [15]float64{
 		0.0000, 0.0000, 1.4152, 0.1001, 0.2751,
@@ -166,10 +167,7 @@ func Nodes2D(N int) (x, y utils.Vector) {
 	} else {
 		alpha = 5. / 3.
 	}
-
-	_, _, _, _, _, _, _, _, _, _ = alpha, blend1, blend2, blend3, warp1, warp2, warp3, warpf1, warpf2, warpf3
 	// Create equidistributed nodes on equilateral triangle
-	l1d, l2d, l3d, xd, yd := L1.Data(), L2.Data(), L3.Data(), x.Data(), y.Data()
 	fn := 1. / float64(N)
 	var sk int
 	for n := 0; n < N+1; n++ {
@@ -179,35 +177,32 @@ func Nodes2D(N int) (x, y utils.Vector) {
 			l2d[sk] = 1 - l1d[sk] - l3d[sk]
 			xd[sk] = l3d[sk] - l2d[sk]
 			yd[sk] = (-l3d[sk] - l2d[sk] + 2*l1d[sk]) / math.Sqrt(3)
+			// Compute blending function at each node for each edge
+			blend1[sk] = 4 * l3d[sk] * l2d[sk]
+			blend2[sk] = 4 * l1d[sk] * l3d[sk]
+			blend3[sk] = 4 * l2d[sk] * l1d[sk]
 			sk++
 		}
 	}
-	_, _ = xd, yd
-	/*
-	     // Compute blending function at each node for each edge
-	     blend1 = 4.0 * L2.dm(L3);
-	     blend2 = 4.0 * L1.dm(L3);
-	     blend3 = 4.0 * L1.dm(L2);
-
-	     // Amount of warp for each node, for each edge
-	     warpf1 = Warpfactor(N, L3-L2);
-	     warpf2 = Warpfactor(N, L1-L3);
-	     warpf3 = Warpfactor(N, L2-L1);
-
-	     // Combine blend & warp
-	     warp1 = blend1.dm(warpf1);  warp1 *= (1.0 + sqr(alpha*L1));
-	     warp2 = blend2.dm(warpf2);  warp2 *= (1.0 + sqr(alpha*L2));
-	     warp3 = blend3.dm(warpf3);  warp3 *= (1.0 + sqr(alpha*L3));
-
-	     // Accumulate deformations associated with each edge
-	     x += (1.0*warp1 + cos(2.0*PI/3.0)*warp2 + cos(4.0*PI/3.0)*warp3);
-	     y += (0.0*warp1 + sin(2.0*PI/3.0)*warp2 + sin(4.0*PI/3.0)*warp3);
-	   }
-	*/
+	// Amount of warp for each node, for each edge
+	warpf1 = Warpfactor(N, L3.Copy().Subtract(L2))
+	warpf2 = Warpfactor(N, L1.Copy().Subtract(L3))
+	warpf3 = Warpfactor(N, L2.Copy().Subtract(L1))
+	// Combine blend & warp
+	for i := range warpf1 {
+		warp1[i] = blend1[i] * warpf1[i] * (1 + math.Sqrt(alpha*l1d[i]))
+		warp2[i] = blend2[i] * warpf2[i] * (1 + math.Sqrt(alpha*l2d[i]))
+		warp3[i] = blend3[i] * warpf3[i] * (1 + math.Sqrt(alpha*l3d[i]))
+	}
+	// Accumulate deformations associated with each edge
+	for i := range xd {
+		xd[i] += (warp1[i]+math.Cos(2*math.Pi/3))*warp2[i] + math.Cos(4*math.Pi/3)*warp3[i]
+		yd[i] += math.Sin(2*math.Pi/3)*warp2[i] + math.Sin(4*math.Pi/3)*warp3[i]
+	}
 	return
 }
 
-func Warpfactor(N int, rout utils.Vector) (warp utils.Vector) {
+func Warpfactor(N int, rout utils.Vector) (warpF []float64) {
 	var (
 		Nr   = rout.Len()
 		Pmat = utils.NewMatrix(N+1, Nr)
@@ -221,22 +216,23 @@ func Warpfactor(N int, rout utils.Vector) (warp utils.Vector) {
 		Pmat.M.SetRow(i, DG1D.JacobiP(rout, 0, 0, i))
 	}
 	Lmat := Veq.Transpose().LUSolve(Pmat)
-	fmt.Println(Lmat.Print("Lmat"))
-	_ = LGLr
-	/*
-	     Lmat = trans(Veq)|Pmat;
-
-	     // Compute warp factor
-	     warp = trans(Lmat)*(LGLr - req);
-
-	     // Scale factor
-	     zerof = rout.lt_abs(1.0 - 1e-10); sf = 1.0 - sqr(zerof.dm(rout));
-	     warp = warp.dd(sf) + warp.dm(zerof-1.0);
-
-	     warp.set_mode(OBJ_temp);  // adjust mode flag
-	     return warp;
-	   }
-	*/
+	// Compute warp factor
+	warp := Lmat.Transpose().Mul(LGLr.Subtract(req).ToMatrix())
+	// Scale factor
+	zerof := rout.Apply(func(val float64) (res float64) {
+		if math.Abs(val) < 1.0-1e-10 {
+			res = 1
+		} else {
+			res = 0
+		}
+		return
+	})
+	sf := zerof.Copy().ElMul(rout).Apply(func(val float64) (res float64) {
+		res = 1 - math.Sqrt(val)
+		return
+	})
+	warp.ElDiv(sf.ToMatrix()).ElMul(zerof.AddScalar(-1).ToMatrix())
+	warpF = warp.Data()
 	return
 }
 
