@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/notargets/gocfd/DG1D"
+
 	"github.com/notargets/gocfd/utils"
 )
 
 type Elements2D struct {
-	K, Np, NFaces                     int
+	K, N, Np, NFaces                  int
 	R, VX, VY, VZ, FMask              utils.Vector
 	EToV, EToE, EToF                  utils.Matrix
 	BCType                            utils.Matrix
@@ -47,6 +49,7 @@ func NewElements2D(N, K int, meshFile string, plotMesh bool) (el *Elements2D) {
 	*/
 	// N is the polynomial degree, Np is the number of interpolant points = N+1
 	el = &Elements2D{
+		N:      N,
 		K:      K,
 		Np:     (N + 1) * (N + 2) / 2,
 		NFaces: 3,
@@ -57,19 +60,54 @@ func NewElements2D(N, K int, meshFile string, plotMesh bool) (el *Elements2D) {
 	return
 }
 
+func (el *Elements2D) InterpMatrix2D() {
+	/*
+	   //---------------------------------------------------------
+	   void NDG2D::InterpMatrix2D(Cub2D& cub)
+	   //---------------------------------------------------------
+	   {
+	   // compute Vandermonde at (rout,sout)
+	   DMat Vout = Vandermonde2D(this->N, cub.r, cub.s);
+	   // build interpolation matrix
+	   cub.V = Vout * this->invV;
+	   // store transpose
+	   cub.VT = trans(cub.V);
+	   }
+	   }
+	*/
+}
+
+func Vandermonde2D(N int, r, s utils.Vector) (V2D utils.Matrix) {
+	V2D = utils.NewMatrix(r.Len(), (N+1)*(N+2)/2)
+	a, b := RStoAB(r, s)
+	var sk int
+	for i := 0; i <= N; i++ {
+		for j := 0; j <= (N - i); j++ {
+			V2D.SetCol(sk, Simplex2DP(a, b, i, j))
+		}
+		sk++
+	}
+	return
+}
+
+func Simplex2DP(a, b utils.Vector, i, j int) (P []float64) {
+	var (
+		Np = a.Len()
+		bd = b.Data()
+	)
+	h1 := DG1D.JacobiP(a, 0, 0, i)
+	h2 := DG1D.JacobiP(b, float64(2*i+1), 0, j)
+	tv1, tv2 := make([]float64, Np), make([]float64, Np)
+	P = make([]float64, Np)
+	for i, h1Val := range h1 {
+		tv1[i] = h1Val * h2[i] * math.Sqrt(2)
+		tv2[i] = utils.POW(1-bd[i], i)
+		P[i] = tv1[i] * tv2[i]
+	}
+	return
+}
+
 /*
-	//---------------------------------------------------------
-	Cub2D& NDG2D::CubatureVolumeMesh2D(int Corder)
-	//---------------------------------------------------------
-	{
-	  // function cub = CubatureVolumeMesh2D(Corder)
-	  // purpose: build cubature nodes, weights and geometric factors for all elements
-	  //
-	  // Note: m_cub is member of Globals2D
-
-	  // set up cubature nodes
-	  Cubature2D(Corder, m_cub);
-
 	  // evaluate generalized Vandermonde of Lagrange interpolant functions at cubature nodes
 	  InterpMatrix2D(m_cub);
 
@@ -103,7 +141,73 @@ func NewElements2D(N, K int, meshFile string, plotMesh bool) (el *Elements2D) {
 	}
 */
 func (el *Elements2D) Startup2D() {
+	/*
+	   //---------------------------------------------------------
+	   bool NDG2D::StartUp2D()
+	   //---------------------------------------------------------
+	   {
+	     // Purpose : Setup script, building operators, grid, metric,
+	     //           and connectivity tables.
 
+	     // Definition of constants
+	     Nfp = N+1; Np = (N+1)*(N+2)/2; Nfaces=3; NODETOL = 1e-12;
+
+	     // Compute nodal set
+	     DVec x1,y1; Nodes2D(N, x1,y1);  xytors(x1,y1, r,s);
+
+	     // Build reference element matrices
+	     V = Vandermonde2D(N,r,s); invV = inv(V);
+	     MassMatrix = trans(invV)*invV;
+	     ::Dmatrices2D(N,r,s,V, Dr,Ds);
+
+	     // build coordinates of all the nodes
+	     IVec va = EToV(All,1), vb = EToV(All,2), vc = EToV(All,3);
+
+	     // Note: outer products of (Vector,MappedRegion1D)
+	     x = 0.5 * (-(r+s)*VX(va) + (1.0+r)*VX(vb) + (1.0+s)*VX(vc));
+	     y = 0.5 * (-(r+s)*VY(va) + (1.0+r)*VY(vb) + (1.0+s)*VY(vc));
+
+	     // find all the nodes that lie on each edge
+	     IVec fmask1,fmask2,fmask3;
+	     fmask1 = find( abs(s+1.0), '<', NODETOL);
+	     fmask2 = find( abs(r+s  ), '<', NODETOL);
+	     fmask3 = find( abs(r+1.0), '<', NODETOL);
+	     Fmask.resize(Nfp,3);                    // set shape (M,N) before concat()
+	     Fmask = concat(fmask1,fmask2,fmask3);   // load vector into shaped matrix
+
+	     Fx = x(Fmask, All); Fy = y(Fmask, All);
+
+	     // Create surface integral terms
+	     Lift2D();
+
+	     // calculate geometric factors
+	     ::GeometricFactors2D(x,y,Dr,Ds,  rx,sx,ry,sy,J);
+
+	     // calculate geometric factors
+	     Normals2D();
+	     Fscale = sJ.dd(J(Fmask,All));
+
+
+	   #if (0)
+	     OutputNodes(false); // volume nodes
+	     OutputNodes(true);  // face nodes
+	     umERROR("Exiting early", "Check {volume,face} nodes");
+	   #endif
+
+	     // Build connectivity matrix
+	     tiConnect2D(EToV, EToE,EToF);
+
+	     // Build connectivity maps
+	     BuildMaps2D();
+
+	     // Compute weak operators (could be done in preprocessing to save time)
+	     DMat Vr,Vs;  GradVandermonde2D(N, r, s, Vr, Vs);
+	     VVT = V*trans(V);
+	     Drw = (V*trans(Vr))/VVT;  Dsw = (V*trans(Vs))/VVT;
+
+	     return true;
+	   }
+	*/
 	return
 }
 
@@ -161,5 +265,23 @@ func (el *Elements2D) NewCube2D(COrder int) {
 		   cub.Ncub = cub.r.size()
 		*/
 	}
+	return
+}
+
+func RStoAB(r, s utils.Vector) (a, b utils.Vector) {
+	var (
+		Np     = r.Len()
+		rd, sd = r.Data(), s.Data()
+	)
+	ad, bd := make([]float64, Np), make([]float64, Np)
+	for n, sval := range sd {
+		if sval != 1 {
+			ad[n] = 2*(1+rd[n])/(1-sval) - 1
+		} else {
+			ad[n] = -1
+		}
+		bd[n] = sval
+	}
+	a, b = utils.NewVector(Np, ad), utils.NewVector(Np, bd)
 	return
 }
