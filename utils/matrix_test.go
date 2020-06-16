@@ -91,4 +91,20 @@ func TestMatrix(t *testing.T) {
 		V = M.SumCols()
 		assert.Equal(t, V, NewVector(3, []float64{5, 7, 9}))
 	}
+	// LU Solve
+	{
+		A := NewMatrix(3, 3, []float64{
+			2, 1, 1,
+			-1, 1, -1,
+			1, 2, 3,
+		})
+		B := NewMatrix(3, 1, []float64{
+			2,
+			3,
+			-10,
+		})
+		X := A.LUSolve(B)
+		xd := X.Data()
+		assert.Equal(t, []float64{3, 1, -5}, xd)
+	}
 }

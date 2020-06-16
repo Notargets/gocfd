@@ -438,7 +438,21 @@ func (m Matrix) AssignScalar(I Index, val float64) Matrix { // Changes receiver
 	return m
 }
 
+func (m Matrix) LUSolve(b Matrix) (X Matrix) {
+	var (
+		err error
+	)
+	lu := &mat.LU{}
+	lu.Factorize(m)
+	X = NewMatrix(b.Dims())
+	if err = lu.SolveTo(X.M, false, b.M); err != nil {
+		panic(err)
+	}
+	return
+}
+
 // Non chainable methods
+
 func (m Matrix) IndexedAssign(I2 Index2D, Val Index) (err error) { // Changes receiver
 	var (
 		data = m.RawMatrix().Data

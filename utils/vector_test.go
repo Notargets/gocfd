@@ -51,4 +51,14 @@ func TestVector(t *testing.T) {
 
 	B := v1.Mul(v2)
 	require.Equal(t, vec, B.RawMatrix().Data)
+	// Linspace
+	{
+		req := NewVector(2).Linspace(-1, 1)
+		assert.Equal(t, -1., req.AtVec(0))
+		assert.Equal(t, 1., req.AtVec(1))
+		req = NewVector(3).Linspace(-1, 1)
+		assert.Equal(t, -1., req.AtVec(0))
+		assert.Equal(t, 0., req.AtVec(1))
+		assert.Equal(t, 1., req.AtVec(2))
+	}
 }

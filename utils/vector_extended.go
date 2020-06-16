@@ -50,6 +50,17 @@ func (v Vector) Data() []float64 {
 }
 
 // Chainable (extended) methods
+func (v Vector) Linspace(begin, end float64) Vector {
+	var (
+		data = v.Data()
+		rge  = (end - begin) / float64(v.Len()-1)
+	)
+	for i := range data {
+		data[i] = begin + float64(i)*rge
+	}
+	return v
+}
+
 func (v Vector) Subtract(a Vector) Vector {
 	var (
 		data  = v.RawVector().Data
