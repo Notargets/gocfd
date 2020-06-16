@@ -260,8 +260,12 @@ func ReadMaterialGroup(reader *bufio.Reader, elementCount int, matval float64, e
 		nn      = make([]int, 10)
 		epsData = epsilon.Data()
 		err     error
+		added   int
 	)
-	numLines := elementCount/10 + 1
+	if elementCount%10 != 0 {
+		added = 1
+	}
+	numLines := elementCount/10 + added
 	fmt.Printf("Reading %d lines of materials with %d elements\n", numLines, elementCount)
 	for i := 0; i < numLines; i++ {
 		line := getLine(reader)
