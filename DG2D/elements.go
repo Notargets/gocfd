@@ -16,7 +16,7 @@ type Elements2D struct {
 	EToV, EToE, EToF                  utils.Matrix
 	BCType                            utils.Matrix
 	X, Dr, Rx, FScale, NX, LIFT       utils.Matrix
-	V, Vinv                           utils.Matrix
+	V, Vinv, MassMatrix               utils.Matrix
 	VmapM, VmapP, VmapB, VmapI, VmapO utils.Index
 	MapB, MapI, MapO                  utils.Index
 	Cub                               *Cubature
@@ -237,17 +237,30 @@ func Warpfactor(N int, rout utils.Vector) (warpF []float64) {
 }
 
 func (el *Elements2D) Startup2D() {
+	var (
+		err error
+	)
 	el.Nfp = el.N
 	el.Np = (el.N + 1) * (el.N + 2) / 2
 	el.NFaces = 3
 	el.NODETOL = 1.e-12
+	// Compute nodal set
+	r, s := XYtoRS(Nodes2D(el.N))
+	// Build reference element matrices
+	el.V = Vandermonde2D(el.N, r, s)
+	if el.Vinv, err = el.V.Inverse(); err != nil {
+		panic(err)
+	}
+	el.MassMatrix = el.Vinv.Transpose().Mul(el.Vinv)
 	/*
-	     // Compute nodal set
-	     DVec x1,y1; Nodes2D(N, x1,y1);  xytors(x1,y1, r,s);
+	  // function [Dr,Ds] = Dmatrices2D(N,r,s,V)
+	  // Purpose : Initialize the (r,s) differentiation matrices
+	  //	    on the simplex, evaluated at (r,s) at order N
 
-	     // Build reference element matrices
-	     V = Vandermonde2D(N,r,s); invV = inv(V);
-	     MassMatrix = trans(invV)*invV;
+	  DMat Vr,Vs; GradVandermonde2D(N, r, s, Vr, Vs);
+	  Dr = Vr/V; Ds = Vs/V;
+	*/
+	/*
 	     ::Dmatrices2D(N,r,s,V, Dr,Ds);
 
 	     // build coordinates of all the nodes
@@ -373,5 +386,25 @@ func RStoAB(r, s utils.Vector) (a, b utils.Vector) {
 		bd[n] = sval
 	}
 	a, b = utils.NewVector(Np, ad), utils.NewVector(Np, bd)
+	return
+}
+
+// function [r,s] = xytors(x,y)
+// Purpose : Transfer from (x,y) in equilateral triangle
+//           to (r,s) coordinates in standard triangle
+func XYtoRS(x, y utils.Vector) (r, s utils.Vector) {
+	r, s = utils.NewVector(x.Len()), utils.NewVector(x.Len())
+	var (
+		xd, yd = x.Data(), y.Data()
+		rd, sd = r.Data(), s.Data()
+	)
+	sr3 := math.Sqrt(3)
+	for i := range xd {
+		l1 := (sr3*yd[i] + 1) / 3
+		l2 := (-3*xd[i] - sr3*yd[i] + 2) / 6
+		l3 := (3*xd[i] - sr3*yd[i] + 2) / 6
+		rd[i] = -l2 + l3 - l1
+		sd[i] = -l2 - l3 + l1
+	}
 	return
 }
