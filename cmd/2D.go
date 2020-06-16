@@ -83,7 +83,5 @@ const (
 )
 
 func Run2D(m2d *Model2D) {
-	if len(m2d.GridFile) != 0 {
-		DG2D.ReadGambit2d(m2d.GridFile, m2d.Graph)
-	}
+	_ = DG2D.NewElements2D(m2d.N, m2d.K, m2d.GridFile, m2d.Graph)
 }
