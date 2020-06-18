@@ -3,7 +3,6 @@ package DG2D
 import (
 	"fmt"
 	"math"
-	"os"
 
 	"github.com/notargets/gocfd/DG1D"
 
@@ -118,13 +117,12 @@ func Simplex2DP(a, b utils.Vector, i, j int) (P []float64) {
 	)
 	h1 := DG1D.JacobiP(a, 0, 0, i)
 	h2 := DG1D.JacobiP(b, float64(2*i+1), 0, j)
-	tv1, tv2 := make([]float64, Np), make([]float64, Np)
 	P = make([]float64, Np)
 	sq2 := math.Sqrt(2)
 	for ii := range h1 {
-		tv1[ii] = sq2 * h1[ii] * h2[ii]
-		tv2[ii] = utils.POW(1-bd[ii], i)
-		P[ii] = tv1[ii] * tv2[ii]
+		tv1 := sq2 * h1[ii] * h2[ii]
+		tv2 := utils.POW(1-bd[ii], i)
+		P[ii] = tv1 * tv2
 	}
 	return
 }
@@ -270,17 +268,10 @@ func (el *Elements2D) Startup2D() {
 	r, s := XYtoRS(Nodes2D(el.N))
 	// Build reference element matrices
 	el.V = Vandermonde2D(el.N, r, s)
-	fmt.Println(el.V.Print("V"))
-	os.Exit(1)
 	if el.Vinv, err = el.V.Inverse(); err != nil {
 		panic(err)
 	}
 	el.MassMatrix = el.Vinv.Transpose().Mul(el.Vinv)
-	// TODO: Fix R and S (NaN in the first row)
-	fmt.Println(r.Print("r"))
-	fmt.Println(s.Print("s"))
-	fmt.Println(el.V.Print("V"))
-	fmt.Println(el.MassMatrix.Print("MassMatrix"))
 	/*
 	  // function [Dr,Ds] = Dmatrices2D(N,r,s,V)
 	  // Purpose : Initialize the (r,s) differentiation matrices
