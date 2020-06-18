@@ -15,7 +15,7 @@ type Elements2D struct {
 	R, VX, VY, VZ, FMask              utils.Vector
 	EToV, EToE, EToF                  utils.Matrix
 	BCType                            utils.Matrix
-	X, Dr, Rx, FScale, NX, LIFT       utils.Matrix
+	X, Dr, Ds, Rx, FScale, NX, LIFT   utils.Matrix
 	V, Vinv, MassMatrix               utils.Matrix
 	VmapM, VmapP, VmapB, VmapI, VmapO utils.Index
 	MapB, MapI, MapO                  utils.Index
@@ -256,14 +256,10 @@ func (el *Elements2D) Startup2D() {
 		panic(err)
 	}
 	el.MassMatrix = el.Vinv.Transpose().Mul(el.Vinv)
-	/*
-	  // function [Dr,Ds] = Dmatrices2D(N,r,s,V)
-	  // Purpose : Initialize the (r,s) differentiation matrices
-	  //	    on the simplex, evaluated at (r,s) at order N
-
-	  DMat Vr,Vs; GradVandermonde2D(N, r, s, Vr, Vs);
-	  Dr = Vr/V; Ds = Vs/V;
-	*/
+	// Initialize the (r,s) differentiation matrices on the simplex, evaluated at (r,s) at order N
+	Vr, Vs := GradVandermonde2D(el.N, r, s)
+	el.Dr = Vr.Mul(el.Vinv)
+	el.Ds = Vs.Mul(el.Vinv)
 	/*
 	     ::Dmatrices2D(N,r,s,V, Dr,Ds);
 
@@ -318,28 +314,6 @@ func (el *Elements2D) Startup2D() {
 	return
 }
 
-/*
-  // function [V2Dr,V2Ds] = GradVandermonde2D(N,r,s)
-  // Purpose : Initialize the gradient of the modal basis (i,j)
-  //		at (r,s) at order N
-
-  DVec a,b, ddr,dds;
-  V2Dr.resize(r.size(), (N+1)*(N+2)/2);
-  V2Ds.resize(r.size(), (N+1)*(N+2)/2);
-
-  // find tensor-product coordinates
-  rstoab(r,s, a,b);
-
-  // Initialize matrices
-  int sk = 1;
-  for (int i=0; i<=N; ++i) {
-    for (int j=0; j<=(N-i); ++j) {
-      GradSimplex2DP(a,b,i,j, ddr,dds);
-      V2Dr(All,sk)=ddr; V2Ds(All,sk)=dds;
-      ++sk;
-    }
-  }
-*/
 func GradVandermonde2D(N int, r, s utils.Vector) (V2Dr, V2Ds utils.Matrix) {
 	var (
 		a, b = RStoAB(r, s)
