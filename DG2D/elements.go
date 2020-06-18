@@ -12,7 +12,8 @@ import (
 type Elements2D struct {
 	K, N, Nfp, Np, NFaces             int
 	NODETOL                           float64
-	R, VX, VY, VZ, FMask              utils.Vector
+	R, VX, VY, VZ                     utils.Vector
+	FMask, Fx, Fy                     utils.Matrix
 	EToV, EToE, EToF                  utils.Matrix
 	BCType                            utils.Matrix
 	X, Dr, Ds, Rx, FScale, NX, LIFT   utils.Matrix
@@ -244,7 +245,7 @@ func (el *Elements2D) Startup2D() {
 	var (
 		err error
 	)
-	el.Nfp = el.N
+	el.Nfp = el.N + 1
 	el.Np = (el.N + 1) * (el.N + 2) / 2
 	el.NFaces = 3
 	el.NODETOL = 1.e-12
@@ -260,59 +261,65 @@ func (el *Elements2D) Startup2D() {
 	Vr, Vs := GradVandermonde2D(el.N, r, s)
 	el.Dr = Vr.Mul(el.Vinv)
 	el.Ds = Vs.Mul(el.Vinv)
-	/*
-	     ::Dmatrices2D(N,r,s,V, Dr,Ds);
 
-	     // build coordinates of all the nodes
-	     IVec va = EToV(All,1), vb = EToV(All,2), vc = EToV(All,3);
-
-	     // Note: outer products of (Vector,MappedRegion1D)
-	     x = 0.5 * (-(r+s)*VX(va) + (1.0+r)*VX(vb) + (1.0+s)*VX(vc));
-	     y = 0.5 * (-(r+s)*VY(va) + (1.0+r)*VY(vb) + (1.0+s)*VY(vc));
-
-	     // find all the nodes that lie on each edge
-	     IVec fmask1,fmask2,fmask3;
-	     fmask1 = find( abs(s+1.0), '<', NODETOL);
-	     fmask2 = find( abs(r+s  ), '<', NODETOL);
-	     fmask3 = find( abs(r+1.0), '<', NODETOL);
-	     Fmask.resize(Nfp,3);                    // set shape (M,N) before concat()
-	     Fmask = concat(fmask1,fmask2,fmask3);   // load vector into shaped matrix
-
-	     Fx = x(Fmask, All); Fy = y(Fmask, All);
-
-	     // Create surface integral terms
-	     Lift2D();
-
-	     // calculate geometric factors
-	     ::GeometricFactors2D(x,y,Dr,Ds,  rx,sx,ry,sy,J);
-
-	     // calculate geometric factors
-	     Normals2D();
-	     Fscale = sJ.dd(J(Fmask,All));
-
-
-	   #if (0)
-	     OutputNodes(false); // volume nodes
-	     OutputNodes(true);  // face nodes
-	     umERROR("Exiting early", "Check {volume,face} nodes");
-	   #endif
-
-	     // Build connectivity matrix
-	     tiConnect2D(EToV, EToE,EToF);
-
-	     // Build connectivity maps
-	     BuildMaps2D();
-
-	     // Compute weak operators (could be done in preprocessing to save time)
-	     DMat Vr,Vs;  GradVandermonde2D(N, r, s, Vr, Vs);
-	     VVT = V*trans(V);
-	     Drw = (V*trans(Vr))/VVT;  Dsw = (V*trans(Vs))/VVT;
-
-	     return true;
-	   }
-	*/
+	// build coordinates of all the nodes
+	va, vb, vc := el.EToV.Col(0), el.EToV.Col(1), el.EToV.Col(2)
+	x := r.Copy().Add(s).Scale(-1).Outer(el.VX.SubsetIndex(va.ToIndex())).Add(
+		r.Copy().AddScalar(1).Outer(el.VX.SubsetIndex(vb.ToIndex()))).Add(
+		s.Copy().AddScalar(1).Outer(el.VX.SubsetIndex(vc.ToIndex()))).Scale(0.5)
+	y := r.Copy().Add(s).Scale(-1).Outer(el.VY.SubsetIndex(va.ToIndex())).Add(
+		r.Copy().AddScalar(1).Outer(el.VY.SubsetIndex(vb.ToIndex()))).Add(
+		s.Copy().AddScalar(1).Outer(el.VY.SubsetIndex(vc.ToIndex()))).Scale(0.5)
+	fmask1 := s.Copy().AddScalar(1).Find(utils.Less, el.NODETOL, true)
+	fmask2 := s.Copy().Add(r).Find(utils.Less, el.NODETOL, true)
+	fmask3 := r.Copy().AddScalar(1).Find(utils.Less, el.NODETOL, true)
+	el.FMask = utils.NewMatrix(el.Nfp, 3)
+	el.FMask.SetCol(0, fmask1.Data())
+	el.FMask.SetCol(1, fmask2.Data())
+	el.FMask.SetCol(2, fmask3.Data())
+	el.Fx = utils.NewMatrix(3*el.Nfp, el.K)
+	for fp, val := range el.FMask.Data() {
+		ind := int(val)
+		el.Fx.M.SetRow(fp, x.M.RawRowView(ind))
+	}
+	el.Fy = utils.NewMatrix(3*el.Nfp, el.K)
+	for fp, val := range el.FMask.Data() {
+		ind := int(val)
+		el.Fy.M.SetRow(fp, y.M.RawRowView(ind))
+	}
 	return
 }
+
+/*
+	Startup2D
+  // Create surface integral terms
+  Lift2D();
+
+  // calculate geometric factors
+  ::GeometricFactors2D(x,y,Dr,Ds,  rx,sx,ry,sy,J);
+
+  // calculate geometric factors
+  Normals2D();
+  Fscale = sJ.dd(J(Fmask,All));
+
+
+#if (0)
+  OutputNodes(false); // volume nodes
+  OutputNodes(true);  // face nodes
+  umERROR("Exiting early", "Check {volume,face} nodes");
+#endif
+
+  // Build connectivity matrix
+  tiConnect2D(EToV, EToE,EToF);
+
+  // Build connectivity maps
+  BuildMaps2D();
+
+  // Compute weak operators (could be done in preprocessing to save time)
+  DMat Vr,Vs;  GradVandermonde2D(N, r, s, Vr, Vs);
+  VVT = V*trans(V);
+  Drw = (V*trans(Vr))/VVT;  Dsw = (V*trans(Vs))/VVT;
+*/
 
 func GradVandermonde2D(N int, r, s utils.Vector) (V2Dr, V2Ds utils.Matrix) {
 	var (
