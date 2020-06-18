@@ -82,6 +82,7 @@ func (el *Elements2D) ReadGambit2d(filename string, plotMesh bool) {
 
 	// Get dimensions
 	Nv, K, Nmats, Nbcs, Nsd := ReadHeader(reader)
+	el.K = K
 	skipLines(2, reader)
 
 	fmt.Printf("Nv = %d, K = %d\n", Nv, K)

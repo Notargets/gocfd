@@ -3,6 +3,7 @@ package DG2D
 import (
 	"fmt"
 	"math"
+	"os"
 
 	"github.com/notargets/gocfd/DG1D"
 
@@ -30,12 +31,23 @@ type Cubature struct {
 	mm, mmCHOL              utils.Matrix
 }
 
-func NewElements2D(N, K int, meshFile string, plotMesh bool) (el *Elements2D) {
+func NewElements2D(N int, meshFile string, plotMesh bool) (el *Elements2D) {
 	var (
 		// choose order to integrate exactly
 		CubatureOrder = int(math.Floor(2.0 * float64(N+1) * 3.0 / 2.0))
 		NGauss        = int(math.Floor(2.0 * float64(N+1)))
 	)
+	if N < 1 {
+		N = 1
+	}
+	el = &Elements2D{
+		N:      N,
+		Np:     (N + 1) * (N + 2) / 2,
+		NFaces: 3,
+	}
+	el.ReadGambit2d(meshFile, plotMesh)
+	el.NewCube2D(CubatureOrder)
+	el.Startup2D()
 	_ = NGauss
 	/*
 	  // build cubature node data for all elements
@@ -49,15 +61,7 @@ func NewElements2D(N, K int, meshFile string, plotMesh bool) (el *Elements2D) {
 	  PreCalcBdryData();      // gmapB = concat(mapI, mapO), etc.
 	*/
 	// N is the polynomial degree, Np is the number of interpolant points = N+1
-	el = &Elements2D{
-		N:      N,
-		K:      K,
-		Np:     (N + 1) * (N + 2) / 2,
-		NFaces: 3,
-	}
-	el.ReadGambit2d(meshFile, plotMesh)
-	el.NewCube2D(CubatureOrder)
-	el.Startup2D()
+
 	return
 }
 
@@ -78,6 +82,15 @@ func (el *Elements2D) InterpMatrix2D() {
 	*/
 }
 
+/*
+  int sk = 1;
+  for (int i=0; i<=N; ++i) {
+    for (int j=0; j<=(N-i); ++j) {
+      V2D(All,sk) = Simplex2DP(a,b,i,j);
+      ++sk;
+    }
+  }
+*/
 func Vandermonde2D(N int, r, s utils.Vector) (V2D utils.Matrix) {
 	V2D = utils.NewMatrix(r.Len(), (N+1)*(N+2)/2)
 	a, b := RStoAB(r, s)
@@ -85,12 +98,19 @@ func Vandermonde2D(N int, r, s utils.Vector) (V2D utils.Matrix) {
 	for i := 0; i <= N; i++ {
 		for j := 0; j <= (N - i); j++ {
 			V2D.SetCol(sk, Simplex2DP(a, b, i, j))
+			sk++
 		}
-		sk++
 	}
 	return
 }
 
+/*
+  DVec h1 = JacobiP(a,0.0,0.0,i)
+       h2 = JacobiP(b,2.0*i+1,0.0,j);
+  DVec tv1=sqrt(2.0)*h1.dm(h2)
+       tv2=pow(1.0-b,(double)i);
+  (*P) = tv1.dm(tv2);
+*/
 func Simplex2DP(a, b utils.Vector, i, j int) (P []float64) {
 	var (
 		Np = a.Len()
@@ -100,10 +120,11 @@ func Simplex2DP(a, b utils.Vector, i, j int) (P []float64) {
 	h2 := DG1D.JacobiP(b, float64(2*i+1), 0, j)
 	tv1, tv2 := make([]float64, Np), make([]float64, Np)
 	P = make([]float64, Np)
-	for i, h1Val := range h1 {
-		tv1[i] = h1Val * h2[i] * math.Sqrt(2)
-		tv2[i] = utils.POW(1-bd[i], i)
-		P[i] = tv1[i] * tv2[i]
+	sq2 := math.Sqrt(2)
+	for ii := range h1 {
+		tv1[ii] = sq2 * h1[ii] * h2[ii]
+		tv2[ii] = utils.POW(1-bd[ii], i)
+		P[ii] = tv1[ii] * tv2[ii]
 	}
 	return
 }
@@ -171,9 +192,9 @@ func Nodes2D(N int) (x, y utils.Vector) {
 	fn := 1. / float64(N)
 	var sk int
 	for n := 0; n < N+1; n++ {
-		for m := 0; m < (N + 2 - n); m++ {
-			l1d[sk] = float64(n-1) * fn
-			l3d[sk] = float64(m-1) * fn
+		for m := 0; m < (N + 1 - n); m++ {
+			l1d[sk] = float64(n) * fn
+			l3d[sk] = float64(m) * fn
 			l2d[sk] = 1 - l1d[sk] - l3d[sk]
 			xd[sk] = l3d[sk] - l2d[sk]
 			yd[sk] = (-l3d[sk] - l2d[sk] + 2*l1d[sk]) / math.Sqrt(3)
@@ -220,15 +241,16 @@ func Warpfactor(N int, rout utils.Vector) (warpF []float64) {
 	warp := Lmat.Transpose().Mul(LGLr.Subtract(req).ToMatrix())
 	// Scale factor
 	zerof := rout.Apply(func(val float64) (res float64) {
-		if math.Abs(val) < 1.0-1e-10 {
+		if math.Abs(val) < 1.0 {
 			res = 1
 		} else {
-			res = 0
+			res = val
 		}
+		res -= 1.e-10
 		return
 	})
 	sf := zerof.Copy().ElMul(rout).Apply(func(val float64) (res float64) {
-		res = 1 - math.Sqrt(val)
+		res = 1 - val*val
 		return
 	})
 	warp.ElDiv(sf.ToMatrix()).ElMul(zerof.AddScalar(-1).ToMatrix())
@@ -248,10 +270,17 @@ func (el *Elements2D) Startup2D() {
 	r, s := XYtoRS(Nodes2D(el.N))
 	// Build reference element matrices
 	el.V = Vandermonde2D(el.N, r, s)
+	fmt.Println(el.V.Print("V"))
+	os.Exit(1)
 	if el.Vinv, err = el.V.Inverse(); err != nil {
 		panic(err)
 	}
 	el.MassMatrix = el.Vinv.Transpose().Mul(el.Vinv)
+	// TODO: Fix R and S (NaN in the first row)
+	fmt.Println(r.Print("r"))
+	fmt.Println(s.Print("s"))
+	fmt.Println(el.V.Print("V"))
+	fmt.Println(el.MassMatrix.Print("MassMatrix"))
 	/*
 	  // function [Dr,Ds] = Dmatrices2D(N,r,s,V)
 	  // Purpose : Initialize the (r,s) differentiation matrices

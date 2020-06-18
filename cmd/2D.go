@@ -46,7 +46,6 @@ var TwoDCmd = &cobra.Command{
 		}
 		m2d.Graph, _ = cmd.Flags().GetBool("graph")
 		m2d.N, _ = cmd.Flags().GetInt("n")
-		m2d.K, _ = cmd.Flags().GetInt("k")
 		Run2D(m2d)
 	},
 }
@@ -55,10 +54,9 @@ func init() {
 	rootCmd.AddCommand(TwoDCmd)
 	var (
 		CFL, FinalTime float64
-		K, N           int
+		N              int
 	)
 	TwoDCmd.Flags().IntP("model", "m", int(0), "model to run")
-	TwoDCmd.Flags().IntP("k", "k", K, "Number of elements in model")
 	TwoDCmd.Flags().IntP("n", "n", N, "polynomial degree")
 	TwoDCmd.Flags().IntP("delay", "d", 0, "milliseconds of delay for plotting")
 	TwoDCmd.Flags().BoolP("graph", "g", false, "display a graph while computing solution")
@@ -83,5 +81,5 @@ const (
 )
 
 func Run2D(m2d *Model2D) {
-	_ = DG2D.NewElements2D(m2d.N, m2d.K, m2d.GridFile, m2d.Graph)
+	_ = DG2D.NewElements2D(m2d.N, m2d.GridFile, m2d.Graph)
 }
