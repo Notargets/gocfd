@@ -81,15 +81,6 @@ func (el *Elements2D) InterpMatrix2D() {
 	*/
 }
 
-/*
-  int sk = 1;
-  for (int i=0; i<=N; ++i) {
-    for (int j=0; j<=(N-i); ++j) {
-      V2D(All,sk) = Simplex2DP(a,b,i,j);
-      ++sk;
-    }
-  }
-*/
 func Vandermonde2D(N int, r, s utils.Vector) (V2D utils.Matrix) {
 	V2D = utils.NewMatrix(r.Len(), (N+1)*(N+2)/2)
 	a, b := RStoAB(r, s)
@@ -103,13 +94,6 @@ func Vandermonde2D(N int, r, s utils.Vector) (V2D utils.Matrix) {
 	return
 }
 
-/*
-  DVec h1 = JacobiP(a,0.0,0.0,i)
-       h2 = JacobiP(b,2.0*i+1,0.0,j);
-  DVec tv1=sqrt(2.0)*h1.dm(h2)
-       tv2=pow(1.0-b,(double)i);
-  (*P) = tv1.dm(tv2);
-*/
 func Simplex2DP(a, b utils.Vector, i, j int) (P []float64) {
 	var (
 		Np = a.Len()
@@ -331,6 +315,86 @@ func (el *Elements2D) Startup2D() {
 	     return true;
 	   }
 	*/
+	return
+}
+
+/*
+  // function [V2Dr,V2Ds] = GradVandermonde2D(N,r,s)
+  // Purpose : Initialize the gradient of the modal basis (i,j)
+  //		at (r,s) at order N
+
+  DVec a,b, ddr,dds;
+  V2Dr.resize(r.size(), (N+1)*(N+2)/2);
+  V2Ds.resize(r.size(), (N+1)*(N+2)/2);
+
+  // find tensor-product coordinates
+  rstoab(r,s, a,b);
+
+  // Initialize matrices
+  int sk = 1;
+  for (int i=0; i<=N; ++i) {
+    for (int j=0; j<=(N-i); ++j) {
+      GradSimplex2DP(a,b,i,j, ddr,dds);
+      V2Dr(All,sk)=ddr; V2Ds(All,sk)=dds;
+      ++sk;
+    }
+  }
+*/
+func GradVandermonde2D(N int, r, s utils.Vector) (V2Dr, V2Ds utils.Matrix) {
+	var (
+		a, b = RStoAB(r, s)
+		Np   = (N + 1) * (N + 2) / 2
+		Nr   = r.Len()
+	)
+	V2Dr, V2Ds = utils.NewMatrix(Nr, Np), utils.NewMatrix(Nr, Np)
+	var sk int
+	for i := 0; i <= N; i++ {
+		for j := 0; j <= (N - i); j++ {
+			ddr, dds := GradSimplex2DP(a, b, i, j)
+			V2Dr.M.SetCol(sk, ddr)
+			V2Ds.M.SetCol(sk, dds)
+			sk++
+		}
+	}
+	return
+}
+
+func GradSimplex2DP(a, b utils.Vector, id, jd int) (ddr, dds []float64) {
+	var (
+		ad, bd = a.Data(), b.Data()
+	)
+	_ = ad
+	fa := DG1D.JacobiP(a, 0, 0, id)
+	dfa := DG1D.GradJacobiP(a, 0, 0, id)
+	gb := DG1D.JacobiP(b, 2*float64(id)+1, 0, jd)
+	dgb := DG1D.GradJacobiP(b, 2*float64(id)+1, 0, jd)
+	// r-derivative
+	// d/dr = da/dr d/da + db/dr d/db = (2/(1-s)) d/da = (2/(1-b)) d/da
+	ddr = make([]float64, len(gb))
+	for i := range ddr {
+		ddr[i] = dfa[i] * gb[i]
+		if id > 0 {
+			ddr[i] *= utils.POW(0.5*(1-bd[i]), id-1)
+		}
+		// Normalize
+		ddr[i] *= math.Pow(2, float64(id)+0.5)
+	}
+	// s-derivative
+	// d/ds = ((1+a)/2)/((1-b)/2) d/da + d/db
+	dds = make([]float64, len(gb))
+	for i := range dds {
+		dds[i] = 0.5 * dfa[i] * gb[i] * (1 + ad[i])
+		if id > 0 {
+			dds[i] *= utils.POW(0.5*(1-bd[i]), id-1)
+		}
+		tmp := dgb[i] * utils.POW(0.5*(1-bd[i]), id)
+		if id > 0 {
+			tmp -= 0.5 * float64(id) * gb[i] * utils.POW(0.5*(1-bd[i]), id-1)
+		}
+		dds[i] += fa[i] * tmp
+		// Normalize
+		dds[i] *= math.Pow(2, float64(id)+0.5)
+	}
 	return
 }
 
