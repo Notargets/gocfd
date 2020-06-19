@@ -107,7 +107,7 @@ func (el *Elements1D) Connect1D() {
 	var I2D utils.Index2D
 	var err error
 	nr, nc := el.EToE.Dims()
-	if I2D, err = utils.NewIndex2D(nr, nc, element1, face1, false); err != nil {
+	if I2D, err = utils.NewIndex2D(nr, nc, element1, face1); err != nil {
 		panic(err)
 	}
 	el.EToE.Assign(I2D.ToIndex(), element2)
