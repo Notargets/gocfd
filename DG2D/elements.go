@@ -10,17 +10,19 @@ import (
 )
 
 type Elements2D struct {
-	K, N, Nfp, Np, NFaces              int
-	NODETOL                            float64
-	R, S, VX, VY, VZ                   utils.Vector
-	FMask, Fx, Fy                      utils.Matrix
-	EToV, EToE, EToF                   utils.Matrix
-	BCType                             utils.Matrix
-	X, Y, Dr, Ds, Rx, FScale, NX, LIFT utils.Matrix
-	V, Vinv, MassMatrix                utils.Matrix
-	VmapM, VmapP, VmapB, VmapI, VmapO  utils.Index
-	MapB, MapI, MapO                   utils.Index
-	Cub                                *Cubature
+	K, N, Nfp, Np, NFaces             int
+	NODETOL                           float64
+	R, S, VX, VY, VZ                  utils.Vector
+	FMask, Fx, Fy                     utils.Matrix
+	EToV, EToE, EToF                  utils.Matrix
+	BCType                            utils.Matrix
+	X, Y, Dr, Ds, FScale, NX, LIFT    utils.Matrix
+	Rx, Ry, Sx, Sy                    utils.Matrix
+	V, Vinv, MassMatrix               utils.Matrix
+	J                                 utils.Matrix
+	VmapM, VmapP, VmapB, VmapI, VmapO utils.Index
+	MapB, MapI, MapO                  utils.Index
+	Cub                               *Cubature
 }
 
 type Cubature struct {
@@ -288,7 +290,44 @@ func (el *Elements2D) Startup2D() {
 		el.Fy.M.SetRow(fp, el.Y.M.RawRowView(ind))
 	}
 	el.Lift2D()
+	el.GeometricFactors2D()
+	// Mark fields read only
+	el.Dr.SetReadOnly("Dr")
+	el.Ds.SetReadOnly("Ds")
+	el.LIFT.SetReadOnly("LIFT")
+	el.X.SetReadOnly("X")
+	el.Y.SetReadOnly("Y")
+	el.Fx.SetReadOnly("Fx")
+	el.Fy.SetReadOnly("Fy")
+	el.FMask.SetReadOnly("FMask")
+	el.MassMatrix.SetReadOnly("MassMatrix")
+	el.V.SetReadOnly("V")
+	el.Vinv.SetReadOnly("Vinv")
 	return
+}
+
+func (el *Elements2D) GeometricFactors2D() {
+	var (
+		xr, xs = el.Dr.Mul(el.X), el.Ds.Mul(el.X)
+		yr, ys = el.Dr.Mul(el.Y), el.Ds.Mul(el.Y)
+	)
+	/*
+	  // function [rx,sx,ry,sy,J] = GeometricFactors2D(x,y,Dr,Ds)
+	  // Purpose  : Compute the metric elements for the local
+	  //            mappings of the elements
+	  DMat xr=Dr*x
+	       xs=Ds*x
+	       yr=Dr*y
+	       ys=Ds*y;
+	  J  =  xr.dm(ys) - xs.dm(yr);
+	  rx = ys.dd(J); sx = -yr.dd(J); ry = -xs.dd(J); sy = xr.dd(J);
+	*/
+	// Calculate geometric factors
+	el.J = xr.Copy().ElMul(ys).Subtract(xs.Copy().ElMul(yr))
+	el.Rx = ys.Copy().ElDiv(el.J)
+	el.Sx = yr.Copy().ElDiv(el.J).Scale(-1)
+	el.Ry = xs.Copy().ElDiv(el.J).Scale(-1)
+	el.Sy = xr.Copy().ElDiv(el.J)
 }
 
 func (el *Elements2D) Lift2D() {
