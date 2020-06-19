@@ -10,17 +10,17 @@ import (
 )
 
 type Elements2D struct {
-	K, N, Nfp, Np, NFaces             int
-	NODETOL                           float64
-	R, S, VX, VY, VZ                  utils.Vector
-	FMask, Fx, Fy                     utils.Matrix
-	EToV, EToE, EToF                  utils.Matrix
-	BCType                            utils.Matrix
-	X, Dr, Ds, Rx, FScale, NX, LIFT   utils.Matrix
-	V, Vinv, MassMatrix               utils.Matrix
-	VmapM, VmapP, VmapB, VmapI, VmapO utils.Index
-	MapB, MapI, MapO                  utils.Index
-	Cub                               *Cubature
+	K, N, Nfp, Np, NFaces              int
+	NODETOL                            float64
+	R, S, VX, VY, VZ                   utils.Vector
+	FMask, Fx, Fy                      utils.Matrix
+	EToV, EToE, EToF                   utils.Matrix
+	BCType                             utils.Matrix
+	X, Y, Dr, Ds, Rx, FScale, NX, LIFT utils.Matrix
+	V, Vinv, MassMatrix                utils.Matrix
+	VmapM, VmapP, VmapB, VmapI, VmapO  utils.Index
+	MapB, MapI, MapO                   utils.Index
+	Cub                                *Cubature
 }
 
 type Cubature struct {
@@ -264,10 +264,10 @@ func (el *Elements2D) Startup2D() {
 
 	// build coordinates of all the nodes
 	va, vb, vc := el.EToV.Col(0), el.EToV.Col(1), el.EToV.Col(2)
-	x := el.R.Copy().Add(el.S).Scale(-1).Outer(el.VX.SubsetIndex(va.ToIndex())).Add(
+	el.X = el.R.Copy().Add(el.S).Scale(-1).Outer(el.VX.SubsetIndex(va.ToIndex())).Add(
 		el.R.Copy().AddScalar(1).Outer(el.VX.SubsetIndex(vb.ToIndex()))).Add(
 		el.S.Copy().AddScalar(1).Outer(el.VX.SubsetIndex(vc.ToIndex()))).Scale(0.5)
-	y := el.R.Copy().Add(el.S).Scale(-1).Outer(el.VY.SubsetIndex(va.ToIndex())).Add(
+	el.Y = el.R.Copy().Add(el.S).Scale(-1).Outer(el.VY.SubsetIndex(va.ToIndex())).Add(
 		el.R.Copy().AddScalar(1).Outer(el.VY.SubsetIndex(vb.ToIndex()))).Add(
 		el.S.Copy().AddScalar(1).Outer(el.VY.SubsetIndex(vc.ToIndex()))).Scale(0.5)
 	fmask1 := el.S.Copy().AddScalar(1).Find(utils.Less, el.NODETOL, true)
@@ -280,47 +280,17 @@ func (el *Elements2D) Startup2D() {
 	el.Fx = utils.NewMatrix(3*el.Nfp, el.K)
 	for fp, val := range el.FMask.Data() {
 		ind := int(val)
-		el.Fx.M.SetRow(fp, x.M.RawRowView(ind))
+		el.Fx.M.SetRow(fp, el.X.M.RawRowView(ind))
 	}
 	el.Fy = utils.NewMatrix(3*el.Nfp, el.K)
 	for fp, val := range el.FMask.Data() {
 		ind := int(val)
-		el.Fy.M.SetRow(fp, y.M.RawRowView(ind))
+		el.Fy.M.SetRow(fp, el.Y.M.RawRowView(ind))
 	}
 	el.Lift2D()
 	return
 }
 
-/*
-  // function [LIFT] = Lift2D()
-  // Purpose  : Compute surface to volume lift term for DG formulation
-
-  DMat V1D,massEdge1,massEdge2,massEdge3;  DVec faceR,faceS;
-  Index1D J1(1,Nfp), J2(Nfp+1,2*Nfp), J3(2*Nfp+1,3*Nfp);
-
-  DMat Emat(Np, Nfaces*Nfp);
-
-  // face 1
-  faceR = r(Fmask(All,1));
-  V1D = Vandermonde1D(N, faceR);
-  massEdge1 = inv(V1D*trans(V1D));
-  Emat(Fmask(All,1), J1) = massEdge1;
-
-  // face 2
-  faceR = r(Fmask(All,2));
-  V1D = Vandermonde1D(N, faceR);
-  massEdge2 = inv(V1D*trans(V1D));
-  Emat(Fmask(All,2), J2) = massEdge2;
-
-  // face 3
-  faceS = s(Fmask(All,3));
-  V1D = Vandermonde1D(N, faceS);
-  massEdge3 = inv(V1D*trans(V1D));
-  Emat(Fmask(All,3), J3) = massEdge3;
-
-  // inv(mass matrix)*\I_n (L_i,L_j)_{edge_n}
-  LIFT = V*(trans(V)*Emat);
-*/
 func (el *Elements2D) Lift2D() {
 	var (
 		err      error
@@ -343,9 +313,6 @@ func (el *Elements2D) Lift2D() {
 			panic(err)
 		}
 	}
-	/*
-		Index1D J1(1,Nfp), J2(Nfp+1,2*Nfp), J3(2*Nfp+1,3*Nfp);
-	*/
 	// face 1
 	faceMap(el.R, 0, utils.NewRangeOffset(1, el.Nfp))
 	// face 2
