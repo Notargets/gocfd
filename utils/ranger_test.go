@@ -28,6 +28,14 @@ func TestRanger(t *testing.T) {
 		assert.Equal(t, 2, i1)
 		assert.Equal(t, 3, i2)
 	}
+	// R1 indexing
+	{
+		my1d := NewR1(4)
+		index := my1d.Range(0)
+		assert.Equal(t, Index{0}, index)
+		index = my1d.Range(":")
+		assert.Equal(t, Index{0, 1, 2, 3}, index)
+	}
 	// R2 indexing
 	{
 		my2d := NewR2(3, 4)

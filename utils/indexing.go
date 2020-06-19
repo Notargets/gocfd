@@ -16,10 +16,11 @@ func NewIndex2D(nr, nc int, RI, CI Index, permuteO ...bool) (I2 Index2D, err err
 	)
 	if len(permuteO) != 0 {
 		permute = permuteO[0]
-	}
-	if len(RI) != len(CI) {
-		err = fmt.Errorf("lengths of row and column indices must be the same: nr, nc = %v, %v\n", len(RI), len(CI))
-		return
+	} else {
+		if len(RI) != len(CI) {
+			err = fmt.Errorf("lengths of row and column indices must be the same: nr, nc = %v, %v\n", len(RI), len(CI))
+			return
+		}
 	}
 	I2 = Index2D{
 		RI: RI,
@@ -43,8 +44,8 @@ func NewIndex2D(nr, nc int, RI, CI Index, permuteO ...bool) (I2 Index2D, err err
 	case true:
 		I2.Ind = make(Index, len(RI)*len(CI))
 		var ind int
-		for _, ci := range CI {
-			for _, ri := range RI {
+		for _, ri := range RI {
+			for _, ci := range CI {
 				if ci > nc-1 || ci < 0 {
 					err = fmt.Errorf("index dimension exceeds bounds: ci=%v, ciMax=%v\n", ci, nc-1)
 					return
@@ -70,14 +71,32 @@ func (i2 *Index2D) ToIndex() (I Index) {
 type Index []int
 
 // Chainable methods
-func NewIndex(N int) (I Index) {
-	return make(Index, N)
+func NewIndex(N int, ValIO ...interface{}) (I Index) {
+	I = make(Index, N)
+	if len(ValIO) != 0 {
+		ValI := ValIO[0]
+		switch Val := ValI.(type) {
+		case []float64:
+			for i := range Val {
+				I[i] = int(Val[i])
+			}
+		case []int:
+			for i := range Val {
+				I[i] = Val[i]
+			}
+		case Index:
+			for i := range Val {
+				I[i] = Val[i]
+			}
+		}
+	}
+	return
 }
 func NewRangeOffset(rmin, rmax int) (r Index) {
 	// Input range is "1 based" and converted to zero based index
-	return NewRange(rmin-1, rmax-1)
+	return NewRangeInclusive(rmin-1, rmax-1)
 }
-func NewRange(rmin, rmax int) (r Index) {
+func NewRangeInclusive(rmin, rmax int) (r Index) {
 	var (
 		size = rmax - rmin + 1 // INCLUSIVE RANGE
 	)
@@ -86,6 +105,10 @@ func NewRange(rmin, rmax int) (r Index) {
 		r[i] = i + rmin
 	}
 	return
+}
+
+func NewRange(rmin, rmax int) (r Index) {
+	return NewRangeInclusive(rmin, rmax-1)
 }
 func NewOnes(N int) (r Index) {
 	r = make(Index, N)

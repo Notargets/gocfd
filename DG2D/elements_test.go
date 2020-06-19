@@ -18,6 +18,7 @@ func TestElements2D(t *testing.T) {
 		x, y := Nodes2D(N)
 		assert.True(t, nearVec([]float64{-1, 1, 0}, x.Data(), 0.0001))
 		assert.True(t, nearVec([]float64{-0.5774, -0.5774, 1.1547}, y.Data(), 0.0001))
+
 		N = 2
 		x, y = Nodes2D(N)
 		assert.True(t, nearVec([]float64{-1, 0, 1, -.5, .5, 0}, x.Data(), 0.0001))
@@ -115,6 +116,29 @@ func TestElements2D(t *testing.T) {
 			4.4896, -10.7477, 10.6892, 16.5204,
 			4.4896, -10.7477, 10.6892, 16.5204,
 		}, el.Sy.Subset(subset.Range(":", "0:4"), 6, 4).Data(), 0.0001))
+		subsetFacePts := utils.NewR2(el.Nfp*el.NFaces, el.K)
+		assert.True(t, nearVec([]float64{
+			-0.9531, 0.8104, 0.7541, 0.0792,
+			-0.9531, 0.8104, 0.7541, 0.0792,
+			-0.9531, 0.8104, 0.7541, 0.0792,
+			0.8261, -1.0000, 0.2009, 0.9706,
+			0.8261, -1.0000, 0.2009, 0.9706,
+			0.8261, -1.0000, 0.2009, 0.9706,
+			-0.1685, 0.6978, -0.9473, -0.8465,
+			-0.1685, 0.6978, -0.9473, -0.8465,
+			-0.1685, 0.6978, -0.9473, -0.8465,
+		}, el.NX.Subset(subsetFacePts.Range(":", "0:4"), 9, 4).Data(), 0.0001))
+		assert.True(t, nearVec([]float64{
+			-0.3028, 0.5858, -0.6568, -0.9969,
+			-0.3028, 0.5858, -0.6568, -0.9969,
+			-0.3028, 0.5858, -0.6568, -0.9969,
+			-0.5635, 0.0000, 0.9796, 0.2408,
+			-0.5635, 0.0000, 0.9796, 0.2408,
+			-0.5635, 0.0000, 0.9796, 0.2408,
+			0.9857, -0.7163, -0.3202, 0.5323,
+			0.9857, -0.7163, -0.3202, 0.5323,
+			0.9857, -0.7163, -0.3202, 0.5323,
+		}, el.NY.Subset(subsetFacePts.Range(":", "0:4"), 9, 4).Data(), 0.0001))
 	}
 }
 
@@ -137,7 +161,8 @@ func near(a, b float64, tolI ...float64) (l bool) {
 	} else {
 		tol = tolI[0]
 	}
-	if math.Abs(a-b) <= tol*math.Abs(a) {
+	bound := math.Max(tol, tol*math.Abs(a))
+	if math.Abs(a-b) <= bound {
 		l = true
 	}
 	return

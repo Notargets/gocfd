@@ -16,13 +16,16 @@ type Elements2D struct {
 	FMask, Fx, Fy                     utils.Matrix
 	EToV, EToE, EToF                  utils.Matrix
 	BCType                            utils.Matrix
-	X, Y, Dr, Ds, FScale, NX, LIFT    utils.Matrix
+	X, Y, Dr, Ds, FScale, LIFT        utils.Matrix
 	Rx, Ry, Sx, Sy                    utils.Matrix
+	xs, xr, ys, yr                    utils.Matrix
 	V, Vinv, MassMatrix               utils.Matrix
+	NX, NY                            utils.Matrix
 	J                                 utils.Matrix
 	VmapM, VmapP, VmapB, VmapI, VmapO utils.Index
 	MapB, MapI, MapO                  utils.Index
 	Cub                               *Cubature
+	FMaskI                            utils.Index
 }
 
 type Cubature struct {
@@ -279,6 +282,7 @@ func (el *Elements2D) Startup2D() {
 	el.FMask.SetCol(0, fmask1.Data())
 	el.FMask.SetCol(1, fmask2.Data())
 	el.FMask.SetCol(2, fmask3.Data())
+	el.FMaskI = utils.NewIndex(len(el.FMask.Data()), el.FMask.Data())
 	el.Fx = utils.NewMatrix(3*el.Nfp, el.K)
 	for fp, val := range el.FMask.Data() {
 		ind := int(val)
@@ -291,6 +295,7 @@ func (el *Elements2D) Startup2D() {
 	}
 	el.Lift2D()
 	el.GeometricFactors2D()
+	el.Normals2D()
 	// Mark fields read only
 	el.Dr.SetReadOnly("Dr")
 	el.Ds.SetReadOnly("Ds")
@@ -303,14 +308,72 @@ func (el *Elements2D) Startup2D() {
 	el.MassMatrix.SetReadOnly("MassMatrix")
 	el.V.SetReadOnly("V")
 	el.Vinv.SetReadOnly("Vinv")
+	el.NX.SetReadOnly("NX")
+	el.NY.SetReadOnly("NY")
 	return
 }
 
-func (el *Elements2D) GeometricFactors2D() {
+/*
+	Startup2D
+  Fscale = sJ.dd(J(Fmask,All));
+  // Build connectivity matrix
+  tiConnect2D(EToV, EToE,EToF);
+  // Build connectivity maps
+  BuildMaps2D();
+  // Compute weak operators (could be done in preprocessing to save time)
+  DMat Vr,Vs;  GradVandermonde2D(N, r, s, Vr, Vs);
+  VVT = V*trans(V);
+  Drw = (V*trans(Vr))/VVT;  Dsw = (V*trans(Vs))/VVT;
+*/
+
+func (el *Elements2D) Normals2D() {
 	var (
-		xr, xs = el.Dr.Mul(el.X), el.Ds.Mul(el.X)
-		yr, ys = el.Dr.Mul(el.Y), el.Ds.Mul(el.Y)
+		allFaces, f1, f2, f3 utils.Index2D
+		err                  error
 	)
+	allK := utils.NewRangeOffset(1, el.K)
+	NFacePts := el.Nfp * el.NFaces
+	if allFaces, err = utils.NewIndex2D(el.Np, el.K, el.FMaskI, allK, true); err != nil {
+		panic(err)
+	}
+	aI := allFaces.ToIndex()
+	// interpolate geometric factors to face nodes
+	fxr := el.xr.Subset(aI, NFacePts, el.K)
+	fxs := el.xs.Subset(aI, NFacePts, el.K)
+	fyr := el.yr.Subset(aI, NFacePts, el.K)
+	fys := el.ys.Subset(aI, NFacePts, el.K)
+	// build normals
+	faces1 := utils.NewRangeOffset(1, el.Nfp)
+	faces2 := utils.NewRangeOffset(1+el.Nfp, 2*el.Nfp)
+	faces3 := utils.NewRangeOffset(1+2*el.Nfp, 3*el.Nfp)
+	if f1, err = utils.NewIndex2D(NFacePts, el.K, faces1, allK, true); err != nil {
+		panic(err)
+	}
+	if f2, err = utils.NewIndex2D(NFacePts, el.K, faces2, allK, true); err != nil {
+		panic(err)
+	}
+	if f3, err = utils.NewIndex2D(NFacePts, el.K, faces3, allK, true); err != nil {
+		panic(err)
+	}
+	el.NX, el.NY = utils.NewMatrix(NFacePts, el.K), utils.NewMatrix(NFacePts, el.K)
+	// Face 1
+	el.NX.Assign(f1.ToIndex(), fyr.Subset(f1.ToIndex(), f1.Len, 1))
+	el.NY.Assign(f1.ToIndex(), fxr.Subset(f1.ToIndex(), f1.Len, 1).Scale(-1))
+	// Face 2
+	el.NX.Assign(f2.ToIndex(), fys.Subset(f2.ToIndex(), f2.Len, 1).Subtract(fyr.Subset(f2.ToIndex(), f2.Len, 1)))
+	el.NY.Assign(f2.ToIndex(), fxs.Subset(f2.ToIndex(), f2.Len, 1).Scale(-1).Add(fxr.Subset(f2.ToIndex(), f2.Len, 1)))
+	// Face 3
+	el.NX.Assign(f3.ToIndex(), fys.Subset(f3.ToIndex(), f3.Len, 1).Scale(-1))
+	el.NY.Assign(f3.ToIndex(), fxs.Subset(f3.ToIndex(), f3.Len, 1))
+	sJ := el.NX.Copy().POW(2).Add(el.NY.Copy().POW(2)).Apply(func(val float64) (res float64) {
+		res = math.Sqrt(val)
+		return
+	})
+	el.NX.ElDiv(sJ)
+	el.NY.ElDiv(sJ)
+}
+
+func (el *Elements2D) GeometricFactors2D() {
 	/*
 	  // function [rx,sx,ry,sy,J] = GeometricFactors2D(x,y,Dr,Ds)
 	  // Purpose  : Compute the metric elements for the local
@@ -323,11 +386,17 @@ func (el *Elements2D) GeometricFactors2D() {
 	  rx = ys.dd(J); sx = -yr.dd(J); ry = -xs.dd(J); sy = xr.dd(J);
 	*/
 	// Calculate geometric factors
-	el.J = xr.Copy().ElMul(ys).Subtract(xs.Copy().ElMul(yr))
-	el.Rx = ys.Copy().ElDiv(el.J)
-	el.Sx = yr.Copy().ElDiv(el.J).Scale(-1)
-	el.Ry = xs.Copy().ElDiv(el.J).Scale(-1)
-	el.Sy = xr.Copy().ElDiv(el.J)
+	el.xr, el.xs = el.Dr.Mul(el.X), el.Ds.Mul(el.X)
+	el.yr, el.ys = el.Dr.Mul(el.Y), el.Ds.Mul(el.Y)
+	el.xr.SetReadOnly("xr")
+	el.xs.SetReadOnly("xs")
+	el.yr.SetReadOnly("yr")
+	el.ys.SetReadOnly("ys")
+	el.J = el.xr.Copy().ElMul(el.ys).Subtract(el.xs.Copy().ElMul(el.yr))
+	el.Rx = el.ys.Copy().ElDiv(el.J)
+	el.Sx = el.yr.Copy().ElDiv(el.J).Scale(-1)
+	el.Ry = el.xs.Copy().ElDiv(el.J).Scale(-1)
+	el.Sy = el.xr.Copy().ElDiv(el.J)
 }
 
 func (el *Elements2D) Lift2D() {
@@ -360,37 +429,6 @@ func (el *Elements2D) Lift2D() {
 	el.LIFT = el.V.Mul(el.V.Transpose().Mul(Emat))
 	return
 }
-
-/*
-	Startup2D
-  // Create surface integral terms
-  Lift2D();
-
-  // calculate geometric factors
-  ::GeometricFactors2D(x,y,Dr,Ds,  rx,sx,ry,sy,J);
-
-  // calculate geometric factors
-  Normals2D();
-  Fscale = sJ.dd(J(Fmask,All));
-
-
-#if (0)
-  OutputNodes(false); // volume nodes
-  OutputNodes(true);  // face nodes
-  umERROR("Exiting early", "Check {volume,face} nodes");
-#endif
-
-  // Build connectivity matrix
-  tiConnect2D(EToV, EToE,EToF);
-
-  // Build connectivity maps
-  BuildMaps2D();
-
-  // Compute weak operators (could be done in preprocessing to save time)
-  DMat Vr,Vs;  GradVandermonde2D(N, r, s, Vr, Vs);
-  VVT = V*trans(V);
-  Drw = (V*trans(Vr))/VVT;  Dsw = (V*trans(Vs))/VVT;
-*/
 
 func GradVandermonde2D(N int, r, s utils.Vector) (V2Dr, V2Ds utils.Matrix) {
 	var (
