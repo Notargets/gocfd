@@ -12,7 +12,7 @@ import (
 type Elements2D struct {
 	K, N, Nfp, Np, NFaces             int
 	NODETOL                           float64
-	R, VX, VY, VZ                     utils.Vector
+	R, S, VX, VY, VZ                  utils.Vector
 	FMask, Fx, Fy                     utils.Matrix
 	EToV, EToE, EToF                  utils.Matrix
 	BCType                            utils.Matrix
@@ -250,29 +250,29 @@ func (el *Elements2D) Startup2D() {
 	el.NFaces = 3
 	el.NODETOL = 1.e-12
 	// Compute nodal set
-	r, s := XYtoRS(Nodes2D(el.N))
+	el.R, el.S = XYtoRS(Nodes2D(el.N))
 	// Build reference element matrices
-	el.V = Vandermonde2D(el.N, r, s)
+	el.V = Vandermonde2D(el.N, el.R, el.S)
 	if el.Vinv, err = el.V.Inverse(); err != nil {
 		panic(err)
 	}
 	el.MassMatrix = el.Vinv.Transpose().Mul(el.Vinv)
 	// Initialize the (r,s) differentiation matrices on the simplex, evaluated at (r,s) at order N
-	Vr, Vs := GradVandermonde2D(el.N, r, s)
+	Vr, Vs := GradVandermonde2D(el.N, el.R, el.S)
 	el.Dr = Vr.Mul(el.Vinv)
 	el.Ds = Vs.Mul(el.Vinv)
 
 	// build coordinates of all the nodes
 	va, vb, vc := el.EToV.Col(0), el.EToV.Col(1), el.EToV.Col(2)
-	x := r.Copy().Add(s).Scale(-1).Outer(el.VX.SubsetIndex(va.ToIndex())).Add(
-		r.Copy().AddScalar(1).Outer(el.VX.SubsetIndex(vb.ToIndex()))).Add(
-		s.Copy().AddScalar(1).Outer(el.VX.SubsetIndex(vc.ToIndex()))).Scale(0.5)
-	y := r.Copy().Add(s).Scale(-1).Outer(el.VY.SubsetIndex(va.ToIndex())).Add(
-		r.Copy().AddScalar(1).Outer(el.VY.SubsetIndex(vb.ToIndex()))).Add(
-		s.Copy().AddScalar(1).Outer(el.VY.SubsetIndex(vc.ToIndex()))).Scale(0.5)
-	fmask1 := s.Copy().AddScalar(1).Find(utils.Less, el.NODETOL, true)
-	fmask2 := s.Copy().Add(r).Find(utils.Less, el.NODETOL, true)
-	fmask3 := r.Copy().AddScalar(1).Find(utils.Less, el.NODETOL, true)
+	x := el.R.Copy().Add(el.S).Scale(-1).Outer(el.VX.SubsetIndex(va.ToIndex())).Add(
+		el.R.Copy().AddScalar(1).Outer(el.VX.SubsetIndex(vb.ToIndex()))).Add(
+		el.S.Copy().AddScalar(1).Outer(el.VX.SubsetIndex(vc.ToIndex()))).Scale(0.5)
+	y := el.R.Copy().Add(el.S).Scale(-1).Outer(el.VY.SubsetIndex(va.ToIndex())).Add(
+		el.R.Copy().AddScalar(1).Outer(el.VY.SubsetIndex(vb.ToIndex()))).Add(
+		el.S.Copy().AddScalar(1).Outer(el.VY.SubsetIndex(vc.ToIndex()))).Scale(0.5)
+	fmask1 := el.S.Copy().AddScalar(1).Find(utils.Less, el.NODETOL, true)
+	fmask2 := el.S.Copy().Add(el.R).Find(utils.Less, el.NODETOL, true)
+	fmask3 := el.R.Copy().AddScalar(1).Find(utils.Less, el.NODETOL, true)
 	el.FMask = utils.NewMatrix(el.Nfp, 3)
 	el.FMask.SetCol(0, fmask1.Data())
 	el.FMask.SetCol(1, fmask2.Data())
@@ -287,6 +287,73 @@ func (el *Elements2D) Startup2D() {
 		ind := int(val)
 		el.Fy.M.SetRow(fp, y.M.RawRowView(ind))
 	}
+	el.Lift2D()
+	return
+}
+
+/*
+  // function [LIFT] = Lift2D()
+  // Purpose  : Compute surface to volume lift term for DG formulation
+
+  DMat V1D,massEdge1,massEdge2,massEdge3;  DVec faceR,faceS;
+  Index1D J1(1,Nfp), J2(Nfp+1,2*Nfp), J3(2*Nfp+1,3*Nfp);
+
+  DMat Emat(Np, Nfaces*Nfp);
+
+  // face 1
+  faceR = r(Fmask(All,1));
+  V1D = Vandermonde1D(N, faceR);
+  massEdge1 = inv(V1D*trans(V1D));
+  Emat(Fmask(All,1), J1) = massEdge1;
+
+  // face 2
+  faceR = r(Fmask(All,2));
+  V1D = Vandermonde1D(N, faceR);
+  massEdge2 = inv(V1D*trans(V1D));
+  Emat(Fmask(All,2), J2) = massEdge2;
+
+  // face 3
+  faceS = s(Fmask(All,3));
+  V1D = Vandermonde1D(N, faceS);
+  massEdge3 = inv(V1D*trans(V1D));
+  Emat(Fmask(All,3), J3) = massEdge3;
+
+  // inv(mass matrix)*\I_n (L_i,L_j)_{edge_n}
+  LIFT = V*(trans(V)*Emat);
+*/
+func (el *Elements2D) Lift2D() {
+	var (
+		err      error
+		I2       utils.Index2D
+		massEdge utils.Matrix
+		V1D      utils.Matrix
+		Emat     utils.Matrix
+	)
+	Emat = utils.NewMatrix(el.Np, el.NFaces*el.Nfp)
+	faceMap := func(basis utils.Vector, faceNum int, Ind utils.Index) {
+		faceBasis := basis.SubsetIndex(el.FMask.Col(faceNum).ToIndex())
+		V1D = DG1D.Vandermonde1D(el.N, faceBasis)
+		if massEdge, err = V1D.Mul(V1D.Transpose()).Inverse(); err != nil {
+			panic(err)
+		}
+		if I2, err = utils.NewIndex2D(el.Np, el.NFaces*el.Nfp, el.FMask.Col(faceNum).ToIndex(), Ind, true); err != nil {
+			panic(err)
+		}
+		if err = Emat.IndexedAssign(I2, massEdge); err != nil {
+			panic(err)
+		}
+	}
+	/*
+		Index1D J1(1,Nfp), J2(Nfp+1,2*Nfp), J3(2*Nfp+1,3*Nfp);
+	*/
+	// face 1
+	faceMap(el.R, 0, utils.NewRangeOffset(1, el.Nfp))
+	// face 2
+	faceMap(el.R, 1, utils.NewRangeOffset(el.Nfp+1, 2*el.Nfp))
+	// face 3
+	faceMap(el.S, 2, utils.NewRangeOffset(2*el.Nfp+1, 3*el.Nfp))
+	// inv(mass matrix)*\I_n (L_i,L_j)_{edge_n}
+	el.LIFT = el.V.Mul(el.V.Transpose().Mul(Emat))
 	return
 }
 

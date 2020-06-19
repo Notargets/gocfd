@@ -10,29 +10,55 @@ type Index2D struct {
 	Len         int
 }
 
-func NewIndex2D(nr, nc int, RI, CI Index) (I2 Index2D, err error) {
+func NewIndex2D(nr, nc int, RI, CI Index, permuteO ...bool) (I2 Index2D, err error) {
+	var (
+		permute bool
+	)
+	if len(permuteO) != 0 {
+		permute = permuteO[0]
+	}
 	if len(RI) != len(CI) {
 		err = fmt.Errorf("lengths of row and column indices must be the same: nr, nc = %v, %v\n", len(RI), len(CI))
 		return
 	}
 	I2 = Index2D{
-		RI:  RI,
-		CI:  CI,
-		Len: len(RI),
+		RI: RI,
+		CI: CI,
 	}
-	I2.Ind = make(Index, len(RI))
-	for i, ci := range CI {
-		ri := RI[i]
-		if ci > nc-1 || ci < 0 {
-			err = fmt.Errorf("index dimension exceeds bounds: ci=%v, ciMax=%v\n", ci, nc-1)
-			return
+	switch permute {
+	case false:
+		I2.Ind = make(Index, len(RI))
+		for i, ci := range CI {
+			ri := RI[i]
+			if ci > nc-1 || ci < 0 {
+				err = fmt.Errorf("index dimension exceeds bounds: ci=%v, ciMax=%v\n", ci, nc-1)
+				return
+			}
+			if ri > nr-1 || ri < 0 {
+				err = fmt.Errorf("index dimension exceeds bounds: ri=%v, riMax=%v\n", ri, nr-1)
+				return
+			}
+			I2.Ind[i] = ci + nc*ri
 		}
-		if ri > nr-1 || ri < 0 {
-			err = fmt.Errorf("index dimension exceeds bounds: ri=%v, riMax=%v\n", ri, nr-1)
-			return
+	case true:
+		I2.Ind = make(Index, len(RI)*len(CI))
+		var ind int
+		for _, ci := range CI {
+			for _, ri := range RI {
+				if ci > nc-1 || ci < 0 {
+					err = fmt.Errorf("index dimension exceeds bounds: ci=%v, ciMax=%v\n", ci, nc-1)
+					return
+				}
+				if ri > nr-1 || ri < 0 {
+					err = fmt.Errorf("index dimension exceeds bounds: ri=%v, riMax=%v\n", ri, nr-1)
+					return
+				}
+				I2.Ind[ind] = ci + nc*ri
+				ind++
+			}
 		}
-		I2.Ind[i] = ci + nc*ri
 	}
+	I2.Len = len(I2.Ind)
 	return
 }
 

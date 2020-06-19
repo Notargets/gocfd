@@ -54,7 +54,7 @@ func MatFind(MI mat.Matrix, op EvalOp, val float64) (I Index2D) {
 			}
 		}
 	}
-	I, _ = NewIndex2D(nr, nc, rowInd, colInd)
+	I, _ = NewIndex2D(nr, nc, rowInd, colInd, false)
 	return
 }
 

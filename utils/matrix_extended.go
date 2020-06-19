@@ -453,17 +453,29 @@ func (m Matrix) LUSolve(b Matrix) (X Matrix) {
 
 // Non chainable methods
 
-func (m Matrix) IndexedAssign(I2 Index2D, Val Index) (err error) { // Changes receiver
+func (m Matrix) IndexedAssign(I2 Index2D, ValI interface{}) (err error) { // Changes receiver
 	var (
 		data = m.RawMatrix().Data
+		temp []float64
 	)
 	m.checkWritable()
-	if I2.Len != len(Val) {
-		err = fmt.Errorf("length of index and values are not equal: len(I2) = %v, len(Val) = %v\n", I2.Len, len(Val))
+	switch Val := ValI.(type) {
+	case []float64:
+		temp = Val
+	case Matrix:
+		temp = Val.Data()
+	case Index:
+		temp = make([]float64, I2.Len)
+		for i, val := range Val {
+			temp[i] = float64(val)
+		}
+	}
+	if I2.Len != len(temp) {
+		err = fmt.Errorf("length of index and values are not equal: len(I2) = %v, len(Val) = %v\n", I2.Len, len(temp))
 		return
 	}
-	for i, val := range Val {
-		data[I2.Ind[i]] = float64(val)
+	for i, val := range temp {
+		data[I2.Ind[i]] = val
 	}
 	return
 }
