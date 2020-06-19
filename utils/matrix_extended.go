@@ -272,15 +272,9 @@ func (m Matrix) AssignColumns(I Index, A Matrix) Matrix { // Changes receiver
 	return m
 }
 
-func (m Matrix) Assign(I Index, A Matrix) Matrix { // Changes receiver
-	// Assigns values in M sequentially using values indexed from A
-	var (
-		dataM = m.RawMatrix().Data
-		dataA = A.RawMatrix().Data
-	)
-	m.checkWritable()
-	for _, ind := range I {
-		dataM[ind] = dataA[ind]
+func (m Matrix) Assign(I Index, AI interface{}) Matrix {
+	if err := m.IndexedAssign(I, AI); err != nil {
+		panic(err)
 	}
 	return m
 }
@@ -453,7 +447,7 @@ func (m Matrix) LUSolve(b Matrix) (X Matrix) {
 
 // Non chainable methods
 
-func (m Matrix) IndexedAssign(I2 Index2D, ValI interface{}) (err error) { // Changes receiver
+func (m Matrix) IndexedAssign(I Index, ValI interface{}) (err error) { // Changes receiver
 	var (
 		data = m.RawMatrix().Data
 		temp []float64
@@ -465,17 +459,17 @@ func (m Matrix) IndexedAssign(I2 Index2D, ValI interface{}) (err error) { // Cha
 	case Matrix:
 		temp = Val.Data()
 	case Index:
-		temp = make([]float64, I2.Len)
+		temp = make([]float64, len(I))
 		for i, val := range Val {
 			temp[i] = float64(val)
 		}
 	}
-	if I2.Len != len(temp) {
-		err = fmt.Errorf("length of index and values are not equal: len(I2) = %v, len(Val) = %v\n", I2.Len, len(temp))
+	if len(I) != len(temp) {
+		err = fmt.Errorf("length of index and values are not equal: len(I) = %v, len(Val) = %v\n", len(I), len(temp))
 		return
 	}
 	for i, val := range temp {
-		data[I2.Ind[i]] = val
+		data[I[i]] = val
 	}
 	return
 }

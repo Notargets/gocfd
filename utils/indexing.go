@@ -62,6 +62,11 @@ func NewIndex2D(nr, nc int, RI, CI Index, permuteO ...bool) (I2 Index2D, err err
 	return
 }
 
+func (i2 *Index2D) ToIndex() (I Index) {
+	I = i2.Ind
+	return
+}
+
 type Index []int
 
 // Chainable methods

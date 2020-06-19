@@ -309,9 +309,7 @@ func (el *Elements2D) Lift2D() {
 		if I2, err = utils.NewIndex2D(el.Np, el.NFaces*el.Nfp, el.FMask.Col(faceNum).ToIndex(), Ind, true); err != nil {
 			panic(err)
 		}
-		if err = Emat.IndexedAssign(I2, massEdge); err != nil {
-			panic(err)
-		}
+		Emat.Assign(I2.ToIndex(), massEdge)
 	}
 	// face 1
 	faceMap(el.R, 0, utils.NewRangeOffset(1, el.Nfp))

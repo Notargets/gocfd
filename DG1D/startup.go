@@ -110,12 +110,8 @@ func (el *Elements1D) Connect1D() {
 	if I2D, err = utils.NewIndex2D(nr, nc, element1, face1, false); err != nil {
 		panic(err)
 	}
-	if err = el.EToE.IndexedAssign(I2D, element2); err != nil {
-		panic(err)
-	}
-	if err = el.EToF.IndexedAssign(I2D, face2); err != nil {
-		panic(err)
-	}
+	el.EToE.Assign(I2D.ToIndex(), element2)
+	el.EToF.Assign(I2D.ToIndex(), face2)
 	return
 }
 
