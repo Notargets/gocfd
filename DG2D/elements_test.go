@@ -66,6 +66,7 @@ func TestElements2D(t *testing.T) {
 	}
 	// Read file to test specific metrics
 	{
+		// Check N = 1 briefly
 		el := NewElements2D(1, "fstepA001.neu", false)
 		assert.True(t, nearVec([]float64{
 			2.5000, 0.5000, -1.5000, -1.5000, 2.5000, 0.5000,
@@ -73,6 +74,7 @@ func TestElements2D(t *testing.T) {
 			-1.5000, -1.5000, 0.5000, 2.5000, 0.5000, 2.5000,
 		}, el.LIFT.Data(), 0.0001))
 
+		// Check N = 2 by comparison with Matlab code
 		el = NewElements2D(2, "fstepA001.neu", false)
 		assert.True(t, nearVec([]float64{
 			4.5000, 2.0000, -0.5000, 1.0000, 4.0000, 1.0000, 4.5000, 2.0000, -0.5000,

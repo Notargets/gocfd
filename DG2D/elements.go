@@ -21,7 +21,7 @@ type Elements2D struct {
 	xs, xr, ys, yr                    utils.Matrix
 	V, Vinv, MassMatrix               utils.Matrix
 	NX, NY                            utils.Matrix
-	J                                 utils.Matrix
+	J, sJ                             utils.Matrix
 	VmapM, VmapP, VmapB, VmapI, VmapO utils.Index
 	MapB, MapI, MapO                  utils.Index
 	Cub                               *Cubature
@@ -296,6 +296,8 @@ func (el *Elements2D) Startup2D() {
 	el.Lift2D()
 	el.GeometricFactors2D()
 	el.Normals2D()
+	fmt.Println(el.GetFaces())
+	el.FScale = el.sJ.ElDiv(el.J.Subset(el.GetFaces()))
 	// Mark fields read only
 	el.Dr.SetReadOnly("Dr")
 	el.Ds.SetReadOnly("Ds")
@@ -310,12 +312,12 @@ func (el *Elements2D) Startup2D() {
 	el.Vinv.SetReadOnly("Vinv")
 	el.NX.SetReadOnly("NX")
 	el.NY.SetReadOnly("NY")
+	el.FScale.SetReadOnly("FScale")
 	return
 }
 
 /*
 	Startup2D
-  Fscale = sJ.dd(J(Fmask,All));
   // Build connectivity matrix
   tiConnect2D(EToV, EToE,EToF);
   // Build connectivity maps
@@ -326,17 +328,28 @@ func (el *Elements2D) Startup2D() {
   Drw = (V*trans(Vr))/VVT;  Dsw = (V*trans(Vs))/VVT;
 */
 
-func (el *Elements2D) Normals2D() {
+func (el *Elements2D) GetFaces() (aI utils.Index, NFacePts, K int) {
 	var (
-		allFaces, f1, f2, f3 utils.Index2D
-		err                  error
+		err      error
+		allFaces utils.Index2D
 	)
+	NFacePts = el.Nfp * el.NFaces
+	K = el.K
 	allK := utils.NewRangeOffset(1, el.K)
-	NFacePts := el.Nfp * el.NFaces
 	if allFaces, err = utils.NewIndex2D(el.Np, el.K, el.FMaskI, allK, true); err != nil {
 		panic(err)
 	}
-	aI := allFaces.ToIndex()
+	aI = allFaces.ToIndex()
+	return
+}
+
+func (el *Elements2D) Normals2D() {
+	var (
+		f1, f2, f3 utils.Index2D
+		err        error
+	)
+	allK := utils.NewRangeOffset(1, el.K)
+	aI, NFacePts, _ := el.GetFaces()
 	// interpolate geometric factors to face nodes
 	fxr := el.xr.Subset(aI, NFacePts, el.K)
 	fxs := el.xs.Subset(aI, NFacePts, el.K)
@@ -365,12 +378,12 @@ func (el *Elements2D) Normals2D() {
 	// Face 3
 	el.NX.Assign(f3.ToIndex(), fys.Subset(f3.ToIndex(), f3.Len, 1).Scale(-1))
 	el.NY.Assign(f3.ToIndex(), fxs.Subset(f3.ToIndex(), f3.Len, 1))
-	sJ := el.NX.Copy().POW(2).Add(el.NY.Copy().POW(2)).Apply(func(val float64) (res float64) {
+	el.sJ = el.NX.Copy().POW(2).Add(el.NY.Copy().POW(2)).Apply(func(val float64) (res float64) {
 		res = math.Sqrt(val)
 		return
 	})
-	el.NX.ElDiv(sJ)
-	el.NY.ElDiv(sJ)
+	el.NX.ElDiv(el.sJ)
+	el.NY.ElDiv(el.sJ)
 }
 
 func (el *Elements2D) GeometricFactors2D() {
