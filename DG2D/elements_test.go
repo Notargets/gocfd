@@ -85,7 +85,6 @@ func TestElements2D(t *testing.T) {
 			1.0000, 4.0000, 1.0000, -0.5000, 2.0000, 4.5000, -0.5000, 2.0000, 4.5000,
 		}, el.LIFT.Data(), 0.0001))
 		subset := utils.NewR2(el.Rx.Dims())
-		//fmt.Println(el.Rx.Subset(subset.Range(":", "0:4"), 6, 4).Print("Rx_sub"))
 		assert.True(t, nearVec([]float64{
 			2.7337, -10.4712, 15.5416, 19.2110,
 			2.7337, -10.4712, 15.5416, 19.2110,

@@ -296,8 +296,9 @@ func (el *Elements2D) Startup2D() {
 	el.Lift2D()
 	el.GeometricFactors2D()
 	el.Normals2D()
-	fmt.Println(el.GetFaces())
 	el.FScale = el.sJ.ElDiv(el.J.Subset(el.GetFaces()))
+	el.Connect2D()
+
 	// Mark fields read only
 	el.Dr.SetReadOnly("Dr")
 	el.Ds.SetReadOnly("Ds")
@@ -315,6 +316,65 @@ func (el *Elements2D) Startup2D() {
 	el.FScale.SetReadOnly("FScale")
 	return
 }
+
+func (el *Elements2D) Connect2D() {
+	var (
+		Nv         = el.VX.Len()
+		TotalFaces = el.NFaces * el.K
+	)
+	_, _ = Nv, TotalFaces
+	r2 := utils.NewR2(el.K, el.NFaces)
+	r3 := utils.NewR3(TotalFaces, Nv, 2*TotalFaces)
+	facesR2 := make([]utils.Index, el.NFaces)
+	facesR2[0] = r2.Range(":", "0:1")
+	facesR2[1] = r2.Range(":", "1:2")
+	facesR2[2] = r2.Range(":", "0:2")
+	/*
+		IMat vn(gRowData, 3,2, "1 2  2 3  1 3");
+		// Build global face to node sparse array
+		CSi SpFToV(TotalFaces, Nv, 2*TotalFaces, 1, 1);
+	*/
+	// TODO: ? Implement an Assign operator that mimics MATLAB ?
+	_ = r3
+}
+
+/*
+  // function [EToE, EToF] = Connect2D(EToV)
+  // Purpose  : Build global connectivity arrays for grid based on
+  //            standard EToV input array from grid generator
+  // List of local face to local vertex connections
+  IMat vn(gRowData, 3,2, "1 2  2 3  1 3");
+  // Build global face to node sparse array
+  CSi SpFToV(TotalFaces, Nv, 2*TotalFaces, 1, 1);
+  CSi SpFToF, II2;
+  II2.identity(TotalFaces); II2 *= 2;   // II2.print(false);
+  int sk = 1;
+  for (int k=1; k<=K; ++k) {
+    for (int face=1; face<=Nfaces; ++face)
+    {
+      SpFToV.set1(sk, EToV(k, vn(face,1)), 1);
+      SpFToV.set1(sk, EToV(k, vn(face,2)), 1);
+      ++sk;
+    }
+  }
+  SpFToV.compress();
+  // Build global face to global face sparse array
+  SpFToF = SpFToV*trans(SpFToV) - II2;
+  // Find complete face to face connections
+  IMat F12 = SpFToF.find2D('=', 2);
+  IVec faces1=F12(All,1), faces2=F12(All,2);
+  // Convert face global number to element and face numbers
+  IVec element1 = floor( (faces1-1)/ Nfaces ) + 1;
+  IVec face1    =   mod( (faces1-1), Nfaces ) + 1;
+  IVec element2 = floor( (faces2-1)/ Nfaces ) + 1;
+  IVec face2    =   mod( (faces2-1), Nfaces ) + 1;
+  // Rearrange into Nelements x Nfaces sized arrays
+  IVec ind = sub2ind(K, Nfaces, element1, face1);
+  EToE = outer(Range(1,K), Ones(Nfaces));
+  EToF = outer(Ones(K), Range(1,Nfaces));
+  EToE(ind) = element2;
+  EToF(ind) = face2;
+*/
 
 /*
 	Startup2D
@@ -498,10 +558,6 @@ func GradSimplex2DP(a, b utils.Vector, id, jd int) (ddr, dds []float64) {
 		// Normalize
 		dds[i] *= math.Pow(2, float64(id)+0.5)
 	}
-	return
-}
-
-func (el *Elements2D) Connect2D() {
 	return
 }
 
