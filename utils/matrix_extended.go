@@ -287,8 +287,10 @@ func (m Matrix) Equate(ValuesI interface{}, RangeO ...interface{}) {
 		nVal   int
 	)
 	I = expandRangeO(nr, nc, RangeO)
+	fmt.Println("RangeO[0], nr, nc, I = ", RangeO[0], nr, nc, I)
 	nVal = len(I)
 	Values = expandValues(nVal, ValuesI)
+	fmt.Println("Values = ", Values)
 	m.Assign(I, Values)
 }
 
@@ -325,17 +327,17 @@ FAIL:
 	panic(fmt.Errorf("number of values not equal to index"))
 }
 
-func expandRangeO(nr, nc int, RangeO ...interface{}) (I Index) {
+func expandRangeO(nr, nc int, RangeO []interface{}) (I Index) {
 	var (
 		err error
 		I2D Index2D
 	)
 	switch len(RangeO) {
 	case 1:
-		I = expandRangeI(nr-1, RangeO[0])
+		I = expandRangeI(nr, RangeO[0])
 	case 2:
-		I1 := expandRangeI(nr-1, RangeO[0])
-		I2 := expandRangeI(nc-1, RangeO[1])
+		I1 := expandRangeI(nr, RangeO[0])
+		I2 := expandRangeI(nc, RangeO[1])
 		if I2D, err = NewIndex2D(nr, nc, I1, I2, true); err != nil {
 			panic(err)
 		}
@@ -347,18 +349,24 @@ func expandRangeO(nr, nc int, RangeO ...interface{}) (I Index) {
 }
 
 func expandRangeI(max int, RangeI interface{}) (I Index) {
-	switch Range := RangeI.(type) {
+	switch val := RangeI.(type) {
 	case []int:
-		I = Range
+		I = val
 	case []float64:
-		I = make(Index, len(Range))
-		for i, val := range Range {
+		I = make(Index, len(val))
+		for i, val := range val {
 			I[i] = int(val)
 		}
+	case int:
+		I = make(Index, 1)
+		I[0] = val
+	case string:
+		r1 := NewR1(max)
+		I = r1.Range(val)
 	case Vector:
-		I = expandRangeI(max, Range.Data())
+		I = expandRangeI(max, val.Data())
 	case Matrix:
-		I = expandRangeI(max, Range.Data())
+		I = expandRangeI(max, val.Data())
 	}
 	for _, val := range I {
 		if val > max {

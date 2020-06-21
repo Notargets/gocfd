@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
 	"gonum.org/v1/gonum/mat"
@@ -119,4 +120,64 @@ func TestMatrix(t *testing.T) {
 			A.Equate(2, ":", ":", "0:3") 	// 3D indexed assignment
 			A.Equate(2, ":", ":", ":", "0:3") 	// 4D indexed assignment, etc
 	*/
+	{
+		A := NewMatrix(3, 3, []float64{
+			0, 1, 2,
+			3, 4, 5,
+			6, 7, 8,
+		})
+		A.Equate(-1, ":", 0)
+		assert.True(t, nearVec([]float64{
+			-1.0000, 1.0000, 2.0000,
+			-1.0000, 4.0000, 5.0000,
+			-1.0000, 7.0000, 8.0000,
+		}, A.Data(), 0.0001))
+
+		A.Equate(-2, 0, ":")
+		assert.True(t, nearVec([]float64{
+			-2.0000, -2.0000, -2.0000,
+			-1.0000, 4.0000, 5.0000,
+			-1.0000, 7.0000, 8.0000,
+		}, A.Data(), 0.0001))
+
+		A.Equate(-3, 1, []float64{1})
+		assert.True(t, nearVec([]float64{
+			-2.0000, -2.0000, -2.0000,
+			-1.0000, -3.0000, 5.0000,
+			-1.0000, 7.0000, 8.0000,
+		}, A.Data(), 0.0001))
+
+		B := NewMatrix(1, 1, []float64{2})
+		A.Equate(-4, 2, B)
+		assert.True(t, nearVec([]float64{
+			-2.0000, -2.0000, -2.0000,
+			-1.0000, -3.0000, 5.0000,
+			-1.0000, 7.0000, -4.0000,
+		}, A.Data(), 0.0001))
+	}
+}
+
+func nearVec(a, b []float64, tol float64) (l bool) {
+	for i, val := range a {
+		if !near(b[i], val, tol) {
+			fmt.Printf("Diff = %v, Left[%d] = %v, Right[%d] = %v\n", math.Abs(val-b[i]), i, val, i, b[i])
+			return false
+		}
+	}
+	return true
+}
+
+func near(a, b float64, tolI ...float64) (l bool) {
+	var (
+		tol float64
+	)
+	if len(tolI) == 0 {
+		tol = 1.e-08
+	} else {
+		tol = tolI[0]
+	}
+	if math.Abs(a-b) <= tol*math.Abs(a) {
+		l = true
+	}
+	return
 }
