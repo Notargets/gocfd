@@ -279,6 +279,95 @@ func (m Matrix) Assign(I Index, AI interface{}) Matrix {
 	return m
 }
 
+func (m Matrix) Equate(ValuesI interface{}, RangeO ...interface{}) {
+	var (
+		nr, nc = m.Dims()
+		I      Index
+		Values []float64
+		nVal   int
+	)
+	I = expandRangeO(nr, nc, RangeO)
+	nVal = len(I)
+	Values = expandValues(nVal, ValuesI)
+	m.Assign(I, Values)
+}
+
+func expandValues(nVal int, ValuesI interface{}) (vals []float64) {
+	switch values := ValuesI.(type) {
+	case []float64:
+		vals = values
+		if len(vals) != nVal {
+			goto FAIL
+		}
+	case int:
+		vals = make([]float64, nVal)
+		for i := range vals {
+			vals[i] = float64(values)
+		}
+	case float64:
+		vals = make([]float64, nVal)
+		for i := range vals {
+			vals[i] = values
+		}
+	case Matrix:
+		vals = values.Data()
+		if len(vals) != nVal {
+			goto FAIL
+		}
+	case Vector:
+		vals = values.Data()
+		if len(vals) != nVal {
+			goto FAIL
+		}
+	}
+	return
+FAIL:
+	panic(fmt.Errorf("number of values not equal to index"))
+}
+
+func expandRangeO(nr, nc int, RangeO ...interface{}) (I Index) {
+	var (
+		err error
+		I2D Index2D
+	)
+	switch len(RangeO) {
+	case 1:
+		I = expandRangeI(nr-1, RangeO[0])
+	case 2:
+		I1 := expandRangeI(nr-1, RangeO[0])
+		I2 := expandRangeI(nc-1, RangeO[1])
+		if I2D, err = NewIndex2D(nr, nc, I1, I2, true); err != nil {
+			panic(err)
+		}
+		I = I2D.ToIndex()
+	default:
+		panic(fmt.Errorf("only 1D and 2D ranges supported"))
+	}
+	return
+}
+
+func expandRangeI(max int, RangeI interface{}) (I Index) {
+	switch Range := RangeI.(type) {
+	case []int:
+		I = Range
+	case []float64:
+		I = make(Index, len(Range))
+		for i, val := range Range {
+			I[i] = int(val)
+		}
+	case Vector:
+		I = expandRangeI(max, Range.Data())
+	case Matrix:
+		I = expandRangeI(max, Range.Data())
+	}
+	for _, val := range I {
+		if val > max {
+			panic(fmt.Errorf("max value %d exceeded by index value %d", max, val))
+		}
+	}
+	return
+}
+
 //func (m Matrix) AssignVector(I Index, A Vector) Matrix { // Changes receiver
 func (m Matrix) AssignVector(I Index, AI interface{}) Matrix { // Changes receiver
 	// Assigns values indexed into M using values sequentially from Vector A

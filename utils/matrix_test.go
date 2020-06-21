@@ -107,4 +107,16 @@ func TestMatrix(t *testing.T) {
 		xd := X.Data()
 		assert.Equal(t, []float64{3, 1, -5}, xd)
 	}
+	// Equate
+	/*
+		Examples:
+			A.Equate(Values, ":", MyIndex) // 2D index, uses all rows permuted with MyIndex columns values
+			A.Equate(Values, "0:3", MyIndex) // Same with limited rows
+			A.Equate(Values, MyIndex, ":") // Same reversed
+			A.Equate(Values, B, ":") // Row index comes from data values in matrix B
+			A.Equate(2, B, ":") 	// Equate indexed locations to a constant, example of constant promotion
+			A.Equate(2, MyRowColumnIndex) 	// 1D indexed assignment using combined row+column index
+			A.Equate(2, ":", ":", "0:3") 	// 3D indexed assignment
+			A.Equate(2, ":", ":", ":", "0:3") 	// 4D indexed assignment, etc
+	*/
 }
