@@ -555,30 +555,7 @@ func (m Matrix) LUSolve(b Matrix) (X Matrix) {
 // Non chainable methods
 
 func (m Matrix) IndexedAssign(I Index, ValI interface{}) (err error) { // Changes receiver
-	var (
-		data = m.RawMatrix().Data
-		temp []float64
-	)
-	m.checkWritable()
-	switch Val := ValI.(type) {
-	case []float64:
-		temp = Val
-	case Matrix:
-		temp = Val.Data()
-	case Index:
-		temp = make([]float64, len(I))
-		for i, val := range Val {
-			temp[i] = float64(val)
-		}
-	}
-	if len(I) != len(temp) {
-		err = fmt.Errorf("length of index and values are not equal: len(I) = %v, len(Val) = %v\n", len(I), len(temp))
-		return
-	}
-	for i, val := range temp {
-		data[I[i]] = val
-	}
-	return
+	return IndexedAssign(m, I, ValI)
 }
 
 func (m Matrix) Inverse() (R Matrix, err error) {
@@ -816,4 +793,47 @@ func limRange(i1, i2, j1, j2, nr, nc int) (ii1, ii2, jj1, jj2 int) {
 	ii1, ii2 = limLoop(i1, i2, nr)
 	jj1, jj2 = limLoop(j1, j2, nc)
 	return ii1, ii2, jj1, jj2
+}
+
+func IndexedAssign(mI interface{}, I Index, ValI interface{}) (err error) { // Changes receiver
+	var (
+		temp []float64
+	)
+	switch Val := ValI.(type) {
+	case []float64:
+		temp = Val
+	case Matrix:
+		temp = Val.Data()
+	case Index:
+		temp = make([]float64, len(I))
+		for i, val := range Val {
+			temp[i] = float64(val)
+		}
+	}
+	if len(I) != len(temp) {
+		err = fmt.Errorf("length of index and values are not equal: len(I) = %v, len(Val) = %v\n", len(I), len(temp))
+		return
+	}
+	switch m := mI.(type) {
+	case Matrix:
+		var data = m.RawMatrix().Data
+		for i, val := range temp {
+			data[I[i]] = val
+		}
+	case DOK:
+		_, nc := m.Dims()
+		for ii, val := range temp {
+			// DOK is stored column major, while the composed Index for the range is row-major, so we convert it
+			i, j := indexToIJColMajor(I[ii], nc)
+			m.M.Set(i, j, val)
+		}
+	case CSR:
+		_, nc := m.Dims()
+		for ii, val := range temp {
+			// CSR is stored column major, while the composed Index for the range is row-major, so we convert it
+			i, j := indexToIJColMajor(I[ii], nc)
+			m.M.Set(i, j, val)
+		}
+	}
+	return
 }

@@ -53,32 +53,7 @@ func (m DOK) Equate(ValuesI interface{}, RangeO ...interface{}) {
 }
 
 func (m DOK) IndexedAssign(I Index, ValI interface{}) (err error) { // Changes receiver
-	var (
-		temp  []float64
-		_, nc = m.Dims()
-	)
-	m.checkWritable()
-	switch Val := ValI.(type) {
-	case []float64:
-		temp = Val
-	case Matrix:
-		temp = Val.Data()
-	case Index:
-		temp = make([]float64, len(I))
-		for i, val := range Val {
-			temp[i] = float64(val)
-		}
-	}
-	if len(I) != len(temp) {
-		err = fmt.Errorf("length of index and values are not equal: len(I) = %v, len(Val) = %v\n", len(I), len(temp))
-		return
-	}
-	for ii, val := range temp {
-		// DOK is stored column major, while the composed Index for the range is row-major, so we convert it
-		i, j := indexToIJColMajor(I[ii], nc)
-		m.M.Set(i, j, val)
-	}
-	return
+	return IndexedAssign(m, I, ValI)
 }
 
 func (m DOK) checkWritable() {
@@ -142,33 +117,7 @@ func (m CSR) Equate(ValuesI interface{}, RangeO ...interface{}) {
 }
 
 func (m CSR) IndexedAssign(I Index, ValI interface{}) (err error) { // Changes receiver
-	var (
-		temp  []float64
-		_, nc = m.Dims()
-	)
-	m.checkWritable()
-	switch Val := ValI.(type) {
-	case []float64:
-		temp = Val
-	case Matrix:
-		temp = Val.Data()
-	case Index:
-		temp = make([]float64, len(I))
-		for i, val := range Val {
-			temp[i] = float64(val)
-		}
-	}
-	if len(I) != len(temp) {
-		err = fmt.Errorf("length of index and values are not equal: len(I) = %v, len(Val) = %v\n", len(I), len(temp))
-		return
-	}
-	for ii, val := range temp {
-		// CSR is stored column major, while the composed Index for the range is row-major, so we convert it
-		i, j := indexToIJColMajor(I[ii], nc)
-		fmt.Println("i, j = ", i, j)
-		m.M.Set(i, j, val)
-	}
-	return
+	return IndexedAssign(m, I, ValI)
 }
 
 func (m CSR) checkWritable() {
