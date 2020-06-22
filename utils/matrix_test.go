@@ -154,6 +154,16 @@ func TestMatrix(t *testing.T) {
 			-1.0000, -3.0000, 5.0000,
 			-1.0000, 7.0000, -4.0000,
 		}, A.Data(), 0.0001))
+
+		I := Index{1}
+		fmt.Println(A.Print("A pre"))
+		A.Equate(-5, 2, I)
+		fmt.Println(A.Print("A post"))
+		assert.True(t, nearVec([]float64{
+			-2.0000, -2.0000, -2.0000,
+			-1.0000, -3.0000, 5.0000,
+			-1.0000, -5.0000, -4.0000,
+		}, A.Data(), 0.0001))
 	}
 }
 

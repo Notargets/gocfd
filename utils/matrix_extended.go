@@ -301,6 +301,16 @@ func expandValues(nVal int, ValuesI interface{}) (vals []float64) {
 		if len(vals) != nVal {
 			goto FAIL
 		}
+	case []int:
+		vals = make([]float64, nVal)
+		for i := range vals {
+			vals[i] = float64(values[i])
+		}
+	case Index:
+		vals = make([]float64, nVal)
+		for i := range vals {
+			vals[i] = float64(values[i])
+		}
 	case int:
 		vals = make([]float64, nVal)
 		for i := range vals {
@@ -351,6 +361,8 @@ func expandRangeO(nr, nc int, RangeO []interface{}) (I Index) {
 func expandRangeI(max int, RangeI interface{}) (I Index) {
 	switch val := RangeI.(type) {
 	case []int:
+		I = val
+	case Index:
 		I = val
 	case []float64:
 		I = make(Index, len(val))
