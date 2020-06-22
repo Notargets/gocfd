@@ -322,42 +322,37 @@ func (el *Elements2D) Connect2D() {
 		Nv         = el.VX.Len()
 		TotalFaces = el.NFaces * el.K
 	)
-	_, _ = Nv, TotalFaces
-	r2 := utils.NewR2(el.K, el.NFaces)
-	r3 := utils.NewR3(TotalFaces, Nv, 2*TotalFaces)
-	facesR2 := make([]utils.Index, el.NFaces)
-	facesR2[0] = r2.Range(":", "0:1")
-	facesR2[1] = r2.Range(":", "1:2")
-	facesR2[2] = r2.Range(":", "0:2")
-	/*
-		IMat vn(gRowData, 3,2, "1 2  2 3  1 3");
-		// Build global face to node sparse array
-		CSi SpFToV(TotalFaces, Nv, 2*TotalFaces, 1, 1);
-	*/
-	// TODO: ? Implement an Assign operator that mimics MATLAB ?
-	_ = r3
+	SpFToVDOK := utils.NewDOK(TotalFaces, Nv)
+	faces := utils.NewMatrix(3, 2, []float64{
+		0, 1,
+		1, 2,
+		0, 2,
+	})
+	var sk int
+	for k := 0; k < el.K; k++ {
+		for face := 0; face < el.NFaces; face++ {
+			edge := faces.Range(face, ":")
+			//fmt.Println("Nv, TotalFaces, k, face, edge, range = ", Nv, TotalFaces, k, face, edge, el.EToV.Range(k, edge))
+			SpFToVDOK.Equate(1, sk, el.EToV.Range(k, edge))
+			sk++
+		}
+	}
+	SpFToV := SpFToVDOK.ToCSR()
+	SpFToF := utils.NewCSR(TotalFaces, TotalFaces)
+	SpFToF.M.Mul(SpFToV, SpFToV.T())
+	for i := 0; i < TotalFaces; i++ {
+		SpFToF.M.Set(i, i, SpFToF.At(i, i)-2)
+	}
+	// Find where faces share a vertex with another face
+	FacesIndex := utils.MatFind(SpFToF, utils.Equal, 1)
+	_ = FacesIndex
+	//	fmt.Println(FacesIndex)
 }
 
 /*
   // function [EToE, EToF] = Connect2D(EToV)
   // Purpose  : Build global connectivity arrays for grid based on
   //            standard EToV input array from grid generator
-  // List of local face to local vertex connections
-  IMat vn(gRowData, 3,2, "1 2  2 3  1 3");
-  // Build global face to node sparse array
-  CSi SpFToV(TotalFaces, Nv, 2*TotalFaces, 1, 1);
-  CSi SpFToF, II2;
-  II2.identity(TotalFaces); II2 *= 2;   // II2.print(false);
-  int sk = 1;
-  for (int k=1; k<=K; ++k) {
-    for (int face=1; face<=Nfaces; ++face)
-    {
-      SpFToV.set1(sk, EToV(k, vn(face,1)), 1);
-      SpFToV.set1(sk, EToV(k, vn(face,2)), 1);
-      ++sk;
-    }
-  }
-  SpFToV.compress();
   // Build global face to global face sparse array
   SpFToF = SpFToV*trans(SpFToV) - II2;
   // Find complete face to face connections

@@ -26,7 +26,7 @@ func NewDOK(nr, nc int) (R DOK) {
 // Dims, At and T minimally satisfy the mat.Matrix interface.
 func (m DOK) Dims() (r, c int)              { return m.M.Dims() }
 func (m DOK) At(i, j int) float64           { return m.M.At(i, j) }
-func (m DOK) T() mat.Matrix                 { return m.T() }
+func (m DOK) T() mat.Matrix                 { return m.M.T() }
 func (m DOK) RawMatrix() *blas.SparseMatrix { return m.M.RawMatrix() }
 func (m DOK) Data() []float64 {
 	return m.RawMatrix().Data
@@ -90,7 +90,7 @@ func NewCSR(nr, nc int) (R CSR) {
 // Dims, At and T minimally satisfy the mat.Matrix interface.
 func (m CSR) Dims() (r, c int)              { return m.M.Dims() }
 func (m CSR) At(i, j int) float64           { return m.M.At(i, j) }
-func (m CSR) T() mat.Matrix                 { return m.T() }
+func (m CSR) T() mat.Matrix                 { return m.M.T() }
 func (m CSR) RawMatrix() *blas.SparseMatrix { return m.M.RawMatrix() }
 func (m CSR) Data() []float64 {
 	return m.RawMatrix().Data

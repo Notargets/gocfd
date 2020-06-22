@@ -279,6 +279,20 @@ func (m Matrix) Assign(I Index, AI interface{}) Matrix {
 	return m
 }
 
+func (m Matrix) Range(RangeO ...interface{}) (r []float64) {
+	var (
+		nr, nc = m.Dims()
+		I      Index
+		data   = m.Data()
+	)
+	I = expandRangeO(nr, nc, RangeO)
+	r = make([]float64, len(I))
+	for i, ind := range I {
+		r[i] = data[ind]
+	}
+	return
+}
+
 func (m Matrix) Equate(ValuesI interface{}, RangeO ...interface{}) {
 	var (
 		nr, nc = m.Dims()
@@ -821,17 +835,21 @@ func IndexedAssign(mI interface{}, I Index, ValI interface{}) (err error) { // C
 			data[I[i]] = val
 		}
 	case DOK:
-		_, nc := m.Dims()
+		//_, nc := m.Dims()
+		nr, nc := m.Dims()
 		for ii, val := range temp {
 			// DOK is stored column major, while the composed Index for the range is row-major, so we convert it
-			i, j := indexToIJColMajor(I[ii], nc)
+			i, j := indexToIJColMajor(I[ii], nr)
+			if j > nc-1 {
+				fmt.Println("Error, j > nc, ii, ind, j, nr, nc = ", ii, I[ii], j, nr, nc)
+			}
 			m.M.Set(i, j, val)
 		}
 	case CSR:
-		_, nc := m.Dims()
+		nr, _ := m.Dims()
 		for ii, val := range temp {
 			// CSR is stored column major, while the composed Index for the range is row-major, so we convert it
-			i, j := indexToIJColMajor(I[ii], nc)
+			i, j := indexToIJColMajor(I[ii], nr)
 			m.M.Set(i, j, val)
 		}
 	}
