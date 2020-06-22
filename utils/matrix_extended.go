@@ -287,10 +287,8 @@ func (m Matrix) Equate(ValuesI interface{}, RangeO ...interface{}) {
 		nVal   int
 	)
 	I = expandRangeO(nr, nc, RangeO)
-	fmt.Println("RangeO[0], nr, nc, I = ", RangeO[0], nr, nc, I)
 	nVal = len(I)
 	Values = expandValues(nVal, ValuesI)
-	fmt.Println("Values = ", Values)
 	m.Assign(I, Values)
 }
 
