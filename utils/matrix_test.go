@@ -11,6 +11,21 @@ import (
 )
 
 func TestMatrix(t *testing.T) {
+	// Basic Index utilities
+	{
+		nr, nc := 2, 3
+		A := NewMatrix(nr, nc, []float64{0, 1, 2, 3, 4, 5})
+		index := []int{0, 1, 2, 3, 4, 5}
+		for _, ind := range index {
+			i, j := indexToIJ(ind, nc)
+			assert.Equal(t, A.At(i, j), float64(ind))
+		}
+		A = NewMatrix(nc, nr, []float64{0, 1, 2, 3, 4, 5})
+		for _, ind := range index {
+			i, j := indexToIJ(ind, nr)
+			assert.Equal(t, A.At(i, j), float64(ind))
+		}
+	}
 	// Transpose
 	{
 		M := NewMatrix(2, 3, []float64{
