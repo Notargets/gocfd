@@ -836,13 +836,10 @@ func IndexedAssign(mI interface{}, I Index, ValI interface{}) (err error) { // C
 		}
 	case DOK:
 		//_, nc := m.Dims()
-		nr, nc := m.Dims()
+		nr, _ := m.Dims()
 		for ii, val := range temp {
 			// DOK is stored column major, while the composed Index for the range is row-major, so we convert it
 			i, j := indexToIJColMajor(I[ii], nr)
-			if j > nc-1 {
-				fmt.Println("Error, j > nc, ii, ind, j, nr, nc = ", ii, I[ii], j, nr, nc)
-			}
 			m.M.Set(i, j, val)
 		}
 	case CSR:
