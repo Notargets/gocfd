@@ -15,15 +15,21 @@ func TestMatrix(t *testing.T) {
 	{
 		nr, nc := 2, 3
 		A := NewMatrix(nr, nc, []float64{0, 1, 2, 3, 4, 5})
+		B := NewMatrix(nr, nc, A.Data())
 		index := []int{0, 1, 2, 3, 4, 5}
 		for _, ind := range index {
 			i, j := indexToIJ(ind, nc)
 			assert.Equal(t, A.At(i, j), float64(ind))
+			i, j = indexToIJColMajor(ind, nc)
+			assert.Equal(t, B.Transpose().At(i, j), float64(ind))
 		}
 		A = NewMatrix(nc, nr, []float64{0, 1, 2, 3, 4, 5})
+		B = NewMatrix(nr, nc, A.Data())
 		for _, ind := range index {
 			i, j := indexToIJ(ind, nr)
 			assert.Equal(t, A.At(i, j), float64(ind))
+			i, j = indexToIJColMajor(ind, nc)
+			assert.Equal(t, B.Transpose().At(i, j), float64(ind))
 		}
 	}
 	// Transpose
@@ -188,6 +194,29 @@ func TestMatrix(t *testing.T) {
 			3.0000, 4.0000, 5.0000,
 			6.0000, 7.0000, 8.0000,
 		}, A.Data(), 0.0001))
+	}
+	// Sparse Equate
+	{
+		nr, nc := 3, 3
+		A := NewDOK(nr, nc)
+		A.Equate([]float64{
+			0, 1, 2,
+			3, 4, 5,
+			6, 7, 8,
+		}, ":", ":")
+		check := []float64{
+			0.0000, 1.0000, 2.0000,
+			3.0000, 4.0000, 5.0000,
+			6.0000, 7.0000, 8.0000,
+		}
+		// Check to ensure row-major traversal of values
+		var ind int
+		for j := 0; j < nc; j++ {
+			for i := 0; i < nr; i++ {
+				assert.Equal(t, check[ind], A.At(i, j))
+				ind++
+			}
+		}
 	}
 }
 

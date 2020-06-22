@@ -74,7 +74,8 @@ func (m DOK) IndexedAssign(I Index, ValI interface{}) (err error) { // Changes r
 		return
 	}
 	for ii, val := range temp {
-		i, j := indexToIJ(I[ii], nc)
+		// DOK is stored column major, while the composed Index for the range is row-major, so we convert it
+		i, j := indexToIJColMajor(I[ii], nc)
 		m.M.Set(i, j, val)
 	}
 	return
@@ -84,6 +85,13 @@ func indexToIJ(ind, nc int) (i, j int) {
 	//ind = j + nc*(i)
 	i = ind / nc
 	j = ind - i*nc
+	return
+}
+
+func indexToIJColMajor(ind, nr int) (i, j int) {
+	//ind = i + nr*(j)
+	j = ind / nr
+	i = ind - j*nr
 	return
 }
 
