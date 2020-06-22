@@ -204,19 +204,30 @@ func TestMatrix(t *testing.T) {
 			3, 4, 5,
 			6, 7, 8,
 		}, ":", ":")
-		check := []float64{
-			0.0000, 1.0000, 2.0000,
-			3.0000, 4.0000, 5.0000,
-			6.0000, 7.0000, 8.0000,
-		}
-		// Check to ensure row-major traversal of values
-		var ind int
-		for j := 0; j < nc; j++ {
-			for i := 0; i < nr; i++ {
-				assert.Equal(t, check[ind], A.At(i, j))
-				ind++
+		testRowMajor := func(A mat.Matrix) {
+			check := []float64{
+				0.0000, 1.0000, 2.0000,
+				3.0000, 4.0000, 5.0000,
+				6.0000, 7.0000, 8.0000,
+			}
+			// Check to ensure row-major traversal of values
+			var ind int
+			for j := 0; j < nc; j++ {
+				for i := 0; i < nr; i++ {
+					assert.Equal(t, check[ind], A.At(i, j))
+					ind++
+				}
 			}
 		}
+		testRowMajor(A)
+
+		B := A.ToCSR()
+		B.Equate([]float64{
+			0, 1, 2,
+			3, 4, 5,
+			6, 7, 8,
+		}, ":", ":")
+		testRowMajor(B)
 	}
 }
 
