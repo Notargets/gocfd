@@ -37,11 +37,10 @@ type Cubature struct {
 }
 
 func NewElements2D(N int, meshFile string, plotMesh bool) (el *Elements2D) {
-	var (
-		// choose order to integrate exactly
-		CubatureOrder = int(math.Floor(2.0 * float64(N+1) * 3.0 / 2.0))
-		NGauss        = int(math.Floor(2.0 * float64(N+1)))
-	)
+	// choose order to integrate exactly
+	//CubatureOrder = int(math.Floor(2.0 * float64(N+1) * 3.0 / 2.0))
+	//NGauss        = int(math.Floor(2.0 * float64(N+1)))
+	//el.NewCube2D(CubatureOrder)
 	if N < 1 {
 		N = 1
 	}
@@ -51,12 +50,12 @@ func NewElements2D(N int, meshFile string, plotMesh bool) (el *Elements2D) {
 		NFaces: 3,
 	}
 	el.ReadGambit2d(meshFile, plotMesh)
-	el.NewCube2D(CubatureOrder)
 	el.Startup2D()
+	//fmt.Println(el.X.Print("X"))
+	//fmt.Println(el.Y.Print("Y"))
 	if plotMesh {
-		PlotMesh(el.VX, el.VY, el.EToV, el.BCType)
+		PlotMesh(el.VX, el.VY, el.EToV, el.BCType, el.X, el.Y)
 	}
-	_ = NGauss
 	/*
 	  // build cubature node data for all elements
 	  CubatureVolumeMesh2D(CubatureOrder);
