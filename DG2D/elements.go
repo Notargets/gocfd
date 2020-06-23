@@ -258,6 +258,8 @@ func (el *Elements2D) Startup2D() {
 	el.NODETOL = 1.e-12
 	// Compute nodal set
 	el.R, el.S = XYtoRS(Nodes2D(el.N))
+	fmt.Println(el.R.Print("R"))
+	fmt.Println(el.S.Print("S"))
 	// Build reference element matrices
 	el.V = Vandermonde2D(el.N, el.R, el.S)
 	if el.Vinv, err = el.V.Inverse(); err != nil {

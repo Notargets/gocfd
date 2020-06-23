@@ -4,7 +4,7 @@ foo
 foo
 foo
      NUMNP     NELEM     NGRPS    NBSETS     NDFCD     NDFVL 
-         6         1         1         1         2         2
+         6         4         1         1         2         2
 ENDOFSECTION
    NODAL COORDINATES 1.3.0
          1     0.000000000e+000    0.000000000e+000
@@ -16,14 +16,18 @@ ENDOFSECTION
 ENDOFSECTION
       ELEMENTS/CELLS 1.3.0
        1  3  3        1       2       6
+       2  3  3        1       6       3
+       3  3  3        2       4       6
+       4  3  3        5       2       1
 ENDOFSECTION
        ELEMENT GROUP 1.3.0
 GROUP:           1 ELEMENTS:          4 MATERIAL:      1.000 NFLAGS:          0 
                   epsilon: 1.000
        0
-       1
+       1       2       3       4
 ENDOFSECTION
  BOUNDARY CONDITIONS 1.3.0
-                            Wall       1       1       0       0
-         1    3    3
+                            Wall       1       2       0       0
+         2    3    3
+         4    3    3
 ENDOFSECTION
