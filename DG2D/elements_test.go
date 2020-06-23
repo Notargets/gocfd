@@ -140,6 +140,8 @@ func TestElements2D(t *testing.T) {
 			0.9857, -0.7163, -0.3202, 0.5323,
 			0.9857, -0.7163, -0.3202, 0.5323,
 		}, el.NY.Subset(subsetFacePts.Range(":", "0:4"), 9, 4).Data(), 0.0001))
+		//fmt.Println(el.EToF.Print("EToF"))
+		fmt.Println(el.EToE.Print("EToE"))
 	}
 }
 

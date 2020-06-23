@@ -136,9 +136,6 @@ func (el *Elements2D) ReadGambit2d(filename string, plotMesh bool) {
 
 	// Read BCs
 	el.BCType = ReadBCS(Nbcs, K, NFaces, reader)
-	if plotMesh {
-		PlotMesh(el.VX, el.VY, el.EToV, el.BCType)
-	}
 	return
 }
 
@@ -189,14 +186,14 @@ func PlotMesh(VX, VY utils.Vector, EToV, BCType utils.Matrix) {
 	}
 	_ = colorMap
 	if err := chart.AddTriMesh("TriMesh", points, trimesh,
-		chart2d.NoGlyph, chart2d.Solid, white); err != nil {
+		chart2d.CrossGlyph, chart2d.Solid, white); err != nil {
 		panic("unable to add graph series")
 	}
 	var ticks int
 	for {
 		ticks++
 		time.Sleep(time.Second)
-		if ticks > 10 {
+		if ticks > 1000 {
 			break
 		}
 	}

@@ -53,6 +53,9 @@ func NewElements2D(N int, meshFile string, plotMesh bool) (el *Elements2D) {
 	el.ReadGambit2d(meshFile, plotMesh)
 	el.NewCube2D(CubatureOrder)
 	el.Startup2D()
+	if plotMesh {
+		PlotMesh(el.VX, el.VY, el.EToV, el.BCType)
+	}
 	_ = NGauss
 	/*
 	  // build cubature node data for all elements
@@ -297,6 +300,7 @@ func (el *Elements2D) Startup2D() {
 	el.GeometricFactors2D()
 	el.Normals2D()
 	el.FScale = el.sJ.ElDiv(el.J.Subset(el.GetFaces()))
+	// Build connectivity matrix
 	el.Connect2D()
 
 	// Mark fields read only
@@ -314,9 +318,20 @@ func (el *Elements2D) Startup2D() {
 	el.NX.SetReadOnly("NX")
 	el.NY.SetReadOnly("NY")
 	el.FScale.SetReadOnly("FScale")
+	el.EToE.SetReadOnly("EToE")
+	el.EToF.SetReadOnly("EToF")
 	return
 }
 
+/*
+	Startup2D
+  // Build connectivity maps
+  BuildMaps2D();
+  // Compute weak operators (could be done in preprocessing to save time)
+  DMat Vr,Vs;  GradVandermonde2D(N, r, s, Vr, Vs);
+  VVT = V*trans(V);
+  Drw = (V*trans(Vr))/VVT;  Dsw = (V*trans(Vs))/VVT;
+*/
 func (el *Elements2D) Connect2D() {
 	var (
 		Nv         = el.VX.Len()
@@ -337,51 +352,34 @@ func (el *Elements2D) Connect2D() {
 			sk++
 		}
 	}
+	// Build global face to global face sparse array
 	SpFToV := SpFToVDOK.ToCSR()
 	SpFToF := utils.NewCSR(TotalFaces, TotalFaces)
 	SpFToF.M.Mul(SpFToV, SpFToV.T())
 	for i := 0; i < TotalFaces; i++ {
 		SpFToF.M.Set(i, i, SpFToF.At(i, i)-2)
 	}
-	// Find where faces share a vertex with another face
-	FacesIndex := utils.MatFind(SpFToF, utils.Equal, 1)
-	_ = FacesIndex
-	//	fmt.Println(FacesIndex)
+	// Find complete face to face connections
+	F12 := utils.MatFind(SpFToF, utils.Equal, 2)
+
+	element1 := F12.RI.Copy().Apply(func(val int) int { return val / el.NFaces })
+	face1 := F12.RI.Copy().Apply(func(val int) int { return int(math.Mod(float64(val), float64(el.NFaces))) })
+
+	element2 := F12.CI.Copy().Apply(func(val int) int { return val / el.NFaces })
+	face2 := F12.CI.Copy().Apply(func(val int) int { return int(math.Mod(float64(val), float64(el.NFaces))) })
+
+	// Rearrange into Nelements x Nfaces sized arrays
+	el.EToE = utils.NewRangeOffset(1, el.K).Outer(utils.NewOnes(el.NFaces))
+	el.EToF = utils.NewOnes(el.K).Outer(utils.NewRangeOffset(1, el.NFaces))
+	var I2D utils.Index2D
+	var err error
+	nr, nc := el.EToE.Dims()
+	if I2D, err = utils.NewIndex2D(nr, nc, element1, face1); err != nil {
+		panic(err)
+	}
+	el.EToE.Assign(I2D.ToIndex(), element2)
+	el.EToF.Assign(I2D.ToIndex(), face2)
 }
-
-/*
-  // function [EToE, EToF] = Connect2D(EToV)
-  // Purpose  : Build global connectivity arrays for grid based on
-  //            standard EToV input array from grid generator
-  // Build global face to global face sparse array
-  SpFToF = SpFToV*trans(SpFToV) - II2;
-  // Find complete face to face connections
-  IMat F12 = SpFToF.find2D('=', 2);
-  IVec faces1=F12(All,1), faces2=F12(All,2);
-  // Convert face global number to element and face numbers
-  IVec element1 = floor( (faces1-1)/ Nfaces ) + 1;
-  IVec face1    =   mod( (faces1-1), Nfaces ) + 1;
-  IVec element2 = floor( (faces2-1)/ Nfaces ) + 1;
-  IVec face2    =   mod( (faces2-1), Nfaces ) + 1;
-  // Rearrange into Nelements x Nfaces sized arrays
-  IVec ind = sub2ind(K, Nfaces, element1, face1);
-  EToE = outer(Range(1,K), Ones(Nfaces));
-  EToF = outer(Ones(K), Range(1,Nfaces));
-  EToE(ind) = element2;
-  EToF(ind) = face2;
-*/
-
-/*
-	Startup2D
-  // Build connectivity matrix
-  tiConnect2D(EToV, EToE,EToF);
-  // Build connectivity maps
-  BuildMaps2D();
-  // Compute weak operators (could be done in preprocessing to save time)
-  DMat Vr,Vs;  GradVandermonde2D(N, r, s, Vr, Vs);
-  VVT = V*trans(V);
-  Drw = (V*trans(Vr))/VVT;  Dsw = (V*trans(Vs))/VVT;
-*/
 
 func (el *Elements2D) GetFaces() (aI utils.Index, NFacePts, K int) {
 	var (
