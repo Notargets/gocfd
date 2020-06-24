@@ -185,15 +185,17 @@ func Nodes2D(N int) (x, y utils.Vector) {
 		for m := 0; m < (N + 1 - n); m++ {
 			l1d[sk] = float64(n) * fn
 			l3d[sk] = float64(m) * fn
-			l2d[sk] = 1 - l1d[sk] - l3d[sk]
-			xd[sk] = l3d[sk] - l2d[sk]
-			yd[sk] = (-l3d[sk] - l2d[sk] + 2*l1d[sk]) / math.Sqrt(3)
-			// Compute blending function at each node for each edge
-			blend1[sk] = 4 * l3d[sk] * l2d[sk]
-			blend2[sk] = 4 * l1d[sk] * l3d[sk]
-			blend3[sk] = 4 * l2d[sk] * l1d[sk]
 			sk++
 		}
+	}
+	for i := range xd {
+		l2d[i] = 1 - l1d[i] - l3d[i]
+		xd[i] = l3d[i] - l2d[i]
+		yd[i] = (2*l1d[i] - l3d[i] - l2d[i]) / math.Sqrt(3)
+		// Compute blending function at each node for each edge
+		blend1[i] = 4 * l2d[i] * l3d[i]
+		blend2[i] = 4 * l1d[i] * l3d[i]
+		blend3[i] = 4 * l1d[i] * l2d[i]
 	}
 	// Amount of warp for each node, for each edge
 	warpf1 = Warpfactor(N, L3.Copy().Subtract(L2))
@@ -201,13 +203,13 @@ func Nodes2D(N int) (x, y utils.Vector) {
 	warpf3 = Warpfactor(N, L2.Copy().Subtract(L1))
 	// Combine blend & warp
 	for i := range warpf1 {
-		warp1[i] = blend1[i] * warpf1[i] * (1 + math.Sqrt(alpha*l1d[i]))
-		warp2[i] = blend2[i] * warpf2[i] * (1 + math.Sqrt(alpha*l2d[i]))
-		warp3[i] = blend3[i] * warpf3[i] * (1 + math.Sqrt(alpha*l3d[i]))
+		warp1[i] = blend1[i] * warpf1[i] * (1 + utils.POW(alpha*l1d[i], 2))
+		warp2[i] = blend2[i] * warpf2[i] * (1 + utils.POW(alpha*l2d[i], 2))
+		warp3[i] = blend3[i] * warpf3[i] * (1 + utils.POW(alpha*l3d[i], 2))
 	}
 	// Accumulate deformations associated with each edge
 	for i := range xd {
-		xd[i] += (warp1[i]+math.Cos(2*math.Pi/3))*warp2[i] + math.Cos(4*math.Pi/3)*warp3[i]
+		xd[i] += warp1[i] + math.Cos(2*math.Pi/3)*warp2[i] + math.Cos(4*math.Pi/3)*warp3[i]
 		yd[i] += math.Sin(2*math.Pi/3)*warp2[i] + math.Sin(4*math.Pi/3)*warp3[i]
 	}
 	return
