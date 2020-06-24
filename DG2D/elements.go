@@ -168,13 +168,13 @@ func Nodes2D(N int) (x, y utils.Vector) {
 	blend1, blend2, blend3, warp1, warp2, warp3 =
 		make([]float64, Np), make([]float64, Np), make([]float64, Np), make([]float64, Np), make([]float64, Np), make([]float64, Np)
 
-	alpopt := [15]float64{
+	alpopt := []float64{
 		0.0000, 0.0000, 1.4152, 0.1001, 0.2751,
 		0.9800, 1.0999, 1.2832, 1.3648, 1.4773,
 		1.4959, 1.5743, 1.5770, 1.6223, 1.6258,
 	}
 	if N < 16 {
-		alpha = alpopt[N]
+		alpha = alpopt[N-1]
 	} else {
 		alpha = 5. / 3.
 	}
@@ -230,20 +230,18 @@ func Warpfactor(N int, rout utils.Vector) (warpF []float64) {
 	// Compute warp factor
 	warp := Lmat.Transpose().Mul(LGLr.Subtract(req).ToMatrix())
 	// Scale factor
-	zerof := rout.Apply(func(val float64) (res float64) {
-		if math.Abs(val) < 1.0 {
-			res = 1
-		} else {
-			res = val
+	zerof := rout.Copy().Apply(func(val float64) (res float64) {
+		if math.Abs(val) < (1.0 - (1e-10)) {
+			res = 1.
 		}
-		res -= 1.e-10
 		return
 	})
 	sf := zerof.Copy().ElMul(rout).Apply(func(val float64) (res float64) {
 		res = 1 - val*val
 		return
 	})
-	warp.ElDiv(sf.ToMatrix()).ElMul(zerof.AddScalar(-1).ToMatrix())
+	w2 := warp.Copy()
+	warp.ElDiv(sf.ToMatrix()).Add(w2.ElMul(zerof.AddScalar(-1).ToMatrix()))
 	warpF = warp.Data()
 	return
 }
@@ -258,8 +256,6 @@ func (el *Elements2D) Startup2D() {
 	el.NODETOL = 1.e-12
 	// Compute nodal set
 	el.R, el.S = XYtoRS(Nodes2D(el.N))
-	fmt.Println(el.R.Print("R"))
-	fmt.Println(el.S.Print("S"))
 	// Build reference element matrices
 	el.V = Vandermonde2D(el.N, el.R, el.S)
 	if el.Vinv, err = el.V.Inverse(); err != nil {
