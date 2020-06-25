@@ -1,8 +1,9 @@
 # gocfd
-Awesome CFD solver written in Go 
-![](images/scram-boundaries.PNG)
-![](images/bump-colored.PNG)
-![](images/Inlet-small.PNG)
+Awesome CFD solver written in Go
+
+<img src="images/scram-boundaries.PNG" width="600" height="200" />
+<img src="images/bump-colored.PNG" width="600" height="200" />
+<img src="images/Inlet-small.PNG" width="600" height="200" />
 
 ## An implementation of the Discontinuous Galerkin Method for solving systems of equations
 
@@ -53,6 +54,9 @@ me@home:bash# gocfd -graph
 ### Run without graphics:
 me@home:bash# gocfd
 ```
+### Updates (June 25, 2020):
+<img src="images/tri-nodes-n3-6.PNG" width="400" height="300" />
+
 ### Updates (June 13, 2020):
 ![](images/Inlet-small.PNG)
 
