@@ -155,16 +155,16 @@ func Simplex2DP(a, b utils.Vector, i, j int) (P []float64) {
 
 // Purpose  : Compute (x,y) nodes in equilateral triangle for
 //            polynomial of order N
-func Nodes2D(N int) (x, y utils.Vector) {
+func Nodes2D(N int) (R, S utils.Vector) {
 	var (
 		alpha                                                               float64
 		Np                                                                  = (N + 1) * (N + 2) / 2
 		L1, L2, L3                                                          utils.Vector
 		blend1, blend2, blend3, warp1, warp2, warp3, warpf1, warpf2, warpf3 []float64
 	)
-	L1, L2, L3, x, y =
+	L1, L2, L3, R, S =
 		utils.NewVector(Np), utils.NewVector(Np), utils.NewVector(Np), utils.NewVector(Np), utils.NewVector(Np)
-	l1d, l2d, l3d, xd, yd := L1.Data(), L2.Data(), L3.Data(), x.Data(), y.Data()
+	l1d, l2d, l3d, Sd, Rd := L1.Data(), L2.Data(), L3.Data(), R.Data(), S.Data()
 	blend1, blend2, blend3, warp1, warp2, warp3 =
 		make([]float64, Np), make([]float64, Np), make([]float64, Np), make([]float64, Np), make([]float64, Np), make([]float64, Np)
 
@@ -188,10 +188,10 @@ func Nodes2D(N int) (x, y utils.Vector) {
 			sk++
 		}
 	}
-	for i := range xd {
+	for i := range Sd {
 		l2d[i] = 1 - l1d[i] - l3d[i]
-		xd[i] = l3d[i] - l2d[i]
-		yd[i] = (2*l1d[i] - l3d[i] - l2d[i]) / math.Sqrt(3)
+		Sd[i] = l3d[i] - l2d[i]
+		Rd[i] = (2*l1d[i] - l3d[i] - l2d[i]) / math.Sqrt(3)
 		// Compute blending function at each node for each edge
 		blend1[i] = 4 * l2d[i] * l3d[i]
 		blend2[i] = 4 * l1d[i] * l3d[i]
@@ -208,9 +208,9 @@ func Nodes2D(N int) (x, y utils.Vector) {
 		warp3[i] = blend3[i] * warpf3[i] * (1 + utils.POW(alpha*l3d[i], 2))
 	}
 	// Accumulate deformations associated with each edge
-	for i := range xd {
-		xd[i] += warp1[i] + math.Cos(2*math.Pi/3)*warp2[i] + math.Cos(4*math.Pi/3)*warp3[i]
-		yd[i] += math.Sin(2*math.Pi/3)*warp2[i] + math.Sin(4*math.Pi/3)*warp3[i]
+	for i := range Sd {
+		Sd[i] += warp1[i] + math.Cos(2*math.Pi/3)*warp2[i] + math.Cos(4*math.Pi/3)*warp3[i]
+		Rd[i] += math.Sin(2*math.Pi/3)*warp2[i] + math.Sin(4*math.Pi/3)*warp3[i]
 	}
 	return
 }
