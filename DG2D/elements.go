@@ -153,18 +153,61 @@ func Simplex2DP(a, b utils.Vector, i, j int) (P []float64) {
 	}
 */
 
+func NodesEpsilon(N int) (R, S utils.Vector) {
+	/*
+		From the 2017 paper "A Direct Flux Reconstruction Scheme for Advection Diffusion Problems on Triangular Grids"
+
+		This is a node set that is compatible with DFR in that it implements colocated solution and flux points for the
+		interior nodes, while enabling a set of face nodes for the N+1 degree flux polynomial
+
+		There are two node sets, one for N=3 and one for N=4. They were computed via an optimization, and are only
+		available for N=3 and N=4. Also, the convergence of N=3 is degraded for diffusion problems.
+
+		Therefore, only the N=4 points should be used for Viscous solutions, while the N=3 nodes are fine for inviscid
+	*/
+	var (
+		Np   = (N + 1) * (N + 2) / 2
+		epsD []float64
+	)
+	switch N {
+	case 3:
+		epsD = []float64{
+			0.3333333333333333, 0.055758983558155, 0.88848203288369, 0.055758983558155, 0.290285227512689, 0.6388573870878149, 0.290285227512689, 0.6388573870878149, 0.070857385399496, 0.070857385399496,
+			0.3333333333333333, 0.055758983558155, 0.055758983558155, 0.88848203288369, 0.070857385399496, 0.290285227512689, 0.6388573870878149, 0.070857385399496, 0.290285227512689, 0.6388573870878149,
+			0.3333333333333333, 0.88848203288369, 0.055758983558155, 0.055758983558155, 0.6388573870878149, 0.070857385399496, 0.070857385399496, 0.290285227512689, 0.6388573870878149, 0.290285227512689,
+		}
+	case 4:
+		epsD = []float64{
+			0.034681580220044, 0.9306368395599121, 0.034681580220044, 0.243071555674492, 0.513856888651016, 0.243071555674492, 0.473372556704605, 0.05325488659079003, 0.473372556704605, 0.200039998995093, 0.752666332493468, 0.200039998995093, 0.752666332493468, 0.047293668511439, 0.047293668511439,
+			0.034681580220044, 0.034681580220044, 0.9306368395599121, 0.243071555674492, 0.243071555674492, 0.513856888651016, 0.473372556704605, 0.473372556704605, 0.05325488659079003, 0.047293668511439, 0.200039998995093, 0.752666332493468, 0.047293668511439, 0.200039998995093, 0.752666332493468,
+			0.9306368395599121, 0.034681580220044, 0.034681580220044, 0.513856888651016, 0.243071555674492, 0.243071555674492, 0.05325488659079003, 0.473372556704605, 0.473372556704605, 0.752666332493468, 0.047293668511439, 0.047293668511439, 0.200039998995093, 0.752666332493468, 0.200039998995093,
+		}
+	default:
+		panic(fmt.Errorf("Epsilon nodes not defined for N = %v, only defined for N=3 or N=4\n", N))
+	}
+	eps := utils.NewMatrix(3, Np, epsD)
+	T := utils.NewMatrix(2, 3, []float64{
+		-1, 1, -1,
+		-1, -1, 1,
+	})
+	RS := T.Mul(eps)
+	R = RS.Row(0)
+	S = RS.Row(1)
+	return
+}
+
 // Purpose  : Compute (x,y) nodes in equilateral triangle for
 //            polynomial of order N
-func Nodes2D(N int) (R, S utils.Vector) {
+func Nodes2D(N int) (x, y utils.Vector) {
 	var (
 		alpha                                                               float64
 		Np                                                                  = (N + 1) * (N + 2) / 2
 		L1, L2, L3                                                          utils.Vector
 		blend1, blend2, blend3, warp1, warp2, warp3, warpf1, warpf2, warpf3 []float64
 	)
-	L1, L2, L3, R, S =
+	L1, L2, L3, x, y =
 		utils.NewVector(Np), utils.NewVector(Np), utils.NewVector(Np), utils.NewVector(Np), utils.NewVector(Np)
-	l1d, l2d, l3d, Sd, Rd := L1.Data(), L2.Data(), L3.Data(), R.Data(), S.Data()
+	l1d, l2d, l3d, xd, yd := L1.Data(), L2.Data(), L3.Data(), x.Data(), y.Data()
 	blend1, blend2, blend3, warp1, warp2, warp3 =
 		make([]float64, Np), make([]float64, Np), make([]float64, Np), make([]float64, Np), make([]float64, Np), make([]float64, Np)
 
@@ -188,10 +231,10 @@ func Nodes2D(N int) (R, S utils.Vector) {
 			sk++
 		}
 	}
-	for i := range Sd {
+	for i := range xd {
 		l2d[i] = 1 - l1d[i] - l3d[i]
-		Sd[i] = l3d[i] - l2d[i]
-		Rd[i] = (2*l1d[i] - l3d[i] - l2d[i]) / math.Sqrt(3)
+		xd[i] = l3d[i] - l2d[i]
+		yd[i] = (2*l1d[i] - l3d[i] - l2d[i]) / math.Sqrt(3)
 		// Compute blending function at each node for each edge
 		blend1[i] = 4 * l2d[i] * l3d[i]
 		blend2[i] = 4 * l1d[i] * l3d[i]
@@ -208,9 +251,9 @@ func Nodes2D(N int) (R, S utils.Vector) {
 		warp3[i] = blend3[i] * warpf3[i] * (1 + utils.POW(alpha*l3d[i], 2))
 	}
 	// Accumulate deformations associated with each edge
-	for i := range Sd {
-		Sd[i] += warp1[i] + math.Cos(2*math.Pi/3)*warp2[i] + math.Cos(4*math.Pi/3)*warp3[i]
-		Rd[i] += math.Sin(2*math.Pi/3)*warp2[i] + math.Sin(4*math.Pi/3)*warp3[i]
+	for i := range xd {
+		xd[i] += warp1[i] + math.Cos(2*math.Pi/3)*warp2[i] + math.Cos(4*math.Pi/3)*warp3[i]
+		yd[i] += math.Sin(2*math.Pi/3)*warp2[i] + math.Sin(4*math.Pi/3)*warp3[i]
 	}
 	return
 }
@@ -257,7 +300,8 @@ func (el *Elements2D) Startup2D() {
 	el.NFaces = 3
 	el.NODETOL = 1.e-12
 	// Compute nodal set
-	el.R, el.S = XYtoRS(Nodes2D(el.N))
+	el.R, el.S = NodesEpsilon(el.N)
+	//el.R, el.S = XYtoRS(Nodes2D(el.N))
 	// Build reference element matrices
 	el.V = Vandermonde2D(el.N, el.R, el.S)
 	if el.Vinv, err = el.V.Inverse(); err != nil {
@@ -280,22 +324,25 @@ func (el *Elements2D) Startup2D() {
 	fmask1 := el.S.Copy().AddScalar(1).Find(utils.Less, el.NODETOL, true)
 	fmask2 := el.S.Copy().Add(el.R).Find(utils.Less, el.NODETOL, true)
 	fmask3 := el.R.Copy().AddScalar(1).Find(utils.Less, el.NODETOL, true)
-	el.FMask = utils.NewMatrix(el.Nfp, 3)
-	el.FMask.SetCol(0, fmask1.Data())
-	el.FMask.SetCol(1, fmask2.Data())
-	el.FMask.SetCol(2, fmask3.Data())
-	el.FMaskI = utils.NewIndex(len(el.FMask.Data()), el.FMask.Data())
-	el.Fx = utils.NewMatrix(3*el.Nfp, el.K)
-	for fp, val := range el.FMask.Data() {
-		ind := int(val)
-		el.Fx.M.SetRow(fp, el.X.M.RawRowView(ind))
+	if fmask1.Len() != 0 {
+
+		el.FMask = utils.NewMatrix(el.Nfp, 3)
+		el.FMask.SetCol(0, fmask1.Data())
+		el.FMask.SetCol(1, fmask2.Data())
+		el.FMask.SetCol(2, fmask3.Data())
+		el.FMaskI = utils.NewIndex(len(el.FMask.Data()), el.FMask.Data())
+		el.Fx = utils.NewMatrix(3*el.Nfp, el.K)
+		for fp, val := range el.FMask.Data() {
+			ind := int(val)
+			el.Fx.M.SetRow(fp, el.X.M.RawRowView(ind))
+		}
+		el.Fy = utils.NewMatrix(3*el.Nfp, el.K)
+		for fp, val := range el.FMask.Data() {
+			ind := int(val)
+			el.Fy.M.SetRow(fp, el.Y.M.RawRowView(ind))
+		}
+		el.Lift2D()
 	}
-	el.Fy = utils.NewMatrix(3*el.Nfp, el.K)
-	for fp, val := range el.FMask.Data() {
-		ind := int(val)
-		el.Fy.M.SetRow(fp, el.Y.M.RawRowView(ind))
-	}
-	el.Lift2D()
 	el.GeometricFactors2D()
 	el.Normals2D()
 	el.FScale = el.sJ.ElDiv(el.J.Subset(el.GetFaces()))
