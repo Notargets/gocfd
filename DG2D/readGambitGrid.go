@@ -166,16 +166,9 @@ func PlotMesh(VX, VY utils.Vector, EToV, BCType, X, Y utils.Matrix) {
 	}
 	trimesh.Geometry = points
 	box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
-	center := box.Centroid()
-	xrange := box.XMax[0] - box.XMin[0]
-	yrange := box.XMax[1] - box.XMin[1]
+	box = box.Scale(1.5)
 	var chart *chart2d.Chart2D
-	switch {
-	case xrange > yrange:
-		chart = chart2d.NewChart2D(1920, 1920, box.XMin[0]-0.05*float32(xrange), box.XMax[0], center.X[1]-float32(xrange/2), center.X[1]+float32(xrange/2))
-	default:
-		chart = chart2d.NewChart2D(1920, 1920, center.X[0]-float32(yrange/2)+0.1*float32(yrange), center.X[0]+float32(yrange/2), box.XMin[1], box.XMax[1])
-	}
+	chart = chart2d.NewChart2D(1920, 1920, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
 	chart.AddColorMap(colorMap)
 	go chart.Plot()
 	white := color.RGBA{
