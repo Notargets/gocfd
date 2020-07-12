@@ -2,7 +2,12 @@ package DG2D
 
 import (
 	"fmt"
+	"image/color"
 	"math"
+
+	graphics2D "github.com/notargets/avs/geometry"
+
+	"github.com/notargets/avs/chart2d"
 
 	"github.com/notargets/gocfd/DG1D"
 
@@ -53,9 +58,49 @@ func NewElements2D(N int, meshFile string, plotMesh bool) (el *Elements2D) {
 	el.Startup2D()
 	//fmt.Println(el.X.Print("X"))
 	//fmt.Println(el.Y.Print("Y"))
-	if plotMesh {
-		PlotMesh(el.VX, el.VY, el.EToV, el.BCType, el.X, el.Y)
+
+	var (
+		xx = el.X.Transpose().Data()
+		yy = el.Y.Transpose().Data()
+	)
+	s1 := make([][2]float64, len(xx))
+	s2 := make([][2]float64, len(xx))
+	s3 := make([][2]float64, len(xx))
+	s := make([][2]float64, len(xx))
+	for i := range xx {
+		s1[i][0] = 0.25 * (xx[i] + 1)
+		s1[i][1] = 0.25 * (yy[i] + 1)
+		s2[i][0] = 0.25 * (xx[i] - 1)
+		s2[i][1] = 0.25 * (yy[i] + 1)
+		s3[i][0] = 0.25 * (xx[i] + 1)
+		s3[i][1] = 0.25 * (yy[i] - 1)
+		s[i][0] = s1[i][0] + s2[i][0] + s3[i][0]
+		s[i][1] = s1[i][1] + s2[i][1] + s3[i][1]
 	}
+	fmt.Println("s1 = ", s1)
+	fmt.Println("s2 = ", s2)
+	fmt.Println("s3 = ", s3)
+	fmt.Println("s = ", s)
+
+	var chart *chart2d.Chart2D
+	if plotMesh {
+		white := color.RGBA{
+			R: 255,
+			G: 255,
+			B: 255,
+			A: 0,
+		}
+		chart = PlotMesh(el.VX, el.VY, el.EToV, el.BCType, el.X, el.Y)
+		ydata := el.Y.Transpose().Data()
+		geom := make([]graphics2D.Point, len(ydata))
+		for i, xval := range el.X.Transpose().Data() {
+			geom[i].X[0] = float32(xval)
+			geom[i].X[1] = float32(ydata[i])
+		}
+		_ = chart.AddVectors("basis", geom, s, chart2d.Solid, white)
+		sleepForever()
+	}
+
 	/*
 	  // build cubature node data for all elements
 	  CubatureVolumeMesh2D(CubatureOrder);

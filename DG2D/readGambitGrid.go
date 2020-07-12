@@ -139,7 +139,7 @@ func (el *Elements2D) ReadGambit2d(filename string, plotMesh bool) {
 	return
 }
 
-func PlotMesh(VX, VY utils.Vector, EToV, BCType, X, Y utils.Matrix) {
+func PlotMesh(VX, VY utils.Vector, EToV, BCType, X, Y utils.Matrix) (chart *chart2d.Chart2D) {
 	var (
 		points   []graphics2D.Point
 		trimesh  graphics2D.TriMesh
@@ -167,7 +167,6 @@ func PlotMesh(VX, VY utils.Vector, EToV, BCType, X, Y utils.Matrix) {
 	trimesh.Geometry = points
 	box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
 	box = box.Scale(1.5)
-	var chart *chart2d.Chart2D
 	chart = chart2d.NewChart2D(1920, 1920, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
 	chart.AddColorMap(colorMap)
 	go chart.Plot()
@@ -186,6 +185,11 @@ func PlotMesh(VX, VY utils.Vector, EToV, BCType, X, Y utils.Matrix) {
 		chart2d.XGlyph, chart2d.NoLine, white); err != nil {
 		panic(err)
 	}
+
+	return
+}
+
+func sleepForever() {
 	var ticks int
 	for {
 		ticks++
