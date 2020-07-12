@@ -77,11 +77,6 @@ func NewElements2D(N int, meshFile string, plotMesh bool) (el *Elements2D) {
 		s[i][0] = s1[i][0] + s2[i][0] + s3[i][0]
 		s[i][1] = s1[i][1] + s2[i][1] + s3[i][1]
 	}
-	fmt.Println("s1 = ", s1)
-	fmt.Println("s2 = ", s2)
-	fmt.Println("s3 = ", s3)
-	fmt.Println("s = ", s)
-
 	var chart *chart2d.Chart2D
 	if plotMesh {
 		white := color.RGBA{
