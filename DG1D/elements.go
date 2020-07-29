@@ -284,19 +284,3 @@ func LagrangePolyAtJ(t float64, R []float64, j int) (s float64) {
 	}
 	return
 }
-
-func JacobiP2D(u, v float64, i, j int) (p float64) {
-	/*
-		This is a 2D normalized polynomial basis for the unit triangle with vertices:
-					(0,0), (0,1), (1, 0)
-		Arguments:
-					(u,v) is the position within the triangle where the basis is evaluated
-		    		(i,j) is the index within the basis, which has (K+1)(K+2)/2 terms
-	*/
-	a := utils.NewVector(1, []float64{2*u/(1-v) - 1})
-	b := utils.NewVector(1, []float64{2*v - 1})
-	h1 := JacobiP(a, 0, 0, i)
-	h2 := JacobiP(b, float64(2*i+1), 0, i)
-	p = math.Sqrt(2) * utils.POW(2*(1-v), j) * h1[0] * h2[0] / 4 // The divide by 4 is the Jacobian that converts from a different triangle
-	return
-}
