@@ -254,14 +254,33 @@ func GeometricFactors1D(Dr, X utils.Matrix) (J, Rx utils.Matrix) {
 func (el *Elements1D) LagrangeInterpolant(r float64) (Li utils.Matrix) {
 	Li = utils.NewMatrix(1, el.R.Len()).AddScalar(1)
 	LiData := Li.RawMatrix().Data
-	for i, vali := range el.R.RawVector().Data {
-		for j, valj := range el.R.RawVector().Data {
-			if i == j {
-				continue
-			}
-			metric := (r - valj) / (vali - valj)
-			LiData[i] *= metric
+	for j := range el.R.RawVector().Data {
+		LiData[j] *= LagrangePolyAtJ(r, el.R.Data(), j)
+	}
+	return
+}
+
+func LagrangePolyAtJ(t float64, R []float64, j int) (s float64) {
+	/*
+		From https://en.wikipedia.org/wiki/Lagrange_polynomial
+		This evaluates the Lagrange polynomial at term J for location R[j]
+
+		The equivalent Newton polynomial is more efficient for repetitive usage
+	*/
+	var (
+		k = len(R)
+	)
+	if j > k || j < 0 {
+		panic("value of j larger than array or less than zero")
+	}
+	valj := R[j]
+	s = 1
+	for i, val := range R {
+		if i == j {
+			continue
 		}
+		metric := (t - val) / (valj - val)
+		s *= metric
 	}
 	return
 }
