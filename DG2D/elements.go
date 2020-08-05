@@ -55,7 +55,8 @@ func NewElements2D(N int, meshFile string, plotMesh bool) (el *Elements2D) {
 		NFaces: 3,
 	}
 	el.ReadGambit2d(meshFile, plotMesh)
-	el.Startup2D()
+	//el.Startup2D()
+	el.Startup2DDFR()
 	//fmt.Println(el.X.Print("X"))
 	//fmt.Println(el.Y.Print("Y"))
 
@@ -329,6 +330,57 @@ func Warpfactor(N int, rout utils.Vector) (warpF []float64) {
 	warp.ElDiv(sf.ToMatrix()).Add(w2.ElMul(zerof.AddScalar(-1).ToMatrix()))
 	warpF = warp.Data()
 	return
+}
+
+func (el *Elements2D) Startup2DDFR() {
+	var (
+	//err error
+	)
+	el.Nfp = el.N + 1
+	el.Np = (el.N + 1) * (el.N + 2) / 2
+	el.NFaces = 3
+	el.NODETOL = 1.e-12
+	// Compute nodal set
+	//el.R, el.S = NodesEpsilon(el.N)
+	el.R, el.S = XYtoRS(Nodes2D(el.N))
+	// Build reference element matrices
+	/*
+			We build the mixed elements for the DFR scheme with:
+
+			Solution Points: We use points within a reference triangle, excluding the edges, for a Lagrangian element
+			to store the solution. If we need derivatives, or interpolated quantities (Flux), we use the solution points
+			element.
+
+			Flux Points: We use a customized Raviart-Thomas (RT) vector basis element to store the vector Flux function
+		    computed from the solution values. The RT element is of order O(K+1) and is a combination of the points from
+			the solution element for the interior of the element, and points along the three triangle edges. The custom
+			RT basis is established by using a procedure outlined in: "A Direct Flux Reconstruction Scheme for
+			Advection-Diffusion Problems on Triangular Grids" by Romero, Witherden and Jameson (2017). A complete RT
+			basis, [ B ], is used together with unit basis vectors, [ w ], to satisfy the following:
+				[ B_j(r_i) dot w_i ] [ C ] = [ delta_i_j ]
+
+			Where [ C ] is the vector of coefficients defining the basis using the basis vectore [ w ].
+
+			The basis vectors [ w ] of the custom RT element are defined such that:
+				w([r]) = w(edge_locations) = unit normals on each of three edges
+				w([r]) = w(interior) = unit normals in the two primary geometry directions (r and s)
+
+			For order K:
+				- (K+1) locations on each edge, for a total of 3(K+1) edge basis functions.
+				- (K)(K+1) locations in the interior, half for w_r and half for w_s
+				- Total: (K+3)(K+1) basis functions for the RT_K element
+
+			Notes:
+				- The number of interior points matches the Lagrangian element in 2D at order (K-1). A Lagrange element
+				at order (K) has N_p = (K+1)(K+2)/2 degrees of freedom, so an order (K-1) element has (K)(K+1)/2 DOF.
+				Considering that we need a term for each of the two interior directions at each interior point, we need
+				exactly 2*N_p DOF at order (K-1) for the interior of the custom RT element, resulting in (K)(K+1) terms.
+				- The above note confirms that the custom element requires exactly the same number of interior points as
+				a Lagrange element of order (K-1), which means we can use the custom RT element for the DFR approach
+				without requiring interpolation of the solution points, as they already reside at the same geometric
+				locations.
+	*/
+	el.V = Vandermonde2D(el.N, el.R, el.S) // Lagrange Element for solution points (not used)
 }
 
 func (el *Elements2D) Startup2D() {
