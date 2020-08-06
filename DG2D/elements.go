@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"math"
+	"os"
 
 	graphics2D "github.com/notargets/avs/geometry"
 
@@ -340,9 +341,6 @@ func (el *Elements2D) Startup2DDFR() {
 	el.Np = (el.N + 1) * (el.N + 2) / 2
 	el.NFaces = 3
 	el.NODETOL = 1.e-12
-	// Compute nodal set
-	//el.R, el.S = NodesEpsilon(el.N)
-	el.R, el.S = XYtoRS(Nodes2D(el.N))
 	// Build reference element matrices
 	/*
 			We build the mixed elements for the DFR scheme with:
@@ -400,7 +398,77 @@ func (el *Elements2D) Startup2DDFR() {
 			the solution process, resulting in a more efficient computational approach, in addition to making it easier
 			to solve more complex equations with the identical formulation.
 	*/
-	el.V = Vandermonde2D(el.N, el.R, el.S) // Lagrange Element for solution points (not used)
+	//el.V = Vandermonde2D(el.N, el.R, el.S) // Lagrange Element for solution points (not used)
+	// Compute nodal set
+	el.R, el.S = NodesEpsilon(el.N)
+	RT1, RT2 := el.RaviartThomasSimplex(el.N+1, el.R, el.S)
+	fmt.Println(RT1.Print("RT1"))
+	fmt.Println(RT2.Print("RT2"))
+	os.Exit(1)
+}
+
+func (el *Elements2D) RaviartThomasSimplex(N int, r, s utils.Vector) (RT1, RT2 utils.Matrix) {
+	/*
+		Basis definition taken from "Computational Bases for RTk and BDMk on Triangles", V.J. Ervin, 2012
+	*/
+	var (
+		NpInternal   = N * (N + 1) / 2
+		NpEdge       = N + 1
+		Np           = 3*NpEdge + 2*NpInternal
+		rData, sData = r.Data(), s.Data()
+	)
+	if r.Len() != s.Len() {
+		panic("number of internal points in each direction must be equal")
+	}
+	if r.Len() != NpInternal {
+		panic(
+			fmt.Errorf("number of internal element locations must equal %d, have %d", NpInternal, r.Len()),
+		)
+	}
+	fmt.Printf("Order = %d, Internal Order = %d, Internal point count = %d\n", N, N-1, NpInternal)
+	// Allocate space for each vector component of the basis, 1 and 2 for the r and s directions
+	RT1 = utils.NewMatrix(Np, Np)
+	RT2 = utils.NewMatrix(Np, Np)
+	/*
+		Internal basis evaluated at internal points
+		psi4(r, s) = P(r,s)*[s*r, s*(s-1)]
+		psi5(r, s) = P(r,s)*[r*(r-1), r*s]
+	*/
+	a, b := RStoAB(r, s)
+	// TODO: Append the edge locations to r, s so that the following two loop sets fill in the bottom of the matrix
+
+	var sk int
+	// Psi4
+	// psi4(r, s) = P(r,s)*[s*r, s*(s-1)]
+	for i := 0; i <= N-1; i++ {
+		for j := 0; j <= (N - 1 - i); j++ {
+			p := Simplex2DP(a, b, i, j)
+			p2 := append([]float64{}, p...)
+			for ii := range p {
+				p[ii] *= sData[ii] * rData[ii]
+				p2[ii] *= sData[ii] * (sData[ii] - 1)
+			}
+			RT1.SetColFrom(sk, 0, p)
+			RT2.SetColFrom(sk, 0, p2)
+			sk++
+		}
+	}
+	// Psi5
+	// psi5(r, s) = P(r,s)*[r*(r-1), r*s]
+	for i := 0; i <= N-1; i++ {
+		for j := 0; j <= (N - 1 - i); j++ {
+			p := Simplex2DP(a, b, i, j)
+			p2 := append([]float64{}, p...)
+			for ii := range p {
+				p[ii] *= rData[ii] * (rData[ii] - 1)
+				p2[ii] *= rData[ii] * sData[ii]
+			}
+			RT1.SetColFrom(sk, 0, p)
+			RT2.SetColFrom(sk, 0, p2)
+			sk++
+		}
+	}
+	return
 }
 
 func (el *Elements2D) Startup2D() {

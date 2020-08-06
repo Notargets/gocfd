@@ -232,6 +232,22 @@ func (m Matrix) SetCol(j int, data []float64) Matrix { // Changes receiver
 	return m
 }
 
+func (m Matrix) SetColFrom(col, rowFrom int, data []float64) Matrix { // Changes receiver
+	var (
+		nr, nc = m.Dims()
+	)
+	col = lim(col, nc)
+	m.checkWritable()
+	if len(data)+rowFrom > nr {
+		panic(
+			fmt.Errorf("row length exceeded, max is %d, have %d", nr, rowFrom+len(data)))
+	}
+	for i, val := range data {
+		m.M.Set(i+rowFrom, col, val)
+	}
+	return m
+}
+
 func (m Matrix) Add(A Matrix) Matrix { // Changes receiver
 	var (
 		dataM = m.RawMatrix().Data
