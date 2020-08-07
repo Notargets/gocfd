@@ -425,9 +425,10 @@ func (el *Elements2D) RaviartThomasSimplex(N int, r, s utils.Vector) (RT1, RT2 u
 		It may be that the basis is still orthogonal in that each term at the interior point can consume one of the
 		two vector directions at each geometric point of evaluation - this is enforced for the custom RT basis.
 	*/
-	if r.Len() != NpInternal {
+	if r.Len() != NpInternal && r.Len() != 2*NpInternal {
 		panic(
-			fmt.Errorf("number of internal element locations must equal %d, have %d", NpInternal, r.Len()),
+			fmt.Errorf("number of internal element locations must equal either %d, or %d, have %d",
+				NpInternal, 2*NpInternal, r.Len()),
 		)
 	}
 	fmt.Printf("Order = %d, Internal Order = %d, Internal point count = %d\n", N, N-1, NpInternal)
@@ -436,12 +437,18 @@ func (el *Elements2D) RaviartThomasSimplex(N int, r, s utils.Vector) (RT1, RT2 u
 	RT2 = utils.NewMatrix(Np, Np)
 
 	/*
-		Use the internal geometric points twice, once for each class of basis
+		If the number of supplied interior points is NpInternal, we use the internal geometric points twice, once for
+		each class of interior basis. The degenerate basis will be corrected in the custom element by fitting each class
+		to a unit vector orthogonal to the other class.
+		If the number of points is 2*NpInternal, we use the provided points unaltered to produce a complete RT basis.
 	*/
-	rData = append(rData, rData...)
-	sData = append(sData, sData...)
-	r = utils.NewVector(len(rData), rData)
-	s = utils.NewVector(len(sData), sData)
+	if r.Len() == NpInternal {
+		// Element will be used to produce a custom RT basis, correcting the degenerate basis later
+		rData = append(rData, rData...)
+		sData = append(sData, sData...)
+		r = utils.NewVector(len(rData), rData)
+		s = utils.NewVector(len(sData), sData)
+	}
 
 	/*
 		Determine geometric locations of edge points, located at Gauss locations in 1D, projected onto the edges
@@ -482,7 +489,46 @@ func (el *Elements2D) RaviartThomasSimplex(N int, r, s utils.Vector) (RT1, RT2 u
 		psi4(r, s) = P(r,s)*[s*r, s*(s-1)]
 		psi5(r, s) = P(r,s)*[r*(r-1), r*s]
 	*/
-	var sk int
+	var column int
+	// Psi1 through Psi3, corresponding to edges 1-3
+	// psi1(r,s) = P(s) * sqrt(2) * [ r, s ]
+	sr2 := math.Sqrt(2)
+	for i := 0; i < NpEdge; i++ {
+		p := DG1D.JacobiP(s, 0, 0, N)
+		p2 := append([]float64{}, p...)
+		for ii := range p {
+			p[ii] *= sr2 * rData[i]
+			p2[ii] *= sr2 * sData[i]
+		}
+		RT1.SetCol(column, p)
+		RT2.SetCol(column, p2)
+		column++
+	}
+	// psi2(r,s) = P_(alpha=N+2-j)_(s) * [ r-1, s ]
+	for i := 0; i < NpEdge; i++ {
+		p := DG1D.JacobiP(s, float64(N+2-i), 0, N)
+		p2 := append([]float64{}, p...)
+		for ii := range p {
+			p[ii] *= rData[i] - 1
+			p2[ii] *= sData[i]
+		}
+		RT1.SetCol(column, p)
+		RT2.SetCol(column, p2)
+		column++
+	}
+	// psi3(r,s) = P(r) * [ r, s-1 ]
+	for i := 0; i < NpEdge; i++ {
+		p := DG1D.JacobiP(r, 0, 0, N)
+		p2 := append([]float64{}, p...)
+		for ii := range p {
+			p[ii] *= rData[i]
+			p2[ii] *= sData[i] - 1
+		}
+		RT1.SetCol(column, p)
+		RT2.SetCol(column, p2)
+		column++
+	}
+
 	// Psi4
 	// psi4(r, s) = P(r,s)*[s*r, s*(s-1)]
 	for i := 0; i <= N-1; i++ {
@@ -494,9 +540,9 @@ func (el *Elements2D) RaviartThomasSimplex(N int, r, s utils.Vector) (RT1, RT2 u
 				p[ii] *= sData[ii] * rData[ii]
 				p2[ii] *= sData[ii] * (sData[ii] - 1)
 			}
-			RT1.SetColFrom(sk, 0, p)
-			RT2.SetColFrom(sk, 0, p2)
-			sk++
+			RT1.SetCol(column, p)
+			RT2.SetCol(column, p2)
+			column++
 		}
 	}
 	// Psi5
@@ -509,9 +555,9 @@ func (el *Elements2D) RaviartThomasSimplex(N int, r, s utils.Vector) (RT1, RT2 u
 				p[ii] *= rData[ii] * (rData[ii] - 1)
 				p2[ii] *= rData[ii] * sData[ii]
 			}
-			RT1.SetColFrom(sk, 0, p)
-			RT2.SetColFrom(sk, 0, p2)
-			sk++
+			RT1.SetCol(column, p)
+			RT2.SetCol(column, p2)
+			column++
 		}
 	}
 	return
