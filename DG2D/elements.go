@@ -453,7 +453,6 @@ func (el *Elements2D) RaviartThomasSimplex(N int, r, s utils.Vector) (RT1, RT2 u
 	/*
 		Determine geometric locations of edge points, located at Gauss locations in 1D, projected onto the edges
 	*/
-	// TODO: Calculate the edge locations
 	GQR, _ := DG1D.JacobiGQ(1, 1, N)
 	GQR.AddScalar(1).Scale(0.5)
 
@@ -560,6 +559,20 @@ func (el *Elements2D) RaviartThomasSimplex(N int, r, s utils.Vector) (RT1, RT2 u
 			column++
 		}
 	}
+	/*
+		Project into the -1,1 reference triangle space using the Piola transformation, multiply by (J / det(J))
+		where J is the jacobian of the transform from the unit triangle to the -1,1 reference triangle
+		J = | 2   0 |
+			| 0   2 |
+		det(J) = 4
+		So we need to multiply the above matrix by:
+		J / det(J) = | 0.5  0   |
+					 | 0    0.5 |
+		Note that we need to use the same transform to map operations using this matrix from the -1,1 reference triangle
+		to the real space in (x,y).
+	*/
+	RT1.Scale(0.5)
+	RT2.Scale(0.5)
 	return
 }
 
