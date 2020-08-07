@@ -420,6 +420,11 @@ func (el *Elements2D) RaviartThomasSimplex(N int, r, s utils.Vector) (RT1, RT2 u
 	if r.Len() != s.Len() {
 		panic("number of internal points in each direction must be equal")
 	}
+	/*
+		Note: This basis is possibly degenerate in that the same geometric points are used twice within the basis
+		It may be that the basis is still orthogonal in that each term at the interior point can consume one of the
+		two vector directions at each geometric point of evaluation - this is enforced for the custom RT basis.
+	*/
 	if r.Len() != NpInternal {
 		panic(
 			fmt.Errorf("number of internal element locations must equal %d, have %d", NpInternal, r.Len()),
@@ -429,19 +434,60 @@ func (el *Elements2D) RaviartThomasSimplex(N int, r, s utils.Vector) (RT1, RT2 u
 	// Allocate space for each vector component of the basis, 1 and 2 for the r and s directions
 	RT1 = utils.NewMatrix(Np, Np)
 	RT2 = utils.NewMatrix(Np, Np)
+
+	/*
+		Use the internal geometric points twice, once for each class of basis
+	*/
+	rData = append(rData, rData...)
+	sData = append(sData, sData...)
+	r = utils.NewVector(len(rData), rData)
+	s = utils.NewVector(len(sData), sData)
+
+	/*
+		Determine geometric locations of edge points, located at Gauss locations in 1D, projected onto the edges
+	*/
+	// TODO: Calculate the edge locations
+	GQR, _ := DG1D.JacobiGQ(1, 1, N)
+	GQR.AddScalar(1).Scale(0.5)
+
+	GQRData := GQR.Data()
+	rEdgeData := make([]float64, NpEdge*3)
+	sEdgeData := make([]float64, NpEdge*3)
+	for i := 0; i < NpEdge; i++ {
+		// Edge 1 (hypotenuse)
+		rEdgeData[i] = 2*(-GQRData[i]+1) - 1
+		sEdgeData[i] = 2*GQRData[i] - 1
+		// Edge 2
+		rEdgeData[i+NpEdge] = -1
+		sEdgeData[i+NpEdge] = 2*(1-GQRData[i]) - 1
+		// Edge 3
+		rEdgeData[i+2*NpEdge] = 2*GQRData[i] - 1
+		sEdgeData[i+2*NpEdge] = -1
+	}
+	rEdge := utils.NewVector(NpEdge*3, rEdgeData)
+	sEdge := utils.NewVector(NpEdge*3, sEdgeData)
+	_, _ = rEdge, sEdge
+
+	rData = append(rData, rEdgeData...)
+	sData = append(sData, sEdgeData...)
+	r = utils.NewVector(len(rData), rData)
+	s = utils.NewVector(len(sData), sData)
+
+	/*
+		Convert the geometric points at (r,s) to the (a,b) coordinates needed for the Simplex2DP function
+	*/
+	a, b := RStoAB(r, s)
 	/*
 		Internal basis evaluated at internal points
 		psi4(r, s) = P(r,s)*[s*r, s*(s-1)]
 		psi5(r, s) = P(r,s)*[r*(r-1), r*s]
 	*/
-	a, b := RStoAB(r, s)
-	// TODO: Append the edge locations to r, s so that the following two loop sets fill in the bottom of the matrix
-
 	var sk int
 	// Psi4
 	// psi4(r, s) = P(r,s)*[s*r, s*(s-1)]
 	for i := 0; i <= N-1; i++ {
 		for j := 0; j <= (N - 1 - i); j++ {
+			// Evaluate at interior geometric locations
 			p := Simplex2DP(a, b, i, j)
 			p2 := append([]float64{}, p...)
 			for ii := range p {
