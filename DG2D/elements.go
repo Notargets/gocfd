@@ -1,5 +1,6 @@
 package DG2D
 
+import "C"
 import (
 	"fmt"
 	"image/color"
@@ -401,10 +402,64 @@ func (el *Elements2D) Startup2DDFR() {
 	//el.V = Vandermonde2D(el.N, el.R, el.S) // Lagrange Element for solution points (not used)
 	// Compute nodal set
 	el.R, el.S = NodesEpsilon(el.N)
-	RT1, RT2 := el.RaviartThomasSimplex(el.N+1, el.R, el.S)
+	el.RTCustom()
+}
+
+func (el *Elements2D) RTCustom() (RT1, RT2 utils.Matrix) {
+	var (
+		N          = el.N + 1
+		NpInternal = N * (N + 1) / 2
+		NpEdge     = N + 1
+		Np         = 3*NpEdge + 2*NpInternal
+	)
+	RT1, RT2 = el.RaviartThomasSimplex(N, el.R, el.S)
+	// Customize RT basis using separate basis vectors for each internal location and one for each edge normal
+	oosr2 := 1. / math.Sqrt(2)
+	e1 := []float64{oosr2, oosr2}
+	e2 := []float64{-1, 0}
+	e3 := []float64{0, -1}
+	e4 := []float64{1, 0}
+	e5 := []float64{0, 1}
+	// Construct right vectors for each point within the basis, one for each direction r and s
+	er, es := make([]float64, Np), make([]float64, Np)
+	for i := 0; i < NpEdge; i++ {
+		er[i] = e1[0]
+		er[i+NpEdge] = e2[0]
+		er[i+2*NpEdge] = e3[0]
+		es[i] = e1[1]
+		es[i+NpEdge] = e2[1]
+		es[i+2*NpEdge] = e3[1]
+	}
+	for i := 0; i < NpInternal; i++ {
+		er[i+3*NpEdge] = e4[0]
+		er[i+NpInternal+3*NpEdge] = e5[0]
+		es[i+3*NpEdge] = e4[1]
+		es[i+NpInternal+3*NpEdge] = e5[1]
+	}
+	// Construct the dot product of the new basis with the RT basis
+	A := utils.NewMatrix(Np, Np)
+	rowProduct := make([]float64, Np)
+	for irow := 0; irow < Np; irow++ {
+		row1 := RT1.Row(irow).Data()
+		row2 := RT2.Row(irow).Data()
+		for j := 0; j < Np; j++ {
+			rowProduct[j] = row1[j]*er[j] + row2[j]*es[j]
+		}
+		A.M.SetRow(irow, rowProduct)
+	}
+	fmt.Println(A.Print("A"))
+	S := utils.NewMatrix(Np, 1).AddScalar(1)
+	var Ainv utils.Matrix
+	var err error
+	if Ainv, err = A.Inverse(); err != nil {
+		panic(err)
+	}
+	os.Exit(1)
+	c := Ainv.Mul(S)
+	fmt.Println(c.Print("c"))
 	fmt.Println(RT1.Print("RT1"))
 	fmt.Println(RT2.Print("RT2"))
-	os.Exit(1)
+	return
 }
 
 func (el *Elements2D) RaviartThomasSimplex(N int, r, s utils.Vector) (RT1, RT2 utils.Matrix) {
@@ -505,7 +560,7 @@ func (el *Elements2D) RaviartThomasSimplex(N int, r, s utils.Vector) (RT1, RT2 u
 	}
 	// psi2(r,s) = P_(alpha=N+2-j)_(s) * [ r-1, s ]
 	for i := 0; i < NpEdge; i++ {
-		p := DG1D.JacobiP(s, float64(N+2-i), 0, N)
+		p := DG1D.JacobiP(s, float64(N+1-i), 0, N)
 		p2 := append([]float64{}, p...)
 		for ii := range p {
 			p[ii] *= rData[i] - 1
