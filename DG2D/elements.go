@@ -48,9 +48,6 @@ func NewElements2D(N int, meshFile string, plotMesh bool) (el *Elements2D) {
 	//CubatureOrder = int(math.Floor(2.0 * float64(N+1) * 3.0 / 2.0))
 	//NGauss        = int(math.Floor(2.0 * float64(N+1)))
 	//el.NewCube2D(CubatureOrder)
-	if N < 1 {
-		N = 1
-	}
 	el = &Elements2D{
 		N:      N,
 		Np:     (N + 1) * (N + 2) / 2,
@@ -213,6 +210,10 @@ func NodesEpsilon(N int) (R, S utils.Vector) {
 		epsD []float64
 	)
 	switch N {
+	case 0:
+		R = utils.NewVector(1, []float64{-.5})
+		S = utils.NewVector(1, []float64{-.5})
+		return
 	case 3:
 		epsD = []float64{
 			0.3333333333333333, 0.055758983558155, 0.88848203288369, 0.055758983558155, 0.290285227512689, 0.6388573870878149, 0.290285227512689, 0.6388573870878149, 0.070857385399496, 0.070857385399496,
@@ -401,8 +402,10 @@ func (el *Elements2D) Startup2DDFR() {
 	*/
 	//el.V = Vandermonde2D(el.N, el.R, el.S) // Lagrange Element for solution points (not used)
 	// Compute nodal set
+	fmt.Printf("N input = %d\n", el.N)
 	el.R, el.S = NodesEpsilon(el.N)
-	el.RTCustom()
+	//el.RTCustom()
+	RTBasis(el.N+1, el.R, el.S)
 }
 
 func (el *Elements2D) RTCustom() (RT1, RT2 utils.Matrix) {
@@ -459,6 +462,164 @@ func (el *Elements2D) RTCustom() (RT1, RT2 utils.Matrix) {
 	fmt.Println(c.Print("c"))
 	fmt.Println(RT1.Print("RT1"))
 	fmt.Println(RT2.Print("RT2"))
+	return
+}
+
+func RTBasis(N int, R, S utils.Vector) {
+	/*
+					This is constructed from the defining space of the RT element:
+									 2
+						RT_k = [(P_k) ]   + [ X ] P_k
+							 = [ b1(r,s)_i + r * b3(r,s)_j ]
+			    			   [ b2(r,s)_i + s * b3(r,s)_j ]
+		   				i := 1, (K+1)(K+2)/2
+		   				j := (K+1)(K+2)/2 - K, (K+1)(K+2)/2 (highest order terms in polynomial)
+					The dimension of RT_k is (K+1)(K+3) and we can see from the above that the total
+					number of terms in the polynomial will be:
+						2*(K+1)(K+2)/2 + K+1
+						= (K+1)(K+3)
+
+					The explanation for why the b3 polynomial sub-basis is partially consumed:
+					When multiplied by [ X ], the b3 polynomial produces terms redundant with
+					the b1 and b2 sub-bases. The redundancy is removed from the b3 sub-basis to
+					compensate, producing the correct overall dimension.
+
+					This routine will evaluate the polynomial for order N at all points provided
+					in the r and s []float64 and return the resulting vector [p1,p2] for each input.
+	*/
+	var (
+		Np     = (N + 1) * (N + 3)
+		p1, p2 = make([]float64, Np), make([]float64, Np)
+		Nsub1  = (N + 1) * (N + 2) / 2
+	)
+	/*
+		Transform the incoming (r,s) locations into the unit triangle (0,1) from the (-1,1) basis
+	*/
+	R.AddScalar(1).Scale(0.5)
+	S.AddScalar(1).Scale(0.5)
+	// Add the edge points from the RT basis
+	R, S = AddEdgePoints(N, R, S)
+	/*
+		First, evaluate the polynomial at the (r,s) coordinates
+		This is the same set that will be used for all dot products to form the basis matrix
+	*/
+	Term2D := func(r, s float64, i, j int) (val float64) {
+		// Note this only outputs the value of the (i,j)th term of the 2D polynomial
+		val = utils.POW(r, i) * utils.POW(s, j)
+		return
+	}
+
+	/*
+		Form the basis matrix by forming a dot product with unit vectors, matching the coordinate locations in R,S
+		The R,S set should be ordered such that the (N+1)(N+2)/2 interior points are first, followed by the
+		3(N+1) triangle edge locations
+	*/
+	A := utils.NewMatrix(Np, Np)
+	rowEdge1 := make([]float64, Np)
+	rowEdge2 := make([]float64, Np)
+	rowEdge3 := make([]float64, Np)
+	oosr2 := 1 / math.Sqrt(2)
+
+	// Evaluate at interior geometric locations
+	for ii, rr := range R.Data() {
+		ss := S.Data()[ii]
+		// Evaluate the full 2D polynomial basis first, once for each of two components
+		var sk int
+		for i := 0; i <= N; i++ {
+			for j := 0; j <= (N - i); j++ {
+				val := Term2D(rr, ss, i, j)
+				p1[sk] = val
+				p2[sk+Nsub1] = val
+				sk++
+			}
+		}
+		// Evaluate the term ([ X ]*(Pk)) at only the top N+1 terms (highest order) of the 2D polynomial
+		for i := 0; i <= N; i++ {
+			j := N - i
+			val := Term2D(rr, ss, i, j)
+			p1[sk+Nsub1] = val * rr
+			p2[sk+Nsub1] = val * ss
+			sk++
+		}
+
+		// Precalculate triangle edges dot products
+		for i := 0; i < Np; i++ {
+			// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
+			rowEdge1[i] = oosr2 * (p1[i] + p2[i])
+			// Edge2: Unit vector is [-1,0]
+			rowEdge2[i] = -p1[i]
+			// Edge3: Unit vector is [0,-1]
+			rowEdge3[i] = -p2[i]
+		}
+		// TODO: This is not correct, as each row is the evaluation at each (r,s) and this assumes dot product with same point location at each row
+		switch {
+		case ii < Nsub1:
+			// Unit vector is [1,0]
+			A.M.SetRow(ii, p1)
+		case ii < 2*Nsub1:
+			// Unit vector is [0,1]
+			A.M.SetRow(ii, p2)
+		case ii < 2*Nsub1+(N+1):
+			// Triangle Edge1
+			A.M.SetRow(ii, rowEdge1)
+		case ii < 2*Nsub1+2*(N+1):
+			// Unit vector is [-1,0]
+			A.M.SetRow(ii, rowEdge2)
+		case ii < 2*Nsub1+3*(N+1):
+			// Unit vector is [0,-1]
+			A.M.SetRow(ii, rowEdge3)
+		}
+	}
+	fmt.Println(R.Transpose().Print("R"))
+	fmt.Println(S.Transpose().Print("S"))
+	fmt.Println(A.Print("A"))
+	var Ainv utils.Matrix
+	var err error
+	if Ainv, err = A.Inverse(); err != nil {
+		panic(err)
+	}
+	fmt.Println(Ainv.Print("Ainv"))
+	os.Exit(1)
+	return
+}
+
+func AddEdgePoints(N int, rInt, sInt utils.Vector) (r, s utils.Vector) {
+	var (
+		NpEdge       = N + 1
+		rData, sData = rInt.Data(), sInt.Data()
+	)
+	/*
+		Determine geometric locations of edge points, located at Gauss locations in 1D, projected onto the edges
+	*/
+	GQR, _ := DG1D.JacobiGQ(1, 1, N)
+	// Transform into the space (0,1) from (-1,1)
+	GQR.AddScalar(1).Scale(0.5)
+
+	/*
+		Double the number of interior points to match each direction of the basis
+	*/
+	rData = append(rData, rData...)
+	sData = append(sData, sData...)
+
+	// Calculate the triangle edges
+	GQRData := GQR.Data()
+	rEdgeData := make([]float64, NpEdge*3)
+	sEdgeData := make([]float64, NpEdge*3)
+	for i := 0; i < NpEdge; i++ {
+		// Edge 1 (hypotenuse)
+		rEdgeData[i] = 1 - GQRData[i]
+		sEdgeData[i] = GQRData[i]
+		// Edge 2
+		rEdgeData[i+NpEdge] = 0
+		sEdgeData[i+NpEdge] = 1 - GQRData[i]
+		// Edge 3
+		rEdgeData[i+2*NpEdge] = GQRData[i]
+		sEdgeData[i+2*NpEdge] = 0
+	}
+	rData = append(rData, rEdgeData...)
+	sData = append(sData, sEdgeData...)
+	r = utils.NewVector(len(rData), rData)
+	s = utils.NewVector(len(sData), sData)
 	return
 }
 
