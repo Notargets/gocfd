@@ -85,6 +85,22 @@ func RTBasis(N int, R, S utils.Vector) (V, Vinv utils.Matrix) {
 					calculate gradient, divergence, and curl using a polynomial of degree (K), yielding a gradient,
 					divergence, curl of order (K-1), which is exactly what we need for the solution at (K-1).
 	*/
+	/*	   			Inputs:
+							(N)(N+2)/2 [r,s] points from the interior of the [-1,1] triangle
+
+		    		Outputs:
+						[R,S]: Coordinates of points within element
+				    	First (N)(N+1)/2 points: Interior points, excluding edges in [-1,1] triangle coordinates
+				    	Next (N)(N+1)/2 points: Duplicate of above
+						Next (N+1) points: Edge 1 locations
+						Next (N+1) points: Edge 2 locations
+						Next (N+1) points: Edge 3 locations
+
+						[V1, V2]: Vandermonde matrix for each of R and S directions:
+	    				V_ij = Psi_j([r,s]_i)
+						Element V_ij of the Vandermonde matrix is the basis function Psi_j evaluated at [r,s]_i
+						Since this is a vector valued element/basis, we have a interpolation matrix for each direction.
+	*/
 	var (
 		err    error
 		Np     = (N + 1) * (N + 3)
@@ -109,15 +125,13 @@ func RTBasis(N int, R, S utils.Vector) (V, Vinv utils.Matrix) {
 
 	/*
 		Form the basis matrix by forming a dot product with unit vectors, matching the coordinate locations in R,S
-		The R,S set should be ordered such that the (N+1)(N+2)/2 interior points are first, followed by the
-		3(N+1) triangle edge locations
 	*/
 	V = utils.NewMatrix(Np, Np)
 	rowEdge := make([]float64, Np)
 	oosr2 := 1 / math.Sqrt(2)
 
 	// Evaluate at geometric locations
-	N2DBasis := (N + 1) * (N + 2) / 2
+	N2DBasis := (N + 1) * (N + 2) / 2 // Number of polynomial terms for each of R and S directions
 	for ii, rr := range R.Data() {
 		ss := S.Data()[ii]
 		// Evaluate the full 2D polynomial basis first, once for each of two components
@@ -130,12 +144,13 @@ func RTBasis(N int, R, S utils.Vector) (V, Vinv utils.Matrix) {
 				sk++
 			}
 		}
+		sk += N2DBasis // Skip to the beginning of the second polynomial group
 		// Evaluate the term ([ X ]*(Pk)) at only the top N+1 terms (highest order) of the 2D polynomial
 		for i := 0; i <= N; i++ {
 			j := N - i
 			val := Term2D(rr, ss, i, j)
-			p1[sk+N2DBasis] = val * rr
-			p2[sk+N2DBasis] = val * ss
+			p1[sk] = val * rr
+			p2[sk] = val * ss
 			sk++
 		}
 		switch GetPointType(N, ii) {
