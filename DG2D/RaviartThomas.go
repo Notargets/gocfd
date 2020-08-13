@@ -8,31 +8,87 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
+type RTPointType uint
+
+const (
+	InteriorR RTPointType = iota
+	InteriorS
+	Edge1
+	Edge2
+	Edge3
+)
+
+func GetPointType(N int, i int) (rtt RTPointType) {
+	var (
+		NInterior = N * (N + 1) / 2 // one order less than RT element in (P_k)2
+	)
+	switch {
+	case i < NInterior:
+		// Unit vector is [1,0]
+		rtt = InteriorR
+	case i >= NInterior && i < 2*NInterior:
+		// Unit vector is [0,1]
+		rtt = InteriorS
+	case i >= 2*NInterior && i < 2*NInterior+(N+1):
+		// Edge1
+		rtt = Edge1
+	case i >= 2*NInterior+(N+1) && i < 2*NInterior+2*(N+1):
+		// Edge2: Unit vector is [-1,0]
+		rtt = Edge2
+	case i >= 2*NInterior+2*(N+1) && i < 2*NInterior+3*(N+1):
+		// Edge3: // Unit vector is [0,-1]
+		rtt = Edge3
+	}
+	return
+}
+
 func RTBasis(N int, R, S utils.Vector) (V, Vinv utils.Matrix) {
 	/*
-					This is constructed from the defining space of the RT element:
-									 2
-						RT_k = [(P_k) ]   + [ X ] P_k
-							 = [ b1(r,s)_i + r * b3(r,s)_j ]
-			    			   [ b2(r,s)_i + s * b3(r,s)_j ]
-		   				i := 1, (K+1)(K+2)/2
-		   				j := (K+1)(K+2)/2 - K, (K+1)(K+2)/2 (highest order terms in polynomial)
-					The dimension of RT_k is (K+1)(K+3) and we can see from the above that the total
-					number of terms in the polynomial will be:
-						2*(K+1)(K+2)/2 + K+1
-						= (K+1)(K+3)
+				This is constructed from the defining space of the RT element:
+								 2
+					RT_k = [(P_k) ]   + [ X ] P_k
+						 = [ b1(r,s)_i + r * b3(r,s)_j ]
+						   [ b2(r,s)_i + s * b3(r,s)_j ]
+					i := 1, (K+1)(K+2)/2
+					j := 1, (K+1) (highest order terms in polynomial)
 
-					The explanation for why the b3 polynomial sub-basis is partially consumed:
-					When multiplied by [ X ], the b3 polynomial produces terms redundant with
-					the b1 and b2 sub-bases. The redundancy is removed from the b3 sub-basis to
-					compensate, producing the correct overall dimension.
+				The dimension of RT_k is (K+1)(K+3) and we can see from the above that the total
+				number of terms in the polynomial will be:
+					  (K+1)(K+2) + K+1 = (K+1)(K+3)
+
+				The explanation for why the b3 polynomial sub-basis is partially consumed:
+				When multiplied by [ X ], the b3 polynomial produces terms redundant with
+				the b1 and b2 sub-bases. The redundancy is removed from the b3 sub-basis to
+				compensate, producing the correct overall dimension.
+
+				Another more physical way to think about it: The [ X ] * P_k term is tracing a
+				1D shell within the 2D space - the [ X ] "pointer vector" is permuted through
+				a 1D polynomial at high order to represent the outer surface of the shape.
+
+				Two groups of bases, two ways, a pair of polynomial types and a pair of geometric types:
+					1) The RT basis consists of two parts, the (P_k)2 basis and a P_k basis with (N+1) terms.
+					The dimension of the first part is 2 * (K+1)(K+2)/2 and the second is (K+1). The total number of terms
+					in the polynomial space is:
+						2*(K+1)(K+2)/2 + (K+1) = (K+3)(K+1)
+
+					2) The RT basis is also composed of two types of geometric bases, interior and exterior
+					points. The number of interior points is (K)(K+1)/2, and the number of edge points is 3*(K+1).
+					For each interior point, we have two basis vectors, [1,0] and [0,1]. The total degrees of freedom are:
+						2*(K)(K+1)/2 + 3(K+1) = (K+3)*(K+1)
+
+				The number of interior points matches a 2D Lagrangian element basis at order (K-1):
+		    		There are (K)(K+1)/2 interior points in this RT element, which matches the point count of a Lagrangian
+					element at order (K-1). This is very convenient and enabling for the DFR method, as it allows us to
+					represent the flux vector function of a solution at degree (K-1) on an RT element of order (K) by
+					simply transferring the values from the (K-1) solution element to the interior of the RT(K) element.
+					We then provide the flux values along the triangle edges of the RT(K) element, after which we can
+					calculate gradient, divergence, and curl using a polynomial of degree (K), yielding a gradient,
+					divergence, curl of order (K-1), which is exactly what we need for the solution at (K-1).
 	*/
 	var (
-		Np        = (N + 1) * (N + 3)
-		p1, p2    = make([]float64, Np), make([]float64, Np)
-		Nsub1     = (N + 1) * (N + 2) / 2
-		NInterior = N * (N + 1) / 2 // one order less than RT element in (P_k)2
-		err       error
+		err    error
+		Np     = (N + 1) * (N + 3)
+		p1, p2 = make([]float64, Np), make([]float64, Np)
 	)
 	/*
 		Transform the incoming (r,s) locations into the unit triangle (0,1) from the (-1,1) basis
@@ -60,7 +116,8 @@ func RTBasis(N int, R, S utils.Vector) (V, Vinv utils.Matrix) {
 	rowEdge := make([]float64, Np)
 	oosr2 := 1 / math.Sqrt(2)
 
-	// Evaluate at interior geometric locations
+	// Evaluate at geometric locations
+	N2DBasis := (N + 1) * (N + 2) / 2
 	for ii, rr := range R.Data() {
 		ss := S.Data()[ii]
 		// Evaluate the full 2D polynomial basis first, once for each of two components
@@ -69,7 +126,7 @@ func RTBasis(N int, R, S utils.Vector) (V, Vinv utils.Matrix) {
 			for j := 0; j <= (N - i); j++ {
 				val := Term2D(rr, ss, i, j)
 				p1[sk] = val
-				p2[sk+Nsub1] = val
+				p2[sk+N2DBasis] = val
 				sk++
 			}
 		}
@@ -77,31 +134,30 @@ func RTBasis(N int, R, S utils.Vector) (V, Vinv utils.Matrix) {
 		for i := 0; i <= N; i++ {
 			j := N - i
 			val := Term2D(rr, ss, i, j)
-			p1[sk+Nsub1] = val * rr
-			p2[sk+Nsub1] = val * ss
+			p1[sk+N2DBasis] = val * rr
+			p2[sk+N2DBasis] = val * ss
 			sk++
 		}
-		switch {
-		case ii < NInterior:
+		switch GetPointType(N, ii) {
+		case InteriorR:
 			// Unit vector is [1,0]
 			V.M.SetRow(ii, p1)
-		case ii >= NInterior && ii < 2*NInterior:
+		case InteriorS:
 			// Unit vector is [0,1]
 			V.M.SetRow(ii, p2)
-		case ii >= 2*NInterior && ii < 2*NInterior+(N+1):
-			// Triangle Edge1
+		case Edge1:
 			for i := range rowEdge {
 				// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
 				rowEdge[i] = oosr2 * (p1[i] + p2[i])
 			}
 			V.M.SetRow(ii, rowEdge)
-		case ii >= 2*NInterior+(N+1) && ii < 2*NInterior+2*(N+1):
+		case Edge2:
 			for i := range rowEdge {
 				// Edge2: Unit vector is [-1,0]
 				rowEdge[i] = -p1[i]
 			}
 			V.M.SetRow(ii, rowEdge)
-		case ii >= 2*NInterior+2*(N+1) && ii < 2*NInterior+3*(N+1):
+		case Edge3:
 			for i := range rowEdge {
 				// Edge3: // Unit vector is [0,-1]
 				rowEdge[i] = -p2[i]
