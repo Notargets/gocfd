@@ -405,67 +405,13 @@ func (el *Elements2D) Startup2DDFR() {
 	fmt.Printf("N input = %d\n", el.N)
 	el.R, el.S = NodesEpsilon(el.N)
 	//el.RTCustom()
-	RTBasis(el.N+1, el.R, el.S)
-}
-
-func (el *Elements2D) RTCustom() (RT1, RT2 utils.Matrix) {
-	var (
-		N          = el.N + 1
-		NpInternal = N * (N + 1) / 2
-		NpEdge     = N + 1
-		Np         = 3*NpEdge + 2*NpInternal
-	)
-	RT1, RT2 = el.RaviartThomasSimplex(N, el.R, el.S)
-	// Customize RT basis using separate basis vectors for each internal location and one for each edge normal
-	oosr2 := 1. / math.Sqrt(2)
-	e1 := []float64{oosr2, oosr2}
-	e2 := []float64{-1, 0}
-	e3 := []float64{0, -1}
-	e4 := []float64{1, 0}
-	e5 := []float64{0, 1}
-	// Construct right vectors for each point within the basis, one for each direction r and s
-	er, es := make([]float64, Np), make([]float64, Np)
-	for i := 0; i < NpEdge; i++ {
-		er[i] = e1[0]
-		er[i+NpEdge] = e2[0]
-		er[i+2*NpEdge] = e3[0]
-		es[i] = e1[1]
-		es[i+NpEdge] = e2[1]
-		es[i+2*NpEdge] = e3[1]
-	}
-	for i := 0; i < NpInternal; i++ {
-		er[i+3*NpEdge] = e4[0]
-		er[i+NpInternal+3*NpEdge] = e5[0]
-		es[i+3*NpEdge] = e4[1]
-		es[i+NpInternal+3*NpEdge] = e5[1]
-	}
-	// Construct the dot product of the new basis with the RT basis
-	A := utils.NewMatrix(Np, Np)
-	rowProduct := make([]float64, Np)
-	for irow := 0; irow < Np; irow++ {
-		row1 := RT1.Row(irow).Data()
-		row2 := RT2.Row(irow).Data()
-		for j := 0; j < Np; j++ {
-			rowProduct[j] = row1[j]*er[j] + row2[j]*es[j]
-		}
-		A.M.SetRow(irow, rowProduct)
-	}
-	fmt.Println(A.Print("A"))
-	S := utils.NewMatrix(Np, 1).AddScalar(1)
-	var Ainv utils.Matrix
-	var err error
-	if Ainv, err = A.Inverse(); err != nil {
-		panic(err)
-	}
+	V, Vinv := RTBasis(el.N+1, el.R, el.S)
+	fmt.Println(V.Print("V"))
+	fmt.Println(Vinv.Print("Vinv"))
 	os.Exit(1)
-	c := Ainv.Mul(S)
-	fmt.Println(c.Print("c"))
-	fmt.Println(RT1.Print("RT1"))
-	fmt.Println(RT2.Print("RT2"))
-	return
 }
 
-func RTBasis(N int, R, S utils.Vector) {
+func RTBasis(N int, R, S utils.Vector) (V, Vinv utils.Matrix) {
 	/*
 					This is constructed from the defining space of the RT element:
 									 2
@@ -483,15 +429,13 @@ func RTBasis(N int, R, S utils.Vector) {
 					When multiplied by [ X ], the b3 polynomial produces terms redundant with
 					the b1 and b2 sub-bases. The redundancy is removed from the b3 sub-basis to
 					compensate, producing the correct overall dimension.
-
-					This routine will evaluate the polynomial for order N at all points provided
-					in the r and s []float64 and return the resulting vector [p1,p2] for each input.
 	*/
 	var (
 		Np        = (N + 1) * (N + 3)
 		p1, p2    = make([]float64, Np), make([]float64, Np)
 		Nsub1     = (N + 1) * (N + 2) / 2
 		NInterior = N * (N + 1) / 2 // one order less than RT element in (P_k)2
+		err       error
 	)
 	/*
 		Transform the incoming (r,s) locations into the unit triangle (0,1) from the (-1,1) basis
@@ -500,8 +444,6 @@ func RTBasis(N int, R, S utils.Vector) {
 	S.AddScalar(1).Scale(0.5)
 	// Add the edge points from the RT basis
 	R, S = AddEdgePoints(N, R, S)
-	fmt.Println(R.Transpose().Print("R"))
-	fmt.Println(S.Transpose().Print("S"))
 	/*
 		First, evaluate the polynomial at the (r,s) coordinates
 		This is the same set that will be used for all dot products to form the basis matrix
@@ -517,7 +459,7 @@ func RTBasis(N int, R, S utils.Vector) {
 		The R,S set should be ordered such that the (N+1)(N+2)/2 interior points are first, followed by the
 		3(N+1) triangle edge locations
 	*/
-	A := utils.NewMatrix(Np, Np)
+	V = utils.NewMatrix(Np, Np)
 	rowEdge := make([]float64, Np)
 	oosr2 := 1 / math.Sqrt(2)
 
@@ -534,7 +476,6 @@ func RTBasis(N int, R, S utils.Vector) {
 				sk++
 			}
 		}
-		fmt.Printf("p1, p2 = %v, %v\n", p1, p2)
 		// Evaluate the term ([ X ]*(Pk)) at only the top N+1 terms (highest order) of the 2D polynomial
 		for i := 0; i <= N; i++ {
 			j := N - i
@@ -546,40 +487,35 @@ func RTBasis(N int, R, S utils.Vector) {
 		switch {
 		case ii < NInterior:
 			// Unit vector is [1,0]
-			A.M.SetRow(ii, p1)
+			V.M.SetRow(ii, p1)
 		case ii >= NInterior && ii < 2*NInterior:
 			// Unit vector is [0,1]
-			A.M.SetRow(ii, p2)
+			V.M.SetRow(ii, p2)
 		case ii >= 2*NInterior && ii < 2*NInterior+(N+1):
 			// Triangle Edge1
 			for i := range rowEdge {
 				// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
 				rowEdge[i] = oosr2 * (p1[i] + p2[i])
 			}
-			A.M.SetRow(ii, rowEdge)
+			V.M.SetRow(ii, rowEdge)
 		case ii >= 2*NInterior+(N+1) && ii < 2*NInterior+2*(N+1):
 			for i := range rowEdge {
 				// Edge2: Unit vector is [-1,0]
 				rowEdge[i] = -p1[i]
 			}
-			A.M.SetRow(ii, rowEdge)
+			V.M.SetRow(ii, rowEdge)
 		case ii >= 2*NInterior+2*(N+1) && ii < 2*NInterior+3*(N+1):
 			for i := range rowEdge {
 				// Edge3: // Unit vector is [0,-1]
 				rowEdge[i] = -p2[i]
 			}
-			A.M.SetRow(ii, rowEdge)
+			V.M.SetRow(ii, rowEdge)
 		}
 	}
-	fmt.Println(A.Print("A"))
-	var Ainv utils.Matrix
-	var err error
-	if Ainv, err = A.Inverse(); err != nil {
+	if Vinv, err = V.Inverse(); err != nil {
 		panic(err)
 	}
-	fmt.Println(Ainv.Print("Ainv"))
-	os.Exit(1)
-	return
+	return V, Vinv
 }
 
 func AddEdgePoints(N int, rInt, sInt utils.Vector) (r, s utils.Vector) {
@@ -619,175 +555,6 @@ func AddEdgePoints(N int, rInt, sInt utils.Vector) (r, s utils.Vector) {
 	sData = append(sData, sEdgeData...)
 	r = utils.NewVector(len(rData), rData)
 	s = utils.NewVector(len(sData), sData)
-	return
-}
-
-func (el *Elements2D) RaviartThomasSimplex(N int, r, s utils.Vector) (RT1, RT2 utils.Matrix) {
-	/*
-		Basis definition taken from "Computational Bases for RTk and BDMk on Triangles", V.J. Ervin, 2012
-	*/
-	var (
-		NpInternal   = N * (N + 1) / 2
-		NpEdge       = N + 1
-		Np           = 3*NpEdge + 2*NpInternal
-		rData, sData = r.Data(), s.Data()
-	)
-	if r.Len() != s.Len() {
-		panic("number of internal points in each direction must be equal")
-	}
-	/*
-		Note: This basis is possibly degenerate in that the same geometric points are used twice within the basis
-		It may be that the basis is still orthogonal in that each term at the interior point can consume one of the
-		two vector directions at each geometric point of evaluation - this is enforced for the custom RT basis.
-	*/
-	if r.Len() != NpInternal && r.Len() != 2*NpInternal {
-		panic(
-			fmt.Errorf("number of internal element locations must equal either %d, or %d, have %d",
-				NpInternal, 2*NpInternal, r.Len()),
-		)
-	}
-	fmt.Printf("Order = %d, Internal Order = %d, Internal point count = %d\n", N, N-1, NpInternal)
-	// Allocate space for each vector component of the basis, 1 and 2 for the r and s directions
-	RT1 = utils.NewMatrix(Np, Np)
-	RT2 = utils.NewMatrix(Np, Np)
-
-	/*
-		If the number of supplied interior points is NpInternal, we use the internal geometric points twice, once for
-		each class of interior basis. The degenerate basis will be corrected in the custom element by fitting each class
-		to a unit vector orthogonal to the other class.
-		If the number of points is 2*NpInternal, we use the provided points unaltered to produce a complete RT basis.
-	*/
-	if r.Len() == NpInternal {
-		// Element will be used to produce a custom RT basis, correcting the degenerate basis later
-		rData = append(rData, rData...)
-		sData = append(sData, sData...)
-		r = utils.NewVector(len(rData), rData)
-		s = utils.NewVector(len(sData), sData)
-	}
-
-	/*
-		Determine geometric locations of edge points, located at Gauss locations in 1D, projected onto the edges
-	*/
-	GQR, _ := DG1D.JacobiGQ(1, 1, N)
-	GQR.AddScalar(1).Scale(0.5)
-
-	GQRData := GQR.Data()
-	rEdgeData := make([]float64, NpEdge*3)
-	sEdgeData := make([]float64, NpEdge*3)
-	for i := 0; i < NpEdge; i++ {
-		// Edge 1 (hypotenuse)
-		rEdgeData[i] = 2*(-GQRData[i]+1) - 1
-		sEdgeData[i] = 2*GQRData[i] - 1
-		// Edge 2
-		rEdgeData[i+NpEdge] = -1
-		sEdgeData[i+NpEdge] = 2*(1-GQRData[i]) - 1
-		// Edge 3
-		rEdgeData[i+2*NpEdge] = 2*GQRData[i] - 1
-		sEdgeData[i+2*NpEdge] = -1
-	}
-	rEdge := utils.NewVector(NpEdge*3, rEdgeData)
-	sEdge := utils.NewVector(NpEdge*3, sEdgeData)
-	_, _ = rEdge, sEdge
-
-	rData = append(rData, rEdgeData...)
-	sData = append(sData, sEdgeData...)
-	r = utils.NewVector(len(rData), rData)
-	s = utils.NewVector(len(sData), sData)
-
-	/*
-		Convert the geometric points at (r,s) to the (a,b) coordinates needed for the Simplex2DP function
-	*/
-	a, b := RStoAB(r, s)
-	/*
-		Internal basis evaluated at internal points
-		psi4(r, s) = P(r,s)*[s*r, s*(s-1)]
-		psi5(r, s) = P(r,s)*[r*(r-1), r*s]
-	*/
-	var column int
-	// Psi1 through Psi3, corresponding to edges 1-3
-	// psi1(r,s) = P(s) * sqrt(2) * [ r, s ]
-	sr2 := math.Sqrt(2)
-	for i := 0; i < NpEdge; i++ {
-		p := DG1D.JacobiP(s, 0, 0, N)
-		p2 := append([]float64{}, p...)
-		for ii := range p {
-			p[ii] *= sr2 * rData[i]
-			p2[ii] *= sr2 * sData[i]
-		}
-		RT1.SetCol(column, p)
-		RT2.SetCol(column, p2)
-		column++
-	}
-	// psi2(r,s) = P_(alpha=N+2-j)_(s) * [ r-1, s ]
-	for i := 0; i < NpEdge; i++ {
-		p := DG1D.JacobiP(s, float64(N+1-i), 0, N)
-		p2 := append([]float64{}, p...)
-		for ii := range p {
-			p[ii] *= rData[i] - 1
-			p2[ii] *= sData[i]
-		}
-		RT1.SetCol(column, p)
-		RT2.SetCol(column, p2)
-		column++
-	}
-	// psi3(r,s) = P(r) * [ r, s-1 ]
-	for i := 0; i < NpEdge; i++ {
-		p := DG1D.JacobiP(r, 0, 0, N)
-		p2 := append([]float64{}, p...)
-		for ii := range p {
-			p[ii] *= rData[i]
-			p2[ii] *= sData[i] - 1
-		}
-		RT1.SetCol(column, p)
-		RT2.SetCol(column, p2)
-		column++
-	}
-
-	// Psi4
-	// psi4(r, s) = P(r,s)*[s*r, s*(s-1)]
-	for i := 0; i <= N-1; i++ {
-		for j := 0; j <= (N - 1 - i); j++ {
-			// Evaluate at interior geometric locations
-			p := Simplex2DP(a, b, i, j)
-			p2 := append([]float64{}, p...)
-			for ii := range p {
-				p[ii] *= sData[ii] * rData[ii]
-				p2[ii] *= sData[ii] * (sData[ii] - 1)
-			}
-			RT1.SetCol(column, p)
-			RT2.SetCol(column, p2)
-			column++
-		}
-	}
-	// Psi5
-	// psi5(r, s) = P(r,s)*[r*(r-1), r*s]
-	for i := 0; i <= N-1; i++ {
-		for j := 0; j <= (N - 1 - i); j++ {
-			p := Simplex2DP(a, b, i, j)
-			p2 := append([]float64{}, p...)
-			for ii := range p {
-				p[ii] *= rData[ii] * (rData[ii] - 1)
-				p2[ii] *= rData[ii] * sData[ii]
-			}
-			RT1.SetCol(column, p)
-			RT2.SetCol(column, p2)
-			column++
-		}
-	}
-	/*
-		Project into the -1,1 reference triangle space using the Piola transformation, multiply by (J / det(J))
-		where J is the jacobian of the transform from the unit triangle to the -1,1 reference triangle
-		J = | 2   0 |
-			| 0   2 |
-		det(J) = 4
-		So we need to multiply the above matrix by:
-		J / det(J) = | 0.5  0   |
-					 | 0    0.5 |
-		Note that we need to use the same transform to map operations using this matrix from the -1,1 reference triangle
-		to the real space in (x,y).
-	*/
-	RT1.Scale(0.5)
-	RT2.Scale(0.5)
 	return
 }
 
