@@ -488,9 +488,10 @@ func RTBasis(N int, R, S utils.Vector) {
 					in the r and s []float64 and return the resulting vector [p1,p2] for each input.
 	*/
 	var (
-		Np     = (N + 1) * (N + 3)
-		p1, p2 = make([]float64, Np), make([]float64, Np)
-		Nsub1  = (N + 1) * (N + 2) / 2
+		Np        = (N + 1) * (N + 3)
+		p1, p2    = make([]float64, Np), make([]float64, Np)
+		Nsub1     = (N + 1) * (N + 2) / 2
+		NInterior = N * (N + 1) / 2 // one order less than RT element in (P_k)2
 	)
 	/*
 		Transform the incoming (r,s) locations into the unit triangle (0,1) from the (-1,1) basis
@@ -499,13 +500,15 @@ func RTBasis(N int, R, S utils.Vector) {
 	S.AddScalar(1).Scale(0.5)
 	// Add the edge points from the RT basis
 	R, S = AddEdgePoints(N, R, S)
+	fmt.Println(R.Transpose().Print("R"))
+	fmt.Println(S.Transpose().Print("S"))
 	/*
 		First, evaluate the polynomial at the (r,s) coordinates
 		This is the same set that will be used for all dot products to form the basis matrix
 	*/
 	Term2D := func(r, s float64, i, j int) (val float64) {
 		// Note this only outputs the value of the (i,j)th term of the 2D polynomial
-		val = utils.POW(r, i) * utils.POW(s, j)
+		val = utils.POW(r, j) * utils.POW(s, i)
 		return
 	}
 
@@ -515,9 +518,7 @@ func RTBasis(N int, R, S utils.Vector) {
 		3(N+1) triangle edge locations
 	*/
 	A := utils.NewMatrix(Np, Np)
-	rowEdge1 := make([]float64, Np)
-	rowEdge2 := make([]float64, Np)
-	rowEdge3 := make([]float64, Np)
+	rowEdge := make([]float64, Np)
 	oosr2 := 1 / math.Sqrt(2)
 
 	// Evaluate at interior geometric locations
@@ -533,6 +534,7 @@ func RTBasis(N int, R, S utils.Vector) {
 				sk++
 			}
 		}
+		fmt.Printf("p1, p2 = %v, %v\n", p1, p2)
 		// Evaluate the term ([ X ]*(Pk)) at only the top N+1 terms (highest order) of the 2D polynomial
 		for i := 0; i <= N; i++ {
 			j := N - i
@@ -541,37 +543,34 @@ func RTBasis(N int, R, S utils.Vector) {
 			p2[sk+Nsub1] = val * ss
 			sk++
 		}
-
-		// Precalculate triangle edges dot products
-		for i := 0; i < Np; i++ {
-			// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
-			rowEdge1[i] = oosr2 * (p1[i] + p2[i])
-			// Edge2: Unit vector is [-1,0]
-			rowEdge2[i] = -p1[i]
-			// Edge3: Unit vector is [0,-1]
-			rowEdge3[i] = -p2[i]
-		}
-		// TODO: This is not correct, as each row is the evaluation at each (r,s) and this assumes dot product with same point location at each row
 		switch {
-		case ii < Nsub1:
+		case ii < NInterior:
 			// Unit vector is [1,0]
 			A.M.SetRow(ii, p1)
-		case ii < 2*Nsub1:
+		case ii >= NInterior && ii < 2*NInterior:
 			// Unit vector is [0,1]
 			A.M.SetRow(ii, p2)
-		case ii < 2*Nsub1+(N+1):
+		case ii >= 2*NInterior && ii < 2*NInterior+(N+1):
 			// Triangle Edge1
-			A.M.SetRow(ii, rowEdge1)
-		case ii < 2*Nsub1+2*(N+1):
-			// Unit vector is [-1,0]
-			A.M.SetRow(ii, rowEdge2)
-		case ii < 2*Nsub1+3*(N+1):
-			// Unit vector is [0,-1]
-			A.M.SetRow(ii, rowEdge3)
+			for i := range rowEdge {
+				// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
+				rowEdge[i] = oosr2 * (p1[i] + p2[i])
+			}
+			A.M.SetRow(ii, rowEdge)
+		case ii >= 2*NInterior+(N+1) && ii < 2*NInterior+2*(N+1):
+			for i := range rowEdge {
+				// Edge2: Unit vector is [-1,0]
+				rowEdge[i] = -p1[i]
+			}
+			A.M.SetRow(ii, rowEdge)
+		case ii >= 2*NInterior+2*(N+1) && ii < 2*NInterior+3*(N+1):
+			for i := range rowEdge {
+				// Edge3: // Unit vector is [0,-1]
+				rowEdge[i] = -p2[i]
+			}
+			A.M.SetRow(ii, rowEdge)
 		}
 	}
-	fmt.Println(R.Transpose().Print("R"))
-	fmt.Println(S.Transpose().Print("S"))
 	fmt.Println(A.Print("A"))
 	var Ainv utils.Matrix
 	var err error
