@@ -1,7 +1,6 @@
 package DG2D
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/notargets/gocfd/DG1D"
@@ -111,18 +110,17 @@ func RTBasis(N int, R, S utils.Vector) (V, Vinv utils.Matrix) {
 	*/
 	R.AddScalar(1).Scale(0.5)
 	S.AddScalar(1).Scale(0.5)
-	// Add the edge points from the RT basis
-	R, S = AddEdgePoints(N, R, S)
+	// Add the edge and additional interior (duplicated) points to complete the RT geometry
+	R, S = ExtendGeomToRT(N, R, S)
 	/*
 		First, evaluate the polynomial at the (r,s) coordinates
 		This is the same set that will be used for all dot products to form the basis matrix
 	*/
-	Term2D := func(r, s float64, i, j int) (val float64) {
+	PolyTerm2D := func(r, s float64, i, j int) (val float64) {
 		// Note this only outputs the value of the (i,j)th term of the 2D polynomial
 		val = utils.POW(r, j) * utils.POW(s, i)
 		return
 	}
-
 	/*
 		Form the basis matrix by forming a dot product with unit vectors, matching the coordinate locations in R,S
 	*/
@@ -138,7 +136,7 @@ func RTBasis(N int, R, S utils.Vector) (V, Vinv utils.Matrix) {
 		var sk int
 		for i := 0; i <= N; i++ {
 			for j := 0; j <= (N - i); j++ {
-				val := Term2D(rr, ss, i, j)
+				val := PolyTerm2D(rr, ss, i, j)
 				p1[sk] = val
 				p2[sk+N2DBasis] = val
 				sk++
@@ -148,11 +146,12 @@ func RTBasis(N int, R, S utils.Vector) (V, Vinv utils.Matrix) {
 		// Evaluate the term ([ X ]*(Pk)) at only the top N+1 terms (highest order) of the 2D polynomial
 		for i := 0; i <= N; i++ {
 			j := N - i
-			val := Term2D(rr, ss, i, j)
+			val := PolyTerm2D(rr, ss, i, j)
 			p1[sk] = val * rr
 			p2[sk] = val * ss
 			sk++
 		}
+		// Implement dot product of (unit vector)_ii with each vector term in the polynomial evaluated at location ii
 		switch GetPointType(N, ii) {
 		case InteriorR:
 			// Unit vector is [1,0]
@@ -186,7 +185,7 @@ func RTBasis(N int, R, S utils.Vector) (V, Vinv utils.Matrix) {
 	return V, Vinv
 }
 
-func AddEdgePoints(N int, rInt, sInt utils.Vector) (r, s utils.Vector) {
+func ExtendGeomToRT(N int, rInt, sInt utils.Vector) (r, s utils.Vector) {
 	var (
 		NpEdge       = N + 1
 		rData, sData = rInt.Data(), sInt.Data()
@@ -260,7 +259,14 @@ func NodesEpsilon(N int) (R, S utils.Vector) {
 			0.9306368395599121, 0.034681580220044, 0.034681580220044, 0.513856888651016, 0.243071555674492, 0.243071555674492, 0.05325488659079003, 0.473372556704605, 0.473372556704605, 0.752666332493468, 0.047293668511439, 0.047293668511439, 0.200039998995093, 0.752666332493468, 0.200039998995093,
 		}
 	default:
-		panic(fmt.Errorf("Epsilon nodes not defined for N = %v, only defined for N=3 or N=4\n", N))
+		//panic(fmt.Errorf("Epsilon nodes not defined for N = %v, only defined for N=3 or N=4\n", N))
+		/*
+			TODO: The following is a hack that really sucks, we need to instead use a gauss point distribution that has no edges
+		*/
+		R, S = XYtoRS(Nodes2D(N))
+		R.Scale(0.88)
+		S.Scale(0.93)
+		return
 	}
 	eps := utils.NewMatrix(3, Np, epsD)
 	T := utils.NewMatrix(2, 3, []float64{

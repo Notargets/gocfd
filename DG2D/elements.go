@@ -357,7 +357,6 @@ func (el *Elements2D) Startup2DDFR() {
 	// Compute nodal set
 	fmt.Printf("N input = %d\n", el.N)
 	el.R, el.S = NodesEpsilon(el.N)
-	//el.RTCustom()
 	V, Vinv := RTBasis(el.N+1, el.R, el.S)
 	fmt.Println(V.Print("V"))
 	fmt.Println(Vinv.Print("Vinv"))
