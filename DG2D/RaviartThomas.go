@@ -1,11 +1,19 @@
 package DG2D
 
 import (
+	"fmt"
 	"math"
+	"os"
 
 	"github.com/notargets/gocfd/DG1D"
 	"github.com/notargets/gocfd/utils"
 )
+
+type RTElement struct {
+	V1, V2 utils.Matrix // Vandermonde matrix for each direction r and s
+	R, S   utils.Vector // Point locations defining element in [-1,1] Triangle
+	N      int          // Order of element
+}
 
 type RTPointType uint
 
@@ -16,6 +24,14 @@ const (
 	Edge2
 	Edge3
 )
+
+func NewRTElement(N int, R, S utils.Vector) (rt *RTElement) {
+	rt = &RTElement{
+		N: N,
+	}
+	rt.CalculateBasis(R, S)
+	return
+}
 
 func GetPointType(N int, i int) (rtt RTPointType) {
 	var (
@@ -41,7 +57,7 @@ func GetPointType(N int, i int) (rtt RTPointType) {
 	return
 }
 
-func RTBasis(N int, R, S utils.Vector) (V, Vinv utils.Matrix) {
+func (rt *RTElement) CalculateBasis(R, S utils.Vector) {
 	/*
 				This is constructed from the defining space of the RT element:
 								 2
@@ -101,17 +117,14 @@ func RTBasis(N int, R, S utils.Vector) (V, Vinv utils.Matrix) {
 						Since this is a vector valued element/basis, we have a interpolation matrix for each direction.
 	*/
 	var (
-		err    error
-		Np     = (N + 1) * (N + 3)
-		p1, p2 = make([]float64, Np), make([]float64, Np)
+		err     error
+		N       = rt.N
+		Np      = (N + 1) * (N + 3)
+		A, Ainv utils.Matrix
+		p1, p2  = make([]float64, Np), make([]float64, Np)
 	)
-	/*
-		Transform the incoming (r,s) locations into the unit triangle (0,1) from the (-1,1) basis
-	*/
-	R.AddScalar(1).Scale(0.5)
-	S.AddScalar(1).Scale(0.5)
 	// Add the edge and additional interior (duplicated) points to complete the RT geometry
-	R, S = ExtendGeomToRT(N, R, S)
+	rt.R, rt.S = ExtendGeomToRT(N, R, S)
 	/*
 		First, evaluate the polynomial at the (r,s) coordinates
 		This is the same set that will be used for all dot products to form the basis matrix
@@ -124,14 +137,14 @@ func RTBasis(N int, R, S utils.Vector) (V, Vinv utils.Matrix) {
 	/*
 		Form the basis matrix by forming a dot product with unit vectors, matching the coordinate locations in R,S
 	*/
-	V = utils.NewMatrix(Np, Np)
+	A = utils.NewMatrix(Np, Np)
 	rowEdge := make([]float64, Np)
 	oosr2 := 1 / math.Sqrt(2)
 
 	// Evaluate at geometric locations
 	N2DBasis := (N + 1) * (N + 2) / 2 // Number of polynomial terms for each of R and S directions
-	for ii, rr := range R.Data() {
-		ss := S.Data()[ii]
+	for ii, rr := range rt.R.Data() {
+		ss := rt.S.Data()[ii]
 		// Evaluate the full 2D polynomial basis first, once for each of two components
 		var sk int
 		for i := 0; i <= N; i++ {
@@ -155,34 +168,37 @@ func RTBasis(N int, R, S utils.Vector) (V, Vinv utils.Matrix) {
 		switch GetPointType(N, ii) {
 		case InteriorR:
 			// Unit vector is [1,0]
-			V.M.SetRow(ii, p1)
+			A.M.SetRow(ii, p1)
 		case InteriorS:
 			// Unit vector is [0,1]
-			V.M.SetRow(ii, p2)
+			A.M.SetRow(ii, p2)
 		case Edge1:
 			for i := range rowEdge {
 				// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
 				rowEdge[i] = oosr2 * (p1[i] + p2[i])
 			}
-			V.M.SetRow(ii, rowEdge)
+			A.M.SetRow(ii, rowEdge)
 		case Edge2:
 			for i := range rowEdge {
 				// Edge2: Unit vector is [-1,0]
 				rowEdge[i] = -p1[i]
 			}
-			V.M.SetRow(ii, rowEdge)
+			A.M.SetRow(ii, rowEdge)
 		case Edge3:
 			for i := range rowEdge {
 				// Edge3: // Unit vector is [0,-1]
 				rowEdge[i] = -p2[i]
 			}
-			V.M.SetRow(ii, rowEdge)
+			A.M.SetRow(ii, rowEdge)
 		}
 	}
-	if Vinv, err = V.Inverse(); err != nil {
+	if Ainv, err = A.Inverse(); err != nil {
 		panic(err)
 	}
-	return V, Vinv
+	fmt.Println(A.Print("A"))
+	fmt.Println(Ainv.Print("Ainv"))
+	os.Exit(1)
+	return
 }
 
 func ExtendGeomToRT(N int, rInt, sInt utils.Vector) (r, s utils.Vector) {
@@ -194,9 +210,6 @@ func ExtendGeomToRT(N int, rInt, sInt utils.Vector) (r, s utils.Vector) {
 		Determine geometric locations of edge points, located at Gauss locations in 1D, projected onto the edges
 	*/
 	GQR, _ := DG1D.JacobiGQ(1, 1, N)
-	// Transform into the space (0,1) from (-1,1)
-	GQR.AddScalar(1).Scale(0.5)
-
 	/*
 		Double the number of interior points to match each direction of the basis
 	*/
@@ -208,15 +221,17 @@ func ExtendGeomToRT(N int, rInt, sInt utils.Vector) (r, s utils.Vector) {
 	rEdgeData := make([]float64, NpEdge*3)
 	sEdgeData := make([]float64, NpEdge*3)
 	for i := 0; i < NpEdge; i++ {
+		gp := GQRData[i]
 		// Edge 1 (hypotenuse)
-		rEdgeData[i] = 1 - GQRData[i]
-		sEdgeData[i] = GQRData[i]
+		gpT := 0.5 * (gp + 1)
+		rEdgeData[i] = 1 - 2*gpT
+		sEdgeData[i] = -1 + 2*gpT
 		// Edge 2
-		rEdgeData[i+NpEdge] = 0
-		sEdgeData[i+NpEdge] = 1 - GQRData[i]
+		rEdgeData[i+NpEdge] = -1
+		sEdgeData[i+NpEdge] = gp
 		// Edge 3
-		rEdgeData[i+2*NpEdge] = GQRData[i]
-		sEdgeData[i+2*NpEdge] = 0
+		rEdgeData[i+2*NpEdge] = gp
+		sEdgeData[i+2*NpEdge] = -1
 	}
 	rData = append(rData, rEdgeData...)
 	sData = append(sData, sEdgeData...)
