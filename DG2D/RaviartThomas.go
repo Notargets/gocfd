@@ -1,9 +1,7 @@
 package DG2D
 
 import (
-	"fmt"
 	"math"
-	"os"
 
 	"github.com/notargets/gocfd/DG1D"
 	"github.com/notargets/gocfd/utils"
@@ -33,8 +31,9 @@ func NewRTElement(N int, R, S utils.Vector) (rt *RTElement) {
 	return
 }
 
-func GetPointType(N int, i int) (rtt RTPointType) {
+func (rt *RTElement) GetTermType(i int) (rtt RTPointType) {
 	var (
+		N         = rt.N
 		NInterior = N * (N + 1) / 2 // one order less than RT element in (P_k)2
 	)
 	switch {
@@ -64,7 +63,7 @@ func (rt *RTElement) CalculateBasis(R, S utils.Vector) {
 					RT_k = [(P_k) ]   + [ X ] P_k
 						 = [ b1(r,s)_i + r * b3(r,s)_j ]
 						   [ b2(r,s)_i + s * b3(r,s)_j ]
-					i := 1, (K+1)(K+2)/2
+					j := 1, (K+1)(K+2)/2
 					j := 1, (K+1) (highest order terms in polynomial)
 
 				The dimension of RT_k is (K+1)(K+3) and we can see from the above that the total
@@ -121,19 +120,10 @@ func (rt *RTElement) CalculateBasis(R, S utils.Vector) {
 		N       = rt.N
 		Np      = (N + 1) * (N + 3)
 		A, Ainv utils.Matrix
-		p1, p2  = make([]float64, Np), make([]float64, Np)
+		p1, p2  []float64
 	)
 	// Add the edge and additional interior (duplicated) points to complete the RT geometry
 	rt.R, rt.S = ExtendGeomToRT(N, R, S)
-	/*
-		First, evaluate the polynomial at the (r,s) coordinates
-		This is the same set that will be used for all dot products to form the basis matrix
-	*/
-	PolyTerm2D := func(r, s float64, i, j int) (val float64) {
-		// Note this only outputs the value of the (i,j)th term of the 2D polynomial
-		val = utils.POW(r, j) * utils.POW(s, i)
-		return
-	}
 	/*
 		Form the basis matrix by forming a dot product with unit vectors, matching the coordinate locations in R,S
 	*/
@@ -142,30 +132,15 @@ func (rt *RTElement) CalculateBasis(R, S utils.Vector) {
 	oosr2 := 1 / math.Sqrt(2)
 
 	// Evaluate at geometric locations
-	N2DBasis := (N + 1) * (N + 2) / 2 // Number of polynomial terms for each of R and S directions
 	for ii, rr := range rt.R.Data() {
 		ss := rt.S.Data()[ii]
-		// Evaluate the full 2D polynomial basis first, once for each of two components
-		var sk int
-		for i := 0; i <= N; i++ {
-			for j := 0; j <= (N - i); j++ {
-				val := PolyTerm2D(rr, ss, i, j)
-				p1[sk] = val
-				p2[sk+N2DBasis] = val
-				sk++
-			}
-		}
-		sk += N2DBasis // Skip to the beginning of the second polynomial group
-		// Evaluate the term ([ X ]*(Pk)) at only the top N+1 terms (highest order) of the 2D polynomial
-		for i := 0; i <= N; i++ {
-			j := N - i
-			val := PolyTerm2D(rr, ss, i, j)
-			p1[sk] = val * rr
-			p2[sk] = val * ss
-			sk++
-		}
+		/*
+			First, evaluate the polynomial at the (r,s) coordinates
+			This is the same set that will be used for all dot products to form the basis matrix
+		*/
+		p1, p2 = rt.EvaluateRTBasis(rr, ss)
 		// Implement dot product of (unit vector)_ii with each vector term in the polynomial evaluated at location ii
-		switch GetPointType(N, ii) {
+		switch rt.GetTermType(ii) {
 		case InteriorR:
 			// Unit vector is [1,0]
 			A.M.SetRow(ii, p1)
@@ -192,12 +167,82 @@ func (rt *RTElement) CalculateBasis(R, S utils.Vector) {
 			A.M.SetRow(ii, rowEdge)
 		}
 	}
+	// Invert [ A ] to obtain the coefficients (columns) of polynomials (rows), each row is a polynomial
 	if Ainv, err = A.Inverse(); err != nil {
 		panic(err)
 	}
-	fmt.Println(A.Print("A"))
-	fmt.Println(Ainv.Print("Ainv"))
-	os.Exit(1)
+	/*
+		Process the coefficient matrix to produce each direction of each polynomial (V1 and V2)
+	*/
+	rt.V1, rt.V2 = utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
+	for j := 0; j < Np; j++ { // Process a row at a time, each row is a polynomial
+		/*
+			First, we extract the coefficients for each direction in this j-th polynomial
+		*/
+		coeffs := Ainv.Row(j).Data() // All coefficients of the j-th polynomial terms
+		p1, p2 := make([]float64, Np), make([]float64, Np)
+		for i, coeff := range coeffs {
+			switch rt.GetTermType(i) {
+			case InteriorR:
+				p1[i] = coeff
+				p2[i] = 0
+			case InteriorS:
+				p1[i] = 0
+				p2[i] = coeff
+			case Edge1, Edge2, Edge3:
+				p1[i] = coeff
+				p2[i] = coeff
+			}
+		}
+		/*
+			Evaluate the basis at this location, then multiply each term by its polynomial coefficient
+		*/
+		b1, b2 := rt.EvaluateRTBasis(rt.R.AtVec(j), rt.S.AtVec(j)) // All terms of the basis at this location
+		for i := range p1 {
+			// Multiply each coefficient by its basis term to create the evaluated polynomial terms column
+			p1[i] *= b1[i]
+			p2[i] *= b2[i]
+		}
+		/*
+			Load the evaluated polynomial into the j-th column of the Vandermonde matrices
+		*/
+		rt.V1.SetCol(j, p1)
+		rt.V2.SetCol(j, p2)
+	}
+	return
+}
+
+func (rt *RTElement) EvaluateRTBasis(r, s float64) (p1, p2 []float64) {
+	var (
+		sk       int
+		N        = rt.N
+		Np       = (N + 1) * (N + 3)
+		N2DBasis = (N + 1) * (N + 2) / 2 // Number of polynomial terms for each of R and S directions
+	)
+	PolyTerm2D := func(r, s float64, i, j int) (val float64) {
+		// Note this only outputs the value of the (i,j)th term of the 2D polynomial
+		val = utils.POW(r, j) * utils.POW(s, i)
+		return
+	}
+	p1, p2 = make([]float64, Np), make([]float64, Np)
+	// Evaluate the full 2D polynomial basis first, once for each of two components
+	for i := 0; i <= N; i++ {
+		for j := 0; j <= (N - i); j++ {
+			val := PolyTerm2D(r, s, i, j)
+			p1[sk] = val
+			p2[sk+N2DBasis] = val
+			sk++
+		}
+	}
+	// Evaluate the term ([ X ]*(Pk)) at only the top N+1 terms (highest order) of the 2D polynomial
+	sk += N2DBasis // Skip to the beginning of the second polynomial group
+	for i := 0; i <= N; i++ {
+		j := N - i
+		val := PolyTerm2D(r, s, i, j)
+		p1[sk] = val * r
+		p2[sk] = val * s
+		sk++
+	}
 	return
 }
 

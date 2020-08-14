@@ -358,8 +358,8 @@ func (el *Elements2D) Startup2DDFR() {
 	fmt.Printf("N input = %d\n", el.N)
 	el.R, el.S = NodesEpsilon(el.N)
 	rt := NewRTElement(el.N+1, el.R, el.S)
-	fmt.Println(rt.R.Print("R"))
-	fmt.Println(rt.S.Print("S"))
+	fmt.Println(rt.V1.Print("V1"))
+	fmt.Println(rt.V2.Print("V2"))
 	os.Exit(1)
 }
 
