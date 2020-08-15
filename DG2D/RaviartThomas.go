@@ -246,6 +246,34 @@ func (rt *RTElement) EvaluateRTBasis(r, s float64) (p1, p2 []float64) {
 	return
 }
 
+func (rt *RTElement) EvaluatePolynomial(j int, r, s float64) (p1, p2 float64) {
+	/*
+		Get the coefficients for the j-th polynomial and compute:
+			p(r,s) = sum(coeff_i*P_i(r,s))
+		for each direction [1,2]
+	*/
+	coeffs1 := rt.V1.Row(j).Data()
+	coeffs2 := rt.V2.Row(j).Data()
+	b1, b2 := rt.EvaluateRTBasis(r, s)
+	for i := range coeffs1 {
+		p1 += coeffs1[i] * b1[i]
+		p2 += coeffs2[i] * b2[i]
+	}
+	return
+}
+
+func (rt *RTElement) Interpolate(r, s float64, f1, f2 []float64) (f1Int, f2Int float64) {
+	/*
+		Given function values at the defining points of the element, [f1,f2], interpolate a function value at [r,s]
+	*/
+	for j := range f1 {
+		p1, p2 := rt.EvaluatePolynomial(j, r, s)
+		f1Int += p1 * f1[j]
+		f2Int += p2 * f2[j]
+	}
+	return
+}
+
 func ExtendGeomToRT(N int, rInt, sInt utils.Vector) (r, s utils.Vector) {
 	var (
 		NpEdge       = N + 1
