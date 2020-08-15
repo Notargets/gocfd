@@ -44,10 +44,6 @@ type Cubature struct {
 }
 
 func NewElements2D(N int, meshFile string, plotMesh bool) (el *Elements2D) {
-	// choose order to integrate exactly
-	//CubatureOrder = int(math.Floor(2.0 * float64(N+1) * 3.0 / 2.0))
-	//NGauss        = int(math.Floor(2.0 * float64(N+1)))
-	//el.NewCube2D(CubatureOrder)
 	el = &Elements2D{
 		N:      N,
 		Np:     (N + 1) * (N + 2) / 2,
@@ -56,29 +52,18 @@ func NewElements2D(N int, meshFile string, plotMesh bool) (el *Elements2D) {
 	el.ReadGambit2d(meshFile, plotMesh)
 	el.Startup2D()
 	el.Startup2DDFR()
-	//fmt.Println(el.X.Print("X"))
-	//fmt.Println(el.Y.Print("Y"))
-
 	var (
 		xx = el.X.Transpose().Data()
 		yy = el.Y.Transpose().Data()
 	)
-	s1 := make([][2]float64, len(xx))
-	s2 := make([][2]float64, len(xx))
-	s3 := make([][2]float64, len(xx))
-	s := make([][2]float64, len(xx))
-	for i := range xx {
-		s1[i][0] = 0.25 * (xx[i] + 1)
-		s1[i][1] = 0.25 * (yy[i] + 1)
-		s2[i][0] = 0.25 * (xx[i] - 1)
-		s2[i][1] = 0.25 * (yy[i] + 1)
-		s3[i][0] = 0.25 * (xx[i] + 1)
-		s3[i][1] = 0.25 * (yy[i] - 1)
-		s[i][0] = s1[i][0] + s2[i][0] + s3[i][0]
-		s[i][1] = s1[i][1] + s2[i][1] + s3[i][1]
-	}
+
 	var chart *chart2d.Chart2D
 	if plotMesh {
+		s := make([][2]float64, len(xx))
+		for i := range xx {
+			s[i][0] = math.Sin(yy[i]) / 5
+			s[i][1] = math.Sin(xx[i]) / 5
+		}
 		white := color.RGBA{
 			R: 255,
 			G: 255,
@@ -95,20 +80,6 @@ func NewElements2D(N int, meshFile string, plotMesh bool) (el *Elements2D) {
 		_ = chart.AddVectors("basis", geom, s, chart2d.Solid, white)
 		sleepForever()
 	}
-
-	/*
-	  // build cubature node data for all elements
-	  CubatureVolumeMesh2D(CubatureOrder);
-
-	  // build Gauss node data for all element faces
-	  GaussFaceMesh2D(NGauss);
-
-	  Resize_cub();           // resize cubature arrays
-	  MapGaussFaceData();     // {nx = gauss.nx}, etc.
-	  PreCalcBdryData();      // gmapB = concat(mapI, mapO), etc.
-	*/
-	// N is the polynomial degree, Np is the number of interpolant points = N+1
-
 	return
 }
 
