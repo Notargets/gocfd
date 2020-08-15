@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"image/color"
 	"math"
-	"os"
 
 	graphics2D "github.com/notargets/avs/geometry"
 
@@ -33,6 +32,7 @@ type Elements2D struct {
 	MapB, MapI, MapO                  utils.Index
 	Cub                               *Cubature
 	FMaskI                            utils.Index
+	RT                                *RTElement
 }
 
 type Cubature struct {
@@ -54,7 +54,7 @@ func NewElements2D(N int, meshFile string, plotMesh bool) (el *Elements2D) {
 		NFaces: 3,
 	}
 	el.ReadGambit2d(meshFile, plotMesh)
-	//el.Startup2D()
+	el.Startup2D()
 	el.Startup2DDFR()
 	//fmt.Println(el.X.Print("X"))
 	//fmt.Println(el.Y.Print("Y"))
@@ -353,14 +353,11 @@ func (el *Elements2D) Startup2DDFR() {
 			the solution process, resulting in a more efficient computational approach, in addition to making it easier
 			to solve more complex equations with the identical formulation.
 	*/
-	//el.V = Vandermonde2D(el.N, el.R, el.S) // Lagrange Element for solution points (not used)
+	el.V = Vandermonde2D(el.N, el.R, el.S) // Lagrange Element for solution points
 	// Compute nodal set
 	fmt.Printf("N input = %d\n", el.N)
 	el.R, el.S = NodesEpsilon(el.N)
-	rt := NewRTElement(el.N+1, el.R, el.S)
-	fmt.Println(rt.V1.Print("V1"))
-	fmt.Println(rt.V2.Print("V2"))
-	os.Exit(1)
+	el.RT = NewRTElement(el.N+1, el.R, el.S)
 }
 
 func (el *Elements2D) Startup2D() {
