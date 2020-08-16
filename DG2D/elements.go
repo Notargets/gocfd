@@ -60,8 +60,6 @@ func NewElements2D(N int, meshFile string, plotMesh bool) (el *Elements2D) {
 	var chart *chart2d.Chart2D
 	if plotMesh {
 		s := make([][2]float64, len(xx))
-		fmt.Printf("xx = %v\n", xx)
-		fmt.Printf("yy = %v\n", yy)
 		for i := range xx {
 			s[i][0] = math.Sin(yy[i]*2*math.Pi) / 10
 			s[i][1] = math.Sin(xx[i]*2*math.Pi) / 10
@@ -72,13 +70,19 @@ func NewElements2D(N int, meshFile string, plotMesh bool) (el *Elements2D) {
 			B: 255,
 			A: 0,
 		}
-		_ = white
 		blue := color.RGBA{
 			R: 50,
 			G: 0,
 			B: 255,
 			A: 0,
 		}
+		red := color.RGBA{
+			R: 255,
+			G: 0,
+			B: 50,
+			A: 0,
+		}
+		_, _ = white, red
 		chart = PlotMesh(el.VX, el.VY, el.EToV, el.BCType, el.X, el.Y, false)
 		ydata := el.Y.Transpose().Data()
 		geom := make([]graphics2D.Point, len(ydata))
@@ -87,6 +91,23 @@ func NewElements2D(N int, meshFile string, plotMesh bool) (el *Elements2D) {
 			geom[i].X[1] = float32(ydata[i])
 		}
 		_ = chart.AddVectors("basis", geom, s, chart2d.Solid, blue)
+		// Interpolate values using the RT element
+		geomInterp := make([]graphics2D.Point, 2)
+		geomInterp[0].X = [2]float32{0.1, 0.1}
+		geomInterp[1].X = [2]float32{0.5, 0.5}
+		ss := [2][]float64{}
+		ss[0] = make([]float64, len(s))
+		ss[1] = make([]float64, len(s))
+		for i := range s {
+			ss[0][i] = s[i][0]
+			ss[1][i] = s[i][1]
+		}
+		sInterp := make([][2]float64, len(geomInterp))
+		for i, g := range geomInterp {
+			sInterp[i][0], sInterp[i][1] = el.RT.Interpolate(float64(g.X[0]), float64(g.X[1]), ss[0], ss[1])
+			fmt.Println(g.X[0], g.X[1], sInterp[i][0], sInterp[i][1])
+		}
+		_ = chart.AddVectors("interpolation", geomInterp, sInterp, chart2d.Solid, red)
 		sleepForever()
 	}
 	return
