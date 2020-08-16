@@ -139,7 +139,7 @@ func (el *Elements2D) ReadGambit2d(filename string, plotMesh bool) {
 	return
 }
 
-func PlotMesh(VX, VY utils.Vector, EToV, BCType, X, Y utils.Matrix) (chart *chart2d.Chart2D) {
+func PlotMesh(VX, VY utils.Vector, EToV, BCType, X, Y utils.Matrix, plotPoints bool) (chart *chart2d.Chart2D) {
 	var (
 		points   []graphics2D.Point
 		trimesh  graphics2D.TriMesh
@@ -181,8 +181,13 @@ func PlotMesh(VX, VY utils.Vector, EToV, BCType, X, Y utils.Matrix) (chart *char
 		chart2d.CrossGlyph, chart2d.Solid, white); err != nil {
 		panic("unable to add graph series")
 	}
+	var ptsGlyph chart2d.GlyphType
+	ptsGlyph = chart2d.NoGlyph
+	if plotPoints {
+		ptsGlyph = chart2d.CircleGlyph
+	}
 	if err := chart.AddSeries("Elements", X.Transpose().Data(), Y.Transpose().Data(),
-		chart2d.XGlyph, chart2d.NoLine, white); err != nil {
+		ptsGlyph, chart2d.NoLine, white); err != nil {
 		panic(err)
 	}
 
