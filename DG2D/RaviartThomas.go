@@ -26,8 +26,10 @@ const (
 func NewRTElement(N int, R, S utils.Vector) (rt *RTElement) {
 	rt = &RTElement{
 		N: N,
+		R: R,
+		S: S,
 	}
-	rt.CalculateBasis(R, S)
+	rt.CalculateBasis()
 	return
 }
 
@@ -56,7 +58,10 @@ func (rt *RTElement) GetTermType(i int) (rtt RTPointType) {
 	return
 }
 
-func (rt *RTElement) CalculateBasis(R, S utils.Vector) {
+func (rt *RTElement) CalculateBasis() {
+	var (
+		R, S = rt.R, rt.S
+	)
 	/*
 				This is constructed from the defining space of the RT element:
 								 2

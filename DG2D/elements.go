@@ -290,13 +290,6 @@ func Warpfactor(N int, rout utils.Vector) (warpF []float64) {
 }
 
 func (el *Elements2D) Startup2DDFR() {
-	var (
-	//err error
-	)
-	el.Nfp = el.N + 1
-	el.Np = (el.N + 1) * (el.N + 2) / 2
-	el.NFaces = 3
-	el.NODETOL = 1.e-12
 	// Build reference element matrices
 	/*
 			We build the mixed elements for the DFR scheme with:
@@ -354,11 +347,9 @@ func (el *Elements2D) Startup2DDFR() {
 			the solution process, resulting in a more efficient computational approach, in addition to making it easier
 			to solve more complex equations with the identical formulation.
 	*/
-	el.V = Vandermonde2D(el.N, el.R, el.S) // Lagrange Element for solution points
 	// Compute nodal set
-	fmt.Printf("N input = %d\n", el.N)
-	el.R, el.S = NodesEpsilon(el.N)
-	el.RT = NewRTElement(el.N+1, el.R, el.S)
+	R, S := NodesEpsilon(el.N)
+	el.RT = NewRTElement(el.N+1, R, S)
 }
 
 func (el *Elements2D) Startup2D() {
