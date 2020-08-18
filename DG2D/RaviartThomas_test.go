@@ -17,7 +17,7 @@ import (
 func TestRTElement(t *testing.T) {
 	{
 		plot := false
-		N := 2
+		N := 1
 		NRT := N + 1
 		R, S := NodesEpsilon(N)
 		rt := NewRTElement(NRT, R, S)
@@ -35,15 +35,16 @@ func TestRTElement(t *testing.T) {
 			s2[i] = math.Sin(rt.R.Data()[i]*math.Pi) / 5
 		}
 		s1, s2 = rt.ProjectFunctionOntoBasis(s1, s2)
-		//s1, s2 = rt.RebuildFunctionFromBasis(s1, s2)
-		for i := range rt.R.Data() {
-			fmt.Printf("f(%8.3f,%8.3f)= %8.3f,%8.3f\n", rt.R.AtVec(i), rt.S.AtVec(i), s1[i], s2[i])
-		}
+		//s1, s2 = rt.ExtractFunctionFromBasis(s1, s2)
 		var f1, f2 float64
-		f1, f2 = rt.Interpolate(-0.5, -0.5, s1, s2)
-		fmt.Printf("f1, f2 = %v, %v\n", f1, f2)
-		f1, f2 = rt.Interpolate(0.25, 0.25, s1, s2)
-		fmt.Printf("f1, f2 = %v, %v\n", f1, f2)
+		for i := range rt.R.Data() {
+			r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+			f1, f2 = rt.Interpolate(r, s, s1, s2)
+			fmt.Printf("f(%8.3f,%8.3f)= %8.3f,%8.3f, fi() = %8.3f,%8.3f\n", r, s, s1[i], s2[i], f1, f2)
+			// The interpolated values should be equal to the input values at defining geom points
+			//			assert.True(t, near(s1[i], f1, 0.000001*s1[i]))
+			//			assert.True(t, near(s2[i], f2, 0.000001*s2[i]))
+		}
 
 		if plot {
 			chart := PlotTestTri(rt.R.Data(), rt.S.Data(), false)

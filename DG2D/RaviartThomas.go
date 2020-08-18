@@ -65,7 +65,7 @@ func (rt *RTElement) ProjectFunctionOntoBasis(s1, s2 []float64) (s1p, s2p []floa
 	return
 }
 
-func (rt *RTElement) RebuildFunctionFromBasis(s1p, s2p []float64) (s1, s2 []float64) {
+func (rt *RTElement) ExtractFunctionFromBasis(s1p, s2p []float64) (s1, s2 []float64) {
 	var (
 		Np        = len(s1p)
 		N         = rt.N
