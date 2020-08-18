@@ -3,7 +3,6 @@ package DG2D
 import (
 	"fmt"
 	"image/color"
-	"math"
 	"testing"
 
 	utils2 "github.com/notargets/avs/utils"
@@ -31,8 +30,12 @@ func TestRTElement(t *testing.T) {
 
 		s1, s2 := make([]float64, rt.R.Len()), make([]float64, rt.R.Len())
 		for i := range rt.R.Data() {
-			s1[i] = math.Sin(rt.S.Data()[i]*math.Pi) / 5
-			s2[i] = math.Sin(rt.R.Data()[i]*math.Pi) / 5
+			/*
+				s1[i] = math.Sin(rt.S.Data()[i]*math.Pi) / 5
+				s2[i] = math.Sin(rt.R.Data()[i]*math.Pi) / 5
+			*/
+			s1[i] = 1
+			s2[i] = 1
 		}
 		s1, s2 = rt.ProjectFunctionOntoBasis(s1, s2)
 		//s1, s2 = rt.ExtractFunctionFromBasis(s1, s2)
@@ -47,20 +50,26 @@ func TestRTElement(t *testing.T) {
 		}
 
 		if plot {
-			chart := PlotTestTri(rt.R.Data(), rt.S.Data(), false)
+			chart := PlotTestTri(true)
 			points := arraysToPoints(rt.R.Data(), rt.S.Data())
-			f := arraysToVector(s1, s2)
-			_ = chart.AddVectors("test function", points, f, chart2d.Solid, getColor(blue))
+			f := arraysToVector(s1, s2, 0.1)
+			_ = chart.AddVectors("test function", points, f, chart2d.Solid, getColor(green))
 			sleepForever()
 		}
 	}
 }
 
-func arraysToVector(r1, r2 []float64) (g [][2]float64) {
+func arraysToVector(r1, r2 []float64, scaleO ...float64) (g [][2]float64) {
+	var (
+		scale float64 = 1
+	)
 	g = make([][2]float64, len(r1))
+	if len(scaleO) > 0 {
+		scale = scaleO[0]
+	}
 	for i := range r1 {
-		g[i][0] = r1[i]
-		g[i][1] = r2[i]
+		g[i][0] = r1[i] * scale
+		g[i][1] = r2[i] * scale
 	}
 	return
 }
@@ -74,7 +83,7 @@ func arraysToPoints(r1, r2 []float64) (points []graphics2D.Point) {
 	return
 }
 
-func PlotTestTri(x, y []float64, plotGeom bool) (chart *chart2d.Chart2D) {
+func PlotTestTri(plotGeom bool) (chart *chart2d.Chart2D) {
 	var (
 		points  []graphics2D.Point
 		trimesh graphics2D.TriMesh
