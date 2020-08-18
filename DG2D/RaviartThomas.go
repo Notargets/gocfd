@@ -16,7 +16,8 @@ type RTElement struct {
 type RTPointType uint
 
 const (
-	InteriorR RTPointType = iota
+	All RTPointType = iota
+	InteriorR
 	InteriorS
 	Edge1
 	Edge2
@@ -30,6 +31,63 @@ func NewRTElement(N int, R, S utils.Vector) (rt *RTElement) {
 		S: S,
 	}
 	rt.CalculateBasis()
+	return
+}
+
+func (rt *RTElement) ProjectFunctionOntoBasis(s1, s2 []float64) (s1p, s2p []float64) {
+	var (
+		Np = len(s1)
+	)
+	s1p, s2p = make([]float64, Np), make([]float64, Np)
+
+	oosr2 := 1 / math.Sqrt(2)
+	for i := range s1 {
+		switch rt.GetTermType(i) {
+		case InteriorR:
+			// Unit vector is [1,0]
+			s1p[i] = s1[i]
+		case InteriorS:
+			// Unit vector is [0,1]
+			s2p[i] = s2[i]
+		case Edge1:
+			// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
+			proj := oosr2 * (s1[i] + s2[i])
+			s1p[i] = oosr2 * proj
+			s2p[i] = oosr2 * proj
+		case Edge2:
+			// Edge2: Unit vector is [-1,0]
+			s1p[i] = -s1[i]
+		case Edge3:
+			// Edge3: // Unit vector is [0,-1]
+			s2p[i] = -s2[i]
+		}
+	}
+	return
+}
+
+func (rt *RTElement) RebuildFunctionFromBasis(s1p, s2p []float64) (s1, s2 []float64) {
+	var (
+		Np        = len(s1p)
+		N         = rt.N
+		Ninterior = N * (N + 1) / 2
+	)
+	s1, s2 = make([]float64, Np), make([]float64, Np)
+
+	for i := range s1 {
+		switch rt.GetTermType(i) {
+		case InteriorR:
+			// Unit vector is [1,0]
+			s1[i] = s1p[i]
+			s2[i] = s2p[i+Ninterior]
+		case InteriorS:
+			// Unit vector is [0,1]
+			s1[i] = s1p[i-Ninterior]
+			s2[i] = s2p[i]
+		case Edge1, Edge2, Edge3:
+			s1[i] = s1p[i]
+			s2[i] = s2p[i]
+		}
+	}
 	return
 }
 
