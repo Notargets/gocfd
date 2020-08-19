@@ -9,9 +9,9 @@ import (
 )
 
 type RTElement struct {
-	V1, V2, Ainv utils.Matrix // Vandermonde matrix for each direction r and s
-	R, S         utils.Vector // Point locations defining element in [-1,1] Triangle
-	N            int          // Order of element
+	V1, V2 utils.Matrix // Vandermonde matrix for each direction r and s
+	R, S   utils.Vector // Point locations defining element in [-1,1] Triangle
+	N      int          // Order of element
 }
 
 type RTPointType uint
@@ -230,17 +230,10 @@ func (rt *RTElement) CalculateBasis() {
 		}
 	}
 	// Invert [ A ] to obtain the coefficients (columns) of polynomials (rows), each row is a polynomial
-	if rt.Ainv, err = A.Inverse(); err != nil {
+	var Ainv utils.Matrix
+	if Ainv, err = A.Inverse(); err != nil {
 		panic(err)
 	}
-	/*
-		fmt.Println(A.Print("A"))
-		fmt.Println(Ainv.Print("Ainv"))
-		sss := utils.NewVector(Np)
-		sss.Data()[1] = 1
-		X := Ainv.Mul(sss.ToMatrix())
-		fmt.Println(X.Print("X"))
-	*/
 	/*
 		Process the coefficient matrix to produce each direction of each polynomial (V1 and V2)
 	*/
@@ -249,17 +242,19 @@ func (rt *RTElement) CalculateBasis() {
 		/*
 			First, we extract the coefficients for each direction in this j-th polynomial
 		*/
-		coeffs := rt.Ainv.Col(j).Data() // All coefficients of the j-th polynomial terms
+		coeffs := Ainv.Col(j).Data() // All coefficients of the j-th polynomial terms
 		p1, p2 := make([]float64, Np), make([]float64, Np)
+		NGroup1 := (N+1)*N/2 + (N + 1) // The first set of polynomial terms
 		for i, coeff := range coeffs {
-			switch rt.GetTermType(i) {
-			case InteriorR:
+			// one full set of polynomial coeffs twice, then a set for the last N+1 terms
+			switch {
+			case i < NGroup1:
 				p1[i] = coeff
 				p2[i] = 0
-			case InteriorS:
+			case i >= NGroup1 && i < 2*NGroup1:
 				p1[i] = 0
 				p2[i] = coeff
-			case Edge1, Edge2, Edge3:
+			default:
 				p1[i] = coeff
 				p2[i] = coeff
 			}
@@ -267,18 +262,21 @@ func (rt *RTElement) CalculateBasis() {
 		/*
 			Evaluate the basis at this location, then multiply each term by its polynomial coefficient
 		*/
-		b1, b2 := rt.EvaluateRTBasis(rt.R.AtVec(j), rt.S.AtVec(j)) // All terms of the basis at this location
-		fmt.Printf("j = %d\nb1 = %v\nb2 = %v\n", j, b1, b2)
-		for i := range p1 {
-			// Multiply each coefficient by its basis term to create the evaluated polynomial terms column
-			p1[i] *= b1[i]
-			p2[i] *= b2[i]
+		px, py := make([]float64, rt.R.Len()), make([]float64, rt.R.Len())
+		for i, rr := range rt.R.Data() {
+			ss := rt.S.Data()[i]
+			b1, b2 := rt.EvaluateRTBasis(rr, ss) // All terms of the basis at this location
+			for ii := range p1 {
+				// Multiply each coefficient by its basis term to create the evaluated polynomial terms column
+				px[i] += p1[ii] * b1[ii]
+				py[i] += p2[ii] * b2[ii]
+			}
 		}
 		/*
 			Load the evaluated polynomial into the j-th column of the Vandermonde matrices
 		*/
-		rt.V1.SetCol(j, p1)
-		rt.V2.SetCol(j, p2)
+		rt.V1.SetCol(j, px)
+		rt.V2.SetCol(j, py)
 	}
 	return
 }

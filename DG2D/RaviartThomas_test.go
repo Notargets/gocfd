@@ -21,9 +21,6 @@ func TestRTElement(t *testing.T) {
 		oosr2 := 1. / math.Sqrt(2)
 		R, S := NodesEpsilon(0)
 		rt := NewRTElement(0, R, S)
-		fmt.Println(rt.Ainv.Print("Ainv"))
-		fmt.Println(rt.V1.Print("V1"))
-		fmt.Println(rt.V2.Print("V2"))
 		// Vandermonde Matrices, one for each of r,s directions hand calculated for the RT0 case
 		// Note: The Vandermonde matrix is defined as: V_i_j = Psi_j(X_i), j is column number
 		checkV1 := utils.NewMatrix(3, 3, []float64{
@@ -36,16 +33,8 @@ func TestRTElement(t *testing.T) {
 			oosr2, .5, -.5,
 			0, 0, -1,
 		})
-		_, _ = checkV1, checkV2
-		fmt.Println(checkV1.Print("checkV1"))
-		fmt.Println(checkV2.Print("checkV2"))
-		assert.NotNil(t, rt.V1)
-		p1, p2 := rt.EvaluatePolynomial(0, 0, 0)
-		fmt.Printf("p1, p2 = %v, %v\n", p1, p2)
-		p1, p2 = rt.EvaluatePolynomial(1, -1, 0)
-		fmt.Printf("p1, p2 = %v, %v\n", p1, p2)
-		p1, p2 = rt.EvaluatePolynomial(2, 0, -1)
-		fmt.Printf("p1, p2 = %v, %v\n", p1, p2)
+		assert.True(t, nearVec(checkV1.Data(), rt.V1.Data(), 0.000001))
+		assert.True(t, nearVec(checkV2.Data(), rt.V2.Data(), 0.000001))
 		s1, s2 := make([]float64, rt.R.Len()), make([]float64, rt.R.Len())
 		s1[0], s2[0] = oosr2, oosr2
 		s1[1], s2[1] = -1, 0
