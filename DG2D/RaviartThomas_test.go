@@ -3,7 +3,10 @@ package DG2D
 import (
 	"fmt"
 	"image/color"
+	"math"
 	"testing"
+
+	"github.com/notargets/gocfd/utils"
 
 	utils2 "github.com/notargets/avs/utils"
 
@@ -15,11 +18,47 @@ import (
 
 func TestRTElement(t *testing.T) {
 	{
+		oosr2 := 1. / math.Sqrt(2)
 		R, S := NodesEpsilon(0)
 		rt := NewRTElement(0, R, S)
-		fmt.Println(rt.R.Print("R"))
-		fmt.Println(rt.S.Print("S"))
+		fmt.Println(rt.Ainv.Print("Ainv"))
+		fmt.Println(rt.V1.Print("V1"))
+		fmt.Println(rt.V2.Print("V2"))
+		// Vandermonde Matrices, one for each of r,s directions hand calculated for the RT0 case
+		// Note: The Vandermonde matrix is defined as: V_i_j = Psi_j(X_i), j is column number
+		checkV1 := utils.NewMatrix(3, 3, []float64{
+			oosr2, -.5, .5,
+			0, -1, 0,
+			oosr2, -.5, .5,
+		})
+		checkV2 := utils.NewMatrix(3, 3, []float64{
+			oosr2, .5, -.5,
+			oosr2, .5, -.5,
+			0, 0, -1,
+		})
+		_, _ = checkV1, checkV2
+		fmt.Println(checkV1.Print("checkV1"))
+		fmt.Println(checkV2.Print("checkV2"))
 		assert.NotNil(t, rt.V1)
+		p1, p2 := rt.EvaluatePolynomial(0, 0, 0)
+		fmt.Printf("p1, p2 = %v, %v\n", p1, p2)
+		p1, p2 = rt.EvaluatePolynomial(1, -1, 0)
+		fmt.Printf("p1, p2 = %v, %v\n", p1, p2)
+		p1, p2 = rt.EvaluatePolynomial(2, 0, -1)
+		fmt.Printf("p1, p2 = %v, %v\n", p1, p2)
+		s1, s2 := make([]float64, rt.R.Len()), make([]float64, rt.R.Len())
+		s1[0], s2[0] = oosr2, oosr2
+		s1[1], s2[1] = -1, 0
+		s1[2], s2[2] = 0, -1
+		var f1, f2 float64
+		for i := range rt.R.Data() {
+			r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+			f1, f2 = rt.Interpolate(r, s, s1, s2)
+			fmt.Printf("f(%8.3f,%8.3f)= %8.3f,%8.3f, fi() = %8.3f,%8.3f\n", r, s, s1[i], s2[i], f1, f2)
+			// The interpolated values should be equal to the input values at defining geom points
+			//			assert.True(t, near(s1[i], f1, 0.000001*s1[i]))
+			//			assert.True(t, near(s2[i], f2, 0.000001*s2[i]))
+		}
 	}
 	if false {
 		plot := false

@@ -9,9 +9,9 @@ import (
 )
 
 type RTElement struct {
-	V1, V2 utils.Matrix // Vandermonde matrix for each direction r and s
-	R, S   utils.Vector // Point locations defining element in [-1,1] Triangle
-	N      int          // Order of element
+	V1, V2, Ainv utils.Matrix // Vandermonde matrix for each direction r and s
+	R, S         utils.Vector // Point locations defining element in [-1,1] Triangle
+	N            int          // Order of element
 }
 
 type RTPointType uint
@@ -176,12 +176,12 @@ func (rt *RTElement) CalculateBasis() {
 						Since this is a vector valued element/basis, we have a interpolation matrix for each direction.
 	*/
 	var (
-		err     error
-		N       = rt.N
-		R, S    = rt.R, rt.S
-		Np      = (N + 1) * (N + 3)
-		A, Ainv utils.Matrix
-		p1, p2  []float64
+		err    error
+		N      = rt.N
+		R, S   = rt.R, rt.S
+		Np     = (N + 1) * (N + 3)
+		A      utils.Matrix
+		p1, p2 []float64
 	)
 	// Add the edge and additional interior (duplicated) points to complete the RT geometry
 	rt.R, rt.S = ExtendGeomToRT(N, R, S)
@@ -201,7 +201,6 @@ func (rt *RTElement) CalculateBasis() {
 			This is the same set that will be used for all dot products to form the basis matrix
 		*/
 		p1, p2 = rt.EvaluateRTBasis(rr, ss)
-		fmt.Printf("r,s = %v, %v\np1, p2 = %v\n%v\n", rr, ss, p1, p2)
 		// Implement dot product of (unit vector)_ii with each vector term in the polynomial evaluated at location ii
 		switch rt.GetTermType(ii) {
 		case InteriorR:
@@ -231,24 +230,26 @@ func (rt *RTElement) CalculateBasis() {
 		}
 	}
 	// Invert [ A ] to obtain the coefficients (columns) of polynomials (rows), each row is a polynomial
-	if Ainv, err = A.Inverse(); err != nil {
+	if rt.Ainv, err = A.Inverse(); err != nil {
 		panic(err)
 	}
-	fmt.Println(A.Print("A"))
-	fmt.Println(Ainv.Print("Ainv"))
-	sss := utils.NewVector(Np)
-	sss.Data()[0] = 1
-	X := Ainv.Mul(sss.ToMatrix())
-	fmt.Println(X.Print("X"))
+	/*
+		fmt.Println(A.Print("A"))
+		fmt.Println(Ainv.Print("Ainv"))
+		sss := utils.NewVector(Np)
+		sss.Data()[1] = 1
+		X := Ainv.Mul(sss.ToMatrix())
+		fmt.Println(X.Print("X"))
+	*/
 	/*
 		Process the coefficient matrix to produce each direction of each polynomial (V1 and V2)
 	*/
 	rt.V1, rt.V2 = utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
-	for j := 0; j < Np; j++ { // Process a row at a time, each row is a polynomial
+	for j := 0; j < Np; j++ { // Process a column at a time, each column is a polynomial
 		/*
 			First, we extract the coefficients for each direction in this j-th polynomial
 		*/
-		coeffs := Ainv.Row(j).Data() // All coefficients of the j-th polynomial terms
+		coeffs := rt.Ainv.Col(j).Data() // All coefficients of the j-th polynomial terms
 		p1, p2 := make([]float64, Np), make([]float64, Np)
 		for i, coeff := range coeffs {
 			switch rt.GetTermType(i) {
@@ -267,6 +268,7 @@ func (rt *RTElement) CalculateBasis() {
 			Evaluate the basis at this location, then multiply each term by its polynomial coefficient
 		*/
 		b1, b2 := rt.EvaluateRTBasis(rt.R.AtVec(j), rt.S.AtVec(j)) // All terms of the basis at this location
+		fmt.Printf("j = %d\nb1 = %v\nb2 = %v\n", j, b1, b2)
 		for i := range p1 {
 			// Multiply each coefficient by its basis term to create the evaluated polynomial terms column
 			p1[i] *= b1[i]
@@ -321,8 +323,8 @@ func (rt *RTElement) EvaluatePolynomial(j int, r, s float64) (p1, p2 float64) {
 			p(r,s) = sum(coeff_i*P_i(r,s))
 		for each direction [1,2]
 	*/
-	coeffs1 := rt.V1.Row(j).Data()
-	coeffs2 := rt.V2.Row(j).Data()
+	coeffs1 := rt.V1.Col(j).Data()
+	coeffs2 := rt.V2.Col(j).Data()
 	b1, b2 := rt.EvaluateRTBasis(r, s)
 	for i := range coeffs1 {
 		p1 += coeffs1[i] * b1[i]
