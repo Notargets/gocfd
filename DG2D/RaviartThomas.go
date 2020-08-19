@@ -117,9 +117,6 @@ func (rt *RTElement) GetTermType(i int) (rtt RTPointType) {
 }
 
 func (rt *RTElement) CalculateBasis() {
-	var (
-		R, S = rt.R, rt.S
-	)
 	/*
 				This is constructed from the defining space of the RT element:
 								 2
@@ -181,6 +178,7 @@ func (rt *RTElement) CalculateBasis() {
 	var (
 		err     error
 		N       = rt.N
+		R, S    = rt.R, rt.S
 		Np      = (N + 1) * (N + 3)
 		A, Ainv utils.Matrix
 		p1, p2  []float64
@@ -194,6 +192,7 @@ func (rt *RTElement) CalculateBasis() {
 	rowEdge := make([]float64, Np)
 	oosr2 := 1 / math.Sqrt(2)
 
+	fmt.Printf("rt.N = %v\n", rt.N)
 	// Evaluate at geometric locations
 	for ii, rr := range rt.R.Data() {
 		ss := rt.S.Data()[ii]
@@ -202,6 +201,7 @@ func (rt *RTElement) CalculateBasis() {
 			This is the same set that will be used for all dot products to form the basis matrix
 		*/
 		p1, p2 = rt.EvaluateRTBasis(rr, ss)
+		fmt.Printf("r,s = %v, %v\np1, p2 = %v\n%v\n", rr, ss, p1, p2)
 		// Implement dot product of (unit vector)_ii with each vector term in the polynomial evaluated at location ii
 		switch rt.GetTermType(ii) {
 		case InteriorR:
@@ -234,6 +234,12 @@ func (rt *RTElement) CalculateBasis() {
 	if Ainv, err = A.Inverse(); err != nil {
 		panic(err)
 	}
+	fmt.Println(A.Print("A"))
+	fmt.Println(Ainv.Print("Ainv"))
+	sss := utils.NewVector(Np)
+	sss.Data()[0] = 1
+	X := Ainv.Mul(sss.ToMatrix())
+	fmt.Println(X.Print("X"))
 	/*
 		Process the coefficient matrix to produce each direction of each polynomial (V1 and V2)
 	*/
@@ -366,8 +372,12 @@ func ExtendGeomToRT(N int, rInt, sInt utils.Vector) (r, s utils.Vector) {
 	/*
 		Double the number of interior points to match each direction of the basis
 	*/
-	rData = append(rData, rData...)
-	sData = append(sData, sData...)
+	if N == 0 { // Special case: when N=0, the interior of the RT element is empty
+		rData, sData = []float64{}, []float64{}
+	} else {
+		rData = append(rData, rData...)
+		sData = append(sData, sData...)
+	}
 
 	// Calculate the triangle edges
 	GQRData := GQR.Data()

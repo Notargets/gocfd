@@ -15,12 +15,38 @@ import (
 
 func TestRTElement(t *testing.T) {
 	{
+		R, S := NodesEpsilon(0)
+		rt := NewRTElement(0, R, S)
+		fmt.Println(rt.R.Print("R"))
+		fmt.Println(rt.S.Print("S"))
+		assert.NotNil(t, rt.V1)
+	}
+	if false {
 		plot := false
-		N := 1
+		N := 0
 		NRT := N + 1
 		R, S := NodesEpsilon(N)
 		rt := NewRTElement(NRT, R, S)
 		assert.NotNil(t, rt.V1)
+		// Test the resulting polynomial for correctness
+		{
+			var (
+				p1, p2 []float64
+			)
+			p1 = rt.V1.Col(0).Data()
+			p2 = rt.V2.Col(0).Data()
+			fmt.Printf("p1 = %v\n", p1)
+			fmt.Printf("p2 = %v\n", p2)
+			var p1sum, p2sum float64
+			for _, val := range p1 {
+				p1sum += val
+			}
+			for _, val := range p2 {
+				p2sum += val
+			}
+			fmt.Printf("p1sum = %v\n", p1sum)
+			fmt.Printf("p2sum = %v\n", p2sum)
+		}
 		//fmt.Println(rt.V1.Print("V1"))
 		//fmt.Println(rt.V2.Print("V2"))
 		nr, _ := rt.V1.Dims()
