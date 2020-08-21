@@ -17,7 +17,7 @@ import (
 )
 
 func TestRTElement(t *testing.T) {
-	{
+	{ // RT0 Validation
 		oosr2 := 1. / math.Sqrt(2)
 		R, S := NodesEpsilon(0)
 		rt := NewRTElement(0, R, S)
@@ -52,22 +52,52 @@ func TestRTElement(t *testing.T) {
 			}
 		}
 	}
-	if true {
-		plot := false
+	{ // RT 1 Validation
 		N := 0
 		NRT := N + 1
 		R, S := NodesEpsilon(N)
 		rt := NewRTElement(NRT, R, S)
-		for i := range rt.R.Data() {
-			rr, ss := rt.R.Data()[i], rt.S.Data()[i]
-			fmt.Printf("[%10.8f, %10.8f]_%d\n", rr, ss, i)
-		}
-
 		nr, _ := rt.V1.Dims()
 		assert.Equal(t, (NRT+1)*(NRT+3), nr)
 		assert.Equal(t, (NRT+1)*(NRT+3), rt.R.Len())
 		assert.Equal(t, (NRT+1)*(NRT+3), rt.S.Len())
+		/*
+			Reconstruct the single coefficient matrix to compare with the Matlab solution
+		*/
+		Np := (NRT + 1) * (NRT + 3)
+		Ainv := utils.NewMatrix(Np, Np)
+		NGroup1 := (NRT+1)*NRT/2 + (NRT + 1) // The first set of polynomial terms
+		for i := 0; i < NGroup1; i++ {
+			rowG1 := rt.A1.Row(i)
+			Ainv.M.SetRow(i, rowG1.Data())
+			rowG2 := rt.A2.Row(i + NGroup1)
+			Ainv.M.SetRow(i+NGroup1, rowG2.Data())
+		}
+		for i := 2 * NGroup1; i < Np; i++ {
+			rowG3 := rt.A1.Row(i)
+			Ainv.M.SetRow(i, rowG3.Data())
+		}
+		fmt.Println(Ainv.Print("Ainv"))
+		// Matlab solution
+		CheckAinv := utils.NewMatrix(Np, Np, []float64{
+			0.75, -0.75, 0.3536, 0.3536, 0.4045, -0.1545, -0.4045, 0.1545,
+			-0.75, -1.5, 1.279, 0.4886, 0.25, 0.25, -0.9635, 0.7135,
+			-0.75, -1.5, 0.135, 0.9256, 0.559, -0.559, -0.6545, -0.09549,
+			-0.75, 0.75, 0.3536, 0.3536, -0.4045, 0.1545, 0.4045, -0.1545,
+			-1.5, -0.75, 0.9256, 0.135, -0.6545, -0.09549, 0.559, -0.559,
+			-1.5, -0.75, 0.4886, 1.279, -0.9635, 0.7135, 0.25, 0.25,
+			-1.5, -0.75, 0.9256, 0.135, -0.6545, -0.09549, -0.559, 0.559,
+			-0.75, -1.5, 0.135, 0.9256, -0.559, 0.559, -0.6545, -0.09549,
+		})
+		assert.True(t, nearVec(CheckAinv.Data(), Ainv.Data(), 0.001))
 
+	}
+	plot := true
+	if plot {
+		N := 6
+		NRT := N + 1
+		R, S := NodesEpsilon(N)
+		rt := NewRTElement(NRT, R, S)
 		s1, s2 := make([]float64, rt.R.Len()), make([]float64, rt.R.Len())
 		for i := range rt.R.Data() {
 			/*
