@@ -92,7 +92,7 @@ func TestRTElement(t *testing.T) {
 		assert.True(t, nearVec(CheckAinv.Data(), Ainv.Data(), 0.001))
 
 	}
-	plot := true
+	plot := false
 	if plot {
 		N := 6
 		NRT := N + 1
