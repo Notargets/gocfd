@@ -54,96 +54,30 @@ b7 = subs(psi1, {a1,a2,a3,a4,a5,a6,a7,a8}, Ainv(:,7)');
 b8 = subs(psi1, {a1,a2,a3,a4,a5,a6,a7,a8}, Ainv(:,8)');
 
 %Construct the Vandermonde Matrices for each of r and s directions
-b = b1;
-b1eval = [
-    subs(b, {x,y}, r1),
-    subs(b, {x,y}, r2),
-    subs(b, {x,y}, r3),
-    subs(b, {x,y}, r4),
-    subs(b, {x,y}, r5),
-    subs(b, {x,y}, r6),
-    subs(b, {x,y}, r7),
-    subs(b, {x,y}, r8)
-];
-b = b2;
-b2eval = [
-    subs(b, {x,y}, r1),
-    subs(b, {x,y}, r2),
-    subs(b, {x,y}, r3),
-    subs(b, {x,y}, r4),
-    subs(b, {x,y}, r5),
-    subs(b, {x,y}, r6),
-    subs(b, {x,y}, r7),
-    subs(b, {x,y}, r8)
-];
-b = b3;
-b3eval = [
-    subs(b, {x,y}, r1),
-    subs(b, {x,y}, r2),
-    subs(b, {x,y}, r3),
-    subs(b, {x,y}, r4),
-    subs(b, {x,y}, r5),
-    subs(b, {x,y}, r6),
-    subs(b, {x,y}, r7),
-    subs(b, {x,y}, r8)
-];
-b = b4;
-b4eval = [
-    subs(b, {x,y}, r1),
-    subs(b, {x,y}, r2),
-    subs(b, {x,y}, r3),
-    subs(b, {x,y}, r4),
-    subs(b, {x,y}, r5),
-    subs(b, {x,y}, r6),
-    subs(b, {x,y}, r7),
-    subs(b, {x,y}, r8)
-];
-b = b5;
-b5eval = [
-    subs(b, {x,y}, r1),
-    subs(b, {x,y}, r2),
-    subs(b, {x,y}, r3),
-    subs(b, {x,y}, r4),
-    subs(b, {x,y}, r5),
-    subs(b, {x,y}, r6),
-    subs(b, {x,y}, r7),
-    subs(b, {x,y}, r8)
-
-];
-b = b6;
-b6eval = [
-    subs(b, {x,y}, r1),
-    subs(b, {x,y}, r2),
-    subs(b, {x,y}, r3),
-    subs(b, {x,y}, r4),
-    subs(b, {x,y}, r5),
-    subs(b, {x,y}, r6),
-    subs(b, {x,y}, r7),
-    subs(b, {x,y}, r8)
-
-];
-b = b7;
-b7eval = [
-    subs(b, {x,y}, r1),
-    subs(b, {x,y}, r2),
-    subs(b, {x,y}, r3),
-    subs(b, {x,y}, r4),
-    subs(b, {x,y}, r5),
-    subs(b, {x,y}, r6),
-    subs(b, {x,y}, r7),
-    subs(b, {x,y}, r8)
-];
-b = b8;
-b8eval = [
-    subs(b, {x,y}, r1),
-    subs(b, {x,y}, r2),
-    subs(b, {x,y}, r3),
-    subs(b, {x,y}, r4),
-    subs(b, {x,y}, r5),
-    subs(b, {x,y}, r6),
-    subs(b, {x,y}, r7),
-    subs(b, {x,y}, r8)
-];
+xx = [[r1]; [r2]; [r3]; [r4]; [r5]; [r6]; [r7]; [r8];];
+b1eval = evalb(b1, x, y, xx);
+b2eval = evalb(b2, x, y, xx);
+b3eval = evalb(b3, x, y, xx);
+b4eval = evalb(b4, x, y, xx);
+b5eval = evalb(b5, x, y, xx);
+b6eval = evalb(b6, x, y, xx);
+b7eval = evalb(b7, x, y, xx);
+b8eval = evalb(b8, x, y, xx);
 
 V1 = [b1eval(:,1), b2eval(:,1), b3eval(:,1), b4eval(:,1), b5eval(:,1), b6eval(:,1), b7eval(:,1), b8eval(:,1)];
 V2 = [b1eval(:,2), b2eval(:,2), b3eval(:,2), b4eval(:,2), b5eval(:,2), b6eval(:,2), b7eval(:,2), b8eval(:,2)];
+
+function bval = evalb(basis, x, y, xx)
+    b = basis;
+    bval = [
+        subs(b, {x,y}, xx(1,:)),
+        subs(b, {x,y}, xx(2,:)),
+        subs(b, {x,y}, xx(3,:)),
+        subs(b, {x,y}, xx(4,:)),
+        subs(b, {x,y}, xx(5,:)),
+        subs(b, {x,y}, xx(6,:)),
+        subs(b, {x,y}, xx(7,:)),
+        subs(b, {x,y}, xx(8,:))
+    ];
+end
+
