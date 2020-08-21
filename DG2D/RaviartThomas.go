@@ -10,6 +10,7 @@ import (
 
 type RTElement struct {
 	V1, V2 utils.Matrix // Vandermonde matrix for each direction r and s
+	A1, A2 utils.Matrix // Polynomial coefficient matrix for each direction r and s
 	R, S   utils.Vector // Point locations defining element in [-1,1] Triangle
 	N      int          // Order of element
 }
@@ -52,8 +53,9 @@ func (rt *RTElement) ProjectFunctionOntoBasis(s1, s2 []float64) (s1p, s2p []floa
 			s2p[i] = s2[i]
 		case Edge1:
 			// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
-			s1p[i] = oosr2 * s1[i]
-			s2p[i] = oosr2 * s2[i]
+			dp := oosr2 * (s1[i] + s2[i])
+			s1p[i] = oosr2 * dp
+			s2p[i] = oosr2 * dp
 		case Edge2:
 			// Edge2: Unit vector is [-1,0]
 			s1p[i] = -s1[i]
@@ -238,6 +240,7 @@ func (rt *RTElement) CalculateBasis() {
 		Process the coefficient matrix to produce each direction of each polynomial (V1 and V2)
 	*/
 	rt.V1, rt.V2 = utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
+	rt.A1, rt.A2 = utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
 	for j := 0; j < Np; j++ { // Process a column at a time, each column is a polynomial
 		/*
 			First, we extract the coefficients for each direction in this j-th polynomial
@@ -259,6 +262,11 @@ func (rt *RTElement) CalculateBasis() {
 				p2[i] = coeff
 			}
 		}
+		/*
+			Load the evaluated polynomial into the j-th column of the Vandermonde matrices
+		*/
+		rt.A1.SetCol(j, p1)
+		rt.A2.SetCol(j, p2)
 		/*
 			Evaluate the basis at this location, then multiply each term by its polynomial coefficient
 		*/
@@ -321,10 +329,11 @@ func (rt *RTElement) EvaluatePolynomial(j int, r, s float64) (p1, p2 float64) {
 			p(r,s) = sum(coeff_i*P_i(r,s))
 		for each direction [1,2]
 	*/
-	coeffs1 := rt.V1.Col(j).Data()
-	coeffs2 := rt.V2.Col(j).Data()
+	coeffs1 := rt.A1.Col(j).Data()
+	coeffs2 := rt.A2.Col(j).Data()
 	b1, b2 := rt.EvaluateRTBasis(r, s)
 	for i := range coeffs1 {
+		//fmt.Printf("term(%d} = [%8.5f, %8.5f]\n", i, coeffs1[i]*b1[i], coeffs2[i]*b2[i])
 		p1 += coeffs1[i] * b1[i]
 		p2 += coeffs2[i] * b2[i]
 	}

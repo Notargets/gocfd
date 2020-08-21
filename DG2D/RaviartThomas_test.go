@@ -35,18 +35,21 @@ func TestRTElement(t *testing.T) {
 		})
 		assert.True(t, nearVec(checkV1.Data(), rt.V1.Data(), 0.000001))
 		assert.True(t, nearVec(checkV2.Data(), rt.V2.Data(), 0.000001))
-		s1, s2 := make([]float64, rt.R.Len()), make([]float64, rt.R.Len())
-		s1[0], s2[0] = oosr2, oosr2
-		s1[1], s2[1] = -1, 0
-		s1[2], s2[2] = 0, -1
-		var f1, f2 float64
-		for i := range rt.R.Data() {
-			r, s := rt.R.AtVec(i), rt.S.AtVec(i)
-			f1, f2 = rt.Interpolate(r, s, s1, s2)
-			fmt.Printf("f(%8.3f,%8.3f)= %8.3f,%8.3f, fi() = %8.3f,%8.3f\n", r, s, s1[i], s2[i], f1, f2)
-			// The interpolated values should be equal to the input values at defining geom points
-			//			assert.True(t, near(s1[i], f1, 0.000001*s1[i]))
-			//			assert.True(t, near(s2[i], f2, 0.000001*s2[i]))
+		for j := range rt.R.Data() {
+			r, s := rt.R.AtVec(j), rt.S.AtVec(j)
+			p1, p2 := rt.EvaluatePolynomial(j, r, s)
+			fmt.Printf("poly[%d] at (%8.5f, %8.5f) = [%8.5f, %8.5f]\n", j, r, s, p1, p2)
+			switch j {
+			case 0: // Edge 1
+				assert.True(t, near(oosr2, p1, 0.00001))
+				assert.True(t, near(oosr2, p2, 0.00001))
+			case 1: // Edge 2
+				assert.True(t, near(-1, p1, 0.00001))
+				assert.True(t, near(0.5, p2, 0.00001))
+			case 2: // Edge 3
+				assert.True(t, near(0.5, p1, 0.00001))
+				assert.True(t, near(-1, p2, 0.00001))
+			}
 		}
 	}
 	if false {
