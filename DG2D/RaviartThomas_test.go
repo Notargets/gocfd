@@ -77,7 +77,6 @@ func TestRTElement(t *testing.T) {
 			rowG3 := rt.A1.Row(i)
 			Ainv.M.SetRow(i, rowG3.Data())
 		}
-		fmt.Println(Ainv.Print("Ainv"))
 		// Matlab solution
 		CheckAinv := utils.NewMatrix(Np, Np, []float64{
 			0.75, -0.75, 0.3536, 0.3536, 0.4045, -0.1545, -0.4045, 0.1545,
@@ -91,6 +90,29 @@ func TestRTElement(t *testing.T) {
 		})
 		assert.True(t, nearVec(CheckAinv.Data(), Ainv.Data(), 0.001))
 
+		// Verify Vandermonde matrices against Matlab solution
+		CheckV1 := utils.NewMatrix(Np, Np, []float64{
+			1.0, 0, 0, 0, 0, 0, 0, 0,
+			1.0, 0, 0, 0, 0, 0, 0, 0,
+			0.6, -0.6, 1.023, 0, 0.2472, 0.07639, -0.5236, 0.6472,
+			0.6, -0.6, 0, 0.3909, 0.5236, -0.6472, -0.2472, -0.07639,
+			0, 0, 0, 0, -1.0, 0, 0, 0,
+			0, 0, 0, 0, 0, -1.0, 0, 0,
+			1.2, 0.6, -0.108, -0.3496, -0.6472, 0.5236, 0.2764, 0,
+			1.2, 0.6, 0.9153, -0.7405, 0.07639, 0.2472, 0, 0.7236,
+		})
+		CheckV2 := utils.NewMatrix(Np, Np, []float64{
+			0, 1.0, 0, 0, 0, 0, 0, 0,
+			0, 1.0, 0, 0, 0, 0, 0, 0,
+			-0.6, 0.6, 0.3909, 0, -0.2472, -0.07639, 0.5236, -0.6472,
+			-0.6, 0.6, 0, 1.023, -0.5236, 0.6472, 0.2472, 0.07639,
+			0.6, 1.2, -0.3496, -0.108, 0.2764, 0, -0.6472, 0.5236,
+			0.6, 1.2, -0.7405, 0.9153, 0, 0.7236, 0.07639, 0.2472,
+			0, 0, 0, 0, 0, 0, -1.0, 0,
+			0, 0, 0, 0, 0, 0, 0, -1.0,
+		})
+		assert.True(t, nearVec(CheckV1.Data(), rt.V1.Data(), 0.001))
+		assert.True(t, nearVec(CheckV2.Data(), rt.V2.Data(), 0.001))
 	}
 	plot := false
 	if plot {
