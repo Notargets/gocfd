@@ -369,8 +369,19 @@ func (rt *RTElement) EvaluateRTBasis(r, s float64, derivO ...DerivativeDirection
 	for i := 0; i <= N; i++ {
 		j := N - i
 		val := tFunc(r, s, i, j)
-		p1[sk] = val * r
-		p2[sk] = val * s
+		switch deriv {
+		case None:
+			p1[sk] = val * r
+			p2[sk] = val * s
+		case Dr:
+			val2 := PolyTerm2D(r, s, i, j)
+			p1[sk] = val2 + val*r
+			p2[sk] = val * s
+		case Ds:
+			val2 := PolyTerm2D(r, s, i, j)
+			p1[sk] = val * r
+			p2[sk] = val2 + val*s
+		}
 		sk++
 	}
 	return
