@@ -9,10 +9,12 @@ import (
 )
 
 type RTElement struct {
-	V1, V2 utils.Matrix // Vandermonde matrix for each direction r and s
-	A1, A2 utils.Matrix // Polynomial coefficient matrix for each direction r and s
-	R, S   utils.Vector // Point locations defining element in [-1,1] Triangle
-	N      int          // Order of element
+	V1, V2   utils.Matrix // Vandermonde matrix for each direction r and s
+	A1, A2   utils.Matrix // Polynomial coefficient matrix for each direction r and s
+	Dr1, Dr2 utils.Matrix // Derivative matrices in r and s directions
+	Ds1, Ds2 utils.Matrix
+	R, S     utils.Vector // Point locations defining element in [-1,1] Triangle
+	N        int          // Order of element
 }
 
 type RTPointType uint
@@ -285,6 +287,20 @@ func (rt *RTElement) CalculateBasis() {
 		*/
 		rt.V1.SetCol(j, px)
 		rt.V2.SetCol(j, py)
+	}
+	// Create derivative matrices, Dr and Ds
+	rt.Dr1, rt.Dr2 = utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
+	rt.Ds1, rt.Ds2 = utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
+	for i := 0; i < Np; i++ {
+		rr, ss := rt.R.Data()[i], rt.S.Data()[i]
+		for j := 0; j < Np; j++ {
+			p1, p2 := rt.EvaluatePolynomial(j, rr, ss, Dr)
+			rt.Dr1.M.Set(i, j, p1)
+			rt.Dr2.M.Set(i, j, p2)
+			p1, p2 = rt.EvaluatePolynomial(j, rr, ss, Ds)
+			rt.Ds1.M.Set(i, j, p1)
+			rt.Ds2.M.Set(i, j, p2)
+		}
 	}
 	return
 }

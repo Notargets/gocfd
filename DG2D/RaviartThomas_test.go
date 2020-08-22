@@ -113,6 +113,10 @@ func TestRTElement(t *testing.T) {
 		})
 		assert.True(t, nearVec(CheckV1.Data(), rt.V1.Data(), 0.001))
 		assert.True(t, nearVec(CheckV2.Data(), rt.V2.Data(), 0.001))
+		fmt.Println(rt.Dr1.Print("Dr1"))
+		fmt.Println(rt.Dr2.Print("Dr2"))
+		fmt.Println(rt.Ds1.Print("Ds1"))
+		fmt.Println(rt.Ds2.Print("Ds2"))
 	}
 	plot := false
 	if plot {
