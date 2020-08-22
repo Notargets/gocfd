@@ -289,23 +289,60 @@ func (rt *RTElement) CalculateBasis() {
 	return
 }
 
-func (rt *RTElement) EvaluateRTBasis(r, s float64) (p1, p2 []float64) {
+type DerivativeDirection uint8
+
+const (
+	None DerivativeDirection = iota
+	Dr
+	Ds
+)
+
+func (rt *RTElement) EvaluateRTBasis(r, s float64, derivO ...DerivativeDirection) (p1, p2 []float64) {
 	var (
 		sk       int
 		N        = rt.N
 		Np       = (N + 1) * (N + 3)
 		N2DBasis = (N + 1) * (N + 2) / 2 // Number of polynomial terms for each of R and S directions
+		deriv    = None
+		tFunc    func(r, s float64, i, j int) (val float64)
 	)
+	if len(derivO) != 0 {
+		deriv = derivO[0]
+	}
 	PolyTerm2D := func(r, s float64, i, j int) (val float64) {
 		// Note this only outputs the value of the (i,j)th term of the 2D polynomial
 		val = utils.POW(r, j) * utils.POW(s, i)
 		return
 	}
+	DrPolyTerm2D := func(r, s float64, i, j int) (val float64) {
+		// Note this only outputs the value of the (i,j)th term of the 2D polynomial
+		if j-1 < 0 {
+			return 0
+		}
+		val = float64(j) * utils.POW(r, j-1) * utils.POW(s, i)
+		return
+	}
+	DsPolyTerm2D := func(r, s float64, i, j int) (val float64) {
+		// Note this only outputs the value of the (i,j)th term of the 2D polynomial
+		if i-1 < 0 {
+			return 0
+		}
+		val = float64(i) * utils.POW(r, j) * utils.POW(s, i-1)
+		return
+	}
+	switch deriv {
+	case None:
+		tFunc = PolyTerm2D
+	case Dr:
+		tFunc = DrPolyTerm2D
+	case Ds:
+		tFunc = DsPolyTerm2D
+	}
 	p1, p2 = make([]float64, Np), make([]float64, Np)
 	// Evaluate the full 2D polynomial basis first, once for each of two components
 	for i := 0; i <= N; i++ {
 		for j := 0; j <= (N - i); j++ {
-			val := PolyTerm2D(r, s, i, j)
+			val := tFunc(r, s, i, j)
 			p1[sk] = val
 			p2[sk+N2DBasis] = val
 			sk++
@@ -315,7 +352,7 @@ func (rt *RTElement) EvaluateRTBasis(r, s float64) (p1, p2 []float64) {
 	sk += N2DBasis // Skip to the beginning of the second polynomial group
 	for i := 0; i <= N; i++ {
 		j := N - i
-		val := PolyTerm2D(r, s, i, j)
+		val := tFunc(r, s, i, j)
 		p1[sk] = val * r
 		p2[sk] = val * s
 		sk++
@@ -323,15 +360,21 @@ func (rt *RTElement) EvaluateRTBasis(r, s float64) (p1, p2 []float64) {
 	return
 }
 
-func (rt *RTElement) EvaluatePolynomial(j int, r, s float64) (p1, p2 float64) {
+func (rt *RTElement) EvaluatePolynomial(j int, r, s float64, derivO ...DerivativeDirection) (p1, p2 float64) {
 	/*
 		Get the coefficients for the j-th polynomial and compute:
 			p(r,s) = sum(coeff_i*P_i(r,s))
 		for each direction [1,2]
 	*/
+	var (
+		deriv = None
+	)
+	if len(derivO) != 0 {
+		deriv = derivO[0]
+	}
 	coeffs1 := rt.A1.Col(j).Data()
 	coeffs2 := rt.A2.Col(j).Data()
-	b1, b2 := rt.EvaluateRTBasis(r, s)
+	b1, b2 := rt.EvaluateRTBasis(r, s, deriv)
 	for i := range coeffs1 {
 		//fmt.Printf("term(%d} = [%8.5f, %8.5f]\n", i, coeffs1[i]*b1[i], coeffs2[i]*b2[i])
 		p1 += coeffs1[i] * b1[i]
