@@ -9,8 +9,8 @@ import (
 )
 
 type RTElement struct {
-	V1, V2   utils.Matrix // Vandermonde matrix for each direction r and s
 	A1, A2   utils.Matrix // Polynomial coefficient matrix for each direction r and s
+	V1, V2   utils.Matrix // Vandermonde matrix for each direction r and s
 	Dr1, Dr2 utils.Matrix // Derivative matrices in r and s directions
 	Ds1, Ds2 utils.Matrix
 	R, S     utils.Vector // Point locations defining element in [-1,1] Triangle
@@ -196,7 +196,6 @@ func (rt *RTElement) CalculateBasis() {
 	rowEdge := make([]float64, Np)
 	oosr2 := 1 / math.Sqrt(2)
 
-	fmt.Printf("rt.N = %v\n", rt.N)
 	// Evaluate at geometric locations
 	for ii, rr := range rt.R.Data() {
 		ss := rt.S.Data()[ii]

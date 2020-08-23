@@ -184,6 +184,61 @@ func TestRTElement(t *testing.T) {
 			sleepForever()
 		}
 	}
+	// Check Gradient
+	{
+		Nend := 3
+		for N := 1; N < Nend; N++ {
+			R, S := NodesEpsilon(N - 1)
+			rt := NewRTElement(N, R, S)
+			s1, s2 := make([]float64, rt.R.Len()), make([]float64, rt.R.Len())
+			for i := range rt.R.Data() {
+				arg1 := rt.S.Data()[i] * math.Pi
+				arg2 := rt.R.Data()[i] * math.Pi
+				s1[i] = math.Sin(arg1)
+				s2[i] = math.Sin(arg2)
+			}
+			s1, s2 = rt.ProjectFunctionOntoBasis(s1, s2)
+			Np := (N + 1) * (N + 3)
+			S1, S2 := utils.NewMatrix(Np, 1, s1), utils.NewMatrix(Np, 1, s2)
+			s1Dr1 := rt.Dr1.Mul(S1)
+			s1Dr2 := rt.Dr2.Mul(S1)
+			s2Ds1 := rt.Ds1.Mul(S2)
+			s2Ds2 := rt.Ds2.Mul(S2)
+			/*
+				fmt.Println(s1Dr1.Print("s1Dr1"))
+				fmt.Println(s1Dr2.Print("s1Dr2"))
+				fmt.Println(s2Dr1.Print("s2Dr1"))
+				fmt.Println(s2Dr2.Print("s2Dr2"))
+			*/
+			// Restrict gradient to internal points
+			var err1, err2 float64
+			Nint := N * (N + 1) / 2
+			sdr1, sdr2 := make([]float64, Nint), make([]float64, Nint)
+			sds1, sds2 := make([]float64, Nint), make([]float64, Nint)
+			for i := 0; i < Nint; i++ {
+				sdr1[i] = s1Dr1.Data()[i]
+				sdr2[i] = s1Dr2.Data()[i+Nint]
+				sds1[i] = s2Ds1.Data()[i]
+				sds2[i] = s2Ds2.Data()[i+Nint]
+				arg1 := rt.S.Data()[i] * math.Pi
+				arg2 := rt.R.Data()[i] * math.Pi
+				// d/dR
+				c11 := 0.
+				c12 := math.Cos(arg2)
+				// d/dS
+				c21 := math.Cos(arg1)
+				c22 := 0.
+				err1 += utils.POW(sdr1[i]-c11, 2) + utils.POW(sdr2[i]-c12, 2)
+				err2 += utils.POW(sds1[i]-c21, 2) + utils.POW(sds2[i]-c22, 2)
+				fmt.Printf("sdr1[%d]=%8.5f, c11=%8.5f, sdr2[%d]=%8.5f, c12=%8.5f\n",
+					i, sdr1[i], c11, i, sdr2[i], c12)
+			}
+			samples := float64(Nint)
+			err1 = math.Sqrt(err1 / samples)
+			err2 = math.Sqrt(err2 / samples)
+			fmt.Printf("Order = %d, Errors in d/dR = %8.5f, d/dS = %8.5f\n", N, err1, err2)
+		}
+	}
 }
 
 func arraysToVector(r1, r2 []float64, scaleO ...float64) (g [][2]float64) {
