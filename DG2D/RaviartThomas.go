@@ -9,12 +9,13 @@ import (
 )
 
 type RTElement struct {
-	A1, A2   utils.Matrix // Polynomial coefficient matrix for each direction r and s
-	V1, V2   utils.Matrix // Vandermonde matrix for each direction r and s
-	Dr1, Dr2 utils.Matrix // Derivative matrices in r and s directions
-	Ds1, Ds2 utils.Matrix
-	R, S     utils.Vector // Point locations defining element in [-1,1] Triangle
-	N        int          // Order of element
+	A1, A2       utils.Matrix // Polynomial coefficient matrix for each direction r and s
+	V1, V2       utils.Matrix // Vandermonde matrix for each direction r and s
+	V1Inv, V2Inv utils.Matrix
+	Dr1, Dr2     utils.Matrix // Derivative matrices in r and s directions
+	Ds1, Ds2     utils.Matrix
+	R, S         utils.Vector // Point locations defining element in [-1,1] Triangle
+	N            int          // Order of element
 }
 
 type RTPointType uint
@@ -301,6 +302,17 @@ func (rt *RTElement) CalculateBasis() {
 			rt.Ds2.M.Set(i, j, p2)
 		}
 	}
+	if rt.N != 0 {
+		rt.V1, rt.V2 = CombineBasis(rt.N, rt.V1, rt.V2)
+		rt.Dr1, rt.Dr2 = CombineBasis(rt.N, rt.Dr1, rt.Dr2)
+		rt.Ds1, rt.Ds2 = CombineBasis(rt.N, rt.Ds1, rt.Ds2)
+		if rt.V1Inv, err = rt.V1.Inverse(); err != nil {
+			panic(err)
+		}
+		if rt.V2Inv, err = rt.V2.Inverse(); err != nil {
+			panic(err)
+		}
+	}
 	return
 }
 
@@ -558,5 +570,43 @@ func NodesEpsilon(N int) (R, S utils.Vector) {
 	RS := T.Mul(eps)
 	R = RS.Row(0)
 	S = RS.Row(1)
+	return
+}
+
+func CombineBasis(N int, V1, V2 utils.Matrix) (V1m, V2m utils.Matrix) {
+	// Merge the R and S terms for the interior points, where there is duplication in the basis
+	var (
+		Npm  = (N + 6) * (N + 1) / 2 // Number of points in basis with one set of interior points with a vector for R and S
+		Np   = (N + 3) * (N + 1)
+		Nint = N * (N + 1) / 2
+	)
+	trimFloat := func(in float64) (out float64) {
+		thresh := 1.e-12
+		if math.Abs(in) > thresh {
+			out = in
+		}
+		return
+	}
+	V1m, V2m = utils.NewMatrix(Npm, Npm), utils.NewMatrix(Npm, Npm)
+	var j1m, j2m int
+	for j := 0; j < Np; j++ {
+		var i1m, i2m int
+		for i := 0; i < Np; i++ {
+			V1m.M.Set(i1m, j1m, trimFloat(V1.At(i, j)))
+			V2m.M.Set(i2m, j2m, trimFloat(V2.At(i, j)))
+			if i < Nint || i >= 2*Nint {
+				i1m++
+			}
+			if i >= Nint {
+				i2m++
+			}
+		}
+		if j < Nint || j >= 2*Nint {
+			j1m++
+		}
+		if j >= Nint {
+			j2m++
+		}
+	}
 	return
 }

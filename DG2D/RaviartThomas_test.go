@@ -38,7 +38,7 @@ func TestRTElement(t *testing.T) {
 		for j := range rt.R.Data() {
 			r, s := rt.R.AtVec(j), rt.S.AtVec(j)
 			p1, p2 := rt.EvaluatePolynomial(j, r, s)
-			fmt.Printf("poly[%d] at (%8.5f, %8.5f) = [%8.5f, %8.5f]\n", j, r, s, p1, p2)
+			//			fmt.Printf("poly[%d] at (%8.5f, %8.5f) = [%8.5f, %8.5f]\n", j, r, s, p1, p2)
 			switch j {
 			case 0: // Edge 1
 				assert.True(t, near(oosr2, p1, 0.00001))
@@ -57,8 +57,6 @@ func TestRTElement(t *testing.T) {
 		NRT := N + 1
 		R, S := NodesEpsilon(N)
 		rt := NewRTElement(NRT, R, S)
-		nr, _ := rt.V1.Dims()
-		assert.Equal(t, (NRT+1)*(NRT+3), nr)
 		assert.Equal(t, (NRT+1)*(NRT+3), rt.R.Len())
 		assert.Equal(t, (NRT+1)*(NRT+3), rt.S.Len())
 		/*
@@ -111,6 +109,7 @@ func TestRTElement(t *testing.T) {
 			0, 0, 0, 0, 0, 0, -1.0, 0,
 			0, 0, 0, 0, 0, 0, 0, -1.0,
 		})
+		CheckV1, CheckV2 = CombineBasis(rt.N, CheckV1, CheckV2)
 		assert.True(t, nearVec(CheckV1.Data(), rt.V1.Data(), 0.001))
 		assert.True(t, nearVec(CheckV2.Data(), rt.V2.Data(), 0.001))
 		// Validate derivative matrices against Matlab solution
@@ -134,6 +133,7 @@ func TestRTElement(t *testing.T) {
 			0, 0, 0, 0, 0, 0, 1.118, -1.118,
 			0, 0, 0, 0, 0, 0, 1.118, -1.118,
 		})
+		CheckDr1, CheckDr2 = CombineBasis(rt.N, CheckDr1, CheckDr2)
 		assert.True(t, nearVec(CheckDr1.Data(), rt.Dr1.Data(), 0.001))
 		assert.True(t, nearVec(CheckDr2.Data(), rt.Dr2.Data(), 0.001))
 		CheckDs1 := utils.NewMatrix(Np, Np, []float64{
@@ -156,6 +156,7 @@ func TestRTElement(t *testing.T) {
 			0.6708, 2.585, -0.1954, -0.6325, 0.4472, -0.3618, 1.809, 0.191,
 			-0.6708, 1.915, 0.6325, -0.5117, -0.1382, -0.4472, 1.309, 0.691,
 		})
+		CheckDs1, CheckDs2 = CombineBasis(rt.N, CheckDs1, CheckDs2)
 		assert.True(t, nearVec(CheckDs1.Data(), rt.Ds1.Data(), 0.001))
 		assert.True(t, nearVec(CheckDs2.Data(), rt.Ds2.Data(), 0.001))
 	}
@@ -186,40 +187,38 @@ func TestRTElement(t *testing.T) {
 	}
 	// Check Gradient
 	{
-		Nend := 3
+		Nend := 8
 		for N := 1; N < Nend; N++ {
 			R, S := NodesEpsilon(N - 1)
 			rt := NewRTElement(N, R, S)
-			s1, s2 := make([]float64, rt.R.Len()), make([]float64, rt.R.Len())
-			for i := range rt.R.Data() {
+			Npm := (N + 6) * (N + 1) / 2
+			Nint := N * (N + 1) / 2
+			s1, s2 := make([]float64, Npm), make([]float64, Npm)
+			for i := 0; i < Nint; i++ {
 				arg1 := rt.S.Data()[i] * math.Pi
 				arg2 := rt.R.Data()[i] * math.Pi
 				s1[i] = math.Sin(arg1)
 				s2[i] = math.Sin(arg2)
+				/*
+					arg1 := rt.R.Data()[i1m]
+					arg2 := rt.S.Data()[i2m]
+					s1[i1m] = arg2
+					s2[i2m] = arg1
+				*/
 			}
 			s1, s2 = rt.ProjectFunctionOntoBasis(s1, s2)
-			Np := (N + 1) * (N + 3)
-			S1, S2 := utils.NewMatrix(Np, 1, s1), utils.NewMatrix(Np, 1, s2)
-			s1Dr1 := rt.Dr1.Mul(S1)
-			s1Dr2 := rt.Dr2.Mul(S1)
-			s2Ds1 := rt.Ds1.Mul(S2)
-			s2Ds2 := rt.Ds2.Mul(S2)
-			/*
-				fmt.Println(s1Dr1.Print("s1Dr1"))
-				fmt.Println(s1Dr2.Print("s1Dr2"))
-				fmt.Println(s2Dr1.Print("s2Dr1"))
-				fmt.Println(s2Dr2.Print("s2Dr2"))
-			*/
+			S1, S2 := utils.NewMatrix(Npm, 1, s1), utils.NewMatrix(Npm, 1, s2)
+			s1Dr1 := rt.Dr1.Mul(rt.V1Inv).Mul(S1)
+			s1Dr2 := rt.Dr2.Mul(rt.V2Inv).Mul(S1)
+			s2Ds1 := rt.Ds1.Mul(rt.V1Inv).Mul(S2)
+			s2Ds2 := rt.Ds2.Mul(rt.V2Inv).Mul(S2)
 			// Restrict gradient to internal points
 			var err1, err2 float64
-			Nint := N * (N + 1) / 2
-			sdr1, sdr2 := make([]float64, Nint), make([]float64, Nint)
-			sds1, sds2 := make([]float64, Nint), make([]float64, Nint)
 			for i := 0; i < Nint; i++ {
-				sdr1[i] = s1Dr1.Data()[i]
-				sdr2[i] = s1Dr2.Data()[i+Nint]
-				sds1[i] = s2Ds1.Data()[i]
-				sds2[i] = s2Ds2.Data()[i+Nint]
+				sdr1 := s1Dr1.Data()[i]
+				sdr2 := s1Dr2.Data()[i]
+				sds1 := s2Ds1.Data()[i]
+				sds2 := s2Ds2.Data()[i]
 				arg1 := rt.S.Data()[i] * math.Pi
 				arg2 := rt.R.Data()[i] * math.Pi
 				// d/dR
@@ -228,10 +227,18 @@ func TestRTElement(t *testing.T) {
 				// d/dS
 				c21 := math.Cos(arg1)
 				c22 := 0.
-				err1 += utils.POW(sdr1[i]-c11, 2) + utils.POW(sdr2[i]-c12, 2)
-				err2 += utils.POW(sds1[i]-c21, 2) + utils.POW(sds2[i]-c22, 2)
-				fmt.Printf("sdr1[%d]=%8.5f, c11=%8.5f, sdr2[%d]=%8.5f, c12=%8.5f\n",
-					i, sdr1[i], c11, i, sdr2[i], c12)
+				/*
+					// d/dR
+					c11 := 0.
+					c12 := 1.
+					// d/dS
+					c21 := 1.
+					c22 := 0.
+				*/
+				err1 += utils.POW(sdr1-c11, 2) + utils.POW(sdr2-c12, 2)
+				err2 += utils.POW(sds1-c21, 2) + utils.POW(sds2-c22, 2)
+				//fmt.Printf("sdr1[%d]=%8.5f, c11=%8.5f, sdr2[%d]=%8.5f, c12=%8.5f\n",
+				//	i, sdr1[i], c11, i, sdr2[i], c12)
 			}
 			samples := float64(Nint)
 			err1 = math.Sqrt(err1 / samples)
