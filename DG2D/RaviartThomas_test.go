@@ -194,7 +194,6 @@ func TestRTElement(t *testing.T) {
 			R, S := NodesEpsilon(N - 1)
 			rt := NewRTElement(N, R, S)
 			Npm := (N + 6) * (N + 1) / 2
-			fmt.Printf("Length of geoms = %2d, N = %2d, Npm = %2d, ", rt.R.Len(), N, rt.Npm)
 			s1, s2 := make([]float64, Npm), make([]float64, Npm)
 			for i := 0; i < Npm; i++ {
 				r := rt.R.Data()[i]
@@ -206,6 +205,7 @@ func TestRTElement(t *testing.T) {
 			div := rt.Divergence(s1, s2)
 			// Restrict divergence to internal points
 			var err1 float64
+			errors := make([]float64, Npm)
 			for i := 0; i < Npm; i++ {
 				r := rt.R.Data()[i]
 				s := rt.S.Data()[i]
@@ -216,11 +216,35 @@ func TestRTElement(t *testing.T) {
 				c21 := math.Cos(s)
 				c22 := 0.
 				divCheck := c11 + c12 + c21 + c22
-				err1 += utils.POW(div[i]-divCheck, 2)
+				error := div[i] - divCheck
+				errors[i] = error
+			}
+			minerrInt, maxerrInt := errors[0], errors[0]
+			minerrEdge, maxerrEdge := errors[0], errors[0]
+			Nint := N * (N + 1) / 2
+			for i := 0; i < Nint; i++ {
+				errAbs := math.Abs(errors[i])
+				if minerrInt > errAbs {
+					minerrInt = errAbs
+				}
+				if maxerrInt < errAbs {
+					maxerrInt = errAbs
+				}
+			}
+			for i := Nint; i < Npm; i++ {
+				errAbs := math.Abs(errors[i])
+				if minerrEdge > errAbs {
+					minerrEdge = errAbs
+				}
+				if maxerrEdge < errAbs {
+					maxerrEdge = errAbs
+				}
 			}
 			samples := float64(Npm)
 			err1 = math.Sqrt(err1 / samples)
-			fmt.Printf("Order = %d, Errors in div = %8.5f\n", N, err1)
+			fmt.Printf("Order = %d, ", N)
+			fmt.Printf("Min, Max Int Err = %8.5f, %8.5f, Min, Max Edge Err = %8.5f, %8.5f\n", minerrInt, maxerrInt, minerrEdge, maxerrEdge)
+			//fmt.Printf("Errors = %v\n", errors)
 		}
 	}
 }
