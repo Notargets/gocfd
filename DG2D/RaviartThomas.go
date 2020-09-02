@@ -40,6 +40,35 @@ func NewRTElement(N int, R, S utils.Vector) (rt *RTElement) {
 	return
 }
 
+func (rt *RTElement) ProjectFunctionOntoBasis2(s1, s2 []float64) (s1p, s2p []float64) {
+	var (
+		Np    = len(s1)
+		N     = rt.N
+		Nint  = N * (N + 1) / 2
+		Nedge = N + 1
+	)
+	s1p, s2p = make([]float64, Np), make([]float64, Np)
+
+	oosr2 := 1 / math.Sqrt(2)
+	for i := 0; i < Nint; i++ {
+		s1p[i] = s1[i]
+		s2p[i] = s2[i]
+	}
+	for i := 0; i < Nedge; i++ {
+		// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
+		dp := oosr2 * (s1[i+Nint] + s2[i+Nint])
+		s1p[i+Nint] = oosr2 * dp
+		s2p[i+Nint] = oosr2 * dp
+		// Edge2: Unit vector is [-1,0]
+		s1p[i+Nint+Nedge] = -s1[i+Nint+Nedge]
+		s2p[i+Nint+Nedge] = 0
+		// Edge3: // Unit vector is [0,-1]
+		s1p[i+Nint+2*Nedge] = 0
+		s2p[i+Nint+2*Nedge] = -s2[i+Nint+2*Nedge]
+	}
+	return
+}
+
 func (rt *RTElement) ProjectFunctionOntoBasis(s1, s2 []float64) (s1p, s2p []float64) {
 	var (
 		Np = len(s1)

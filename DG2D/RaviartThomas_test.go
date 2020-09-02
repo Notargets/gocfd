@@ -177,7 +177,7 @@ func TestRTElement(t *testing.T) {
 			s1[i] = 1
 			s2[i] = 1
 		}
-		s1, s2 = rt.ProjectFunctionOntoBasis(s1, s2)
+		s1, s2 = rt.ProjectFunctionOntoBasis2(s1, s2)
 
 		if plot {
 			chart := PlotTestTri(true)
@@ -203,7 +203,7 @@ func TestRTElement(t *testing.T) {
 				s1[i] = math.Sin(s)
 				s2[i] = math.Sin(r)
 			}
-			s1, s2 = rt.ProjectFunctionOntoBasis(s1, s2)
+			s1, s2 = rt.ProjectFunctionOntoBasis2(s1, s2)
 			div := rt.Divergence(s1, s2)
 			// Restrict divergence to internal points
 			var err1 float64
