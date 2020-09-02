@@ -198,30 +198,27 @@ func TestRTElement(t *testing.T) {
 			for i := 0; i < Npm; i++ {
 				r := rt.R.Data()[i]
 				s := rt.S.Data()[i]
-				s1[i] = math.Sin(s)
-				s2[i] = math.Sin(r)
+				s1[i] = r * r
+				s2[i] = s * s
 			}
 			s1, s2 = rt.ProjectFunctionOntoBasis2(s1, s2)
 			div := rt.Divergence(s1, s2)
 			// Restrict divergence to internal points
-			var err1 float64
 			errors := make([]float64, Npm)
 			for i := 0; i < Npm; i++ {
 				r := rt.R.Data()[i]
 				s := rt.S.Data()[i]
 				// d/dR
-				c11 := 0.
-				c12 := math.Cos(r)
+				ddr := 2 * r
 				// d/dS
-				c21 := math.Cos(s)
-				c22 := 0.
-				divCheck := c11 + c12 + c21 + c22
+				dds := 2 * s
+				divCheck := ddr + dds
 				error := div[i] - divCheck
 				errors[i] = error
 			}
 			minerrInt, maxerrInt := errors[0], errors[0]
-			minerrEdge, maxerrEdge := errors[0], errors[0]
 			Nint := N * (N + 1) / 2
+			minerrEdge, maxerrEdge := errors[Nint], errors[Nint]
 			for i := 0; i < Nint; i++ {
 				errAbs := math.Abs(errors[i])
 				if minerrInt > errAbs {
@@ -240,8 +237,6 @@ func TestRTElement(t *testing.T) {
 					maxerrEdge = errAbs
 				}
 			}
-			samples := float64(Npm)
-			err1 = math.Sqrt(err1 / samples)
 			fmt.Printf("Order = %d, ", N)
 			fmt.Printf("Min, Max Int Err = %8.5f, %8.5f, Min, Max Edge Err = %8.5f, %8.5f\n", minerrInt, maxerrInt, minerrEdge, maxerrEdge)
 			//fmt.Printf("Errors = %v\n", errors)

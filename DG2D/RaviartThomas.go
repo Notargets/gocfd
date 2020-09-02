@@ -369,7 +369,7 @@ func (rt *RTElement) Divergence(f1, f2 []float64) (div []float64) {
 	if len(f1) != rt.Npm || len(f2) != rt.Npm {
 		panic(fmt.Errorf("wrong input number of points, should be %d, is %d\n", rt.Npm, len(f1)))
 	}
-	divV := rt.Ds2.Mul(fV2).Add(rt.Ds1.Mul(fV1).Add(rt.Dr2.Mul(fV2).Add(rt.Dr1.Mul(fV1))))
+	divV := rt.Ds2.Mul(fV2).Add(rt.Dr1.Mul(fV1))
 	div = divV.Data()
 	return
 }
