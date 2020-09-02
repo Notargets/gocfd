@@ -195,7 +195,6 @@ func TestRTElement(t *testing.T) {
 			rt := NewRTElement(N, R, S)
 			Npm := (N + 6) * (N + 1) / 2
 			fmt.Printf("Length of geoms = %2d, N = %2d, Npm = %2d, ", rt.R.Len(), N, rt.Npm)
-			Nint := N * (N + 1) / 2
 			s1, s2 := make([]float64, Npm), make([]float64, Npm)
 			for i := 0; i < Npm; i++ {
 				r := rt.R.Data()[i]
@@ -212,14 +211,14 @@ func TestRTElement(t *testing.T) {
 				s := rt.S.Data()[i]
 				// d/dR
 				c11 := 0.
-				c12 := math.Cos(s)
+				c12 := math.Cos(r)
 				// d/dS
-				c21 := math.Cos(r)
+				c21 := math.Cos(s)
 				c22 := 0.
 				divCheck := c11 + c12 + c21 + c22
 				err1 += utils.POW(div[i]-divCheck, 2)
 			}
-			samples := float64(Nint)
+			samples := float64(Npm)
 			err1 = math.Sqrt(err1 / samples)
 			fmt.Printf("Order = %d, Errors in div = %8.5f\n", N, err1)
 		}
