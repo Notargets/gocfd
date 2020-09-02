@@ -186,6 +186,8 @@ func (rt *RTElement) CalculateBasis() {
 		N      = rt.N
 		R, S   = rt.R, rt.S
 		Np     = (N + 1) * (N + 3)
+		Npm    = (N + 6) * (N + 1) / 2
+		Nint   = N * (N + 1) / 2
 		A      utils.Matrix
 		p1, p2 []float64
 	)
@@ -313,8 +315,20 @@ func (rt *RTElement) CalculateBasis() {
 		if rt.V2Inv, err = rt.V2.Inverse(); err != nil {
 			panic(err)
 		}
+		rNew, sNew := make([]float64, Npm), make([]float64, Npm)
+		var ii int
+		for i := 0; i < Npm; i++ {
+			if i == Nint {
+				ii += Nint
+			}
+			rNew[i] = rt.R.Data()[ii]
+			sNew[i] = rt.S.Data()[ii]
+			ii++
+		}
+		rt.R = utils.NewVector(Npm, rNew)
+		rt.S = utils.NewVector(Npm, sNew)
 	}
-	rt.Npm = (N + 6) * (N + 1) / 2
+	rt.Npm = Npm
 	return
 }
 

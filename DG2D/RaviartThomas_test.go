@@ -57,8 +57,10 @@ func TestRTElement(t *testing.T) {
 		NRT := N + 1
 		R, S := NodesEpsilon(N)
 		rt := NewRTElement(NRT, R, S)
-		assert.Equal(t, (NRT+1)*(NRT+3), rt.R.Len())
-		assert.Equal(t, (NRT+1)*(NRT+3), rt.S.Len())
+		//assert.Equal(t, (NRT+1)*(NRT+3), rt.R.Len())
+		//assert.Equal(t, (NRT+1)*(NRT+3), rt.S.Len())
+		assert.Equal(t, rt.Npm, rt.R.Len())
+		assert.Equal(t, rt.Npm, rt.S.Len())
 		/*
 			Reconstruct the single coefficient matrix to compare with the Matlab solution
 		*/
@@ -191,8 +193,8 @@ func TestRTElement(t *testing.T) {
 		for N := 1; N < Nend; N++ {
 			R, S := NodesEpsilon(N - 1)
 			rt := NewRTElement(N, R, S)
-			fmt.Printf("Length of geoms = %d, N = %d, (N+3)*(N+1) = %d\n", R.Len(), N, (N+3)*(N+1))
 			Npm := (N + 6) * (N + 1) / 2
+			fmt.Printf("Length of geoms = %2d, N = %2d, Npm = %2d, ", rt.R.Len(), N, rt.Npm)
 			Nint := N * (N + 1) / 2
 			s1, s2 := make([]float64, Npm), make([]float64, Npm)
 			for i := 0; i < Npm; i++ {
