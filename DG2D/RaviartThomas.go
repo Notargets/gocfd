@@ -16,6 +16,7 @@ type RTElement struct {
 	Ds1, Ds2     utils.Matrix
 	R, S         utils.Vector // Point locations defining element in [-1,1] Triangle
 	N            int          // Order of element
+	Npm          int          // Number of points in element, excluding duplicate internal points
 }
 
 type RTPointType uint
@@ -313,6 +314,20 @@ func (rt *RTElement) CalculateBasis() {
 			panic(err)
 		}
 	}
+	rt.Npm = (N + 6) * (N + 1) / 2
+	return
+}
+
+func (rt *RTElement) Divergence(f1, f2 []float64) (div []float64) {
+	var (
+		fV1 = utils.NewMatrix(len(f1), 1, f1)
+		fV2 = utils.NewMatrix(len(f2), 1, f2)
+	)
+	if len(f1) != rt.Npm || len(f2) != rt.Npm {
+		panic(fmt.Errorf("wrong input number of points, should be %d, is %d\n", rt.Npm, len(f1)))
+	}
+	divV := rt.Ds2.Mul(fV2).Add(rt.Ds1.Mul(fV1).Add(rt.Dr2.Mul(fV2).Add(rt.Dr1.Mul(fV1))))
+	div = divV.Data()
 	return
 }
 

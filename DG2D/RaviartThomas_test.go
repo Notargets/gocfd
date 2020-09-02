@@ -185,65 +185,41 @@ func TestRTElement(t *testing.T) {
 			sleepForever()
 		}
 	}
-	// Check Gradient
+	// Check Divergence
 	{
 		Nend := 8
 		for N := 1; N < Nend; N++ {
 			R, S := NodesEpsilon(N - 1)
 			rt := NewRTElement(N, R, S)
+			fmt.Printf("Length of geoms = %d, N = %d, (N+3)*(N+1) = %d\n", R.Len(), N, (N+3)*(N+1))
 			Npm := (N + 6) * (N + 1) / 2
 			Nint := N * (N + 1) / 2
 			s1, s2 := make([]float64, Npm), make([]float64, Npm)
-			for i := 0; i < Nint; i++ {
-				arg1 := rt.S.Data()[i] * math.Pi
-				arg2 := rt.R.Data()[i] * math.Pi
-				s1[i] = math.Sin(arg1)
-				s2[i] = math.Sin(arg2)
-				/*
-					arg1 := rt.R.Data()[i1m]
-					arg2 := rt.S.Data()[i2m]
-					s1[i1m] = arg2
-					s2[i2m] = arg1
-				*/
+			for i := 0; i < Npm; i++ {
+				r := rt.R.Data()[i]
+				s := rt.S.Data()[i]
+				s1[i] = math.Sin(s)
+				s2[i] = math.Sin(r)
 			}
 			s1, s2 = rt.ProjectFunctionOntoBasis(s1, s2)
-			S1, S2 := utils.NewMatrix(Npm, 1, s1), utils.NewMatrix(Npm, 1, s2)
-			s1Dr1 := rt.Dr1.Mul(rt.V1Inv).Mul(S1)
-			s1Dr2 := rt.Dr2.Mul(rt.V2Inv).Mul(S1)
-			s2Ds1 := rt.Ds1.Mul(rt.V1Inv).Mul(S2)
-			s2Ds2 := rt.Ds2.Mul(rt.V2Inv).Mul(S2)
-			// Restrict gradient to internal points
-			var err1, err2 float64
-			for i := 0; i < Nint; i++ {
-				sdr1 := s1Dr1.Data()[i]
-				sdr2 := s1Dr2.Data()[i]
-				sds1 := s2Ds1.Data()[i]
-				sds2 := s2Ds2.Data()[i]
-				arg1 := rt.S.Data()[i] * math.Pi
-				arg2 := rt.R.Data()[i] * math.Pi
+			div := rt.Divergence(s1, s2)
+			// Restrict divergence to internal points
+			var err1 float64
+			for i := 0; i < Npm; i++ {
+				r := rt.R.Data()[i]
+				s := rt.S.Data()[i]
 				// d/dR
 				c11 := 0.
-				c12 := math.Cos(arg2)
+				c12 := math.Cos(s)
 				// d/dS
-				c21 := math.Cos(arg1)
+				c21 := math.Cos(r)
 				c22 := 0.
-				/*
-					// d/dR
-					c11 := 0.
-					c12 := 1.
-					// d/dS
-					c21 := 1.
-					c22 := 0.
-				*/
-				err1 += utils.POW(sdr1-c11, 2) + utils.POW(sdr2-c12, 2)
-				err2 += utils.POW(sds1-c21, 2) + utils.POW(sds2-c22, 2)
-				//fmt.Printf("sdr1[%d]=%8.5f, c11=%8.5f, sdr2[%d]=%8.5f, c12=%8.5f\n",
-				//	i, sdr1[i], c11, i, sdr2[i], c12)
+				divCheck := c11 + c12 + c21 + c22
+				err1 += utils.POW(div[i]-divCheck, 2)
 			}
 			samples := float64(Nint)
 			err1 = math.Sqrt(err1 / samples)
-			err2 = math.Sqrt(err2 / samples)
-			fmt.Printf("Order = %d, Errors in d/dR = %8.5f, d/dS = %8.5f\n", N, err1, err2)
+			fmt.Printf("Order = %d, Errors in div = %8.5f\n", N, err1)
 		}
 	}
 }
