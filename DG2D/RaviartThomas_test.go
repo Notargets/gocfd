@@ -168,7 +168,7 @@ func TestRTElement(t *testing.T) {
 		assert.True(t, nearVec(CheckDs1.Data(), rt.Ds1.Data(), 0.001))
 		assert.True(t, nearVec(CheckDs2.Data(), rt.Ds2.Data(), 0.001))
 	}
-	plot := false
+	plot := true
 	if plot {
 		N := 6
 		NRT := N + 1
@@ -183,7 +183,7 @@ func TestRTElement(t *testing.T) {
 			s1[i] = 1
 			s2[i] = 1
 		}
-		s1, s2 = rt.ProjectFunctionOntoBasis2(s1, s2)
+		s1, s2 = rt.ProjectFunctionOntoBasis(s1, s2)
 
 		if plot {
 			chart := PlotTestTri(true)
@@ -236,7 +236,7 @@ func TestRTElement(t *testing.T) {
 				s1[i] = r * r
 				s2[i] = s * s
 			}
-			s1, s2 = rt.ProjectFunctionOntoBasis2(s1, s2)
+			s1, s2 = rt.ProjectFunctionOntoBasis(s1, s2)
 			div := rt.Divergence(s1, s2)
 			// Restrict divergence to internal points
 			errors := make([]float64, Npm)
