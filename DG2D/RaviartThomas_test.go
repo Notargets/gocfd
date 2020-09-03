@@ -168,7 +168,7 @@ func TestRTElement(t *testing.T) {
 		assert.True(t, nearVec(CheckDs1.Data(), rt.Ds1.Data(), 0.001))
 		assert.True(t, nearVec(CheckDs2.Data(), rt.Ds2.Data(), 0.001))
 	}
-	plot := true
+	plot := false
 	if plot {
 		N := 6
 		NRT := N + 1
@@ -199,6 +199,24 @@ func TestRTElement(t *testing.T) {
 		N := 1
 		R, S := NodesEpsilon(N - 1)
 		rt := NewRTElement(N, R, S)
+		// Check derivatives
+		{
+			r, s := -0.33, -0.33
+			p1, _ := rt.EvaluatePolynomial(0, -0.33, -0.33, Dr)
+			_, p2 := rt.EvaluatePolynomial(0, -0.33, -0.33, Ds)
+			coeffs1 := rt.A1.Col(0).Data()
+			coeffs2 := rt.A2.Col(0).Data()
+			a2 := coeffs1[1]
+			a7, a8 := coeffs1[6], coeffs1[7]
+			a5 := coeffs2[4]
+			p1Check, p2Check := a2+2*a7*r+a8*s, a5+a7*r+2*a8*s
+			/*
+				fmt.Printf("p1, p1Check = %8.5f, %8.5f\n", p1, p1Check)
+				fmt.Printf("p2, p2Check = %8.5f, %8.5f\n", p2, p2Check)
+			*/
+			assert.True(t, near(p1, p1Check))
+			assert.True(t, near(p2, p2Check))
+		}
 		divCheck := make([]float64, rt.Npm)
 		F1, F2 := make([]float64, rt.Npm), make([]float64, rt.Npm)
 		fmt.Println(rt.A1.Print("A1"))
