@@ -334,30 +334,33 @@ func (rt *RTElement) CalculateBasis() {
 			rt.Ds2.M.Set(i, j, p2)
 		}
 	}
-	if rt.N != 0 {
-		rt.V1, rt.V2 = CombineBasis(rt.N, rt.V1, rt.V2)
-		rt.Dr1, rt.Dr2 = CombineBasis(rt.N, rt.Dr1, rt.Dr2)
-		rt.Ds1, rt.Ds2 = CombineBasis(rt.N, rt.Ds1, rt.Ds2)
-		if rt.V1Inv, err = rt.V1.Inverse(); err != nil {
-			panic(err)
-		}
-		if rt.V2Inv, err = rt.V2.Inverse(); err != nil {
-			panic(err)
-		}
-		rNew, sNew := make([]float64, Npm), make([]float64, Npm)
-		var ii int
-		for i := 0; i < Npm; i++ {
-			if i == Nint {
-				ii += Nint
+	if false {
+		if rt.N != 0 {
+			rt.V1, rt.V2 = CombineBasis(rt.N, rt.V1, rt.V2)
+			rt.Dr1, rt.Dr2 = CombineBasis(rt.N, rt.Dr1, rt.Dr2)
+			rt.Ds1, rt.Ds2 = CombineBasis(rt.N, rt.Ds1, rt.Ds2)
+			if rt.V1Inv, err = rt.V1.Inverse(); err != nil {
+				panic(err)
 			}
-			rNew[i] = rt.R.Data()[ii]
-			sNew[i] = rt.S.Data()[ii]
-			ii++
+			if rt.V2Inv, err = rt.V2.Inverse(); err != nil {
+				panic(err)
+			}
+			rNew, sNew := make([]float64, Npm), make([]float64, Npm)
+			var ii int
+			for i := 0; i < Npm; i++ {
+				if i == Nint {
+					ii += Nint
+				}
+				rNew[i] = rt.R.Data()[ii]
+				sNew[i] = rt.S.Data()[ii]
+				ii++
+			}
+			rt.R = utils.NewVector(Npm, rNew)
+			rt.S = utils.NewVector(Npm, sNew)
 		}
-		rt.R = utils.NewVector(Npm, rNew)
-		rt.S = utils.NewVector(Npm, sNew)
+		rt.Npm = Npm
 	}
-	rt.Npm = Npm
+	rt.Npm = Np
 	return
 }
 

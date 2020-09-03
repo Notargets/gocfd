@@ -111,7 +111,9 @@ func TestRTElement(t *testing.T) {
 			0, 0, 0, 0, 0, 0, -1.0, 0,
 			0, 0, 0, 0, 0, 0, 0, -1.0,
 		})
-		CheckV1, CheckV2 = CombineBasis(rt.N, CheckV1, CheckV2)
+		if false {
+			CheckV1, CheckV2 = CombineBasis(rt.N, CheckV1, CheckV2)
+		}
 		assert.True(t, nearVec(CheckV1.Data(), rt.V1.Data(), 0.001))
 		assert.True(t, nearVec(CheckV2.Data(), rt.V2.Data(), 0.001))
 		// Validate derivative matrices against Matlab solution
@@ -135,7 +137,9 @@ func TestRTElement(t *testing.T) {
 			0, 0, 0, 0, 0, 0, 1.118, -1.118,
 			0, 0, 0, 0, 0, 0, 1.118, -1.118,
 		})
-		CheckDr1, CheckDr2 = CombineBasis(rt.N, CheckDr1, CheckDr2)
+		if false {
+			CheckDr1, CheckDr2 = CombineBasis(rt.N, CheckDr1, CheckDr2)
+		}
 		assert.True(t, nearVec(CheckDr1.Data(), rt.Dr1.Data(), 0.001))
 		assert.True(t, nearVec(CheckDr2.Data(), rt.Dr2.Data(), 0.001))
 		CheckDs1 := utils.NewMatrix(Np, Np, []float64{
@@ -158,7 +162,9 @@ func TestRTElement(t *testing.T) {
 			0.6708, 2.585, -0.1954, -0.6325, 0.4472, -0.3618, 1.809, 0.191,
 			-0.6708, 1.915, 0.6325, -0.5117, -0.1382, -0.4472, 1.309, 0.691,
 		})
-		CheckDs1, CheckDs2 = CombineBasis(rt.N, CheckDs1, CheckDs2)
+		if false {
+			CheckDs1, CheckDs2 = CombineBasis(rt.N, CheckDs1, CheckDs2)
+		}
 		assert.True(t, nearVec(CheckDs1.Data(), rt.Ds1.Data(), 0.001))
 		assert.True(t, nearVec(CheckDs2.Data(), rt.Ds2.Data(), 0.001))
 	}
@@ -195,6 +201,8 @@ func TestRTElement(t *testing.T) {
 		rt := NewRTElement(N, R, S)
 		divCheck := make([]float64, rt.Npm)
 		F1, F2 := make([]float64, rt.Npm), make([]float64, rt.Npm)
+		fmt.Println(rt.A1.Print("A1"))
+		fmt.Println(rt.A2.Print("A2"))
 		for i := range rt.R.Data() {
 			F1[i], F2[i] = 1., 1.
 			r := rt.R.Data()[i]
@@ -206,6 +214,7 @@ func TestRTElement(t *testing.T) {
 			a5 := coeffs2[4]
 			// Manually calculated divergence for RT1 element
 			divCheck[i] = F1[i]*(a2+2*a7*r+a8*s) + F2[i]*(a5+a7*r+2*a8*s)
+			fmt.Printf("i, a2,a5,a7,a8 = %d, %8.5f, %8.5f, %8.5f, %8.5f\n", i, a2, a5, a7, a8)
 		}
 		div := rt.Divergence(F1, F2)
 		fmt.Printf("div= %v\n", div)
