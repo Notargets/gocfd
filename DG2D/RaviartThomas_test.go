@@ -190,6 +190,7 @@ func TestRTElement(t *testing.T) {
 		// Check derivatives
 		{
 			r, s := -0.33, -0.33
+			// TODO: Fix bug for derivatives of the edge polynomials (i>=2)
 			for i := 0; i < 2; i++ {
 				//for i := 0; i < rt.Npm; i++ {
 				p1, _ := rt.EvaluatePolynomial(i, -0.33, -0.33, Dr)
