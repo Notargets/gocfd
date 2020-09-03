@@ -69,8 +69,8 @@ func (el Elements1D) SlopeLimitLin(ul, xl utils.Matrix, vm1, v0, vp1 utils.Vecto
 func Minmod(vecs ...utils.Vector) (R utils.Vector) {
 	/*
 		Computes minmod across a group of vectors
-		    Input: A, B, C, length N
-				For each element in A, B, C, compose a vector like {a1, b1, c1} and set r1 = minmod(a1,b1,c1)
+		    Input: Ainv, B, C, length N
+				For each element in Ainv, B, C, compose a vector like {a1, b1, c1} and set r1 = minmod(a1,b1,c1)
 			Output: R, length N
 	*/
 	var (
@@ -115,8 +115,8 @@ func minmod(a []float64) (r float64) {
 func MinmodB(M, h float64, vecs ...utils.Vector) (R utils.Vector) {
 	/*
 		Computes minmodB across a group of vectors
-		    Input: A, B, C, length N
-				For each element in A, B, C, compose a vector like {a1, b1, c1} and set r1 = minmod(a1,b1,c1)
+		    Input: Ainv, B, C, length N
+				For each element in Ainv, B, C, compose a vector like {a1, b1, c1} and set r1 = minmod(a1,b1,c1)
 			Output: R, length N
 	*/
 	var (

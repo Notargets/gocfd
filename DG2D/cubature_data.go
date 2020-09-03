@@ -6,7 +6,7 @@ package DG2D
 // Cubature formulae from:
 //
 // Cools, R. "Monomial Cubature Rules Since "Stroud":
-//            A Compilation--Part 2."
+//            Ainv Compilation--Part 2."
 //
 // J. Comput. Appl. Math. 112, 21-27, 1999.
 //

@@ -65,18 +65,6 @@ func TestRTElement(t *testing.T) {
 			Reconstruct the single coefficient matrix to compare with the Matlab solution
 		*/
 		Np := (NRT + 1) * (NRT + 3)
-		Ainv := utils.NewMatrix(Np, Np)
-		NGroup1 := (NRT+1)*NRT/2 + (NRT + 1) // The first set of polynomial terms
-		for i := 0; i < NGroup1; i++ {
-			rowG1 := rt.A1.Row(i)
-			Ainv.M.SetRow(i, rowG1.Data())
-			rowG2 := rt.A2.Row(i + NGroup1)
-			Ainv.M.SetRow(i+NGroup1, rowG2.Data())
-		}
-		for i := 2 * NGroup1; i < Np; i++ {
-			rowG3 := rt.A1.Row(i)
-			Ainv.M.SetRow(i, rowG3.Data())
-		}
 		// Matlab solution
 		CheckAinv := utils.NewMatrix(Np, Np, []float64{
 			0.75, -0.75, 0.3536, 0.3536, 0.4045, -0.1545, -0.4045, 0.1545,
@@ -88,7 +76,7 @@ func TestRTElement(t *testing.T) {
 			-1.5, -0.75, 0.9256, 0.135, -0.6545, -0.09549, -0.559, 0.559,
 			-0.75, -1.5, 0.135, 0.9256, -0.559, 0.559, -0.6545, -0.09549,
 		})
-		assert.True(t, nearVec(CheckAinv.Data(), Ainv.Data(), 0.001))
+		assert.True(t, nearVec(CheckAinv.Data(), rt.Ainv.Data(), 0.001))
 
 		// Verify Vandermonde matrices against Matlab solution
 		CheckV1 := utils.NewMatrix(Np, Np, []float64{
@@ -202,34 +190,39 @@ func TestRTElement(t *testing.T) {
 		// Check derivatives
 		{
 			r, s := -0.33, -0.33
-			p1, _ := rt.EvaluatePolynomial(0, -0.33, -0.33, Dr)
-			_, p2 := rt.EvaluatePolynomial(0, -0.33, -0.33, Ds)
-			coeffs1 := rt.A1.Col(0).Data()
-			coeffs2 := rt.A2.Col(0).Data()
-			a2 := coeffs1[1]
-			a7, a8 := coeffs1[6], coeffs1[7]
-			a5 := coeffs2[4]
-			p1Check, p2Check := a2+2*a7*r+a8*s, a5+a7*r+2*a8*s
-			/*
-				fmt.Printf("p1, p1Check = %8.5f, %8.5f\n", p1, p1Check)
-				fmt.Printf("p2, p2Check = %8.5f, %8.5f\n", p2, p2Check)
-			*/
-			assert.True(t, near(p1, p1Check))
-			assert.True(t, near(p2, p2Check))
+			for i := 0; i < 2; i++ {
+				//for i := 0; i < rt.Npm; i++ {
+				p1, _ := rt.EvaluatePolynomial(i, -0.33, -0.33, Dr)
+				_, p2 := rt.EvaluatePolynomial(i, -0.33, -0.33, Ds)
+				/*
+					coeffs1 := rt.A1.Col(i).Data()
+					coeffs2 := rt.A2.Col(i).Data()
+				*/
+				coeffs := rt.Ainv.Col(i).Data()
+				a2 := coeffs[1]
+				a7, a8 := coeffs[6], coeffs[7]
+				a5 := coeffs[4]
+				p1Check, p2Check := a2+2*a7*r+a8*s, a5+a7*r+2*a8*s
+				/*
+					fmt.Printf("p1, p1Check = %8.5f, %8.5f\n", p1, p1Check)
+					fmt.Printf("p2, p2Check = %8.5f, %8.5f\n", p2, p2Check)
+				*/
+				fmt.Printf("Polynomial#[%d]\n", i)
+				assert.True(t, near(p1, p1Check))
+				assert.True(t, near(p2, p2Check))
+			}
 		}
 		divCheck := make([]float64, rt.Npm)
 		F1, F2 := make([]float64, rt.Npm), make([]float64, rt.Npm)
-		fmt.Println(rt.A1.Print("A1"))
-		fmt.Println(rt.A2.Print("A2"))
+		fmt.Println(rt.Ainv.Print("Ainv"))
 		for i := range rt.R.Data() {
 			F1[i], F2[i] = 1., 1.
 			r := rt.R.Data()[i]
 			s := rt.S.Data()[i]
-			coeffs1 := rt.A1.Col(i).Data()
-			coeffs2 := rt.A2.Col(i).Data()
-			a2 := coeffs1[1]
-			a7, a8 := coeffs1[6], coeffs1[7]
-			a5 := coeffs2[4]
+			coeffs := rt.Ainv.Col(i).Data()
+			a2 := coeffs[1]
+			a7, a8 := coeffs[6], coeffs[7]
+			a5 := coeffs[4]
 			// Manually calculated divergence for RT1 element
 			divCheck[i] = F1[i]*(a2+2*a7*r+a8*s) + F2[i]*(a5+a7*r+2*a8*s)
 			fmt.Printf("i, a2,a5,a7,a8 = %d, %8.5f, %8.5f, %8.5f, %8.5f\n", i, a2, a5, a7, a8)

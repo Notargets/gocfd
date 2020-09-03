@@ -9,7 +9,7 @@ import (
 )
 
 type RTElement struct {
-	A1, A2       utils.Matrix // Polynomial coefficient matrix for each direction r and s
+	Ainv         utils.Matrix // Polynomial coefficient matrix
 	V1, V2       utils.Matrix // Vandermonde matrix for each direction r and s
 	V1Inv, V2Inv utils.Matrix
 	Dr1, Dr2     utils.Matrix // Derivative matrices in r and s directions
@@ -265,7 +265,7 @@ func (rt *RTElement) CalculateBasis() {
 			A.M.SetRow(ii, rowEdge)
 		}
 	}
-	// Invert [ A ] to obtain the coefficients (columns) of polynomials (rows), each row is a polynomial
+	// Invert [ Ainv ] to obtain the coefficients (columns) of polynomials (rows), each row is a polynomial
 	var Ainv utils.Matrix
 	if Ainv, err = A.Inverse(); err != nil {
 		panic(err)
@@ -274,13 +274,14 @@ func (rt *RTElement) CalculateBasis() {
 		Process the coefficient matrix to produce each direction of each polynomial (V1 and V2)
 	*/
 	rt.V1, rt.V2 = utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
-	rt.A1, rt.A2 = utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
+	rt.Ainv = utils.NewMatrix(Np, Np)
 	for j := 0; j < Np; j++ { // Process a column at a time, each column is a polynomial
 		/*
 			First, we extract the coefficients for each direction in this j-th polynomial
 		*/
 		coeffs := Ainv.Col(j).Data() // All coefficients of the j-th polynomial terms
 		p1, p2 := make([]float64, Np), make([]float64, Np)
+		p := make([]float64, Np)
 		NGroup1 := (N+1)*N/2 + (N + 1) // The first set of polynomial terms
 		for i, coeff := range coeffs {
 			// one full set of polynomial coeffs twice, then a set for the last N+1 terms
@@ -295,12 +296,12 @@ func (rt *RTElement) CalculateBasis() {
 				p1[i] = coeff
 				p2[i] = coeff
 			}
+			p[i] = coeff
 		}
 		/*
-			Load the evaluated polynomial into the j-th column of the Vandermonde matrices
+			Load the evaluated polynomial into the j-th column of the Coefficient matrices
 		*/
-		rt.A1.SetCol(j, p1)
-		rt.A2.SetCol(j, p2)
+		rt.Ainv.SetCol(j, p)
 		/*
 			Evaluate the basis at this location, then multiply each term by its polynomial coefficient
 		*/
@@ -471,13 +472,16 @@ func (rt *RTElement) EvaluatePolynomial(j int, r, s float64, derivO ...Derivativ
 	if len(derivO) != 0 {
 		deriv = derivO[0]
 	}
-	coeffs1 := rt.A1.Col(j).Data()
-	coeffs2 := rt.A2.Col(j).Data()
+	/*
+		coeffs1 := rt.A1.Col(j).Data()
+		coeffs2 := rt.A2.Col(j).Data()
+	*/
+	coeffs := rt.Ainv.Col(j).Data()
 	b1, b2 := rt.EvaluateRTBasis(r, s, deriv)
-	for i := range coeffs1 {
+	for i := range coeffs {
 		//fmt.Printf("term(%d} = [%8.5f, %8.5f]\n", i, coeffs1[i]*b1[i], coeffs2[i]*b2[i])
-		p1 += coeffs1[i] * b1[i]
-		p2 += coeffs2[i] * b2[i]
+		p1 += coeffs[i] * b1[i]
+		p2 += coeffs[i] * b2[i]
 	}
 	return
 }
@@ -556,7 +560,7 @@ func ExtendGeomToRT(N int, rInt, sInt utils.Vector) (r, s utils.Vector) {
 
 func NodesEpsilon(N int) (R, S utils.Vector) {
 	/*
-		From the 2017 paper "A Direct Flux Reconstruction Scheme for Advection Diffusion Problems on Triangular Grids"
+		From the 2017 paper "Ainv Direct Flux Reconstruction Scheme for Advection Diffusion Problems on Triangular Grids"
 
 		This is a node set that is compatible with DFR in that it implements colocated solution and flux points for the
 		interior nodes, while enabling a set of face nodes for the N+1 degree flux polynomial

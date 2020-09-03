@@ -95,7 +95,7 @@ func (v Vector) Zip(op EvalOp, abs bool, A Vector) (R Vector) {
 		rD = make([]float64, N)
 	)
 	if N != A.Len() {
-		err := fmt.Errorf("dimension mismatch: Zip receiver: %v A: %v\n", N, A.Len())
+		err := fmt.Errorf("dimension mismatch: Zip receiver: %v Ainv: %v\n", N, A.Len())
 		panic(err)
 	}
 	var target float64

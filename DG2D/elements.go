@@ -301,8 +301,8 @@ func (el *Elements2D) Startup2DDFR() {
 			Flux Points: We use a customized Raviart-Thomas (RT) vector element of O(K+1) to store the vector Flux function
 		    computed from the solution values. The RT element is of order O(K+1) and is a combination of the points from
 			the solution element for the interior, and points along the three triangle edges. The custom RT basis is
-			established using a procedure outlined in: "A Direct Flux Reconstruction Scheme for Advection-Diffusion
-			Problems on Triangular Grids" by Romero, Witherden and Jameson (2017). A complete RT basis, [ B ], is used
+			established using a procedure outlined in: "Ainv Direct Flux Reconstruction Scheme for Advection-Diffusion
+			Problems on Triangular Grids" by Romero, Witherden and Jameson (2017). Ainv complete RT basis, [ B ], is used
 			together with unit basis vectors, [ w ], to satisfy the following:
 					[ B_j(r_i) dot w_i ] [ C ] = [ delta_i_j ]
 					=> solve for [ C ], the coefficients defining the custom RT basis
@@ -319,7 +319,7 @@ func (el *Elements2D) Startup2DDFR() {
 				- Total: (K+3)(K+1) basis functions for the custom RT_K element
 
 			Notes:
-				1) The number of interior points matches the Lagrangian element in 2D at order (K-1). A Lagrange element
+				1) The number of interior points matches the Lagrangian element in 2D at order (K-1). Ainv Lagrange element
 				at order (K) has N_p = (K+1)(K+2)/2 degrees of freedom, so an order (K-1) element has (K)(K+1)/2 DOF.
 				Considering that we need a term for each of the two interior directions at each interior point, we need
 				exactly 2*N_p DOF at order (K-1) for the interior of the custom RT element, resulting in (K)(K+1) terms.

@@ -276,7 +276,7 @@ func (m Matrix) AssignColumns(I Index, A Matrix) Matrix { // Changes receiver
 	var (
 		_, nc = m.Dims()
 	)
-	// Assigns columns in M to columns indexed sequentially from A
+	// Assigns columns in M to columns indexed sequentially from Ainv
 	m.checkWritable()
 	for i, j := range I {
 		if j > nc-1 {
@@ -416,9 +416,9 @@ func expandRangeI(max int, RangeI interface{}) (I Index) {
 	return
 }
 
-//func (m Matrix) AssignVector(I Index, A Vector) Matrix { // Changes receiver
+//func (m Matrix) AssignVector(I Index, Ainv Vector) Matrix { // Changes receiver
 func (m Matrix) AssignVector(I Index, AI interface{}) Matrix { // Changes receiver
-	// Assigns values indexed into M using values sequentially from Vector A
+	// Assigns values indexed into M using values sequentially from Vector Ainv
 	var (
 		dataM = m.RawMatrix().Data
 	)

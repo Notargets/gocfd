@@ -28,7 +28,7 @@ func TestVector(t *testing.T) {
 	M := 2
 	v2 := NewVector(M).Set(3)
 	A := v1.ToMatrix().Mul(v2.Transpose())
-	fmt.Printf("A = \n%v\n", mat.Formatted(A, mat.Squeeze()))
+	fmt.Printf("Ainv = \n%v\n", mat.Formatted(A, mat.Squeeze()))
 	nr, nc := A.Dims()
 	require.Equal(t, N, nr)
 	require.Equal(t, M, nc)
@@ -39,14 +39,14 @@ func TestVector(t *testing.T) {
 	v2.V.SetVec(0, 2)
 	A = v1.ToMatrix().Mul(v2.Transpose())
 	/*
-		A =
+		Ainv =
 		⎡2  3⎤
 		⎢4  6⎥
 		⎣6  9⎦
 	*/
 	vec := []float64{2, 3, 4, 6, 6, 9} // Column major order
 	fmt.Printf("v1, v2 = \n%v\n%v\n", mat.Formatted(v1, mat.Squeeze()), mat.Formatted(v2, mat.Squeeze()))
-	fmt.Printf("A = \n%v\n", mat.Formatted(A, mat.Squeeze()))
+	fmt.Printf("Ainv = \n%v\n", mat.Formatted(A, mat.Squeeze()))
 	require.Equal(t, vec, A.RawMatrix().Data)
 
 	B := v1.Mul(v2)

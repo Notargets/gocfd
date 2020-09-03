@@ -55,7 +55,7 @@ func TestMatrix(t *testing.T) {
 		I[0] = 1
 		I[1] = 0
 		A := M.SliceRows(I)
-		//fmt.Printf("A = \n%v\n", mat.Formatted(A, mat.Squeeze()))
+		//fmt.Printf("Ainv = \n%v\n", mat.Formatted(Ainv, mat.Squeeze()))
 		assert.Equal(t, A, NewMatrix(2, 3, []float64{
 			4, 5, 6,
 			1, 2, 3,
@@ -71,7 +71,7 @@ func TestMatrix(t *testing.T) {
 		I[0] = 1
 		I[1] = 0
 		A := M.SliceCols(I)
-		//fmt.Printf("A = \n%v\n", mat.Formatted(A, mat.Squeeze()))
+		//fmt.Printf("Ainv = \n%v\n", mat.Formatted(Ainv, mat.Squeeze()))
 		assert.Equal(t, A, NewMatrix(2, 2, []float64{
 			2, 1,
 			5, 4,
@@ -84,19 +84,19 @@ func TestMatrix(t *testing.T) {
 			4, 5, 6,
 		})
 		A := M.Copy().SetRange(0, -1, -2, -2, 0)
-		fmt.Printf("A = \n%v\n", mat.Formatted(A, mat.Squeeze()))
+		fmt.Printf("Ainv = \n%v\n", mat.Formatted(A, mat.Squeeze()))
 		assert.Equal(t, A, NewMatrix(2, 3, []float64{
 			1, 0, 3,
 			4, 0, 6,
 		}))
 		A = M.Copy().SetRange(0, -1, -3, -3, 0)
-		fmt.Printf("A = \n%v\n", mat.Formatted(A, mat.Squeeze()))
+		fmt.Printf("Ainv = \n%v\n", mat.Formatted(A, mat.Squeeze()))
 		assert.Equal(t, A, NewMatrix(2, 3, []float64{
 			0, 2, 3,
 			0, 5, 6,
 		}))
 		A = M.Copy().SetRange(-1, -1, -2, -2, 0)
-		fmt.Printf("A = \n%v\n", mat.Formatted(A, mat.Squeeze()))
+		fmt.Printf("Ainv = \n%v\n", mat.Formatted(A, mat.Squeeze()))
 		assert.Equal(t, A, NewMatrix(2, 3, []float64{
 			1, 2, 3,
 			4, 0, 6,
@@ -132,14 +132,14 @@ func TestMatrix(t *testing.T) {
 	// Equate
 	/*
 		Examples:
-			A.Equate(Values, ":", MyIndex) // 2D index, uses all rows permuted with MyIndex columns values
-			A.Equate(Values, "0:3", MyIndex) // Same with limited rows
-			A.Equate(Values, MyIndex, ":") // Same reversed
-			A.Equate(Values, B, ":") // Row index comes from data values in matrix B
-			A.Equate(2, B, ":") 	// Equate indexed locations to a constant, example of constant promotion
-			A.Equate(2, MyRowColumnIndex) 	// 1D indexed assignment using combined row+column index
-			A.Equate(2, ":", ":", "0:3") 	// 3D indexed assignment
-			A.Equate(2, ":", ":", ":", "0:3") 	// 4D indexed assignment, etc
+			Ainv.Equate(Values, ":", MyIndex) // 2D index, uses all rows permuted with MyIndex columns values
+			Ainv.Equate(Values, "0:3", MyIndex) // Same with limited rows
+			Ainv.Equate(Values, MyIndex, ":") // Same reversed
+			Ainv.Equate(Values, B, ":") // Row index comes from data values in matrix B
+			Ainv.Equate(2, B, ":") 	// Equate indexed locations to a constant, example of constant promotion
+			Ainv.Equate(2, MyRowColumnIndex) 	// 1D indexed assignment using combined row+column index
+			Ainv.Equate(2, ":", ":", "0:3") 	// 3D indexed assignment
+			Ainv.Equate(2, ":", ":", ":", "0:3") 	// 4D indexed assignment, etc
 	*/
 	{
 		A := NewMatrix(3, 3, []float64{
