@@ -17,6 +17,35 @@ import (
 )
 
 func TestRTElement(t *testing.T) {
+	// Check Basis
+	{
+		N := 1
+		R, S := NodesEpsilon(N - 1)
+		rt := NewRTElement(N, R, S)
+		{ // Check Basis
+			r, s := 10., 200.
+			p1, p2 := rt.EvaluateRTBasis(r, s)
+			p1Check := []float64{1, r, s, 0, 0, 0, r * r, r * s}
+			p2Check := []float64{0, 0, 0, 1, r, s, r * s, s * s}
+			assert.True(t, nearVec(p1Check, p1, 0.000001))
+			assert.True(t, nearVec(p2Check, p2, 0.000001))
+		}
+		{ // Check derivative of basis
+			r, s := 10., 200.
+			p1r, p2r := rt.EvaluateRTBasis(r, s, Dr)
+			// Hand calculated values for RT1
+			p1rCheck := []float64{0, 1, 0, 0, 0, 0, 2 * r, s}
+			p2rCheck := []float64{0, 0, 0, 0, 1, 0, s, 0}
+			assert.True(t, nearVec(p1rCheck, p1r, 0.000001))
+			assert.True(t, nearVec(p2rCheck, p2r, 0.000001))
+			p1s, p2s := rt.EvaluateRTBasis(r, s, Ds)
+			// Hand calculated values for RT1
+			p1sCheck := []float64{0, 0, 1, 0, 0, 0, 0, r}
+			p2sCheck := []float64{0, 0, 0, 0, 0, 1, r, 2 * s}
+			assert.True(t, nearVec(p1sCheck, p1s, 0.000001))
+			assert.True(t, nearVec(p2sCheck, p2s, 0.000001))
+		}
+	}
 	{ // RT0 Validation
 		oosr2 := 1. / math.Sqrt(2)
 		R, S := NodesEpsilon(0)
@@ -191,7 +220,7 @@ func TestRTElement(t *testing.T) {
 		{
 			// TODO: Fix bug for derivatives of the edge polynomials (i>=2)
 			for i := 0; i < rt.Npm; i++ {
-				r, s := -0.10, -0.10
+				r, s := 1., 1.
 				p1, _ := rt.EvaluatePolynomial(i, r, s, Dr)
 				_, p2 := rt.EvaluatePolynomial(i, r, s, Ds)
 				coeffs := rt.Ainv.Col(i).Data()
@@ -217,11 +246,14 @@ func TestRTElement(t *testing.T) {
 			// Manually calculated divergence for RT1 element
 			divCheck[i] = F1[i]*(a2+2*a7*r+a8*s) + F2[i]*(a5+a7*r+2*a8*s)
 		}
-		div := rt.Divergence(F1, F2)
-		fmt.Printf("div= %v\n", div)
-		fmt.Printf("divCheck = %v\n", divCheck)
-		// TODO: Fix divergence calculation to match the check
-		//assert.True(t, nearVec(div, divCheck, 0.00001))
+		// Check divergence
+		{
+			div := rt.Divergence(F1, F2)
+			fmt.Printf("div= %v\n", div)
+			fmt.Printf("divCheck = %v\n", divCheck)
+			// TODO: Fix divergence calculation to match the check
+			//assert.True(t, nearVec(div, divCheck, 0.00001))
+		}
 	}
 
 	if false {
