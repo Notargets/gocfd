@@ -472,10 +472,6 @@ func (rt *RTElement) EvaluatePolynomial(j int, r, s float64, derivO ...Derivativ
 	if len(derivO) != 0 {
 		deriv = derivO[0]
 	}
-	/*
-		coeffs1 := rt.A1.Col(j).Data()
-		coeffs2 := rt.A2.Col(j).Data()
-	*/
 	coeffs := rt.Ainv.Col(j).Data()
 	b1, b2 := rt.EvaluateRTBasis(r, s, deriv)
 	for i := range coeffs {
