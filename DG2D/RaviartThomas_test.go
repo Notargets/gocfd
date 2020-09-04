@@ -46,6 +46,47 @@ func TestRTElement(t *testing.T) {
 			assert.True(t, nearVec(p2sCheck, p2s, 0.000001))
 		}
 	}
+	{ // Check Divergence
+		N := 1
+		R, S := NodesEpsilon(N - 1)
+		rt := NewRTElement(N, R, S)
+		// Check derivatives
+		{
+			for i := 0; i < rt.Npm; i++ {
+				r, s := 1., 1.
+				p1, _ := rt.EvaluatePolynomial(i, r, s, Dr)
+				_, p2 := rt.EvaluatePolynomial(i, r, s, Ds)
+				coeffs := rt.Ainv.Col(i).Data()
+				a2 := coeffs[1]
+				a7, a8 := coeffs[6], coeffs[7]
+				a6 := coeffs[5]
+				p1Check, p2Check := a2+2*a7*r+a8*s, a6+a7*r+2*a8*s
+				//fmt.Printf("Polynomial[%d] = [%8.5f,%8.5f] check = [%8.5f,%8.5f]\n", i, p1, p2, p1Check, p2Check)
+				assert.True(t, near(p1, p1Check))
+				assert.True(t, near(p2, p2Check))
+			}
+		}
+		{ // Check divergence
+			divCheck := make([]float64, rt.Npm)
+			F1, F2 := make([]float64, rt.Npm), make([]float64, rt.Npm)
+			for i := range rt.R.Data() {
+				F1[i], F2[i] = 1., 1.
+				r := rt.R.Data()[i]
+				s := rt.S.Data()[i]
+				coeffs := rt.Ainv.Col(i).Data()
+				a2 := coeffs[1]
+				a7, a8 := coeffs[6], coeffs[7]
+				a6 := coeffs[5]
+				// Manually calculated divergence for RT1 element
+				divCheck[i] = F1[i]*(a2+2*a7*r+a8*s) + F2[i]*(a6+a7*r+2*a8*s)
+			}
+			div := rt.Divergence(F1, F2)
+			fmt.Printf("div= %v\n", div)
+			fmt.Printf("divCheck = %v\n", divCheck)
+			// TODO: Fix divergence calculation to match the check
+			//assert.True(t, nearVec(div, divCheck, 0.00001))
+		}
+	}
 	{ // RT0 Validation
 		oosr2 := 1. / math.Sqrt(2)
 		R, S := NodesEpsilon(0)
@@ -208,51 +249,6 @@ func TestRTElement(t *testing.T) {
 			f := arraysToVector(s1, s2, 0.1)
 			_ = chart.AddVectors("test function", points, f, chart2d.Solid, getColor(green))
 			sleepForever()
-		}
-	}
-
-	// Check Divergence
-	{
-		N := 1
-		R, S := NodesEpsilon(N - 1)
-		rt := NewRTElement(N, R, S)
-		// Check derivatives
-		{
-			// TODO: Fix bug for derivatives of the edge polynomials (i>=2)
-			for i := 0; i < rt.Npm; i++ {
-				r, s := 1., 1.
-				p1, _ := rt.EvaluatePolynomial(i, r, s, Dr)
-				_, p2 := rt.EvaluatePolynomial(i, r, s, Ds)
-				coeffs := rt.Ainv.Col(i).Data()
-				a2 := coeffs[1]
-				a7, a8 := coeffs[6], coeffs[7]
-				a5 := coeffs[4]
-				p1Check, p2Check := a2+2*a7*r+a8*s, a5+a7*r+2*a8*s
-				fmt.Printf("Polynomial[%d] = [%8.5f,%8.5f] check = [%8.5f,%8.5f]\n", i, p1, p2, p1Check, p2Check)
-				assert.True(t, near(p1, p1Check))
-				//assert.True(t, near(p2, p2Check))
-			}
-		}
-		divCheck := make([]float64, rt.Npm)
-		F1, F2 := make([]float64, rt.Npm), make([]float64, rt.Npm)
-		for i := range rt.R.Data() {
-			F1[i], F2[i] = 1., 1.
-			r := rt.R.Data()[i]
-			s := rt.S.Data()[i]
-			coeffs := rt.Ainv.Col(i).Data()
-			a2 := coeffs[1]
-			a7, a8 := coeffs[6], coeffs[7]
-			a5 := coeffs[4]
-			// Manually calculated divergence for RT1 element
-			divCheck[i] = F1[i]*(a2+2*a7*r+a8*s) + F2[i]*(a5+a7*r+2*a8*s)
-		}
-		// Check divergence
-		{
-			div := rt.Divergence(F1, F2)
-			fmt.Printf("div= %v\n", div)
-			fmt.Printf("divCheck = %v\n", divCheck)
-			// TODO: Fix divergence calculation to match the check
-			//assert.True(t, nearVec(div, divCheck, 0.00001))
 		}
 	}
 
