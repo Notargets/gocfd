@@ -322,22 +322,20 @@ func (rt *RTElement) CalculateBasis() {
 		rt.V2.SetCol(j, py)
 	}
 	// Create derivative matrices, Dr and Ds
-	rt.Dr1, rt.Dr2 = utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
-	rt.Ds1, rt.Ds2 = utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
+	rt.Dr1, rt.Dr2 = utils.NewMatrix(1, Np), utils.NewMatrix(1, Np)
+	rt.Ds1, rt.Ds2 = utils.NewMatrix(1, Np), utils.NewMatrix(1, Np)
 	/*
 		p1, _ := rt.EvaluatePolynomial(i, r, s, Dr)
 		_, p2 := rt.EvaluatePolynomial(i, r, s, Ds)
 	*/
 	for i := 0; i < Np; i++ {
 		rr, ss := rt.R.Data()[i], rt.S.Data()[i]
-		for j := 0; j < Np; j++ {
-			p1r, p2r := rt.EvaluatePolynomial(j, rr, ss, Dr)
-			rt.Dr1.M.Set(i, j, p1r)
-			rt.Dr2.M.Set(i, j, p2r)
-			p1s, p2s := rt.EvaluatePolynomial(j, rr, ss, Ds)
-			rt.Ds1.M.Set(i, j, p1s)
-			rt.Ds2.M.Set(i, j, p2s)
-		}
+		p1r, p2r := rt.EvaluatePolynomial(i, rr, ss, Dr)
+		rt.Dr1.Data()[i] = p1r
+		rt.Dr2.Data()[i] = p2r
+		p1s, p2s := rt.EvaluatePolynomial(i, rr, ss, Ds)
+		rt.Ds1.Data()[i] = p1s
+		rt.Ds2.Data()[i] = p2s
 	}
 	if false {
 		if rt.N != 0 {
@@ -370,15 +368,13 @@ func (rt *RTElement) CalculateBasis() {
 }
 
 func (rt *RTElement) Divergence(f1, f2 []float64) (div []float64) {
-	var (
-		fV1 = utils.NewMatrix(len(f1), 1, f1)
-		fV2 = utils.NewMatrix(len(f2), 1, f2)
-	)
 	if len(f1) != rt.Npm || len(f2) != rt.Npm {
 		panic(fmt.Errorf("wrong input number of points, should be %d, is %d\n", rt.Npm, len(f1)))
 	}
-	divV := rt.Ds2.Mul(fV2).Add(rt.Dr1.Mul(fV1))
-	div = divV.Data()
+	div = make([]float64, rt.Npm)
+	for i := range f1 {
+		div[i] = f1[i]*rt.Dr1.Data()[i] + f2[i]*rt.Ds2.Data()[i]
+	}
 	return
 }
 
