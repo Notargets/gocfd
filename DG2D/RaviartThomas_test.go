@@ -198,12 +198,12 @@ func TestRTElement(t *testing.T) {
 		}
 	}
 
-	if false {
+	if true {
 		Nend := 8
 		for N := 1; N < Nend; N++ {
 			R, S := NodesEpsilon(N - 1)
 			rt := NewRTElement(N, R, S)
-			Npm := (N + 6) * (N + 1) / 2
+			Npm := rt.Npm
 			s1, s2 := make([]float64, Npm), make([]float64, Npm)
 			for i := 0; i < Npm; i++ {
 				r := rt.R.Data()[i]
@@ -223,8 +223,7 @@ func TestRTElement(t *testing.T) {
 				// d/dS
 				dds := 2 * s
 				divCheck := ddr + dds
-				error := div[i] - divCheck
-				errors[i] = error
+				errors[i] = div[i] - divCheck
 			}
 			minerrInt, maxerrInt := errors[0], errors[0]
 			Nint := N * (N + 1) / 2
