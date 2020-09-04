@@ -371,9 +371,10 @@ func (rt *RTElement) Divergence(f1, f2 []float64) (div []float64) {
 	if len(f1) != rt.Npm || len(f2) != rt.Npm {
 		panic(fmt.Errorf("wrong input number of points, should be %d, is %d\n", rt.Npm, len(f1)))
 	}
+	f1p, f2p := rt.ProjectFunctionOntoBasis(f1, f2)
 	div = make([]float64, rt.Npm)
-	for i := range f1 {
-		div[i] = f1[i]*rt.Dr1.Data()[i] + f2[i]*rt.Ds2.Data()[i]
+	for i := range f1p {
+		div[i] = f1p[i]*rt.Dr1.Data()[i] + f2p[i]*rt.Ds2.Data()[i]
 	}
 	return
 }

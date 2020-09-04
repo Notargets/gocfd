@@ -68,9 +68,12 @@ func TestRTElement(t *testing.T) {
 		}
 		{ // Check divergence
 			divCheck := make([]float64, rt.Npm)
-			F1, F2 := make([]float64, rt.Npm), make([]float64, rt.Npm)
+			F1u, F2u := make([]float64, rt.Npm), make([]float64, rt.Npm)
 			for i := 0; i < rt.Npm; i++ {
-				F1[i], F2[i] = 1., 1.
+				F1u[i], F2u[i] = 1., 1.
+			}
+			F1, F2 := rt.ProjectFunctionOntoBasis(F1u, F2u)
+			for i := 0; i < rt.Npm; i++ {
 				r := rt.R.Data()[i]
 				s := rt.S.Data()[i]
 				coeffs := rt.Ainv.Col(i).Data()
@@ -80,7 +83,7 @@ func TestRTElement(t *testing.T) {
 				// Manually calculated divergence for RT1 element
 				divCheck[i] = F1[i]*(a2+2*a7*r+a8*s) + F2[i]*(a6+a7*r+2*a8*s)
 			}
-			div := rt.Divergence(F1, F2)
+			div := rt.Divergence(F1u, F2u)
 			assert.True(t, nearVec(div, divCheck, 0.00001))
 		}
 	}
@@ -211,7 +214,6 @@ func TestRTElement(t *testing.T) {
 				s1[i] = r * r
 				s2[i] = s * s
 			}
-			s1, s2 = rt.ProjectFunctionOntoBasis(s1, s2)
 			div := rt.Divergence(s1, s2)
 			// Restrict divergence to internal points
 			errors := make([]float64, Npm)
