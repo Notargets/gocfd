@@ -324,15 +324,19 @@ func (rt *RTElement) CalculateBasis() {
 	// Create derivative matrices, Dr and Ds
 	rt.Dr1, rt.Dr2 = utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
 	rt.Ds1, rt.Ds2 = utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
+	/*
+		p1, _ := rt.EvaluatePolynomial(i, r, s, Dr)
+		_, p2 := rt.EvaluatePolynomial(i, r, s, Ds)
+	*/
 	for i := 0; i < Np; i++ {
 		rr, ss := rt.R.Data()[i], rt.S.Data()[i]
 		for j := 0; j < Np; j++ {
-			p1, p2 := rt.EvaluatePolynomial(j, rr, ss, Dr)
-			rt.Dr1.M.Set(i, j, p1)
-			rt.Dr2.M.Set(i, j, p2)
-			p1, p2 = rt.EvaluatePolynomial(j, rr, ss, Ds)
-			rt.Ds1.M.Set(i, j, p1)
-			rt.Ds2.M.Set(i, j, p2)
+			p1r, p2r := rt.EvaluatePolynomial(j, rr, ss, Dr)
+			rt.Dr1.M.Set(i, j, p1r)
+			rt.Dr2.M.Set(i, j, p2r)
+			p1s, p2s := rt.EvaluatePolynomial(j, rr, ss, Ds)
+			rt.Ds1.M.Set(i, j, p1s)
+			rt.Ds2.M.Set(i, j, p2s)
 		}
 	}
 	if false {

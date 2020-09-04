@@ -53,7 +53,8 @@ func TestRTElement(t *testing.T) {
 		// Check derivatives
 		{
 			for i := 0; i < rt.Npm; i++ {
-				r, s := 1., 1.
+				r := rt.R.Data()[i]
+				s := rt.S.Data()[i]
 				p1, _ := rt.EvaluatePolynomial(i, r, s, Dr)
 				_, p2 := rt.EvaluatePolynomial(i, r, s, Ds)
 				coeffs := rt.Ainv.Col(i).Data()
@@ -69,7 +70,7 @@ func TestRTElement(t *testing.T) {
 		{ // Check divergence
 			divCheck := make([]float64, rt.Npm)
 			F1, F2 := make([]float64, rt.Npm), make([]float64, rt.Npm)
-			for i := range rt.R.Data() {
+			for i := 0; i < rt.Npm; i++ {
 				F1[i], F2[i] = 1., 1.
 				r := rt.R.Data()[i]
 				s := rt.S.Data()[i]
@@ -80,6 +81,7 @@ func TestRTElement(t *testing.T) {
 				// Manually calculated divergence for RT1 element
 				divCheck[i] = F1[i]*(a2+2*a7*r+a8*s) + F2[i]*(a6+a7*r+2*a8*s)
 			}
+			// TODO: Fix Dr and Ds matrices
 			div := rt.Divergence(F1, F2)
 			fmt.Printf("div= %v\n", div)
 			fmt.Printf("divCheck = %v\n", divCheck)
