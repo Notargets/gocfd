@@ -1,6 +1,5 @@
 import dolfin
 import numpy
-#import pylab
 from matplotlib import pyplot
 
 # define an exact stream function
@@ -8,7 +7,6 @@ psi_exact_str = 'x[1]<=pi ? epsilon*cos(x[0])-(1.0/(cosh((x[1]-0.5*pi)/delta)*co
 epsilon = 0.05
 delta = numpy.pi/15.0
 
-#psi_exact = dolfin.Expression(psi_exact_str,epsilon=epsilon,delta=delta)
 psi_exact = dolfin.Expression(psi_exact_str,degree=int(10),epsilon=epsilon,delta=delta)
 
 # define the number of elements and polynomial degree of basis functions
@@ -48,7 +46,6 @@ for kp,p in enumerate(pp):
 
 
         # get the maximum value of the divergence
-        #div_max[kp,kn] = numpy.abs(p_h.vector().array()).max()
         div_max[kp,kn] = numpy.abs(p_h.vector().get_local()).max()
 
 
