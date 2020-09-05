@@ -3,7 +3,8 @@ import numpy
 from matplotlib import pyplot
 
 # define an exact stream function
-psi_exact_str = 'x[1]<=pi ? epsilon*cos(x[0])-(1.0/(cosh((x[1]-0.5*pi)/delta)*cosh((x[1]-0.5*pi)/delta)))/delta : epsilon*cos(x[0]) + (1.0/(cosh((1.5*pi-x[1])/delta)*cosh((1.5*pi-x[1])/delta)))/delta'   
+#psi_exact_str = 'x[1]<=pi ? epsilon*cos(x[0])-(1.0/(cosh((x[1]-0.5*pi)/delta)*cosh((x[1]-0.5*pi)/delta)))/delta : epsilon*cos(x[0]) + (1.0/(cosh((1.5*pi-x[1])/delta)*cosh((1.5*pi-x[1])/delta)))/delta'   
+psi_exact_str = '1'
 epsilon = 0.05
 delta = numpy.pi/15.0
 
