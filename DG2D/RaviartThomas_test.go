@@ -44,15 +44,26 @@ func TestRTElement(t *testing.T) {
 			Npm := rt.Npm
 			s1, s2 := make([]float64, Npm), make([]float64, Npm)
 			for i := 0; i < Npm; i++ {
-				s1[i] = 1.
-				s2[i] = 1.
+				/*
+					s1[i] = 1.
+					s2[i] = 1.
+				*/
+				r := rt.R.Data()[i]
+				s := rt.S.Data()[i]
+				s1[i] = r * r
+				s2[i] = s * s
 			}
 			div := rt.Divergence(s1, s2)
 			errors := make([]float64, Npm)
 			for i := 0; i < Npm; i++ {
-				var ddr, dds float64
-				divCheck := ddr + dds
-				//fmt.Printf("divCheck[%d] = %8.5f\n", i, divCheck)
+				r := rt.R.Data()[i]
+				s := rt.S.Data()[i]
+				s1[i] = 2 * r
+				s2[i] = 2 * s
+			}
+			for i := 0; i < Npm; i++ {
+				//var ddr, dds float64
+				divCheck := s1[i] + s2[i]
 				errors[i] = div[i] - divCheck
 			}
 			minerrInt, maxerrInt := errors[0], errors[0]
@@ -80,6 +91,19 @@ func TestRTElement(t *testing.T) {
 			//fmt.Printf("div_calc = %v, ", div)
 			fmt.Printf("Min, Max Int Err = %8.5f, %8.5f, Min, Max Edge Err = %8.5f, %8.5f\n", minerrInt, maxerrInt, minerrEdge, maxerrEdge)
 			//fmt.Printf("Errors = %v\n", errors)
+			switch N {
+			case 1:
+				// The O(1) element is linear, so divergence is constant for the input parabolic function
+				assert.True(t, near(minerrInt, -0.59840, 0.0001))
+				assert.True(t, near(maxerrInt, 0.59840, 0.0001))
+				assert.True(t, near(minerrEdge, -0.59840, 0.0001))
+				assert.True(t, near(maxerrEdge, 1.28730, 0.0001))
+			default:
+				assert.True(t, near(minerrInt, 0.0, 0.0001))
+				assert.True(t, near(maxerrInt, 0.0, 0.0001))
+				assert.True(t, near(minerrEdge, 0.0, 0.0001))
+				assert.True(t, near(maxerrEdge, 0.0, 0.0001))
+			}
 		}
 	}
 	if false {

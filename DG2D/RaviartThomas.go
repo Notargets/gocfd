@@ -94,9 +94,8 @@ func (rt *RTElement) ProjectFunctionOntoBasis(s1, s2 []float64) (s1p, s2p []floa
 			s2p[i] = s2[i]
 		case Edge1:
 			// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
-			dp := oosr2 * (s1[i] + s2[i])
-			s1p[i] = dp * oosr2
-			s2p[i] = dp * oosr2
+			s1p[i] = s1[i] * oosr2
+			s2p[i] = s2[i] * oosr2
 		case Edge2:
 			// Edge2: Unit vector is [-1,0]
 			s1p[i] = -s1[i]
