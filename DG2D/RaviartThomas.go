@@ -385,11 +385,11 @@ func (rt *RTElement) Divergence(f1, f2 []float64) (div []float64) {
 		rr, ss := rt.R.Data()[i], rt.S.Data()[i]
 		for j := 0; j < rt.Npm; j++ { // Each polynomial
 			p1r, p2r := rt.EvaluatePolynomial(j, rr, ss, Dr)
-			Dr1.Set(j, i, p1r)
-			Dr2.Set(j, i, p2r)
+			Dr1.Set(i, j, p1r)
+			Dr2.Set(i, j, p2r)
 			p1s, p2s := rt.EvaluatePolynomial(j, rr, ss, Ds)
-			Ds1.Set(j, i, p1s)
-			Ds2.Set(j, i, p2s)
+			Ds1.Set(i, j, p1s)
+			Ds2.Set(i, j, p2s)
 		}
 	}
 	f1pV, f2pV := utils.NewMatrix(Npm, 1, f1p), utils.NewMatrix(Npm, 1, f2p)
