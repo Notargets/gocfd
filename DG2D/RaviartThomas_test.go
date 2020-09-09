@@ -36,73 +36,72 @@ func TestRTElement(t *testing.T) {
 		assert.True(t, nearVec(ddrCheck, ddr, 0.000001))
 		assert.True(t, nearVec(ddsCheck, dds, 0.000001))
 	}
-	{ // Check convergence of Divergence
+	errorCheck := func(N int, div, divCheck []float64) (minInt, maxInt, minEdge, maxEdge float64) {
+		var (
+			Npm    = len(div)
+			errors = make([]float64, Npm)
+		)
+		for i := 0; i < Npm; i++ {
+			//var ddr, dds float64
+			errors[i] = div[i] - divCheck[i]
+		}
+		minInt, maxInt = errors[0], errors[0]
+		Nint := N * (N + 1) / 2
+		minEdge, maxEdge = errors[Nint], errors[Nint]
+		for i := 0; i < Nint; i++ {
+			errAbs := math.Abs(errors[i])
+			if minInt > errAbs {
+				minInt = errAbs
+			}
+			if maxInt < errAbs {
+				maxInt = errAbs
+			}
+		}
+		for i := Nint; i < Npm; i++ {
+			errAbs := math.Abs(errors[i])
+			if minEdge > errAbs {
+				minEdge = errAbs
+			}
+			if maxEdge < errAbs {
+				maxEdge = errAbs
+			}
+		}
+		fmt.Printf("Order = %d, ", N)
+		fmt.Printf("Min, Max Int Err = %8.5f, %8.5f, Min, Max Edge Err = %8.5f, %8.5f\n", minInt, maxInt, minEdge, maxEdge)
+		return
+	}
+	checkSolution := func(rt *RTElement, Order int) (s1, s2, divCheck []float64) {
+		var (
+			Npm = rt.Npm
+		)
+		s1, s2 = make([]float64, Npm), make([]float64, Npm)
+		divCheck = make([]float64, Npm)
+		var ss1, ss2 float64
+		for i := 0; i < Npm; i++ {
+			r := rt.R.Data()[i]
+			s := rt.S.Data()[i]
+			ccf := float64(Order)
+			s1[i] = utils.POW(r, Order)
+			s2[i] = utils.POW(s, Order)
+			ss1, ss2 = ccf*utils.POW(r, Order-1), ccf*utils.POW(s, Order-1)
+			divCheck[i] = ss1 + ss2
+		}
+		return
+	}
+	{ // Check Divergence for polynomial vector fields of order < N against analytical solution
 		Nend := 8
 		for N := 1; N < Nend; N++ {
 			R, S := NodesEpsilon(N - 1)
 			rt := NewRTElement(N, R, S)
-			Npm := rt.Npm
-			s1, s2 := make([]float64, Npm), make([]float64, Npm)
-			for i := 0; i < Npm; i++ {
-				/*
-					s1[i] = 1.
-					s2[i] = 1.
-				*/
-				r := rt.R.Data()[i]
-				s := rt.S.Data()[i]
-				s1[i] = r * r
-				s2[i] = s * s
-			}
-			div := rt.Divergence(s1, s2)
-			errors := make([]float64, Npm)
-			for i := 0; i < Npm; i++ {
-				r := rt.R.Data()[i]
-				s := rt.S.Data()[i]
-				s1[i] = 2 * r
-				s2[i] = 2 * s
-			}
-			for i := 0; i < Npm; i++ {
-				//var ddr, dds float64
-				divCheck := s1[i] + s2[i]
-				errors[i] = div[i] - divCheck
-			}
-			minerrInt, maxerrInt := errors[0], errors[0]
-			Nint := N * (N + 1) / 2
-			minerrEdge, maxerrEdge := errors[Nint], errors[Nint]
-			for i := 0; i < Nint; i++ {
-				errAbs := math.Abs(errors[i])
-				if minerrInt > errAbs {
-					minerrInt = errAbs
-				}
-				if maxerrInt < errAbs {
-					maxerrInt = errAbs
-				}
-			}
-			for i := Nint; i < Npm; i++ {
-				errAbs := math.Abs(errors[i])
-				if minerrEdge > errAbs {
-					minerrEdge = errAbs
-				}
-				if maxerrEdge < errAbs {
-					maxerrEdge = errAbs
-				}
-			}
-			fmt.Printf("Order = %d, ", N)
-			//fmt.Printf("div_calc = %v, ", div)
-			fmt.Printf("Min, Max Int Err = %8.5f, %8.5f, Min, Max Edge Err = %8.5f, %8.5f\n", minerrInt, maxerrInt, minerrEdge, maxerrEdge)
-			//fmt.Printf("Errors = %v\n", errors)
-			switch N {
-			case 1:
-				// The O(1) element is linear, so divergence is constant for the input parabolic function
-				assert.True(t, near(minerrInt, -0.59840, 0.0001))
-				assert.True(t, near(maxerrInt, 0.59840, 0.0001))
-				assert.True(t, near(minerrEdge, -0.59840, 0.0001))
-				assert.True(t, near(maxerrEdge, 1.28730, 0.0001))
-			default:
-				assert.True(t, near(minerrInt, 0.0, 0.0001))
-				assert.True(t, near(maxerrInt, 0.0, 0.0001))
-				assert.True(t, near(minerrEdge, 0.0, 0.0001))
-				assert.True(t, near(maxerrEdge, 0.0, 0.0001))
+			for cOrder := 0; cOrder <= N; cOrder++ {
+				fmt.Printf("Check Order = %d, ", cOrder)
+				s1, s2, divCheck := checkSolution(rt, cOrder)
+				div := rt.Divergence(s1, s2)
+				minerrInt, maxerrInt, minerrEdge, maxerrEdge := errorCheck(N, div, divCheck)
+				assert.True(t, near(minerrInt, 0.0, 0.00001))
+				assert.True(t, near(maxerrInt, 0.0, 0.00001))
+				assert.True(t, near(minerrEdge, 0.0, 0.00001))
+				assert.True(t, near(maxerrEdge, 0.0, 0.00001))
 			}
 		}
 	}
