@@ -31,6 +31,14 @@ const (
 )
 
 func NewRTElement(N int, R, S utils.Vector) (rt *RTElement) {
+	// We expect that there are points in R and S to match the dimension of dim(P(N-1))
+	var (
+		NN         = N - 1
+		NpInterior = (NN + 1) * (NN + 2) / 2
+	)
+	if R.Len() != NpInterior || S.Len() != NpInterior {
+		panic("incorrect number of interior points supplied")
+	}
 	rt = &RTElement{
 		N: N,
 		R: R,
@@ -323,16 +331,18 @@ func (rt *RTElement) CalculateBasis() {
 		rt.V2.SetCol(j, py)
 	}
 	// Create derivative matrices, Dr and Ds
-	rt.Dr1, rt.Dr2 = utils.NewMatrix(1, Np), utils.NewMatrix(1, Np)
-	rt.Ds1, rt.Ds2 = utils.NewMatrix(1, Np), utils.NewMatrix(1, Np)
-	for i := 0; i < Np; i++ {
+	rt.Dr1, rt.Dr2 = utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
+	rt.Ds1, rt.Ds2 = utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
+	for i := 0; i < Np; i++ { // Each geometric location
 		rr, ss := rt.R.Data()[i], rt.S.Data()[i]
-		p1r, p2r := rt.EvaluatePolynomial(i, rr, ss, Dr)
-		rt.Dr1.Data()[i] = p1r
-		rt.Dr2.Data()[i] = p2r
-		p1s, p2s := rt.EvaluatePolynomial(i, rr, ss, Ds)
-		rt.Ds1.Data()[i] = p1s
-		rt.Ds2.Data()[i] = p2s
+		for j := 0; j < Np; j++ { // Each polynomial
+			p1r, p2r := rt.EvaluatePolynomial(j, rr, ss, Dr)
+			rt.Dr1.Set(i, j, p1r)
+			rt.Dr2.Set(i, j, p2r)
+			p1s, p2s := rt.EvaluatePolynomial(j, rr, ss, Ds)
+			rt.Ds1.Set(i, j, p1s)
+			rt.Ds2.Set(i, j, p2s)
+		}
 	}
 	if false {
 		if rt.N != 0 {
@@ -368,33 +378,13 @@ func (rt *RTElement) Divergence(f1, f2 []float64) (div []float64) {
 	if len(f1) != rt.Npm || len(f2) != rt.Npm {
 		panic(fmt.Errorf("wrong input number of points, should be %d, is %d\n", rt.Npm, len(f1)))
 	}
-	//f1p, f2p := rt.ProjectFunctionOntoBasis(f1, f2)
-	f1p, f2p := f1, f2
-	/*
-		div = make([]float64, rt.Npm)
-		for i := range f1p {
-			div[i] = f1p[i]*rt.Dr1.Data()[i] + f2p[i]*rt.Ds2.Data()[i]
-		}
-	*/
+	f1p, f2p := rt.ProjectFunctionOntoBasis(f1, f2)
 	var (
 		Npm = rt.Npm
 	)
-	Dr1, Dr2 := utils.NewMatrix(Npm, Npm), utils.NewMatrix(Npm, Npm)
-	Ds1, Ds2 := utils.NewMatrix(Npm, Npm), utils.NewMatrix(Npm, Npm)
-	for i := 0; i < rt.Npm; i++ { // Each geometric location
-		rr, ss := rt.R.Data()[i], rt.S.Data()[i]
-		for j := 0; j < rt.Npm; j++ { // Each polynomial
-			p1r, p2r := rt.EvaluatePolynomial(j, rr, ss, Dr)
-			Dr1.Set(i, j, p1r)
-			Dr2.Set(i, j, p2r)
-			p1s, p2s := rt.EvaluatePolynomial(j, rr, ss, Ds)
-			Ds1.Set(i, j, p1s)
-			Ds2.Set(i, j, p2s)
-		}
-	}
 	f1pV, f2pV := utils.NewMatrix(Npm, 1, f1p), utils.NewMatrix(Npm, 1, f2p)
 	// Divergence is (Dr1 * f1pV) + (Ds2 * f2pV)
-	divV := Dr1.Mul(f1pV).Add(Ds2.Mul(f2pV))
+	divV := rt.Dr1.Mul(f1pV).Add(rt.Ds2.Mul(f2pV))
 	div = divV.Data()
 	return
 }
@@ -440,13 +430,24 @@ func (rt *RTElement) EvaluateRTBasis(r, s float64, derivO ...DerivativeDirection
 		val = float64(i) * utils.POW(r, j) * utils.POW(s, i-1)
 		return
 	}
+	_, _, _ = PolyTerm2D, DrPolyTerm2D, DsPolyTerm2D
+	DrONTerm2D := func(r, s float64, i, j int) (val float64) {
+		val, _ = GradSimplex2DPTerm(r, s, i, j)
+		//fmt.Printf("Dr r,s,i,j,val = %8.5f,%8.5f,%d,%d,%8.5f,", r, s, i, j, val)
+		return
+	}
+	DsONTerm2D := func(r, s float64, i, j int) (val float64) {
+		_, val = GradSimplex2DPTerm(r, s, i, j)
+		//fmt.Printf("Ds r,s,i,j,val = %8.5f,%8.5f,%d,%d,%8.5f,", r, s, i, j, val)
+		return
+	}
 	switch deriv {
 	case None:
-		tFunc = PolyTerm2D
+		tFunc = Simplex2DPTerm
 	case Dr:
-		tFunc = DrPolyTerm2D
+		tFunc = DrONTerm2D
 	case Ds:
-		tFunc = DsPolyTerm2D
+		tFunc = DsONTerm2D
 	}
 	p1, p2 = make([]float64, Np), make([]float64, Np)
 	// Evaluate the full 2D polynomial basis first, once for each of two components

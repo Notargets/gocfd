@@ -18,13 +18,69 @@ import (
 
 func TestRTElement(t *testing.T) {
 	{
-		N := 7
-		R, S := NodesEpsilon(N)
+		// Check term-wise orthogonal 2D polynomial basis
+		N := 2
+		R, S := NodesEpsilon(N - 1)
 		a, b := RStoAB(R, S)
-		p := Simplex2DP(a, b, 0, 0)
-		ddr, dds := GradSimplex2DP(a, b, 0, 0)
-		fmt.Printf("p = %v\n", p)
-		fmt.Printf("ddr = %v\ndds = %v\n", ddr, dds)
+		ii, jj := 1, 1
+		p := Simplex2DP(a, b, ii, jj)
+		ddr, dds := GradSimplex2DP(a, b, ii, jj)
+		Np := R.Len()
+		pCheck, ddrCheck, ddsCheck := make([]float64, Np), make([]float64, Np), make([]float64, Np)
+		for i, rVal := range R.Data() {
+			sVal := S.Data()[i]
+			ddrCheck[i], ddsCheck[i] = GradSimplex2DPTerm(rVal, sVal, ii, jj)
+			pCheck[i] = Simplex2DPTerm(rVal, sVal, ii, jj)
+		}
+		assert.True(t, nearVec(pCheck, p, 0.000001))
+		assert.True(t, nearVec(ddrCheck, ddr, 0.000001))
+		assert.True(t, nearVec(ddsCheck, dds, 0.000001))
+	}
+	{ // Check convergence of Divergence
+		Nend := 8
+		for N := 1; N < Nend; N++ {
+			R, S := NodesEpsilon(N - 1)
+			rt := NewRTElement(N, R, S)
+			Npm := rt.Npm
+			s1, s2 := make([]float64, Npm), make([]float64, Npm)
+			for i := 0; i < Npm; i++ {
+				s1[i] = 1.
+				s2[i] = 1.
+			}
+			div := rt.Divergence(s1, s2)
+			errors := make([]float64, Npm)
+			for i := 0; i < Npm; i++ {
+				var ddr, dds float64
+				divCheck := ddr + dds
+				//fmt.Printf("divCheck[%d] = %8.5f\n", i, divCheck)
+				errors[i] = div[i] - divCheck
+			}
+			minerrInt, maxerrInt := errors[0], errors[0]
+			Nint := N * (N + 1) / 2
+			minerrEdge, maxerrEdge := errors[Nint], errors[Nint]
+			for i := 0; i < Nint; i++ {
+				errAbs := math.Abs(errors[i])
+				if minerrInt > errAbs {
+					minerrInt = errAbs
+				}
+				if maxerrInt < errAbs {
+					maxerrInt = errAbs
+				}
+			}
+			for i := Nint; i < Npm; i++ {
+				errAbs := math.Abs(errors[i])
+				if minerrEdge > errAbs {
+					minerrEdge = errAbs
+				}
+				if maxerrEdge < errAbs {
+					maxerrEdge = errAbs
+				}
+			}
+			fmt.Printf("Order = %d, ", N)
+			//fmt.Printf("div_calc = %v, ", div)
+			fmt.Printf("Min, Max Int Err = %8.5f, %8.5f, Min, Max Edge Err = %8.5f, %8.5f\n", minerrInt, maxerrInt, minerrEdge, maxerrEdge)
+			//fmt.Printf("Errors = %v\n", errors)
+		}
 	}
 	if false {
 		{ // Check Basis

@@ -143,6 +143,15 @@ func Vandermonde2D(N int, r, s utils.Vector) (V2D utils.Matrix) {
 	return
 }
 
+func Simplex2DPTerm(r, s float64, i, j int) (P float64) {
+	rr := utils.NewVector(1, []float64{r})
+	ss := utils.NewVector(1, []float64{s})
+	a, b := RStoAB(rr, ss)
+	PP := Simplex2DP(a, b, i, j)
+	P = PP[0]
+	return
+}
+
 func Simplex2DP(a, b utils.Vector, i, j int) (P []float64) {
 	var (
 		Np = a.Len()
@@ -619,6 +628,15 @@ func GradVandermonde2D(N int, r, s utils.Vector) (V2Dr, V2Ds utils.Matrix) {
 			sk++
 		}
 	}
+	return
+}
+
+func GradSimplex2DPTerm(r, s float64, i, j int) (ddr, dds float64) {
+	rr := utils.NewVector(1, []float64{r})
+	ss := utils.NewVector(1, []float64{s})
+	a, b := RStoAB(rr, ss)
+	ddrV, ddsV := GradSimplex2DP(a, b, i, j)
+	ddr, dds = ddrV[0], ddsV[0]
 	return
 }
 
