@@ -9,14 +9,15 @@ import (
 )
 
 type RTElement struct {
-	Ainv         utils.Matrix // Polynomial coefficient matrix
-	V1, V2       utils.Matrix // Vandermonde matrix for each direction r and s
-	V1Inv, V2Inv utils.Matrix
-	Dr1, Dr2     utils.Matrix // Derivative matrices in r and s directions
-	Ds1, Ds2     utils.Matrix
-	R, S         utils.Vector // Point locations defining element in [-1,1] Triangle
-	N            int          // Order of element
-	Npm          int          // Number of points in element, excluding duplicate internal points
+	Ainv           utils.Matrix // Polynomial coefficient matrix
+	V1, V2         utils.Matrix // Vandermonde matrix for each direction r and s
+	V1Inv, V2Inv   utils.Matrix
+	Dr1, Dr2       utils.Matrix // Derivative matrices in r and s directions
+	Ds1, Ds2       utils.Matrix
+	Dr1Int, Ds2Int utils.Matrix
+	R, S           utils.Vector // Point locations defining element in [-1,1] Triangle
+	N              int          // Order of element
+	Npm            int          // Number of points in element, excluding duplicate internal points
 }
 
 type RTPointType uint
@@ -384,6 +385,32 @@ func (rt *RTElement) Divergence(f1, f2 []float64) (div []float64) {
 	f1pV, f2pV := utils.NewMatrix(Npm, 1, f1p), utils.NewMatrix(Npm, 1, f2p)
 	// Divergence is (Dr1 * f1pV) + (Ds2 * f2pV)
 	divV := rt.Dr1.Mul(f1pV).Add(rt.Ds2.Mul(f2pV))
+	div = divV.Data()
+	return
+}
+
+func (rt *RTElement) DivergenceInterior(f1, f2 []float64) (div []float64) {
+	if len(f1) != rt.Npm || len(f2) != rt.Npm {
+		panic(fmt.Errorf("wrong input number of points, should be %d, is %d\n", rt.Npm, len(f1)))
+	}
+	f1p, f2p := rt.ProjectFunctionOntoBasis(f1, f2)
+	var (
+		Npm       = rt.Npm
+		N         = rt.N
+		NInterior = N * (N + 1) / 2 // one order less than RT element in (P_k)2
+	)
+	if rt.Dr1Int.IsEmpty() {
+		// Restrict the derivative matrices to the interior points
+		rt.Dr1Int, rt.Ds2Int = utils.NewMatrix(NInterior, Npm), utils.NewMatrix(NInterior, Npm)
+		for i := 0; i < NInterior; i++ {
+			rowDr1, rowDs2 := rt.Dr1.Row(i).Data(), rt.Ds2.Row(i).Data()
+			rt.Dr1Int.M.SetRow(i, rowDr1)
+			rt.Ds2Int.M.SetRow(i, rowDs2)
+		}
+	}
+	f1pV, f2pV := utils.NewMatrix(Npm, 1, f1p), utils.NewMatrix(Npm, 1, f2p)
+	// Divergence is (Dr1 * f1pV) + (Ds2 * f2pV)
+	divV := rt.Dr1Int.Mul(f1pV).Add(rt.Ds2Int.Mul(f2pV))
 	div = divV.Data()
 	return
 }

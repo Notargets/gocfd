@@ -102,12 +102,16 @@ func TestRTElement(t *testing.T) {
 				assert.True(t, near(maxerrInt, 0.0, 0.00001))
 				assert.True(t, near(minerrEdge, 0.0, 0.00001))
 				assert.True(t, near(maxerrEdge, 0.0, 0.00001))
+				// Check the restricted divergence operator for equivalence on the interior points
+				div2 := rt.DivergenceInterior(s1, s2)
+				Ninterior := N * (N + 1) / 2
+				assert.True(t, nearVec(div[0:Ninterior], div2, 0.00001))
 			}
 		}
 	}
 	plot := false
 	if plot {
-		N := 6
+		N := 7
 		NRT := N + 1
 		R, S := NodesEpsilon(N)
 		rt := NewRTElement(NRT, R, S)

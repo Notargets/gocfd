@@ -45,6 +45,14 @@ func (m Matrix) Data() []float64 {
 	return m.RawMatrix().Data
 }
 
+// Utility
+func (m *Matrix) IsEmpty() bool {
+	if m.M == nil {
+		return true
+	}
+	return false
+}
+
 // Chainable methods (extended)
 func (m *Matrix) SetReadOnly(name ...string) Matrix {
 	if len(name) != 0 {
