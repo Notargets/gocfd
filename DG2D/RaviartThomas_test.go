@@ -2,7 +2,6 @@ package DG2D
 
 import (
 	"fmt"
-	"image/color"
 	"math"
 	"testing"
 
@@ -117,10 +116,6 @@ func TestRTElement(t *testing.T) {
 		rt := NewRTElement(NRT, R, S)
 		s1, s2 := make([]float64, rt.R.Len()), make([]float64, rt.R.Len())
 		for i := range rt.R.Data() {
-			/*
-				s1[i] = math.Sin(rt.S.Data()[i]*math.Pi) / 5
-				s2[i] = math.Sin(rt.R.Data()[i]*math.Pi) / 5
-			*/
 			s1[i] = 1
 			s2[i] = 1
 		}
@@ -130,8 +125,8 @@ func TestRTElement(t *testing.T) {
 			chart := PlotTestTri(true)
 			points := arraysToPoints(rt.R.Data(), rt.S.Data())
 			f := arraysToVector(s1, s2, 0.1)
-			_ = chart.AddVectors("test function", points, f, chart2d.Solid, getColor(green))
-			sleepForever()
+			_ = chart.AddVectors("test function", points, f, chart2d.Solid, utils.GetColor(utils.Green))
+			utils.SleepForever()
 		}
 	}
 }
@@ -185,59 +180,8 @@ func PlotTestTri(plotGeom bool) (chart *chart2d.Chart2D) {
 
 	if plotGeom {
 		if err := chart.AddTriMesh("TriMesh", points, trimesh,
-			chart2d.CrossGlyph, chart2d.Solid, getColor(white)); err != nil {
+			chart2d.CrossGlyph, chart2d.Solid, utils.GetColor(utils.White)); err != nil {
 			panic("unable to add graph series")
-		}
-	}
-	return
-}
-
-type ColorName uint8
-
-const (
-	white ColorName = iota
-	blue
-	red
-	green
-	black
-)
-
-func getColor(name ColorName) (c color.RGBA) {
-	switch name {
-	case white:
-		c = color.RGBA{
-			R: 255,
-			G: 255,
-			B: 255,
-			A: 0,
-		}
-	case blue:
-		c = color.RGBA{
-			R: 50,
-			G: 0,
-			B: 255,
-			A: 0,
-		}
-	case red:
-		c = color.RGBA{
-			R: 255,
-			G: 0,
-			B: 50,
-			A: 0,
-		}
-	case green:
-		c = color.RGBA{
-			R: 25,
-			G: 255,
-			B: 25,
-			A: 0,
-		}
-	case black:
-		c = color.RGBA{
-			R: 0,
-			G: 0,
-			B: 0,
-			A: 0,
 		}
 	}
 	return

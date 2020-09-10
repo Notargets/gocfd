@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/notargets/avs/chart2d"
 	utils2 "github.com/notargets/avs/utils"
@@ -192,17 +191,6 @@ func PlotMesh(VX, VY utils.Vector, EToV, BCType, X, Y utils.Matrix, plotPoints b
 	}
 
 	return
-}
-
-func sleepForever() {
-	var ticks int
-	for {
-		ticks++
-		time.Sleep(time.Second)
-		if ticks > 1000 {
-			break
-		}
-	}
 }
 
 func ReadBCS(Nbcs, K, NFaces int, reader *bufio.Reader) (BCType utils.Matrix) {
