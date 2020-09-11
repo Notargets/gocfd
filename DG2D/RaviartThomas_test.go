@@ -123,36 +123,12 @@ func TestRTElement(t *testing.T) {
 
 		if plot {
 			chart := PlotTestTri(true)
-			points := arraysToPoints(rt.R.Data(), rt.S.Data())
-			f := arraysToVector(s1, s2, 0.1)
+			points := utils.ArraysToPoints(rt.R.Data(), rt.S.Data())
+			f := utils.ArraysTo2Vector(s1, s2, 0.1)
 			_ = chart.AddVectors("test function", points, f, chart2d.Solid, utils.GetColor(utils.Green))
 			utils.SleepForever()
 		}
 	}
-}
-
-func arraysToVector(r1, r2 []float64, scaleO ...float64) (g [][2]float64) {
-	var (
-		scale float64 = 1
-	)
-	g = make([][2]float64, len(r1))
-	if len(scaleO) > 0 {
-		scale = scaleO[0]
-	}
-	for i := range r1 {
-		g[i][0] = r1[i] * scale
-		g[i][1] = r2[i] * scale
-	}
-	return
-}
-
-func arraysToPoints(r1, r2 []float64) (points []graphics2D.Point) {
-	points = make([]graphics2D.Point, len(r1))
-	for i := range r1 {
-		points[i].X[0] = float32(r1[i])
-		points[i].X[1] = float32(r2[i])
-	}
-	return
 }
 
 func PlotTestTri(plotGeom bool) (chart *chart2d.Chart2D) {
