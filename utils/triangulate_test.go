@@ -80,7 +80,7 @@ func TestTriangulate(t *testing.T) {
 		plot  = false
 	)
 	if plot {
-		delay = 400
+		delay = 100
 		chart = plotTriangles(triMesh)
 		SleepFor(delay)
 	}
@@ -99,11 +99,6 @@ func TestTriangulate(t *testing.T) {
 			SleepFor(delay)
 		}
 		fmt.Printf("Point[%8.5f,%8.5f]\n", points[i].X[0], points[i].X[1])
-	}
-
-	if plot {
-		plotTriangles(triMesh)
-		SleepFor(delay)
 	}
 	return
 }
