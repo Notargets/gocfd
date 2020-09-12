@@ -110,7 +110,7 @@ func TestRTElement(t *testing.T) {
 	}
 	plot := false
 	if plot {
-		N := 7
+		N := 2
 		NRT := N + 1
 		R, S := NodesEpsilon(N)
 		rt := NewRTElement(NRT, R, S)
@@ -126,7 +126,7 @@ func TestRTElement(t *testing.T) {
 			points := utils.ArraysToPoints(rt.R.Data(), rt.S.Data())
 			f := utils.ArraysTo2Vector(s1, s2, 0.1)
 			_ = chart.AddVectors("test function", points, f, chart2d.Solid, utils.GetColor(utils.Green))
-			utils.SleepForever()
+			utils.SleepFor(500000)
 		}
 	}
 }

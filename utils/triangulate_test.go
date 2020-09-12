@@ -13,11 +13,6 @@ import (
 )
 
 func TestTriangulate(t *testing.T) {
-	var (
-		points  []graphics2D.Point
-		triMesh graphics2D.TriMesh
-		K       = 1
-	)
 	{ //Test Legal Edge test
 		R := []float64{-0.9600, 0.9201, -0.9600, -0.7366, 0.4731, -0.7366, -0.3333, -0.0297, -0.9405, -0.0297, 0.7358, -0.9517, -0.7841, -0.7841, -0.9517, 0.7358, 0.4017, -0.9434, -0.4583, -0.4583, -0.9434, 0.4017, 0.0733, -0.7064, -0.3669, -0.3669, -0.7064, 0.0733, -0.9600, 0.9201, -0.9600, -0.7366, 0.4731, -0.7366, -0.3333, -0.0297, -0.9405, -0.0297, 0.7358, -0.9517, -0.7841, -0.7841, -0.9517, 0.7358, 0.4017, -0.9434, -0.4583, -0.4583, -0.9434, 0.4017, 0.0733, -0.7064, -0.3669, -0.3669, -0.7064, 0.0733, 0.9195, 0.7388, 0.4779, 0.1653, -0.1653, -0.4779, -0.7388, -0.9195, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -0.9195, -0.7388, -0.4779, -0.1653, 0.1653, 0.4779, 0.7388, 0.9195}
 		S := []float64{-0.9600, -0.9600, 0.9201, -0.7366, -0.7366, 0.4731, -0.3333, -0.9405, -0.0297, -0.0297, -0.9517, 0.7358, 0.7358, -0.9517, -0.7841, -0.7841, -0.9434, 0.4017, 0.4017, -0.9434, -0.4583, -0.4583, -0.7064, 0.0733, 0.0733, -0.7064, -0.3669, -0.3669, -0.9600, -0.9600, 0.9201, -0.7366, -0.7366, 0.4731, -0.3333, -0.9405, -0.0297, -0.0297, -0.9517, 0.7358, 0.7358, -0.9517, -0.7841, -0.7841, -0.9434, 0.4017, 0.4017, -0.9434, -0.4583, -0.4583, -0.7064, 0.0733, 0.0733, -0.7064, -0.3669, -0.3669, -0.9195, -0.7388, -0.4779, -0.1653, 0.1653, 0.4779, 0.7388, 0.9195, -0.9195, -0.7388, -0.4779, -0.1653, 0.1653, 0.4779, 0.7388, 0.9195, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000}
@@ -54,48 +49,81 @@ func TestTriangulate(t *testing.T) {
 		}
 	}
 
-	//N := 7
+	N := 7
+	Ninterior := N * (N + 1) / 2
 	//R, S := DG2D.NodesEpsilon(N - 1)
 	//rt := DG2D.NewRTElement(N, R, S)
-	R := []float64{-0.9600, 0.9201, -0.9600, -0.7366, 0.4731, -0.7366, -0.3333, -0.0297, -0.9405, -0.0297, 0.7358, -0.9517, -0.7841, -0.7841, -0.9517, 0.7358, 0.4017, -0.9434, -0.4583, -0.4583, -0.9434, 0.4017, 0.0733, -0.7064, -0.3669, -0.3669, -0.7064, 0.0733, -0.9600, 0.9201, -0.9600, -0.7366, 0.4731, -0.7366, -0.3333, -0.0297, -0.9405, -0.0297, 0.7358, -0.9517, -0.7841, -0.7841, -0.9517, 0.7358, 0.4017, -0.9434, -0.4583, -0.4583, -0.9434, 0.4017, 0.0733, -0.7064, -0.3669, -0.3669, -0.7064, 0.0733, 0.9195, 0.7388, 0.4779, 0.1653, -0.1653, -0.4779, -0.7388, -0.9195, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -0.9195, -0.7388, -0.4779, -0.1653, 0.1653, 0.4779, 0.7388, 0.9195}
-	S := []float64{-0.9600, -0.9600, 0.9201, -0.7366, -0.7366, 0.4731, -0.3333, -0.9405, -0.0297, -0.0297, -0.9517, 0.7358, 0.7358, -0.9517, -0.7841, -0.7841, -0.9434, 0.4017, 0.4017, -0.9434, -0.4583, -0.4583, -0.7064, 0.0733, 0.0733, -0.7064, -0.3669, -0.3669, -0.9600, -0.9600, 0.9201, -0.7366, -0.7366, 0.4731, -0.3333, -0.9405, -0.0297, -0.0297, -0.9517, 0.7358, 0.7358, -0.9517, -0.7841, -0.7841, -0.9434, 0.4017, 0.4017, -0.9434, -0.4583, -0.4583, -0.7064, 0.0733, 0.0733, -0.7064, -0.3669, -0.3669, -0.9195, -0.7388, -0.4779, -0.1653, 0.1653, 0.4779, 0.7388, 0.9195, -0.9195, -0.7388, -0.4779, -0.1653, 0.1653, 0.4779, 0.7388, 0.9195, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000}
-
-	points = make([]graphics2D.Point, 3+len(R))
-	points[0].X[0], points[0].X[1] = -1, -1
-	points[1].X[0], points[1].X[1] = 1, -1
-	points[2].X[0], points[2].X[1] = -1, 1
-	for i := 0; i < len(R); i++ {
-		points[i+3].X[0], points[i+3].X[1] = float32(R[i]), float32(S[i])
+	RR := []float64{-0.9600, 0.9201, -0.9600, -0.7366, 0.4731, -0.7366, -0.3333, -0.0297, -0.9405, -0.0297, 0.7358, -0.9517, -0.7841, -0.7841, -0.9517, 0.7358, 0.4017, -0.9434, -0.4583, -0.4583, -0.9434, 0.4017, 0.0733, -0.7064, -0.3669, -0.3669, -0.7064, 0.0733, -0.9600, 0.9201, -0.9600, -0.7366, 0.4731, -0.7366, -0.3333, -0.0297, -0.9405, -0.0297, 0.7358, -0.9517, -0.7841, -0.7841, -0.9517, 0.7358, 0.4017, -0.9434, -0.4583, -0.4583, -0.9434, 0.4017, 0.0733, -0.7064, -0.3669, -0.3669, -0.7064, 0.0733, 0.9195, 0.7388, 0.4779, 0.1653, -0.1653, -0.4779, -0.7388, -0.9195, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -0.9195, -0.7388, -0.4779, -0.1653, 0.1653, 0.4779, 0.7388, 0.9195}
+	SS := []float64{-0.9600, -0.9600, 0.9201, -0.7366, -0.7366, 0.4731, -0.3333, -0.9405, -0.0297, -0.0297, -0.9517, 0.7358, 0.7358, -0.9517, -0.7841, -0.7841, -0.9434, 0.4017, 0.4017, -0.9434, -0.4583, -0.4583, -0.7064, 0.0733, 0.0733, -0.7064, -0.3669, -0.3669, -0.9600, -0.9600, 0.9201, -0.7366, -0.7366, 0.4731, -0.3333, -0.9405, -0.0297, -0.0297, -0.9517, 0.7358, 0.7358, -0.9517, -0.7841, -0.7841, -0.9434, 0.4017, 0.4017, -0.9434, -0.4583, -0.4583, -0.7064, 0.0733, 0.0733, -0.7064, -0.3669, -0.3669, -0.9195, -0.7388, -0.4779, -0.1653, 0.1653, 0.4779, 0.7388, 0.9195, -0.9195, -0.7388, -0.4779, -0.1653, 0.1653, 0.4779, 0.7388, 0.9195, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000}
+	R := []float64{-1, 1, -1}
+	S := []float64{-1, -1, 1}
+	// Strip off redundant geometry
+	for i := Ninterior; i < len(RR); i++ {
+		R = append(R, RR[i])
+		S = append(S, SS[i])
 	}
 
-	triMesh.Triangles = make([]graphics2D.Triangle, K)
-	triMesh.Geometry = points
-	triMesh.Triangles[0].Nodes[0] = 0
-	triMesh.Triangles[0].Nodes[1] = 1
-	triMesh.Triangles[0].Nodes[2] = 2
+	points := ArraysToPoints(R, S)
 
-	plot := false
+	triMesh := graphics2D.TriMesh{
+		BaseGeometryClass: graphics2D.BaseGeometryClass{
+			Geometry: points,
+		},
+		Triangles: []graphics2D.Triangle{},
+	}
+
+	tri := graphics2D.Triangle{Nodes: [3]int32{0, 1, 2}}
+	triMesh.Triangles = append(triMesh.Triangles, tri)
+	var (
+		chart *chart2d.Chart2D
+		delay int
+		plot  = false
+	)
+	if plot {
+		delay = 400
+		chart = plotTriangles(triMesh)
+		SleepFor(delay)
+	}
+	var ii int
+	for i := 3; i < len(points); i++ {
+		flipped, tri1, tri2 := LegalizeEdge(i, tri, R, S)
+		if flipped {
+			fmt.Println("tri was flipped")
+			triMesh.Triangles[ii] = tri1
+		}
+		triMesh.Triangles = append(triMesh.Triangles, tri2)
+		ii++
+		tri = triMesh.Triangles[ii]
+		if plot {
+			updateTriMesh(chart, triMesh)
+			SleepFor(delay)
+		}
+		fmt.Printf("Point[%8.5f,%8.5f]\n", points[i].X[0], points[i].X[1])
+	}
+
 	if plot {
 		plotTriangles(triMesh)
+		SleepFor(delay)
 	}
 	return
 }
 
-func plotTriangles(triMesh graphics2D.TriMesh) {
-	var (
-		chart *chart2d.Chart2D
-	)
+func plotTriangles(triMesh graphics2D.TriMesh) (chart *chart2d.Chart2D) {
 	colorMap := utils2.NewColorMap(0, 1, 1)
 	box := graphics2D.NewBoundingBox(triMesh.GetGeometry())
 	chart = chart2d.NewChart2D(1024, 1024, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
 	chart.AddColorMap(colorMap)
 	go chart.Plot()
 
+	updateTriMesh(chart, triMesh)
+	return
+}
+
+func updateTriMesh(chart *chart2d.Chart2D, triMesh graphics2D.TriMesh) {
 	if err := chart.AddTriMesh("TriMesh", triMesh.Geometry, triMesh,
 		chart2d.CrossGlyph, chart2d.Solid, GetColor(White)); err != nil {
 		panic("unable to add graph series")
 	}
-	SleepForever()
 }
 
 func IsIllegalEdge(prX, prY, piX, piY, pjX, pjY, pkX, pkY float64) bool {
@@ -125,4 +153,28 @@ func IsIllegalEdge(prX, prY, piX, piY, pjX, pjY, pkX, pkY float64) bool {
 		}
 	}
 	return inCircle(piX, piY, pjX, pjY, pkX, pkY, prX, prY)
+}
+
+func LegalizeEdge(index int, tri graphics2D.Triangle, X, Y []float64) (flipped bool, triOut1, triOut2 graphics2D.Triangle) {
+	var (
+		prX, prY      = X[index], Y[index]
+		p1x, p2x, p3x = X[tri.Nodes[0]], X[tri.Nodes[1]], X[tri.Nodes[2]]
+		p1y, p2y, p3y = Y[tri.Nodes[0]], Y[tri.Nodes[1]], Y[tri.Nodes[2]]
+	)
+	if IsIllegalEdge(prX, prY, p1x, p1y, p2x, p2y, p3x, p3y) {
+		flipped = true
+		triOut1.Nodes[0] = tri.Nodes[0]
+		triOut1.Nodes[1] = tri.Nodes[1]
+		triOut1.Nodes[2] = int32(index)
+
+		triOut2.Nodes[0] = tri.Nodes[1]
+		triOut2.Nodes[1] = tri.Nodes[2]
+		triOut2.Nodes[2] = int32(index)
+	} else {
+		triOut1.Nodes = tri.Nodes
+		triOut2.Nodes[0] = tri.Nodes[0]
+		triOut2.Nodes[1] = tri.Nodes[2]
+		triOut2.Nodes[2] = int32(index)
+	}
+	return
 }

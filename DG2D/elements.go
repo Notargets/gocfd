@@ -108,7 +108,7 @@ func NewElements2D(N int, meshFile string, plotMesh bool) (el *Elements2D) {
 			fmt.Println(g.X[0], g.X[1], sInterp[i][0], sInterp[i][1])
 		}
 		_ = chart.AddVectors("interpolation", geomInterp, sInterp, chart2d.Solid, red)
-		utils.SleepForever()
+		utils.SleepFor(5000)
 	}
 	return
 }

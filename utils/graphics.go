@@ -58,15 +58,8 @@ func GetColor(name ColorName) (c color.RGBA) {
 	return
 }
 
-func SleepForever() {
-	var ticks int
-	for {
-		ticks++
-		time.Sleep(time.Second)
-		if ticks > 1000 {
-			break
-		}
-	}
+func SleepFor(milliseconds int) {
+	time.Sleep(time.Duration(milliseconds) * time.Millisecond)
 }
 
 func ArraysTo2Vector(r1, r2 []float64, scaleO ...float64) (g [][2]float64) {
