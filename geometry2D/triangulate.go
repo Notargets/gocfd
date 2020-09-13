@@ -29,8 +29,10 @@ type Tri struct {
 	Edges []*Edge
 }
 
-func NewTri() (tri *Tri) {
-	tri = &Tri{}
+func NewTri(edgesO ...*Edge) (tri *Tri) {
+	tri = &Tri{
+		Edges: edgesO,
+	}
 	return
 }
 
@@ -129,8 +131,11 @@ func NewTriMesh(X, Y []float64) (tris *TriMesh) {
 	return
 }
 
-func (tm *TriMesh) LegalizeEdge(e *Edge, testPtI int) {
+func (tm *TriMesh) AddPoint(X, Y float64) {
+	tm.Points = append(tm.Points, Point{X: [2]float64{X, Y}})
 }
+
+func (tm *TriMesh) LegalizeEdge(e *Edge, testPtI int) {}
 
 func (tm *TriMesh) ToGraphMesh() (trisOut graphics2D.TriMesh) {
 	pts := make([]graphics2D.Point, len(tm.Points))
