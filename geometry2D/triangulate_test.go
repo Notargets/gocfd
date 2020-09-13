@@ -27,8 +27,8 @@ func TestTriangulate(t *testing.T) {
 
 		tm.AddPoint(1, 1)
 		tri = NewTri(e2)
-		tri.AddEdge(true, [2]int{2, 3})
-		tri.AddEdge(true, [2]int{3, 1})
+		tri.AddEdge(false, [2]int{2, 3})
+		tri.AddEdge(false, [2]int{3, 1})
 		tm.AddTri(tri)
 
 		plot := false

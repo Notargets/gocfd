@@ -30,8 +30,9 @@ type Tri struct {
 }
 
 func NewTri(edgesO ...*Edge) (tri *Tri) {
-	tri = &Tri{
-		Edges: edgesO,
+	tri = &Tri{}
+	for _, e := range edgesO {
+		tri.AddEdge(e.IsImmovable, e.Verts)
 	}
 	return
 }
