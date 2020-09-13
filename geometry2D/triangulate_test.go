@@ -21,7 +21,7 @@ func TestTriangulate(t *testing.T) {
 
 		tri := NewTri()
 		tri.AddEdge(true, [2]int{0, 1})
-		e2 := tri.AddEdge(true, [2]int{1, 2})
+		e2 := tri.AddEdge(false, [2]int{1, 2})
 		tri.AddEdge(true, [2]int{2, 0})
 		tm.AddTri(tri)
 
@@ -33,7 +33,18 @@ func TestTriangulate(t *testing.T) {
 
 		plot := false
 		if plot {
-			plotTriangles(tm.ToGraphMesh())
+			gtm := tm.ToGraphMesh()
+			gtm.Attributes = make([][]float32, len(gtm.Triangles))
+			for i, tri := range tm.Tris {
+				for _, e := range tri.Edges {
+					value := float32(0.5)
+					if e.IsImmovable {
+						value = float32(1.0)
+					}
+					gtm.Attributes[i] = append(gtm.Attributes[i], value)
+				}
+			}
+			plotTriangles(gtm)
 			utils.SleepFor(10000)
 		}
 	}
