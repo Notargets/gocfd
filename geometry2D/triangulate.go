@@ -11,18 +11,55 @@ type Point struct {
 }
 
 type Edge struct {
-	Tris []*Tri // Associated triangles
-}
-
-type Tri struct {
-	Verts [3]int
-	Edges [3]int
+	Tris        []*Tri // Associated triangles
+	Verts       [2]int
+	IsImmovable bool // Is a BC edge
 }
 
 type TriMesh struct {
 	Tris   []*Tri
-	Edges  []*Edge
 	Points []Point
+}
+
+func (tm *TriMesh) AddTri(tri *Tri) {
+	tm.Tris = append(tm.Tris, tri)
+}
+
+type Tri struct {
+	Edges []*Edge
+}
+
+func NewTri() (tri *Tri) {
+	tri = &Tri{}
+	return
+}
+
+func (tri *Tri) GetVertices() (verts [3]int) {
+	if len(tri.Edges) != 3 {
+		panic("not enough edges")
+	}
+	verts[0] = tri.Edges[0].Verts[0]
+	verts[1] = tri.Edges[0].Verts[1]
+	if verts[1] != tri.Edges[1].Verts[0] {
+		verts[2] = tri.Edges[1].Verts[0]
+	} else {
+		verts[2] = tri.Edges[1].Verts[1]
+	}
+	return
+}
+
+func (tri *Tri) AddEdge(IsImmovable bool, verts [2]int) (e *Edge) {
+	e = &Edge{
+		IsImmovable: IsImmovable,
+		Verts:       verts,
+	}
+	e.AddTri(tri)
+	tri.Edges = append(tri.Edges, e)
+	return
+}
+
+func (e *Edge) AddTri(tri *Tri) {
+	e.Tris = append(e.Tris, tri)
 }
 
 func IsIllegalEdge(prX, prY, piX, piY, pjX, pjY, pkX, pkY float64) bool {
@@ -87,36 +124,12 @@ func NewTriMesh(X, Y []float64) (tris *TriMesh) {
 	}
 	tris = &TriMesh{
 		Tris:   nil,
-		Edges:  nil,
 		Points: pts,
 	}
 	return
 }
 
 func (tm *TriMesh) LegalizeEdge(e *Edge, testPtI int) {
-	// The edge must have two triangles associated with it for the test to make sense
-	if len(e.Tris) < 2 {
-		return
-	}
-	// Find which of the two triangles does not contain the test point
-	triNotContainingPt := func(ptI int, tris []*Tri) (tri *Tri) {
-		for _, tri = range tris {
-			var contains bool
-			for _, vert := range tri.Verts {
-				if vert == ptI {
-					contains = true
-					break
-				}
-			}
-			if !contains {
-				return
-			}
-		}
-		return
-	}
-	baseTri := triNotContainingPt(testPtI, e.Tris)
-	_ = baseTri
-	return
 }
 
 func (tm *TriMesh) ToGraphMesh() (trisOut graphics2D.TriMesh) {
@@ -127,9 +140,10 @@ func (tm *TriMesh) ToGraphMesh() (trisOut graphics2D.TriMesh) {
 	}
 	tris := make([]graphics2D.Triangle, len(tm.Tris))
 	for i, tri := range tm.Tris {
-		tris[i].Nodes[0] = int32(tri.Verts[0])
-		tris[i].Nodes[1] = int32(tri.Verts[1])
-		tris[i].Nodes[2] = int32(tri.Verts[2])
+		pts := tri.GetVertices()
+		tris[i].Nodes[0] = int32(pts[0])
+		tris[i].Nodes[1] = int32(pts[1])
+		tris[i].Nodes[2] = int32(pts[2])
 	}
 	trisOut = graphics2D.TriMesh{
 		BaseGeometryClass: graphics2D.BaseGeometryClass{
