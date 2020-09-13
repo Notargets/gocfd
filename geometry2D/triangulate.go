@@ -151,12 +151,22 @@ func (tm *TriMesh) ToGraphMesh() (trisOut graphics2D.TriMesh) {
 		tris[i].Nodes[1] = int32(pts[1])
 		tris[i].Nodes[2] = int32(pts[2])
 	}
+	Attributes := make([][]float32, len(tm.Tris))
+	for i, tri := range tm.Tris {
+		for _, e := range tri.Edges {
+			value := float32(0.5)
+			if e.IsImmovable {
+				value = float32(1.0)
+			}
+			Attributes[i] = append(Attributes[i], value)
+		}
+	}
 	trisOut = graphics2D.TriMesh{
 		BaseGeometryClass: graphics2D.BaseGeometryClass{
 			Geometry: pts,
 		},
 		Triangles:  tris,
-		Attributes: nil,
+		Attributes: Attributes,
 	}
 	return
 }

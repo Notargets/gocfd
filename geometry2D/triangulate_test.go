@@ -33,18 +33,7 @@ func TestTriangulate(t *testing.T) {
 
 		plot := false
 		if plot {
-			gtm := tm.ToGraphMesh()
-			gtm.Attributes = make([][]float32, len(gtm.Triangles))
-			for i, tri := range tm.Tris {
-				for _, e := range tri.Edges {
-					value := float32(0.5)
-					if e.IsImmovable {
-						value = float32(1.0)
-					}
-					gtm.Attributes[i] = append(gtm.Attributes[i], value)
-				}
-			}
-			plotTriangles(gtm)
+			plotTriangles(tm.ToGraphMesh())
 			utils.SleepFor(10000)
 		}
 	}
