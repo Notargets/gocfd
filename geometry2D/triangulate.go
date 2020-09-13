@@ -11,13 +11,18 @@ type Point struct {
 }
 
 type Edge struct {
-	Tris          []int // Associated triangles
-	OpposingPoint int
+	Tris []*Tri // Associated triangles
 }
 
 type Tri struct {
-	Verts [3]Point
-	Edges [3]Edge
+	Verts [3]int
+	Edges [3]int
+}
+
+type TriMesh struct {
+	Tris   []*Tri
+	Edges  []*Edge
+	Points []Point
 }
 
 func IsIllegalEdge(prX, prY, piX, piY, pjX, pjY, pkX, pkY float64) bool {
@@ -69,6 +74,69 @@ func LegalizeEdge(index int, tri graphics2D.Triangle, X, Y []float64) (flipped b
 		triOut2.Nodes[0] = tri.Nodes[0]
 		triOut2.Nodes[1] = tri.Nodes[2]
 		triOut2.Nodes[2] = int32(index)
+	}
+	return
+}
+
+func NewTriMesh(X, Y []float64) (tris *TriMesh) {
+	pts := make([]Point, len(X))
+	for i, x := range X {
+		y := Y[i]
+		pts[i].X[0] = x
+		pts[i].X[1] = y
+	}
+	tris = &TriMesh{
+		Tris:   nil,
+		Edges:  nil,
+		Points: pts,
+	}
+	return
+}
+
+func (tm *TriMesh) LegalizeEdge(e *Edge, testPtI int) {
+	// The edge must have two triangles associated with it for the test to make sense
+	if len(e.Tris) < 2 {
+		return
+	}
+	// Find which of the two triangles does not contain the test point
+	triNotContainingPt := func(ptI int, tris []*Tri) (tri *Tri) {
+		for _, tri = range tris {
+			var contains bool
+			for _, vert := range tri.Verts {
+				if vert == ptI {
+					contains = true
+					break
+				}
+			}
+			if !contains {
+				return
+			}
+		}
+		return
+	}
+	baseTri := triNotContainingPt(testPtI, e.Tris)
+	_ = baseTri
+	return
+}
+
+func (tm *TriMesh) ToGraphMesh() (trisOut graphics2D.TriMesh) {
+	pts := make([]graphics2D.Point, len(tm.Points))
+	for i, pt := range tm.Points {
+		pts[i].X[0] = float32(pt.X[0])
+		pts[i].X[1] = float32(pt.X[1])
+	}
+	tris := make([]graphics2D.Triangle, len(tm.Tris))
+	for i, tri := range tm.Tris {
+		tris[i].Nodes[0] = int32(tri.Verts[0])
+		tris[i].Nodes[1] = int32(tri.Verts[1])
+		tris[i].Nodes[2] = int32(tri.Verts[2])
+	}
+	trisOut = graphics2D.TriMesh{
+		BaseGeometryClass: graphics2D.BaseGeometryClass{
+			Geometry: pts,
+		},
+		Triangles:  tris,
+		Attributes: nil,
 	}
 	return
 }
