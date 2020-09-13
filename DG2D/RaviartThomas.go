@@ -228,7 +228,7 @@ func (rt *RTElement) CalculateBasis() {
 		A      utils.Matrix
 		p1, p2 []float64
 	)
-	// Add the edge and additional interior (duplicated) points to complete the RT geometry
+	// Add the edge and additional interior (duplicated) points to complete the RT geometry2D
 	rt.R, rt.S = ExtendGeomToRT(N, R, S)
 	/*
 		Form the basis matrix by forming a dot product with unit vectors, matching the coordinate locations in R,S

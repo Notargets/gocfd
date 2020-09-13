@@ -1,9 +1,10 @@
-package utils
+package geometry2D
 
 import (
 	"fmt"
-	"math"
 	"testing"
+
+	"github.com/notargets/gocfd/utils"
 
 	"github.com/stretchr/testify/assert"
 
@@ -57,13 +58,13 @@ func TestTriangulate(t *testing.T) {
 	SS := []float64{-0.9600, -0.9600, 0.9201, -0.7366, -0.7366, 0.4731, -0.3333, -0.9405, -0.0297, -0.0297, -0.9517, 0.7358, 0.7358, -0.9517, -0.7841, -0.7841, -0.9434, 0.4017, 0.4017, -0.9434, -0.4583, -0.4583, -0.7064, 0.0733, 0.0733, -0.7064, -0.3669, -0.3669, -0.9600, -0.9600, 0.9201, -0.7366, -0.7366, 0.4731, -0.3333, -0.9405, -0.0297, -0.0297, -0.9517, 0.7358, 0.7358, -0.9517, -0.7841, -0.7841, -0.9434, 0.4017, 0.4017, -0.9434, -0.4583, -0.4583, -0.7064, 0.0733, 0.0733, -0.7064, -0.3669, -0.3669, -0.9195, -0.7388, -0.4779, -0.1653, 0.1653, 0.4779, 0.7388, 0.9195, -0.9195, -0.7388, -0.4779, -0.1653, 0.1653, 0.4779, 0.7388, 0.9195, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000}
 	R := []float64{-1, 1, -1}
 	S := []float64{-1, -1, 1}
-	// Strip off redundant geometry
+	// Strip off redundant geometry2D
 	for i := Ninterior; i < len(RR); i++ {
 		R = append(R, RR[i])
 		S = append(S, SS[i])
 	}
 
-	points := ArraysToPoints(R, S)
+	points := utils.ArraysToPoints(R, S)
 
 	triMesh := graphics2D.TriMesh{
 		BaseGeometryClass: graphics2D.BaseGeometryClass{
@@ -80,9 +81,9 @@ func TestTriangulate(t *testing.T) {
 		plot  = false
 	)
 	if plot {
-		delay = 100
+		delay = 500
 		chart = plotTriangles(triMesh)
-		SleepFor(delay)
+		utils.SleepFor(delay)
 	}
 	var ii int
 	for i := 3; i < len(points); i++ {
@@ -96,7 +97,7 @@ func TestTriangulate(t *testing.T) {
 		tri = triMesh.Triangles[ii]
 		if plot {
 			updateTriMesh(chart, triMesh)
-			SleepFor(delay)
+			utils.SleepFor(delay)
 		}
 		fmt.Printf("Point[%8.5f,%8.5f]\n", points[i].X[0], points[i].X[1])
 	}
@@ -116,60 +117,7 @@ func plotTriangles(triMesh graphics2D.TriMesh) (chart *chart2d.Chart2D) {
 
 func updateTriMesh(chart *chart2d.Chart2D, triMesh graphics2D.TriMesh) {
 	if err := chart.AddTriMesh("TriMesh", triMesh.Geometry, triMesh,
-		chart2d.CrossGlyph, chart2d.Solid, GetColor(White)); err != nil {
+		chart2d.CrossGlyph, chart2d.Solid, utils.GetColor(utils.White)); err != nil {
 		panic("unable to add graph series")
 	}
-}
-
-func IsIllegalEdge(prX, prY, piX, piY, pjX, pjY, pkX, pkY float64) bool {
-	/*
-		pr is a new point for candidate triangle pi-pj-pr
-		pi-pj is a shared edge between pi-pj-pk and pi-pj-pr
-		if pr lies inside the circle defined by pi-pj-pk:
-			- The edge pi-pj should be swapped with pr-pk to make two new triangles:
-				pi-pr-pk and pj-pk-pr
-	*/
-	inCircle := func(ax, ay, bx, by, cx, cy, dx, dy float64) (inside bool) {
-		// Calculate handedness, counter-clockwise is (positive) and clockwise is (negative)
-		signBit := math.Signbit((bx-ax)*(cy-ay) - (cx-ax)*(by-ay))
-		ax_ := ax - dx
-		ay_ := ay - dy
-		bx_ := bx - dx
-		by_ := by - dy
-		cx_ := cx - dx
-		cy_ := cy - dy
-		det := (ax_*ax_+ay_*ay_)*(bx_*cy_-cx_*by_) -
-			(bx_*bx_+by_*by_)*(ax_*cy_-cx_*ay_) +
-			(cx_*cx_+cy_*cy_)*(ax_*by_-bx_*ay_)
-		if signBit {
-			return det < 0
-		} else {
-			return det > 0
-		}
-	}
-	return inCircle(piX, piY, pjX, pjY, pkX, pkY, prX, prY)
-}
-
-func LegalizeEdge(index int, tri graphics2D.Triangle, X, Y []float64) (flipped bool, triOut1, triOut2 graphics2D.Triangle) {
-	var (
-		prX, prY      = X[index], Y[index]
-		p1x, p2x, p3x = X[tri.Nodes[0]], X[tri.Nodes[1]], X[tri.Nodes[2]]
-		p1y, p2y, p3y = Y[tri.Nodes[0]], Y[tri.Nodes[1]], Y[tri.Nodes[2]]
-	)
-	if IsIllegalEdge(prX, prY, p1x, p1y, p2x, p2y, p3x, p3y) {
-		flipped = true
-		triOut1.Nodes[0] = tri.Nodes[0]
-		triOut1.Nodes[1] = tri.Nodes[1]
-		triOut1.Nodes[2] = int32(index)
-
-		triOut2.Nodes[0] = tri.Nodes[1]
-		triOut2.Nodes[1] = tri.Nodes[2]
-		triOut2.Nodes[2] = int32(index)
-	} else {
-		triOut1.Nodes = tri.Nodes
-		triOut2.Nodes[0] = tri.Nodes[0]
-		triOut2.Nodes[1] = tri.Nodes[2]
-		triOut2.Nodes[2] = int32(index)
-	}
-	return
 }

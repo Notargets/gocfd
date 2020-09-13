@@ -320,7 +320,7 @@ func (el *Elements2D) Startup2DDFR() {
 
 			The [ w ] directions of the custom RT element basis are defined such that:
 				w([r]) = w(edge_locations) = unit normals on each of three edges
-				w([r]) = w(interior) = unit normals in the two primary geometry directions (r and s)
+				w([r]) = w(interior) = unit normals in the two primary geometry2D directions (r and s)
 
 			For order K there are:
 				- (K+1) locations on each edge, for a total of 3(K+1) edge basis functions.
