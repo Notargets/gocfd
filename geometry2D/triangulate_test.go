@@ -24,6 +24,7 @@ func TestTriangulate(t *testing.T) {
 		e2 := tri.AddEdge(false, [2]int{1, 2})
 		tri.AddEdge(true, [2]int{2, 0})
 		tm.AddTri(tri)
+		tm.AddBoundingTriangle(tri)
 
 		tm.AddPoint(1, 1)
 		tri = NewTri(e2)

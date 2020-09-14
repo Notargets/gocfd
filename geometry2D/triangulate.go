@@ -1,6 +1,7 @@
 package geometry2D
 
 import (
+	"fmt"
 	"math"
 
 	graphics2D "github.com/notargets/avs/geometry"
@@ -16,13 +17,19 @@ type Edge struct {
 	IsImmovable bool // Is a BC edge
 }
 
-type TriMesh struct {
-	Tris   []*Tri
-	Points []Point
+func (e *Edge) AddTri(tri *Tri) {
+	e.Tris = append(e.Tris, tri)
 }
 
-func (tm *TriMesh) AddTri(tri *Tri) {
-	tm.Tris = append(tm.Tris, tri)
+type TriMesh struct {
+	Tris     []*Tri
+	Points   []Point
+	TriGraph *TriGraphNode // Graph used to determine which triangle a new point is inside
+}
+
+type TriGraphNode struct { // Tracks nested triangles during formation by using "point inside triangle" approach
+	Triangle *Tri
+	Children []*TriGraphNode
 }
 
 type Tri struct {
@@ -61,8 +68,125 @@ func (tri *Tri) AddEdge(IsImmovable bool, verts [2]int) (e *Edge) {
 	return
 }
 
-func (e *Edge) AddTri(tri *Tri) {
-	e.Tris = append(e.Tris, tri)
+func NewTriMesh(X, Y []float64) (tris *TriMesh) {
+	pts := make([]Point, len(X))
+	for i, x := range X {
+		y := Y[i]
+		pts[i].X[0] = x
+		pts[i].X[1] = y
+	}
+	tris = &TriMesh{
+		Tris:   nil,
+		Points: pts,
+	}
+	return
+}
+
+func (tm *TriMesh) AddBoundingTriangle(tri *Tri) {
+	tm.TriGraph = &TriGraphNode{Triangle: tri}
+}
+
+func (tm *TriMesh) TriContainsPoint(tri *Tri, pt Point) (contains bool) {
+	var (
+		verts      = tri.GetVertices()
+		pts        = tm.Points
+		v1, v2, v3 = pts[verts[0]], pts[verts[1]], pts[verts[2]]
+	)
+	signF := func(p1, p2, p3 Point) float64 {
+		return (p1.X[0]-p3.X[0])*(p2.X[1]-p3.X[1]) - (p2.X[0]-p3.X[0])*(p1.X[1]-p3.X[1])
+	}
+	b1 := math.Signbit(signF(pt, v1, v2))
+	b2 := math.Signbit(signF(pt, v2, v3))
+	b3 := math.Signbit(signF(pt, v3, v1))
+	return (b1 == b2) && (b2 == b3)
+}
+
+func (tm *TriMesh) getLeafTri(tgn *TriGraphNode, pt Point) (triLeaf *Tri) {
+	for _, tgnDown := range tgn.Children {
+		tri := tgnDown.Triangle
+		if tm.TriContainsPoint(tri, pt) {
+			triLeaf = tm.getLeafTri(tgnDown, pt)
+			return
+		}
+	}
+	if len(tgn.Children) == 0 {
+		triLeaf = tgn.Triangle
+	}
+	return
+}
+
+func (tm *TriMesh) AddPoint(X, Y float64) {
+	pt := Point{X: [2]float64{X, Y}}
+	tm.Points = append(tm.Points, pt)
+	//Find a triangle containing the point
+	tri := tm.getLeafTri(tm.TriGraph, pt)
+	fmt.Printf("Found the leaf containing tri = %v\n", tri)
+}
+
+func (tm *TriMesh) GetOpposingTri(e *Edge, ptI int) (oppoTri *Tri) {
+	// Get the triangle on the other side of the edge, relative to ptI
+	for _, tri := range e.Tris {
+		var found bool
+		for _, vertI := range tri.GetVertices() {
+			if vertI == ptI {
+				found = true
+			}
+		}
+		if !found {
+			return tri
+		}
+	}
+	return
+}
+
+/*
+func (tm *TriMesh) LegalizeEdge(e *Edge, testPtI int) {
+	var (
+		pts = tm.Points
+		prX, prY      = pts[testPtI].X[0], pts[testPtI].X[1]
+		tri           = e.Tris[0]
+		verts = tri.GetVertices()
+		p1x, p2x, p3x = X[.[0]], X[tri.Nodes[1]], X[tri.Nodes[2]]
+		p1y, p2y, p3y = Y[tri.Nodes[0]], Y[tri.Nodes[1]], Y[tri.Nodes[2]]
+	)
+}
+*/
+
+func (tm *TriMesh) ToGraphMesh() (trisOut graphics2D.TriMesh) {
+	pts := make([]graphics2D.Point, len(tm.Points))
+	for i, pt := range tm.Points {
+		pts[i].X[0] = float32(pt.X[0])
+		pts[i].X[1] = float32(pt.X[1])
+	}
+	tris := make([]graphics2D.Triangle, len(tm.Tris))
+	for i, tri := range tm.Tris {
+		pts := tri.GetVertices()
+		tris[i].Nodes[0] = int32(pts[0])
+		tris[i].Nodes[1] = int32(pts[1])
+		tris[i].Nodes[2] = int32(pts[2])
+	}
+	Attributes := make([][]float32, len(tm.Tris))
+	for i, tri := range tm.Tris {
+		for _, e := range tri.Edges {
+			value := float32(0.5)
+			if e.IsImmovable {
+				value = float32(1.0)
+			}
+			Attributes[i] = append(Attributes[i], value)
+		}
+	}
+	trisOut = graphics2D.TriMesh{
+		BaseGeometryClass: graphics2D.BaseGeometryClass{
+			Geometry: pts,
+		},
+		Triangles:  tris,
+		Attributes: Attributes,
+	}
+	return
+}
+
+func (tm *TriMesh) AddTri(tri *Tri) {
+	tm.Tris = append(tm.Tris, tri)
 }
 
 func IsIllegalEdge(prX, prY, piX, piY, pjX, pjY, pkX, pkY float64) bool {
@@ -114,59 +238,6 @@ func LegalizeEdge(index int, tri graphics2D.Triangle, X, Y []float64) (flipped b
 		triOut2.Nodes[0] = tri.Nodes[0]
 		triOut2.Nodes[1] = tri.Nodes[2]
 		triOut2.Nodes[2] = int32(index)
-	}
-	return
-}
-
-func NewTriMesh(X, Y []float64) (tris *TriMesh) {
-	pts := make([]Point, len(X))
-	for i, x := range X {
-		y := Y[i]
-		pts[i].X[0] = x
-		pts[i].X[1] = y
-	}
-	tris = &TriMesh{
-		Tris:   nil,
-		Points: pts,
-	}
-	return
-}
-
-func (tm *TriMesh) AddPoint(X, Y float64) {
-	tm.Points = append(tm.Points, Point{X: [2]float64{X, Y}})
-}
-
-func (tm *TriMesh) LegalizeEdge(e *Edge, testPtI int) {}
-
-func (tm *TriMesh) ToGraphMesh() (trisOut graphics2D.TriMesh) {
-	pts := make([]graphics2D.Point, len(tm.Points))
-	for i, pt := range tm.Points {
-		pts[i].X[0] = float32(pt.X[0])
-		pts[i].X[1] = float32(pt.X[1])
-	}
-	tris := make([]graphics2D.Triangle, len(tm.Tris))
-	for i, tri := range tm.Tris {
-		pts := tri.GetVertices()
-		tris[i].Nodes[0] = int32(pts[0])
-		tris[i].Nodes[1] = int32(pts[1])
-		tris[i].Nodes[2] = int32(pts[2])
-	}
-	Attributes := make([][]float32, len(tm.Tris))
-	for i, tri := range tm.Tris {
-		for _, e := range tri.Edges {
-			value := float32(0.5)
-			if e.IsImmovable {
-				value = float32(1.0)
-			}
-			Attributes[i] = append(Attributes[i], value)
-		}
-	}
-	trisOut = graphics2D.TriMesh{
-		BaseGeometryClass: graphics2D.BaseGeometryClass{
-			Geometry: pts,
-		},
-		Triangles:  tris,
-		Attributes: Attributes,
 	}
 	return
 }
