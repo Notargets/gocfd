@@ -19,23 +19,19 @@ func TestTriangulate(t *testing.T) {
 		S := []float64{-1, -1, 1}
 		tm := NewTriMesh(R, S)
 
-		tri := NewTri()
-		tri.AddEdge(true, [2]int{0, 1})
-		e2 := tri.AddEdge(false, [2]int{1, 2})
-		tri.AddEdge(true, [2]int{2, 0})
-		tm.AddTri(tri)
+		tri := &Tri{}
+		tri.AddEdge(NewEdge([2]int{0, 1}, true))
+		e2 := NewEdge([2]int{1, 2}, true)
+		tri.AddEdge(e2)
+		tri.AddEdge(NewEdge([2]int{2, 0}, true))
 		tm.AddBoundingTriangle(tri)
 
 		tm.AddPoint(-0.33, -0.33)
-		tri = NewTri(e2)
-		tri.AddEdge(false, [2]int{2, 3})
-		tri.AddEdge(false, [2]int{3, 1})
-		tm.AddTri(tri)
 
-		plot := true
+		plot := false
 		if plot {
 			plotTriangles(tm.ToGraphMesh())
-			utils.SleepFor(10000)
+			utils.SleepFor(100000)
 		}
 	}
 	if false { //Test Legal Edge test

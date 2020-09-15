@@ -17,6 +17,41 @@ type Edge struct {
 	IsImmovable bool // Is a BC edge
 }
 
+func NewEdge(verts [2]int, isImmovableO ...bool) (e *Edge) {
+	e = &Edge{
+		Verts: verts,
+	}
+	if len(isImmovableO) != 0 {
+		e.IsImmovable = isImmovableO[0]
+	}
+	return
+}
+
+func NewEdgeFromEdges(edges []*Edge, isImmovableO ...bool) (ee *Edge) {
+	// Create a new edge by connecting two other edges
+	vMap := make(map[int]int)
+	for _, e := range edges {
+		for _, v := range e.Verts {
+			vMap[v]++
+		}
+	}
+	var verts [2]int
+	var ii int
+	for key, val := range vMap {
+		if val == 1 {
+			verts[ii] = key
+			ii++
+		}
+	}
+	ee = &Edge{
+		Verts: verts,
+	}
+	if len(isImmovableO) != 0 {
+		ee.IsImmovable = isImmovableO[0]
+	}
+	return
+}
+
 func (e *Edge) AddTri(tri *Tri) {
 	e.Tris = append(e.Tris, tri)
 }
@@ -37,9 +72,15 @@ type Tri struct {
 }
 
 func NewTri(edgesO ...*Edge) (tri *Tri) {
+	if len(edgesO) < 2 || len(edgesO) > 3 {
+		panic("need at least two and no more than three connected edges to make a triangle")
+	}
 	tri = &Tri{}
 	for _, e := range edgesO {
-		tri.AddEdge(e.IsImmovable, e.Verts)
+		tri.AddEdge(e)
+	}
+	if len(edgesO) == 2 {
+		tri.AddEdge(NewEdgeFromEdges(edgesO))
 	}
 	return
 }
@@ -58,11 +99,7 @@ func (tri *Tri) GetVertices() (verts [3]int) {
 	return
 }
 
-func (tri *Tri) AddEdge(IsImmovable bool, verts [2]int) (e *Edge) {
-	e = &Edge{
-		IsImmovable: IsImmovable,
-		Verts:       verts,
-	}
+func (tri *Tri) AddEdge(e *Edge) {
 	e.AddTri(tri)
 	tri.Edges = append(tri.Edges, e)
 	return
@@ -99,6 +136,7 @@ func (tm *TriMesh) PrintTri(tri *Tri, labelO ...string) string {
 
 func (tm *TriMesh) AddBoundingTriangle(tri *Tri) {
 	tm.TriGraph = &TriGraphNode{Triangle: tri}
+	tm.AddTri(tri, nil)
 }
 
 func (tm *TriMesh) TriContainsPoint(tri *Tri, pt Point) (contains bool) {
@@ -116,16 +154,17 @@ func (tm *TriMesh) TriContainsPoint(tri *Tri, pt Point) (contains bool) {
 	return (b1 == b2) && (b2 == b3)
 }
 
-func (tm *TriMesh) getLeafTri(tgn *TriGraphNode, pt Point) (triLeaf *Tri) {
+func (tm *TriMesh) getLeafTri(tgn *TriGraphNode, pt Point) (triLeaf *Tri, leafNode *TriGraphNode) {
 	for _, tgnDown := range tgn.Children {
 		tri := tgnDown.Triangle
 		if tm.TriContainsPoint(tri, pt) {
-			triLeaf = tm.getLeafTri(tgnDown, pt)
+			triLeaf, leafNode = tm.getLeafTri(tgnDown, pt)
 			return
 		}
 	}
 	if len(tgn.Children) == 0 && tm.TriContainsPoint(tgn.Triangle, pt) {
 		triLeaf = tgn.Triangle
+		leafNode = tgn
 	}
 	return
 }
@@ -133,14 +172,26 @@ func (tm *TriMesh) getLeafTri(tgn *TriGraphNode, pt Point) (triLeaf *Tri) {
 func (tm *TriMesh) AddPoint(X, Y float64) {
 	pt := Point{X: [2]float64{X, Y}}
 	tm.Points = append(tm.Points, pt)
+	ptI := len(tm.Points) - 1
 	//Find a triangle containing the point
-	tri := tm.getLeafTri(tm.TriGraph, pt)
+	tri, leafNode := tm.getLeafTri(tm.TriGraph, pt)
 	if tri == nil {
 		err := fmt.Errorf(
 			"unable to add point to triangulation, point %v is outside %v",
 			pt, tm.PrintTri(tm.TriGraph.Triangle, "bounding triangle"))
 		panic(err)
 	}
+	v := tri.GetVertices()
+	e1 := NewEdge([2]int{ptI, v[0]})
+	e2 := NewEdge([2]int{ptI, v[1]})
+	e3 := NewEdge([2]int{ptI, v[2]})
+
+	tri = NewTri(e1, tri.Edges[0], e2)
+	tm.AddTri(tri, leafNode)
+	tri = NewTri(e2, tri.Edges[1], e3)
+	tm.AddTri(tri, leafNode)
+	tri = NewTri(e3, tri.Edges[2], e1)
+	tm.AddTri(tri, leafNode)
 }
 
 func (tm *TriMesh) GetOpposingTri(e *Edge, ptI int) (oppoTri *Tri) {
@@ -205,8 +256,13 @@ func (tm *TriMesh) ToGraphMesh() (trisOut graphics2D.TriMesh) {
 	return
 }
 
-func (tm *TriMesh) AddTri(tri *Tri) {
+func (tm *TriMesh) AddTri(tri *Tri, leaf *TriGraphNode) {
 	tm.Tris = append(tm.Tris, tri)
+	if leaf != nil { // Root node
+		leaf.Children = append(leaf.Children, &TriGraphNode{
+			Triangle: tri,
+		})
+	}
 }
 
 func IsIllegalEdge(prX, prY, piX, piY, pjX, pjY, pkX, pkY float64) bool {
