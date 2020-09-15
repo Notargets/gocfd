@@ -82,6 +82,21 @@ func NewTriMesh(X, Y []float64) (tris *TriMesh) {
 	return
 }
 
+func (tm *TriMesh) PrintTri(tri *Tri, labelO ...string) string {
+	if tri == nil {
+		return "nil triangle"
+	}
+	var (
+		pts   = tm.Points
+		v     = tri.GetVertices()
+		label = "triangle"
+	)
+	if len(labelO) != 0 {
+		label = labelO[0]
+	}
+	return fmt.Sprintf("%s: v1: %8.5f, v2: %8.5f, v3: %8.5f\n", label, pts[v[0]], pts[v[1]], pts[v[2]])
+}
+
 func (tm *TriMesh) AddBoundingTriangle(tri *Tri) {
 	tm.TriGraph = &TriGraphNode{Triangle: tri}
 }
@@ -109,7 +124,7 @@ func (tm *TriMesh) getLeafTri(tgn *TriGraphNode, pt Point) (triLeaf *Tri) {
 			return
 		}
 	}
-	if len(tgn.Children) == 0 {
+	if len(tgn.Children) == 0 && tm.TriContainsPoint(tgn.Triangle, pt) {
 		triLeaf = tgn.Triangle
 	}
 	return
@@ -120,7 +135,12 @@ func (tm *TriMesh) AddPoint(X, Y float64) {
 	tm.Points = append(tm.Points, pt)
 	//Find a triangle containing the point
 	tri := tm.getLeafTri(tm.TriGraph, pt)
-	fmt.Printf("Found the leaf containing tri = %v\n", tri)
+	if tri == nil {
+		err := fmt.Errorf(
+			"unable to add point to triangulation, point %v is outside %v",
+			pt, tm.PrintTri(tm.TriGraph.Triangle, "bounding triangle"))
+		panic(err)
+	}
 }
 
 func (tm *TriMesh) GetOpposingTri(e *Edge, ptI int) (oppoTri *Tri) {

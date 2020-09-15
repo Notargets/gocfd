@@ -32,7 +32,7 @@ func TestTriangulate(t *testing.T) {
 		tri.AddEdge(false, [2]int{3, 1})
 		tm.AddTri(tri)
 
-		plot := false
+		plot := true
 		if plot {
 			plotTriangles(tm.ToGraphMesh())
 			utils.SleepFor(10000)
