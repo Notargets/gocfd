@@ -25,10 +25,9 @@ func TestTriangulate(t *testing.T) {
 		tri.AddEdge(e2)
 		tri.AddEdge(NewEdge([2]int{2, 0}, true))
 		tm.AddBoundingTriangle(tri)
+		verts := tri.GetVertices()
+		assert.Equal(t, verts, [3]int{0, 1, 2})
 
-		//TODO: Alter NewTriangle to orient edges so that the tri is CCW and vertices can be enumerated in the correct order
-		//TODO: This will require an edge "sign" indicating traversel direction of the edge for the tri, because adjacent tris
-		//TODO: will traverse in opposite order
 		tm.AddPoint(-0.33, -0.33)
 
 		plot := false

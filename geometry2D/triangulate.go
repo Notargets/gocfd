@@ -81,10 +81,11 @@ type TriGraphNode struct { // Tracks nested triangles during formation by using 
 }
 
 type Tri struct {
-	Edges []*Edge
+	Edges     []*Edge
+	Reversals [3]int
 }
 
-func NewTri(edgesO ...*Edge) (tri *Tri) {
+func (tm *TriMesh) NewTri(edgesO ...*Edge) (tri *Tri) {
 	if len(edgesO) < 2 || len(edgesO) > 3 {
 		panic("need at least two and no more than three connected edges to make a triangle")
 	}
@@ -96,20 +97,55 @@ func NewTri(edgesO ...*Edge) (tri *Tri) {
 		tri.AddEdge(NewEdgeFromEdges(edgesO))
 	}
 	// Check whether triangle has the correct number of unique vertices
-	tri.GetVertices()
+	tm.orientEdges(tri)
 	return
+}
+
+func (tm *TriMesh) orientEdges(tri *Tri) {
+	var (
+		edges = tri.Edges
+		pts   = tm.Points
+	)
+	// First connect each edge, reversing when needed to get the correct matching vertex
+	checkReverseNeeded := func(e1, e2 *Edge, e1Reversal int) (reverse int) {
+		// If e2 must be reversed to connect it's 0 vertex to e1's 1 vertex, output a "1", otherwise "0"
+		switch {
+		case e1.Verts[1-e1Reversal] == e2.Verts[0]:
+			reverse = 0
+		case e1.Verts[1-e1Reversal] == e2.Verts[1]:
+			reverse = 1
+		default:
+			err := fmt.Errorf("unable to connect edges: e1 Verts, e2 Verts, e1Reversal = %v, %v, %d\n", e1.Verts, e2.Verts, e1Reversal)
+			panic(err)
+		}
+		return
+	}
+	tri.Reversals[0] = 0 // Edge 0 defines initial direction
+	tri.Reversals[1] = checkReverseNeeded(edges[0], edges[1], 0)
+	tri.Reversals[2] = checkReverseNeeded(edges[1], edges[2], tri.Reversals[1])
+	// The triangle is now connected simply, let's check the orientation (CCW or CW)
+	signF := func(p [3]Point) float64 {
+		return (p[0].X[0]-p[2].X[0])*(p[1].X[1]-p[2].X[1]) - (p[1].X[0]-p[2].X[0])*(p[0].X[1]-p[2].X[1])
+	}
+	var verts [3]Point
+	verts[0] = pts[edges[0].Verts[0]]
+	verts[1] = pts[edges[0].Verts[1]]
+	verts[2] = pts[edges[1].Verts[1-tri.Reversals[1]]]
+	if math.Signbit(signF(verts)) {
+		for i := 0; i < 3; i++ {
+			// Reverse all edges in tri to orient it CCW
+			tri.Reversals[i] = 1 - tri.Reversals[i]
+		}
+	}
 }
 
 func (tri *Tri) GetVertices() (verts [3]int) {
 	if len(tri.Edges) != 3 {
 		panic("not enough edges")
 	}
-	v := GetUniqueVertices(tri.Edges[0], tri.Edges[1], tri.Edges[2])
-	if len(v) != 3 {
-		err := fmt.Errorf("degenerate triangle, need 3 unique vertices, have %d\n", len(v))
-		panic(err)
-	}
-	verts = [3]int{v[0], v[1], v[2]}
+	verts[0] = tri.Edges[0].Verts[0+tri.Reversals[0]]
+	verts[1] = tri.Edges[0].Verts[1-tri.Reversals[0]]
+	verts[2] = tri.Edges[1].Verts[1-tri.Reversals[1]]
 	return
 }
 
@@ -149,6 +185,7 @@ func (tm *TriMesh) PrintTri(tri *Tri, labelO ...string) string {
 }
 
 func (tm *TriMesh) AddBoundingTriangle(tri *Tri) {
+	tm.orientEdges(tri)
 	tm.TriGraph = &TriGraphNode{Triangle: tri}
 }
 
@@ -199,11 +236,11 @@ func (tm *TriMesh) AddPoint(X, Y float64) {
 	e2 := NewEdge([2]int{ptI, v[1]})
 	e3 := NewEdge([2]int{ptI, v[2]})
 
-	tri := NewTri(e1, baseTri.Edges[0], e2)
+	tri := tm.NewTri(e1, baseTri.Edges[0], e2)
 	tm.AddTri(tri, leafNode)
-	tri = NewTri(e2, baseTri.Edges[1], e3)
+	tri = tm.NewTri(e2, baseTri.Edges[1], e3)
 	tm.AddTri(tri, leafNode)
-	tri = NewTri(e3, baseTri.Edges[2], e1)
+	tri = tm.NewTri(e3, baseTri.Edges[2], e1)
 	tm.AddTri(tri, leafNode)
 }
 
