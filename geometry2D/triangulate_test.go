@@ -26,11 +26,20 @@ func TestTriangulate(t *testing.T) {
 		tri.AddEdge(NewEdge([2]int{2, 0}, true))
 		tm.AddBoundingTriangle(tri)
 
+		//TODO: Alter NewTriangle to orient edges so that the tri is CCW and vertices can be enumerated in the correct order
+		//TODO: This will require an edge "sign" indicating traversel direction of the edge for the tri, because adjacent tris
+		//TODO: will traverse in opposite order
 		tm.AddPoint(-0.33, -0.33)
 
 		plot := false
 		if plot {
-			plotTriangles(tm.ToGraphMesh())
+			tt := tm.ToGraphMesh()
+			/*
+				for _, tri := range tm.Tris {
+					fmt.Println(tm.PrintTri(tri))
+				}
+			*/
+			plotTriangles(tt)
 			utils.SleepFor(100000)
 		}
 	}
