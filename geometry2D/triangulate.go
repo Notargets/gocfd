@@ -12,7 +12,7 @@ type Point struct {
 }
 
 type Edge struct {
-	Tris        []*Tri // Associated triangles
+	Tris        map[*Tri]struct{} // Associated triangles
 	Verts       [2]int
 	IsImmovable bool // Is a BC edge
 }
@@ -65,8 +65,15 @@ func NewEdgeFromEdges(edges []*Edge, isImmovableO ...bool) (ee *Edge) {
 	return
 }
 
+func (e *Edge) DeleteTri(tri *Tri) {
+	delete(e.Tris, tri)
+}
+
 func (e *Edge) AddTri(tri *Tri) {
-	e.Tris = append(e.Tris, tri)
+	if e.Tris == nil {
+		e.Tris = make(map[*Tri]struct{})
+	}
+	e.Tris[tri] = struct{}{}
 }
 
 type TriMesh struct {
@@ -249,6 +256,10 @@ func (tm *TriMesh) AddPoint(X, Y float64) {
 			pt, tm.PrintTri(tm.TriGraph.Triangle, "bounding triangle"))
 		panic(err)
 	}
+	// Remove base tri edges
+	for _, e := range baseTri.Edges {
+		e.DeleteTri(baseTri)
+	}
 	v := baseTri.GetVertices()
 	e1 := NewEdge([2]int{ptI, v[0]})
 	e2 := NewEdge([2]int{ptI, v[1]})
@@ -260,11 +271,15 @@ func (tm *TriMesh) AddPoint(X, Y float64) {
 	tm.AddTriToGraph(tri, leafNode)
 	tri = tm.NewTri(e3, baseTri.Edges[2], e1)
 	tm.AddTriToGraph(tri, leafNode)
+	// Legalize edges opposing ptI
+	tm.LegalizeEdge(baseTri.Edges[0], ptI)
+	tm.LegalizeEdge(baseTri.Edges[1], ptI)
+	tm.LegalizeEdge(baseTri.Edges[2], ptI)
 }
 
 func (tm *TriMesh) GetOpposingTri(e *Edge, ptI int) (oppoTri *Tri) {
 	// Get the triangle on the other side of the edge, relative to ptI
-	for _, tri := range e.Tris {
+	for tri := range e.Tris {
 		var found bool
 		for _, vertI := range tri.GetVertices() {
 			if vertI == ptI {
@@ -291,9 +306,86 @@ func (tm *TriMesh) LegalizeEdge(e *Edge, testPtI int) {
 	p1x, p2x, p3x := pts[v[0]].X[0], pts[v[1]].X[0], pts[v[2]].X[0]
 	p1y, p2y, p3y := pts[v[0]].X[1], pts[v[1]].X[1], pts[v[2]].X[1]
 	if IsIllegalEdge(prX, prY, p1x, p1y, p2x, p2y, p3x, p3y) {
+		fmt.Printf("illegal edge, flipping\n")
 		//flip edge, update leaves of trigraph
+		tm.flipEdge(e)
 	}
 	return
+}
+
+func (tm *TriMesh) flipEdge(e *Edge) {
+	// Reformulate the pair of triangles adjacent to edge into two new triangles connecting the opposing vertices
+	if len(e.Tris) != 2 || e.IsImmovable { // Not able to flip edge
+		fmt.Printf("unable to flip edge, #tris = %d, isImmovable = %v\n", len(e.Tris), e.IsImmovable)
+		return
+	}
+	vv := [2][3]int{}
+	tris := [2]*Tri{}
+	var ii int
+	for tri := range e.Tris {
+		vv[ii] = tri.GetVertices()
+		tris[ii] = tri
+		ii++
+	}
+	eMap := make(map[*Edge]struct{}) // a bucket of edges for use in forming two new triangles
+	for tri := range e.Tris {
+		for _, ee := range tri.Edges {
+			eMap[ee] = struct{}{}
+		}
+	}
+	delete(eMap, e) // Remove "illegal" edge from bucket prior to triangle formation
+	// Get opposing points
+	getPtsExclEdge := func(verts [3]int) (op1 int) {
+		for _, val := range verts {
+			if val != e.Verts[0] && val != e.Verts[1] {
+				op1 = val
+				return
+			}
+		}
+		panic("unable to find opposing point")
+	}
+	findConnectedEdge := func(ptI int) (ee *Edge) {
+		for ee = range eMap {
+			for _, vI := range ee.Verts {
+				if vI == ptI {
+					delete(eMap, ee)                  // remove edge from bucket
+					ee.Tris = make(map[*Tri]struct{}) // reset connected tris prior to reuse
+					return ee
+				}
+			}
+		}
+		panic("unable to find connected edge")
+	}
+	// Form new edge from points opposing "illegal" edge
+	eNew := NewEdge([2]int{getPtsExclEdge(vv[0]), getPtsExclEdge(vv[1])})
+
+	// Form first (of 2) new triangles
+	pt1 := eNew.Verts[0]
+	e1 := findConnectedEdge(pt1)
+	var pt2 int
+	if e1.Verts[0] == pt1 {
+		pt2 = e1.Verts[1]
+	} else {
+		pt2 = e1.Verts[0]
+	}
+	e2 := findConnectedEdge(pt2)
+	triNew1 := tm.NewTri(eNew, e1, e2)
+	tm.AddTriToGraph(triNew1, tris[0].TGN)
+	/*
+		tri := tm.NewTri(e1, baseTri.Edges[0], e2)
+		tm.AddTriToGraph(tri, leafNode)
+	*/
+	// Form second (of 2) new triangles
+	pt1 = eNew.Verts[1]
+	e1 = findConnectedEdge(pt1)
+	if e1.Verts[0] == pt1 {
+		pt2 = e1.Verts[1]
+	} else {
+		pt2 = e1.Verts[0]
+	}
+	e2 = findConnectedEdge(pt2)
+	triNew2 := tm.NewTri(eNew, e1, e2)
+	tm.AddTriToGraph(triNew2, tris[1].TGN)
 }
 
 func (tm *TriMesh) extractFinishedTris() {
