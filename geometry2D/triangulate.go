@@ -362,9 +362,15 @@ func (tm *TriMesh) LegalizeEdge(e *Edge, testPtI int) {
 	p1x, p2x, p3x := pts[v[0]].X[0], pts[v[1]].X[0], pts[v[2]].X[0]
 	p1y, p2y, p3y := pts[v[0]].X[1], pts[v[1]].X[1], pts[v[2]].X[1]
 	if IsIllegalEdge(prX, prY, p1x, p1y, p2x, p2y, p3x, p3y) {
-		fmt.Printf("illegal edge, flipping\n")
+		//fmt.Printf("illegal edge, flipping\n")
 		//flip edge, update leaves of trigraph
 		tm.flipEdge(e)
+		// Call recursively for the other two edges in the (formerly) opposing tri
+		for _, eee := range tri.Edges {
+			if eee != e {
+				tm.LegalizeEdge(eee, testPtI)
+			}
+		}
 	}
 	return
 }

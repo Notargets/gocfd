@@ -28,6 +28,13 @@ func TestTriangulate(t *testing.T) {
 		verts := tri.GetVertices()
 		assert.Equal(t, verts, [3]int{0, 1, 2})
 
+		/*
+			RR := []float64{-0.9600, 0.9201, -0.9600, -0.7366, 0.4731, -0.7366, -0.3333}
+			SS := []float64{-0.9600, -0.9600, 0.9201, -0.7366, -0.7366, 0.4731, -0.3333}
+			for i := range RR {
+				tm.AddPoint(RR[i], SS[i])
+			}
+		*/
 		tm.AddPoint(-0.33, -0.33)
 		tm.AddPoint(-.25, -.75)
 		tm.AddPoint(-.15, -.15)
@@ -72,61 +79,6 @@ func TestTriangulate(t *testing.T) {
 			} else {
 				fmt.Printf("is outside, legal\n")
 			}
-		}
-	}
-
-	if false {
-
-		N := 7
-		Ninterior := N * (N + 1) / 2
-		//R, S := DG2D.NodesEpsilon(N - 1)
-		//rt := DG2D.NewRTElement(N, R, S)
-		RR := []float64{-0.9600, 0.9201, -0.9600, -0.7366, 0.4731, -0.7366, -0.3333, -0.0297, -0.9405, -0.0297, 0.7358, -0.9517, -0.7841, -0.7841, -0.9517, 0.7358, 0.4017, -0.9434, -0.4583, -0.4583, -0.9434, 0.4017, 0.0733, -0.7064, -0.3669, -0.3669, -0.7064, 0.0733, -0.9600, 0.9201, -0.9600, -0.7366, 0.4731, -0.7366, -0.3333, -0.0297, -0.9405, -0.0297, 0.7358, -0.9517, -0.7841, -0.7841, -0.9517, 0.7358, 0.4017, -0.9434, -0.4583, -0.4583, -0.9434, 0.4017, 0.0733, -0.7064, -0.3669, -0.3669, -0.7064, 0.0733, 0.9195, 0.7388, 0.4779, 0.1653, -0.1653, -0.4779, -0.7388, -0.9195, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -0.9195, -0.7388, -0.4779, -0.1653, 0.1653, 0.4779, 0.7388, 0.9195}
-		SS := []float64{-0.9600, -0.9600, 0.9201, -0.7366, -0.7366, 0.4731, -0.3333, -0.9405, -0.0297, -0.0297, -0.9517, 0.7358, 0.7358, -0.9517, -0.7841, -0.7841, -0.9434, 0.4017, 0.4017, -0.9434, -0.4583, -0.4583, -0.7064, 0.0733, 0.0733, -0.7064, -0.3669, -0.3669, -0.9600, -0.9600, 0.9201, -0.7366, -0.7366, 0.4731, -0.3333, -0.9405, -0.0297, -0.0297, -0.9517, 0.7358, 0.7358, -0.9517, -0.7841, -0.7841, -0.9434, 0.4017, 0.4017, -0.9434, -0.4583, -0.4583, -0.7064, 0.0733, 0.0733, -0.7064, -0.3669, -0.3669, -0.9195, -0.7388, -0.4779, -0.1653, 0.1653, 0.4779, 0.7388, 0.9195, -0.9195, -0.7388, -0.4779, -0.1653, 0.1653, 0.4779, 0.7388, 0.9195, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000}
-		R := []float64{-1, 1, -1}
-		S := []float64{-1, -1, 1}
-		// Strip off redundant geometry2D
-		for i := Ninterior; i < len(RR); i++ {
-			R = append(R, RR[i])
-			S = append(S, SS[i])
-		}
-
-		points := utils.ArraysToPoints(R, S)
-
-		triMesh := graphics2D.TriMesh{
-			BaseGeometryClass: graphics2D.BaseGeometryClass{
-				Geometry: points,
-			},
-			Triangles: []graphics2D.Triangle{},
-		}
-
-		tri := graphics2D.Triangle{Nodes: [3]int32{0, 1, 2}}
-		triMesh.Triangles = append(triMesh.Triangles, tri)
-		var (
-			chart *chart2d.Chart2D
-			delay int
-			plot  = false
-		)
-		if plot {
-			delay = 500
-			chart = plotTriangles(triMesh)
-			utils.SleepFor(delay)
-		}
-		var ii int
-		for i := 3; i < len(points); i++ {
-			flipped, tri1, tri2 := LegalizeEdge(i, tri, R, S)
-			if flipped {
-				fmt.Println("tri was flipped")
-				triMesh.Triangles[ii] = tri1
-			}
-			triMesh.Triangles = append(triMesh.Triangles, tri2)
-			ii++
-			tri = triMesh.Triangles[ii]
-			if plot {
-				updateTriMesh(chart, triMesh)
-				utils.SleepFor(delay)
-			}
-			fmt.Printf("Point[%8.5f,%8.5f]\n", points[i].X[0], points[i].X[1])
 		}
 	}
 }
