@@ -27,7 +27,7 @@ func NewEdge(verts [2]int, isImmovableO ...bool) (e *Edge) {
 	return
 }
 
-func GetUniqueVertices(edges ...*Edge) (verts []int) {
+func getUniqueVertices(edges ...*Edge) (verts []int) {
 	vMap := make(map[int]struct{})
 	for _, e := range edges {
 		for _, v := range e.Verts {
@@ -83,20 +83,26 @@ type TriGraphNode struct { // Tracks nested triangles during formation by using 
 type Tri struct {
 	Edges     []*Edge
 	Reversals [3]int
+	TGN       *TriGraphNode
 }
 
 func (tm *TriMesh) NewTri(edgesO ...*Edge) (tri *Tri) {
 	if len(edgesO) < 2 || len(edgesO) > 3 {
 		panic("need at least two and no more than three connected edges to make a triangle")
 	}
+	if len(edgesO) == 2 {
+		edgesO = append(edgesO, NewEdgeFromEdges(edgesO))
+	}
+	// Check whether triangle has the correct number of unique vertices
+	numVerts := len(getUniqueVertices(edgesO[0], edgesO[1], edgesO[2]))
+	if numVerts != 3 {
+		panic(fmt.Errorf("wrong number of vertices, need 3, have %d\n", numVerts))
+	}
 	tri = &Tri{}
 	for _, e := range edgesO {
 		tri.AddEdge(e)
 	}
-	if len(edgesO) == 2 {
-		tri.AddEdge(NewEdgeFromEdges(edgesO))
-	}
-	// Check whether triangle has the correct number of unique vertices
+	// Orient the edges CCW
 	tm.orientEdges(tri)
 	return
 }
@@ -198,6 +204,7 @@ func (tm *TriMesh) PrintTri(tri *Tri, labelO ...string) string {
 func (tm *TriMesh) AddBoundingTriangle(tri *Tri) {
 	tm.orientEdges(tri)
 	tm.TriGraph = &TriGraphNode{Triangle: tri}
+	tri.TGN = tm.TriGraph
 }
 
 func (tm *TriMesh) TriContainsPoint(tri *Tri, pt Point) (contains bool) {
@@ -248,11 +255,11 @@ func (tm *TriMesh) AddPoint(X, Y float64) {
 	e3 := NewEdge([2]int{ptI, v[2]})
 
 	tri := tm.NewTri(e1, baseTri.Edges[0], e2)
-	tm.AddTri(tri, leafNode)
+	tm.AddTriToGraph(tri, leafNode)
 	tri = tm.NewTri(e2, baseTri.Edges[1], e3)
-	tm.AddTri(tri, leafNode)
+	tm.AddTriToGraph(tri, leafNode)
 	tri = tm.NewTri(e3, baseTri.Edges[2], e1)
-	tm.AddTri(tri, leafNode)
+	tm.AddTriToGraph(tri, leafNode)
 }
 
 func (tm *TriMesh) GetOpposingTri(e *Edge, ptI int) (oppoTri *Tri) {
@@ -346,11 +353,11 @@ func (tm *TriMesh) ToGraphMesh() (trisOut graphics2D.TriMesh) {
 	return
 }
 
-func (tm *TriMesh) AddTri(tri *Tri, leaf *TriGraphNode) {
+func (tm *TriMesh) AddTriToGraph(tri *Tri, leaf *TriGraphNode) {
 	if leaf != nil { // Root node
-		leaf.Children = append(leaf.Children, &TriGraphNode{
-			Triangle: tri,
-		})
+		tgn := &TriGraphNode{Triangle: tri}
+		leaf.Children = append(leaf.Children, tgn)
+		tri.TGN = tgn
 	}
 }
 

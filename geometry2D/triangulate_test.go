@@ -29,12 +29,11 @@ func TestTriangulate(t *testing.T) {
 		assert.Equal(t, verts, [3]int{0, 1, 2})
 
 		tm.AddPoint(-0.33, -0.33)
-
 		tm.AddPoint(-.25, -.75)
 		tm.AddPoint(-.15, -.15)
 		tm.AddPoint(-.75, -.25)
 
-		plot := true
+		plot := false
 		if plot {
 			plotTriangles(tm.ToGraphMesh())
 			utils.SleepFor(100000)
