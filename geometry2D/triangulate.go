@@ -110,6 +110,7 @@ func (tm *TriMesh) NewTri(edgesO ...*Edge) (tri *Tri) {
 		tri.AddEdge(e)
 	}
 	// Orient the edges CCW
+	fmt.Println(tm.PrintTri(tri))
 	tm.orientEdges(tri)
 	return
 }
@@ -120,22 +121,43 @@ func (tm *TriMesh) orientEdges(tri *Tri) {
 		pts   = tm.Points
 	)
 	// First connect each edge, reversing when needed to get the correct matching vertex
-	checkReverseNeeded := func(e1, e2 *Edge, e1Reversal int) (reverse int) {
-		// If e2 must be reversed to connect it's 0 vertex to e1's 1 vertex, output a "1", otherwise "0"
+	orientFirstTwoEdges := func(e1, e2 *Edge) (r1, r2 int) {
+		//Orient edges so that they connect the right of e1 to the left of e2
 		switch {
-		case e1.Verts[1-e1Reversal] == e2.Verts[0]:
-			reverse = 0
-		case e1.Verts[1-e1Reversal] == e2.Verts[1]:
-			reverse = 1
+		case e1.Verts[1] == e2.Verts[0]:
+			// No reversals needed
+			return
+		case e1.Verts[1] == e2.Verts[1]:
+			r2 = 1
+			return
+		case e1.Verts[0] == e2.Verts[0]:
+			r1 = 1
+			return
+		case e1.Verts[0] == e2.Verts[1]:
+			r1, r2 = 1, 1
+			return
 		default:
-			err := fmt.Errorf("unable to connect edges: e1 Verts, e2 Verts, e1Reversal = %v, %v, %d\n", e1.Verts, e2.Verts, e1Reversal)
+			err := fmt.Errorf("unable to connect edges: e1 Verts, e2 Verts = %v, %v\n", e1.Verts, e2.Verts)
 			panic(err)
 		}
 		return
 	}
-	tri.Reversals[0] = 0 // Edge 0 defines initial direction
-	tri.Reversals[1] = checkReverseNeeded(edges[0], edges[1], 0)
-	tri.Reversals[2] = checkReverseNeeded(edges[1], edges[2], tri.Reversals[1])
+	orientLastEdge := func(e2, e3 *Edge, e2Reversal int) (r3 int) {
+		// If e2 must be reversed to connect it's 0 vertex to e1's 1 vertex, output a "1", otherwise "0"
+		switch {
+		case e2.Verts[1-e2Reversal] == e2.Verts[0]:
+			return
+		case e2.Verts[1-e2Reversal] == e2.Verts[1]:
+			r3 = 1
+			return
+		default:
+			err := fmt.Errorf("unable to connect edges: e2 Verts, e3 Verts, e2Reversal = %v, %v, %d\n", e2.Verts, e3.Verts, e2Reversal)
+			panic(err)
+		}
+		return
+	}
+	tri.Reversals[0], tri.Reversals[1] = orientFirstTwoEdges(edges[0], edges[1])
+	tri.Reversals[2] = orientLastEdge(edges[1], edges[2], tri.Reversals[1])
 	// The triangle is now connected simply, let's check the orientation (CCW or CW)
 	signF := func(p [3]Point) float64 {
 		return (p[0].X[0]-p[2].X[0])*(p[1].X[1]-p[2].X[1]) - (p[1].X[0]-p[2].X[0])*(p[0].X[1]-p[2].X[1])
@@ -205,7 +227,12 @@ func (tm *TriMesh) PrintTri(tri *Tri, labelO ...string) string {
 	if len(labelO) != 0 {
 		label = labelO[0]
 	}
-	return fmt.Sprintf("%s: v1: %8.5f, v2: %8.5f, v3: %8.5f\n", label, pts[v[0]], pts[v[1]], pts[v[2]])
+	return fmt.Sprintf("%s: Edges: [%d,%d],[%d,%d],[%d,%d] - v1: %8.5f, v2: %8.5f, v3: %8.5f\n",
+		label,
+		tri.Edges[0].Verts[0], tri.Edges[0].Verts[1],
+		tri.Edges[1].Verts[0], tri.Edges[1].Verts[1],
+		tri.Edges[2].Verts[0], tri.Edges[2].Verts[1],
+		pts[v[0]], pts[v[1]], pts[v[2]])
 }
 
 func (tm *TriMesh) AddBoundingTriangle(tri *Tri) {
