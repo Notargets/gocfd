@@ -136,6 +136,17 @@ func (tm *TriMesh) orientEdges(tri *Tri) {
 			// Reverse all edges in tri to orient it CCW
 			tri.Reversals[i] = 1 - tri.Reversals[i]
 		}
+		// Reverse edge traversal to match orientation
+		var (
+			newR [3]int
+		)
+		newE := make([]*Edge, 3)
+		for i := 0; i < 3; i++ {
+			newE[2-i] = tri.Edges[i]
+			newR[2-i] = tri.Reversals[i]
+		}
+		tri.Edges = newE
+		tri.Reversals = newR
 	}
 }
 

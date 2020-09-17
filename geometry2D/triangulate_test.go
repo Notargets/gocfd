@@ -34,15 +34,9 @@ func TestTriangulate(t *testing.T) {
 		tm.AddPoint(-.15, -.15)
 		tm.AddPoint(-.75, -.25)
 
-		plot := false
+		plot := true
 		if plot {
-			tt := tm.ToGraphMesh()
-			/*
-				for _, tri := range tm.Tris {
-					fmt.Println(tm.PrintTri(tri))
-				}
-			*/
-			plotTriangles(tt)
+			plotTriangles(tm.ToGraphMesh())
 			utils.SleepFor(100000)
 		}
 	}
