@@ -110,7 +110,7 @@ func (tm *TriMesh) NewTri(edgesO ...*Edge) (tri *Tri) {
 		tri.AddEdge(e)
 	}
 	// Orient the edges CCW
-	fmt.Println(tm.PrintTri(tri))
+	//fmt.Println(tm.PrintTri(tri))
 	tm.orientEdges(tri)
 	return
 }
