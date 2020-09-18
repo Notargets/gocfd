@@ -271,6 +271,46 @@ func (tm *TriMesh) getLeafTri(tgn *TriGraphNode, pt Point) (triLeaf *Tri, leafNo
 	return
 }
 
+func (tm *TriMesh) IsPointOnEdge(X, Y float64, e *Edge) (onEdge bool) {
+	var (
+		pts        = tm.Points
+		e1x, e1y   = pts[e.Verts[0]].X[0], pts[e.Verts[0]].X[1]
+		e2x, e2y   = pts[e.Verts[1]].X[0], pts[e.Verts[1]].X[1]
+		xmin, ymin = math.Min(e1x, e2x), math.Min(e1y, e2y)
+		xmax, ymax = math.Max(e1x, e2x), math.Max(e1y, e2y)
+		tol        = 1.e-6
+	)
+	// Fast no bounding box test
+	if X < xmin || X > xmax {
+		return
+	}
+	if Y < ymin || Y > ymax {
+		return
+	}
+	length := func(x1, y1, x2, y2 float64) (l float64) {
+		l = math.Sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1))
+		return
+	}
+	eLength := length(e1x, e1y, e2x, e2y)
+	leftLength := length(e1x, e1y, X, Y)
+	rightLength := length(X, Y, e2x, e2y)
+	if math.Abs(leftLength+rightLength-eLength) < tol*eLength {
+		return true
+	}
+	return
+}
+
+func (tm *TriMesh) WhichEdgeIsPointOn(X, Y float64, tri *Tri) (edgeNumber int) {
+	// Returns -1 if point is not on triangle edge
+	edgeNumber = -1
+	for i, e := range tri.Edges {
+		if tm.IsPointOnEdge(X, Y, e) {
+			return i
+		}
+	}
+	return
+}
+
 func (tm *TriMesh) AddPoint(X, Y float64) {
 	pt := Point{X: [2]float64{X, Y}}
 	tm.Points = append(tm.Points, pt)
@@ -283,25 +323,28 @@ func (tm *TriMesh) AddPoint(X, Y float64) {
 			pt, tm.PrintTri(tm.TriGraph.Triangle, "bounding triangle"))
 		panic(err)
 	}
-	// Remove base tri edges
-	for _, e := range baseTri.Edges {
-		e.DeleteTri(baseTri)
-	}
-	v := baseTri.GetVertices()
-	e1 := NewEdge([2]int{ptI, v[0]})
-	e2 := NewEdge([2]int{ptI, v[1]})
-	e3 := NewEdge([2]int{ptI, v[2]})
+	eNumber := tm.WhichEdgeIsPointOn(X, Y, baseTri)
+	if eNumber == -1 { // Point is inside base tri, make 3 new triangles by connecting vertices of base tri to pt
+		// Remove base tri edges
+		for _, e := range baseTri.Edges {
+			e.DeleteTri(baseTri)
+		}
+		v := baseTri.GetVertices()
+		e1 := NewEdge([2]int{ptI, v[0]})
+		e2 := NewEdge([2]int{ptI, v[1]})
+		e3 := NewEdge([2]int{ptI, v[2]})
 
-	tri := tm.NewTri(e1, baseTri.Edges[0], e2)
-	tm.AddTriToGraph(tri, leafNode)
-	tri = tm.NewTri(e2, baseTri.Edges[1], e3)
-	tm.AddTriToGraph(tri, leafNode)
-	tri = tm.NewTri(e3, baseTri.Edges[2], e1)
-	tm.AddTriToGraph(tri, leafNode)
-	// Legalize edges opposing ptI
-	tm.LegalizeEdge(baseTri.Edges[0], ptI)
-	tm.LegalizeEdge(baseTri.Edges[1], ptI)
-	tm.LegalizeEdge(baseTri.Edges[2], ptI)
+		tri := tm.NewTri(e1, baseTri.Edges[0], e2)
+		tm.AddTriToGraph(tri, leafNode)
+		tri = tm.NewTri(e2, baseTri.Edges[1], e3)
+		tm.AddTriToGraph(tri, leafNode)
+		tri = tm.NewTri(e3, baseTri.Edges[2], e1)
+		tm.AddTriToGraph(tri, leafNode)
+		// Legalize edges opposing ptI
+		tm.LegalizeEdge(baseTri.Edges[0], ptI)
+		tm.LegalizeEdge(baseTri.Edges[1], ptI)
+		tm.LegalizeEdge(baseTri.Edges[2], ptI)
+	}
 }
 
 func (tm *TriMesh) GetOpposingTri(e *Edge, ptI int) (oppoTri *Tri) {
