@@ -243,16 +243,35 @@ func (tm *TriMesh) AddBoundingTriangle(tri *Tri) {
 
 func (tm *TriMesh) TriContainsPoint(tri *Tri, pt Point) (contains bool) {
 	var (
-		verts      = tri.GetVertices()
-		pts        = tm.Points
-		v1, v2, v3 = pts[verts[0]], pts[verts[1]], pts[verts[2]]
+		verts = tri.GetVertices()
+		pts   = tm.Points
+		//v1, v2, v3 = pts[verts[0]], pts[verts[1]], pts[verts[2]]
+		vPts = []Point{pts[verts[0]], pts[verts[1]], pts[verts[2]]}
 	)
+	// Fast no - bounding box check
+	xmin, xmax := vPts[0].X[0], vPts[0].X[0]
+	ymin, ymax := vPts[0].X[1], vPts[0].X[1]
+	for _, vpt := range vPts {
+		xmin = math.Min(xmin, vpt.X[0])
+		ymin = math.Min(ymin, vpt.X[1])
+		xmax = math.Max(xmax, vpt.X[0])
+		ymax = math.Max(ymax, vpt.X[1])
+	}
+	if pt.X[0] < xmin || pt.X[0] > xmax || pt.X[1] < ymin || pt.X[1] > ymax {
+		return false
+	}
+	// Edge test - is point on a triangle edge?
+	if tm.WhichEdgeIsPointOn(pt.X[0], pt.X[1], tri) != -1 {
+		// Point is on an edge of this tri
+		return true
+	}
+	// Interior point test
 	signF := func(p1, p2, p3 Point) float64 {
 		return (p1.X[0]-p3.X[0])*(p2.X[1]-p3.X[1]) - (p2.X[0]-p3.X[0])*(p1.X[1]-p3.X[1])
 	}
-	b1 := math.Signbit(signF(pt, v1, v2))
-	b2 := math.Signbit(signF(pt, v2, v3))
-	b3 := math.Signbit(signF(pt, v3, v1))
+	b1 := math.Signbit(signF(pt, vPts[0], vPts[1]))
+	b2 := math.Signbit(signF(pt, vPts[1], vPts[2]))
+	b3 := math.Signbit(signF(pt, vPts[2], vPts[0]))
 	return (b1 == b2) && (b2 == b3)
 }
 
