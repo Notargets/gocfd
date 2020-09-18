@@ -83,10 +83,9 @@ func (e *Edge) GetOpposingVertices() (pts []int) {
 		for _, ptI := range verts {
 			if ptI != e.Verts[0] && ptI != e.Verts[1] {
 				pts = append(pts, ptI)
-				goto NEXT_TRI
+				break
 			}
 		}
-	NEXT_TRI:
 	}
 	return
 }
