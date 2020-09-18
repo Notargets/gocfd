@@ -76,6 +76,25 @@ func (e *Edge) AddTri(tri *Tri) {
 	e.Tris[tri] = struct{}{}
 }
 
+func (e *Edge) GetOpposingVertices() (pts []int) {
+	// Get vertices opposing this edge from all tris with this edge, could be 1, 2 or 0 points (unconnected edge)
+	ptMap := make(map[int]struct{})
+	ptMap[e.Verts[0]] = struct{}{}
+	ptMap[e.Verts[1]] = struct{}{}
+	for tri := range e.Tris {
+		for _, ee := range tri.Edges {
+			for _, ptI := range ee.Verts {
+				if _, ok := ptMap[ptI]; !ok {
+					pts = append(pts, ptI)
+					goto NEXT_TRI
+				}
+			}
+		}
+	NEXT_TRI:
+	}
+	return
+}
+
 type TriMesh struct {
 	Tris     []*Tri
 	Points   []Point
@@ -363,10 +382,14 @@ func (tm *TriMesh) AddPoint(X, Y float64) {
 		tm.LegalizeEdge(baseTri.Edges[0], ptI)
 		tm.LegalizeEdge(baseTri.Edges[1], ptI)
 		tm.LegalizeEdge(baseTri.Edges[2], ptI)
+	} else {
+		e := baseTri.Edges[eNumber]
+		oppoVerts := e.GetOpposingVertices()
+		fmt.Printf("Opposing Vertices = %v\n", oppoVerts)
 	}
 }
 
-func (tm *TriMesh) GetOpposingTri(e *Edge, ptI int) (oppoTri *Tri) {
+func (tm *TriMesh) GetEdgeTriWithoutPoint(e *Edge, ptI int) (oppoTri *Tri) {
 	// Get the triangle on the other side of the edge, relative to ptI
 	for tri := range e.Tris {
 		var found bool
@@ -414,7 +437,7 @@ func IsIllegalEdge(prX, prY, piX, piY, pjX, pjY, pkX, pkY float64) bool {
 func (tm *TriMesh) LegalizeEdge(e *Edge, testPtI int) {
 	var (
 		pts = tm.Points
-		tri = tm.GetOpposingTri(e, testPtI)
+		tri = tm.GetEdgeTriWithoutPoint(e, testPtI)
 	)
 	if tri == nil || e.IsImmovable { // There is no opposing tri, edge may be a boundary
 		return
