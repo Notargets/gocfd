@@ -79,12 +79,11 @@ func (e *Edge) AddTri(tri *Tri) {
 func (e *Edge) GetOpposingVertices() (pts []int) {
 	// Get vertices opposing this edge from all tris with this edge, could be 1, 2 or 0 points (unconnected edge)
 	for tri := range e.Tris {
-		for _, ee := range tri.Edges {
-			for _, ptI := range ee.Verts {
-				if ptI != e.Verts[0] && ptI != e.Verts[1] {
-					pts = append(pts, ptI)
-					goto NEXT_TRI
-				}
+		verts := tri.GetVertices()
+		for _, ptI := range verts {
+			if ptI != e.Verts[0] && ptI != e.Verts[1] {
+				pts = append(pts, ptI)
+				goto NEXT_TRI
 			}
 		}
 	NEXT_TRI:
