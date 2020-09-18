@@ -78,13 +78,10 @@ func (e *Edge) AddTri(tri *Tri) {
 
 func (e *Edge) GetOpposingVertices() (pts []int) {
 	// Get vertices opposing this edge from all tris with this edge, could be 1, 2 or 0 points (unconnected edge)
-	ptMap := make(map[int]struct{})
-	ptMap[e.Verts[0]] = struct{}{}
-	ptMap[e.Verts[1]] = struct{}{}
 	for tri := range e.Tris {
 		for _, ee := range tri.Edges {
 			for _, ptI := range ee.Verts {
-				if _, ok := ptMap[ptI]; !ok {
+				if ptI != e.Verts[0] && ptI != e.Verts[1] {
 					pts = append(pts, ptI)
 					goto NEXT_TRI
 				}
