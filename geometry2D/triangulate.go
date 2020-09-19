@@ -379,13 +379,13 @@ func (tm *TriMesh) AddPoint(X, Y float64) {
 		tm.LegalizeEdge(baseTri.Edges[2], pR)
 	} else {
 		e := baseTri.Edges[eNumber]
+		oppoVerts := e.GetOpposingVertices() // Must happen before removing tris from edge
 		// Remove base tris from central edge, they will be replaced with 4 new tris
 		for tri := range e.Tris {
 			for _, ee := range tri.Edges {
 				ee.DeleteTri(tri)
 			}
 		}
-		oppoVerts := e.GetOpposingVertices()
 		fmt.Printf("Opposing Vertices = %v\n", oppoVerts)
 		// Create up to 4 new triangles centered on pR
 		var newTris [4]*Tri
@@ -394,7 +394,7 @@ func (tm *TriMesh) AddPoint(X, Y float64) {
 			e1 := NewEdge([2]int{pR, pLorK})
 			for pIorJ := range e.Verts { // Each vertex (pI or pJ) of each side of the edge generates a triangle pr->pIorJ->vertNum
 				e2 := NewEdge([2]int{pLorK, pIorJ})
-				e3 := NewEdge([2]int{pIorJ, pR})
+				e3 := NewEdge([2]int{pIorJ, pR}, e.IsImmovable)
 				tri := tm.NewTri(e1, e2, e3)
 				newTris[numTris] = tri
 				numTris++
