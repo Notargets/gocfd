@@ -27,6 +27,10 @@ func NewEdge(verts [2]int, isImmovableO ...bool) (e *Edge) {
 	return
 }
 
+func (e *Edge) Print() string {
+	return fmt.Sprintf("[%d,%d] ", e.Verts[0], e.Verts[1])
+}
+
 func getUniqueVertices(edges ...*Edge) (verts []int) {
 	vMap := make(map[int]struct{})
 	for _, e := range edges {
@@ -108,16 +112,22 @@ type Tri struct {
 }
 
 func (tm *TriMesh) NewTri(edgesO ...*Edge) (tri *Tri) {
-	if len(edgesO) < 2 || len(edgesO) > 3 {
-		panic("need at least two and no more than three connected edges to make a triangle")
+	if len(edgesO) != 3 {
+		panic("need three connected edges to make a triangle")
 	}
-	if len(edgesO) == 2 {
-		edgesO = append(edgesO, NewEdgeFromEdges(edgesO))
-	}
+	/*
+		if len(edgesO) < 2 || len(edgesO) > 3 {
+			panic("need at least two and no more than three connected edges to make a triangle")
+		}
+		if len(edgesO) == 2 {
+			edgesO = append(edgesO, NewEdgeFromEdges(edgesO))
+		}
+	*/
 	// Check whether triangle has the correct number of unique vertices
 	numVerts := len(getUniqueVertices(edgesO[0], edgesO[1], edgesO[2]))
 	if numVerts != 3 {
-		panic(fmt.Errorf("wrong number of vertices, need 3, have %d\n", numVerts))
+		panic(fmt.Errorf("wrong number of vertices, need 3, have %d\nEdges: %s, %s, %s\n",
+			numVerts, edgesO[0].Print(), edgesO[1].Print(), edgesO[2].Print()))
 	}
 	tri = &Tri{}
 	for _, e := range edgesO {
@@ -311,7 +321,7 @@ func (tm *TriMesh) IsPointOnEdge(X, Y float64, e *Edge) (onEdge bool) {
 		e2x, e2y   = pts[e.Verts[1]].X[0], pts[e.Verts[1]].X[1]
 		xmin, ymin = math.Min(e1x, e2x), math.Min(e1y, e2y)
 		xmax, ymax = math.Max(e1x, e2x), math.Max(e1y, e2y)
-		tol        = 1.e-4
+		tol        = 1.e-2
 	)
 	// Fast no bounding box test
 	if X < xmin || X > xmax {
