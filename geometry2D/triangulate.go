@@ -311,7 +311,7 @@ func (tm *TriMesh) IsPointOnEdge(X, Y float64, e *Edge) (onEdge bool) {
 		e2x, e2y   = pts[e.Verts[1]].X[0], pts[e.Verts[1]].X[1]
 		xmin, ymin = math.Min(e1x, e2x), math.Min(e1y, e2y)
 		xmax, ymax = math.Max(e1x, e2x), math.Max(e1y, e2y)
-		tol        = 1.e-6
+		tol        = 1.e-4
 	)
 	// Fast no bounding box test
 	if X < xmin || X > xmax {
@@ -345,27 +345,27 @@ func (tm *TriMesh) WhichEdgeIsPointOn(X, Y float64, tri *Tri) (edgeNumber int) {
 }
 
 func (tm *TriMesh) AddPoint(X, Y float64) {
-	pt := Point{X: [2]float64{X, Y}}
-	tm.Points = append(tm.Points, pt)
-	ptI := len(tm.Points) - 1
+	pr := Point{X: [2]float64{X, Y}}
+	tm.Points = append(tm.Points, pr)
+	pR := len(tm.Points) - 1
 	//Find a triangle containing the point
-	baseTri, leafNode := tm.getLeafTri(tm.TriGraph, pt)
+	baseTri, leafNode := tm.getLeafTri(tm.TriGraph, pr)
 	if baseTri == nil {
 		err := fmt.Errorf(
 			"unable to add point to triangulation, point %v is outside %v",
-			pt, tm.PrintTri(tm.TriGraph.Triangle, "bounding triangle"))
+			pr, tm.PrintTri(tm.TriGraph.Triangle, "bounding triangle"))
 		panic(err)
 	}
 	eNumber := tm.WhichEdgeIsPointOn(X, Y, baseTri)
-	if eNumber == -1 { // Point is inside base tri, make 3 new triangles by connecting vertices of base tri to pt
-		// Remove base tri edges
+	if eNumber == -1 { // Point is inside base tri, make 3 new triangles by connecting vertices of base tri to pr
+		// Remove base tri from edges, it will be replaced with new tris
 		for _, e := range baseTri.Edges {
 			e.DeleteTri(baseTri)
 		}
 		v := baseTri.GetVertices()
-		e1 := NewEdge([2]int{ptI, v[0]})
-		e2 := NewEdge([2]int{ptI, v[1]})
-		e3 := NewEdge([2]int{ptI, v[2]})
+		e1 := NewEdge([2]int{pR, v[0]})
+		e2 := NewEdge([2]int{pR, v[1]})
+		e3 := NewEdge([2]int{pR, v[2]})
 
 		tri := tm.NewTri(e1, baseTri.Edges[0], e2)
 		tm.AddTriToGraph(tri, leafNode)
@@ -373,14 +373,44 @@ func (tm *TriMesh) AddPoint(X, Y float64) {
 		tm.AddTriToGraph(tri, leafNode)
 		tri = tm.NewTri(e3, baseTri.Edges[2], e1)
 		tm.AddTriToGraph(tri, leafNode)
-		// Legalize edges opposing ptI
-		tm.LegalizeEdge(baseTri.Edges[0], ptI)
-		tm.LegalizeEdge(baseTri.Edges[1], ptI)
-		tm.LegalizeEdge(baseTri.Edges[2], ptI)
+		// Legalize edges opposing pR
+		tm.LegalizeEdge(baseTri.Edges[0], pR)
+		tm.LegalizeEdge(baseTri.Edges[1], pR)
+		tm.LegalizeEdge(baseTri.Edges[2], pR)
 	} else {
 		e := baseTri.Edges[eNumber]
+		// Remove base tris from central edge, they will be replaced with 4 new tris
+		for tri := range e.Tris {
+			for _, ee := range tri.Edges {
+				ee.DeleteTri(tri)
+			}
+		}
 		oppoVerts := e.GetOpposingVertices()
 		fmt.Printf("Opposing Vertices = %v\n", oppoVerts)
+		// Create up to 4 new triangles centered on pR
+		var newTris [4]*Tri
+		var numTris int
+		for _, pLorK := range oppoVerts {
+			e1 := NewEdge([2]int{pR, pLorK})
+			for pIorJ := range e.Verts { // Each vertex (pI or pJ) of each side of the edge generates a triangle pr->pIorJ->vertNum
+				e2 := NewEdge([2]int{pLorK, pIorJ})
+				e3 := NewEdge([2]int{pIorJ, pR})
+				tri := tm.NewTri(e1, e2, e3)
+				newTris[numTris] = tri
+				numTris++
+				tm.AddTriToGraph(tri, leafNode)
+			}
+		}
+		// Legalize the outer boundary edges of baseTri
+		for i := 0; i < numTris; i++ {
+			tri := newTris[i]
+			for _, ee := range tri.Edges {
+				if ee.Verts[0] != pR && ee.Verts[1] != pR { // Edge opposite of pR
+					tm.LegalizeEdge(ee, pR)
+				}
+			}
+		}
+
 	}
 }
 
