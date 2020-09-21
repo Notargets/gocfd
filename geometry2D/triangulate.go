@@ -409,14 +409,6 @@ func (tm *TriMesh) AddPoint(X, Y float64) {
 				ee.DeleteTri(tri)
 			}
 		}
-		//fmt.Printf("Opposing Vertices = %v\n", oppoVerts)
-		// Create up to 4 new triangles centered on pR
-		/*
-			fmt.Printf("Edge number = %d\n", eNumber)
-			for i, eee := range baseTri.Edges {
-				fmt.Println(eee.Print(), strconv.Itoa(i))
-			}
-		*/
 		var newTris [4]*Tri
 		var numTris int
 		for i, pLorK := range oppoVerts {
@@ -448,9 +440,10 @@ func (tm *TriMesh) AddPoint(X, Y float64) {
 		for i := 0; i < numTris; i++ {
 			tri := newTris[i]
 			for _, ee := range tri.Edges {
-				if ee.Verts[0] != pR && ee.Verts[1] != pR { // Edge opposite of pR
-					tm.LegalizeEdge(ee, pR)
+				if ee.ContainsIndex(pR) { // We only want the edge opposite of pR
+					continue
 				}
+				tm.LegalizeEdge(ee, pR)
 			}
 		}
 	}
