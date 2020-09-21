@@ -17,7 +17,19 @@ type Edge struct {
 	IsImmovable bool // Is a BC edge
 }
 
+func (e *Edge) ContainsIndex(pI int) (contains bool) {
+	//fmt.Printf("Verts = %v, Index = %d\n", e.Verts, pI)
+	if e.Verts[0] == pI || e.Verts[1] == pI {
+		return true
+	}
+	return
+}
+
 func NewEdge(verts [2]int, isImmovableO ...bool) (e *Edge) {
+	if verts[0] == verts[1] {
+		err := fmt.Errorf("degenerate edge, points are the same: [%d,%d]", verts[0], verts[1])
+		panic(err)
+	}
 	e = &Edge{
 		Verts: verts,
 	}
@@ -80,13 +92,14 @@ func (e *Edge) AddTri(tri *Tri) {
 	e.Tris[tri] = struct{}{}
 }
 
-func (e *Edge) GetOpposingVertices() (pts []int) {
+func (e *Edge) GetOpposingVertices() (pts []int, tris []*Tri) {
 	// Get vertices opposing this edge from all tris with this edge, could be 1, 2 or 0 points (unconnected edge)
 	for tri := range e.Tris {
 		verts := tri.GetVertices()
 		for _, ptI := range verts {
 			if ptI != e.Verts[0] && ptI != e.Verts[1] {
 				pts = append(pts, ptI)
+				tris = append(tris, tri)
 				break
 			}
 		}
@@ -389,23 +402,43 @@ func (tm *TriMesh) AddPoint(X, Y float64) {
 		tm.LegalizeEdge(baseTri.Edges[2], pR)
 	} else {
 		e := baseTri.Edges[eNumber]
-		oppoVerts := e.GetOpposingVertices() // Must happen before removing tris from edge
+		oppoVerts, oppoTris := e.GetOpposingVertices() // Must happen before removing tris from edge
 		// Remove base tris from central edge, they will be replaced with 4 new tris
 		for tri := range e.Tris {
 			for _, ee := range tri.Edges {
 				ee.DeleteTri(tri)
 			}
 		}
-		fmt.Printf("Opposing Vertices = %v\n", oppoVerts)
+		//fmt.Printf("Opposing Vertices = %v\n", oppoVerts)
 		// Create up to 4 new triangles centered on pR
+		/*
+			fmt.Printf("Edge number = %d\n", eNumber)
+			for i, eee := range baseTri.Edges {
+				fmt.Println(eee.Print(), strconv.Itoa(i))
+			}
+		*/
 		var newTris [4]*Tri
 		var numTris int
-		for _, pLorK := range oppoVerts {
+		for i, pLorK := range oppoVerts {
+			oTri := oppoTris[i]
 			e1 := NewEdge([2]int{pR, pLorK})
-			for pIorJ := range e.Verts { // Each vertex (pI or pJ) of each side of the edge generates a triangle pr->pIorJ->vertNum
-				e2 := NewEdge([2]int{pLorK, pIorJ})
-				e3 := NewEdge([2]int{pIorJ, pR}, e.IsImmovable)
-				tri := tm.NewTri(e1, e2, e3)
+			var eForNewTri []*Edge
+			for _, ee := range oTri.Edges {
+				if !ee.ContainsIndex(pLorK) { // We want only the edges that share pLorK
+					continue
+				}
+				eForNewTri = append(eForNewTri, ee)
+			}
+			if len(eForNewTri) != 2 {
+				err := fmt.Errorf("not enough edges, should be 2, is: %d", len(eForNewTri))
+				panic(err)
+			}
+			// Split edge IJ into two new edges, I-R and J-R for two new triangles
+			var e2 [2]*Edge
+			e2[0] = NewEdge([2]int{e.Verts[0], pR}, e.IsImmovable)
+			e2[1] = NewEdge([2]int{e.Verts[1], pR}, e.IsImmovable)
+			for ii, ee := range eForNewTri { // Form two new triangles from pR->pLorK->pIorJ
+				tri := tm.NewTri(e1, e2[ii], ee)
 				newTris[numTris] = tri
 				numTris++
 				tm.AddTriToGraph(tri, leafNode)
@@ -420,7 +453,6 @@ func (tm *TriMesh) AddPoint(X, Y float64) {
 				}
 			}
 		}
-
 	}
 }
 

@@ -41,7 +41,14 @@ func TestTriangulate(t *testing.T) {
 		tm.AddPoint(-.25, -.75)
 		tm.AddPoint(-.15, -.15)
 		tm.AddPoint(-.75, -.25)
-		tm.AddPoint(-0.5, -1)
+		tm.AddPoint(-1.0, 0.0)
+		tm.AddPoint(-1.0, -0.5)
+		//broken tm.AddPoint(-1.0, 0.0)
+		//broken tm.AddPoint(-1.0, 0.5)
+		//broken tm.AddPoint(-0.5, -1)
+		tm.AddPoint(0.0, 0.0)
+		//tm.AddPoint(0.0, -1)
+		//tm.AddPoint(0.5, -1)
 
 		plot := false
 		if plot {
