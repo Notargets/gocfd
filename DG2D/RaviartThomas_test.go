@@ -110,7 +110,7 @@ func TestRTElement(t *testing.T) {
 	}
 	plot := false
 	if plot {
-		N := 2
+		N := 7
 		NRT := N + 1
 		R, S := NodesEpsilon(N)
 		rt := NewRTElement(NRT, R, S)

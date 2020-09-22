@@ -40,7 +40,13 @@ func NewEdge(verts [2]int, isImmovableO ...bool) (e *Edge) {
 }
 
 func (e *Edge) Print() string {
-	return fmt.Sprintf("[%d,%d] ", e.Verts[0], e.Verts[1])
+	var (
+		label = "Movable"
+	)
+	if e.IsImmovable {
+		label = "Fixed"
+	}
+	return fmt.Sprintf("[%d,%d]%s ", e.Verts[0], e.Verts[1], label)
 }
 
 func getUniqueVertices(edges ...*Edge) (verts []int) {
@@ -95,7 +101,7 @@ func (e *Edge) AddTri(tri *Tri) {
 func (e *Edge) GetOpposingVertices() (pts []int, tris []*Tri) {
 	// Get vertices opposing this edge from all tris with this edge, could be 1, 2 or 0 points (unconnected edge)
 	for tri := range e.Tris {
-		verts := tri.GetVertices()
+		verts, _ := tri.GetVertices()
 		for _, ptI := range verts {
 			if ptI != e.Verts[0] && ptI != e.Verts[1] {
 				pts = append(pts, ptI)
@@ -222,13 +228,16 @@ func (tm *TriMesh) orientEdges(tri *Tri) {
 	}
 }
 
-func (tri *Tri) GetVertices() (verts [3]int) {
+func (tri *Tri) GetVertices() (verts [3]int, fixed [3]bool) {
 	if len(tri.Edges) != 3 {
 		panic("not enough edges")
 	}
 	verts[0] = tri.Edges[0].Verts[0+tri.Reversals[0]]
 	verts[1] = tri.Edges[0].Verts[1-tri.Reversals[0]]
 	verts[2] = tri.Edges[1].Verts[1-tri.Reversals[1]]
+	fixed[0] = tri.Edges[0].IsImmovable
+	fixed[1] = tri.Edges[1].IsImmovable
+	fixed[2] = tri.Edges[2].IsImmovable
 	return
 }
 
@@ -258,17 +267,17 @@ func (tm *TriMesh) PrintTri(tri *Tri, labelO ...string) string {
 	}
 	var (
 		pts   = tm.Points
-		v     = tri.GetVertices()
+		v, _  = tri.GetVertices()
 		label = "triangle"
 	)
 	if len(labelO) != 0 {
 		label = labelO[0]
 	}
-	return fmt.Sprintf("%s: Edges: [%d,%d],[%d,%d],[%d,%d] - v1: %8.5f, v2: %8.5f, v3: %8.5f\n",
+	return fmt.Sprintf("%s: Edges: %s, %s, %s - v1: %8.5f, v2: %8.5f, v3: %8.5f\n",
 		label,
-		tri.Edges[0].Verts[0], tri.Edges[0].Verts[1],
-		tri.Edges[1].Verts[0], tri.Edges[1].Verts[1],
-		tri.Edges[2].Verts[0], tri.Edges[2].Verts[1],
+		tri.Edges[0].Print(),
+		tri.Edges[1].Print(),
+		tri.Edges[2].Print(),
 		pts[v[0]], pts[v[1]], pts[v[2]])
 }
 
@@ -280,8 +289,8 @@ func (tm *TriMesh) AddBoundingTriangle(tri *Tri) {
 
 func (tm *TriMesh) TriContainsPoint(tri *Tri, pt Point) (contains bool) {
 	var (
-		verts = tri.GetVertices()
-		pts   = tm.Points
+		verts, _ = tri.GetVertices()
+		pts      = tm.Points
 		//v1, v2, v3 = pts[verts[0]], pts[verts[1]], pts[verts[2]]
 		vPts = []Point{pts[verts[0]], pts[verts[1]], pts[verts[2]]}
 	)
@@ -385,7 +394,7 @@ func (tm *TriMesh) AddPoint(X, Y float64) {
 		for _, e := range baseTri.Edges {
 			e.DeleteTri(baseTri)
 		}
-		v := baseTri.GetVertices()
+		v, _ := baseTri.GetVertices()
 		e1 := NewEdge([2]int{pR, v[0]})
 		e2 := NewEdge([2]int{pR, v[1]})
 		e3 := NewEdge([2]int{pR, v[2]})
@@ -401,10 +410,12 @@ func (tm *TriMesh) AddPoint(X, Y float64) {
 		tm.LegalizeEdge(baseTri.Edges[1], pR)
 		tm.LegalizeEdge(baseTri.Edges[2], pR)
 	} else {
-		e := baseTri.Edges[eNumber]
-		oppoVerts, oppoTris := e.GetOpposingVertices() // Must happen before removing tris from edge
+		edge := baseTri.Edges[eNumber]
+		oppoVerts, oppoTris := edge.GetOpposingVertices() // Must happen before removing tris from edge
+		fmt.Printf("X, Y = [%8.5f,%8.5f], Edge = %s, Oppoverts = %v\n",
+			X, Y, edge.Print(), oppoVerts)
 		// Remove base tris from central edge, they will be replaced with 4 new tris
-		for tri := range e.Tris {
+		for tri := range edge.Tris {
 			for _, ee := range tri.Edges {
 				ee.DeleteTri(tri)
 			}
@@ -413,6 +424,7 @@ func (tm *TriMesh) AddPoint(X, Y float64) {
 		var numTris int
 		for i, pLorK := range oppoVerts {
 			oTri := oppoTris[i]
+			fmt.Printf("pR, pLorK = %d, %d\n", pR, pLorK)
 			e1 := NewEdge([2]int{pR, pLorK})
 			var eForNewTri []*Edge
 			for _, ee := range oTri.Edges {
@@ -427,10 +439,19 @@ func (tm *TriMesh) AddPoint(X, Y float64) {
 			}
 			// Split edge IJ into two new edges, I-R and J-R for two new triangles
 			var e2 [2]*Edge
-			e2[0] = NewEdge([2]int{e.Verts[0], pR}, e.IsImmovable)
-			e2[1] = NewEdge([2]int{e.Verts[1], pR}, e.IsImmovable)
-			for ii, ee := range eForNewTri { // Form two new triangles from pR->pLorK->pIorJ
+			e2[0] = NewEdge([2]int{edge.Verts[0], pR}, edge.IsImmovable)
+			e2[1] = NewEdge([2]int{edge.Verts[1], pR}, edge.IsImmovable)
+			for ii, vI := range edge.Verts { // Form two new triangles from pR->pLorK->pIorJ
+				var ee *Edge
+				if eForNewTri[0].ContainsIndex(vI) {
+					ee = eForNewTri[0]
+				} else {
+					ee = eForNewTri[1]
+				}
+				//for ii, ee := range eForNewTri { // Form two new triangles from pR->pLorK->pIorJ
+				fmt.Printf("e1, e2, e3 = %s, %s, %s\n", e1.Print(), e2[ii].Print(), ee.Print())
 				tri := tm.NewTri(e1, e2[ii], ee)
+				fmt.Println(tm.PrintTri(tri, "new tri"))
 				newTris[numTris] = tri
 				numTris++
 				tm.AddTriToGraph(tri, leafNode)
@@ -453,7 +474,8 @@ func (tm *TriMesh) GetEdgeTriWithoutPoint(e *Edge, ptI int) (oppoTri *Tri) {
 	// Get the triangle on the other side of the edge, relative to ptI
 	for tri := range e.Tris {
 		var found bool
-		for _, vertI := range tri.GetVertices() {
+		verts, _ := tri.GetVertices()
+		for _, vertI := range verts {
 			if vertI == ptI {
 				found = true
 			}
@@ -503,7 +525,7 @@ func (tm *TriMesh) LegalizeEdge(e *Edge, testPtI int) {
 		return
 	}
 	prX, prY := pts[testPtI].X[0], pts[testPtI].X[1]
-	v := tri.GetVertices()
+	v, _ := tri.GetVertices()
 	p1x, p2x, p3x := pts[v[0]].X[0], pts[v[1]].X[0], pts[v[2]].X[0]
 	p1y, p2y, p3y := pts[v[0]].X[1], pts[v[1]].X[1], pts[v[2]].X[1]
 	if IsIllegalEdge(prX, prY, p1x, p1y, p2x, p2y, p3x, p3y) {
@@ -530,7 +552,7 @@ func (tm *TriMesh) flipEdge(e *Edge) {
 	tris := [2]*Tri{}
 	var ii int
 	for tri := range e.Tris {
-		vv[ii] = tri.GetVertices()
+		vv[ii], _ = tri.GetVertices()
 		tris[ii] = tri
 		ii++
 	}
@@ -626,17 +648,13 @@ func (tm *TriMesh) ToGraphMesh() (trisOut graphics2D.TriMesh) {
 		pts[i].X[1] = float32(pt.X[1])
 	}
 	tris := make([]graphics2D.Triangle, len(tm.Tris))
-	for i, tri := range tm.Tris {
-		pts := tri.GetVertices()
-		tris[i].Nodes[0] = int32(pts[0])
-		tris[i].Nodes[1] = int32(pts[1])
-		tris[i].Nodes[2] = int32(pts[2])
-	}
 	Attributes := make([][]float32, len(tm.Tris))
 	for i, tri := range tm.Tris {
-		for _, e := range tri.Edges {
+		pts, fixed := tri.GetVertices()
+		for ptI := 0; ptI < 3; ptI++ {
+			tris[i].Nodes[ptI] = int32(pts[ptI])
 			value := float32(0.5)
-			if e.IsImmovable {
+			if fixed[ptI] {
 				value = float32(1.0)
 			}
 			Attributes[i] = append(Attributes[i], value)

@@ -25,7 +25,7 @@ func TestTriangulate(t *testing.T) {
 		tri.AddEdge(e2)
 		tri.AddEdge(NewEdge([2]int{2, 0}, true))
 		tm.AddBoundingTriangle(tri)
-		verts := tri.GetVertices()
+		verts, _ := tri.GetVertices()
 		assert.Equal(t, verts, [3]int{0, 1, 2})
 
 		//RR := []float64{-0.9600, 0.9201, -0.9600, -0.7366, 0.4731, -0.7366, -0.3333}
@@ -37,6 +37,9 @@ func TestTriangulate(t *testing.T) {
 				tm.AddPoint(RR[i], SS[i])
 			}
 		}
+		//tm.AddPoint(-0.33, -0.33)
+		//tm.AddPoint(0.5, -1)
+		//tm.AddPoint(-1, 0.5)
 		if true {
 			tm.AddPoint(-0.33, -0.33)
 			tm.AddPoint(-.25, -.75)
@@ -47,15 +50,21 @@ func TestTriangulate(t *testing.T) {
 			tm.AddPoint(-0.5, -1)
 			tm.AddPoint(0.0, 0.0)
 			tm.AddPoint(0.0, -1)
-		}
-		// Broken
-		if false {
-			tm.AddPoint(-1.0, 0.5)
-			tm.AddPoint(0.5, -1)
+			// broken random tm.AddPoint(0.5, -1)
+			// broken random tm.AddPoint(-1, 0.5)
 		}
 
 		plot := false
 		if plot {
+			if false {
+				gm := tm.ToGraphMesh()
+				for i, tri := range gm.Triangles {
+					fmt.Printf("tri[%d] = %v\n", i, tri)
+					for _, atts := range gm.Attributes[i] {
+						fmt.Printf("atts[%d] = %v\n", i, atts)
+					}
+				}
+			}
 			plotTriangles(tm.ToGraphMesh())
 			utils.SleepFor(100000)
 		}
