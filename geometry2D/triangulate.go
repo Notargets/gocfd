@@ -124,6 +124,16 @@ type TriGraphNode struct { // Tracks nested triangles during formation by using 
 	Children []*TriGraphNode
 }
 
+func (tgn *TriGraphNode) Print() (str string) {
+	var (
+		tri = tgn.Triangle
+	)
+	return fmt.Sprintf("TGN Node Edges: %s, %s, %s",
+		tri.Edges[0].Print(),
+		tri.Edges[1].Print(),
+		tri.Edges[2].Print())
+}
+
 type Tri struct {
 	Edges     []*Edge
 	Reversals [3]int
@@ -287,12 +297,13 @@ func (tm *TriMesh) AddBoundingTriangle(tri *Tri) {
 	tri.TGN = tm.TriGraph
 }
 
-func (tm *TriMesh) TriContainsPoint(tri *Tri, pt Point) (contains bool) {
+func (tm *TriMesh) TriContainsPoint(tri *Tri, pt Point, traceO ...bool) (contains bool) {
 	var (
 		verts, _ = tri.GetVertices()
 		pts      = tm.Points
 		//v1, v2, v3 = pts[verts[0]], pts[verts[1]], pts[verts[2]]
-		vPts = []Point{pts[verts[0]], pts[verts[1]], pts[verts[2]]}
+		vPts  = []Point{pts[verts[0]], pts[verts[1]], pts[verts[2]]}
+		trace = len(traceO) != 0 && traceO[0]
 	)
 	// Fast no - bounding box check
 	xmin, xmax := vPts[0].X[0], vPts[0].X[0]
@@ -304,11 +315,17 @@ func (tm *TriMesh) TriContainsPoint(tri *Tri, pt Point) (contains bool) {
 		ymax = math.Max(ymax, vpt.X[1])
 	}
 	if pt.X[0] < xmin || pt.X[0] > xmax || pt.X[1] < ymin || pt.X[1] > ymax {
+		if trace {
+			fmt.Printf("point %v outside bounding box\n", pt)
+		}
 		return false
 	}
 	// Edge test - is point on a triangle edge?
 	if tm.WhichEdgeIsPointOn(pt.X[0], pt.X[1], tri) != -1 {
 		// Point is on an edge of this tri
+		if trace {
+			fmt.Printf("point %v on an edge\n", pt)
+		}
 		return true
 	}
 	// Interior point test
@@ -318,20 +335,33 @@ func (tm *TriMesh) TriContainsPoint(tri *Tri, pt Point) (contains bool) {
 	b1 := math.Signbit(signF(pt, vPts[0], vPts[1]))
 	b2 := math.Signbit(signF(pt, vPts[1], vPts[2]))
 	b3 := math.Signbit(signF(pt, vPts[2], vPts[0]))
-	return (b1 == b2) && (b2 == b3)
+	interior := (b1 == b2) && (b2 == b3)
+	if interior && trace {
+		fmt.Printf("point %v is interior\n", pt)
+	}
+	return interior
 }
 
-func (tm *TriMesh) getLeafTri(tgn *TriGraphNode, pt Point) (triLeaf *Tri, leafNode *TriGraphNode) {
-	for _, tgnDown := range tgn.Children {
-		tri := tgnDown.Triangle
-		if tm.TriContainsPoint(tri, pt) {
-			triLeaf, leafNode = tm.getLeafTri(tgnDown, pt)
-			return
+func (tm *TriMesh) getLeafTri(tgn *TriGraphNode, pt Point, traceO ...bool) (triLeaf *Tri, leafNode *TriGraphNode) {
+	var (
+		trace = len(traceO) != 0 && traceO[0]
+	)
+	if len(tgn.Children) == 0 {
+		if trace {
+			fmt.Printf("reached bottom node - %s\n", tgn.Print())
 		}
-	}
-	if len(tgn.Children) == 0 && tm.TriContainsPoint(tgn.Triangle, pt) {
-		triLeaf = tgn.Triangle
-		leafNode = tgn
+		if tm.TriContainsPoint(tgn.Triangle, pt, trace) {
+			triLeaf = tgn.Triangle
+			leafNode = tgn
+		}
+	} else {
+		for _, tgnDown := range tgn.Children {
+			tri := tgnDown.Triangle
+			if tm.TriContainsPoint(tri, pt, trace) {
+				triLeaf, leafNode = tm.getLeafTri(tgnDown, pt, trace)
+				return
+			}
+		}
 	}
 	return
 }
@@ -376,13 +406,17 @@ func (tm *TriMesh) WhichEdgeIsPointOn(X, Y float64, tri *Tri) (edgeNumber int) {
 	return
 }
 
-func (tm *TriMesh) AddPoint(X, Y float64) {
+func (tm *TriMesh) AddPoint(X, Y float64, traceO ...bool) {
+	var (
+		trace = len(traceO) != 0 && traceO[0]
+	)
 	pr := Point{X: [2]float64{X, Y}}
 	tm.Points = append(tm.Points, pr)
 	pR := len(tm.Points) - 1
 	//Find a triangle containing the point
 	baseTri, leafNode := tm.getLeafTri(tm.TriGraph, pr)
 	if baseTri == nil {
+		tm.getLeafTri(tm.TriGraph, pr, true) // call again with tracing
 		err := fmt.Errorf(
 			"unable to add point to triangulation, point %v is outside %v",
 			pr, tm.PrintTri(tm.TriGraph.Triangle, "bounding triangle"))
@@ -406,14 +440,18 @@ func (tm *TriMesh) AddPoint(X, Y float64) {
 		tri = tm.NewTri(e3, baseTri.Edges[2], e1)
 		tm.AddTriToGraph(tri, leafNode)
 		// Legalize edges opposing pR
-		tm.LegalizeEdge(baseTri.Edges[0], pR)
-		tm.LegalizeEdge(baseTri.Edges[1], pR)
-		tm.LegalizeEdge(baseTri.Edges[2], pR)
+		if true {
+			tm.LegalizeEdge(baseTri.Edges[0], pR)
+			tm.LegalizeEdge(baseTri.Edges[1], pR)
+			tm.LegalizeEdge(baseTri.Edges[2], pR)
+		}
 	} else {
 		edge := baseTri.Edges[eNumber]
 		oppoVerts, oppoTris := edge.GetOpposingVertices() // Must happen before removing tris from edge
-		fmt.Printf("X, Y = [%8.5f,%8.5f], Edge = %s, Oppoverts = %v\n",
-			X, Y, edge.Print(), oppoVerts)
+		if trace {
+			fmt.Printf("X, Y = [%8.5f,%8.5f], Edge = %s, Oppoverts = %v\n",
+				X, Y, edge.Print(), oppoVerts)
+		}
 		// Remove base tris from central edge, they will be replaced with 4 new tris
 		for tri := range edge.Tris {
 			for _, ee := range tri.Edges {
@@ -424,7 +462,9 @@ func (tm *TriMesh) AddPoint(X, Y float64) {
 		var numTris int
 		for i, pLorK := range oppoVerts {
 			oTri := oppoTris[i]
-			fmt.Printf("pR, pLorK = %d, %d\n", pR, pLorK)
+			if trace {
+				fmt.Printf("pR, pLorK = %d, %d\n", pR, pLorK)
+			}
 			e1 := NewEdge([2]int{pR, pLorK})
 			var eForNewTri []*Edge
 			for _, ee := range oTri.Edges {
@@ -449,22 +489,28 @@ func (tm *TriMesh) AddPoint(X, Y float64) {
 					ee = eForNewTri[1]
 				}
 				//for ii, ee := range eForNewTri { // Form two new triangles from pR->pLorK->pIorJ
-				fmt.Printf("e1, e2, e3 = %s, %s, %s\n", e1.Print(), e2[ii].Print(), ee.Print())
+				if trace {
+					fmt.Printf("e1, e2, e3 = %s, %s, %s\n", e1.Print(), e2[ii].Print(), ee.Print())
+				}
 				tri := tm.NewTri(e1, e2[ii], ee)
-				fmt.Println(tm.PrintTri(tri, "new tri"))
+				if trace {
+					fmt.Println(tm.PrintTri(tri, "new tri"))
+				}
 				newTris[numTris] = tri
 				numTris++
 				tm.AddTriToGraph(tri, leafNode)
 			}
 		}
-		// Legalize the outer boundary edges of baseTri
-		for i := 0; i < numTris; i++ {
-			tri := newTris[i]
-			for _, ee := range tri.Edges {
-				if ee.ContainsIndex(pR) { // We only want the edge opposite of pR
-					continue
+		if true {
+			// Legalize the outer boundary edges of baseTri
+			for i := 0; i < numTris; i++ {
+				tri := newTris[i]
+				for _, ee := range tri.Edges {
+					if ee.ContainsIndex(pR) { // We only want the edge opposite of pR
+						continue
+					}
+					tm.LegalizeEdge(ee, pR)
 				}
-				tm.LegalizeEdge(ee, pR)
 			}
 		}
 	}
