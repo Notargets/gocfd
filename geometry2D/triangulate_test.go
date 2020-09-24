@@ -63,7 +63,7 @@ func TestTriangulate(t *testing.T) {
 			//tm.AddPoint(-1, 0.5)
 		}
 
-		plot := true
+		plot := false
 		if plot {
 			if false {
 				gm := tm.ToGraphMesh()
