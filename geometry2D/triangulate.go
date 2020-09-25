@@ -124,14 +124,38 @@ type TriGraphNode struct { // Tracks nested triangles during formation by using 
 	Children []*TriGraphNode
 }
 
-func (tgn *TriGraphNode) Print() (str string) {
+func (tgn *TriGraphNode) Print(labelO ...string) (str string) {
 	var (
-		tri = tgn.Triangle
+		tri   = tgn.Triangle
+		label string
 	)
-	return fmt.Sprintf("TGN Node Edges: %s, %s, %s",
+	if len(labelO) != 0 {
+		label = labelO[0]
+	}
+	return fmt.Sprintf("%s Node Edges: %s, %s, %s",
+		label,
 		tri.Edges[0].Print(),
 		tri.Edges[1].Print(),
 		tri.Edges[2].Print())
+}
+
+func (tgn *TriGraphNode) PrintAll() {
+	var (
+		descend func(t *TriGraphNode)
+	)
+	descend = func(t *TriGraphNode) {
+		var label string
+		if len(t.Children) == 0 {
+			label = "**leaf** node"
+		} else {
+			label = "interior node"
+		}
+		fmt.Println(t.Print(label))
+		for _, tt := range t.Children {
+			descend(tt)
+		}
+	}
+	descend(tgn)
 }
 
 type Tri struct {
@@ -348,13 +372,18 @@ func (tm *TriMesh) getLeafTri(tgn *TriGraphNode, pt Point, traceO ...bool) (triL
 	)
 	if len(tgn.Children) == 0 {
 		if trace {
-			fmt.Printf("reached bottom node - %s\n", tgn.Print())
+			fmt.Println(tgn.Print("leaf"))
 		}
 		if tm.TriContainsPoint(tgn.Triangle, pt, trace) {
 			triLeaf = tgn.Triangle
 			leafNode = tgn
+		} else {
+			panic("unable to confirm point is inside triangle on leaf node of graph")
 		}
 	} else {
+		if trace {
+			fmt.Println(tm.PrintTri(tgn.Triangle, "interior"))
+		}
 		for _, tgnDown := range tgn.Children {
 			tri := tgnDown.Triangle
 			if tm.TriContainsPoint(tri, pt, trace) {
@@ -417,6 +446,7 @@ func (tm *TriMesh) AddPoint(X, Y float64, traceO ...bool) {
 	baseTri, leafNode := tm.getLeafTri(tm.TriGraph, pr)
 	if baseTri == nil {
 		tm.getLeafTri(tm.TriGraph, pr, true) // call again with tracing
+		//tm.TriGraph.PrintAll()
 		err := fmt.Errorf(
 			"unable to add point to triangulation, point %v is outside %v",
 			pr, tm.PrintTri(tm.TriGraph.Triangle, "bounding triangle"))
