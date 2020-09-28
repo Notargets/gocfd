@@ -14,7 +14,24 @@ import (
 )
 
 func TestTriangulate(t *testing.T) {
-	{ //Test Legalize Edge
+	{ //Test flip edge
+		R := []float64{-1, 1, -1, 1} // Vertices
+		S := []float64{-1, -1, 1, 1}
+		tm := NewTriMesh(R, S)
+
+		tri := &Tri{}
+		tri.AddEdge(NewEdge([2]int{0, 1}))
+		e2 := NewEdge([2]int{1, 2})
+		tri.AddEdge(e2)
+		tri.AddEdge(NewEdge([2]int{2, 0}))
+		tm.AddBoundingTriangle(tri)
+		tri = tm.NewTri(NewEdge([2]int{2, 3}), NewEdge([2]int{3, 1}), e2)
+		tm.AddTriToGraph(tri, tm.TriGraph)
+		//tm.TriGraph.PrintAll()
+		tm.flipEdge(e2)
+		//tm.TriGraph.PrintAll()
+	}
+	if true { //Test Add Point
 		R := []float64{-1, 1, -1} // Vertices
 		S := []float64{-1, -1, 1}
 		tm := NewTriMesh(R, S)
@@ -59,8 +76,8 @@ func TestTriangulate(t *testing.T) {
 			tm.AddPoint(-.15, -.15)
 			tm.AddPoint(0.0, 0.0)
 			tm.AddPoint(0.0, -1)
-			//tm.AddPoint(0.5, -1)
-			//tm.AddPoint(-1, 0.5)
+			tm.AddPoint(0.5, -1)
+			tm.AddPoint(-1, 0.5)
 		}
 
 		plot := false

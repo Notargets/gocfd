@@ -269,9 +269,17 @@ func (tri *Tri) GetVertices() (verts [3]int, fixed [3]bool) {
 	verts[0] = tri.Edges[0].Verts[0+tri.Reversals[0]]
 	verts[1] = tri.Edges[0].Verts[1-tri.Reversals[0]]
 	verts[2] = tri.Edges[1].Verts[1-tri.Reversals[1]]
-	fixed[0] = tri.Edges[0].IsImmovable
-	fixed[1] = tri.Edges[1].IsImmovable
-	fixed[2] = tri.Edges[2].IsImmovable
+	for _, e := range tri.Edges {
+		if e.ContainsIndex(verts[0]) && e.ContainsIndex(verts[1]) {
+			fixed[0] = e.IsImmovable
+		}
+		if e.ContainsIndex(verts[1]) && e.ContainsIndex(verts[2]) {
+			fixed[1] = e.IsImmovable
+		}
+		if e.ContainsIndex(verts[2]) && e.ContainsIndex(verts[0]) {
+			fixed[2] = e.IsImmovable
+		}
+	}
 	return
 }
 
@@ -329,6 +337,7 @@ func (tm *TriMesh) TriContainsPoint(tri *Tri, pt Point, traceO ...bool) (contain
 		vPts  = []Point{pts[verts[0]], pts[verts[1]], pts[verts[2]]}
 		trace = len(traceO) != 0 && traceO[0]
 	)
+	//fmt.Println("pt = ", pt, tm.PrintTri(tri, "inside TCP"))
 	// Fast no - bounding box check
 	xmin, xmax := vPts[0].X[0], vPts[0].X[0]
 	ymin, ymax := vPts[0].X[1], vPts[0].X[1]
@@ -383,6 +392,7 @@ func (tm *TriMesh) getLeafTri(tgn *TriGraphNode, pt Point, traceO ...bool) (triL
 	} else {
 		if trace {
 			fmt.Println(tm.PrintTri(tgn.Triangle, "interior"))
+			fmt.Println("#Children = ", len(tgn.Children))
 		}
 		for _, tgnDown := range tgn.Children {
 			tri := tgnDown.Triangle
@@ -522,7 +532,7 @@ func (tm *TriMesh) AddPoint(X, Y float64, traceO ...bool) {
 				if trace {
 					fmt.Printf("e1, e2, e3 = %s, %s, %s\n", e1.Print(), e2[ii].Print(), ee.Print())
 				}
-				tri := tm.NewTri(e1, e2[ii], ee)
+				tri := tm.NewTri(e2[ii], e1, ee)
 				if trace {
 					fmt.Println(tm.PrintTri(tri, "new tri"))
 				}
@@ -676,6 +686,7 @@ func (tm *TriMesh) flipEdge(e *Edge) {
 	e2 := findConnectedEdge(pt2)
 	triNew1 := tm.NewTri(eNew, e1, e2)
 	tm.AddTriToGraph(triNew1, tris[0].TGN)
+	tm.AddTriToGraph(triNew1, tris[1].TGN)
 	/*
 		tri := tm.NewTri(e1, baseTri.Edges[0], e2)
 		tm.AddTriToGraph(tri, leafNode)
@@ -690,6 +701,7 @@ func (tm *TriMesh) flipEdge(e *Edge) {
 	}
 	e2 = findConnectedEdge(pt2)
 	triNew2 := tm.NewTri(eNew, e1, e2)
+	tm.AddTriToGraph(triNew2, tris[0].TGN)
 	tm.AddTriToGraph(triNew2, tris[1].TGN)
 }
 
