@@ -54,10 +54,7 @@ func TestTriangulate(t *testing.T) {
 				tm.AddPoint(RR[i], SS[i])
 			}
 		}
-		//tm.AddPoint(-0.33, -0.33)
-		//tm.AddPoint(0.5, -1)
-		//tm.AddPoint(-1, 0.5)
-		if false {
+		if true {
 			tm.AddPoint(-0.33, -0.33)
 			tm.AddPoint(-.25, -.75)
 			tm.AddPoint(-.15, -.15)
@@ -70,27 +67,19 @@ func TestTriangulate(t *testing.T) {
 			tm.AddPoint(0.5, -1)
 			tm.AddPoint(-1, 0.5)
 		}
-		if true {
-			tm.AddPoint(-0.33, -0.33)
-			tm.AddPoint(-.25, -.75)
-			//tm.AddPoint(-.15, -.15)
-			//tm.AddPoint(0.0, 0.0)
-			tm.AddPoint(0.0, -1)
-			tm.AddPoint(0.5, -1, true)
-			//tm.AddPoint(-1, 0.5)
-		}
 
-		gm := tm.ToGraphMesh()
-		fmt.Println("number of finished tris = ", len(gm.Triangles))
+		//gm := tm.ToGraphMesh()
+		//fmt.Println("number of finished tris = ", len(gm.Triangles))
 		var withTris int
-		for i, ee := range tm.Edges {
+		for _, ee := range tm.Edges {
 			if len(ee.Tris) != 0 {
-				fmt.Printf("With %d Tris: ", len(ee.Tris))
+				//fmt.Printf("With %d Tris: ", len(ee.Tris))
 				withTris++
 			}
-			fmt.Printf("Edge[%d] = %s\n", i, ee.Print())
+			//fmt.Printf("Edge[%d] = %s\n", i, ee.Print())
 		}
-		fmt.Printf("Number of edges with tris: %d\n", withTris)
+		//fmt.Printf("Number of edges with tris: %d\n", withTris)
+		_ = withTris
 		plot := false
 		if plot {
 			if false {

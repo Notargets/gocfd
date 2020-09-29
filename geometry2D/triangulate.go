@@ -561,11 +561,11 @@ func (tm *TriMesh) AddPoint(X, Y float64, traceO ...bool) {
 		}
 		if legalize2 {
 			// Legalize the outer boundary edges of baseTri
-			fmt.Printf("Working on %d new tris...\n", numTris)
+			//fmt.Printf("Working on %d new tris...\n", numTris)
 			for j := 0; j < numTris; j++ {
 				for _, ee := range newTris[j].Edges {
 					if !ee.ContainsIndex(pR) { // We only want the edge opposite of pR
-						fmt.Printf("legalizing: %s\n", ee.Print())
+						//fmt.Printf("legalizing: %s\n", ee.Print())
 						tm.LegalizeEdge(ee, pR)
 					}
 				}
@@ -681,7 +681,7 @@ func (tm *TriMesh) flipEdge(e *Edge) {
 		for ee = range eMap {
 			if ee.ContainsIndex(ptI) {
 				delete(eMap, ee) // remove edge from bucket
-				fmt.Printf("Number of tris (%d) on edge %s\n", len(ee.Tris), ee.Print())
+				//fmt.Printf("Number of tris (%d) on edge %s\n", len(ee.Tris), ee.Print())
 				return ee
 			}
 		}
