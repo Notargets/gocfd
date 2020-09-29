@@ -724,11 +724,12 @@ func (tm *TriMesh) flipEdge(e *Edge) {
 func (tm *TriMesh) extractFinishedTris() {
 	var (
 		extractTris func(tgn *TriGraphNode)
+		triMap      = make(map[*Tri]struct{})
 	)
 	// Recurse the Trigraph to extract leaves and load finished tri slice
 	extractTris = func(tgn *TriGraphNode) {
 		if len(tgn.Children) == 0 {
-			tm.Tris = append(tm.Tris, tgn.Triangle)
+			triMap[tgn.Triangle] = struct{}{}
 			return
 		} else {
 			for _, node := range tgn.Children {
@@ -737,6 +738,9 @@ func (tm *TriMesh) extractFinishedTris() {
 		}
 	}
 	extractTris(tm.TriGraph)
+	for tri := range triMap {
+		tm.Tris = append(tm.Tris, tri)
+	}
 }
 
 func (tm *TriMesh) ToGraphMesh() (trisOut graphics2D.TriMesh) {
