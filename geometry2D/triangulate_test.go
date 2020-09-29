@@ -20,12 +20,12 @@ func TestTriangulate(t *testing.T) {
 		tm := NewTriMesh(R, S)
 
 		tri := &Tri{}
-		tri.AddEdge(NewEdge([2]int{0, 1}))
-		e2 := NewEdge([2]int{1, 2})
+		tri.AddEdge(tm.NewEdge([2]int{0, 1}))
+		e2 := tm.NewEdge([2]int{1, 2})
 		tri.AddEdge(e2)
-		tri.AddEdge(NewEdge([2]int{2, 0}))
+		tri.AddEdge(tm.NewEdge([2]int{2, 0}))
 		tm.AddBoundingTriangle(tri)
-		tri = tm.NewTri(NewEdge([2]int{2, 3}), NewEdge([2]int{3, 1}), e2)
+		tri = tm.NewTri(tm.NewEdge([2]int{2, 3}), tm.NewEdge([2]int{3, 1}), e2)
 		tm.AddTriToGraph(tri, tm.TriGraph)
 		//tm.TriGraph.PrintAll()
 		tm.flipEdge(e2)
@@ -37,10 +37,10 @@ func TestTriangulate(t *testing.T) {
 		tm := NewTriMesh(R, S)
 
 		tri := &Tri{}
-		tri.AddEdge(NewEdge([2]int{0, 1}, true))
-		e2 := NewEdge([2]int{1, 2}, true)
+		tri.AddEdge(tm.NewEdge([2]int{0, 1}, true))
+		e2 := tm.NewEdge([2]int{1, 2}, true)
 		tri.AddEdge(e2)
-		tri.AddEdge(NewEdge([2]int{2, 0}, true))
+		tri.AddEdge(tm.NewEdge([2]int{2, 0}, true))
 		tm.AddBoundingTriangle(tri)
 		verts, _ := tri.GetVertices()
 		assert.Equal(t, verts, [3]int{0, 1, 2})
@@ -57,7 +57,7 @@ func TestTriangulate(t *testing.T) {
 		//tm.AddPoint(-0.33, -0.33)
 		//tm.AddPoint(0.5, -1)
 		//tm.AddPoint(-1, 0.5)
-		if true {
+		if false {
 			tm.AddPoint(-0.33, -0.33)
 			tm.AddPoint(-.25, -.75)
 			tm.AddPoint(-.15, -.15)
@@ -70,16 +70,21 @@ func TestTriangulate(t *testing.T) {
 			tm.AddPoint(0.5, -1)
 			tm.AddPoint(-1, 0.5)
 		}
-		if false {
+		if true {
 			tm.AddPoint(-0.33, -0.33)
 			tm.AddPoint(-.25, -.75)
-			tm.AddPoint(-.15, -.15)
-			tm.AddPoint(0.0, 0.0)
+			//tm.AddPoint(-.15, -.15)
+			//tm.AddPoint(0.0, 0.0)
 			tm.AddPoint(0.0, -1)
-			tm.AddPoint(0.5, -1)
-			tm.AddPoint(-1, 0.5)
+			tm.AddPoint(0.5, -1, true)
+			//tm.AddPoint(-1, 0.5)
 		}
 
+		gm := tm.ToGraphMesh()
+		fmt.Println("number of finished tris = ", len(gm.Triangles))
+		for i, ee := range tm.Edges {
+			fmt.Printf("Edge[%d] = %s\n", i, ee.Print())
+		}
 		plot := false
 		if plot {
 			if false {

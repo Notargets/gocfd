@@ -25,6 +25,25 @@ func (e *Edge) ContainsIndex(pI int) (contains bool) {
 	return
 }
 
+func (tm *TriMesh) NewEdge(verts [2]int, isImmovableO ...bool) (e *Edge) {
+	var (
+		isImmovable bool
+	)
+	if len(isImmovableO) != 0 {
+		isImmovable = isImmovableO[0]
+	}
+	// TODO: If this is necessary, use a data structure to make it not O(N^2)
+	for _, ee := range tm.Edges {
+		if ee.ContainsIndex(verts[0]) && ee.ContainsIndex(verts[1]) {
+			fmt.Printf("reusing edge: %s\n", ee.Print())
+			return ee
+		}
+	}
+	e = NewEdge(verts, isImmovable)
+	tm.Edges = append(tm.Edges, e)
+	return
+}
+
 func NewEdge(verts [2]int, isImmovableO ...bool) (e *Edge) {
 	if verts[0] == verts[1] {
 		err := fmt.Errorf("degenerate edge, points are the same: [%d,%d]", verts[0], verts[1])
@@ -116,6 +135,7 @@ func (e *Edge) GetOpposingVertices() (pts []int, tris []*Tri) {
 type TriMesh struct {
 	Tris     []*Tri
 	Points   []Point
+	Edges    []*Edge
 	TriGraph *TriGraphNode // Graph used to determine which triangle a new point is inside
 }
 
@@ -470,9 +490,9 @@ func (tm *TriMesh) AddPoint(X, Y float64, traceO ...bool) {
 			e.DeleteTri(baseTri)
 		}
 		v, _ := baseTri.GetVertices()
-		e1 := NewEdge([2]int{pR, v[0]})
-		e2 := NewEdge([2]int{pR, v[1]})
-		e3 := NewEdge([2]int{pR, v[2]})
+		e1 := tm.NewEdge([2]int{pR, v[0]})
+		e2 := tm.NewEdge([2]int{pR, v[1]})
+		e3 := tm.NewEdge([2]int{pR, v[2]})
 
 		tri := tm.NewTri(e1, baseTri.Edges[0], e2)
 		tm.AddTriToGraph(tri, leafNode)
@@ -506,13 +526,12 @@ func (tm *TriMesh) AddPoint(X, Y float64, traceO ...bool) {
 			if trace {
 				fmt.Printf("pR, pLorK = %d, %d\n", pR, pLorK)
 			}
-			e1 := NewEdge([2]int{pR, pLorK})
+			e1 := tm.NewEdge([2]int{pR, pLorK})
 			var eForNewTri []*Edge
 			for _, ee := range oTri.Edges {
-				if !ee.ContainsIndex(pLorK) { // We want only the edges that share pLorK
-					continue
+				if ee.ContainsIndex(pLorK) { // We want only the edges that share pLorK
+					eForNewTri = append(eForNewTri, ee)
 				}
-				eForNewTri = append(eForNewTri, ee)
 			}
 			if len(eForNewTri) != 2 {
 				err := fmt.Errorf("not enough edges, should be 2, is: %d", len(eForNewTri))
@@ -520,8 +539,8 @@ func (tm *TriMesh) AddPoint(X, Y float64, traceO ...bool) {
 			}
 			// Split edge IJ into two new edges, I-R and J-R for two new triangles
 			var e2 [2]*Edge
-			e2[0] = NewEdge([2]int{edge.Verts[0], pR}, edge.IsImmovable)
-			e2[1] = NewEdge([2]int{edge.Verts[1], pR}, edge.IsImmovable)
+			e2[0] = tm.NewEdge([2]int{edge.Verts[0], pR}, edge.IsImmovable)
+			e2[1] = tm.NewEdge([2]int{edge.Verts[1], pR}, edge.IsImmovable)
 			for ii, vI := range edge.Verts { // Form two new triangles from pR->pLorK->pIorJ
 				var ee *Edge
 				if eForNewTri[0].ContainsIndex(vI) {
@@ -529,7 +548,6 @@ func (tm *TriMesh) AddPoint(X, Y float64, traceO ...bool) {
 				} else {
 					ee = eForNewTri[1]
 				}
-				//for ii, ee := range eForNewTri { // Form two new triangles from pR->pLorK->pIorJ
 				if trace {
 					fmt.Printf("e1, e2, e3 = %s, %s, %s\n", e1.Print(), e2[ii].Print(), ee.Print())
 				}
@@ -544,8 +562,8 @@ func (tm *TriMesh) AddPoint(X, Y float64, traceO ...bool) {
 		if legalize2 {
 			// Legalize the outer boundary edges of baseTri
 			fmt.Printf("Working on %d new tris...\n", numTris)
-			for i := 0; i < numTris; i++ {
-				for _, ee := range newTris[i].Edges {
+			for j := 0; j < numTris; j++ {
+				for _, ee := range newTris[j].Edges {
 					if !ee.ContainsIndex(pR) { // We only want the edge opposite of pR
 						fmt.Printf("legalizing: %s\n", ee.Print())
 						tm.LegalizeEdge(ee, pR)
@@ -629,6 +647,7 @@ func (tm *TriMesh) LegalizeEdge(e *Edge, testPtI int) {
 }
 
 func (tm *TriMesh) flipEdge(e *Edge) {
+	//TODO: Fix bug where flipped edge only works for one edge adjacent triangle
 	// Reformulate the pair of triangles adjacent to edge into two new triangles connecting the opposing vertices
 	if len(e.Tris) != 2 || e.IsImmovable { // Not able to flip edge
 		fmt.Printf("unable to flip edge, #tris = %d, isImmovable = %v\n", len(e.Tris), e.IsImmovable)
@@ -672,7 +691,7 @@ func (tm *TriMesh) flipEdge(e *Edge) {
 		panic("unable to find connected edge")
 	}
 	// Form new edge from points opposing "illegal" edge
-	eNew := NewEdge([2]int{getPtsExclEdge(vv[0]), getPtsExclEdge(vv[1])})
+	eNew := tm.NewEdge([2]int{getPtsExclEdge(vv[0]), getPtsExclEdge(vv[1])})
 
 	// Form first (of 2) new triangles
 	pt1 := eNew.Verts[0]
