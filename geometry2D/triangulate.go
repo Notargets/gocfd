@@ -665,27 +665,25 @@ func (tm *TriMesh) flipEdge(e *Edge) {
 	for tri := range e.Tris {
 		for _, ee := range tri.Edges {
 			eMap[ee] = struct{}{}
+			delete(ee.Tris, tri) // delete triangles on illegal edge from surrounding edges
 		}
 	}
 	delete(eMap, e) // Remove "illegal" edge from bucket prior to triangle formation
 	// Get opposing points
 	getPtsExclEdge := func(verts [3]int) (op1 int) {
 		for _, val := range verts {
-			if val != e.Verts[0] && val != e.Verts[1] {
-				op1 = val
-				return
+			if !e.ContainsIndex(val) {
+				return val
 			}
 		}
 		panic("unable to find opposing point")
 	}
 	findConnectedEdge := func(ptI int) (ee *Edge) {
 		for ee = range eMap {
-			for _, vI := range ee.Verts {
-				if vI == ptI {
-					delete(eMap, ee)                  // remove edge from bucket
-					ee.Tris = make(map[*Tri]struct{}) // reset connected tris prior to reuse
-					return ee
-				}
+			if ee.ContainsIndex(ptI) {
+				delete(eMap, ee) // remove edge from bucket
+				fmt.Printf("Number of tris (%d) on edge %s\n", len(ee.Tris), ee.Print())
+				return ee
 			}
 		}
 		panic("unable to find connected edge")

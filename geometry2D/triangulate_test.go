@@ -82,9 +82,15 @@ func TestTriangulate(t *testing.T) {
 
 		gm := tm.ToGraphMesh()
 		fmt.Println("number of finished tris = ", len(gm.Triangles))
+		var withTris int
 		for i, ee := range tm.Edges {
+			if len(ee.Tris) != 0 {
+				fmt.Printf("With %d Tris: ", len(ee.Tris))
+				withTris++
+			}
 			fmt.Printf("Edge[%d] = %s\n", i, ee.Print())
 		}
+		fmt.Printf("Number of edges with tris: %d\n", withTris)
 		plot := false
 		if plot {
 			if false {
