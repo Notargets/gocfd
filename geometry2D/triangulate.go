@@ -647,7 +647,6 @@ func (tm *TriMesh) LegalizeEdge(e *Edge, testPtI int) {
 }
 
 func (tm *TriMesh) flipEdge(e *Edge) {
-	//TODO: Fix bug where flipped edge only works for one edge adjacent triangle
 	// Reformulate the pair of triangles adjacent to edge into two new triangles connecting the opposing vertices
 	if len(e.Tris) != 2 || e.IsImmovable { // Not able to flip edge
 		fmt.Printf("unable to flip edge, #tris = %d, isImmovable = %v\n", len(e.Tris), e.IsImmovable)
@@ -702,12 +701,7 @@ func (tm *TriMesh) flipEdge(e *Edge) {
 	}
 	e2 := findConnectedEdge(pt2)
 	triNew1 := tm.NewTri(eNew, e1, e2)
-	tm.AddTriToGraph(triNew1, tris[0].TGN)
-	tm.AddTriToGraph(triNew1, tris[1].TGN)
-	/*
-		tri := tm.NewTri(e1, baseTri.Edges[0], e2)
-		tm.AddTriToGraph(tri, leafNode)
-	*/
+
 	// Form second (of 2) new triangles
 	pt1 = eNew.Verts[1]
 	e1 = findConnectedEdge(pt1)
@@ -718,6 +712,11 @@ func (tm *TriMesh) flipEdge(e *Edge) {
 	}
 	e2 = findConnectedEdge(pt2)
 	triNew2 := tm.NewTri(eNew, e1, e2)
+
+	//tris[0].TGN.Triangle = triNew2
+	//tris[1].TGN.Triangle = triNew1
+	tm.AddTriToGraph(triNew1, tris[0].TGN)
+	tm.AddTriToGraph(triNew1, tris[1].TGN)
 	tm.AddTriToGraph(triNew2, tris[0].TGN)
 	tm.AddTriToGraph(triNew2, tris[1].TGN)
 }
@@ -777,8 +776,9 @@ func (tm *TriMesh) ToGraphMesh() (trisOut graphics2D.TriMesh) {
 
 func (tm *TriMesh) AddTriToGraph(tri *Tri, leaf *TriGraphNode) {
 	if leaf != nil { // Root node
-		tgn := &TriGraphNode{Triangle: tri}
-		leaf.Children = append(leaf.Children, tgn)
-		tri.TGN = tgn
+		if tri.TGN == nil {
+			tri.TGN = &TriGraphNode{Triangle: tri}
+		}
+		leaf.Children = append(leaf.Children, tri.TGN)
 	}
 }
