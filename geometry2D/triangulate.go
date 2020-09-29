@@ -447,7 +447,8 @@ func (tm *TriMesh) WhichEdgeIsPointOn(X, Y float64, tri *Tri) (edgeNumber int) {
 
 func (tm *TriMesh) AddPoint(X, Y float64, traceO ...bool) {
 	var (
-		trace = len(traceO) != 0 && traceO[0]
+		trace                = len(traceO) != 0 && traceO[0]
+		legalize1, legalize2 = false, true
 	)
 	pr := Point{X: [2]float64{X, Y}}
 	tm.Points = append(tm.Points, pr)
@@ -480,7 +481,7 @@ func (tm *TriMesh) AddPoint(X, Y float64, traceO ...bool) {
 		tri = tm.NewTri(e3, baseTri.Edges[2], e1)
 		tm.AddTriToGraph(tri, leafNode)
 		// Legalize edges opposing pR
-		if true {
+		if legalize1 {
 			tm.LegalizeEdge(baseTri.Edges[0], pR)
 			tm.LegalizeEdge(baseTri.Edges[1], pR)
 			tm.LegalizeEdge(baseTri.Edges[2], pR)
@@ -532,24 +533,23 @@ func (tm *TriMesh) AddPoint(X, Y float64, traceO ...bool) {
 				if trace {
 					fmt.Printf("e1, e2, e3 = %s, %s, %s\n", e1.Print(), e2[ii].Print(), ee.Print())
 				}
-				tri := tm.NewTri(e2[ii], e1, ee)
+				newTris[numTris] = tm.NewTri(e2[ii], e1, ee)
 				if trace {
-					fmt.Println(tm.PrintTri(tri, "new tri"))
+					fmt.Println(tm.PrintTri(newTris[numTris]), "new tri")
 				}
-				newTris[numTris] = tri
+				tm.AddTriToGraph(newTris[numTris], leafNode)
 				numTris++
-				tm.AddTriToGraph(tri, leafNode)
 			}
 		}
-		if true {
+		if legalize2 {
 			// Legalize the outer boundary edges of baseTri
+			fmt.Printf("Working on %d new tris...\n", numTris)
 			for i := 0; i < numTris; i++ {
-				tri := newTris[i]
-				for _, ee := range tri.Edges {
-					if ee.ContainsIndex(pR) { // We only want the edge opposite of pR
-						continue
+				for _, ee := range newTris[i].Edges {
+					if !ee.ContainsIndex(pR) { // We only want the edge opposite of pR
+						fmt.Printf("legalizing: %s\n", ee.Print())
+						tm.LegalizeEdge(ee, pR)
 					}
-					tm.LegalizeEdge(ee, pR)
 				}
 			}
 		}

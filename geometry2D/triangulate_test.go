@@ -57,7 +57,7 @@ func TestTriangulate(t *testing.T) {
 		//tm.AddPoint(-0.33, -0.33)
 		//tm.AddPoint(0.5, -1)
 		//tm.AddPoint(-1, 0.5)
-		if false {
+		if true {
 			tm.AddPoint(-0.33, -0.33)
 			tm.AddPoint(-.25, -.75)
 			tm.AddPoint(-.15, -.15)
@@ -67,10 +67,10 @@ func TestTriangulate(t *testing.T) {
 			tm.AddPoint(-0.5, -1)
 			tm.AddPoint(0.0, 0.0)
 			tm.AddPoint(0.0, -1)
-			// broken random tm.AddPoint(0.5, -1)
-			// broken random tm.AddPoint(-1, 0.5)
+			tm.AddPoint(0.5, -1)
+			tm.AddPoint(-1, 0.5)
 		}
-		if true {
+		if false {
 			tm.AddPoint(-0.33, -0.33)
 			tm.AddPoint(-.25, -.75)
 			tm.AddPoint(-.15, -.15)
