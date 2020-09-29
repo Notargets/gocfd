@@ -411,8 +411,8 @@ func (tm *TriMesh) getLeafTri(tgn *TriGraphNode, pt Point, traceO ...bool) (triL
 		}
 	} else {
 		if trace {
-			fmt.Println(tm.PrintTri(tgn.Triangle, "interior"))
-			fmt.Println("#Children = ", len(tgn.Children))
+			fmt.Printf("%s", tm.PrintTri(tgn.Triangle, "interior"))
+			fmt.Printf("#Children = %d\n", len(tgn.Children))
 		}
 		for _, tgnDown := range tgn.Children {
 			tri := tgnDown.Triangle
@@ -468,7 +468,7 @@ func (tm *TriMesh) WhichEdgeIsPointOn(X, Y float64, tri *Tri) (edgeNumber int) {
 func (tm *TriMesh) AddPoint(X, Y float64, traceO ...bool) {
 	var (
 		trace                = len(traceO) != 0 && traceO[0]
-		legalize1, legalize2 = false, true
+		legalize1, legalize2 = true, true
 	)
 	pr := Point{X: [2]float64{X, Y}}
 	tm.Points = append(tm.Points, pr)

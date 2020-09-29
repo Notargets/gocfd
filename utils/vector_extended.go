@@ -530,6 +530,6 @@ func (v Vector) Print(msgI ...string) (o string) {
 	if len(msgI) != 0 {
 		name = msgI[0]
 	}
-	o = fmt.Sprintf("%s = \n%8.4f\n", name, mat.Formatted(v.V, mat.Squeeze()))
+	o = fmt.Sprintf("%s = \n%10.8f\n", name, mat.Formatted(v.V, mat.Squeeze()))
 	return
 }

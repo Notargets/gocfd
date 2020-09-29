@@ -87,7 +87,7 @@ func TestRTElement(t *testing.T) {
 		}
 		return
 	}
-	{ // Check Divergence for polynomial vector fields of order < N against analytical solution
+	if true { // Check Divergence for polynomial vector fields of order < N against analytical solution
 		Nend := 8
 		for N := 1; N < Nend; N++ {
 			R, S := NodesEpsilon(N - 1)
@@ -113,6 +113,8 @@ func TestRTElement(t *testing.T) {
 		N := 7
 		NRT := N + 1
 		R, S := NodesEpsilon(N)
+		//fmt.Println(R.Transpose().Print("R"))
+		//fmt.Println(S.Transpose().Print("S"))
 		rt := NewRTElement(NRT, R, S)
 		s1, s2 := make([]float64, rt.R.Len()), make([]float64, rt.R.Len())
 		for i := range rt.R.Data() {
