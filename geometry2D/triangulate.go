@@ -127,10 +127,15 @@ type TriGraphNode struct { // Tracks nested triangles during formation by using 
 func (tgn *TriGraphNode) GetDotOutput() (output []string) {
 	var (
 		descend func(tgn *TriGraphNode)
+		visited = make(map[string]struct{})
 	)
 	output = append(output, "digraph Trigraph {")
 	descend = func(ttgn *TriGraphNode) {
 		myName := ttgn.Triangle.GetName()
+		if _, ok := visited[myName]; ok {
+			return
+		}
+		visited[myName] = struct{}{}
 		for _, tt := range ttgn.Children {
 			entry := fmt.Sprintf("\t_%s -> _%s", myName, tt.Triangle.GetName())
 			output = append(output, entry)
