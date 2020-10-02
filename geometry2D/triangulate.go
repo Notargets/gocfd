@@ -11,6 +11,11 @@ type Point struct {
 	X [2]float64
 }
 
+func (pt *Point) Print() (output string) {
+	output = fmt.Sprintf("[%8.5f,%8.5f]", pt.X[0], pt.X[1])
+	return
+}
+
 type Edge struct {
 	Tris        map[*Tri]struct{} // Associated triangles
 	Verts       [2]int
@@ -35,16 +40,16 @@ func (tm *TriMesh) NewEdge(verts [2]int, isImmovableO ...bool) (e *Edge) {
 	// TODO: If this is necessary, use a data structure to make it not O(N^2)
 	for _, ee := range tm.Edges {
 		if ee.ContainsIndex(verts[0]) && ee.ContainsIndex(verts[1]) {
-			fmt.Printf("reusing edge: %s\n", ee.Print())
+			//fmt.Printf("reusing edge: %s, inputIsImmovable: %v\n", ee.Print(), isImmovable)
 			return ee
 		}
 	}
-	e = NewEdge(verts, isImmovable)
+	e = newEdge(verts, isImmovable)
 	tm.Edges = append(tm.Edges, e)
 	return
 }
 
-func NewEdge(verts [2]int, isImmovableO ...bool) (e *Edge) {
+func newEdge(verts [2]int, isImmovableO ...bool) (e *Edge) {
 	if verts[0] == verts[1] {
 		err := fmt.Errorf("degenerate edge, points are the same: [%d,%d]", verts[0], verts[1])
 		panic(err)
@@ -77,31 +82,6 @@ func getUniqueVertices(edges ...*Edge) (verts []int) {
 	}
 	for key, _ := range vMap {
 		verts = append(verts, key)
-	}
-	return
-}
-
-func NewEdgeFromEdges(edges []*Edge, isImmovableO ...bool) (ee *Edge) {
-	// Create a new edge by connecting two other edges
-	vMap := make(map[int]int)
-	for _, e := range edges {
-		for _, v := range e.Verts {
-			vMap[v]++
-		}
-	}
-	var verts [2]int
-	var ii int
-	for key, val := range vMap {
-		if val == 1 {
-			verts[ii] = key
-			ii++
-		}
-	}
-	ee = &Edge{
-		Verts: verts,
-	}
-	if len(isImmovableO) != 0 {
-		ee.IsImmovable = isImmovableO[0]
 	}
 	return
 }
@@ -144,6 +124,32 @@ type TriGraphNode struct { // Tracks nested triangles during formation by using 
 	Children []*TriGraphNode
 }
 
+func (tgn *TriGraphNode) GetDotOutput() (output []string) {
+	var (
+		descend func(tgn *TriGraphNode)
+	)
+	output = append(output, "digraph Trigraph {")
+	descend = func(ttgn *TriGraphNode) {
+		myName := ttgn.Triangle.GetName()
+		for _, tt := range ttgn.Children {
+			entry := fmt.Sprintf("\t_%s -> _%s", myName, tt.Triangle.GetName())
+			output = append(output, entry)
+		}
+		for _, tt := range ttgn.Children {
+			descend(tt)
+		}
+	}
+	descend(tgn)
+	output = append(output, "}")
+	return
+}
+
+func (tgn *TriGraphNode) PrintDotOutput() {
+	for _, line := range tgn.GetDotOutput() {
+		fmt.Printf("%s\n", line)
+	}
+}
+
 func (tgn *TriGraphNode) Print(labelO ...string) (str string) {
 	var (
 		tri   = tgn.Triangle
@@ -184,26 +190,60 @@ type Tri struct {
 	TGN       *TriGraphNode
 }
 
-func (tm *TriMesh) NewTri(edgesO ...*Edge) (tri *Tri) {
-	if len(edgesO) != 3 {
-		panic("need three connected edges to make a triangle")
+func (tri *Tri) GetName() (name string) {
+	verts, fixed := tri.GetVertices()
+	fixedName := func(f bool) string {
+		if f {
+			return "F"
+		} else {
+			return "M"
+		}
 	}
-	/*
-		if len(edgesO) < 2 || len(edgesO) > 3 {
-			panic("need at least two and no more than three connected edges to make a triangle")
+	name = fmt.Sprintf("%d%s_%d%s_%d%s", verts[0], fixedName(fixed[0]), verts[1], fixedName(fixed[1]), verts[2], fixedName(fixed[2]))
+	return
+}
+
+func (tm *TriMesh) NewTri(edges ...*Edge) (tri *Tri) {
+	if !(len(edges) >= 2) {
+		panic("need three connected edges or two connectable edges to make a triangle")
+	}
+	if len(edges) == 2 {
+		// Construct needed edge
+		// Find the two points not connected on the two input edges
+		ptMap := make(map[int]int)
+		for _, e := range edges {
+			for _, vert := range e.Verts {
+				ptMap[vert]++
+			}
 		}
-		if len(edgesO) == 2 {
-			edgesO = append(edgesO, NewEdgeFromEdges(edgesO))
+		var verts [2]int
+		var ii int
+		var connected bool
+		for key, count := range ptMap {
+			if count == 1 {
+				verts[ii] = key
+				ii++
+			} else if count == 2 {
+				connected = true
+			}
 		}
-	*/
+		if !connected {
+			panic("input edges not connected")
+		}
+		if ii != 2 {
+			panic("unable to find two unconnected ends in the two input edges")
+		}
+		edges = append(edges, tm.NewEdge(verts))
+	}
 	// Check whether triangle has the correct number of unique vertices
-	numVerts := len(getUniqueVertices(edgesO[0], edgesO[1], edgesO[2]))
+	numVerts := len(getUniqueVertices(edges[0], edges[1], edges[2]))
 	if numVerts != 3 {
+		tm.TriGraph.PrintDotOutput()
 		panic(fmt.Errorf("wrong number of vertices, need 3, have %d\nEdges: %s, %s, %s\n",
-			numVerts, edgesO[0].Print(), edgesO[1].Print(), edgesO[2].Print()))
+			numVerts, edges[0].Print(), edges[1].Print(), edges[2].Print()))
 	}
 	tri = &Tri{}
-	for _, e := range edgesO {
+	for _, e := range edges {
 		tri.AddEdge(e)
 	}
 	// Orient the edges CCW
@@ -432,7 +472,7 @@ func (tm *TriMesh) IsPointOnEdge(X, Y float64, e *Edge) (onEdge bool) {
 		e2x, e2y   = pts[e.Verts[1]].X[0], pts[e.Verts[1]].X[1]
 		xmin, ymin = math.Min(e1x, e2x), math.Min(e1y, e2y)
 		xmax, ymax = math.Max(e1x, e2x), math.Max(e1y, e2y)
-		tol        = 1.e-2
+		tol        = 1.e-09
 	)
 	// Fast no bounding box test
 	if X < xmin || X > xmax {
@@ -448,7 +488,7 @@ func (tm *TriMesh) IsPointOnEdge(X, Y float64, e *Edge) (onEdge bool) {
 	eLength := length(e1x, e1y, e2x, e2y)
 	leftLength := length(e1x, e1y, X, Y)
 	rightLength := length(X, Y, e2x, e2y)
-	if math.Abs(leftLength+rightLength-eLength) < tol*eLength {
+	if math.Abs(leftLength+rightLength-eLength) < tol {
 		return true
 	}
 	return
@@ -493,12 +533,20 @@ func (tm *TriMesh) AddPoint(X, Y float64, traceO ...bool) {
 		e1 := tm.NewEdge([2]int{pR, v[0]})
 		e2 := tm.NewEdge([2]int{pR, v[1]})
 		e3 := tm.NewEdge([2]int{pR, v[2]})
-
-		tri := tm.NewTri(e1, baseTri.Edges[0], e2)
+		/*
+			fmt.Printf("About to split triangle into three\n%sPoint: %s\n%s\n%s\n%s\n",
+				tm.PrintTri(baseTri, "baseTri"),
+				tm.Points[pR].Print(),
+				e1.Print(),
+				e2.Print(),
+				e3.Print(),
+			)
+		*/
+		tri := tm.NewTri(e1, e2)
 		tm.AddTriToGraph(tri, leafNode)
-		tri = tm.NewTri(e2, baseTri.Edges[1], e3)
+		tri = tm.NewTri(e2, e3)
 		tm.AddTriToGraph(tri, leafNode)
-		tri = tm.NewTri(e3, baseTri.Edges[2], e1)
+		tri = tm.NewTri(e3, e1)
 		tm.AddTriToGraph(tri, leafNode)
 		// Legalize edges opposing pR
 		if legalize1 {
