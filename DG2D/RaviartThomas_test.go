@@ -113,9 +113,12 @@ func TestRTElement(t *testing.T) {
 		N := 7
 		NRT := N + 1
 		R, S := NodesEpsilon(N)
-		//fmt.Println(R.Transpose().Print("R"))
-		//fmt.Println(S.Transpose().Print("S"))
+		//Nint := R.Len()
 		rt := NewRTElement(NRT, R, S)
+		//RR := rt.R.Subset(Nint, rt.R.Len()-1)
+		//SS := rt.S.Subset(Nint, rt.S.Len()-1)
+		//fmt.Println(RR.Transpose().Print("RR"))
+		//fmt.Println(SS.Transpose().Print("SS"))
 		s1, s2 := make([]float64, rt.R.Len()), make([]float64, rt.R.Len())
 		for i := range rt.R.Data() {
 			s1[i] = 1
