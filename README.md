@@ -59,6 +59,11 @@ I'm adding a contour plotting capability that will provide display of functions 
 
 The triangulated mesh containing vertices, the interior solution points and the edge flux points is then used for a linear contour algorithm to produce the isolines for the whole mesh. The resulting isoline field is a linearized view of the polynomials, but is sampled at the full resolution of the polynomial basis at N+1, which should provide an accurate representation of the solution field, though not at the same polynomial order. This should be very useful for visually characterizing the interpolation to the flux points on edges and other attributes of the solution process, in addition to showing actual solutions with high fidelity.
 
+### Updates (Oct 2 2020):
+<img align="text-align:center" src="images/rt7_triangulation.PNG" width="600" height="500" />
+
+I've implemented a Delaunay triangulation that converts 2D point fields with fixed boundaries into a triangle mesh. The picture shows the RT7 element triangulated using the method. Now we can use the triangulation within the reference element to implement contour tracing and other graphics to display the field contents within the high order elements. This approach requires that we triangulate only the reference element, then we use that triangulation to fill the insides of the triangles in the mesh (using the affine transform).
+
 ### Updates (Sep 9 2020):
 I've now validated the RT element up to 7th order for divergence of polynomial vector fields. Happily, the special case of zero divergence is being captured with high precision.
 
