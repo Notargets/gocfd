@@ -49,6 +49,9 @@ func NewElements2D(N int, meshFile string, plotMesh bool) (el *Elements2D) {
 		Np:     (N + 1) * (N + 2) / 2,
 		NFaces: 3,
 	}
+	if N < 1 {
+		panic(fmt.Errorf("Polynomial order must be >= 1, have %d", N))
+	}
 	el.ReadGambit2d(meshFile, plotMesh)
 	el.Startup2D()
 	el.Startup2DDFR()
@@ -113,23 +116,6 @@ func NewElements2D(N int, meshFile string, plotMesh bool) (el *Elements2D) {
 	return
 }
 
-func (el *Elements2D) InterpMatrix2D() {
-	/*
-	   //---------------------------------------------------------
-	   void NDG2D::InterpMatrix2D(Cub2D& cub)
-	   //---------------------------------------------------------
-	   {
-	   // compute Vandermonde at (rout,sout)
-	   DMat Vout = Vandermonde2D(this->N, cub.r, cub.s);
-	   // build interpolation matrix
-	   cub.V = Vout * this->invV;
-	   // store transpose
-	   cub.VT = trans(cub.V);
-	   }
-	   }
-	*/
-}
-
 func Vandermonde2D(N int, r, s utils.Vector) (V2D utils.Matrix) {
 	V2D = utils.NewMatrix(r.Len(), (N+1)*(N+2)/2)
 	a, b := RStoAB(r, s)
@@ -168,40 +154,6 @@ func Simplex2DP(a, b utils.Vector, i, j int) (P []float64) {
 	}
 	return
 }
-
-/*
-	  // evaluate generalized Vandermonde of Lagrange interpolant functions at cubature nodes
-	  InterpMatrix2D(m_cub);
-
-	  // evaluate local derivatives of Lagrange interpolants at cubature nodes
-	  Dmatrices2D(this->N, m_cub);
-
-	  // evaluate the geometric factors at the cubature nodes
-	  GeometricFactors2D(m_cub);
-
-	  // custom mass matrix per element
-	  DMat mmk; DMat_Diag D; DVec d;
-	  m_cub.mmCHOL.resize(Np*Np, K);
-	  m_cub.mm    .resize(Np*Np, K);
-
-	  for (int k=1; k<=K; ++k) {
-	    d=m_cub.J(All,k); d*=m_cub.w; D.diag(d);  // weighted diagonal
-	    mmk = m_cub.VT * D * m_cub.V;     // mass matrix for element k
-	    m_cub.mm(All,k)     = mmk;        // store mass matrix
-	    m_cub.mmCHOL(All,k) = chol(mmk);  // store Cholesky factorization
-	  }
-
-	  // incorporate weights and Jacobian
-	  m_cub.W = outer(m_cub.w, ones(K));
-	  m_cub.W.mult_element(m_cub.J);
-
-	  // compute coordinates of cubature nodes
-	  m_cub.x = m_cub.V * this->x;
-	  m_cub.y = m_cub.V * this->y;
-
-	  return m_cub;
-	}
-*/
 
 // Purpose  : Compute (x,y) nodes in equilateral triangle for
 //            polynomial of order N
