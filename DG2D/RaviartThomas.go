@@ -435,28 +435,6 @@ func (rt *RTElement) EvaluateRTBasis(r, s float64, derivO ...DerivativeDirection
 	if len(derivO) != 0 {
 		deriv = derivO[0]
 	}
-	PolyTerm2D := func(r, s float64, i, j int) (val float64) {
-		// Note this only outputs the value of the (i,j)th term of the 2D polynomial
-		val = utils.POW(r, j) * utils.POW(s, i)
-		return
-	}
-	DrPolyTerm2D := func(r, s float64, i, j int) (val float64) {
-		// Note this only outputs the value of the (i,j)th term of the 2D polynomial
-		if j-1 < 0 {
-			return 0
-		}
-		val = float64(j) * utils.POW(r, j-1) * utils.POW(s, i)
-		return
-	}
-	DsPolyTerm2D := func(r, s float64, i, j int) (val float64) {
-		// Note this only outputs the value of the (i,j)th term of the 2D polynomial
-		if i-1 < 0 {
-			return 0
-		}
-		val = float64(i) * utils.POW(r, j) * utils.POW(s, i-1)
-		return
-	}
-	_, _, _ = PolyTerm2D, DrPolyTerm2D, DsPolyTerm2D
 	DrONTerm2D := func(r, s float64, i, j int) (val float64) {
 		val, _ = GradSimplex2DPTerm(r, s, i, j)
 		//fmt.Printf("Dr r,s,i,j,val = %8.5f,%8.5f,%d,%d,%8.5f,", r, s, i, j, val)
@@ -495,11 +473,11 @@ func (rt *RTElement) EvaluateRTBasis(r, s float64, derivO ...DerivativeDirection
 			p1[sk] = val * r
 			p2[sk] = val * s
 		case Dr:
-			val2 := PolyTerm2D(r, s, i, j)
+			val2 := Simplex2DPTerm(r, s, i, j)
 			p1[sk] = val2 + val*r
 			p2[sk] = val * s
 		case Ds:
-			val2 := PolyTerm2D(r, s, i, j)
+			val2 := Simplex2DPTerm(r, s, i, j)
 			p1[sk] = val * r
 			p2[sk] = val2 + val*s
 		}
