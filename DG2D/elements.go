@@ -59,13 +59,17 @@ func NewElements2D(N int, meshFile string, plotMesh bool) (el *Elements2D) {
 		xx = el.X.Transpose().Data()
 		yy = el.Y.Transpose().Data()
 	)
+	fmt.Printf("Length of xx = %d\n", len(xx))
+	fmt.Println(el.V.Print("2D Vandermonde"))
+	fmt.Println(el.Vinv.Print("2D Vandermonde Inverse"))
 
 	var chart *chart2d.Chart2D
 	if plotMesh {
-		s := make([][2]float64, len(xx))
+		s := make([]float64, len(xx))
 		for i := range xx {
-			s[i][0] = math.Sin(yy[i]*2*math.Pi) / 10
-			s[i][1] = math.Sin(xx[i]*2*math.Pi) / 10
+			//s[i] = math.Cos(yy[i] * 2 * math.Pi)
+			s[i] = float64(2 * i)
+			fmt.Printf("f[%8.5f,%8.5f] = %8.5f\n", xx[i], yy[i], s[i])
 		}
 		white := color.RGBA{
 			R: 255,
@@ -85,33 +89,31 @@ func NewElements2D(N int, meshFile string, plotMesh bool) (el *Elements2D) {
 			B: 50,
 			A: 0,
 		}
-		_, _ = white, red
-		chart = PlotMesh(el.VX, el.VY, el.EToV, el.BCType, el.X, el.Y, false)
+		_, _, _ = white, red, blue
+		chart = PlotMesh(el.VX, el.VY, el.EToV, el.BCType, el.X, el.Y, true)
+		_ = chart
 		ydata := el.Y.Transpose().Data()
 		geom := make([]graphics2D.Point, len(ydata))
 		for i, xval := range el.X.Transpose().Data() {
 			geom[i].X[0] = float32(xval)
 			geom[i].X[1] = float32(ydata[i])
 		}
-		_ = chart.AddVectors("basis", geom, s, chart2d.Solid, blue)
-		// Interpolate values using the RT element
-		geomInterp := make([]graphics2D.Point, 2)
-		geomInterp[0].X = [2]float32{0.1, 0.1}
-		geomInterp[1].X = [2]float32{0.5, 0.5}
-		ss := [2][]float64{}
-		ss[0] = make([]float64, len(s))
-		ss[1] = make([]float64, len(s))
-		for i := range s {
-			ss[0][i] = s[i][0]
-			ss[1][i] = s[i][1]
+		/*
+			geomInterp := make([]graphics2D.Point, 3)
+			geomInterp[0].X = [2]float32{0.1, 0.1}
+			geomInterp[1].X = [2]float32{0.5, 0.5}
+			geomInterp[2].X = [2]float32{0.5, 1. / 3.}
+		*/
+		geomInterp := make([]graphics2D.Point, el.Np)
+		for i := 0; i < el.Np; i++ {
+			geomInterp[i].X = [2]float32{float32(xx[i]), float32(yy[i])}
 		}
-		sInterp := make([][2]float64, len(geomInterp))
+		sInterp := make([]float64, len(geomInterp))
 		for i, g := range geomInterp {
-			sInterp[i][0], sInterp[i][1] = el.RT.Interpolate(float64(g.X[0]), float64(g.X[1]), ss[0], ss[1])
-			fmt.Println(g.X[0], g.X[1], sInterp[i][0], sInterp[i][1])
+			sInterp[i] = el.Simplex2DInterpolate(float64(g.X[0]), float64(g.X[1]), s)
+			fmt.Printf("fInterp[%8.5f,%8.5f] = %8.5f\n", g.X[0], g.X[1], sInterp[i])
 		}
-		_ = chart.AddVectors("interpolation", geomInterp, sInterp, chart2d.Solid, red)
-		utils.SleepFor(5000)
+		utils.SleepFor(50000)
 	}
 	return
 }
@@ -128,13 +130,36 @@ func Vandermonde2D(N int, r, s utils.Vector) (V2D utils.Matrix) {
 	}
 	return
 }
+func (el *Elements2D) Simplex2DInterpolate(r, s float64, f []float64) (value float64) {
+	var (
+		N  = el.N
+		Np = el.Np
+	)
+	if len(f) != Np {
+		panic(fmt.Errorf("not enough function values for the 2D basis, have %d, need %d", len(f), Np))
+	}
+	// First compute polynomial terms, used by all polynomials
+	polyTerms := make([]float64, Np)
+	var sk int
+	for i := 0; i <= N; i++ {
+		for j := 0; j <= (N - i); j++ {
+			polyTerms[sk] = Simplex2DPTerm(r, s, i, j)
+			sk++
+		}
+	}
+	ptV := utils.NewVector(Np, polyTerms)
+	// We use the Inverse Vandermonde matrix to get the coefficients of each polynomial (Np of them for each)
+	for n := 0; n < Np; n++ {
+		coeffs := el.Vinv.Col(n)
+		value += f[n] * coeffs.Dot(ptV)
+	}
+	return
+}
 
 func Simplex2DPTerm(r, s float64, i, j int) (P float64) {
-	rr := utils.NewVector(1, []float64{r})
-	ss := utils.NewVector(1, []float64{s})
-	a, b := RStoAB(rr, ss)
-	PP := Simplex2DP(a, b, i, j)
-	P = PP[0]
+	aa, bb := rsToab(r, s)
+	a, b := utils.NewVector(1, []float64{aa}), utils.NewVector(1, []float64{bb})
+	P = Simplex2DP(a, b, i, j)[0]
 	return
 }
 
@@ -691,14 +716,27 @@ func RStoAB(r, s utils.Vector) (a, b utils.Vector) {
 	)
 	ad, bd := make([]float64, Np), make([]float64, Np)
 	for n, sval := range sd {
-		if sval != 1 {
-			ad[n] = 2*(1+rd[n])/(1-sval) - 1
-		} else {
-			ad[n] = -1
-		}
-		bd[n] = sval
+		/*
+			if sval != 1 {
+				ad[n] = 2*(1+rd[n])/(1-sval) - 1
+			} else {
+				ad[n] = -1
+			}
+			bd[n] = sval
+		*/
+		ad[n], bd[n] = rsToab(rd[n], sval)
 	}
 	a, b = utils.NewVector(Np, ad), utils.NewVector(Np, bd)
+	return
+}
+
+func rsToab(r, s float64) (a, b float64) {
+	if s != 1 {
+		a = 2*(1+r)/(1-s) - 1
+	} else {
+		a = -1
+	}
+	b = s
 	return
 }
 

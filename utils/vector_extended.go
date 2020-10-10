@@ -533,3 +533,16 @@ func (v Vector) Print(msgI ...string) (o string) {
 	o = fmt.Sprintf("%s = \n%10.8f\n", name, mat.Formatted(v.V, mat.Squeeze()))
 	return
 }
+
+func (v Vector) Dot(a Vector) (res float64) {
+	var (
+		vD, aD = v.Data(), a.Data()
+	)
+	if len(vD) != len(aD) {
+		panic(fmt.Errorf("length of vectors must be the same, have len(v)=%d, len(a)=%d\n", len(vD), len(aD)))
+	}
+	for i, val := range vD {
+		res += val * aD[i]
+	}
+	return
+}
