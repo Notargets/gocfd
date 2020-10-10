@@ -6,8 +6,6 @@ import (
 	"image/color"
 	"math"
 
-	graphics2D "github.com/notargets/avs/geometry"
-
 	"github.com/notargets/avs/chart2d"
 
 	"github.com/notargets/gocfd/DG1D"
@@ -55,17 +53,10 @@ func NewElements2D(N int, meshFile string, plotMesh bool) (el *Elements2D) {
 	el.ReadGambit2d(meshFile, plotMesh)
 	el.Startup2D()
 	el.Startup2DDFR()
-	var (
-		xx = el.X.Transpose().Data()
-		yy = el.Y.Transpose().Data()
-	)
-	var chart *chart2d.Chart2D
 	if plotMesh {
-		s := make([]float64, len(xx))
-		for i := range xx {
-			s[i] = math.Cos(xx[i] * 2 * math.Pi)
-			fmt.Printf("f[x:%8.5f,y:%8.5f] = %8.5f\n", xx[i], yy[i], s[i])
-		}
+		var (
+			chart *chart2d.Chart2D
+		)
 		white := color.RGBA{
 			R: 255,
 			G: 255,
@@ -87,17 +78,6 @@ func NewElements2D(N int, meshFile string, plotMesh bool) (el *Elements2D) {
 		_, _, _ = white, red, blue
 		chart = PlotMesh(el.VX, el.VY, el.EToV, el.BCType, el.X, el.Y, true)
 		_ = chart
-		geomInterp := make([]graphics2D.Point, el.Np)
-		for i, rVal := range el.R.Data() {
-			geomInterp[i].X[0] = float32(rVal)
-			geomInterp[i].X[1] = float32(el.S.Data()[i])
-		}
-		sInterp := make([]float64, len(geomInterp))
-		for i, g := range geomInterp {
-			//TODO: Implement affine mapping for input coordinates to interpolation
-			sInterp[i] = el.Simplex2DInterpolate(float64(g.X[0]), float64(g.X[1]), s)
-			fmt.Printf("fInterp[%8.5f,%8.5f] = %8.5f\n", g.X[0], g.X[1], sInterp[i])
-		}
 		utils.SleepFor(50000)
 	}
 	return
