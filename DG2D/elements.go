@@ -147,12 +147,10 @@ func (el *Elements2D) Simplex2DInterpolate(r, s float64, f []float64) (value flo
 			sk++
 		}
 	}
-	ptV := utils.NewVector(Np, polyTerms)
-	// We use the Inverse Vandermonde matrix to get the coefficients of each polynomial (Np of them for each)
-	for n := 0; n < Np; n++ {
-		coeffs := el.Vinv.Col(n)
-		value += f[n] * coeffs.Dot(ptV)
-	}
+	ptV := utils.NewMatrix(Np, 1, polyTerms)
+	pAtR := el.Vinv.Transpose().Mul(ptV)
+	fV := utils.NewVector(Np, f)
+	value = pAtR.Col(0).Dot(fV)
 	return
 }
 
