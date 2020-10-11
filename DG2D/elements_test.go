@@ -170,6 +170,7 @@ func TestElements2D(t *testing.T) {
 			fmt.Printf("fInterp[%8.5f,%8.5f] = %8.5f\n", rVal, sVal, sInterp)
 			assert.True(t, near(s[i], sInterp, 0.00001))
 		}
+		//TODO: Test Interpolation Matrix on a set of R,S values to be interpolated
 	}
 }
 

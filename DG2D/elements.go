@@ -119,6 +119,33 @@ func (el *Elements2D) Simplex2DInterpolate(r, s float64, f []float64) (value flo
 	return
 }
 
+func (el *Elements2D) Simplex2DInterpolatingPolyMatrix(R, S utils.Vector) (polyMatrix utils.Matrix) {
+	/*
+		Compose a matrix of interpolating polynomials where each row represents one [r,s] location to be interpolated
+		This matrix can then be multiplied by a single vector of function values at the polynomial nodes to produce a
+		vector of interpolated values, one for each interpolation location
+	*/
+	var (
+		N  = el.N
+		Np = el.Np
+	)
+	// First compute polynomial terms, used by all polynomials
+	polyTerms := make([]float64, R.Len()*Np)
+	var sk int
+	for ii, r := range R.Data() {
+		s := S.Data()[ii]
+		for i := 0; i <= N; i++ {
+			for j := 0; j <= (N - i); j++ {
+				polyTerms[sk] = Simplex2DPTerm(r, s, i, j)
+				sk++
+			}
+		}
+	}
+	ptV := utils.NewMatrix(Np, R.Len(), polyTerms)
+	polyMatrix = el.Vinv.Transpose().Mul(ptV)
+	return
+}
+
 func Simplex2DPTerm(r, s float64, i, j int) (P float64) {
 	aa, bb := rsToab(r, s)
 	a, b := utils.NewVector(1, []float64{aa}), utils.NewVector(1, []float64{bb})
