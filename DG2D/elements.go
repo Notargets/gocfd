@@ -141,7 +141,7 @@ func (el *Elements2D) Simplex2DInterpolatingPolyMatrix(R, S utils.Vector) (polyM
 			}
 		}
 	}
-	ptV := utils.NewMatrix(Np, R.Len(), polyTerms)
+	ptV := utils.NewMatrix(Np, R.Len(), polyTerms).Transpose()
 	polyMatrix = el.Vinv.Transpose().Mul(ptV)
 	return
 }
