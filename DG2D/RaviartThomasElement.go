@@ -508,35 +508,6 @@ func (rt *RTElement) EvaluatePolynomial(j int, r, s float64, derivO ...Derivativ
 	return
 }
 
-func (rt *RTElement) Interpolate(r, s float64, f1, f2 []float64) (f1Int, f2Int float64) {
-	/*
-				Given function values at the defining points of the element, [f1,f2], interpolate a function value at [r,s]
-		    	Function values must be provided as follows:
-				beg			end (not inclusive)		Count		values
-				0			N(N+1)/2				N(N+1)/2	R direction values at interior points
-				N(N+1)/2	N(N+1)					N(N+1)/2	S direction values at interior points
-				N(N+1)		(N+1)(N+1)				N+1			Edge 1 values, normal to edge 1 [1/sqrt(2), 1/sqrt(2)]
-				(N+1)(N+1)	(N+2)(N+1)				N+1			Edge 2 values, normal to edge 2 [-1,0]
-				(N+2)(N+1)	(N+3)(N+1)				N+1			Edge 3 values, normal to edge 3 [0,-1]
-	*/
-	var (
-		N  = rt.N
-		Np = (N + 1) * (N + 3)
-	)
-	switch {
-	case len(f1) != len(f2):
-		panic("mismatch in number of function values")
-	case len(f1) != Np:
-		panic("insufficient function values to define element")
-	}
-	for j := range f1 {
-		p1, p2 := rt.EvaluatePolynomial(j, r, s)
-		f1Int += p1 * f1[j]
-		f2Int += p2 * f2[j]
-	}
-	return
-}
-
 func ExtendGeomToRT(N int, rInt, sInt utils.Vector) (r, s utils.Vector) {
 	var (
 		NpEdge       = N + 1

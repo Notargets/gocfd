@@ -85,15 +85,18 @@ func TestNDG2D(t *testing.T) {
 
 	{ // Read file to test specific metrics
 		// Check N = 1 briefly
-		el := NewNDG2D(1, "fstepA001.neu", false)
+		ndg := NewNDG2D(1, "fstepA001.neu", false)
+		el := ndg.Element
+		fmt.Printf("%s\n", ndg.LIFT.Print("LIFT"))
 		assert.True(t, nearVec([]float64{
 			2.5000, 0.5000, -1.5000, -1.5000, 2.5000, 0.5000,
 			0.5000, 2.5000, 2.5000, 0.5000, -1.5000, -1.5000,
 			-1.5000, -1.5000, 0.5000, 2.5000, 0.5000, 2.5000,
-		}, el.LIFT.Data(), 0.0001))
+		}, ndg.LIFT.Data(), 0.0001))
 
 		// Check N = 2 by comparison with Matlab code
-		el = NewNDG2D(2, "fstepA001.neu", false)
+		ndg = NewNDG2D(2, "fstepA001.neu", false)
+		el = ndg.Element
 		assert.True(t, nearVec([]float64{
 			4.5000, 2.0000, -0.5000, 1.0000, 4.0000, 1.0000, 4.5000, 2.0000, -0.5000,
 			0.5000, 5.0000, 0.5000, -0.6250, -1.5000, 0.6250, -0.6250, -1.5000, 0.6250,
@@ -101,8 +104,8 @@ func TestNDG2D(t *testing.T) {
 			-0.6250, -1.5000, 0.6250, 0.6250, -1.5000, -0.6250, 0.5000, 5.0000, 0.5000,
 			0.6250, -1.5000, -0.6250, 0.5000, 5.0000, 0.5000, 0.6250, -1.5000, -0.6250,
 			1.0000, 4.0000, 1.0000, -0.5000, 2.0000, 4.5000, -0.5000, 2.0000, 4.5000,
-		}, el.LIFT.Data(), 0.0001))
-		subset := utils.NewR2(el.Rx.Dims())
+		}, ndg.LIFT.Data(), 0.0001))
+		subset := utils.NewR2(ndg.Rx.Dims())
 		assert.True(t, nearVec([]float64{
 			2.7337, -10.4712, 15.5416, 19.2110,
 			2.7337, -10.4712, 15.5416, 19.2110,
@@ -110,7 +113,7 @@ func TestNDG2D(t *testing.T) {
 			2.7337, -10.4712, 15.5416, 19.2110,
 			2.7337, -10.4712, 15.5416, 19.2110,
 			2.7337, -10.4712, 15.5416, 19.2110,
-		}, el.Rx.Subset(subset.Range(":", "0:4"), 6, 4).Data(), 0.0001))
+		}, ndg.Rx.Subset(subset.Range(":", "0:4"), 6, 4).Data(), 0.0001))
 		assert.True(t, nearVec([]float64{
 			-15.9949, 10.7477, 5.2533, -12.0803,
 			-15.9949, 10.7477, 5.2533, -12.0803,
@@ -118,7 +121,7 @@ func TestNDG2D(t *testing.T) {
 			-15.9949, 10.7477, 5.2533, -12.0803,
 			-15.9949, 10.7477, 5.2533, -12.0803,
 			-15.9949, 10.7477, 5.2533, -12.0803,
-		}, el.Ry.Subset(subset.Range(":", "0:4"), 6, 4).Data(), 0.0001))
+		}, ndg.Ry.Subset(subset.Range(":", "0:4"), 6, 4).Data(), 0.0001))
 		assert.True(t, nearVec([]float64{
 			14.1324, -14.8689, -12.2718, -1.3128,
 			14.1324, -14.8689, -12.2718, -1.3128,
@@ -126,7 +129,7 @@ func TestNDG2D(t *testing.T) {
 			14.1324, -14.8689, -12.2718, -1.3128,
 			14.1324, -14.8689, -12.2718, -1.3128,
 			14.1324, -14.8689, -12.2718, -1.3128,
-		}, el.Sx.Subset(subset.Range(":", "0:4"), 6, 4).Data(), 0.0001))
+		}, ndg.Sx.Subset(subset.Range(":", "0:4"), 6, 4).Data(), 0.0001))
 		assert.True(t, nearVec([]float64{
 			4.4896, -10.7477, 10.6892, 16.5204,
 			4.4896, -10.7477, 10.6892, 16.5204,
@@ -134,8 +137,8 @@ func TestNDG2D(t *testing.T) {
 			4.4896, -10.7477, 10.6892, 16.5204,
 			4.4896, -10.7477, 10.6892, 16.5204,
 			4.4896, -10.7477, 10.6892, 16.5204,
-		}, el.Sy.Subset(subset.Range(":", "0:4"), 6, 4).Data(), 0.0001))
-		subsetFacePts := utils.NewR2(el.Nfp*el.NFaces, el.K)
+		}, ndg.Sy.Subset(subset.Range(":", "0:4"), 6, 4).Data(), 0.0001))
+		subsetFacePts := utils.NewR2(el.Nfp*el.NFaces, ndg.K)
 		assert.True(t, nearVec([]float64{
 			-0.9531, 0.8104, 0.7541, 0.0792,
 			-0.9531, 0.8104, 0.7541, 0.0792,
@@ -146,7 +149,7 @@ func TestNDG2D(t *testing.T) {
 			-0.1685, 0.6978, -0.9473, -0.8465,
 			-0.1685, 0.6978, -0.9473, -0.8465,
 			-0.1685, 0.6978, -0.9473, -0.8465,
-		}, el.NX.Subset(subsetFacePts.Range(":", "0:4"), 9, 4).Data(), 0.0001))
+		}, ndg.NX.Subset(subsetFacePts.Range(":", "0:4"), 9, 4).Data(), 0.0001))
 		assert.True(t, nearVec([]float64{
 			-0.3028, 0.5858, -0.6568, -0.9969,
 			-0.3028, 0.5858, -0.6568, -0.9969,
@@ -157,7 +160,7 @@ func TestNDG2D(t *testing.T) {
 			0.9857, -0.7163, -0.3202, 0.5323,
 			0.9857, -0.7163, -0.3202, 0.5323,
 			0.9857, -0.7163, -0.3202, 0.5323,
-		}, el.NY.Subset(subsetFacePts.Range(":", "0:4"), 9, 4).Data(), 0.0001))
+		}, ndg.NY.Subset(subsetFacePts.Range(":", "0:4"), 9, 4).Data(), 0.0001))
 	}
 }
 

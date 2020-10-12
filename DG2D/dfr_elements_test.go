@@ -10,7 +10,7 @@ import (
 func TestDFR2D(t *testing.T) {
 	{ //Test Interpolation
 		N := 1
-		el := NewNDG2D(N, "test_tris_1.neu", false)
+		el := NewLagrangeElement2D(N, Epsilon)
 		s := make([]float64, el.Np)
 		for i := 0; i < el.Np; i++ {
 			s[i] = float64(2 * i)

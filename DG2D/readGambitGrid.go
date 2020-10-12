@@ -63,7 +63,7 @@ var faceMap = map[string]BCFLAG{
 	"slip":      BC_Slip,
 }
 
-func (el *NDG2D) ReadGambit2d(filename string, plotMesh bool) {
+func (ndg *NDG2D) ReadGambit2d(filename string, plotMesh bool) {
 	var (
 		file   *os.File
 		err    error
@@ -81,7 +81,7 @@ func (el *NDG2D) ReadGambit2d(filename string, plotMesh bool) {
 
 	// Get dimensions
 	Nv, K, Nmats, Nbcs, Nsd := ReadHeader(reader)
-	el.K = K
+	ndg.K = K
 	skipLines(2, reader)
 
 	fmt.Printf("Nv = %d, K = %d\n", Nv, K)
@@ -96,27 +96,27 @@ func (el *NDG2D) ReadGambit2d(filename string, plotMesh bool) {
 		NFaces, bIs3D, bCoord3D, bElement3D, bTET)
 
 	if bCoord3D {
-		el.VX, el.VY, el.VZ = Read3DVertices(Nv, reader)
+		ndg.VX, ndg.VY, ndg.VZ = Read3DVertices(Nv, reader)
 	} else {
-		el.VX, el.VY = Read2DVertices(Nv, reader)
+		ndg.VX, ndg.VY = Read2DVertices(Nv, reader)
 	}
 	skipLines(2, reader)
 
 	// Read Elements
 	if bTET {
-		el.EToV = ReadTets(K, reader)
+		ndg.EToV = ReadTets(K, reader)
 	} else {
-		el.EToV = ReadTris(K, reader)
+		ndg.EToV = ReadTris(K, reader)
 	}
 	skipLines(2, reader)
 
 	switch Nsd {
 	case 2:
 		fmt.Printf("Bounding Box:\nXMin/XMax = %5.3f, %5.3f\nYMin/YMax = %5.3f, %5.3f\n",
-			el.VX.Min(), el.VX.Max(), el.VY.Min(), el.VY.Max())
+			ndg.VX.Min(), ndg.VX.Max(), ndg.VY.Min(), ndg.VY.Max())
 	case 3:
 		fmt.Printf("Bounding Box:\nXMin/XMax = %5.3f, %5.3f\nYMin/YMax = %5.3f, %5.3f\nZMin/ZMax = %5.3f, %5.3f\n",
-			el.VX.Min(), el.VX.Max(), el.VY.Min(), el.VY.Max(), el.VZ.Min(), el.VZ.Max())
+			ndg.VX.Min(), ndg.VX.Max(), ndg.VY.Min(), ndg.VY.Max(), ndg.VZ.Min(), ndg.VZ.Max())
 	}
 
 	matGroups := make(map[int]*Material)
@@ -134,7 +134,7 @@ func (el *NDG2D) ReadGambit2d(filename string, plotMesh bool) {
 	}
 
 	// Read BCs
-	el.BCType = ReadBCS(Nbcs, K, NFaces, reader)
+	ndg.BCType = ReadBCS(Nbcs, K, NFaces, reader)
 	return
 }
 
