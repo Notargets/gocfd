@@ -64,12 +64,14 @@ func TestElements2D(t *testing.T) {
 			0, 1.5000, 7.3485, 0.8660, 4.2426, 0,
 		}, V2Ds.Data(), 0.0001))
 	}
+
 	{ // Warpfactor
 		N := 3
 		Np := (N + 1) * (N + 2) / 2
 		warpf := Warpfactor(N, utils.NewVector(Np, []float64{-1.0000, -0.3333, 0.3333, 1.0000, -0.6667, -0.0000, 0.6667, -0.3333, 0.3333, 0}))
 		assert.True(t, nearVec([]float64{0, -0.1281, 0.1281, 0, -0.2562, 0.0000, 0.2562, -0.1281, 0.1281, 0.0000}, warpf, 0.0001))
 	}
+
 	{ // Nodes2D - distribution
 		N := 3
 		x, y := Nodes2D(N)
@@ -83,7 +85,7 @@ func TestElements2D(t *testing.T) {
 
 	{ // Read file to test specific metrics
 		// Check N = 1 briefly
-		el := NewElements2D(1, "fstepA001.neu", false)
+		el := NewNDG2D(1, "fstepA001.neu", false)
 		assert.True(t, nearVec([]float64{
 			2.5000, 0.5000, -1.5000, -1.5000, 2.5000, 0.5000,
 			0.5000, 2.5000, 2.5000, 0.5000, -1.5000, -1.5000,
@@ -91,7 +93,7 @@ func TestElements2D(t *testing.T) {
 		}, el.LIFT.Data(), 0.0001))
 
 		// Check N = 2 by comparison with Matlab code
-		el = NewElements2D(2, "fstepA001.neu", false)
+		el = NewNDG2D(2, "fstepA001.neu", false)
 		assert.True(t, nearVec([]float64{
 			4.5000, 2.0000, -0.5000, 1.0000, 4.0000, 1.0000, 4.5000, 2.0000, -0.5000,
 			0.5000, 5.0000, 0.5000, -0.6250, -1.5000, 0.6250, -0.6250, -1.5000, 0.6250,
@@ -157,8 +159,10 @@ func TestElements2D(t *testing.T) {
 			0.9857, -0.7163, -0.3202, 0.5323,
 		}, el.NY.Subset(subsetFacePts.Range(":", "0:4"), 9, 4).Data(), 0.0001))
 	}
+
 	{ //Test Interpolation
-		el := NewElements2D(1, "test_tris_1.neu", false)
+		N := 1
+		el := NewNDG2D(N, "test_tris_1.neu", false)
 		s := make([]float64, el.Np)
 		for i := 0; i < el.Np; i++ {
 			s[i] = float64(2 * i)

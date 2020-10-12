@@ -81,5 +81,5 @@ const (
 )
 
 func Run2D(m2d *Model2D) {
-	_ = DG2D.NewElements2D(m2d.N, m2d.GridFile, m2d.Graph)
+	_ = DG2D.NewNDG2D(m2d.N, m2d.GridFile, m2d.Graph)
 }
