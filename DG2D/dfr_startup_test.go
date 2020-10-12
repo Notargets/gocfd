@@ -1,6 +1,7 @@
 package DG2D
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/notargets/gocfd/utils"
@@ -9,7 +10,7 @@ import (
 
 func TestDFR2D(t *testing.T) {
 	{ // Test Interpolation
-		N := 1
+		N := 2
 		dfr := NewDFR2D(N)
 		el := dfr.SolutionElement
 		s := make([]float64, el.Np)
@@ -37,5 +38,23 @@ func TestDFR2D(t *testing.T) {
 		assert.True(t, nearVec(rt.GetInternalLocations(rt.S), el.S.Data(), 0.000001))
 		//fmt.Printf("Edge R = %v\n", rt.GetEdgeLocations(rt.R))
 		//fmt.Printf("Edge S = %v\n", rt.GetEdgeLocations(rt.S))
+	}
+	{ // Test interpolation from solution points to flux points
+		N := 1
+		dfr := NewDFR2D(N)
+		el := dfr.SolutionElement
+		rt := dfr.FluxElement
+		fmt.Printf("Lagrange Np, RT Nint = %v, %v\n", el.Np, rt.Nint)
+		assert.Equal(t, el.Np, rt.Nint)
+		solution := make([]float64, rt.Nint)
+		// Load some values into the solution space
+		for i := 0; i < rt.Nint; i++ {
+			solution[i] = float64(i)
+		}
+		// Interpolate from interior to flux points
+		sV := utils.NewMatrix(rt.Nint, 1, solution)
+		fluxInterp := dfr.FluxInterpMatrix.Mul(sV)
+		fmt.Printf("%s\n", fluxInterp.Print("fluxInterp"))
+		fmt.Printf("%s\n", sV.Print("sV"))
 	}
 }

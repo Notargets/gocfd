@@ -5,18 +5,21 @@ import (
 )
 
 type DFR2D struct {
-	N, Np           int
-	R, S            utils.Vector // Solution point locations in unit triangle
-	FluxR, FluxS    utils.Vector // Flux (face) point locations in unit triangle
-	SolutionElement *LagrangeElement2D
-	FluxElement     *RTElement
+	N, Np            int
+	SolutionElement  *LagrangeElement2D
+	FluxElement      *RTElement
+	FluxInterpMatrix utils.Matrix
 }
 
 func NewDFR2D(N int) (dfr *DFR2D) {
 	le := NewLagrangeElement2D(N, Epsilon)
+	rt := NewRTElement(N+1, le.R, le.S)
+	RFlux := utils.NewVector(rt.Nedge, rt.GetEdgeLocations(rt.R))
+	SFlux := utils.NewVector(rt.Nedge, rt.GetEdgeLocations(rt.S))
 	dfr = &DFR2D{
-		SolutionElement: le,
-		FluxElement:     NewRTElement(N+1, le.R, le.S),
+		SolutionElement:  le,
+		FluxElement:      rt,
+		FluxInterpMatrix: le.Simplex2DInterpolatingPolyMatrix(RFlux, SFlux),
 	}
 	return
 }

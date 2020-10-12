@@ -116,8 +116,10 @@ func (el *LagrangeElement2D) Simplex2DInterpolatingPolyMatrix(R, S utils.Vector)
 			}
 		}
 	}
-	ptV := utils.NewMatrix(Np, R.Len(), polyTerms).Transpose()
-	polyMatrix = el.Vinv.Transpose().Mul(ptV)
+	ptV := utils.NewMatrix(R.Len(), Np, polyTerms).Transpose()
+	//d1, d2 := ptV.Dims()
+	//fmt.Printf("Np, R.Len(), ptV.Dims() = %v, %v, %v, %v\n", Np, R.Len(), d1, d2)
+	polyMatrix = el.Vinv.Transpose().Mul(ptV).Transpose()
 	return
 }
 
