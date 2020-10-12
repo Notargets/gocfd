@@ -63,7 +63,7 @@ var faceMap = map[string]BCFLAG{
 	"slip":      BC_Slip,
 }
 
-func (el *NDG_Elements2D) ReadGambit2d(filename string, plotMesh bool) {
+func (el *NDG2D) ReadGambit2d(filename string, plotMesh bool) {
 	var (
 		file   *os.File
 		err    error

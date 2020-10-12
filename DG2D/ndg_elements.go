@@ -13,7 +13,7 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-type NDG_Elements2D struct {
+type NDG2D struct {
 	K, N, Nfp, Np, NFaces             int
 	NODETOL                           float64
 	R, S, VX, VY, VZ                  utils.Vector
@@ -41,8 +41,8 @@ type Cubature struct {
 	mm, mmCHOL              utils.Matrix
 }
 
-func NewNDG2D(N int, meshFile string, plotMesh bool) (el *NDG_Elements2D) {
-	el = &NDG_Elements2D{
+func NewNDG2D(N int, meshFile string, plotMesh bool) (el *NDG2D) {
+	el = &NDG2D{
 		N:      N,
 		Np:     (N + 1) * (N + 2) / 2,
 		NFaces: 3,
@@ -83,7 +83,7 @@ func NewNDG2D(N int, meshFile string, plotMesh bool) (el *NDG_Elements2D) {
 	return
 }
 
-func (el *NDG_Elements2D) Simplex2DInterpolate(r, s float64, f []float64) (value float64) {
+func (el *NDG2D) Simplex2DInterpolate(r, s float64, f []float64) (value float64) {
 	var (
 		N  = el.N
 		Np = el.Np
@@ -107,7 +107,7 @@ func (el *NDG_Elements2D) Simplex2DInterpolate(r, s float64, f []float64) (value
 	return
 }
 
-func (el *NDG_Elements2D) Simplex2DInterpolatingPolyMatrix(R, S utils.Vector) (polyMatrix utils.Matrix) {
+func (el *NDG2D) Simplex2DInterpolatingPolyMatrix(R, S utils.Vector) (polyMatrix utils.Matrix) {
 	/*
 		Compose a matrix of interpolating polynomials where each row represents one [r,s] location to be interpolated
 		This matrix can then be multiplied by a single vector of function values at the polynomial nodes to produce a
@@ -134,7 +134,7 @@ func (el *NDG_Elements2D) Simplex2DInterpolatingPolyMatrix(R, S utils.Vector) (p
 	return
 }
 
-func (el *NDG_Elements2D) Startup2DDFR() {
+func (el *NDG2D) Startup2DDFR() {
 	// Build reference element matrices
 	/*
 			We build the mixed elements for the DFR scheme with:
@@ -197,7 +197,7 @@ func (el *NDG_Elements2D) Startup2DDFR() {
 	el.RT = NewRTElement(el.N+1, R, S)
 }
 
-func (el *NDG_Elements2D) Startup2D() {
+func (el *NDG2D) Startup2D() {
 	var (
 		err error
 	)
@@ -284,7 +284,7 @@ func (el *NDG_Elements2D) Startup2D() {
   VVT = V*trans(V);
   Drw = (V*trans(Vr))/VVT;  Dsw = (V*trans(Vs))/VVT;
 */
-func (el *NDG_Elements2D) Connect2D() {
+func (el *NDG2D) Connect2D() {
 	var (
 		Nv         = el.VX.Len()
 		TotalFaces = el.NFaces * el.K
@@ -333,7 +333,7 @@ func (el *NDG_Elements2D) Connect2D() {
 	el.EToF.Assign(I2D.ToIndex(), face2)
 }
 
-func (el *NDG_Elements2D) GetFaces() (aI utils.Index, NFacePts, K int) {
+func (el *NDG2D) GetFaces() (aI utils.Index, NFacePts, K int) {
 	var (
 		err      error
 		allFaces utils.Index2D
@@ -348,7 +348,7 @@ func (el *NDG_Elements2D) GetFaces() (aI utils.Index, NFacePts, K int) {
 	return
 }
 
-func (el *NDG_Elements2D) Normals2D() {
+func (el *NDG2D) Normals2D() {
 	var (
 		f1, f2, f3 utils.Index2D
 		err        error
@@ -391,7 +391,7 @@ func (el *NDG_Elements2D) Normals2D() {
 	el.NY.ElDiv(el.sJ)
 }
 
-func (el *NDG_Elements2D) GeometricFactors2D() {
+func (el *NDG2D) GeometricFactors2D() {
 	/*
 	  // function [rx,sx,ry,sy,J] = GeometricFactors2D(x,y,Dr,Ds)
 	  // Purpose  : Compute the metric elements for the local
@@ -417,7 +417,7 @@ func (el *NDG_Elements2D) GeometricFactors2D() {
 	el.Sy = el.xr.Copy().ElDiv(el.J)
 }
 
-func (el *NDG_Elements2D) Lift2D() {
+func (el *NDG2D) Lift2D() {
 	var (
 		err      error
 		I2       utils.Index2D
@@ -448,11 +448,11 @@ func (el *NDG_Elements2D) Lift2D() {
 	return
 }
 
-func (el *NDG_Elements2D) BuildMaps2D() {
+func (el *NDG2D) BuildMaps2D() {
 	return
 }
 
-func (el *NDG_Elements2D) NewCube2D(COrder int) {
+func (el *NDG2D) NewCube2D(COrder int) {
 	// function [cubR,cubS,cubW, Ncub] = Cubature2D(COrder)
 	// Purpose: provide multidimensional quadrature (i.e. cubature)
 	//          rules to integrate up to COrder polynomials
