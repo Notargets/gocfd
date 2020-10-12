@@ -8,9 +8,10 @@ import (
 )
 
 func TestDFR2D(t *testing.T) {
-	{ //Test Interpolation
+	{ // Test Interpolation
 		N := 1
-		el := NewLagrangeElement2D(N, Epsilon)
+		dfr := NewDFR2D(N)
+		el := dfr.SolutionElement
 		s := make([]float64, el.Np)
 		for i := 0; i < el.Np; i++ {
 			s[i] = float64(2 * i)
@@ -26,5 +27,15 @@ func TestDFR2D(t *testing.T) {
 		interpM := el.Simplex2DInterpolatingPolyMatrix(el.R, el.S)
 		values := interpM.Mul(utils.NewMatrix(el.Np, 1, s))
 		assert.True(t, nearVec(s, values.Data(), 0.0000001))
+	}
+	{ // Test point distribution
+		N := 1
+		dfr := NewDFR2D(N)
+		el := dfr.SolutionElement
+		rt := dfr.FluxElement
+		assert.True(t, nearVec(rt.GetInternalLocations(rt.R), el.R.Data(), 0.000001))
+		assert.True(t, nearVec(rt.GetInternalLocations(rt.S), el.S.Data(), 0.000001))
+		//fmt.Printf("Edge R = %v\n", rt.GetEdgeLocations(rt.R))
+		//fmt.Printf("Edge S = %v\n", rt.GetEdgeLocations(rt.S))
 	}
 }

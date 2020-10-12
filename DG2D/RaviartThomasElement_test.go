@@ -71,7 +71,7 @@ func TestRTElement(t *testing.T) {
 	}
 	checkSolution := func(rt *RTElement, Order int) (s1, s2, divCheck []float64) {
 		var (
-			Npm = rt.Npm
+			Npm = rt.Np
 		)
 		s1, s2 = make([]float64, Npm), make([]float64, Npm)
 		divCheck = make([]float64, Npm)
@@ -87,7 +87,7 @@ func TestRTElement(t *testing.T) {
 		}
 		return
 	}
-	if true { // Check Divergence for polynomial vector fields of order < N against analytical solution
+	{ // Check Divergence for polynomial vector fields of order < N against analytical solution
 		Nend := 8
 		for N := 1; N < Nend; N++ {
 			R, S := NodesEpsilon(N - 1)

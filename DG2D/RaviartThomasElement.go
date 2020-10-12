@@ -9,6 +9,10 @@ import (
 )
 
 type RTElement struct {
+	N              int          // Order of element
+	Np             int          // Number of points in element
+	Nint           int          // Number of Interior points
+	Nedge          int          // Number of Edge points
 	Ainv           utils.Matrix // Polynomial coefficient matrix
 	V1, V2         utils.Matrix // Vandermonde matrix for each direction r and s
 	V1Inv, V2Inv   utils.Matrix
@@ -16,8 +20,6 @@ type RTElement struct {
 	Ds1, Ds2       utils.Matrix
 	Dr1Int, Ds2Int utils.Matrix
 	R, S           utils.Vector // Point locations defining element in [-1,1] Triangle
-	N              int          // Order of element
-	Npm            int          // Number of points in element, excluding duplicate internal points
 }
 
 type RTPointType uint
@@ -41,9 +43,11 @@ func NewRTElement(N int, R, S utils.Vector) (rt *RTElement) {
 		panic("incorrect number of interior points supplied")
 	}
 	rt = &RTElement{
-		N: N,
-		R: R,
-		S: S,
+		N:     N,
+		R:     R,
+		S:     S,
+		Nint:  N * (N + 1) / 2,
+		Nedge: 3 * (N + 1),
 	}
 	rt.CalculateBasis()
 	return
@@ -52,9 +56,8 @@ func NewRTElement(N int, R, S utils.Vector) (rt *RTElement) {
 func (rt *RTElement) ProjectFunctionOntoBasis2(s1, s2 []float64) (s1p, s2p []float64) {
 	var (
 		Np    = len(s1)
-		N     = rt.N
-		Nint  = N * (N + 1) / 2
-		Nedge = N + 1
+		Nint  = rt.Nint
+		Nedge = rt.Nedge / 3
 	)
 	s1p, s2p = make([]float64, Np), make([]float64, Np)
 
@@ -110,9 +113,8 @@ func (rt *RTElement) ProjectFunctionOntoBasis(s1, s2 []float64) (s1p, s2p []floa
 
 func (rt *RTElement) ExtractFunctionFromBasis(s1p, s2p []float64) (s1, s2 []float64) {
 	var (
-		Np        = len(s1p)
-		N         = rt.N
-		Ninterior = N * (N + 1) / 2
+		Np   = len(s1p)
+		Nint = rt.Nint
 	)
 	s1, s2 = make([]float64, Np), make([]float64, Np)
 
@@ -121,10 +123,10 @@ func (rt *RTElement) ExtractFunctionFromBasis(s1p, s2p []float64) (s1, s2 []floa
 		case InteriorR:
 			// Unit vector is [1,0]
 			s1[i] = s1p[i]
-			s2[i] = s2p[i+Ninterior]
+			s2[i] = s2p[i+Nint]
 		case InteriorS:
 			// Unit vector is [0,1]
-			s1[i] = s1p[i-Ninterior]
+			s1[i] = s1p[i-Nint]
 			s2[i] = s2p[i]
 		case Edge1, Edge2, Edge3:
 			s1[i] = s1p[i]
@@ -223,8 +225,6 @@ func (rt *RTElement) CalculateBasis() {
 		N      = rt.N
 		R, S   = rt.R, rt.S
 		Np     = (N + 1) * (N + 3)
-		Npm    = (N + 6) * (N + 1) / 2
-		Nint   = N * (N + 1) / 2
 		A      utils.Matrix
 		p1, p2 []float64
 	)
@@ -344,43 +344,17 @@ func (rt *RTElement) CalculateBasis() {
 			rt.Ds2.Set(i, j, p2s)
 		}
 	}
-	if false {
-		if rt.N != 0 {
-			rt.V1, rt.V2 = CombineBasis(rt.N, rt.V1, rt.V2)
-			rt.Dr1, rt.Dr2 = CombineBasis(rt.N, rt.Dr1, rt.Dr2)
-			rt.Ds1, rt.Ds2 = CombineBasis(rt.N, rt.Ds1, rt.Ds2)
-			if rt.V1Inv, err = rt.V1.Inverse(); err != nil {
-				panic(err)
-			}
-			if rt.V2Inv, err = rt.V2.Inverse(); err != nil {
-				panic(err)
-			}
-			rNew, sNew := make([]float64, Npm), make([]float64, Npm)
-			var ii int
-			for i := 0; i < Npm; i++ {
-				if i == Nint {
-					ii += Nint
-				}
-				rNew[i] = rt.R.Data()[ii]
-				sNew[i] = rt.S.Data()[ii]
-				ii++
-			}
-			rt.R = utils.NewVector(Npm, rNew)
-			rt.S = utils.NewVector(Npm, sNew)
-		}
-		rt.Npm = Npm
-	}
-	rt.Npm = Np
+	rt.Np = Np
 	return
 }
 
 func (rt *RTElement) Divergence(f1, f2 []float64) (div []float64) {
-	if len(f1) != rt.Npm || len(f2) != rt.Npm {
-		panic(fmt.Errorf("wrong input number of points, should be %d, is %d\n", rt.Npm, len(f1)))
+	if len(f1) != rt.Np || len(f2) != rt.Np {
+		panic(fmt.Errorf("wrong input number of points, should be %d, is %d\n", rt.Np, len(f1)))
 	}
 	f1p, f2p := rt.ProjectFunctionOntoBasis(f1, f2)
 	var (
-		Npm = rt.Npm
+		Npm = rt.Np
 	)
 	f1pV, f2pV := utils.NewMatrix(Npm, 1, f1p), utils.NewMatrix(Npm, 1, f2p)
 	// Divergence is (Dr1 * f1pV) + (Ds2 * f2pV)
@@ -390,12 +364,12 @@ func (rt *RTElement) Divergence(f1, f2 []float64) (div []float64) {
 }
 
 func (rt *RTElement) DivergenceInterior(f1, f2 []float64) (div []float64) {
-	if len(f1) != rt.Npm || len(f2) != rt.Npm {
-		panic(fmt.Errorf("wrong input number of points, should be %d, is %d\n", rt.Npm, len(f1)))
+	if len(f1) != rt.Np || len(f2) != rt.Np {
+		panic(fmt.Errorf("wrong input number of points, should be %d, is %d\n", rt.Np, len(f1)))
 	}
 	f1p, f2p := rt.ProjectFunctionOntoBasis(f1, f2)
 	var (
-		Npm       = rt.Npm
+		Npm       = rt.Np
 		N         = rt.N
 		NInterior = N * (N + 1) / 2 // one order less than RT element in (P_k)2
 	)
@@ -665,6 +639,29 @@ func CombineBasis(N int, V1, V2 utils.Matrix) (V1m, V2m utils.Matrix) {
 		if j >= Nint {
 			j2m++
 		}
+	}
+	return
+}
+
+func (rt *RTElement) GetInternalLocations(F utils.Vector) (Finternal []float64) {
+	var (
+		Nint = rt.Nint
+	)
+	Finternal = make([]float64, Nint)
+	for i := 0; i < Nint; i++ {
+		Finternal[i] = F.Data()[i]
+	}
+	return
+}
+
+func (rt *RTElement) GetEdgeLocations(F utils.Vector) (Fedge []float64) {
+	var (
+		Nint  = rt.Nint
+		Nedge = rt.Nedge
+	)
+	Fedge = make([]float64, Nedge)
+	for i := 0; i < Nedge; i++ {
+		Fedge[i] = F.Data()[i+2*Nint]
 	}
 	return
 }
