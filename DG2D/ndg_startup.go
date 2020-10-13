@@ -49,14 +49,8 @@ func (ndg *NDG2D) Startup2D() {
 	var (
 		R, S = ndg.Element.R, ndg.Element.S
 	)
-	// build coordinates of all the nodes
-	va, vb, vc := ndg.EToV.Col(0), ndg.EToV.Col(1), ndg.EToV.Col(2)
-	ndg.X = R.Copy().Add(S).Scale(-1).Outer(ndg.VX.SubsetIndex(va.ToIndex())).Add(
-		R.Copy().AddScalar(1).Outer(ndg.VX.SubsetIndex(vb.ToIndex()))).Add(
-		S.Copy().AddScalar(1).Outer(ndg.VX.SubsetIndex(vc.ToIndex()))).Scale(0.5)
-	ndg.Y = R.Copy().Add(S).Scale(-1).Outer(ndg.VY.SubsetIndex(va.ToIndex())).Add(
-		R.Copy().AddScalar(1).Outer(ndg.VY.SubsetIndex(vb.ToIndex()))).Add(
-		S.Copy().AddScalar(1).Outer(ndg.VY.SubsetIndex(vc.ToIndex()))).Scale(0.5)
+	ndg.X, ndg.Y = CalculateElementLocalGeometry(ndg.EToV, ndg.VX, ndg.VY, ndg.Element.R, ndg.Element.S)
+
 	fmask1 := S.Copy().AddScalar(1).Find(utils.Less, ndg.NODETOL, true)
 	fmask2 := S.Copy().Add(R).Find(utils.Less, ndg.NODETOL, true)
 	fmask3 := R.Copy().AddScalar(1).Find(utils.Less, ndg.NODETOL, true)

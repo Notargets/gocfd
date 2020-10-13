@@ -48,6 +48,12 @@ func NewDFR2D(N int, meshFileO ...string) (dfr *DFR2D) {
 			//PlotMesh(dfr.VX, dfr.VY, dfr.EToV, dfr.BCType, dfr.SolutionX, dfr.SolutionY, true)
 			utils.SleepFor(50000)
 		}
+		dfr.FluxX.SetReadOnly("FluxX")
+		dfr.FluxY.SetReadOnly("FluxY")
+		dfr.SolutionX.SetReadOnly("SolutionX")
+		dfr.SolutionY.SetReadOnly("SolutionY")
+		dfr.EToE.SetReadOnly("EToE")
+		dfr.EToF.SetReadOnly("EToF")
 	}
 	return
 }
