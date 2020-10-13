@@ -70,30 +70,6 @@ func NewLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
 	return
 }
 
-func (el *LagrangeElement2D) Simplex2DInterpolate(r, s float64, f []float64) (value float64) {
-	var (
-		N  = el.N
-		Np = el.Np
-	)
-	if len(f) != Np {
-		panic(fmt.Errorf("not enough function values for the 2D basis, have %d, need %d", len(f), Np))
-	}
-	// First compute polynomial terms, used by all polynomials
-	polyTerms := make([]float64, Np)
-	var sk int
-	for i := 0; i <= N; i++ {
-		for j := 0; j <= (N - i); j++ {
-			polyTerms[sk] = Simplex2DPTerm(r, s, i, j)
-			sk++
-		}
-	}
-	ptV := utils.NewMatrix(Np, 1, polyTerms)
-	pAtR := el.Vinv.Transpose().Mul(ptV)
-	fV := utils.NewVector(Np, f)
-	value = pAtR.Col(0).Dot(fV)
-	return
-}
-
 func (el *LagrangeElement2D) Simplex2DInterpolatingPolyMatrix(R, S utils.Vector) (polyMatrix utils.Matrix) {
 	/*
 		Compose a matrix of interpolating polynomials where each row represents one [r,s] location to be interpolated

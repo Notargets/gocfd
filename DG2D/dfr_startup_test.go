@@ -18,12 +18,6 @@ func TestDFR2D(t *testing.T) {
 			s[i] = float64(2 * i)
 		}
 		// For each nodal location, interpolate a value (should equal the nodal function value)
-		for i, rVal := range el.R.Data() {
-			sVal := el.S.Data()[i]
-			sInterp := el.Simplex2DInterpolate(rVal, sVal, s)
-			//fmt.Printf("fInterp[%8.5f,%8.5f] = %8.5f\n", rVal, sVal, sInterp)
-			assert.True(t, near(s[i], sInterp, 0.00001))
-		}
 		// Build an interpolating polynomial matrix using the nodal geometry
 		interpM := el.Simplex2DInterpolatingPolyMatrix(el.R, el.S)
 		values := interpM.Mul(utils.NewMatrix(el.Np, 1, s))
@@ -44,12 +38,11 @@ func TestDFR2D(t *testing.T) {
 		dfr := NewDFR2D(N)
 		el := dfr.SolutionElement
 		rt := dfr.FluxElement
-		fmt.Printf("Lagrange Np, RT Nint = %v, %v\n", el.Np, rt.Nint)
 		assert.Equal(t, el.Np, rt.Nint)
 		solution := make([]float64, rt.Nint)
 		// Load some values into the solution space
 		for i := 0; i < rt.Nint; i++ {
-			solution[i] = float64(i)
+			solution[i] = float64(i) / float64(rt.Nint-1)
 		}
 		// Interpolate from interior to flux points
 		sV := utils.NewMatrix(rt.Nint, 1, solution)
