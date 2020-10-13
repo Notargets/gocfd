@@ -3,10 +3,7 @@ package DG2D
 import "C"
 import (
 	"fmt"
-	"image/color"
 	"math"
-
-	"github.com/notargets/avs/chart2d"
 
 	"github.com/notargets/gocfd/DG1D"
 
@@ -39,33 +36,10 @@ func NewNDG2D(N int, meshFile string, plotMesh bool) (ndg *NDG2D) {
 	if N < 1 {
 		panic(fmt.Errorf("Polynomial order must be >= 1, have %d", N))
 	}
-	ndg.ReadGambit2d(meshFile, plotMesh)
+	ndg.K, ndg.VX, ndg.VY, ndg.EToV, ndg.BCType = ReadGambit2d(meshFile)
 	ndg.Startup2D()
 	if plotMesh {
-		var (
-			chart *chart2d.Chart2D
-		)
-		white := color.RGBA{
-			R: 255,
-			G: 255,
-			B: 255,
-			A: 0,
-		}
-		blue := color.RGBA{
-			R: 50,
-			G: 0,
-			B: 255,
-			A: 0,
-		}
-		red := color.RGBA{
-			R: 255,
-			G: 0,
-			B: 50,
-			A: 0,
-		}
-		_, _, _ = white, red, blue
-		chart = PlotMesh(ndg.VX, ndg.VY, ndg.EToV, ndg.BCType, ndg.X, ndg.Y, true)
-		_ = chart
+		PlotMesh(ndg.VX, ndg.VY, ndg.EToV, ndg.BCType, ndg.X, ndg.Y, true)
 		utils.SleepFor(50000)
 	}
 	return

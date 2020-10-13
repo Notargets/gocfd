@@ -63,7 +63,7 @@ var faceMap = map[string]BCFLAG{
 	"slip":      BC_Slip,
 }
 
-func (ndg *NDG2D) ReadGambit2d(filename string, plotMesh bool) {
+func ReadGambit2d(filename string) (K int, VX, VY utils.Vector, EToV, BCType utils.Matrix) {
 	var (
 		file   *os.File
 		err    error
@@ -81,7 +81,6 @@ func (ndg *NDG2D) ReadGambit2d(filename string, plotMesh bool) {
 
 	// Get dimensions
 	Nv, K, Nmats, Nbcs, Nsd := ReadHeader(reader)
-	ndg.K = K
 	skipLines(2, reader)
 
 	fmt.Printf("Nv = %d, K = %d\n", Nv, K)
@@ -95,28 +94,29 @@ func (ndg *NDG2D) ReadGambit2d(filename string, plotMesh bool) {
 	fmt.Printf("NFaces = %d, bIs3D is %v, bCoord3D is %v, bElement3D is %v, bTET is %v\n",
 		NFaces, bIs3D, bCoord3D, bElement3D, bTET)
 
+	var VZ utils.Vector
 	if bCoord3D {
-		ndg.VX, ndg.VY, ndg.VZ = Read3DVertices(Nv, reader)
+		VX, VY, VZ = Read3DVertices(Nv, reader)
 	} else {
-		ndg.VX, ndg.VY = Read2DVertices(Nv, reader)
+		VX, VY = Read2DVertices(Nv, reader)
 	}
 	skipLines(2, reader)
 
 	// Read Elements
 	if bTET {
-		ndg.EToV = ReadTets(K, reader)
+		EToV = ReadTets(K, reader)
 	} else {
-		ndg.EToV = ReadTris(K, reader)
+		EToV = ReadTris(K, reader)
 	}
 	skipLines(2, reader)
 
 	switch Nsd {
 	case 2:
 		fmt.Printf("Bounding Box:\nXMin/XMax = %5.3f, %5.3f\nYMin/YMax = %5.3f, %5.3f\n",
-			ndg.VX.Min(), ndg.VX.Max(), ndg.VY.Min(), ndg.VY.Max())
+			VX.Min(), VX.Max(), VY.Min(), VY.Max())
 	case 3:
 		fmt.Printf("Bounding Box:\nXMin/XMax = %5.3f, %5.3f\nYMin/YMax = %5.3f, %5.3f\nZMin/ZMax = %5.3f, %5.3f\n",
-			ndg.VX.Min(), ndg.VX.Max(), ndg.VY.Min(), ndg.VY.Max(), ndg.VZ.Min(), ndg.VZ.Max())
+			VX.Min(), VX.Max(), VY.Min(), VY.Max(), VZ.Min(), VZ.Max())
 	}
 
 	matGroups := make(map[int]*Material)
@@ -134,7 +134,7 @@ func (ndg *NDG2D) ReadGambit2d(filename string, plotMesh bool) {
 	}
 
 	// Read BCs
-	ndg.BCType = ReadBCS(Nbcs, K, NFaces, reader)
+	BCType = ReadBCS(Nbcs, K, NFaces, reader)
 	return
 }
 
