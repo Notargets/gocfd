@@ -1,9 +1,7 @@
 # gocfd
 Awesome CFD solver written in Go
 
-<img align="text-align:center" src="images/scram-boundaries.PNG" width="600" height="200" />
 <img align="text-align:center" src="images/bump-colored.PNG" width="600" height="200" />
-<img align="text-align:center" src="images/Inlet-small.PNG" width="600" height="200" />
 
 ## An implementation of the Discontinuous Galerkin Method for solving systems of equations
 
@@ -16,7 +14,7 @@ Awesome CFD solver written in Go
 3) Prove the accuracy of the CFD solver for predicting flows with turbulence, shear flows and strong temperature gradients
 4) Make the solver available for use as an open source tool
 
-It is important to me that the code implementing the solver be as simple as possible so that it can be further developed and extended. There are other projects that have achieved the above, most notably the [HiFiLES](https://hifiles.stanford.edu/) project, which has demonstrated high accuracy for turbulence problems and some transonic flows with shock waves and is open source. I personally find that C++ code is very difficult to understand due to the heavy usage of indirection and abstraction, which makes an already complex subject unnecessarily more difficult. I feel that the Go language makes it easier to develop straightforward, more easily understandable code paths, while providing similar if not equivalent optimality and higher development efficiency than C++.  
+It is important to me that the code implementing the solver be as simple as possible so that it can be further developed and extended. There are other projects that have achieved some of the above, most notably the [HiFiLES](https://hifiles.stanford.edu/) project, which has demonstrated high accuracy for turbulence problems and some transonic flows with shock waves and is open source. I personally find that C++ code is very difficult to understand due to the heavy usage of indirection and abstraction, which makes an already complex subject unnecessarily more difficult. I feel that the Go language makes it easier to develop straightforward, more easily understandable code paths, while providing similar if not equivalent optimality and higher development efficiency than C++.  
 
 ### Why do this work?
 
@@ -55,14 +53,19 @@ me@home:bash# gocfd -graph
 me@home:bash# gocfd
 ```
 ### Up Next:
-I'm adding a contour plotting capability that will provide display of functions within the model. The approach I'm favoring is to triangulate the points within the full RT element, including the vertices, which will enable the plotting of the interpolated solution values used for the edge flux definitions in addition to the interior solution points.
+I'm working on initializing the 2D DFR solution method. My plan is to construct a separate structure containing all faces such that we can iterate through the face structure to construct the fluxes on each face only once. Each face is shared by two elements, and each face has a complex and expensive flux construction that unifies the computed values from each element into a single flux shared by both. By constructing a dedicated group of faces, we can iterate through them in parallel to do that construction without duplication. The shared flux values will be placed directly into the flux storage locations (part of the RT element) so that the divergence can be calculated to advance the solution.
 
-The triangulated mesh containing vertices, the interior solution points and the edge flux points is then used for a linear contour algorithm to produce the isolines for the whole mesh. The resulting isoline field is a linearized view of the polynomials, but is sampled at the full resolution of the polynomial basis at N+1, which should provide an accurate representation of the solution field, though not at the same polynomial order. This should be very useful for visually characterizing the interpolation to the flux points on edges and other attributes of the solution process, in addition to showing actual solutions with high fidelity.
+<img align="text-align:center" src="images/mesh_element.PNG" width="600" height="500" />
+Above we see three elements and within each are the interior solution points and along the edges/faces are the flux points for Order = 1. Each RT element has 12 points, 3 on each face and three interior, while the three Order 1 solution points are in the interior.
 
 ### Updates (Oct 2 2020):
 <img align="text-align:center" src="images/rt7_triangulation.PNG" width="600" height="500" />
 
 I've implemented a Delaunay triangulation that converts 2D point fields with fixed boundaries into a triangle mesh. The picture shows the RT7 element triangulated using the method. Now we can use the triangulation within the reference element to implement contour tracing and other graphics to display the field contents within the high order elements. This approach requires that we triangulate only the reference element, then we use that triangulation to fill the insides of the triangles in the mesh (using the affine transform).
+
+I'm adding a contour plotting capability that will provide display of functions within the model. The approach I'm favoring is to triangulate the points within the full RT element, including the vertices, which will enable the plotting of the interpolated solution values used for the edge flux definitions in addition to the interior solution points.
+
+The triangulated mesh containing vertices, the interior solution points and the edge flux points is then used for a linear contour algorithm to produce the isolines for the whole mesh. The resulting isoline field is a linearized view of the polynomials, but is sampled at the full resolution of the polynomial basis at N+1, which should provide an accurate representation of the solution field, though not at the same polynomial order. This should be very useful for visually characterizing the interpolation to the flux points on edges and other attributes of the solution process, in addition to showing actual solutions with high fidelity.
 
 ### Updates (Sep 9 2020):
 I've now validated the RT element up to 7th order for divergence of polynomial vector fields. Happily, the special case of zero divergence is being captured with high precision.
