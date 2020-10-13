@@ -81,8 +81,8 @@ func (ndg *NDG2D) Startup2D() {
 	ndg.GeometricFactors2D()
 	ndg.Normals2D()
 	ndg.FScale = ndg.sJ.ElDiv(ndg.J.Subset(ndg.GetFaces()))
-	// Build connectivity matrix
-	ndg.Connect2D()
+	// Build connectivity matrices
+	ndg.EToE, ndg.EToF = Connect2D(ndg.K, ndg.Element.NFaces, ndg.VX.Len(), ndg.EToV)
 
 	// Mark fields read only
 	ndg.LIFT.SetReadOnly("LIFT")
@@ -97,64 +97,6 @@ func (ndg *NDG2D) Startup2D() {
 	ndg.EToE.SetReadOnly("EToE")
 	ndg.EToF.SetReadOnly("EToF")
 	return
-}
-
-/*
-	Startup2D
-  // Build connectivity maps
-  BuildMaps2D();
-  // Compute weak operators (could be done in preprocessing to save time)
-  DMat Vr,Vs;  GradVandermonde2D(N, r, s, Vr, Vs);
-  VVT = V*trans(V);
-  Drw = (V*trans(Vr))/VVT;  Dsw = (V*trans(Vs))/VVT;
-*/
-func (ndg *NDG2D) Connect2D() {
-	var (
-		Nv         = ndg.VX.Len()
-		TotalFaces = ndg.Element.NFaces * ndg.K
-	)
-	SpFToVDOK := utils.NewDOK(TotalFaces, Nv)
-	faces := utils.NewMatrix(3, 2, []float64{
-		0, 1,
-		1, 2,
-		0, 2,
-	})
-	var sk int
-	for k := 0; k < ndg.K; k++ {
-		for face := 0; face < ndg.Element.NFaces; face++ {
-			edge := faces.Range(face, ":")
-			//fmt.Println("Nv, TotalFaces, k, face, edge, range = ", Nv, TotalFaces, k, face, edge, el.EToV.Range(k, edge))
-			SpFToVDOK.Equate(1, sk, ndg.EToV.Range(k, edge))
-			sk++
-		}
-	}
-	// Build global face to global face sparse array
-	SpFToV := SpFToVDOK.ToCSR()
-	SpFToF := utils.NewCSR(TotalFaces, TotalFaces)
-	SpFToF.M.Mul(SpFToV, SpFToV.T())
-	for i := 0; i < TotalFaces; i++ {
-		SpFToF.M.Set(i, i, SpFToF.At(i, i)-2)
-	}
-	// Find complete face to face connections
-	F12 := utils.MatFind(SpFToF, utils.Equal, 2)
-
-	element1 := F12.RI.Copy().Apply(func(val int) int { return val / ndg.Element.NFaces })
-	face1 := F12.RI.Copy().Apply(func(val int) int { return int(math.Mod(float64(val), float64(ndg.Element.NFaces))) })
-
-	element2 := F12.CI.Copy().Apply(func(val int) int { return val / ndg.Element.NFaces })
-	face2 := F12.CI.Copy().Apply(func(val int) int { return int(math.Mod(float64(val), float64(ndg.Element.NFaces))) })
-
-	// Rearrange into Nelements x Nfaces sized arrays
-	ndg.EToE = utils.NewRangeOffset(1, ndg.K).Outer(utils.NewOnes(ndg.Element.NFaces))
-	ndg.EToF = utils.NewOnes(ndg.K).Outer(utils.NewRangeOffset(1, ndg.Element.NFaces))
-	var I2D utils.Index2D
-	var err error
-	nr, nc := ndg.EToE.Dims()
-	if I2D, err = utils.NewIndex2D(nr, nc, element1, face1); err != nil {
-		panic(err)
-	}
-	ndg.EToE.Assign(I2D.ToIndex(), element2)
-	ndg.EToF.Assign(I2D.ToIndex(), face2)
 }
 
 func (ndg *NDG2D) GetFaces() (aI utils.Index, NFacePts, K int) {

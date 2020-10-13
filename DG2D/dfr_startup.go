@@ -12,10 +12,11 @@ type DFR2D struct {
 	FluxElement      *RTElement
 	FluxInterpMatrix utils.Matrix
 	// Mesh Parameters
-	K      int          // Number of elements (triangles) in mesh
-	VX, VY utils.Vector // X,Y points in mesh (vertices)
-	EToV   utils.Matrix // Mapping of elements to vertices
-	BCType utils.Matrix // BC type on each face of each element
+	K          int          // Number of elements (triangles) in mesh
+	VX, VY     utils.Vector // X,Y points in mesh (vertices)
+	EToV       utils.Matrix // Mapping of elements to vertices, each element has three integer vertex coordinates
+	BCType     utils.Matrix // BC type on each face of each element
+	EToE, EToF utils.Matrix // Mapping of elements to other elements and faces
 }
 
 func NewDFR2D(N int, meshFileO ...string) (dfr *DFR2D) {
@@ -34,6 +35,8 @@ func NewDFR2D(N int, meshFileO ...string) (dfr *DFR2D) {
 	}
 	if len(meshFileO) != 0 {
 		dfr.K, dfr.VX, dfr.VY, dfr.EToV, dfr.BCType = ReadGambit2d(meshFileO[0])
+		// Build connectivity matrices
+		dfr.EToE, dfr.EToF = Connect2D(dfr.K, dfr.SolutionElement.NFaces, dfr.VX.Len(), dfr.EToV)
 	}
 	return
 }
