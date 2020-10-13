@@ -50,4 +50,11 @@ func TestDFR2D(t *testing.T) {
 		fmt.Printf("%s\n", fluxInterp.Print("fluxInterp"))
 		fmt.Printf("%s\n", sV.Print("sV"))
 	}
+	{ // Test face construction
+		N := 1
+		dfr := NewDFR2D(N, "test_tris_2.neu")
+		//el := dfr.SolutionElement
+		//rt := dfr.FluxElement
+		fmt.Printf("%s\n", dfr.EToF.Print("EToF"))
+	}
 }

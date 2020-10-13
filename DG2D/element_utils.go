@@ -257,18 +257,16 @@ func XYtoRS(x, y utils.Vector) (r, s utils.Vector) {
 	return
 }
 
-func JacobiP2D(u, v float64, i, j int) (p float64) {
+func CalculateElementLocalGeometry(EToV utils.Matrix, VX, VY, R, S utils.Vector) (X, Y utils.Matrix) {
 	/*
-		This is a 2D normalized polynomial basis for the unit triangle with vertices:
-					(0,0), (0,1), (1, 0)
-		Arguments:
-					(u,v) is the position within the triangle where the basis is evaluated
-		    		(i,j) is the index within the basis, which has (K+1)(K+2)/2 terms
+		For input values of vector field [R,S], transform them into element local [X,Y]
 	*/
-	a := utils.NewVector(1, []float64{2*u/(1-v) - 1})
-	b := utils.NewVector(1, []float64{2*v - 1})
-	h1 := DG1D.JacobiP(a, 0, 0, i)
-	h2 := DG1D.JacobiP(b, float64(2*i+1), 0, i)
-	p = math.Sqrt(2) * utils.POW(2*(1-v), j) * h1[0] * h2[0] / 4 // The divide by 4 is the Jacobian that converts from a different triangle
+	va, vb, vc := EToV.Col(0), EToV.Col(1), EToV.Col(2)
+	X = R.Copy().Add(S).Scale(-1).Outer(VX.SubsetIndex(va.ToIndex())).Add(
+		R.Copy().AddScalar(1).Outer(VX.SubsetIndex(vb.ToIndex()))).Add(
+		S.Copy().AddScalar(1).Outer(VX.SubsetIndex(vc.ToIndex()))).Scale(0.5)
+	Y = R.Copy().Add(S).Scale(-1).Outer(VY.SubsetIndex(va.ToIndex())).Add(
+		R.Copy().AddScalar(1).Outer(VY.SubsetIndex(vb.ToIndex()))).Add(
+		S.Copy().AddScalar(1).Outer(VY.SubsetIndex(vc.ToIndex()))).Scale(0.5)
 	return
 }
