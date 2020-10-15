@@ -90,11 +90,13 @@ func TestDFR2D(t *testing.T) {
 	}
 	{ // Test triangulation
 		N := 1
-		dfr := NewDFR2D(N, "test_tris_5.neu")
+		//dfr := NewDFR2D(N, "test_tris_5.neu")
+		dfr := NewDFR2D(N, "fstepA001.neu")
 		trn := NewTriangulation(dfr.EToV)
+		//TODO: Implement BCs for edges
 		for en, edge := range trn.Edges {
 			indices := en.GetVertices()
-			fmt.Printf("indices[%d]=%v, edge = %v\n", en, indices, edge)
+			fmt.Printf("indices[%d]=%v, Edge: %s\n", en, indices, edge.Print())
 		}
 	}
 	{ // Test face construction

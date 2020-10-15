@@ -64,6 +64,15 @@ type Edge struct {
 	ConnectedTriEdgeNumber []InternalEdgeNumber    // For the connected triangles, what is the edge number (one of 0, 1 or 2)
 }
 
+func (e *Edge) Print() (p string) {
+	for i, triNum := range e.ConnectedTris {
+		pp := fmt.Sprintf("Tri[%d] Edge[%d] Reversed?%v,",
+			triNum, e.ConnectedTriEdgeNumber[i], e.ConnectedTriDirection[i])
+		p += pp
+	}
+	return
+}
+
 type InternalEdgeNumber uint8
 
 const (
