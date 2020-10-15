@@ -1,7 +1,6 @@
 package DG2D
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/notargets/gocfd/DG1D"
@@ -269,26 +268,5 @@ func CalculateElementLocalGeometry(EToV utils.Matrix, VX, VY, R, S utils.Vector)
 	Y = R.Copy().Add(S).Scale(-1).Outer(VY.SubsetIndex(va.ToIndex())).Add(
 		R.Copy().AddScalar(1).Outer(VY.SubsetIndex(vb.ToIndex()))).Add(
 		S.Copy().AddScalar(1).Outer(VY.SubsetIndex(vc.ToIndex()))).Scale(0.5)
-	return
-}
-
-func EdgeNumber(verts [2]int) (packed uint64) {
-	// This packs two index coordinates into two 32 bit unsigned integers to act as a hash and an indirect access method
-	var (
-		limit = math.MaxUint32
-	)
-	for _, vert := range verts {
-		if vert < 0 || vert > limit {
-			panic(fmt.Errorf("unable to pack two ints into a uint64, have %d and %d as inputs",
-				verts[0], verts[1]))
-		}
-	}
-	var i1, i2 int
-	if verts[0] < verts[1] {
-		i1, i2 = verts[0], verts[1]
-	} else {
-		i1, i2 = verts[1], verts[0]
-	}
-	packed = uint64(i1 + i2<<32)
 	return
 }

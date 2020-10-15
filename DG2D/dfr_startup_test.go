@@ -1,7 +1,6 @@
 package DG2D
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/notargets/gocfd/utils"
@@ -51,17 +50,50 @@ func TestDFR2D(t *testing.T) {
 		//fmt.Printf("%s\n", sV.Print("sV"))
 	}
 	{ // Test packed int for edge labeling
-		assert.Equal(t, EdgeNumber([2]int{1, 0}), uint64(4294967296))
-		assert.Equal(t, EdgeNumber([2]int{0, 1}), uint64(4294967296))
-		assert.Equal(t, EdgeNumber([2]int{0, 10}), uint64(42949672960))
-		assert.Equal(t, EdgeNumber([2]int{100, 0}), uint64(429496729600))
-		assert.Equal(t, EdgeNumber([2]int{100, 1}), uint64(429496729601))
+		en := NewEdgeNumber([2]int{1, 0})
+		assert.Equal(t, EdgeNumber(1<<32), en)
+		assert.Equal(t, [2]int{0, 1}, en.GetVertices())
+
+		en = NewEdgeNumber([2]int{0, 1})
+		assert.Equal(t, EdgeNumber(1<<32), en)
+		assert.Equal(t, [2]int{0, 1}, en.GetVertices())
+
+		en = NewEdgeNumber([2]int{0, 10})
+		assert.Equal(t, EdgeNumber(10*(1<<32)), en)
+		assert.Equal(t, [2]int{0, 10}, en.GetVertices())
+
+		en = NewEdgeNumber([2]int{100, 0})
+		assert.Equal(t, EdgeNumber(100*(1<<32)), en)
+		assert.Equal(t, [2]int{0, 100}, en.GetVertices())
+
+		en = NewEdgeNumber([2]int{100, 1})
+		assert.Equal(t, EdgeNumber(100*(1<<32)+1), en)
+		assert.Equal(t, [2]int{1, 100}, en.GetVertices())
+
+		en = NewEdgeNumber([2]int{100, 100001})
+		assert.Equal(t, EdgeNumber(100001*(1<<32)+100), en)
+		assert.Equal(t, [2]int{100, 100001}, en.GetVertices())
+
+		// Test maximum/minimum indices
+		en = NewEdgeNumber([2]int{1, 1<<32 - 1})
+		assert.Equal(t, EdgeNumber((1<<32-1)<<32+1), en)
+		assert.Equal(t, [2]int{1, 1<<32 - 1}, en.GetVertices())
+
+		en = NewEdgeNumber([2]int{1<<32 - 1, 1<<32 - 1})
+		assert.Equal(t, EdgeNumber(1<<64-1), en)
+		assert.Equal(t, [2]int{1<<32 - 1, 1<<32 - 1}, en.GetVertices())
+
+		en = NewEdgeNumber([2]int{1<<32 - 1, 1})
+		assert.Equal(t, EdgeNumber((1<<32-1)<<32+1), en)
+		assert.Equal(t, [2]int{1, 1<<32 - 1}, en.GetVertices())
 	}
 	{ // Test face construction
-		N := 1
-		dfr := NewDFR2D(N, "test_tris_5.neu")
-		//dfr := NewDFR2D(N, "fstepA001.neu")
-		fmt.Printf("%s\n", dfr.EToV.Print("EToV"))
+		/*
+			N := 1
+			dfr := NewDFR2D(N, "test_tris_5.neu")
+			//dfr := NewDFR2D(N, "fstepA001.neu")
+			fmt.Printf("%s\n", dfr.EToV.Print("EToV"))
+		*/
 		//fmt.Printf("%s\n", dfr.EToF.Print("EToF"))
 		//fmt.Printf("%s\n", dfr.EToE.Print("EToE"))
 		//PlotMesh(dfr.VX, dfr.VY, dfr.EToV, dfr.BCType, dfr.FluxX, dfr.FluxY, true)
