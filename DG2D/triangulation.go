@@ -45,27 +45,33 @@ func (tmesh *Triangulation) NewEdge(verts [2]int, connectedElementNumber int, in
 	en := NewEdgeNumber(verts)
 	if e, ok = tmesh.Edges[en]; !ok {
 		e = &Edge{
-			ConnectedTris:          []uint32{uint32(connectedElementNumber)},
-			ConnectedTriDirection:  []InternalEdgeDirection{dir},
-			ConnectedTriEdgeNumber: []InternalEdgeNumber{intEdgeNumber},
+			NumConnectedTris:       1,
+			ConnectedTris:          [2]uint32{uint32(connectedElementNumber)},
+			ConnectedTriDirection:  [2]InternalEdgeDirection{dir},
+			ConnectedTriEdgeNumber: [2]InternalEdgeNumber{intEdgeNumber},
 		}
 		tmesh.Edges[en] = e
 	} else {
-		e.ConnectedTris = append(e.ConnectedTris, uint32(connectedElementNumber))
-		e.ConnectedTriDirection = append(e.ConnectedTriDirection, dir)
-		e.ConnectedTriEdgeNumber = append(e.ConnectedTriEdgeNumber, intEdgeNumber)
+		e.NumConnectedTris++
+		e.ConnectedTris[1] = uint32(connectedElementNumber)
+		e.ConnectedTriDirection[1] = dir
+		e.ConnectedTriEdgeNumber[1] = intEdgeNumber
 	}
 	return
 }
 
 type Edge struct {
-	ConnectedTris          []uint32                // Index numbers of triangles connected to this edge
-	ConnectedTriDirection  []InternalEdgeDirection // If false(default), the edge runs from smaller to larger within the connected tri
-	ConnectedTriEdgeNumber []InternalEdgeNumber    // For the connected triangles, what is the edge number (one of 0, 1 or 2)
+	// Storage: 16 bytes (64 bit aligned)
+	NumConnectedTris       uint8                    // Either 1 or 2
+	ConnectedTris          [2]uint32                // Index numbers of triangles connected to this edge
+	ConnectedTriDirection  [2]InternalEdgeDirection // If false(default), the edge runs from smaller to larger within the connected tri
+	ConnectedTriEdgeNumber [2]InternalEdgeNumber    // For the connected triangles, what is the edge number (one of 0, 1 or 2)
 }
 
 func (e *Edge) Print() (p string) {
-	for i, triNum := range e.ConnectedTris {
+	//for i, triNum := range e.ConnectedTris {
+	for i := 0; i < int(e.NumConnectedTris); i++ {
+		triNum := e.ConnectedTris[i]
 		pp := fmt.Sprintf("Tri[%d] Edge[%d] Reversed?%v,",
 			triNum, e.ConnectedTriEdgeNumber[i], e.ConnectedTriDirection[i])
 		p += pp
