@@ -38,8 +38,10 @@ func NewDFR2D(N int, meshFileO ...string) (dfr *DFR2D) {
 		dfr.K, dfr.VX, dfr.VY, dfr.EToV, BCType = ReadGambit2d(meshFileO[0])
 		dfr.Tris = NewTriangulation(dfr.EToV, BCType)
 		// Build connectivity matrices
-		dfr.FluxX, dfr.FluxY = CalculateElementLocalGeometry(dfr.EToV, dfr.VX, dfr.VY, dfr.FluxElement.R, dfr.FluxElement.S)
-		dfr.SolutionX, dfr.SolutionY = CalculateElementLocalGeometry(dfr.EToV, dfr.VX, dfr.VY, dfr.SolutionElement.R, dfr.SolutionElement.S)
+		dfr.FluxX, dfr.FluxY =
+			CalculateElementLocalGeometry(dfr.EToV, dfr.VX, dfr.VY, dfr.FluxElement.R, dfr.FluxElement.S)
+		dfr.SolutionX, dfr.SolutionY =
+			CalculateElementLocalGeometry(dfr.EToV, dfr.VX, dfr.VY, dfr.SolutionElement.R, dfr.SolutionElement.S)
 		dfr.FluxX.SetReadOnly("FluxX")
 		dfr.FluxY.SetReadOnly("FluxY")
 		dfr.SolutionX.SetReadOnly("SolutionX")

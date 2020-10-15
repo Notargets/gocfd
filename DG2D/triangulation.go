@@ -66,8 +66,14 @@ func (tmesh *Triangulation) NewEdge(verts [2]int, connectedElementNumber int, in
 	return
 }
 
+/*
+Note that we do not use a slice for any of the fields inside of an edge - why?
+	- each slice ([]type) has an overhead of pointer plus length and capacity ints, total of 24 bytes for an empty slice
+	- adding to a slice using append() is expensive
+	-> by using fixed allocations with the max of 2 ([2]type), we use less memory (total of 14 bytes) and compute
+*/
 type Edge struct {
-	// Storage: 16 bytes (64 bit aligned)
+	// Total Storage: 16 bytes (14 bytes, 64-bit aligned to 16)
 	NumConnectedTris       uint8                    // Either 1 or 2
 	ConnectedTris          [2]uint32                // Index numbers of triangles connected to this edge
 	ConnectedTriDirection  [2]InternalEdgeDirection // If false(default), the edge runs from smaller to larger within the connected tri
