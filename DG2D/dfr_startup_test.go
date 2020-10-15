@@ -1,6 +1,7 @@
 package DG2D
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/notargets/gocfd/utils"
@@ -86,6 +87,15 @@ func TestDFR2D(t *testing.T) {
 		en = NewEdgeNumber([2]int{1<<32 - 1, 1})
 		assert.Equal(t, EdgeNumber((1<<32-1)<<32+1), en)
 		assert.Equal(t, [2]int{1, 1<<32 - 1}, en.GetVertices())
+	}
+	{ // Test triangulation
+		N := 1
+		dfr := NewDFR2D(N, "test_tris_5.neu")
+		trn := NewTriangulation(dfr.EToV)
+		for en, edge := range trn.Edges {
+			indices := en.GetVertices()
+			fmt.Printf("indices[%d]=%v, edge = %v\n", en, indices, edge)
+		}
 	}
 	{ // Test face construction
 		/*

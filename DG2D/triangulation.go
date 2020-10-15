@@ -14,7 +14,17 @@ type Triangulation struct {
 
 func NewTriangulation(EToV utils.Matrix) (tmesh *Triangulation) {
 	tmesh = &Triangulation{
-		EToV: EToV,
+		EToV:  EToV,
+		Edges: make(map[EdgeNumber]*Edge),
+	}
+	K, _ := EToV.Dims()
+	for k := 0; k < K; k++ {
+		tri := EToV.Row(k).Data()
+		verts := [3]int{int(tri[0]), int(tri[1]), int(tri[2])}
+		// Create / store the edges for this triangle
+		tmesh.NewEdge([2]int{verts[0], verts[1]}, k, 0)
+		tmesh.NewEdge([2]int{verts[1], verts[2]}, k, 1)
+		tmesh.NewEdge([2]int{verts[2], verts[0]}, k, 2)
 	}
 	return
 }
@@ -39,6 +49,7 @@ func (tmesh *Triangulation) NewEdge(verts [2]int, connectedElementNumber int, in
 			ConnectedTriDirection:  []InternalEdgeDirection{dir},
 			ConnectedTriEdgeNumber: []InternalEdgeNumber{intEdgeNumber},
 		}
+		tmesh.Edges[en] = e
 	} else {
 		e.ConnectedTris = append(e.ConnectedTris, uint32(connectedElementNumber))
 		e.ConnectedTriDirection = append(e.ConnectedTriDirection, dir)
