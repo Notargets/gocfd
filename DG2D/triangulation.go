@@ -12,6 +12,62 @@ type Triangulation struct {
 	Edges map[EdgeNumber]*Edge // map of edges, key is the edge number, an int packed with the two vertices of each edge
 }
 
+func NewTriangulation(EToV utils.Matrix) (tmesh *Triangulation) {
+	tmesh = &Triangulation{
+		EToV: EToV,
+	}
+	return
+}
+
+func (tmesh *Triangulation) NewEdge(verts [2]int, connectedElementNumber int, intEdgeNumber InternalEdgeNumber) (e *Edge) {
+	var (
+		ok bool
+	)
+	/*
+		The input vertices are ordered as the normal traversal within the triangle
+	*/
+	// Determine edge direction
+	var dir InternalEdgeDirection
+	if verts[0] > verts[1] {
+		dir = Reversed
+	}
+	// Check if edge is already stored
+	en := NewEdgeNumber(verts)
+	if e, ok = tmesh.Edges[en]; !ok {
+		e = &Edge{
+			ConnectedTris:          []uint32{uint32(connectedElementNumber)},
+			ConnectedTriDirection:  []InternalEdgeDirection{dir},
+			ConnectedTriEdgeNumber: []InternalEdgeNumber{intEdgeNumber},
+		}
+	} else {
+		e.ConnectedTris = append(e.ConnectedTris, uint32(connectedElementNumber))
+		e.ConnectedTriDirection = append(e.ConnectedTriDirection, dir)
+		e.ConnectedTriEdgeNumber = append(e.ConnectedTriEdgeNumber, intEdgeNumber)
+	}
+	return
+}
+
+type Edge struct {
+	ConnectedTris          []uint32                // Index numbers of triangles connected to this edge
+	ConnectedTriDirection  []InternalEdgeDirection // If false(default), the edge runs from smaller to larger within the connected tri
+	ConnectedTriEdgeNumber []InternalEdgeNumber    // For the connected triangles, what is the edge number (one of 0, 1 or 2)
+}
+
+type InternalEdgeNumber uint8
+
+const (
+	First InternalEdgeNumber = iota
+	Second
+	Third
+)
+
+type InternalEdgeDirection bool
+
+const (
+	SmallestToLargest InternalEdgeDirection = false // Edge runs smallest vertex index to largest within triangle
+	Reversed          InternalEdgeDirection = true
+)
+
 type EdgeNumber uint64
 
 func NewEdgeNumber(verts [2]int) (packed EdgeNumber) {
@@ -43,25 +99,4 @@ func (en EdgeNumber) GetVertices() (verts [2]int) {
 	verts[1] = int(enTmp)
 	verts[0] = int(en - enTmp*(1<<32))
 	return
-}
-
-func NewTriangulation(EToV utils.Matrix) (tmesh *Triangulation) {
-	tmesh = &Triangulation{
-		EToV: EToV,
-	}
-	return
-}
-
-func (tmesh *Triangulation) NewEdge(verts [2]int, connectedElementNumber int) (e *Edge) {
-	return
-}
-
-type Edge struct {
-	ConnectedTris          []uint32 // Index number of triangles connected to this edge
-	ConnectedTriDirection  []bool   // If false, the edge runs from smaller index to larger within the connected triangle
-	ConnectedTriEdgeNumber []uint8  // For the connected triangles, what is the edge number (one of 0, 1 or 2)
-}
-
-func ConstructEdges() {
-
 }
