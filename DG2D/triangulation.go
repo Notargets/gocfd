@@ -12,7 +12,7 @@ type Triangulation struct {
 	Edges map[EdgeNumber]*Edge // map of edges, key is the edge number, an int packed with the two vertices of each edge
 }
 
-func NewTriangulation(EToV utils.Matrix) (tmesh *Triangulation) {
+func NewTriangulation(EToV, BCType utils.Matrix) (tmesh *Triangulation) {
 	tmesh = &Triangulation{
 		EToV:  EToV,
 		Edges: make(map[EdgeNumber]*Edge),
@@ -21,15 +21,18 @@ func NewTriangulation(EToV utils.Matrix) (tmesh *Triangulation) {
 	for k := 0; k < K; k++ {
 		tri := EToV.Row(k).Data()
 		verts := [3]int{int(tri[0]), int(tri[1]), int(tri[2])}
+		bcs := BCType.Row(k).Data()
+		bcFaces := [3]int{int(bcs[0]), int(bcs[1]), int(bcs[2])}
 		// Create / store the edges for this triangle
-		tmesh.NewEdge([2]int{verts[0], verts[1]}, k, First)
-		tmesh.NewEdge([2]int{verts[1], verts[2]}, k, Second)
-		tmesh.NewEdge([2]int{verts[2], verts[0]}, k, Third)
+		tmesh.NewEdge([2]int{verts[0], verts[1]}, k, First, bcFaces[0])
+		tmesh.NewEdge([2]int{verts[1], verts[2]}, k, Second, bcFaces[1])
+		tmesh.NewEdge([2]int{verts[2], verts[0]}, k, Third, bcFaces[2])
 	}
 	return
 }
 
-func (tmesh *Triangulation) NewEdge(verts [2]int, connectedElementNumber int, intEdgeNumber InternalEdgeNumber) (e *Edge) {
+func (tmesh *Triangulation) NewEdge(verts [2]int, connectedElementNumber int, intEdgeNumber InternalEdgeNumber,
+	bcFace int) (e *Edge) {
 	var (
 		ok bool
 	)
@@ -57,6 +60,9 @@ func (tmesh *Triangulation) NewEdge(verts [2]int, connectedElementNumber int, in
 		e.ConnectedTriDirection[1] = dir
 		e.ConnectedTriEdgeNumber[1] = intEdgeNumber
 	}
+	if bcFace != 0 {
+		e.BCType = BCFLAG(bcFace)
+	}
 	return
 }
 
@@ -73,8 +79,8 @@ func (e *Edge) Print() (p string) {
 	//for i, triNum := range e.ConnectedTris {
 	for i := 0; i < int(e.NumConnectedTris); i++ {
 		triNum := e.ConnectedTris[i]
-		pp := fmt.Sprintf("Tri[%d] Edge[%d] Reversed?%v,",
-			triNum, e.ConnectedTriEdgeNumber[i], e.ConnectedTriDirection[i])
+		pp := fmt.Sprintf("Tri[%d] Edge[%d] BC=%s Reversed?%v,",
+			triNum, e.ConnectedTriEdgeNumber[i], e.BCType.String(), e.ConnectedTriDirection[i])
 		p += pp
 	}
 	return

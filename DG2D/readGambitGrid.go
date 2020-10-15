@@ -1,5 +1,7 @@
 package DG2D
 
+//go:generate stringer -type=BCFLAG
+
 import (
 	"bufio"
 	"fmt"
@@ -31,7 +33,8 @@ type BC struct {
 type BCFLAG uint8
 
 const (
-	BC_In BCFLAG = iota + 1
+	BC_None BCFLAG = iota
+	BC_In
 	BC_Dirichlet
 	BC_Slip
 	BC_Far

@@ -12,13 +12,12 @@ type DFR2D struct {
 	FluxElement      *RTElement
 	FluxInterpMatrix utils.Matrix
 	// Mesh Parameters
-	K                    int          // Number of elements (triangles) in mesh
-	VX, VY               utils.Vector // X,Y points in mesh (vertices)
-	EToV                 utils.Matrix // Mapping of elements to vertices, each element has three integer vertex coordinates
-	BCType               utils.Matrix // BC type on each face of each element
-	EToE, EToF           utils.Matrix // Mapping of elements to other elements and faces
-	FluxX, FluxY         utils.Matrix // Flux Element local coordinates
-	SolutionX, SolutionY utils.Matrix // Solution Element local coordinates
+	K                    int            // Number of elements (triangles) in mesh
+	VX, VY               utils.Vector   // X,Y points in mesh (vertices)
+	EToV                 utils.Matrix   // Mapping of elements to vertices, each element has three integer vertex coordinates
+	FluxX, FluxY         utils.Matrix   // Flux Element local coordinates
+	SolutionX, SolutionY utils.Matrix   // Solution Element local coordinates
+	Tris                 *Triangulation // Triangle mesh and edge/face structures
 }
 
 func NewDFR2D(N int, meshFileO ...string) (dfr *DFR2D) {
@@ -35,17 +34,16 @@ func NewDFR2D(N int, meshFileO ...string) (dfr *DFR2D) {
 		FluxInterpMatrix: le.Simplex2DInterpolatingPolyMatrix(RFlux, SFlux),
 	}
 	if len(meshFileO) != 0 {
-		dfr.K, dfr.VX, dfr.VY, dfr.EToV, dfr.BCType = ReadGambit2d(meshFileO[0])
+		var BCType utils.Matrix
+		dfr.K, dfr.VX, dfr.VY, dfr.EToV, BCType = ReadGambit2d(meshFileO[0])
+		dfr.Tris = NewTriangulation(dfr.EToV, BCType)
 		// Build connectivity matrices
-		dfr.EToE, dfr.EToF = Connect2D(dfr.K, dfr.SolutionElement.NFaces, dfr.VX.Len(), dfr.EToV)
 		dfr.FluxX, dfr.FluxY = CalculateElementLocalGeometry(dfr.EToV, dfr.VX, dfr.VY, dfr.FluxElement.R, dfr.FluxElement.S)
 		dfr.SolutionX, dfr.SolutionY = CalculateElementLocalGeometry(dfr.EToV, dfr.VX, dfr.VY, dfr.SolutionElement.R, dfr.SolutionElement.S)
 		dfr.FluxX.SetReadOnly("FluxX")
 		dfr.FluxY.SetReadOnly("FluxY")
 		dfr.SolutionX.SetReadOnly("SolutionX")
 		dfr.SolutionY.SetReadOnly("SolutionY")
-		dfr.EToE.SetReadOnly("EToE")
-		dfr.EToF.SetReadOnly("EToF")
 	}
 	return
 }
