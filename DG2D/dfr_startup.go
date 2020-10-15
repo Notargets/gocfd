@@ -22,9 +22,6 @@ type DFR2D struct {
 }
 
 func NewDFR2D(N int, meshFileO ...string) (dfr *DFR2D) {
-	var (
-		plot = false
-	)
 	if N < 1 {
 		panic(fmt.Errorf("Polynomial order must be >= 1, have %d", N))
 	}
@@ -43,11 +40,6 @@ func NewDFR2D(N int, meshFileO ...string) (dfr *DFR2D) {
 		dfr.EToE, dfr.EToF = Connect2D(dfr.K, dfr.SolutionElement.NFaces, dfr.VX.Len(), dfr.EToV)
 		dfr.FluxX, dfr.FluxY = CalculateElementLocalGeometry(dfr.EToV, dfr.VX, dfr.VY, dfr.FluxElement.R, dfr.FluxElement.S)
 		dfr.SolutionX, dfr.SolutionY = CalculateElementLocalGeometry(dfr.EToV, dfr.VX, dfr.VY, dfr.SolutionElement.R, dfr.SolutionElement.S)
-		if plot {
-			PlotMesh(dfr.VX, dfr.VY, dfr.EToV, dfr.BCType, dfr.FluxX, dfr.FluxY, true)
-			//PlotMesh(dfr.VX, dfr.VY, dfr.EToV, dfr.BCType, dfr.SolutionX, dfr.SolutionY, true)
-			utils.SleepFor(50000)
-		}
 		dfr.FluxX.SetReadOnly("FluxX")
 		dfr.FluxY.SetReadOnly("FluxY")
 		dfr.SolutionX.SetReadOnly("SolutionX")

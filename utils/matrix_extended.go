@@ -108,7 +108,8 @@ func (m Matrix) Print(msgI ...string) (o string) {
 	if len(msgI) != 0 {
 		name = msgI[0]
 	}
-	o = fmt.Sprintf("%s = \n%8.5f\n", name, mat.Formatted(m.M, mat.Squeeze()))
+	formatString := "%s = \n%8.5f\n"
+	o = fmt.Sprintf(formatString, name, mat.Formatted(m.M, mat.Squeeze()))
 	return
 }
 

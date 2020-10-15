@@ -459,6 +459,47 @@ func CalculateGeomAttributes(Nsd int, triIn3d bool) (NFaces int, bIs3D, bCoord3D
 	return
 }
 
+/*
+type Triangulation struct {
+	EToV      utils.Matrix // K x 3 matrix mapping vertices to triangles
+	Edges     []*Edge
+	EdgeIndex map[int][]*Edge // maps vertices to edges, used to find shared edges
+}
+
+func NewTriangulation(EToV utils.Matrix) (tmesh *Triangulation) {
+	tmesh = &Triangulation{
+		EToV:      EToV,
+		EdgeIndex: make(map[int][]*Edge),
+	}
+	return
+}
+
+func (tmesh *Triangulation) NewEdge(verts [2]int, connectedElementNumber int) (e *Edge) {
+	var (
+		edges []*Edge
+	)
+	if edges, ok := tmesh.EdgeIndex[verts[0]]; ok {
+		edges = append(edges)
+	} else {
+		e = &Edge{
+			Verts:             verts,
+			ConnectedElements: []int{connectedElementNumber},
+		}
+	}
+	_ = edges
+	return
+}
+
+type Edge struct {
+	Verts             [2]int // index of mapped triangle
+	ConnectedElements []int
+}
+
+func ConstructEdges() {
+
+}
+*/
+
 func Connect2D(K, NFaces, Nv int, EToV utils.Matrix) (EToE, EToF utils.Matrix) {
 	// Nv = total number of vertices
 	var (

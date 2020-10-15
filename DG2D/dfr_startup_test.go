@@ -46,15 +46,28 @@ func TestDFR2D(t *testing.T) {
 		}
 		// Interpolate from interior to flux points
 		sV := utils.NewMatrix(rt.Nint, 1, solution)
-		fluxInterp := dfr.FluxInterpMatrix.Mul(sV)
-		fmt.Printf("%s\n", fluxInterp.Print("fluxInterp"))
-		fmt.Printf("%s\n", sV.Print("sV"))
+		_ = dfr.FluxInterpMatrix.Mul(sV)
+		//fmt.Printf("%s\n", fluxInterp.Print("fluxInterp"))
+		//fmt.Printf("%s\n", sV.Print("sV"))
+	}
+	{ // Test packed int for edge labeling
+		assert.Equal(t, EdgeNumber([2]int{1, 0}), uint64(4294967296))
+		assert.Equal(t, EdgeNumber([2]int{0, 1}), uint64(4294967296))
+		assert.Equal(t, EdgeNumber([2]int{0, 10}), uint64(42949672960))
+		assert.Equal(t, EdgeNumber([2]int{100, 0}), uint64(429496729600))
+		assert.Equal(t, EdgeNumber([2]int{100, 1}), uint64(429496729601))
 	}
 	{ // Test face construction
 		N := 1
-		dfr := NewDFR2D(N, "test_tris_2.neu")
+		dfr := NewDFR2D(N, "test_tris_5.neu")
+		//dfr := NewDFR2D(N, "fstepA001.neu")
+		fmt.Printf("%s\n", dfr.EToV.Print("EToV"))
+		//fmt.Printf("%s\n", dfr.EToF.Print("EToF"))
+		//fmt.Printf("%s\n", dfr.EToE.Print("EToE"))
+		//PlotMesh(dfr.VX, dfr.VY, dfr.EToV, dfr.BCType, dfr.FluxX, dfr.FluxY, true)
+		//PlotMesh(dfr.VX, dfr.VY, dfr.EToV, dfr.BCType, dfr.SolutionX, dfr.SolutionY, true)
+		//utils.SleepFor(50000)
 		//el := dfr.SolutionElement
 		//rt := dfr.FluxElement
-		fmt.Printf("%s\n", dfr.EToF.Print("EToF"))
 	}
 }
