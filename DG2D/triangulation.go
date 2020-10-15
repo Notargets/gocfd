@@ -66,6 +66,7 @@ type Edge struct {
 	ConnectedTris          [2]uint32                // Index numbers of triangles connected to this edge
 	ConnectedTriDirection  [2]InternalEdgeDirection // If false(default), the edge runs from smaller to larger within the connected tri
 	ConnectedTriEdgeNumber [2]InternalEdgeNumber    // For the connected triangles, what is the edge number (one of 0, 1 or 2)
+	BCType                 BCFLAG                   // If not connected to two tris, this field will be used
 }
 
 func (e *Edge) Print() (p string) {
