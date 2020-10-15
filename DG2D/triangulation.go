@@ -22,9 +22,9 @@ func NewTriangulation(EToV utils.Matrix) (tmesh *Triangulation) {
 		tri := EToV.Row(k).Data()
 		verts := [3]int{int(tri[0]), int(tri[1]), int(tri[2])}
 		// Create / store the edges for this triangle
-		tmesh.NewEdge([2]int{verts[0], verts[1]}, k, 0)
-		tmesh.NewEdge([2]int{verts[1], verts[2]}, k, 1)
-		tmesh.NewEdge([2]int{verts[2], verts[0]}, k, 2)
+		tmesh.NewEdge([2]int{verts[0], verts[1]}, k, First)
+		tmesh.NewEdge([2]int{verts[1], verts[2]}, k, Second)
+		tmesh.NewEdge([2]int{verts[2], verts[0]}, k, Third)
 	}
 	return
 }

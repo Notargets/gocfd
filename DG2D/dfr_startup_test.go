@@ -1,7 +1,6 @@
 package DG2D
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/notargets/gocfd/utils"
@@ -90,14 +89,18 @@ func TestDFR2D(t *testing.T) {
 	}
 	{ // Test triangulation
 		N := 1
-		//dfr := NewDFR2D(N, "test_tris_5.neu")
-		dfr := NewDFR2D(N, "fstepA001.neu")
+		dfr := NewDFR2D(N, "test_tris_5.neu")
+		//dfr := NewDFR2D(N, "fstepA001.neu")
 		trn := NewTriangulation(dfr.EToV)
 		//TODO: Implement BCs for edges
-		for en, edge := range trn.Edges {
-			indices := en.GetVertices()
-			fmt.Printf("indices[%d]=%v, Edge: %s\n", en, indices, edge.Print())
-		}
+		// Check against known answers for this case
+		en := NewEdgeNumber([2]int{0, 2})
+		e := trn.Edges[en]
+		assert.Equal(t, uint8(2), e.NumConnectedTris)
+		assert.Equal(t, uint32(0), e.ConnectedTris[0])
+		assert.Equal(t, InternalEdgeNumber(2), e.ConnectedTriEdgeNumber[0])
+		assert.Equal(t, uint32(1), e.ConnectedTris[1])
+		assert.Equal(t, InternalEdgeNumber(0), e.ConnectedTriEdgeNumber[1])
 	}
 	{ // Test face construction
 		/*
