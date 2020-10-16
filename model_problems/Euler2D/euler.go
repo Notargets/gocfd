@@ -2,8 +2,6 @@ package Euler2D
 
 import (
 	"fmt"
-	"math"
-	"sync"
 
 	"github.com/notargets/gocfd/DG2D"
 
@@ -25,16 +23,10 @@ type Euler struct {
 	Rho, RhoU, RhoV, RhoE utils.Matrix // Solution variables, stored at combined flux/solution point locations, K x Np
 	F1x, F2x, F3x, F4x    utils.Matrix // Flux variables in X direction, stored at flux/solution point locations, K x Np
 	F1y, F2y, F3y, F4y    utils.Matrix // Flux variables in Y direction, stored at flux/solution point locations, K x Np
-	RHSOnce               sync.Once
-	State                 *FieldState
-	In, Out               *State
-	plotOnce              sync.Once
 	chart                 *chart2d.Chart2D
 	colorMap              *utils2.ColorMap
 	model                 ModelType
 	Case                  CaseType
-	frameCount            int
-	useLimiter            bool
 }
 
 type CaseType uint
@@ -62,13 +54,11 @@ var (
 func NewEuler(CFL, FinalTime float64, N int, meshFile string, model ModelType, Case CaseType) (c *Euler) {
 	c = &Euler{
 		CFL:       CFL,
-		State:     NewFieldState(),
 		FinalTime: FinalTime,
 		model:     model,
 		Case:      Case,
 	}
 	c.dfr = DG2D.NewDFR2D(N, meshFile)
-	c.State.Gamma = 1.4
 	fmt.Printf("Euler Equations in 2 Dimensions\n")
 	switch c.Case {
 	case FREESTREAM:
@@ -78,31 +68,59 @@ func NewEuler(CFL, FinalTime float64, N int, meshFile string, model ModelType, C
 		panic("unknown case type")
 	}
 	fmt.Printf("Algorithm: %s\n", modelNames[c.model])
-	if c.useLimiter {
-		fmt.Printf("Solution is limited using SlopeLimit\n")
-	} else {
-		fmt.Printf("Solution is not limited\n")
-	}
 	fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, c.dfr.K)
 	return
 }
 
 func (c *Euler) InitializeFS() {
 	var (
-		K  = c.dfr.K
-		Np = c.dfr.SolutionElement.Np
+		rho, u, v, p = 1., 0., 0., 1. // Freestream state
+		K            = c.dfr.K
+		Np           = c.dfr.FluxElement.Np
+		Gamma        = 1.4
+		GM1          = Gamma - 1 // R / Cv
 	)
-	c.In = NewStateP(c.State.Gamma, 1, 0, 0, 1)
-	c.Out = c.In
-	var (
-		FS = c.In
-	)
-	c.Rho = utils.NewMatrix(K, Np).AddScalar(FS.Rho)
-	c.RhoU = utils.NewMatrix(K, Np).AddScalar(FS.RhoU)
-	c.RhoV = utils.NewMatrix(K, Np).AddScalar(FS.RhoV)
-	c.RhoE = utils.NewMatrix(K, Np).AddScalar(FS.Ener)
+	q := 0.5 * rho * (u*u + v*v)
+	rhoE := p/GM1 + q
+	c.Rho = utils.NewMatrix(K, Np).AddScalar(rho)
+	c.RhoU = utils.NewMatrix(K, Np).AddScalar(rho * u)
+	c.RhoV = utils.NewMatrix(K, Np).AddScalar(rho * v)
+	c.RhoE = utils.NewMatrix(K, Np).AddScalar(rhoE)
+	c.F1x, c.F2x, c.F3x, c.F4x = utils.NewMatrix(K, Np), utils.NewMatrix(K, Np), utils.NewMatrix(K, Np), utils.NewMatrix(K, Np)
+	c.F1y, c.F2y, c.F3y, c.F4y = utils.NewMatrix(K, Np), utils.NewMatrix(K, Np), utils.NewMatrix(K, Np), utils.NewMatrix(K, Np)
+	c.CalculateFlux()
 }
 
+func (c *Euler) CalculateFlux() {
+	// From https://www.theoretical-physics.net/dev/fluid-dynamics/euler.html
+	var (
+		K                         = c.dfr.K
+		Np                        = c.dfr.FluxElement.Np
+		Gamma                     = 1.4
+		GM1                       = Gamma - 1 // R / Cv
+		dRho, dRhoU, dRhoV, dRhoE = c.Rho.Data(), c.RhoU.Data(), c.RhoV.Data(), c.RhoE.Data()
+		dF1x, dF2x, dF3x, dF4x    = c.F1x.Data(), c.F2x.Data(), c.F3x.Data(), c.F4x.Data()
+		dF1y, dF2y, dF3y, dF4y    = c.F1y.Data(), c.F2y.Data(), c.F3y.Data(), c.F4y.Data()
+	)
+	for i := 0; i < K*Np; i++ {
+		rho, rhoU, rhoV, rhoE := dRho[i], dRhoU[i], dRhoV[i], dRhoE[i]
+		u := rhoU / rho
+		v := rhoV / rho
+		u2 := u*u + v*v
+		q := 0.5 * rho * u2
+		p := GM1 * (rhoE - q)
+		dF1x[i] = rhoU
+		dF2x[i] = rhoU*u + p
+		dF3x[i] = rhoU * v
+		dF4x[i] = u * (rhoE + p)
+		dF1y[i] = rhoV
+		dF2y[i] = rhoV * u
+		dF3y[i] = rhoV*v + p
+		dF4y[i] = v * (rhoE + p)
+	}
+}
+
+/*
 func (c *Euler) CalculateDT(xmin, Time float64) (dt float64) {
 	var (
 		s = c.State
@@ -116,64 +134,6 @@ func (c *Euler) CalculateDT(xmin, Time float64) (dt float64) {
 	return
 }
 
-func (fs *FieldState) Print() {
-	fmt.Println(fs.U.Print("U"))
-	fmt.Println(fs.Q.Print("Q"))
-	fmt.Println(fs.Pres.Print("Pres"))
-	fmt.Println(fs.CVel.Print("CVel"))
-	fmt.Println(fs.LM.Print("LM"))
-	fmt.Println(fs.Ht.Print("Ht"))
-}
-
-type FieldState struct {
-	Gamma                    float64
-	U, Q, Pres, CVel, LM, Ht utils.Matrix
-	Temp                     utils.Matrix
-}
-
-func NewFieldState() (fs *FieldState) {
-	return &FieldState{}
-}
-
-type State struct {
-	Gamma, Rho, RhoU, RhoV, Ener float64
-	RhoF, RhoUF, RhoVF, EnerF    float64
-}
-
-func NewState(gamma, rho, rhoU, rhoV, ener float64) (s *State) {
-	u := rhoU / rho
-	v := rhoV / rho
-	U2 := u*u + v*v
-	U := math.Sqrt(U2)
-	q := 0.5 * rho * U2
-	p := (ener - q) * (gamma - 1.)
-	return &State{
-		Gamma: gamma,
-		Rho:   rho,
-		RhoU:  rhoU,
-		RhoV:  rhoV,
-		Ener:  ener,
-		RhoF:  rho * U,
-		RhoUF: 2*q + p,
-		EnerF: (ener + q + p) * U,
-	}
-}
-
-func NewStateP(gamma, rho, rhoU, rhoV, p float64) *State {
-	u := rhoU / rho
-	v := rhoV / rho
-	q := 0.5 * rho * (u*u + v*v)
-	ener := (p - q) / (gamma - 1.)
-	return NewState(gamma, rho, rhoU, rhoV, ener)
-}
-
-func (s *State) Print() (o string) {
-	o = fmt.Sprintf("Rho = %v\nP = %v\nE = %v\nRhoU = %v\nRhoV = %v\nRhoUF = %v\n",
-		s.Rho, s.Ener*(s.Gamma-1.), s.Ener, s.RhoU, s.RhoV, s.RhoUF)
-	return
-}
-
-/*
 func (c *Euler) Run(showGraph bool, graphDelay ...time.Duration) {
 	var (
 		el           = c.El
