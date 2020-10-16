@@ -91,7 +91,6 @@ func (c *Euler) AverageFlux() {
 	}
 	for _, e := range c.dfr.Tris.Edges {
 		if e.BCType == DG2D.BC_None && e.NumConnectedTris == 2 {
-			fmt.Printf("found edge with two connections, e=%s\n", e.Print())
 			// We construct a shared flux
 			triNum1, triNum2 := e.ConnectedTris[0], e.ConnectedTris[1]
 			edgeNum1, edgeNum2 := e.ConnectedTriEdgeNumber[0], e.ConnectedTriEdgeNumber[1] // one of 0,1,2
