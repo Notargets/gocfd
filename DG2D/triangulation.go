@@ -18,6 +18,7 @@ func NewTriangulation(EToV, BCType utils.Matrix) (tmesh *Triangulation) {
 		Edges: make(map[EdgeNumber]*Edge),
 	}
 	K, _ := EToV.Dims()
+	// Create edges map
 	for k := 0; k < K; k++ {
 		tri := EToV.Row(k).Data()
 		verts := [3]int{int(tri[0]), int(tri[1]), int(tri[2])}
@@ -55,10 +56,10 @@ func (tmesh *Triangulation) NewEdge(verts [2]int, connectedElementNumber int, in
 		}
 		tmesh.Edges[en] = e
 	} else {
-		e.NumConnectedTris++
 		e.ConnectedTris[1] = uint32(connectedElementNumber)
 		e.ConnectedTriDirection[1] = dir
 		e.ConnectedTriEdgeNumber[1] = intEdgeNumber
+		e.NumConnectedTris++
 	}
 	if bcFace != 0 {
 		e.BCType = BCFLAG(bcFace)

@@ -18,15 +18,15 @@ import (
 */
 type Euler struct {
 	// Input parameters
-	CFL, FinalTime        float64
-	dfr                   *DG2D.DFR2D
-	Rho, RhoU, RhoV, RhoE utils.Matrix // Solution variables, stored at combined flux/solution point locations, K x Np
-	F1x, F2x, F3x, F4x    utils.Matrix // Flux variables in X direction, stored at flux/solution point locations, K x Np
-	F1y, F2y, F3y, F4y    utils.Matrix // Flux variables in Y direction, stored at flux/solution point locations, K x Np
-	chart                 *chart2d.Chart2D
-	colorMap              *utils2.ColorMap
-	model                 ModelType
-	Case                  CaseType
+	MeshFile       string
+	CFL, FinalTime float64
+	dfr            *DG2D.DFR2D
+	Q              [4]utils.Matrix // Solution variables, stored at combined flux/solution point locations, K x Np
+	Fx, Fy         [4]utils.Matrix // Flux variables in X and Y directions, stored at flux/solution point locations, K x Np
+	chart          *chart2d.Chart2D
+	colorMap       *utils2.ColorMap
+	model          ModelType
+	Case           CaseType
 }
 
 type CaseType uint
@@ -53,6 +53,7 @@ var (
 
 func NewEuler(CFL, FinalTime float64, N int, meshFile string, model ModelType, Case CaseType) (c *Euler) {
 	c = &Euler{
+		MeshFile:  meshFile,
 		CFL:       CFL,
 		FinalTime: FinalTime,
 		model:     model,
@@ -67,8 +68,75 @@ func NewEuler(CFL, FinalTime float64, N int, meshFile string, model ModelType, C
 	default:
 		panic("unknown case type")
 	}
+	fmt.Printf("Calling avg flux for file: %s ...\n", c.MeshFile)
+	c.AverageFlux()
+	fmt.Printf("done\n")
 	fmt.Printf("Algorithm: %s\n", modelNames[c.model])
 	fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, c.dfr.K)
+	return
+}
+
+func (c *Euler) AverageFlux() {
+	var (
+		el              = c.dfr.FluxElement
+		Nedge           = el.Nedge
+		leftFx, rightFx [4][]float64
+		aveFx           [4][]float64
+		leftFy, rightFy [4][]float64
+		aveFy           [4][]float64
+	)
+	for ii := 0; ii < 4; ii++ {
+		aveFx[ii] = make([]float64, Nedge)
+		aveFy[ii] = make([]float64, Nedge)
+	}
+	for _, e := range c.dfr.Tris.Edges {
+		if e.BCType == DG2D.BC_None && e.NumConnectedTris == 2 {
+			fmt.Printf("found edge with two connections, e=%s\n", e.Print())
+			// We construct a shared flux
+			triNum1, triNum2 := e.ConnectedTris[0], e.ConnectedTris[1]
+			edgeNum1, edgeNum2 := e.ConnectedTriEdgeNumber[0], e.ConnectedTriEdgeNumber[1] // one of 0,1,2
+			// Calculate index into flux points storage
+			index1, index2 := c.EdgeIndex(edgeNum1, triNum1), c.EdgeIndex(edgeNum2, triNum2)
+			for ii := 0; ii < 4; ii++ {
+				leftFx[ii] = c.Fx[ii].Data()[index1 : index1+Nedge]
+				rightFx[ii] = c.Fx[ii].Data()[index2 : index2+Nedge]
+				leftFy[ii] = c.Fy[ii].Data()[index1 : index1+Nedge]
+				rightFy[ii] = c.Fy[ii].Data()[index2 : index2+Nedge]
+				for i := 0; i < Nedge; i++ {
+					iR := Nedge - 1 - i
+					// Reverse the right relative to the left
+					aveFx[ii][i] = 0.5 * (leftFx[ii][i] + rightFx[ii][iR])
+					aveFy[ii][i] = 0.5 * (leftFy[ii][i] + rightFy[ii][iR])
+				}
+			}
+			for ii := 0; ii < 4; ii++ {
+				for i := 0; i < Nedge; i++ {
+					iR := Nedge - 1 - i
+					leftFx[ii][i] = aveFx[ii][i]
+					rightFx[ii][iR] = aveFx[ii][i]
+					leftFy[ii][i] = aveFy[ii][i]
+					rightFy[ii][iR] = aveFy[ii][i]
+				}
+			}
+		}
+	}
+}
+
+func (c *Euler) EdgeIndex(edgeNum DG2D.InternalEdgeNumber, triNum uint32) (index int) {
+	/*
+			Flux points are stored as (KxNp) for each Flux
+		    Within Np, the flux points are layed out like:
+			<---- Nint ----><---- Nint ----><---Nedge----><---Nedge----><---Nedge---->
+			         Solution Points          Edge 1 pts	Edge 2 pts	  Edge 3 pts
+			<---- Nint ----><---- Nint ----><---Nedge----><---Nedge----><---Nedge---->
+	*/
+	var (
+		el    = c.dfr.FluxElement
+		Np    = el.Np
+		Nint  = el.Nint
+		Nedge = el.Nedge
+	)
+	index = int(triNum)*Np + 2*Nint + int(edgeNum)*Nedge
 	return
 }
 
@@ -82,41 +150,42 @@ func (c *Euler) InitializeFS() {
 	)
 	q := 0.5 * rho * (u*u + v*v)
 	rhoE := p/GM1 + q
-	c.Rho = utils.NewMatrix(K, Np).AddScalar(rho)
-	c.RhoU = utils.NewMatrix(K, Np).AddScalar(rho * u)
-	c.RhoV = utils.NewMatrix(K, Np).AddScalar(rho * v)
-	c.RhoE = utils.NewMatrix(K, Np).AddScalar(rhoE)
-	c.F1x, c.F2x, c.F3x, c.F4x = utils.NewMatrix(K, Np), utils.NewMatrix(K, Np), utils.NewMatrix(K, Np), utils.NewMatrix(K, Np)
-	c.F1y, c.F2y, c.F3y, c.F4y = utils.NewMatrix(K, Np), utils.NewMatrix(K, Np), utils.NewMatrix(K, Np), utils.NewMatrix(K, Np)
+	c.Q[0] = utils.NewMatrix(K, Np).AddScalar(rho)
+	c.Q[1] = utils.NewMatrix(K, Np).AddScalar(rho * u)
+	c.Q[2] = utils.NewMatrix(K, Np).AddScalar(rho * v)
+	c.Q[3] = utils.NewMatrix(K, Np).AddScalar(rhoE)
+	for ii := 0; ii < 4; ii++ {
+		c.Fx[ii] = utils.NewMatrix(K, Np)
+		c.Fy[ii] = utils.NewMatrix(K, Np)
+	}
 	c.CalculateFlux()
 }
 
 func (c *Euler) CalculateFlux() {
 	// From https://www.theoretical-physics.net/dev/fluid-dynamics/euler.html
 	var (
-		K                         = c.dfr.K
-		Np                        = c.dfr.FluxElement.Np
-		Gamma                     = 1.4
-		GM1                       = Gamma - 1 // R / Cv
-		dRho, dRhoU, dRhoV, dRhoE = c.Rho.Data(), c.RhoU.Data(), c.RhoV.Data(), c.RhoE.Data()
-		dF1x, dF2x, dF3x, dF4x    = c.F1x.Data(), c.F2x.Data(), c.F3x.Data(), c.F4x.Data()
-		dF1y, dF2y, dF3y, dF4y    = c.F1y.Data(), c.F2y.Data(), c.F3y.Data(), c.F4y.Data()
+		K              = c.dfr.K
+		Np             = c.dfr.FluxElement.Np
+		Gamma          = 1.4
+		GM1            = Gamma - 1 // R / Cv
+		Q1, Q2, Q3, Q4 = c.Q[0].Data(), c.Q[1].Data(), c.Q[2].Data(), c.Q[3].Data()
 	)
 	for i := 0; i < K*Np; i++ {
-		rho, rhoU, rhoV, rhoE := dRho[i], dRhoU[i], dRhoV[i], dRhoE[i]
+		rho, rhoU, rhoV, rhoE := Q1[i], Q2[i], Q3[i], Q4[i]
 		u := rhoU / rho
 		v := rhoV / rho
 		u2 := u*u + v*v
 		q := 0.5 * rho * u2
 		p := GM1 * (rhoE - q)
-		dF1x[i] = rhoU
-		dF2x[i] = rhoU*u + p
-		dF3x[i] = rhoU * v
-		dF4x[i] = u * (rhoE + p)
-		dF1y[i] = rhoV
-		dF2y[i] = rhoV * u
-		dF3y[i] = rhoV*v + p
-		dF4y[i] = v * (rhoE + p)
+		c.Fx[0].Data()[i] = rhoU
+		c.Fx[1].Data()[i] = rhoU*u + p
+		c.Fx[2].Data()[i] = rhoU * v
+		c.Fx[3].Data()[i] = u * (rhoE + p)
+
+		c.Fy[0].Data()[i] = rhoV
+		c.Fy[1].Data()[i] = rhoV * u
+		c.Fy[2].Data()[i] = rhoV*v + p
+		c.Fy[3].Data()[i] = v * (rhoE + p)
 	}
 }
 

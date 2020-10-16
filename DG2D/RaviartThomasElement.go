@@ -35,6 +35,11 @@ const (
 
 func NewRTElement(N int, R, S utils.Vector) (rt *RTElement) {
 	// We expect that there are points in R and S to match the dimension of dim(P(N-1))
+	/*
+		<---- Nint ----><---- Nint ----><---Nedge----><---Nedge----><---Nedge---->
+		         Solution Points          Edge 1 pts	Edge 2 pts	  Edge 3 pts
+		<---- Nint ----><---- Nint ----><---Nedge----><---Nedge----><---Nedge---->
+	*/
 	var (
 		NN         = N - 1
 		NpInterior = (NN + 1) * (NN + 2) / 2
@@ -47,7 +52,7 @@ func NewRTElement(N int, R, S utils.Vector) (rt *RTElement) {
 		R:     R,
 		S:     S,
 		Nint:  N * (N + 1) / 2,
-		Nedge: 3 * (N + 1),
+		Nedge: N + 1,
 	}
 	rt.CalculateBasis()
 	return
@@ -57,7 +62,7 @@ func (rt *RTElement) ProjectFunctionOntoBasis2(s1, s2 []float64) (s1p, s2p []flo
 	var (
 		Np    = len(s1)
 		Nint  = rt.Nint
-		Nedge = rt.Nedge / 3
+		Nedge = rt.Nedge
 	)
 	s1p, s2p = make([]float64, Np), make([]float64, Np)
 
@@ -656,11 +661,11 @@ func (rt *RTElement) GetInternalLocations(F utils.Vector) (Finternal []float64) 
 
 func (rt *RTElement) GetEdgeLocations(F utils.Vector) (Fedge []float64) {
 	var (
-		Nint  = rt.Nint
-		Nedge = rt.Nedge
+		Nint     = rt.Nint
+		NedgeTot = rt.Nedge * 3
 	)
-	Fedge = make([]float64, Nedge)
-	for i := 0; i < Nedge; i++ {
+	Fedge = make([]float64, NedgeTot)
+	for i := 0; i < NedgeTot; i++ {
 		Fedge[i] = F.Data()[i+2*Nint]
 	}
 	return

@@ -26,8 +26,8 @@ func NewDFR2D(N int, meshFileO ...string) (dfr *DFR2D) {
 	}
 	le := NewLagrangeElement2D(N, Epsilon)
 	rt := NewRTElement(N+1, le.R, le.S)
-	RFlux := utils.NewVector(rt.Nedge, rt.GetEdgeLocations(rt.R))
-	SFlux := utils.NewVector(rt.Nedge, rt.GetEdgeLocations(rt.S))
+	RFlux := utils.NewVector(rt.Nedge*3, rt.GetEdgeLocations(rt.R))
+	SFlux := utils.NewVector(rt.Nedge*3, rt.GetEdgeLocations(rt.S))
 	dfr = &DFR2D{
 		SolutionElement:  le,
 		FluxElement:      rt,
