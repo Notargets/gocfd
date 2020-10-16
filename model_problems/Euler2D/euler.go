@@ -22,9 +22,11 @@ type Euler struct {
 	// Input parameters
 	CFL, FinalTime        float64
 	dfr                   *DG2D.DFR2D
+	Rho, RhoU, RhoV, RhoE utils.Matrix // Solution variables, stored at combined flux/solution point locations, K x Np
+	F1x, F2x, F3x, F4x    utils.Matrix // Flux variables in X direction, stored at flux/solution point locations, K x Np
+	F1y, F2y, F3y, F4y    utils.Matrix // Flux variables in Y direction, stored at flux/solution point locations, K x Np
 	RHSOnce               sync.Once
 	State                 *FieldState
-	Rho, RhoU, RhoV, RhoE utils.Matrix // Solution variables, stored at solution and flux points
 	In, Out               *State
 	plotOnce              sync.Once
 	chart                 *chart2d.Chart2D
@@ -57,7 +59,7 @@ var (
 	}
 )
 
-func NewEuler(CFL, FinalTime, XMax float64, N int, meshFile string, model ModelType, Case CaseType) (c *Euler) {
+func NewEuler(CFL, FinalTime float64, N int, meshFile string, model ModelType, Case CaseType) (c *Euler) {
 	c = &Euler{
 		CFL:       CFL,
 		State:     NewFieldState(),
