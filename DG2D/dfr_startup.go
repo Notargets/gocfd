@@ -10,7 +10,7 @@ type DFR2D struct {
 	N, Np            int
 	SolutionElement  *LagrangeElement2D
 	FluxElement      *RTElement
-	FluxInterpMatrix utils.Matrix
+	FluxInterpMatrix utils.Matrix // A pre-calculated interpolation matrix covering all Flux (edge) points in K elements
 	// Mesh Parameters
 	K                    int            // Number of elements (triangles) in mesh
 	VX, VY               utils.Vector   // X,Y points in mesh (vertices)
@@ -26,12 +26,12 @@ func NewDFR2D(N int, meshFileO ...string) (dfr *DFR2D) {
 	}
 	le := NewLagrangeElement2D(N, Epsilon)
 	rt := NewRTElement(N+1, le.R, le.S)
-	RFlux := utils.NewVector(rt.Nedge*3, rt.GetEdgeLocations(rt.R))
-	SFlux := utils.NewVector(rt.Nedge*3, rt.GetEdgeLocations(rt.S))
+	RFlux := utils.NewVector(rt.Nedge*3, rt.GetEdgeLocations(rt.R)) // For the Interpolation matrix across three edges
+	SFlux := utils.NewVector(rt.Nedge*3, rt.GetEdgeLocations(rt.S)) // For the Interpolation matrix across three edges
 	dfr = &DFR2D{
 		SolutionElement:  le,
 		FluxElement:      rt,
-		FluxInterpMatrix: le.Simplex2DInterpolatingPolyMatrix(RFlux, SFlux),
+		FluxInterpMatrix: le.Simplex2DInterpolatingPolyMatrix(RFlux, SFlux), // Interpolation matrix across three edges
 	}
 	if len(meshFileO) != 0 {
 		var BCType utils.Matrix
