@@ -9,16 +9,14 @@ import (
 )
 
 type RTElement struct {
-	N              int          // Order of element
-	Np             int          // Number of points in element
-	Nint           int          // Number of Interior points
-	Nedge          int          // Number of Edge points
-	Ainv           utils.Matrix // Polynomial coefficient matrix
-	V1, V2         utils.Matrix // Vandermonde matrix for each direction r and s
-	V1Inv, V2Inv   utils.Matrix
-	Dr1, Dr2       utils.Matrix // Derivative matrices in r and s directions
-	Ds1, Ds2       utils.Matrix
-	Dr1Int, Ds2Int utils.Matrix
+	N              int             // Order of element
+	Np             int             // Number of points in element
+	Nedge, Nint    int             // Number of Edge and Interior points
+	Ainv           utils.Matrix    // Polynomial coefficient matrix
+	V              [2]utils.Matrix // Vandermonde matrix for each direction r and s
+	Dr             [2]utils.Matrix // Derivative matrices in r and s directions
+	Ds             [2]utils.Matrix
+	Dr1Int, Ds2Int utils.Matrix // Divergence of basis, restricted to internal points only
 	R, S           utils.Vector // Point locations defining element in [-1,1] Triangle
 }
 
@@ -287,7 +285,7 @@ func (rt *RTElement) CalculateBasis() {
 	/*
 		Process the coefficient matrix to produce each direction of each polynomial (V1 and V2)
 	*/
-	rt.V1, rt.V2 = utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
+	rt.V[0], rt.V[1] = utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
 	rt.Ainv = utils.NewMatrix(Np, Np)
 	for j := 0; j < Np; j++ { // Process a column at a time, each column is a polynomial
 		/*
@@ -332,21 +330,21 @@ func (rt *RTElement) CalculateBasis() {
 		/*
 			Load the evaluated polynomial into the j-th column of the Vandermonde matrices
 		*/
-		rt.V1.SetCol(j, px)
-		rt.V2.SetCol(j, py)
+		rt.V[0].SetCol(j, px)
+		rt.V[1].SetCol(j, py)
 	}
 	// Create derivative matrices, Dr and Ds
-	rt.Dr1, rt.Dr2 = utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
-	rt.Ds1, rt.Ds2 = utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
+	rt.Dr[0], rt.Dr[1] = utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
+	rt.Ds[0], rt.Ds[1] = utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
 	for i := 0; i < Np; i++ { // Each geometric location
 		rr, ss := rt.R.Data()[i], rt.S.Data()[i]
 		for j := 0; j < Np; j++ { // Each polynomial
 			p1r, p2r := rt.EvaluatePolynomial(j, rr, ss, Dr)
-			rt.Dr1.Set(i, j, p1r)
-			rt.Dr2.Set(i, j, p2r)
+			rt.Dr[0].Set(i, j, p1r)
+			rt.Dr[1].Set(i, j, p2r)
 			p1s, p2s := rt.EvaluatePolynomial(j, rr, ss, Ds)
-			rt.Ds1.Set(i, j, p1s)
-			rt.Ds2.Set(i, j, p2s)
+			rt.Ds[0].Set(i, j, p1s)
+			rt.Ds[1].Set(i, j, p2s)
 		}
 	}
 	rt.Np = Np
@@ -363,7 +361,7 @@ func (rt *RTElement) Divergence(f1, f2 []float64) (div []float64) {
 	)
 	f1pV, f2pV := utils.NewMatrix(Npm, 1, f1p), utils.NewMatrix(Npm, 1, f2p)
 	// Divergence is (Dr1 * f1pV) + (Ds2 * f2pV)
-	divV := rt.Dr1.Mul(f1pV).Add(rt.Ds2.Mul(f2pV))
+	divV := rt.Dr[0].Mul(f1pV).Add(rt.Ds[1].Mul(f2pV))
 	div = divV.Data()
 	return
 }
@@ -382,7 +380,7 @@ func (rt *RTElement) DivergenceInterior(f1, f2 []float64) (div []float64) {
 		// Restrict the derivative matrices to the interior points
 		rt.Dr1Int, rt.Ds2Int = utils.NewMatrix(NInterior, Npm), utils.NewMatrix(NInterior, Npm)
 		for i := 0; i < NInterior; i++ {
-			rowDr1, rowDs2 := rt.Dr1.Row(i).Data(), rt.Ds2.Row(i).Data()
+			rowDr1, rowDs2 := rt.Dr[0].Row(i).Data(), rt.Ds[1].Row(i).Data()
 			rt.Dr1Int.M.SetRow(i, rowDr1)
 			rt.Ds2Int.M.SetRow(i, rowDs2)
 		}
