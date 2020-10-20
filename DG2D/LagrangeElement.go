@@ -65,8 +65,8 @@ func NewLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
 	el.V.SetReadOnly("V")
 	el.Vinv.SetReadOnly("Vinv")
 	el.MassMatrix.SetReadOnly("MassMatrix")
-	el.Dr.SetReadOnly("Dr")
-	el.Ds.SetReadOnly("Ds")
+	el.Dr.SetReadOnly("Vr")
+	el.Ds.SetReadOnly("Vs")
 	return
 }
 

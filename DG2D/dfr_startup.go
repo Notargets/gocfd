@@ -18,6 +18,7 @@ type DFR2D struct {
 	FluxX, FluxY         utils.Matrix   // Flux Element local coordinates
 	SolutionX, SolutionY utils.Matrix   // Solution Element local coordinates
 	Tris                 *Triangulation // Triangle mesh and edge/face structures
+	JFlux, JFluxInv      utils.Matrix
 }
 
 func NewDFR2D(N int, meshFileO ...string) (dfr *DFR2D) {
@@ -46,6 +47,25 @@ func NewDFR2D(N int, meshFileO ...string) (dfr *DFR2D) {
 		dfr.FluxY.SetReadOnly("FluxY")
 		dfr.SolutionX.SetReadOnly("SolutionX")
 		dfr.SolutionY.SetReadOnly("SolutionY")
+		fe := dfr.FluxElement
+		xr, xs := fe.Vr[0].Mul(dfr.FluxX).Add(fe.Vr[1].Mul(dfr.FluxX)), fe.Vs[1].Mul(dfr.FluxX).Add(fe.Vs[0].Mul(dfr.FluxX))
+		yr, ys := fe.Vr[0].Mul(dfr.FluxY).Add(fe.Vr[1].Mul(dfr.FluxY)), fe.Vs[1].Mul(dfr.FluxY).Add(fe.Vs[0].Mul(dfr.FluxY))
+		dfr.JFlux = xr.Copy().ElMul(ys).Subtract(xs.Copy().ElMul(yr))
+		/*
+			Rx := ys.ElDiv(dfr.JFlux)
+			Sx := yr.ElDiv(dfr.JFlux).Scale(-1)
+			Ry := xs.ElDiv(dfr.JFlux).Scale(-1)
+			Sy := xr.ElDiv(dfr.JFlux)
+		*/
+		Rx := ys.ElDiv(dfr.JFlux)
+		fmt.Println(dfr.JFlux.Print("dfr.JFlux"))
+		fmt.Println(Rx.Print("Rx"))
+		/*
+			var err error
+			if dfr.JFluxInv, err = dfr.JFlux.Inverse(); err != nil {
+				panic(err)
+			}
+		*/
 	}
 	return
 }
