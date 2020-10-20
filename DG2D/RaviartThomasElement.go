@@ -74,9 +74,8 @@ func (rt *RTElement) ProjectFunctionOntoBasis2(s1, s2 []float64) (s1p, s2p []flo
 	}
 	for i := 0; i < Nedge; i++ {
 		// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
-		dp := oosr2 * (s1[i+Nint] + s2[i+Nint])
-		s1p[i+Nint] = oosr2 * dp
-		s2p[i+Nint] = oosr2 * dp
+		s1p[i+Nint] = oosr2 * s1[i]
+		s2p[i+Nint] = oosr2 * s2[i]
 		// Edge2: Unit vector is [-1,0]
 		s1p[i+Nint+Nedge] = -s1[i+Nint+Nedge]
 		s2p[i+Nint+Nedge] = 0

@@ -87,15 +87,38 @@ func TestRTElement(t *testing.T) {
 		}
 		return
 	}
-	{ // Check Divergence for polynomial vector fields of order < N against analytical solution
+	checkSolutionM := func(rt *RTElement, Order int) (s1, s2, divCheck []float64) {
+		var (
+			Npm = rt.Npm
+		)
+		s1, s2 = make([]float64, Npm), make([]float64, Npm)
+		divCheck = make([]float64, Npm)
+		var ss1, ss2 float64
+		for i := 0; i < Npm; i++ {
+			r := rt.Rm.Data()[i]
+			s := rt.Sm.Data()[i]
+			ccf := float64(Order)
+			s1[i] = utils.POW(r, Order)
+			s2[i] = utils.POW(s, Order)
+			ss1, ss2 = ccf*utils.POW(r, Order-1), ccf*utils.POW(s, Order-1)
+			divCheck[i] = ss1 + ss2
+		}
+		return
+	}
+	if true { // Check Divergence for polynomial vector fields of order < N against analytical solution
 		Nend := 8
 		for N := 1; N < Nend; N++ {
 			R, S := NodesEpsilon(N - 1)
 			rt := NewRTElement(N, R, S)
+			Dr := rt.Vr[0]
+			Ds := rt.Vs[1]
 			for cOrder := 0; cOrder <= N; cOrder++ {
 				fmt.Printf("Check Order = %d, ", cOrder)
 				s1, s2, divCheck := checkSolution(rt, cOrder)
-				div := rt.Divergence(s1, s2)
+				s1p, s2p := rt.ProjectFunctionOntoBasis(s1, s2)
+				s1m, s2m := utils.NewMatrix(rt.Np, 1, s1p), utils.NewMatrix(rt.Np, 1, s2p)
+				div := Dr.Mul(s1m).Add(Ds.Mul(s2m)).Data()
+				//div := rt.Divergence(s1, s2)
 				minerrInt, maxerrInt, minerrEdge, maxerrEdge := errorCheck(N, div, divCheck)
 				assert.True(t, near(minerrInt, 0.0, 0.00001))
 				assert.True(t, near(maxerrInt, 0.0, 0.00001))
@@ -105,6 +128,32 @@ func TestRTElement(t *testing.T) {
 				div2 := rt.DivergenceInterior(s1, s2)
 				Ninterior := N * (N + 1) / 2
 				assert.True(t, nearVec(div[0:Ninterior], div2, 0.00001))
+			}
+		}
+	}
+	if false { // Check Divergence for polynomial vector fields of order < N against analytical solution
+		Nend := 2
+		for N := 1; N < Nend; N++ {
+			R, S := NodesEpsilon(N - 1)
+			rt := NewRTElement(N, R, S)
+			fmt.Printf("calculating Dr and Ds...\n")
+			//Dr := rt.Vrm[0].Mul(rt.VmInv[0])
+			//Ds := rt.Vsm[1].Mul(rt.VmInv[1])
+			Dr := rt.Vrm[0].Mul(rt.VmInv[0])
+			Ds := rt.Vsm[1].Mul(rt.VmInv[1])
+			//Dr := rt.Vrm[0]
+			//Ds := rt.Vsm[1]
+			for cOrder := 0; cOrder <= N; cOrder++ {
+				fmt.Printf("Check Order = %d, ", cOrder)
+				s1, s2, divCheck := checkSolutionM(rt, cOrder)
+				s1p, s2p := rt.ProjectFunctionOntoBasis2(s1, s2)
+				s1m, s2m := utils.NewMatrix(rt.Npm, 1, s1p), utils.NewMatrix(rt.Npm, 1, s2p)
+				div := Dr.Mul(s1m).Add(Ds.Mul(s2m)).Data()
+				minerrInt, maxerrInt, minerrEdge, maxerrEdge := errorCheck(N, div, divCheck)
+				assert.True(t, near(minerrInt, 0.0, 0.00001))
+				assert.True(t, near(maxerrInt, 0.0, 0.00001))
+				assert.True(t, near(minerrEdge, 0.0, 0.00001))
+				assert.True(t, near(maxerrEdge, 0.0, 0.00001))
 			}
 		}
 	}
