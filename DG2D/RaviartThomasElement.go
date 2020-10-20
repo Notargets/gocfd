@@ -17,6 +17,10 @@ type RTElement struct {
 	Vr, Vs         [2]utils.Matrix // Derivative matrices in r and s directions
 	Vr0Int, Vs1Int utils.Matrix    // Divergence of basis, restricted to internal points only
 	R, S           utils.Vector    // Point locations defining element in [-1,1] Triangle
+	Npm            int             // Number of points in merged/combined basis (where R,S basis appear together)
+	Vm, VmInv      [2]utils.Matrix // Merged/Combined Vandermonde matrix for each direction r and s
+	Vrm, Vsm       [2]utils.Matrix // Merged/Combined Derivative matrices in r and s directions
+	Rm, Sm         utils.Vector    // Merged/Combined Point locations defining element in [-1,1] Triangle
 }
 
 type RTPointType uint
@@ -345,6 +349,31 @@ func (rt *RTElement) CalculateBasis() {
 			rt.Vs[0].Set(i, j, p1s)
 			rt.Vs[1].Set(i, j, p2s)
 		}
+	}
+	rt.Npm = Np
+	if rt.N != 0 {
+		rt.Npm = (N + 6) * (N + 1) / 2
+		rt.Vm[0], rt.Vm[1] = CombineBasis(rt.N, rt.V[0], rt.V[1])
+		rt.Vrm[0], rt.Vrm[1] = CombineBasis(rt.N, rt.Vr[0], rt.Vr[1])
+		rt.Vsm[0], rt.Vsm[1] = CombineBasis(rt.N, rt.Vs[1], rt.Vs[1])
+		if rt.VmInv[0], err = rt.Vm[0].Inverse(); err != nil {
+			panic(err)
+		}
+		if rt.VmInv[1], err = rt.Vm[1].Inverse(); err != nil {
+			panic(err)
+		}
+		rNew, sNew := make([]float64, rt.Npm), make([]float64, rt.Npm)
+		var ii int
+		for i := 0; i < rt.Npm; i++ {
+			if i == rt.Nint {
+				ii += rt.Nint
+			}
+			rNew[i] = rt.R.Data()[ii]
+			sNew[i] = rt.S.Data()[ii]
+			ii++
+		}
+		rt.Rm = utils.NewVector(rt.Npm, rNew)
+		rt.Sm = utils.NewVector(rt.Npm, sNew)
 	}
 	rt.Np = Np
 	return
