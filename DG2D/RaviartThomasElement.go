@@ -13,10 +13,10 @@ type RTElement struct {
 	Np             int             // Number of points in element
 	Nedge, Nint    int             // Number of Edge and Interior points
 	Ainv           utils.Matrix    // Polynomial coefficient matrix
-	V              [2]utils.Matrix // Vandermonde matrix for each direction r and s
-	Dr, Ds         [2]utils.Matrix // Derivative matrices in r and s directions
+	V              [2]utils.Matrix // Vandermonde matrix for each direction r and s, [2]xNpxNp
+	Dr, Ds         [2]utils.Matrix // Derivative matrices in r and s directions, [2]xNpxNp
 	Dr0Int, Ds1Int utils.Matrix    // Divergence of basis, restricted to internal points only
-	R, S           utils.Vector    // Point locations defining element in [-1,1] Triangle
+	R, S           utils.Vector    // Point locations defining element in [-1,1] Triangle, NpxNp
 }
 
 type RTPointType uint

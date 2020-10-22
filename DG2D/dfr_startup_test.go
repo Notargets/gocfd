@@ -91,6 +91,8 @@ func TestDFR2D(t *testing.T) {
 	{ // Test triangulation
 		N := 1
 		dfr := NewDFR2D(N, "test_tris_5.neu")
+		//PlotMesh(dfr.VX, dfr.VY, dfr.EToV, dfr.BCType, dfr.FluxX, dfr.FluxY, true)
+		//utils.SleepFor(50000)
 		//dfr := NewDFR2D(N, "fstepA001.neu")
 		trn := dfr.Tris
 		// Check against known answers for this case
