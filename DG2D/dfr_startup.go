@@ -14,7 +14,7 @@ type DFR2D struct {
 	// Mesh Parameters
 	K                    int            // Number of elements (triangles) in mesh
 	VX, VY               utils.Vector   // X,Y vertex points in mesh (vertices)
-	EToV, BCType         utils.Matrix   // Mapping of elements to vertices, each element has three integer vertex coordinates
+	BCType               utils.Matrix   // Mapping of elements to vertices, each element has three integer vertex coordinates
 	FluxX, FluxY         utils.Matrix   // Flux Element local coordinates
 	SolutionX, SolutionY utils.Matrix   // Solution Element local coordinates
 	Tris                 *Triangulation // Triangle mesh and edge/face structures
@@ -35,43 +35,48 @@ func NewDFR2D(N int, meshFileO ...string) (dfr *DFR2D) {
 		FluxInterpMatrix: le.Simplex2DInterpolatingPolyMatrix(RFlux, SFlux), // Interpolation matrix across three edges
 	}
 	if len(meshFileO) != 0 {
-		dfr.K, dfr.VX, dfr.VY, dfr.EToV, dfr.BCType = ReadGambit2d(meshFileO[0])
-		dfr.Tris = NewTriangulation(dfr.EToV, dfr.BCType)
+		var EToV utils.Matrix
+		dfr.K, dfr.VX, dfr.VY, EToV, dfr.BCType = ReadGambit2d(meshFileO[0])
+		dfr.Tris = NewTriangulation(EToV, dfr.BCType)
 		// Build connectivity matrices
 		dfr.FluxX, dfr.FluxY =
-			CalculateElementLocalGeometry(dfr.EToV, dfr.VX, dfr.VY, dfr.FluxElement.R, dfr.FluxElement.S)
+			CalculateElementLocalGeometry(dfr.Tris.EToV, dfr.VX, dfr.VY, dfr.FluxElement.R, dfr.FluxElement.S)
 		dfr.SolutionX, dfr.SolutionY =
-			CalculateElementLocalGeometry(dfr.EToV, dfr.VX, dfr.VY, dfr.SolutionElement.R, dfr.SolutionElement.S)
-		Jd := make([]float64, 4*dfr.K)
-		Jdetd := make([]float64, dfr.K)
-		JdInv := make([]float64, 4*dfr.K)
-		for k := 0; k < dfr.K; k++ {
-			tri := dfr.Tris.EToV.Row(k).Data()
-			v := [3]int{int(tri[0]), int(tri[1]), int(tri[2])}
-			v1x, v2x, v3x := dfr.VX.AtVec(v[0]), dfr.VX.AtVec(v[1]), dfr.VX.AtVec(v[2])
-			v1y, v2y, v3y := dfr.VY.AtVec(v[0]), dfr.VY.AtVec(v[1]), dfr.VY.AtVec(v[2])
-			xr, yr := 0.5*(v2x-v1x), 0.5*(v2y-v1y)
-			xs, ys := 0.5*(v3x-v1x), 0.5*(v3y-v1y)
-			// Jacobian is [xr, xs]
-			//             [yr, ys]
-			jd := Jd[k*4:]
-			jd[0], jd[1], jd[2], jd[3] = xr, xs, yr, ys
-			Jdetd[k] = xr*ys - xs*yr
-			oodet := 1. / Jdetd[k]
-			jdInv := JdInv[k*4:]
-			jdInv[0], jdInv[1], jdInv[2], jdInv[3] = oodet*ys, -oodet*xs, -oodet*yr, oodet*xr
-		}
-		dfr.J, dfr.Jinv = utils.NewMatrix(dfr.K, 4, Jd), utils.NewMatrix(dfr.K, 4, JdInv)
-		dfr.Jdet = utils.NewMatrix(dfr.K, 1, Jdetd)
+			CalculateElementLocalGeometry(dfr.Tris.EToV, dfr.VX, dfr.VY, dfr.SolutionElement.R, dfr.SolutionElement.S)
 		dfr.FluxX.SetReadOnly("FluxX")
 		dfr.FluxY.SetReadOnly("FluxY")
 		dfr.SolutionX.SetReadOnly("SolutionX")
 		dfr.SolutionY.SetReadOnly("SolutionY")
-		dfr.J.SetReadOnly("J")
-		dfr.Jdet.SetReadOnly("Jdet")
-		dfr.Jinv.SetReadOnly("Jinv")
+		dfr.CalculateJacobian()
 	}
 	return
+}
+
+func (dfr *DFR2D) CalculateJacobian() {
+	Jd := make([]float64, 4*dfr.K)
+	Jdetd := make([]float64, dfr.K)
+	JdInv := make([]float64, 4*dfr.K)
+	for k := 0; k < dfr.K; k++ {
+		tri := dfr.Tris.EToV.Row(k).Data()
+		v := [3]int{int(tri[0]), int(tri[1]), int(tri[2])}
+		v1x, v2x, v3x := dfr.VX.AtVec(v[0]), dfr.VX.AtVec(v[1]), dfr.VX.AtVec(v[2])
+		v1y, v2y, v3y := dfr.VY.AtVec(v[0]), dfr.VY.AtVec(v[1]), dfr.VY.AtVec(v[2])
+		xr, yr := 0.5*(v2x-v1x), 0.5*(v2y-v1y)
+		xs, ys := 0.5*(v3x-v1x), 0.5*(v3y-v1y)
+		// Jacobian is [xr, xs]
+		//             [yr, ys]
+		jd := Jd[k*4:]
+		jd[0], jd[1], jd[2], jd[3] = xr, xs, yr, ys
+		Jdetd[k] = xr*ys - xs*yr
+		oodet := 1. / Jdetd[k]
+		jdInv := JdInv[k*4:]
+		jdInv[0], jdInv[1], jdInv[2], jdInv[3] = oodet*ys, -oodet*xs, -oodet*yr, oodet*xr
+	}
+	dfr.J, dfr.Jinv = utils.NewMatrix(dfr.K, 4, Jd), utils.NewMatrix(dfr.K, 4, JdInv)
+	dfr.Jdet = utils.NewMatrix(dfr.K, 1, Jdetd)
+	dfr.J.SetReadOnly("J")
+	dfr.Jdet.SetReadOnly("Jdet")
+	dfr.Jinv.SetReadOnly("Jinv")
 }
 
 // Build reference element matrices
