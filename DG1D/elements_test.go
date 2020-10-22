@@ -16,7 +16,7 @@ func TestElements1D(t *testing.T) {
 			K, Np, Nfp, NFaces                int
 			VX, FMask                         utils.Vector
 			EToV, EToE, EToF                  utils.Matrix
-			X, Vr, Rx, FScale, NX, LIFT       utils.Matrix
+			X, Dr, Rx, FScale, NX, LIFT       utils.Matrix
 			V, Vinv                           utils.Matrix
 			VmapM, VmapP, VmapB, VmapI, VmapO utils.Index
 			MapB, MapI, MapO                  utils.Index

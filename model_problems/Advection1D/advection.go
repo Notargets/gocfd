@@ -177,7 +177,7 @@ func (c *Advection) RHS_GK(U utils.Matrix, time float64) (RHSU utils.Matrix) {
 	dU.Assign(el.MapI, U.Subset(el.VmapI, duNr, duNc).AddScalar(-uin).ElMul(c.UFlux.Subset(el.MapI, duNr, duNc)).Scale(0.5))
 	dU.AssignScalar(el.MapO, 0)
 
-	// rhsu = -a*rx.dm(Vr*u) + LIFT*(Fscale.dm(du));
+	// rhsu = -a*rx.dm(Dr*u) + LIFT*(Fscale.dm(du));
 	// Important: must change the order from Fscale.dm(du) to du.dm(Fscale) here because the dm overwrites the target
 	RHSU = el.Rx.Copy().Scale(-c.a).ElMul(el.Dr.Mul(U)).Add(el.LIFT.Mul(dU.ElMul(el.FScale)))
 	return

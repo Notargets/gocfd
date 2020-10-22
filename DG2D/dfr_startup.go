@@ -48,8 +48,8 @@ func NewDFR2D(N int, meshFileO ...string) (dfr *DFR2D) {
 		dfr.SolutionX.SetReadOnly("SolutionX")
 		dfr.SolutionY.SetReadOnly("SolutionY")
 		fe := dfr.FluxElement
-		xr, xs := fe.Vr[0].Mul(dfr.FluxX).Add(fe.Vr[1].Mul(dfr.FluxX)), fe.Vs[1].Mul(dfr.FluxX).Add(fe.Vs[0].Mul(dfr.FluxX))
-		yr, ys := fe.Vr[0].Mul(dfr.FluxY).Add(fe.Vr[1].Mul(dfr.FluxY)), fe.Vs[1].Mul(dfr.FluxY).Add(fe.Vs[0].Mul(dfr.FluxY))
+		xr, xs := fe.Dr[0].Mul(dfr.FluxX).Add(fe.Dr[1].Mul(dfr.FluxX)), fe.Ds[1].Mul(dfr.FluxX).Add(fe.Ds[0].Mul(dfr.FluxX))
+		yr, ys := fe.Dr[0].Mul(dfr.FluxY).Add(fe.Dr[1].Mul(dfr.FluxY)), fe.Ds[1].Mul(dfr.FluxY).Add(fe.Ds[0].Mul(dfr.FluxY))
 		dfr.JFlux = xr.Copy().ElMul(ys).Subtract(xs.Copy().ElMul(yr))
 		/*
 			Rx := ys.ElDiv(dfr.JFlux)

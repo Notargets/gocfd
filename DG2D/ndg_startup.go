@@ -153,13 +153,13 @@ func (ndg *NDG2D) Normals2D() {
 
 func (ndg *NDG2D) GeometricFactors2D() {
 	/*
-	  // function [rx,sx,ry,sy,J] = GeometricFactors2D(x,y,Vr,Vs)
+	  // function [rx,sx,ry,sy,J] = GeometricFactors2D(x,y,Dr,Ds)
 	  // Purpose  : Compute the metric elements for the local
 	  //            mappings of the elements
-	  DMat xr=Vr*x
-	       xs=Vs*x
-	       yr=Vr*y
-	       ys=Vs*y;
+	  DMat xr=Dr*x
+	       xs=Ds*x
+	       yr=Dr*y
+	       ys=Ds*y;
 	  J  =  xr.dm(ys) - xs.dm(yr);
 	  rx = ys.dd(J); sx = -yr.dd(J); ry = -xs.dd(J); sy = xr.dd(J);
 	*/
