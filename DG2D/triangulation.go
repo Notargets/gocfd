@@ -32,6 +32,12 @@ func NewTriangulation(EToV, BCType utils.Matrix) (tmesh *Triangulation) {
 	return
 }
 
+func (tmesh *Triangulation) GetTriVerts(k uint32) (verts [3]int) {
+	tri := tmesh.EToV.Row(int(k)).Data()
+	verts = [3]int{int(tri[0]), int(tri[1]), int(tri[2])}
+	return
+}
+
 func (tmesh *Triangulation) NewEdge(verts [2]int, connectedElementNumber int, intEdgeNumber InternalEdgeNumber,
 	bcFace int) (e *Edge) {
 	var (
@@ -90,6 +96,16 @@ func (e *Edge) Print() (p string) {
 			triNum, e.ConnectedTriEdgeNumber[i], e.BCType.String(), e.ConnectedTriDirection[i])
 		p += pp
 	}
+	return
+}
+
+func (tmesh *Triangulation) GetEdgeCoordinates(en EdgeNumber, e *Edge, triNum uint32, VX, VY utils.Vector) (x1, x2 [2]float64) {
+	ev := en.GetVertices()
+	if e.ConnectedTriDirection[triNum] {
+		ev[0], ev[1] = ev[1], ev[0]
+	}
+	x1[0], x1[1] = VX.AtVec(ev[0]), VY.AtVec(ev[0])
+	x2[0], x2[1] = VX.AtVec(ev[1]), VY.AtVec(ev[1])
 	return
 }
 

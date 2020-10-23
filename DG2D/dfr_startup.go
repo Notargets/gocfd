@@ -136,3 +136,9 @@ func (dfr *DFR2D) CalculateJacobian() {
 		the solution process, resulting in a more efficient computational approach, in addition to making it easier
 		to solve more complex equations with the identical formulation.
 */
+
+func (dfr *DFR2D) PiolaTransform(J []float64, Jdet float64, f [2]float64) (fT [2]float64) {
+	ooJdet := 1. / Jdet
+	fT[0], fT[1] = ooJdet*(J[0]*f[0]+J[2]*f[1]), ooJdet*(J[1]*f[0]+J[3]*f[1])
+	return
+}

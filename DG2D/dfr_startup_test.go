@@ -91,7 +91,7 @@ func TestDFR2D(t *testing.T) {
 	{ // Test triangulation
 		N := 1
 		dfr := NewDFR2D(N, "test_tris_5.neu")
-		//PlotMesh(dfr.VX, dfr.VY, dfr.EToV, dfr.BCType, dfr.FluxX, dfr.FluxY, true)
+		//PlotMesh(dfr.VX, dfr.VY, dfr.Tris.EToV, dfr.BCType, dfr.FluxX, dfr.FluxY, true)
 		//utils.SleepFor(50000)
 		//dfr := NewDFR2D(N, "fstepA001.neu")
 		trn := dfr.Tris
@@ -112,8 +112,29 @@ func TestDFR2D(t *testing.T) {
 		e = trn.Edges[en]
 		assert.Equal(t, BC_In, e.BCType)
 
-		for _, e := range dfr.Tris.Edges {
+		for en, e := range dfr.Tris.Edges {
 			fmt.Println(e.Print())
+			for ii, triNum := range e.ConnectedTris {
+				x1, x2 := dfr.Tris.GetEdgeCoordinates(en, e, triNum, dfr.VX, dfr.VY)
+				switch e.ConnectedTriEdgeNumber[ii] {
+				case Third:
+					fmt.Printf("Third edge verts =")
+					fmt.Printf("[%v,%v], [%v,%v]\n", x1[0], x1[1], x2[0], x2[1])
+					dx, dy := x2[0]-x1[0], x2[1]-x1[1]
+					nx, ny := -dy, dx
+					fmt.Printf("Normal =")
+					fmt.Printf("[%v,%v]\n", nx, ny)
+					J := dfr.J.Row(int(triNum)).Data()[0:4]
+					Jdet := dfr.Jdet.Row(int(triNum)).Data()[0]
+					nxT := dfr.PiolaTransform(J, Jdet, [2]float64{nx, ny})
+					fmt.Printf("Transformed Normal =")
+					fmt.Printf("[%v,%v]\n", nxT[0], nxT[1])
+					Jinv := dfr.Jinv.Row(int(triNum)).Data()[0:4]
+					nxTT := dfr.PiolaTransform(Jinv, 1./Jdet, nxT)
+					fmt.Printf("Inverse Transformed Normal =")
+					fmt.Printf("[%v,%v]\n", nxTT[0], nxTT[1])
+				}
+			}
 		}
 	}
 	{ // Test face construction
