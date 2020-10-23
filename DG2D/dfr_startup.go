@@ -63,14 +63,16 @@ func (dfr *DFR2D) CalculateJacobian() {
 		v1y, v2y, v3y := dfr.VY.AtVec(v[0]), dfr.VY.AtVec(v[1]), dfr.VY.AtVec(v[2])
 		xr, yr := 0.5*(v2x-v1x), 0.5*(v2y-v1y)
 		xs, ys := 0.5*(v3x-v1x), 0.5*(v3y-v1y)
-		// Jacobian is [xr, xs]
-		//             [yr, ys]
+		// Jacobian is [xr, yr]
+		//             [xs, ys]
 		jd := Jd[k*4:]
-		jd[0], jd[1], jd[2], jd[3] = xr, xs, yr, ys
+		//jd[0], jd[1], jd[2], jd[3] = xr, xs, yr, ys
+		jd[0], jd[1], jd[2], jd[3] = xr, yr, xs, ys
 		Jdetd[k] = xr*ys - xs*yr
 		oodet := 1. / Jdetd[k]
 		jdInv := JdInv[k*4:]
-		jdInv[0], jdInv[1], jdInv[2], jdInv[3] = oodet*ys, -oodet*xs, -oodet*yr, oodet*xr
+		//jdInv[0], jdInv[1], jdInv[2], jdInv[3] = oodet*ys, -oodet*xs, -oodet*yr, oodet*xr
+		jdInv[0], jdInv[1], jdInv[2], jdInv[3] = oodet*ys, -oodet*yr, -oodet*xs, oodet*xr
 	}
 	dfr.J, dfr.Jinv = utils.NewMatrix(dfr.K, 4, Jd), utils.NewMatrix(dfr.K, 4, JdInv)
 	dfr.Jdet = utils.NewMatrix(dfr.K, 1, Jdetd)
@@ -139,6 +141,7 @@ func (dfr *DFR2D) CalculateJacobian() {
 
 func (dfr *DFR2D) PiolaTransform(J []float64, Jdet float64, f [2]float64) (fT [2]float64) {
 	ooJdet := 1. / Jdet
-	fT[0], fT[1] = ooJdet*(J[0]*f[0]+J[2]*f[1]), ooJdet*(J[1]*f[0]+J[3]*f[1])
+	//fT[0], fT[1] = ooJdet*(J[0]*f[0]+J[2]*f[1]), ooJdet*(J[1]*f[0]+J[3]*f[1])
+	fT[0], fT[1] = ooJdet*(J[0]*f[0]+J[1]*f[1]), ooJdet*(J[2]*f[0]+J[3]*f[1])
 	return
 }
