@@ -2,6 +2,7 @@ package DG2D
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/notargets/gocfd/utils"
@@ -114,7 +115,6 @@ func TestDFR2D(t *testing.T) {
 
 		// Test Piola transform and jacobian
 		for en, e := range dfr.Tris.Edges {
-			fmt.Println(e.Print())
 			for ii, triNum := range e.ConnectedTris {
 				x1, x2 := dfr.Tris.GetEdgeCoordinates(en, e, triNum, dfr.VX, dfr.VY)
 				switch e.ConnectedTriEdgeNumber[ii] {
@@ -136,6 +136,88 @@ func TestDFR2D(t *testing.T) {
 						assert.Equal(t, [2]float64{-2, 0}, nxT)
 					}
 					assert.Equal(t, normal, nxTT)
+				}
+			}
+		}
+	}
+	{ // Test divergence
+		errorCheck := func(N int, div, divCheck []float64) (minInt, maxInt, minEdge, maxEdge float64) {
+			var (
+				Npm    = len(div)
+				errors = make([]float64, Npm)
+			)
+			for i := 0; i < Npm; i++ {
+				//var ddr, dds float64
+				errors[i] = div[i] - divCheck[i]
+			}
+			minInt, maxInt = errors[0], errors[0]
+			Nint := N * (N + 1) / 2
+			minEdge, maxEdge = errors[Nint], errors[Nint]
+			for i := 0; i < Nint; i++ {
+				errAbs := math.Abs(errors[i])
+				if minInt > errAbs {
+					minInt = errAbs
+				}
+				if maxInt < errAbs {
+					maxInt = errAbs
+				}
+			}
+			for i := Nint; i < Npm; i++ {
+				errAbs := math.Abs(errors[i])
+				if minEdge > errAbs {
+					minEdge = errAbs
+				}
+				if maxEdge < errAbs {
+					maxEdge = errAbs
+				}
+			}
+			fmt.Printf("Order = %d, ", N)
+			fmt.Printf("Min, Max Int Err = %8.5f, %8.5f, Min, Max Edge Err = %8.5f, %8.5f\n", minInt, maxInt, minEdge, maxEdge)
+			return
+		}
+		checkSolution := func(rt *RTElement, Order int) (s1, s2, divCheck []float64) {
+			var (
+				Np = rt.Np
+			)
+			s1, s2 = make([]float64, Np), make([]float64, Np)
+			divCheck = make([]float64, Np)
+			var ss1, ss2 float64
+			for i := 0; i < Np; i++ {
+				r := rt.R.Data()[i]
+				s := rt.S.Data()[i]
+				ccf := float64(Order)
+				s1[i] = utils.POW(r, Order)
+				s2[i] = utils.POW(s, Order)
+				ss1, ss2 = ccf*utils.POW(r, Order-1), ccf*utils.POW(s, Order-1)
+				divCheck[i] = ss1 + ss2
+			}
+			return
+		}
+		if false { // Check Divergence for polynomial vector fields of order < N against analytical solution
+			Nend := 2
+			for N := 1; N < Nend; N++ {
+				dfr := NewDFR2D(N, "test_tris_5.neu")
+				rt := dfr.FluxElement
+				Dr := rt.Dr[0]
+				Ds := rt.Ds[1]
+				for cOrder := 0; cOrder <= N; cOrder++ {
+					fmt.Printf("Check Order = %d, ", cOrder)
+					// TODO: Change checkSolution to output divergence and function in the X,Y space of the Flux Element
+					s1, s2, divCheck := checkSolution(rt, cOrder)
+					s1p, s2p := dfr.ProjectFluxOntoRTSpace(0, s1, s2)
+					s1m, s2m := utils.NewMatrix(rt.Np, 1, s1p), utils.NewMatrix(rt.Np, 1, s2p)
+					Jdet := dfr.Jdet.Row(0).Data()[0]
+					div := Dr.Mul(s1m).Add(Ds.Mul(s2m)).Scale(1. / Jdet).Data()
+					//div := rt.Divergence(s1, s2)
+					minerrInt, maxerrInt, minerrEdge, maxerrEdge := errorCheck(N, div, divCheck)
+					assert.True(t, near(minerrInt, 0.0, 0.00001))
+					assert.True(t, near(maxerrInt, 0.0, 0.00001))
+					assert.True(t, near(minerrEdge, 0.0, 0.00001))
+					assert.True(t, near(maxerrEdge, 0.0, 0.00001))
+					// Check the restricted divergence operator for equivalence on the interior points
+					div2 := rt.DivergenceInterior(s1, s2)
+					Ninterior := N * (N + 1) / 2
+					assert.True(t, nearVec(div[0:Ninterior], div2, 0.00001))
 				}
 			}
 		}

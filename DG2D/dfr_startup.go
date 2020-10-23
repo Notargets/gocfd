@@ -2,6 +2,7 @@ package DG2D
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/notargets/gocfd/utils"
 )
@@ -19,6 +20,7 @@ type DFR2D struct {
 	SolutionX, SolutionY utils.Matrix   // Solution Element local coordinates
 	Tris                 *Triangulation // Triangle mesh and edge/face structures
 	J, Jinv, Jdet        utils.Matrix   // Mesh Transform Jacobian, Kx[4], each K element has a 2x2 matrix, det is |J|
+	FaceNorm             utils.Matrix   // Magnitude of each face normal, 3xK, used in projection of flux to RT element
 }
 
 func NewDFR2D(N int, meshFileO ...string) (dfr *DFR2D) {
@@ -48,6 +50,7 @@ func NewDFR2D(N int, meshFileO ...string) (dfr *DFR2D) {
 		dfr.SolutionX.SetReadOnly("SolutionX")
 		dfr.SolutionY.SetReadOnly("SolutionY")
 		dfr.CalculateJacobian()
+		dfr.CalculateFaceNorms()
 	}
 	return
 }
@@ -79,6 +82,28 @@ func (dfr *DFR2D) CalculateJacobian() {
 	dfr.J.SetReadOnly("J")
 	dfr.Jdet.SetReadOnly("Jdet")
 	dfr.Jinv.SetReadOnly("Jinv")
+}
+
+func (dfr *DFR2D) CalculateFaceNorms() {
+	dfr.FaceNorm = utils.NewMatrix(dfr.K, 3)
+	for en, e := range dfr.Tris.Edges {
+		for ii, triNum := range e.ConnectedTris {
+			fn := dfr.FaceNorm.Row(int(triNum)).Data()[0:3]
+			x1, x2 := dfr.Tris.GetEdgeCoordinates(en, e, triNum, dfr.VX, dfr.VY)
+			dx, dy := x2[0]-x1[0], x2[1]-x1[1]
+			nx, ny := -dy, dx
+			norm := math.Sqrt(nx*nx + ny*ny)
+			switch e.ConnectedTriEdgeNumber[ii] {
+			case First:
+				fn[0] = norm
+			case Second:
+				fn[1] = norm
+			case Third:
+				fn[2] = norm
+			}
+		}
+	}
+	dfr.FaceNorm.SetReadOnly("FaceNorm")
 }
 
 // Build reference element matrices
@@ -143,5 +168,42 @@ func (dfr *DFR2D) PiolaTransform(J []float64, Jdet float64, f [2]float64) (fT [2
 	ooJdet := 1. / Jdet
 	//fT[0], fT[1] = ooJdet*(J[0]*f[0]+J[2]*f[1]), ooJdet*(J[1]*f[0]+J[3]*f[1])
 	fT[0], fT[1] = ooJdet*(J[0]*f[0]+J[1]*f[1]), ooJdet*(J[2]*f[0]+J[3]*f[1])
+	return
+}
+
+func (dfr *DFR2D) ProjectFluxOntoRTSpace(k int, f1, f2 []float64) (f1p, f2p []float64) {
+	var (
+		Np        = len(f1)
+		rt        = dfr.FluxElement
+		edgeNorms = dfr.FaceNorm.Row(k).Data()[0:3]
+		Jdet      = dfr.Jdet.Row(k).Data()[0]
+		Jinv      = dfr.Jinv.Row(k).Data()[0:4]
+	)
+	f1p, f2p = make([]float64, Np), make([]float64, Np)
+
+	oosr2 := 1 / math.Sqrt(2)
+	for i := range f1 {
+		switch rt.GetTermType(i) {
+		case InteriorR:
+			// Unit vector is [1,0]
+			f1p[i] = Jdet * (Jinv[0]*f1[i] + Jinv[1]*f2[i])
+		case InteriorS:
+			// Unit vector is [0,1]
+			f2p[i] = Jdet * (Jinv[2]*f1[i] + Jinv[3]*f2[i])
+		case Edge1:
+			// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
+			fNorm := edgeNorms[0] * math.Sqrt(f1[i]*f1[i]+f2[i]*f2[i])
+			f1p[i] = oosr2 * fNorm
+			f2p[i] = f1p[i]
+		case Edge2:
+			// Edge2: Unit vector is [-1,0]
+			fNorm := edgeNorms[1] * math.Sqrt(f1[i]*f1[i]+f2[i]*f2[i])
+			f1p[i] = -fNorm
+		case Edge3:
+			// Edge3: // Unit vector is [0,-1]
+			fNorm := edgeNorms[2] * math.Sqrt(f1[i]*f1[i]+f2[i]*f2[i])
+			f2p[i] = -fNorm
+		}
+	}
 	return
 }
