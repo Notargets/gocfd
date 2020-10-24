@@ -171,38 +171,48 @@ func (dfr *DFR2D) PiolaTransform(J []float64, Jdet float64, f [2]float64) (fT [2
 	return
 }
 
-func (dfr *DFR2D) ProjectFluxOntoRTSpace(k int, f1, f2 []float64) (f1p, f2p []float64) {
+func (dfr *DFR2D) ProjectFluxOntoRTSpace(Fx, Fy utils.Matrix) (Fxp, Fyp utils.Matrix) {
 	var (
-		Np        = len(f1)
-		rt        = dfr.FluxElement
-		edgeNorms = dfr.FaceNorm.Row(k).Data()[0:3]
-		Jdet      = dfr.Jdet.Row(k).Data()[0]
-		Jinv      = dfr.Jinv.Row(k).Data()[0:4]
+		Np    = dfr.FluxElement.Np
+		K     = dfr.K
+		rt    = dfr.FluxElement
+		oosr2 = 1 / math.Sqrt(2)
 	)
-	f1p, f2p = make([]float64, Np), make([]float64, Np)
-
-	oosr2 := 1 / math.Sqrt(2)
-	for i := range f1 {
-		switch rt.GetTermType(i) {
-		case InteriorR:
-			// Unit vector is [1,0]
-			f1p[i] = Jdet * (Jinv[0]*f1[i] + Jinv[1]*f2[i])
-		case InteriorS:
-			// Unit vector is [0,1]
-			f2p[i] = Jdet * (Jinv[2]*f1[i] + Jinv[3]*f2[i])
-		case Edge1:
-			// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
-			fNorm := edgeNorms[0] * math.Sqrt(f1[i]*f1[i]+f2[i]*f2[i])
-			f1p[i] = oosr2 * fNorm
-			f2p[i] = f1p[i]
-		case Edge2:
-			// Edge2: Unit vector is [-1,0]
-			fNorm := edgeNorms[1] * math.Sqrt(f1[i]*f1[i]+f2[i]*f2[i])
-			f1p[i] = -fNorm
-		case Edge3:
-			// Edge3: // Unit vector is [0,-1]
-			fNorm := edgeNorms[2] * math.Sqrt(f1[i]*f1[i]+f2[i]*f2[i])
-			f2p[i] = -fNorm
+	Fxp, Fyp = utils.NewMatrix(K, Np), utils.NewMatrix(K, Np)
+	for k := 0; k < K; k++ {
+		var (
+			edgeNorms  = dfr.FaceNorm.Row(k).Data()[0:3]
+			Jdet       = dfr.Jdet.Row(k).Data()[0]
+			Jinv       = dfr.Jinv.Row(k).Data()[0:4]
+			fxD, fyD   = Fx.Row(k).Data()[0:Np], Fy.Row(k).Data()[0:Np]
+			fxpD, fypD = Fxp.Data(), Fyp.Data()
+		)
+		for n := 0; n < Np; n++ {
+			ind := n + k*Np
+			fxT := Jdet * (Jinv[0]*fxD[n] + Jinv[1]*fyD[n])
+			fyT := Jdet * (Jinv[2]*fxD[n] + Jinv[3]*fyD[n])
+			fNorm := math.Sqrt(fxT*fxT + fyT*fyT)
+			switch rt.GetTermType(n) {
+			case InteriorR:
+				// Unit vector is [1,0]
+				fxpD[ind] = fxT
+			case InteriorS:
+				// Unit vector is [0,1]
+				fypD[ind] = fyT
+			case Edge1:
+				// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
+				ff := edgeNorms[0] * fNorm
+				fxpD[ind] = oosr2 * ff
+				fypD[ind] = fxpD[ind]
+			case Edge2:
+				// Edge2: Unit vector is [-1,0]
+				ff := edgeNorms[1] * fNorm
+				fxpD[ind] = -ff
+			case Edge3:
+				// Edge3: // Unit vector is [0,-1]
+				ff := edgeNorms[2] * fNorm
+				fypD[ind] = -ff
+			}
 		}
 	}
 	return
