@@ -88,18 +88,20 @@ func (dfr *DFR2D) CalculateFaceNorms() {
 	dfr.FaceNorm = utils.NewMatrix(dfr.K, 3)
 	for en, e := range dfr.Tris.Edges {
 		for ii, triNum := range e.ConnectedTris {
-			fn := dfr.FaceNorm.Row(int(triNum)).Data()[0:3]
+			//fn := dfr.FaceNorm.Row(int(triNum)).Data()[0:3]
+			k := int(triNum)
+			fnD := dfr.FaceNorm.Data()
 			x1, x2 := dfr.Tris.GetEdgeCoordinates(en, e, triNum, dfr.VX, dfr.VY)
 			dx, dy := x2[0]-x1[0], x2[1]-x1[1]
 			nx, ny := -dy, dx
 			norm := math.Sqrt(nx*nx + ny*ny)
 			switch e.ConnectedTriEdgeNumber[ii] {
 			case First:
-				fn[0] = norm
+				fnD[0+k*3] = norm
 			case Second:
-				fn[1] = norm
+				fnD[1+k*3] = norm
 			case Third:
-				fn[2] = norm
+				fnD[2+k*3] = norm
 			}
 		}
 	}
@@ -189,10 +191,13 @@ func (dfr *DFR2D) ProjectFluxOntoRTSpace(Fx, Fy utils.Matrix) (Fxp, Fyp utils.Ma
 		)
 		for n := 0; n < Np; n++ {
 			ind := n + k*Np
-			fxT := Jdet * (Jinv[0]*fxD[n] + Jinv[1]*fyD[n])
-			fyT := Jdet * (Jinv[2]*fxD[n] + Jinv[3]*fyD[n])
+			fxT := Jdet * (Jinv[0]*fxD[n] + Jinv[2]*fyD[n])
+			fyT := Jdet * (Jinv[1]*fxD[n] + Jinv[3]*fyD[n])
 			fNorm := math.Sqrt(fxT*fxT + fyT*fyT)
+			ff := fNorm
 			switch rt.GetTermType(n) {
+			case All:
+				panic("bad input")
 			case InteriorR:
 				// Unit vector is [1,0]
 				fxpD[ind] = fxT
@@ -201,16 +206,16 @@ func (dfr *DFR2D) ProjectFluxOntoRTSpace(Fx, Fy utils.Matrix) (Fxp, Fyp utils.Ma
 				fypD[ind] = fyT
 			case Edge1:
 				// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
-				ff := edgeNorms[0] * fNorm
+				ff = edgeNorms[0] * fNorm
 				fxpD[ind] = oosr2 * ff
 				fypD[ind] = fxpD[ind]
 			case Edge2:
 				// Edge2: Unit vector is [-1,0]
-				ff := edgeNorms[1] * fNorm
+				ff = edgeNorms[1] * fNorm
 				fxpD[ind] = -ff
 			case Edge3:
 				// Edge3: // Unit vector is [0,-1]
-				ff := edgeNorms[2] * fNorm
+				ff = edgeNorms[2] * fNorm
 				fypD[ind] = -ff
 			}
 		}

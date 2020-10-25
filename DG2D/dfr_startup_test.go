@@ -187,7 +187,7 @@ func TestDFR2D(t *testing.T) {
 			return
 		}
 		if true { // Check Divergence for polynomial vector fields of order < N against analytical solution
-			N := 2
+			N := 3
 			dfr := NewDFR2D(N, "test_tris_5.neu")
 			rt := dfr.FluxElement
 			Dr := rt.Dr[0]
@@ -204,7 +204,11 @@ func TestDFR2D(t *testing.T) {
 						Fxpk, Fypk = Fxp.Row(k).ToMatrix(), Fyp.Row(k).ToMatrix()
 						Jdet       = dfr.Jdet.Row(k).Data()[0]
 					)
+					fmt.Printf("Jdet[%d]=%v\n", k, Jdet)
+					fmt.Printf("%s\n", Fxpk.Transpose().Print("Fxpk"))
+					fmt.Printf("%s\n", Fypk.Transpose().Print("Fypk"))
 					div := Dr.Mul(Fxpk).Add(Ds.Mul(Fypk)).Scale(1. / Jdet)
+					//div := Dr.Mul(Fxpk).Add(Ds.Mul(Fypk)).Scale(1. / Jdet)
 					minErr, maxErr := errorCheck(dfr, k, div, divCheck)
 					//assert.True(t, near(minErr, 0.0, 0.00001))
 					//assert.True(t, near(maxErr, 0.0, 0.00001))
