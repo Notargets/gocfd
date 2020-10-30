@@ -114,19 +114,19 @@ func TestDFR2D(t *testing.T) {
 
 		// Test Piola transform and jacobian
 		for en, e := range dfr.Tris.Edges {
-			for ii, triNum := range e.ConnectedTris {
-				x1, x2 := dfr.Tris.GetEdgeCoordinates(en, e, triNum, dfr.VX, dfr.VY)
+			for ii, k := range e.ConnectedTris {
+				x1, x2 := dfr.Tris.GetEdgeCoordinates(en, e, k, dfr.VX, dfr.VY)
 				switch e.ConnectedTriEdgeNumber[ii] {
 				case Third:
 					dx, dy := x2[0]-x1[0], x2[1]-x1[1]
 					nx, ny := -dy, dx
 					normal := [2]float64{nx, ny}
-					J := dfr.J.Row(int(triNum)).Data()[0:4]
-					Jdet := dfr.Jdet.Row(int(triNum)).Data()[0]
+					J := dfr.J.Row(int(k)).Data()[0:4]
+					Jdet := dfr.Jdet.Row(int(k)).Data()[0]
 					nxT := dfr.PiolaTransform(J, Jdet, normal)
-					Jinv := dfr.Jinv.Row(int(triNum)).Data()[0:4]
+					Jinv := dfr.Jinv.Row(int(k)).Data()[0:4]
 					nxTT := dfr.PiolaTransform(Jinv, 1./Jdet, nxT)
-					switch triNum {
+					switch k {
 					case 0:
 						assert.Equal(t, [2]float64{1., -.5}, normal)
 						assert.Equal(t, [2]float64{2, 0}, nxT)
@@ -163,6 +163,7 @@ func TestDFR2D(t *testing.T) {
 			fmt.Printf("Min, Max Err = %8.5f, %8.5f\n", min, max)
 			return
 		}
+		_ = errorCheck
 		checkSolution := func(dfr *DFR2D, Order int) (Fx, Fy, divCheck utils.Matrix) {
 			var (
 				rt  = dfr.FluxElement
@@ -179,46 +180,31 @@ func TestDFR2D(t *testing.T) {
 					dcD      = divCheck.Data()
 				)
 				for n := 0; n < Np; n++ {
+					ind := n + k*Np
 					x, y := xD[n], yD[n]
-					fxD[n+k*Np], fyD[n+k*Np] = utils.POW(x, Order), utils.POW(y, Order)
-					dcD[n+k*Np] = ccf * (utils.POW(x, Order-1) + utils.POW(y, Order-1))
+					fxD[ind], fyD[ind] = utils.POW(x, Order), utils.POW(y, Order)
+					dcD[ind] = ccf * (utils.POW(x, Order-1) + utils.POW(y, Order-1))
 				}
 			}
 			return
 		}
-		if false { // Check Divergence for polynomial vector fields of order < N against analytical solution
-			N := 3
+		if true { // Check Divergence for polynomial vector fields of order < N against analytical solution
+			N := 7
 			dfr := NewDFR2D(N, "test_tris_5.neu")
 			rt := dfr.FluxElement
 			for cOrder := 1; cOrder <= N; cOrder++ {
 				fmt.Printf("Check Order = %d, \n", cOrder)
 				Fx, Fy, divCheck := checkSolution(dfr, cOrder)
-				Fxp, Fyp := dfr.ProjectFluxOntoRTSpace(Fx, Fy)
-				var (
-					K = dfr.K
-				)
-				for k := 0; k < K; k++ {
+				Fp := dfr.ProjectFluxOntoRTSpace(Fx, Fy)
+				for k := 0; k < dfr.K; k++ {
 					var (
-						Fxpk, Fypk = Fxp.Row(k).ToMatrix(), Fyp.Row(k).ToMatrix()
-						Jdet       = dfr.Jdet.Row(k).Data()[0]
+						Fpk  = Fp.Row(k).ToMatrix()
+						Jdet = dfr.Jdet.Row(k).Data()[0]
 					)
-					//fmt.Printf("Jdet[%d]=%v\n", k, Jdet)
-					//fmt.Printf("%s\n", Fxpk.Transpose().Print("Fxpk"))
-					//fmt.Printf("%s\n", Fypk.Transpose().Print("Fypk"))
-					// TODO: Project flux onto basis before multiplying with rt.Div
-					/*
-							div := rt.Div.Mul(Fxpk).Add(Ds.Mul(Fypk)).Scale(1. / Jdet)
-							var divTotal float64
-							for _, divVal := range div.Data() {
-								divTotal += divVal
-							}
-						fmt.Printf("divTotal[%d] = %8.5f\n", k, divTotal)
-						//div := Dr.Mul(Fxpk).Add(Ds.Mul(Fypk)).Scale(1. / Jdet)
-						minErr, maxErr := errorCheck(dfr, k, div, divCheck)
-						//assert.True(t, near(minErr, 0.0, 0.00001))
-						//assert.True(t, near(maxErr, 0.0, 0.00001))
-					*/
-					_, _, _, _, _, _ = errorCheck, divCheck, rt, Fxpk, Fypk, Jdet
+					divM := rt.Div.Mul(Fpk).Scale(1. / Jdet)
+					//fmt.Println(divM.Transpose().Print("divM"))
+					//fmt.Println(divCheck.Row(k).Transpose().Print("divCheck"))
+					assert.True(t, nearVec(divCheck.Row(k).Data(), divM.Data(), 0.00001))
 				}
 			}
 		}

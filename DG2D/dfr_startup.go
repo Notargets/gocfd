@@ -173,59 +173,55 @@ func (dfr *DFR2D) PiolaTransform(J []float64, Jdet float64, f [2]float64) (fT [2
 	return
 }
 
-func (dfr *DFR2D) ProjectFluxOntoRTSpace(Fx, Fy utils.Matrix) (Fxp, Fyp utils.Matrix) {
+func (dfr *DFR2D) ProjectFluxOntoRTSpace(Fx, Fy utils.Matrix) (Fp utils.Matrix) {
 	var (
-		Np    = dfr.FluxElement.Np
-		K     = dfr.K
-		rt    = dfr.FluxElement
-		oosr2 = 1 / math.Sqrt(2)
+		Np = dfr.FluxElement.Np
+		K  = dfr.K
+		rt = dfr.FluxElement
 	)
-	Fxp, Fyp = utils.NewMatrix(K, Np), utils.NewMatrix(K, Np)
+	Fp = utils.NewMatrix(K, Np)
 	for k := 0; k < K; k++ {
 		var (
-			edgeNorm1, edgeNorm2 = dfr.FaceNorm[0].Row(k).Data()[0:3], dfr.FaceNorm[1].Row(k).Data()[0:3]
-			Jdet                 = dfr.Jdet.Row(k).Data()[0]
-			Jinv                 = dfr.Jinv.Row(k).Data()[0:4]
-			fxD, fyD             = Fx.Row(k).Data()[0:Np], Fy.Row(k).Data()[0:Np]
-			fxpD, fypD           = Fxp.Data(), Fyp.Data()
+			//edgeNorm1, edgeNorm2 = dfr.FaceNorm[0].Row(k).Data()[0:3], dfr.FaceNorm[1].Row(k).Data()[0:3]
+			Jdet     = dfr.Jdet.Row(k).Data()[0]
+			Jinv     = dfr.Jinv.Row(k).Data()[0:4]
+			fxD, fyD = Fx.Data(), Fy.Data()
+			fpD      = Fp.Data()
 		)
-		getEdgeQuants := func(fxT, fyT float64, edgeNum int) (fdot, edgeNormMag float64) {
-			en1, en2 := edgeNorm1[edgeNum], edgeNorm2[edgeNum]
-			fdot = fxT*en1 + fyT*en2
-			fmt.Printf("edge norm[%d] = [%8.5f,%8.5f], fdot[%8.5f,%8.5f] = %8.5f\n", edgeNum, en1, en2, fxT, fyT, fdot)
-			edgeNormMag = math.Sqrt(en1*en1 + en2*en2)
-			return
-		}
+		/*
+			getEdgeQuants := func(fxT, fyT float64, edgeNum int) (fdot, edgeNormMag float64) {
+				en1, en2 := edgeNorm1[edgeNum], edgeNorm2[edgeNum]
+				//fmt.Printf("edge norm[%d] = [%8.5f,%8.5f], fdot[%8.5f,%8.5f] = %8.5f\n", edgeNum, en1, en2, fxT, fyT, fdot)
+				edgeNormMag = math.Sqrt(en1*en1 + en2*en2)
+				fdot = (fxT*en1 + fyT*en2) / edgeNormMag
+				return
+			}
+			_ = getEdgeQuants
+		*/
 		for n := 0; n < Np; n++ {
 			ind := n + k*Np
-			fxT := Jdet * (Jinv[0]*fxD[n] + Jinv[1]*fyD[n])
-			fyT := Jdet * (Jinv[2]*fxD[n] + Jinv[3]*fyD[n])
+			fT := [2]float64{Jdet * (Jinv[0]*fxD[ind] + Jinv[2]*fyD[ind]), Jdet * (Jinv[1]*fxD[ind] + Jinv[3]*fyD[ind])}
+			oosr2 := 1 / math.Sqrt(2)
 			switch rt.GetTermType(n) {
 			case All:
 				panic("bad input")
 			case InteriorR:
 				// Unit vector is [1,0]
-				fxpD[ind] = fxT
+				fpD[ind] = fT[0]
 			case InteriorS:
 				// Unit vector is [0,1]
-				fypD[ind] = fyT
+				fpD[ind] = fT[1]
 			case Edge1:
-				// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
-				fdot, edgeNormMag := getEdgeQuants(fxT, fyT, 0)
-				//edgeNormMag = 1
-				//fxpD[ind] = oosr2 * fdot * edgeNormMag
-				fxpD[ind] = oosr2 * fdot * edgeNormMag
-				fypD[ind] = fxpD[ind]
+				// Edge1:
+				fpD[ind] = oosr2 * (fT[0] + fT[1])
 			case Edge2:
-				// Edge2: Unit vector is [-1,0]
-				fdot, edgeNormMag := getEdgeQuants(fxT, fyT, 1)
-				//edgeNormMag = 1
-				fxpD[ind] = -fdot * edgeNormMag
+				// Edge2:
+				//fpD[ind] = fdot2 * edgeNormMag2
+				fpD[ind] = -fT[0]
 			case Edge3:
-				// Edge3: // Unit vector is [0,-1]
-				fdot, edgeNormMag := getEdgeQuants(fxT, fyT, 2)
-				//edgeNormMag = 1
-				fypD[ind] = -fdot * edgeNormMag
+				// Edge3:
+				//fpD[ind] = fdot3 * edgeNormMag3
+				fpD[ind] = -fT[1]
 			}
 		}
 	}
