@@ -9,14 +9,13 @@ import (
 )
 
 type RTElement struct {
-	N              int             // Order of element
-	Np             int             // Number of points in element
-	Nedge, Nint    int             // Number of Edge and Interior points
-	A              utils.Matrix    // Polynomial coefficient matrix
-	V              [2]utils.Matrix // Vandermonde matrix for each direction r and s, [2]xNpxNp
-	Dr0, Ds1       utils.Matrix    // Derivative matrices in r and s directions, [2]xNpxNp
-	Dr0Int, Ds1Int utils.Matrix    // Divergence of basis, restricted to internal points only
-	R, S           utils.Vector    // Point locations defining element in [-1,1] Triangle, NpxNp
+	N           int             // Order of element
+	Np          int             // Number of points in element
+	Nedge, Nint int             // Number of Edge and Interior points
+	A           utils.Matrix    // Polynomial coefficient matrix
+	V           [2]utils.Matrix // Vandermonde matrix for each direction r and s, [2]xNpxNp
+	Div         utils.Matrix    // Derivative matrices in r and s directions, [2]xNpxNp
+	R, S        utils.Vector    // Point locations defining element in [-1,1] Triangle, NpxNp
 }
 
 type RTPointType uint
@@ -55,83 +54,29 @@ func NewRTElement(N int, R, S utils.Vector) (rt *RTElement) {
 	return
 }
 
-func (rt *RTElement) ProjectFunctionOntoBasis2(s1, s2 []float64) (s1p, s2p []float64) {
-	var (
-		Np    = len(s1)
-		Nint  = rt.Nint
-		Nedge = rt.Nedge
-	)
-	s1p, s2p = make([]float64, Np), make([]float64, Np)
-
-	oosr2 := 1 / math.Sqrt(2)
-	for i := 0; i < Nint; i++ {
-		s1p[i] = s1[i]
-		s2p[i] = s2[i]
-	}
-	for i := 0; i < Nedge; i++ {
-		// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
-		s1p[i+Nint] = oosr2 * s1[i]
-		s2p[i+Nint] = oosr2 * s2[i]
-		// Edge2: Unit vector is [-1,0]
-		s1p[i+Nint+Nedge] = -s1[i+Nint+Nedge]
-		s2p[i+Nint+Nedge] = 0
-		// Edge3: // Unit vector is [0,-1]
-		s1p[i+Nint+2*Nedge] = 0
-		s2p[i+Nint+2*Nedge] = -s2[i+Nint+2*Nedge]
-	}
-	return
-}
-
-func (rt *RTElement) ProjectFunctionOntoBasis(s1, s2 []float64) (s1p, s2p []float64) {
+func (rt *RTElement) ProjectFunctionOntoBasis(s1, s2 []float64) (sp []float64) {
 	var (
 		Np = len(s1)
 	)
-	s1p, s2p = make([]float64, Np), make([]float64, Np)
-
+	sp = make([]float64, Np)
 	oosr2 := 1 / math.Sqrt(2)
 	for i := range s1 {
 		switch rt.GetTermType(i) {
 		case InteriorR:
 			// Unit vector is [1,0]
-			s1p[i] = s1[i]
+			sp[i] = s1[i]
 		case InteriorS:
 			// Unit vector is [0,1]
-			s2p[i] = s2[i]
+			sp[i] = s2[i]
 		case Edge1:
 			// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
-			s1p[i] = s1[i] * oosr2
-			s2p[i] = s2[i] * oosr2
+			sp[i] = (s1[i] + s2[i]) * oosr2
 		case Edge2:
 			// Edge2: Unit vector is [-1,0]
-			s1p[i] = -s1[i]
+			sp[i] = -s1[i]
 		case Edge3:
 			// Edge3: // Unit vector is [0,-1]
-			s2p[i] = -s2[i]
-		}
-	}
-	return
-}
-
-func (rt *RTElement) ExtractFunctionFromBasis(s1p, s2p []float64) (s1, s2 []float64) {
-	var (
-		Np   = len(s1p)
-		Nint = rt.Nint
-	)
-	s1, s2 = make([]float64, Np), make([]float64, Np)
-
-	for i := range s1 {
-		switch rt.GetTermType(i) {
-		case InteriorR:
-			// Unit vector is [1,0]
-			s1[i] = s1p[i]
-			s2[i] = s2p[i+Nint]
-		case InteriorS:
-			// Unit vector is [0,1]
-			s1[i] = s1p[i-Nint]
-			s2[i] = s2p[i]
-		case Edge1, Edge2, Edge3:
-			s1[i] = s1p[i]
-			s2[i] = s2p[i]
+			sp[i] = -s2[i]
 		}
 	}
 	return
@@ -294,8 +239,7 @@ func (rt *RTElement) CalculateBasis() {
 	// Construct the Vandermonde matrices for each direction by multiplying coefficients of constrained basis
 	rt.V[0] = P0.Mul(rt.A)
 	rt.V[1] = P1.Mul(rt.A)
-	rt.Dr0 = Pdr0.Mul(rt.A)
-	rt.Ds1 = Pds1.Mul(rt.A)
+	rt.Div = Pdr0.Mul(rt.A).Add(Pds1.Mul(rt.A))
 	rt.Np = Np
 	return
 }

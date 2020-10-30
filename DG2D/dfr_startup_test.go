@@ -190,8 +190,6 @@ func TestDFR2D(t *testing.T) {
 			N := 3
 			dfr := NewDFR2D(N, "test_tris_5.neu")
 			rt := dfr.FluxElement
-			Dr := rt.Dr0
-			Ds := rt.Ds1
 			for cOrder := 1; cOrder <= N; cOrder++ {
 				fmt.Printf("Check Order = %d, \n", cOrder)
 				Fx, Fy, divCheck := checkSolution(dfr, cOrder)
@@ -207,17 +205,20 @@ func TestDFR2D(t *testing.T) {
 					//fmt.Printf("Jdet[%d]=%v\n", k, Jdet)
 					//fmt.Printf("%s\n", Fxpk.Transpose().Print("Fxpk"))
 					//fmt.Printf("%s\n", Fypk.Transpose().Print("Fypk"))
-					div := Dr.Mul(Fxpk).Add(Ds.Mul(Fypk)).Scale(1. / Jdet)
-					var divTotal float64
-					for _, divVal := range div.Data() {
-						divTotal += divVal
-					}
-					fmt.Printf("divTotal[%d] = %8.5f\n", k, divTotal)
-					//div := Dr.Mul(Fxpk).Add(Ds.Mul(Fypk)).Scale(1. / Jdet)
-					minErr, maxErr := errorCheck(dfr, k, div, divCheck)
-					//assert.True(t, near(minErr, 0.0, 0.00001))
-					//assert.True(t, near(maxErr, 0.0, 0.00001))
-					_, _, _, _, _ = div, errorCheck, divCheck, minErr, maxErr
+					// TODO: Project flux onto basis before multiplying with rt.Div
+					/*
+							div := rt.Div.Mul(Fxpk).Add(Ds.Mul(Fypk)).Scale(1. / Jdet)
+							var divTotal float64
+							for _, divVal := range div.Data() {
+								divTotal += divVal
+							}
+						fmt.Printf("divTotal[%d] = %8.5f\n", k, divTotal)
+						//div := Dr.Mul(Fxpk).Add(Ds.Mul(Fypk)).Scale(1. / Jdet)
+						minErr, maxErr := errorCheck(dfr, k, div, divCheck)
+						//assert.True(t, near(minErr, 0.0, 0.00001))
+						//assert.True(t, near(maxErr, 0.0, 0.00001))
+					*/
+					_, _, _, _, _, _ = errorCheck, divCheck, rt, Fxpk, Fypk, Jdet
 				}
 			}
 		}

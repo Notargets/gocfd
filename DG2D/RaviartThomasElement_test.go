@@ -93,24 +93,21 @@ func TestRTElement(t *testing.T) {
 		rt := NewRTElement(N, R, S)
 		fmt.Println(rt.V[0].Print("V0"))
 		fmt.Println(rt.V[1].Print("V1"))
-		fmt.Println(rt.Dr0.Print("Dr0"))
-		fmt.Println(rt.Ds1.Print("Ds1"))
+		fmt.Println(rt.Div.Print("Div"))
 	}
-	if false { // Check Divergence for polynomial vector fields of order < N against analytical solution
+	if true { // Check Divergence for polynomial vector fields of order < N against analytical solution
 		Nend := 8
 		for N := 1; N < Nend; N++ {
 			R, S := NodesEpsilon(N - 1)
 			rt := NewRTElement(N, R, S)
-			Dr := rt.Dr0
-			Ds := rt.Ds1
 			for cOrder := 0; cOrder <= N; cOrder++ {
 				fmt.Printf("Check Order = %d, ", cOrder)
 				s1, s2, divCheck := checkSolution(rt, cOrder)
-				s1p, s2p := rt.ProjectFunctionOntoBasis(s1, s2)
-				s1m, s2m := utils.NewMatrix(rt.Np, 1, s1p), utils.NewMatrix(rt.Np, 1, s2p)
-				div := Dr.Mul(s1m).Add(Ds.Mul(s2m)).Data()
-				//div := rt.Divergence(s1, s2)
-				minerrInt, maxerrInt, minerrEdge, maxerrEdge := errorCheck(N, div, divCheck)
+				sp := rt.ProjectFunctionOntoBasis(s1, s2)
+				sm := utils.NewMatrix(rt.Np, 1, sp)
+				divM := rt.Div.Mul(sm)
+				//fmt.Println(divM.Print("divM"))
+				minerrInt, maxerrInt, minerrEdge, maxerrEdge := errorCheck(N, divM.Data(), divCheck)
 				assert.True(t, near(minerrInt, 0.0, 0.00001))
 				assert.True(t, near(maxerrInt, 0.0, 0.00001))
 				assert.True(t, near(minerrEdge, 0.0, 0.00001))
@@ -134,8 +131,6 @@ func TestRTElement(t *testing.T) {
 			s1[i] = 1
 			s2[i] = 1
 		}
-		s1, s2 = rt.ProjectFunctionOntoBasis(s1, s2)
-
 		if plot {
 			chart := PlotTestTri(true)
 			points := utils.ArraysToPoints(rt.R.Data(), rt.S.Data())
