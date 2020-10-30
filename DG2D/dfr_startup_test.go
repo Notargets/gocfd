@@ -125,11 +125,11 @@ func TestDFR2D(t *testing.T) {
 					dx, dy := x2[0]-x1[0], x2[1]-x1[1]
 					normal := [2]float64{-dy, dx}
 					J := dfr.J.Row(int(k)).Data()[0:4]
-					J = transpose(J) // TODO: Why the transpose here?
+					J = transpose(J) // Transpose is applied to normals, which are cross products of vectors
 					Jdet := dfr.Jdet.Row(int(k)).Data()[0]
 					nxT := dfr.PiolaTransform(J, Jdet, normal)
 					Jinv := dfr.Jinv.Row(int(k)).Data()[0:4]
-					Jinv = transpose(Jinv) // TODO: Why the transpose here?
+					Jinv = transpose(Jinv) // Transpose is applied to normals, which are cross products of vectors
 					nxTT := dfr.PiolaTransform(Jinv, 1./Jdet, nxT)
 					// TODO: What should the transformed normals be? I think they should both be {-1,0} for face 2
 					switch k {
