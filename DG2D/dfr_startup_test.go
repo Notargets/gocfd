@@ -193,7 +193,7 @@ func TestDFR2D(t *testing.T) {
 			Dr := rt.Dr[0]
 			Ds := rt.Ds[1]
 			for cOrder := 1; cOrder <= N; cOrder++ {
-				fmt.Printf("Check Order = %d, ", cOrder)
+				fmt.Printf("Check Order = %d, \n", cOrder)
 				Fx, Fy, divCheck := checkSolution(dfr, cOrder)
 				Fxp, Fyp := dfr.ProjectFluxOntoRTSpace(Fx, Fy)
 				var (
@@ -204,10 +204,15 @@ func TestDFR2D(t *testing.T) {
 						Fxpk, Fypk = Fxp.Row(k).ToMatrix(), Fyp.Row(k).ToMatrix()
 						Jdet       = dfr.Jdet.Row(k).Data()[0]
 					)
-					fmt.Printf("Jdet[%d]=%v\n", k, Jdet)
-					fmt.Printf("%s\n", Fxpk.Transpose().Print("Fxpk"))
-					fmt.Printf("%s\n", Fypk.Transpose().Print("Fypk"))
+					//fmt.Printf("Jdet[%d]=%v\n", k, Jdet)
+					//fmt.Printf("%s\n", Fxpk.Transpose().Print("Fxpk"))
+					//fmt.Printf("%s\n", Fypk.Transpose().Print("Fypk"))
 					div := Dr.Mul(Fxpk).Add(Ds.Mul(Fypk)).Scale(1. / Jdet)
+					var divTotal float64
+					for _, divVal := range div.Data() {
+						divTotal += divVal
+					}
+					fmt.Printf("divTotal[%d] = %8.5f\n", k, divTotal)
 					//div := Dr.Mul(Fxpk).Add(Ds.Mul(Fypk)).Scale(1. / Jdet)
 					minErr, maxErr := errorCheck(dfr, k, div, divCheck)
 					//assert.True(t, near(minErr, 0.0, 0.00001))

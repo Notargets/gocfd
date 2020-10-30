@@ -12,7 +12,7 @@ type RTElement struct {
 	N              int             // Order of element
 	Np             int             // Number of points in element
 	Nedge, Nint    int             // Number of Edge and Interior points
-	Ainv           utils.Matrix    // Polynomial coefficient matrix
+	A, Ainv        utils.Matrix    // Polynomial coefficient matrix
 	V              [2]utils.Matrix // Vandermonde matrix for each direction r and s, [2]xNpxNp
 	Dr, Ds         [2]utils.Matrix // Derivative matrices in r and s directions, [2]xNpxNp
 	Dr0Int, Ds1Int utils.Matrix    // Divergence of basis, restricted to internal points only
@@ -226,7 +226,7 @@ func (rt *RTElement) CalculateBasis() {
 		N      = rt.N
 		R, S   = rt.R, rt.S
 		Np     = (N + 1) * (N + 3)
-		A      utils.Matrix
+		P      utils.Matrix
 		p1, p2 []float64
 	)
 	// Add the edge and additional interior (duplicated) points to complete the RT geometry2D
@@ -234,7 +234,7 @@ func (rt *RTElement) CalculateBasis() {
 	/*
 		Form the basis matrix by forming a dot product with unit vectors, matching the coordinate locations in R,S
 	*/
-	A = utils.NewMatrix(Np, Np)
+	P = utils.NewMatrix(Np, Np)
 	rowEdge := make([]float64, Np)
 	oosr2 := 1 / math.Sqrt(2)
 
@@ -245,40 +245,40 @@ func (rt *RTElement) CalculateBasis() {
 			First, evaluate the polynomial at the (r,s) coordinates
 			This is the same set that will be used for all dot products to form the basis matrix
 		*/
-		p1, p2 = rt.EvaluateRTBasis(rr, ss)
+		p1, p2 = rt.EvaluateRTBasis(rr, ss) // each of p1,p2 stores the polynomial terms for the R and S directions
 		// Implement dot product of (unit vector)_ii with each vector term in the polynomial evaluated at location ii
 		switch rt.GetTermType(ii) {
 		case InteriorR:
 			// Unit vector is [1,0]
-			A.M.SetRow(ii, p1)
+			P.M.SetRow(ii, p1)
 		case InteriorS:
 			// Unit vector is [0,1]
-			A.M.SetRow(ii, p2)
+			P.M.SetRow(ii, p2)
 		case Edge1:
 			for i := range rowEdge {
 				// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
 				rowEdge[i] = oosr2 * (p1[i] + p2[i])
 			}
-			A.M.SetRow(ii, rowEdge)
+			P.M.SetRow(ii, rowEdge)
 		case Edge2:
 			for i := range rowEdge {
 				// Edge2: Unit vector is [-1,0]
 				rowEdge[i] = -p1[i]
 			}
-			A.M.SetRow(ii, rowEdge)
+			P.M.SetRow(ii, rowEdge)
 		case Edge3:
 			for i := range rowEdge {
 				// Edge3: // Unit vector is [0,-1]
 				rowEdge[i] = -p2[i]
 			}
-			A.M.SetRow(ii, rowEdge)
+			P.M.SetRow(ii, rowEdge)
 		}
 	}
-	// Invert [ Ainv ] to obtain the coefficients (columns) of polynomials (rows), each row is a polynomial
-	var Ainv utils.Matrix
-	if Ainv, err = A.Inverse(); err != nil {
+	// Invert [P] = [A] to obtain the coefficients (columns) of polynomials (rows), each row is a polynomial
+	if rt.A, err = P.Inverse(); err != nil {
 		panic(err)
 	}
+	A := rt.A
 	/*
 		Process the coefficient matrix to produce each direction of each polynomial (V1 and V2)
 	*/
@@ -288,7 +288,7 @@ func (rt *RTElement) CalculateBasis() {
 		/*
 			First, we extract the coefficients for each direction in this j-th polynomial
 		*/
-		coeffs := Ainv.Col(j).Data() // All coefficients of the j-th polynomial terms
+		coeffs := A.Col(j).Data() // All coefficients of the j-th polynomial terms
 		p1, p2 := make([]float64, Np), make([]float64, Np)
 		p := make([]float64, Np)
 		NGroup1 := (N+1)*N/2 + (N + 1) // The first set of polynomial terms
