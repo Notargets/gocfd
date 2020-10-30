@@ -66,16 +66,21 @@ func (dfr *DFR2D) CalculateJacobian() {
 		v1y, v2y, v3y := dfr.VY.AtVec(v[0]), dfr.VY.AtVec(v[1]), dfr.VY.AtVec(v[2])
 		xr, yr := 0.5*(v2x-v1x), 0.5*(v2y-v1y)
 		xs, ys := 0.5*(v3x-v1x), 0.5*(v3y-v1y)
-		// Jacobian is [xr, yr]
-		//             [xs, ys]
+		// Jacobian is [xr, xs]
+		//             [yr, ys]
 		jd := Jd[k*4:]
-		//jd[0], jd[1], jd[2], jd[3] = xr, xs, yr, ys
-		jd[0], jd[1], jd[2], jd[3] = xr, yr, xs, ys
+		jd[0], jd[1], jd[2], jd[3] = xr, xs, yr, ys
 		Jdetd[k] = xr*ys - xs*yr
 		oodet := 1. / Jdetd[k]
 		jdInv := JdInv[k*4:]
-		//jdInv[0], jdInv[1], jdInv[2], jdInv[3] = oodet*ys, -oodet*xs, -oodet*yr, oodet*xr
-		jdInv[0], jdInv[1], jdInv[2], jdInv[3] = oodet*ys, -oodet*yr, -oodet*xs, oodet*xr
+		// Inverse Jacobian is:
+		// (1/(xr*ys-xs*yr)) *
+		//             [ ys,-xs]
+		//             [-yr, xr]
+		jdInv[0], jdInv[1], jdInv[2], jdInv[3] = ys, -xs, -yr, xr
+		for i := 0; i < 4; i++ {
+			jdInv[i] *= oodet
+		}
 	}
 	dfr.J, dfr.Jinv = utils.NewMatrix(dfr.K, 4, Jd), utils.NewMatrix(dfr.K, 4, JdInv)
 	dfr.Jdet = utils.NewMatrix(dfr.K, 1, Jdetd)
@@ -168,7 +173,6 @@ func (dfr *DFR2D) CalculateFaceNorms() {
 
 func (dfr *DFR2D) PiolaTransform(J []float64, Jdet float64, f [2]float64) (fT [2]float64) {
 	ooJdet := 1. / Jdet
-	//fT[0], fT[1] = ooJdet*(J[0]*f[0]+J[2]*f[1]), ooJdet*(J[1]*f[0]+J[3]*f[1])
 	fT[0], fT[1] = ooJdet*(J[0]*f[0]+J[1]*f[1]), ooJdet*(J[2]*f[0]+J[3]*f[1])
 	return
 }
@@ -182,25 +186,14 @@ func (dfr *DFR2D) ProjectFluxOntoRTSpace(Fx, Fy utils.Matrix) (Fp utils.Matrix) 
 	Fp = utils.NewMatrix(K, Np)
 	for k := 0; k < K; k++ {
 		var (
-			//edgeNorm1, edgeNorm2 = dfr.FaceNorm[0].Row(k).Data()[0:3], dfr.FaceNorm[1].Row(k).Data()[0:3]
 			Jdet     = dfr.Jdet.Row(k).Data()[0]
 			Jinv     = dfr.Jinv.Row(k).Data()[0:4]
 			fxD, fyD = Fx.Data(), Fy.Data()
 			fpD      = Fp.Data()
 		)
-		/*
-			getEdgeQuants := func(fxT, fyT float64, edgeNum int) (fdot, edgeNormMag float64) {
-				en1, en2 := edgeNorm1[edgeNum], edgeNorm2[edgeNum]
-				//fmt.Printf("edge norm[%d] = [%8.5f,%8.5f], fdot[%8.5f,%8.5f] = %8.5f\n", edgeNum, en1, en2, fxT, fyT, fdot)
-				edgeNormMag = math.Sqrt(en1*en1 + en2*en2)
-				fdot = (fxT*en1 + fyT*en2) / edgeNormMag
-				return
-			}
-			_ = getEdgeQuants
-		*/
 		for n := 0; n < Np; n++ {
 			ind := n + k*Np
-			fT := [2]float64{Jdet * (Jinv[0]*fxD[ind] + Jinv[2]*fyD[ind]), Jdet * (Jinv[1]*fxD[ind] + Jinv[3]*fyD[ind])}
+			fT := [2]float64{Jdet * (Jinv[0]*fxD[ind] + Jinv[1]*fyD[ind]), Jdet * (Jinv[2]*fxD[ind] + Jinv[3]*fyD[ind])}
 			oosr2 := 1 / math.Sqrt(2)
 			switch rt.GetTermType(n) {
 			case All:

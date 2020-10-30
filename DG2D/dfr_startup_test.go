@@ -115,17 +115,23 @@ func TestDFR2D(t *testing.T) {
 		// Test Piola transform and jacobian
 		for en, e := range dfr.Tris.Edges {
 			for ii, k := range e.ConnectedTris {
+				transpose := func(J []float64) (JT []float64) {
+					JT = []float64{J[0], J[2], J[1], J[3]}
+					return
+				}
 				x1, x2 := dfr.Tris.GetEdgeCoordinates(en, e, k, dfr.VX, dfr.VY)
 				switch e.ConnectedTriEdgeNumber[ii] {
 				case Third:
 					dx, dy := x2[0]-x1[0], x2[1]-x1[1]
-					nx, ny := -dy, dx
-					normal := [2]float64{nx, ny}
+					normal := [2]float64{-dy, dx}
 					J := dfr.J.Row(int(k)).Data()[0:4]
+					J = transpose(J) // TODO: Why the transpose here?
 					Jdet := dfr.Jdet.Row(int(k)).Data()[0]
 					nxT := dfr.PiolaTransform(J, Jdet, normal)
 					Jinv := dfr.Jinv.Row(int(k)).Data()[0:4]
+					Jinv = transpose(Jinv) // TODO: Why the transpose here?
 					nxTT := dfr.PiolaTransform(Jinv, 1./Jdet, nxT)
+					// TODO: What should the transformed normals be? I think they should both be {-1,0} for face 2
 					switch k {
 					case 0:
 						assert.Equal(t, [2]float64{1., -.5}, normal)
@@ -193,7 +199,7 @@ func TestDFR2D(t *testing.T) {
 			dfr := NewDFR2D(N, "test_tris_5.neu")
 			rt := dfr.FluxElement
 			for cOrder := 1; cOrder <= N; cOrder++ {
-				fmt.Printf("Check Order = %d, \n", cOrder)
+				//fmt.Printf("Check Order = %d, \n", cOrder)
 				Fx, Fy, divCheck := checkSolution(dfr, cOrder)
 				Fp := dfr.ProjectFluxOntoRTSpace(Fx, Fy)
 				for k := 0; k < dfr.K; k++ {
@@ -202,8 +208,6 @@ func TestDFR2D(t *testing.T) {
 						Jdet = dfr.Jdet.Row(k).Data()[0]
 					)
 					divM := rt.Div.Mul(Fpk).Scale(1. / Jdet)
-					//fmt.Println(divM.Transpose().Print("divM"))
-					//fmt.Println(divCheck.Row(k).Transpose().Print("divCheck"))
 					assert.True(t, nearVec(divCheck.Row(k).Data(), divM.Data(), 0.00001))
 				}
 			}
