@@ -12,9 +12,9 @@ type RTElement struct {
 	N              int             // Order of element
 	Np             int             // Number of points in element
 	Nedge, Nint    int             // Number of Edge and Interior points
-	A, Ainv        utils.Matrix    // Polynomial coefficient matrix
+	A              utils.Matrix    // Polynomial coefficient matrix
 	V              [2]utils.Matrix // Vandermonde matrix for each direction r and s, [2]xNpxNp
-	Dr, Ds         [2]utils.Matrix // Derivative matrices in r and s directions, [2]xNpxNp
+	Dr0, Ds1       utils.Matrix    // Derivative matrices in r and s directions, [2]xNpxNp
 	Dr0Int, Ds1Int utils.Matrix    // Divergence of basis, restricted to internal points only
 	R, S           utils.Vector    // Point locations defining element in [-1,1] Triangle, NpxNp
 }
@@ -222,12 +222,11 @@ func (rt *RTElement) CalculateBasis() {
 						Since this is a vector valued element/basis, we have a interpolation matrix for each direction.
 	*/
 	var (
-		err    error
-		N      = rt.N
-		R, S   = rt.R, rt.S
-		Np     = (N + 1) * (N + 3)
-		P      utils.Matrix
-		p1, p2 []float64
+		err  error
+		N    = rt.N
+		R, S = rt.R, rt.S
+		Np   = (N + 1) * (N + 3)
+		P    utils.Matrix
 	)
 	// Add the edge and additional interior (duplicated) points to complete the RT geometry2D
 	rt.R, rt.S = ExtendGeomToRT(N, R, S)
@@ -239,37 +238,38 @@ func (rt *RTElement) CalculateBasis() {
 	oosr2 := 1 / math.Sqrt(2)
 
 	// Evaluate at geometric locations
+	var p0, p1 []float64
 	for ii, rr := range rt.R.Data() {
 		ss := rt.S.Data()[ii]
 		/*
 			First, evaluate the polynomial at the (r,s) coordinates
 			This is the same set that will be used for all dot products to form the basis matrix
 		*/
-		p1, p2 = rt.EvaluateRTBasis(rr, ss) // each of p1,p2 stores the polynomial terms for the R and S directions
+		p0, p1 = rt.EvaluateRTBasis(rr, ss) // each of p1,p2 stores the polynomial terms for the R and S directions
 		// Implement dot product of (unit vector)_ii with each vector term in the polynomial evaluated at location ii
 		switch rt.GetTermType(ii) {
 		case InteriorR:
 			// Unit vector is [1,0]
-			P.M.SetRow(ii, p1)
+			P.M.SetRow(ii, p0)
 		case InteriorS:
 			// Unit vector is [0,1]
-			P.M.SetRow(ii, p2)
+			P.M.SetRow(ii, p1)
 		case Edge1:
 			for i := range rowEdge {
 				// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
-				rowEdge[i] = oosr2 * (p1[i] + p2[i])
+				rowEdge[i] = oosr2 * (p0[i] + p1[i])
 			}
 			P.M.SetRow(ii, rowEdge)
 		case Edge2:
 			for i := range rowEdge {
 				// Edge2: Unit vector is [-1,0]
-				rowEdge[i] = -p1[i]
+				rowEdge[i] = -p0[i]
 			}
 			P.M.SetRow(ii, rowEdge)
 		case Edge3:
 			for i := range rowEdge {
 				// Edge3: // Unit vector is [0,-1]
-				rowEdge[i] = -p2[i]
+				rowEdge[i] = -p1[i]
 			}
 			P.M.SetRow(ii, rowEdge)
 		}
@@ -278,103 +278,29 @@ func (rt *RTElement) CalculateBasis() {
 	if rt.A, err = P.Inverse(); err != nil {
 		panic(err)
 	}
-	A := rt.A
-	/*
-		Process the coefficient matrix to produce each direction of each polynomial (V1 and V2)
-	*/
-	rt.V[0], rt.V[1] = utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
-	rt.Ainv = utils.NewMatrix(Np, Np)
-	for j := 0; j < Np; j++ { // Process a column at a time, each column is a polynomial
-		/*
-			First, we extract the coefficients for each direction in this j-th polynomial
-		*/
-		coeffs := A.Col(j).Data() // All coefficients of the j-th polynomial terms
-		p1, p2 := make([]float64, Np), make([]float64, Np)
-		p := make([]float64, Np)
-		NGroup1 := (N+1)*N/2 + (N + 1) // The first set of polynomial terms
-		for i, coeff := range coeffs {
-			// one full set of polynomial coeffs twice, then a set for the last N+1 terms
-			switch {
-			case i < NGroup1:
-				p1[i] = coeff
-				p2[i] = 0
-			case i >= NGroup1 && i < 2*NGroup1:
-				p1[i] = 0
-				p2[i] = coeff
-			default:
-				p1[i] = coeff
-				p2[i] = coeff
-			}
-			p[i] = coeff
-		}
-		/*
-			Load the evaluated polynomial into the j-th column of the Coefficient matrices
-		*/
-		rt.Ainv.SetCol(j, p)
-		/*
-			Evaluate the basis at this location, then multiply each term by its polynomial coefficient
-		*/
-		px, py := make([]float64, rt.R.Len()), make([]float64, rt.R.Len())
-		for i, rr := range rt.R.Data() {
-			ss := rt.S.Data()[i]
-			b1, b2 := rt.EvaluateRTBasis(rr, ss) // All terms of the basis at this location
-			for ii := range p1 {
-				// Multiply each coefficient by its basis term to create the evaluated polynomial terms column
-				px[i] += p1[ii] * b1[ii]
-				py[i] += p2[ii] * b2[ii]
-			}
-		}
-		/*
-			Load the evaluated polynomial into the j-th column of the Vandermonde matrices
-		*/
-		rt.V[0].SetCol(j, px)
-		rt.V[1].SetCol(j, py)
+	// Evaluate 2D polynomial basis at geometric locations, also evaluate derivatives Dr and Ds for R and S
+	P0, P1 := utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
+	Pdr0, Pds1 := utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
+	for ii, rr := range rt.R.Data() {
+		ss := rt.S.Data()[ii]
+		p0, p1 = rt.EvaluateRTBasis(rr, ss) // each of p1,p2 stores the polynomial terms for the R and S directions
+		P0.M.SetRow(ii, p0)
+		P1.M.SetRow(ii, p1)
+		p0, _ = rt.EvaluateRTBasis(rr, ss, Dr) // each of p1,p2 stores the polynomial terms for the R and S directions
+		_, p1 = rt.EvaluateRTBasis(rr, ss, Ds) // each of p1,p2 stores the polynomial terms for the R and S directions
+		Pdr0.M.SetRow(ii, p0)
+		Pds1.M.SetRow(ii, p1)
 	}
-	// Create derivative matrices, Dr and Ds
-	rt.Dr[0], rt.Dr[1] = utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
-	rt.Ds[0], rt.Ds[1] = utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
-	for i := 0; i < Np; i++ { // Each geometric location
-		rr, ss := rt.R.Data()[i], rt.S.Data()[i]
-		for j := 0; j < Np; j++ { // Each polynomial
-			p1r, p2r := rt.EvaluatePolynomial(j, rr, ss, Dr)
-			rt.Dr[0].Set(i, j, p1r)
-			rt.Dr[1].Set(i, j, p2r)
-			p1s, p2s := rt.EvaluatePolynomial(j, rr, ss, Ds)
-			rt.Ds[0].Set(i, j, p1s)
-			rt.Ds[1].Set(i, j, p2s)
-		}
-	}
-	/*
-		rt.Npm = Np
-		if rt.N != 0 {
-			rt.Npm = (N + 6) * (N + 1) / 2
-			rt.Vm[0], rt.Vm[1] = CombineBasis(rt.N, rt.V[0], rt.V[1])
-			rt.Vrm[0], rt.Vrm[1] = CombineBasis(rt.N, rt.Dr[0], rt.Dr[1])
-			rt.Vsm[0], rt.Vsm[1] = CombineBasis(rt.N, rt.Ds[1], rt.Ds[1])
-			if rt.VmInv[0], err = rt.Vm[0].Inverse(); err != nil {
-				panic(err)
-			}
-			if rt.VmInv[1], err = rt.Vm[1].Inverse(); err != nil {
-				panic(err)
-			}
-			rNew, sNew := make([]float64, rt.Npm), make([]float64, rt.Npm)
-			var ii int
-			for i := 0; i < rt.Npm; i++ {
-				if i == rt.Nint {
-					ii += rt.Nint
-				}
-				rNew[i] = rt.R.Data()[ii]
-				sNew[i] = rt.S.Data()[ii]
-				ii++
-			}
-			rt.Rm = utils.NewVector(rt.Npm, rNew)
-			rt.Sm = utils.NewVector(rt.Npm, sNew)
-		}
-	*/
+	// Construct the Vandermonde matrices for each direction by multiplying coefficients of constrained basis
+	rt.V[0] = P0.Mul(rt.A)
+	rt.V[1] = P1.Mul(rt.A)
+	rt.Dr0 = Pdr0.Mul(rt.A)
+	rt.Ds1 = Pds1.Mul(rt.A)
 	rt.Np = Np
 	return
 }
 
+/*
 func (rt *RTElement) Divergence(f1, f2 []float64) (div []float64) {
 	if len(f1) != rt.Np || len(f2) != rt.Np {
 		panic(fmt.Errorf("wrong input number of points, should be %d, is %d\n", rt.Np, len(f1)))
@@ -389,7 +315,9 @@ func (rt *RTElement) Divergence(f1, f2 []float64) (div []float64) {
 	div = divV.Data()
 	return
 }
+*/
 
+/*
 func (rt *RTElement) DivergenceInterior(f1, f2 []float64) (div []float64) {
 	if len(f1) != rt.Np || len(f2) != rt.Np {
 		panic(fmt.Errorf("wrong input number of points, should be %d, is %d\n", rt.Np, len(f1)))
@@ -415,6 +343,7 @@ func (rt *RTElement) DivergenceInterior(f1, f2 []float64) (div []float64) {
 	div = divV.Data()
 	return
 }
+*/
 
 type DerivativeDirection uint8
 
@@ -487,12 +416,15 @@ func (rt *RTElement) EvaluateRTBasis(r, s float64, derivO ...DerivativeDirection
 	return
 }
 
+/*
 func (rt *RTElement) EvaluatePolynomial(j int, r, s float64, derivO ...DerivativeDirection) (p1, p2 float64) {
-	/*
-		Get the coefficients for the j-th polynomial and compute:
-			p(r,s) = sum(coeff_i*P_i(r,s))
-		for each direction [1,2]
-	*/
+*/
+/*
+	Get the coefficients for the j-th polynomial and compute:
+		p(r,s) = sum(coeff_i*P_i(r,s))
+	for each direction [1,2]
+*/
+/*
 	var (
 		deriv = None
 	)
@@ -508,6 +440,7 @@ func (rt *RTElement) EvaluatePolynomial(j int, r, s float64, derivO ...Derivativ
 	}
 	return
 }
+*/
 
 func ExtendGeomToRT(N int, rInt, sInt utils.Vector) (r, s utils.Vector) {
 	var (

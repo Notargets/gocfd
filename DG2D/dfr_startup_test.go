@@ -186,12 +186,12 @@ func TestDFR2D(t *testing.T) {
 			}
 			return
 		}
-		if true { // Check Divergence for polynomial vector fields of order < N against analytical solution
+		if false { // Check Divergence for polynomial vector fields of order < N against analytical solution
 			N := 3
 			dfr := NewDFR2D(N, "test_tris_5.neu")
 			rt := dfr.FluxElement
-			Dr := rt.Dr[0]
-			Ds := rt.Ds[1]
+			Dr := rt.Dr0
+			Ds := rt.Ds1
 			for cOrder := 1; cOrder <= N; cOrder++ {
 				fmt.Printf("Check Order = %d, \n", cOrder)
 				Fx, Fy, divCheck := checkSolution(dfr, cOrder)

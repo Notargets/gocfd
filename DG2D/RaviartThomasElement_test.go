@@ -93,14 +93,16 @@ func TestRTElement(t *testing.T) {
 		rt := NewRTElement(N, R, S)
 		fmt.Println(rt.V[0].Print("V0"))
 		fmt.Println(rt.V[1].Print("V1"))
+		fmt.Println(rt.Dr0.Print("Dr0"))
+		fmt.Println(rt.Ds1.Print("Ds1"))
 	}
-	if true { // Check Divergence for polynomial vector fields of order < N against analytical solution
+	if false { // Check Divergence for polynomial vector fields of order < N against analytical solution
 		Nend := 8
 		for N := 1; N < Nend; N++ {
 			R, S := NodesEpsilon(N - 1)
 			rt := NewRTElement(N, R, S)
-			Dr := rt.Dr[0]
-			Ds := rt.Ds[1]
+			Dr := rt.Dr0
+			Ds := rt.Ds1
 			for cOrder := 0; cOrder <= N; cOrder++ {
 				fmt.Printf("Check Order = %d, ", cOrder)
 				s1, s2, divCheck := checkSolution(rt, cOrder)
@@ -113,10 +115,6 @@ func TestRTElement(t *testing.T) {
 				assert.True(t, near(maxerrInt, 0.0, 0.00001))
 				assert.True(t, near(minerrEdge, 0.0, 0.00001))
 				assert.True(t, near(maxerrEdge, 0.0, 0.00001))
-				// Check the restricted divergence operator for equivalence on the interior points
-				div2 := rt.DivergenceInterior(s1, s2)
-				Ninterior := N * (N + 1) / 2
-				assert.True(t, nearVec(div[0:Ninterior], div2, 0.00001))
 			}
 		}
 	}
