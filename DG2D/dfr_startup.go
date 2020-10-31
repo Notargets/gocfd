@@ -92,14 +92,14 @@ func (dfr *DFR2D) CalculateJacobian() {
 func (dfr *DFR2D) CalculateFaceNorms() {
 	dfr.FaceNorm[0], dfr.FaceNorm[1] = utils.NewMatrix(dfr.K, 3), utils.NewMatrix(dfr.K, 3)
 	for en, e := range dfr.Tris.Edges {
-		for ii, triNum := range e.ConnectedTris {
+		for connNum, triNum := range e.ConnectedTris {
 			//fn := dfr.FaceNorm.Row(int(triNum)).Data()[0:3]
 			k := int(triNum)
 			fnD1, fnD2 := dfr.FaceNorm[0].Data(), dfr.FaceNorm[1].Data()
-			x1, x2 := dfr.Tris.GetEdgeCoordinates(en, e, ii, dfr.VX, dfr.VY)
+			x1, x2 := dfr.Tris.GetEdgeCoordinates(en, bool(e.ConnectedTriDirection[connNum]), dfr.VX, dfr.VY)
 			dx, dy := x2[0]-x1[0], x2[1]-x1[1]
 			nx, ny := -dy, dx
-			switch e.ConnectedTriEdgeNumber[ii] {
+			switch e.ConnectedTriEdgeNumber[connNum] {
 			case First:
 				fnD1[0+k*3], fnD2[0+k*3] = nx, ny
 			case Second:

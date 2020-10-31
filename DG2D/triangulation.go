@@ -99,8 +99,8 @@ func (e *Edge) Print() (p string) {
 	return
 }
 
-func (tmesh *Triangulation) GetEdgeCoordinates(en EdgeNumber, e *Edge, connNum int, VX, VY utils.Vector) (x1, x2 [2]float64) {
-	ev := en.GetVertices(!bool(e.ConnectedTriDirection[connNum]))
+func (tmesh *Triangulation) GetEdgeCoordinates(en EdgeNumber, rev bool, VX, VY utils.Vector) (x1, x2 [2]float64) {
+	ev := en.GetVertices(!rev) // oriented for outward facing normals
 	x1[0], x1[1] = VX.AtVec(ev[0]), VY.AtVec(ev[0])
 	x2[0], x2[1] = VX.AtVec(ev[1]), VY.AtVec(ev[1])
 	return

@@ -153,27 +153,29 @@ func TestDFR2D(t *testing.T) {
 			assert.True(t, e.NumConnectedTris > 0)
 			for connNum := 0; connNum < int(e.NumConnectedTris); connNum++ {
 				k := e.ConnectedTris[connNum]
+				rev := bool(e.ConnectedTriDirection[connNum])
 				J := transpose(dfr.J.Row(int(k)).Data()[0:4])       // Transpose is applied to normals, which are cross products of vectors
 				Jinv := transpose(dfr.Jinv.Row(int(k)).Data()[0:4]) // Transpose is applied to normals, which are cross products of vectors
 				Jdet := math.Abs(dfr.Jdet.Row(int(k)).Data()[0])
-				x1, x2 := dfr.Tris.GetEdgeCoordinates(en, e, connNum, dfr.VX, dfr.VY)
-				dx, dy := x2[0]-x1[0], x2[1]-x1[1]
-				normal := [2]float64{-dy * 0.5, dx * 0.5} // TODO: Why the 1/2?
+				x1, x2 := dfr.Tris.GetEdgeCoordinates(en, rev, dfr.VX, dfr.VY)
+				dx := [2]float64{x2[0] - x1[0], x2[1] - x1[1]}
+				normal := [2]float64{-dx[1], dx[0]}
 				nxT := multiply(J, Jdet, normal)
-				ev := en.GetVertices(!bool(e.ConnectedTriDirection[connNum]))
-				fmt.Printf("[tri,face] = [%d,%d]: rev: %v, v[%d,%d]: normal = %v, normalT = %v\n",
-					k, e.ConnectedTriEdgeNumber[connNum],
-					e.ConnectedTriDirection[connNum],
-					ev[0], ev[1],
-					normal, nxT)
-				// TODO: What should the transformed normals be? I think it should be {-1,0} for the Third face, but the norm of the incoming?
+				/*
+					ev := en.GetVertices(!bool(e.ConnectedTriDirection[connNum]))
+					fmt.Printf("[tri,face] = [%d,%d]: rev: %v, v[%d,%d]: normal = %v, normalT = %v\n",
+						k, e.ConnectedTriEdgeNumber[connNum],
+						e.ConnectedTriDirection[connNum],
+						ev[0], ev[1],
+						normal, nxT)
+				*/
 				switch e.ConnectedTriEdgeNumber[connNum] {
 				case First:
-					assert.Equal(t, [2]float64{0, -1}, nxT)
+					assert.Equal(t, [2]float64{0, -2}, nxT)
 				case Second:
-					assert.Equal(t, [2]float64{1, 1}, nxT)
+					assert.Equal(t, [2]float64{2, 2}, nxT)
 				case Third:
-					assert.Equal(t, [2]float64{-1, 0}, nxT)
+					assert.Equal(t, [2]float64{-2, 0}, nxT)
 				}
 				nxTT := multiply(Jinv, 1./Jdet, nxT)
 				assert.True(t, near(normal[0], nxTT[0], 0.00001))
