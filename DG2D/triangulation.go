@@ -99,11 +99,8 @@ func (e *Edge) Print() (p string) {
 	return
 }
 
-func (tmesh *Triangulation) GetEdgeCoordinates(en EdgeNumber, e *Edge, triNum uint32, VX, VY utils.Vector) (x1, x2 [2]float64) {
-	ev := en.GetVertices()
-	if !e.ConnectedTriDirection[triNum] {
-		ev[0], ev[1] = ev[1], ev[0]
-	}
+func (tmesh *Triangulation) GetEdgeCoordinates(en EdgeNumber, e *Edge, connNum int, VX, VY utils.Vector) (x1, x2 [2]float64) {
+	ev := en.GetVertices(!bool(e.ConnectedTriDirection[connNum]))
 	x1[0], x1[1] = VX.AtVec(ev[0]), VY.AtVec(ev[0])
 	x2[0], x2[1] = VX.AtVec(ev[1]), VY.AtVec(ev[1])
 	return
@@ -147,12 +144,15 @@ func NewEdgeNumber(verts [2]int) (packed EdgeNumber) {
 	return
 }
 
-func (en EdgeNumber) GetVertices() (verts [2]int) {
+func (en EdgeNumber) GetVertices(rev bool) (verts [2]int) {
 	var (
 		enTmp EdgeNumber
 	)
 	enTmp = en >> 32
 	verts[1] = int(enTmp)
 	verts[0] = int(en - enTmp*(1<<32))
+	if rev {
+		verts[0], verts[1] = verts[1], verts[0]
+	}
 	return
 }
