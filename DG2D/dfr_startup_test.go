@@ -90,6 +90,24 @@ func TestDFR2D(t *testing.T) {
 		assert.Equal(t, [2]int{1, 1<<32 - 1}, en.GetVertices())
 	}
 	{ // Test triangulation
+		transpose := func(J []float64) (JT []float64) {
+			JT = []float64{J[0], J[2], J[1], J[3]}
+			return
+		}
+		multiply := func(J []float64, det float64, f [2]float64) (fm [2]float64) {
+			fm[0], fm[1] = J[0]*f[0]+J[1]*f[1], J[2]*f[0]+J[3]*f[1]
+			fm[0] /= det
+			fm[1] /= det
+			return
+		}
+		normalize := func(vec [2]float64) (normed [2]float64) {
+			norm := math.Sqrt(vec[0]*vec[0] + vec[1]*vec[1])
+			for i := 0; i < 2; i++ {
+				normed[i] = vec[i] / norm
+			}
+			return
+		}
+		_, _, _ = transpose, multiply, normalize
 		N := 1
 		dfr := NewDFR2D(N, "test_tris_5.neu")
 		/*
@@ -102,76 +120,66 @@ func TestDFR2D(t *testing.T) {
 				1, 2, 3
 				1, 3, 4
 				Five Edges:
-				0-1, 2-3: 	BC Inflow
 				0-2: 		Shared between Tri 0 and Tri 1
+				0-1, 2-3: 	BC Inflow
 				1-2, 0-3: 	Unconnected
 		*/
+		trn := dfr.Tris
+		{ // Test edge construction
+			{ // 0-2: 		Shared between Tri 0 and Tri 1
+				en := NewEdgeNumber([2]int{0, 2}) // Edge formed by vertices 0 and 2
+				e := trn.Edges[en]
+				assert.Equal(t, uint8(2), e.NumConnectedTris)
+				assert.Equal(t, uint32(0), e.ConnectedTris[0])
+				assert.Equal(t, InternalEdgeNumber(2), e.ConnectedTriEdgeNumber[First])
+				assert.Equal(t, uint32(1), e.ConnectedTris[1])
+				assert.Equal(t, InternalEdgeNumber(0), e.ConnectedTriEdgeNumber[Second])
+			}
+			{ // 0-1, 2-3: 	BC Inflow
+				en := NewEdgeNumber([2]int{0, 1})
+				e := trn.Edges[en]
+				assert.Equal(t, BC_In, e.BCType)
+				en = NewEdgeNumber([2]int{2, 3})
+				e = trn.Edges[en]
+				assert.Equal(t, BC_In, e.BCType)
+			}
+		}
 		//PlotMesh(dfr.VX, dfr.VY, dfr.Tris.EToV, dfr.BCType, dfr.FluxX, dfr.FluxY, true)
 		//utils.SleepFor(50000)
 		//dfr := NewDFR2D(N, "fstepA001.neu")
-		trn := dfr.Tris
 		// Check against known answers for this case
-		en := NewEdgeNumber([2]int{0, 2}) // Edge formed by vertices 0 and 2
-		e := trn.Edges[en]
-		assert.Equal(t, uint8(2), e.NumConnectedTris)
-		assert.Equal(t, uint32(0), e.ConnectedTris[0])
-		assert.Equal(t, InternalEdgeNumber(2), e.ConnectedTriEdgeNumber[0])
-		assert.Equal(t, uint32(1), e.ConnectedTris[1])
-		assert.Equal(t, InternalEdgeNumber(0), e.ConnectedTriEdgeNumber[1])
-
-		en = NewEdgeNumber([2]int{0, 1})
-		e = trn.Edges[en]
-		assert.Equal(t, BC_In, e.BCType)
-
-		en = NewEdgeNumber([2]int{2, 3})
-		e = trn.Edges[en]
-		assert.Equal(t, BC_In, e.BCType)
-
 		// Test Piola transform and jacobian
 		for en, e := range dfr.Tris.Edges {
-			for ii, k := range e.ConnectedTris {
-				transpose := func(J []float64) (JT []float64) {
-					JT = []float64{J[0], J[2], J[1], J[3]}
-					return
-				}
-				_ = transpose
-				multiply := func(J []float64, det float64, f [2]float64) (fm [2]float64) {
-					fm[0], fm[1] = J[0]*f[0]+J[1]*f[1], J[2]*f[0]+J[3]*f[1]
-					fm[0] /= det
-					fm[1] /= det
-					return
-				}
-				normalize := func(vec [2]float64) (normed [2]float64) {
-					norm := math.Sqrt(vec[0]*vec[0] + vec[1]*vec[1])
-					for i := 0; i < 2; i++ {
-						normed[i] = vec[i] / norm
-					}
-					return
-				}
-				x1, x2 := dfr.Tris.GetEdgeCoordinates(en, e, k, dfr.VX, dfr.VY)
-				switch e.ConnectedTriEdgeNumber[ii] {
-				default:
-					dx, dy := x2[0]-x1[0], x2[1]-x1[1]
-					normal := normalize([2]float64{-dy, dx})
-					J := transpose(dfr.J.Row(int(k)).Data()[0:4]) // Transpose is applied to normals, which are cross products of vectors
-					Jdet := math.Abs(dfr.Jdet.Row(int(k)).Data()[0])
-					nxT := multiply(J, Jdet, normal)
-					fmt.Printf("[tri,face] = [%d,%d]: normal = %v, normalT = %v\n", k, e.ConnectedTriEdgeNumber[ii], normal, nxT)
-					//nxT := dfr.PiolaTransform(J, Jdet, normal)
+			assert.True(t, e.NumConnectedTris > 0)
+			fmt.Printf("NumConnTris = %d, Local edge numbers: %v\n", int(e.NumConnectedTris), e.ConnectedTriEdgeNumber)
+			if e.NumConnectedTris == 2 {
+				for connNum := 0; connNum < int(e.NumConnectedTris); connNum++ {
+					//for connNum, k := range e.ConnectedTris {
+					k := e.ConnectedTris[connNum]
+					J := transpose(dfr.J.Row(int(k)).Data()[0:4])       // Transpose is applied to normals, which are cross products of vectors
 					Jinv := transpose(dfr.Jinv.Row(int(k)).Data()[0:4]) // Transpose is applied to normals, which are cross products of vectors
-					//nxTT := dfr.PiolaTransform(Jinv, 1./Jdet, nxT)
+					Jdet := math.Abs(dfr.Jdet.Row(int(k)).Data()[0])
+
+					x1, x2 := dfr.Tris.GetEdgeCoordinates(en, e, k, dfr.VX, dfr.VY)
+					dx, dy := x2[0]-x1[0], x2[1]-x1[1]
+					normal := [2]float64{-dy, dx}
+					//normal := normalize([2]float64{-dy, dx})
+					nxT := multiply(J, Jdet, normal)
+					fmt.Printf("[tri,face] = [%d,%d]: normal = %v, normalT = %v\n", k, e.ConnectedTriEdgeNumber[connNum], normal, nxT)
 					nxTT := multiply(Jinv, 1./Jdet, nxT)
-					// TODO: What should the transformed normals be? I think they should both be {-1,0} for face 2
-					switch k {
-					case 0:
+					// TODO: What should the transformed normals be? I think it should be {-1,0} for the Third face, but the norm of the incoming?
+					switch e.ConnectedTriEdgeNumber[connNum] {
+					case First:
+						assert.Equal(t, [2]float64{0, -2}, nxT)
 						//assert.Equal(t, [2]float64{1., -.5}, normal)
 						//assert.Equal(t, [2]float64{2, 0}, nxT)
-					case 1:
+					case Second:
 						//assert.Equal(t, [2]float64{-1., -1.}, normal)
 						//assert.Equal(t, [2]float64{-2, 0}, nxT)
+					case Third:
+						assert.Equal(t, [2]float64{-2, 0}, nxT)
 					}
-					//assert.Equal(t, normal, nxTT)
-					_ = nxTT
+					assert.Equal(t, normal, nxTT)
 				}
 			}
 		}

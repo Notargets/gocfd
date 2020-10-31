@@ -101,7 +101,7 @@ func (e *Edge) Print() (p string) {
 
 func (tmesh *Triangulation) GetEdgeCoordinates(en EdgeNumber, e *Edge, triNum uint32, VX, VY utils.Vector) (x1, x2 [2]float64) {
 	ev := en.GetVertices()
-	if e.ConnectedTriDirection[triNum] {
+	if !e.ConnectedTriDirection[triNum] {
 		ev[0], ev[1] = ev[1], ev[0]
 	}
 	x1[0], x1[1] = VX.AtVec(ev[0]), VY.AtVec(ev[0])
