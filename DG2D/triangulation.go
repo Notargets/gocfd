@@ -12,7 +12,7 @@ type Triangulation struct {
 	Edges map[EdgeNumber]*Edge // map of edges, key is the edge number, an int packed with the two vertices of each edge
 }
 
-func NewTriangulation(EToV, BCType utils.Matrix) (tmesh *Triangulation) {
+func NewTriangulation(VX, VY utils.Vector, EToV, BCType utils.Matrix) (tmesh *Triangulation) {
 	tmesh = &Triangulation{
 		EToV:  EToV,
 		Edges: make(map[EdgeNumber]*Edge),
@@ -25,9 +25,9 @@ func NewTriangulation(EToV, BCType utils.Matrix) (tmesh *Triangulation) {
 		bcs := BCType.Row(k).Data()
 		bcFaces := [3]int{int(bcs[0]), int(bcs[1]), int(bcs[2])}
 		// Create / store the edges for this triangle
-		tmesh.NewEdge([2]int{verts[0], verts[1]}, k, First, bcFaces[0])
-		tmesh.NewEdge([2]int{verts[1], verts[2]}, k, Second, bcFaces[1])
-		tmesh.NewEdge([2]int{verts[2], verts[0]}, k, Third, bcFaces[2])
+		tmesh.NewEdge(VX, VY, [2]int{verts[0], verts[1]}, k, First, bcFaces[0])
+		tmesh.NewEdge(VX, VY, [2]int{verts[1], verts[2]}, k, Second, bcFaces[1])
+		tmesh.NewEdge(VX, VY, [2]int{verts[2], verts[0]}, k, Third, bcFaces[2])
 	}
 	return
 }
@@ -38,7 +38,7 @@ func (tmesh *Triangulation) GetTriVerts(k uint32) (verts [3]int) {
 	return
 }
 
-func (tmesh *Triangulation) NewEdge(verts [2]int, connectedElementNumber int, intEdgeNumber InternalEdgeNumber,
+func (tmesh *Triangulation) NewEdge(VX, VY utils.Vector, verts [2]int, connectedElementNumber int, intEdgeNumber InternalEdgeNumber,
 	bcFace int) (e *Edge) {
 	var (
 		ok bool
@@ -51,24 +51,42 @@ func (tmesh *Triangulation) NewEdge(verts [2]int, connectedElementNumber int, in
 	if verts[0] > verts[1] {
 		dir = Reversed
 	}
-	// Check if edge is already stored
+	// Check if edge is already stored, allocate new one if not
 	en := NewEdgeNumber(verts)
+	conn := 1 // If edge exists, this will be the second (max) connection
 	if e, ok = tmesh.Edges[en]; !ok {
-		e = &Edge{
-			NumConnectedTris:       1,
-			ConnectedTris:          [2]uint32{uint32(connectedElementNumber)},
-			ConnectedTriDirection:  [2]InternalEdgeDirection{dir},
-			ConnectedTriEdgeNumber: [2]InternalEdgeNumber{intEdgeNumber},
-		}
+		e = &Edge{}
 		tmesh.Edges[en] = e
+		conn = 0
 	} else {
-		e.ConnectedTris[1] = uint32(connectedElementNumber)
-		e.ConnectedTriDirection[1] = dir
-		e.ConnectedTriEdgeNumber[1] = intEdgeNumber
-		e.NumConnectedTris++
+		// Check to ensure that we aren't adding more connections than are possible
+		if e.NumConnectedTris > 1 {
+			panic("incorrect edge construction, more than two connected triangles")
+		}
 	}
+	e.ConnectedTris[conn] = uint32(connectedElementNumber)
+	e.ConnectedTriDirection[conn] = dir
+	e.ConnectedTriEdgeNumber[conn] = intEdgeNumber
+	e.NumConnectedTris++
 	if bcFace != 0 {
 		e.BCType = BCFLAG(bcFace)
+	}
+	// Calculate ||n|| scaling factor for each edge
+	norm := func(vec [2]float64) (n float64) {
+		n = math.Sqrt(vec[0]*vec[0] + vec[1]*vec[1])
+		return
+	}
+	revDir := bool(e.ConnectedTriDirection[conn])
+	edgeNumber := e.ConnectedTriEdgeNumber[conn]
+	x1, x2 := tmesh.GetEdgeCoordinates(en, revDir, VX, VY)
+	dx := [2]float64{x2[0] - x1[0], x2[1] - x1[1]}
+	edgeNorm := norm([2]float64{-dx[1], dx[0]}) // Norm of the edge normal
+	// ||n|| = untransformed_edge_length / unit_tri_edge_length
+	switch edgeNumber {
+	case First, Third:
+		e.IInII[conn] = edgeNorm / 2.
+	case Second:
+		e.IInII[conn] = edgeNorm / (2. * math.Sqrt(2))
 	}
 	return
 }
@@ -85,6 +103,7 @@ type Edge struct {
 	ConnectedTris          [2]uint32                // Index numbers of triangles connected to this edge
 	ConnectedTriDirection  [2]InternalEdgeDirection // If false(default), the edge runs from smaller to larger within the connected tri
 	ConnectedTriEdgeNumber [2]InternalEdgeNumber    // For the connected triangles, what is the edge number (one of 0, 1 or 2)
+	IInII                  [2]float64               // ||n|| scale factor to pre-multiply normal values prior to transforming into unit tri
 	BCType                 BCFLAG                   // If not connected to two tris, this field will be used
 }
 

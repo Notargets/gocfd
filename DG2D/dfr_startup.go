@@ -39,7 +39,7 @@ func NewDFR2D(N int, meshFileO ...string) (dfr *DFR2D) {
 	if len(meshFileO) != 0 {
 		var EToV utils.Matrix
 		dfr.K, dfr.VX, dfr.VY, EToV, dfr.BCType = ReadGambit2d(meshFileO[0])
-		dfr.Tris = NewTriangulation(EToV, dfr.BCType)
+		dfr.Tris = NewTriangulation(dfr.VX, dfr.VY, EToV, dfr.BCType)
 		// Build connectivity matrices
 		dfr.FluxX, dfr.FluxY =
 			CalculateElementLocalGeometry(dfr.Tris.EToV, dfr.VX, dfr.VY, dfr.FluxElement.R, dfr.FluxElement.S)

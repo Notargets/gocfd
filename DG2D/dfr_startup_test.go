@@ -148,10 +148,6 @@ func TestDFR2D(t *testing.T) {
 				assert.Equal(t, BC_In, e.BCType)
 			}
 		}
-		//PlotMesh(dfr.VX, dfr.VY, dfr.Tris.EToV, dfr.BCType, dfr.FluxX, dfr.FluxY, true)
-		//utils.SleepFor(50000)
-		//dfr := NewDFR2D(N, "fstepA001.neu")
-		// Check against known answers for this case
 		// Test Piola transform and jacobian
 		for en, e := range dfr.Tris.Edges {
 			assert.True(t, e.NumConnectedTris > 0)
@@ -181,20 +177,11 @@ func TestDFR2D(t *testing.T) {
 					assert.True(t, near(normal[1], nxTT[1], 0.00001))
 				}
 				{ // Check scaling factor ||n||, used in transforming face normals
-					oosr2 := 1. / math.Sqrt(2)
-					edgeNorm := norm(normal)
 					normal = normalize(normal)
-					var scaleFactor float64
-					// ||n|| = untransformed_edge_length / unit_tri_edge_length
-					switch edgeNumber {
-					case First, Third:
-						scaleFactor = edgeNorm / 2.
-					case Second:
-						scaleFactor = edgeNorm / (2. * math.Sqrt(2))
-					}
-					normal[0] *= scaleFactor // we scale the vector coords on the edge prior to transform
-					normal[1] *= scaleFactor // we scale the vector coords on the edge prior to transform
+					normal[0] *= e.IInII[conn] // scale ||n|| the vector coords on the edge prior to transform
+					normal[1] *= e.IInII[conn] // scale ||n|| the vector coords on the edge prior to transform
 					nxT := multiply(Jt, Jdet, normal)
+					oosr2 := 1. / math.Sqrt(2)
 					switch edgeNumber { // The transformed and scaled normal should be unit for each edge direction
 					case First:
 						assert.True(t, near(0, nxT[0], 0.000001))
