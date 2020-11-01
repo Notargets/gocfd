@@ -111,7 +111,6 @@ func TestDFR2D(t *testing.T) {
 			}
 			return
 		}
-		_, _, _ = transpose, multiply, normalize
 		N := 1
 		dfr := NewDFR2D(N, "test_tris_5.neu")
 		/*
@@ -264,20 +263,5 @@ func TestDFR2D(t *testing.T) {
 				}
 			}
 		}
-	}
-	{ // Test face construction
-		/*
-			N := 1
-			dfr := NewDFR2D(N, "test_tris_5.neu")
-			//dfr := NewDFR2D(N, "fstepA001.neu")
-			fmt.Printf("%s\n", dfr.EToV.Print("EToV"))
-		*/
-		//fmt.Printf("%s\n", dfr.EToF.Print("EToF"))
-		//fmt.Printf("%s\n", dfr.EToE.Print("EToE"))
-		//PlotMesh(dfr.VX, dfr.VY, dfr.EToV, dfr.BCType, dfr.FluxX, dfr.FluxY, true)
-		//PlotMesh(dfr.VX, dfr.VY, dfr.EToV, dfr.BCType, dfr.SolutionX, dfr.SolutionY, true)
-		//utils.SleepFor(50000)
-		//el := dfr.SolutionElement
-		//rt := dfr.FluxElement
 	}
 }
