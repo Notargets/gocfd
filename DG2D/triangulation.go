@@ -98,13 +98,13 @@ Note that we do not use a slice for any of the fields inside of an edge - why?
 	-> by using fixed allocations with the max of 2 ([2]type), we use less memory (total of 14 bytes) and compute
 */
 type Edge struct {
-	// Total Storage: 16 bytes (14 bytes, 64-bit aligned to 16)
+	// Total Storage: 32 bytes (14 bytes, 64-bit aligned to 16, plus 2x8 bytes for ||n||)
 	NumConnectedTris       uint8                    // Either 1 or 2
 	ConnectedTris          [2]uint32                // Index numbers of triangles connected to this edge
 	ConnectedTriDirection  [2]InternalEdgeDirection // If false(default), the edge runs from smaller to larger within the connected tri
 	ConnectedTriEdgeNumber [2]InternalEdgeNumber    // For the connected triangles, what is the edge number (one of 0, 1 or 2)
-	IInII                  [2]float64               // ||n|| scale factor to pre-multiply normal values prior to transforming into unit tri
 	BCType                 BCFLAG                   // If not connected to two tris, this field will be used
+	IInII                  [2]float64               // ||n|| scale factor to pre-multiply normal values prior to transforming into unit tri
 }
 
 func (e *Edge) Print() (p string) {
