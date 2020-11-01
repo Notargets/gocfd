@@ -64,6 +64,8 @@ func (dfr *DFR2D) CalculateJacobian() {
 		v := [3]int{int(tri[0]), int(tri[1]), int(tri[2])}
 		v1x, v2x, v3x := dfr.VX.AtVec(v[0]), dfr.VX.AtVec(v[1]), dfr.VX.AtVec(v[2])
 		v1y, v2y, v3y := dfr.VY.AtVec(v[0]), dfr.VY.AtVec(v[1]), dfr.VY.AtVec(v[2])
+		//xr, yr := 0.5*(v2x-v1x), 0.5*(v2y-v1y)
+		//xs, ys := 0.5*(v3x-v1x), 0.5*(v3y-v1y)
 		xr, yr := 0.5*(v2x-v1x), 0.5*(v2y-v1y)
 		xs, ys := 0.5*(v3x-v1x), 0.5*(v3y-v1y)
 		// Jacobian is [xr, xs]

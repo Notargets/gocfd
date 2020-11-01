@@ -100,10 +100,14 @@ func TestDFR2D(t *testing.T) {
 			fm[1] /= det
 			return
 		}
+		norm := func(vec [2]float64) (n float64) {
+			n = math.Sqrt(vec[0]*vec[0] + vec[1]*vec[1])
+			return
+		}
 		normalize := func(vec [2]float64) (normed [2]float64) {
-			norm := math.Sqrt(vec[0]*vec[0] + vec[1]*vec[1])
+			n := norm(vec)
 			for i := 0; i < 2; i++ {
-				normed[i] = vec[i] / norm
+				normed[i] = vec[i] / n
 			}
 			return
 		}
@@ -151,35 +155,58 @@ func TestDFR2D(t *testing.T) {
 		// Test Piola transform and jacobian
 		for en, e := range dfr.Tris.Edges {
 			assert.True(t, e.NumConnectedTris > 0)
-			for connNum := 0; connNum < int(e.NumConnectedTris); connNum++ {
-				k := e.ConnectedTris[connNum]
-				rev := bool(e.ConnectedTriDirection[connNum])
-				J := transpose(dfr.J.Row(int(k)).Data()[0:4])       // Transpose is applied to normals, which are cross products of vectors
-				Jinv := transpose(dfr.Jinv.Row(int(k)).Data()[0:4]) // Transpose is applied to normals, which are cross products of vectors
+			for conn := 0; conn < int(e.NumConnectedTris); conn++ {
+				k := e.ConnectedTris[conn]
+				revDir := bool(e.ConnectedTriDirection[conn])
+				Jt := transpose(dfr.J.Row(int(k)).Data()[0:4])       // Transpose is applied to normals, which are cross products of vectors
+				JtInv := transpose(dfr.Jinv.Row(int(k)).Data()[0:4]) // Transpose is applied to normals, which are cross products of vectors
 				Jdet := math.Abs(dfr.Jdet.Row(int(k)).Data()[0])
-				x1, x2 := dfr.Tris.GetEdgeCoordinates(en, rev, dfr.VX, dfr.VY)
+				x1, x2 := dfr.Tris.GetEdgeCoordinates(en, revDir, dfr.VX, dfr.VY)
 				dx := [2]float64{x2[0] - x1[0], x2[1] - x1[1]}
 				normal := [2]float64{-dx[1], dx[0]}
-				nxT := multiply(J, Jdet, normal)
-				/*
-					ev := en.GetVertices(!bool(e.ConnectedTriDirection[connNum]))
-					fmt.Printf("[tri,face] = [%d,%d]: rev: %v, v[%d,%d]: normal = %v, normalT = %v\n",
-						k, e.ConnectedTriEdgeNumber[connNum],
-						e.ConnectedTriDirection[connNum],
-						ev[0], ev[1],
-						normal, nxT)
-				*/
-				switch e.ConnectedTriEdgeNumber[connNum] {
-				case First:
-					assert.Equal(t, [2]float64{0, -2}, nxT)
-				case Second:
-					assert.Equal(t, [2]float64{2, 2}, nxT)
-				case Third:
-					assert.Equal(t, [2]float64{-2, 0}, nxT)
+
+				edgeNumber := e.ConnectedTriEdgeNumber[conn]
+				{ // Check that a full edge scaled normal transforms into a full edge scaled transformed normal
+					nxT := multiply(Jt, Jdet, normal)
+					switch edgeNumber {
+					case First: // A whole 1st edge is 2 units long in unit tri space
+						assert.Equal(t, [2]float64{0, -2}, nxT)
+					case Second: // A whole 2nd edge is 2*Sqrt(2) units long in unit tri space
+						assert.Equal(t, [2]float64{2, 2}, nxT)
+					case Third: // A whole 3rd edge is 2 units long in unit tri space
+						assert.Equal(t, [2]float64{-2, 0}, nxT)
+					}
+					nxTT := multiply(JtInv, 1./Jdet, nxT)
+					assert.True(t, near(normal[0], nxTT[0], 0.00001))
+					assert.True(t, near(normal[1], nxTT[1], 0.00001))
 				}
-				nxTT := multiply(Jinv, 1./Jdet, nxT)
-				assert.True(t, near(normal[0], nxTT[0], 0.00001))
-				assert.True(t, near(normal[1], nxTT[1], 0.00001))
+				{ // Check scaling factor ||n||, used in transforming face normals
+					oosr2 := 1. / math.Sqrt(2)
+					edgeNorm := norm(normal)
+					normal = normalize(normal)
+					var scaleFactor float64
+					// ||n|| = untransformed_edge_length / unit_tri_edge_length
+					switch edgeNumber {
+					case First, Third:
+						scaleFactor = edgeNorm / 2.
+					case Second:
+						scaleFactor = edgeNorm / (2. * math.Sqrt(2))
+					}
+					normal[0] *= scaleFactor // we scale the vector coords on the edge prior to transform
+					normal[1] *= scaleFactor // we scale the vector coords on the edge prior to transform
+					nxT := multiply(Jt, Jdet, normal)
+					switch edgeNumber { // The transformed and scaled normal should be unit for each edge direction
+					case First:
+						assert.True(t, near(0, nxT[0], 0.000001))
+						assert.True(t, near(-1, nxT[1], 0.000001))
+					case Second:
+						assert.True(t, near(oosr2, nxT[0], 0.000001))
+						assert.True(t, near(oosr2, nxT[1], 0.000001))
+					case Third:
+						assert.True(t, near(-1, nxT[0], 0.000001))
+						assert.True(t, near(0, nxT[1], 0.000001))
+					}
+				}
 			}
 		}
 	}
