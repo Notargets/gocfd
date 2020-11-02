@@ -221,12 +221,12 @@ func TestDFR2D(t *testing.T) {
 			return
 		}
 		{ // Check Divergence for polynomial vector fields of order < N against analytical solution
-			N := 7
+			N := 7 // Order of element
 			dfr := NewDFR2D(N, "test_tris_5.neu")
 			rt := dfr.FluxElement
-			for cOrder := 1; cOrder <= N; cOrder++ {
-				//fmt.Printf("Check Order = %d, \n", cOrder)
+			for cOrder := 1; cOrder <= N; cOrder++ { // Run a test on polynomial flux vector fields up to Nth order
 				Fx, Fy, divCheck := checkSolution(dfr, cOrder)
+				// Project the flux onto the RT basis directly
 				Fp := dfr.ProjectFluxOntoRTSpace(Fx, Fy)
 				for k := 0; k < dfr.K; k++ {
 					var (
@@ -236,16 +236,7 @@ func TestDFR2D(t *testing.T) {
 					divM := rt.Div.Mul(Fpk).Scale(1. / Jdet)
 					assert.True(t, nearVec(divCheck.Row(k).Data(), divM.Data(), 0.00001))
 				}
-			}
-		}
-		{ // Use transformed edge normal projected flux in place of flux and check divergence again
-			N := 7
-			dfr := NewDFR2D(N, "test_tris_5.neu")
-			rt := dfr.FluxElement
-			for cOrder := 1; cOrder <= N; cOrder++ {
-				//fmt.Printf("Check Order = %d, \n", cOrder)
-				Fx, Fy, divCheck := checkSolution(dfr, cOrder)
-				Fp := dfr.ProjectFluxOntoRTSpace(Fx, Fy)
+				// Now project flux onto untransformed normals using ||n|| scaling factor, divergence should be the same
 				SetNormalFluxOnEdges(dfr, Fx, Fy, &Fp)
 				for k := 0; k < dfr.K; k++ {
 					var (
