@@ -133,6 +133,19 @@ const (
 	Third
 )
 
+func (ien InternalEdgeNumber) String() string {
+	switch ien {
+	case First:
+		return "First"
+	case Second:
+		return "Second"
+	case Third:
+		return "Third"
+	default:
+		panic("unknown option")
+	}
+}
+
 type InternalEdgeDirection bool
 
 const (

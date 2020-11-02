@@ -1,7 +1,6 @@
 package DG2D
 
 import (
-	"fmt"
 	"math"
 	"testing"
 
@@ -117,8 +116,8 @@ func TestDFR2D(t *testing.T) {
 				Coordinates in test triangle case:
 				1     0.000000000e+000    0.000000000e+000
 				2     1.000000000e+000    0.000000000e+000
-				3     0.500000000e+000    1.000000000e+000
-				4    -1.000000000e+000    1.000000000e+000
+				3     0.500000000e+001    1.000000000e+001
+				4    -1.000000000e+001    1.000000000e+001
 			    Two tris:
 				1, 2, 3
 				1, 3, 4
@@ -197,30 +196,6 @@ func TestDFR2D(t *testing.T) {
 		}
 	}
 	{ // Test divergence
-		errorCheck := func(dfr *DFR2D, k int, div, divCheck utils.Matrix) (min, max float64) {
-			var (
-				error float64
-				Np    = dfr.FluxElement.Np
-				dcD   = divCheck.Row(k).Data()[0:Np]
-			)
-			fmt.Println(div.Transpose().Print("div"))
-			fmt.Println(divCheck.Row(k).Transpose().Print("divCheck"))
-			for i, divVal := range div.Data() {
-				error = divVal - dcD[i]
-				if i == 0 {
-					min, max = error, error
-				}
-				if min > error {
-					error = min
-				}
-				if max < error {
-					error = max
-				}
-			}
-			fmt.Printf("Min, Max Err = %8.5f, %8.5f\n", min, max)
-			return
-		}
-		_ = errorCheck
 		checkSolution := func(dfr *DFR2D, Order int) (Fx, Fy, divCheck utils.Matrix) {
 			var (
 				rt  = dfr.FluxElement
@@ -245,7 +220,7 @@ func TestDFR2D(t *testing.T) {
 			}
 			return
 		}
-		{ // Check Divergence for polynomial vector fields of order < N against analytical solution
+		if true { // Check Divergence for polynomial vector fields of order < N against analytical solution
 			N := 7
 			dfr := NewDFR2D(N, "test_tris_5.neu")
 			rt := dfr.FluxElement
@@ -253,6 +228,10 @@ func TestDFR2D(t *testing.T) {
 				//fmt.Printf("Check Order = %d, \n", cOrder)
 				Fx, Fy, divCheck := checkSolution(dfr, cOrder)
 				Fp := dfr.ProjectFluxOntoRTSpace(Fx, Fy)
+				/*
+					fmt.Println(Fp.Print("Fp"))
+					break
+				*/
 				for k := 0; k < dfr.K; k++ {
 					var (
 						Fpk  = Fp.Row(k).ToMatrix()
@@ -263,5 +242,84 @@ func TestDFR2D(t *testing.T) {
 				}
 			}
 		}
+		{ // Check Divergence for polynomial vector fields of order < N against analytical solution
+			N := 2
+			dfr := NewDFR2D(N, "test_tris_5.neu")
+			rt := dfr.FluxElement
+			for cOrder := 1; cOrder <= N; cOrder++ {
+				//fmt.Printf("Check Order = %d, \n", cOrder)
+				Fx, Fy, divCheck := checkSolution(dfr, cOrder)
+				Fp := dfr.ProjectFluxOntoRTSpace(Fx, Fy)
+				SetNormalFluxOnEdges(dfr, Fx, Fy, &Fp)
+				/*
+					fmt.Println(Fp.Print("Fp_modded"))
+					os.Exit(1)
+				*/
+				for k := 0; k < dfr.K; k++ {
+					var (
+						Fpk  = Fp.Row(k).ToMatrix()
+						Jdet = dfr.Jdet.Row(k).Data()[0]
+					)
+					divM := rt.Div.Mul(Fpk).Scale(1. / Jdet)
+					//assert.True(t, nearVec(divCheck.Row(k).Data(), divM.Data(), 0.00001))
+					_, _ = divM, divCheck
+				}
+			}
+		}
 	}
+}
+
+func SetNormalFluxOnEdges(dfr *DFR2D, Fx, Fy utils.Matrix, Fp *utils.Matrix) {
+	var (
+		Np       = dfr.FluxElement.Np
+		fxD, fyD = Fx.Data(), Fy.Data()
+		fpD      = Fp.Data()
+		Nint     = dfr.FluxElement.Nint
+		Nedge    = dfr.FluxElement.Nedge
+	)
+	norm := func(vec [2]float64) (n float64) {
+		n = math.Sqrt(vec[0]*vec[0] + vec[1]*vec[1])
+		return
+	}
+	normalize := func(vec [2]float64) (normed [2]float64) {
+		n := norm(vec)
+		for i := 0; i < 2; i++ {
+			normed[i] = vec[i] / n
+		}
+		return
+	}
+	//fmt.Printf("Nint, Nedge, Np = %d, %d, %d\n", Nint, Nedge, Np)
+	for en, e := range dfr.Tris.Edges {
+		//		if e.NumConnectedTris != 2 {
+		//			continue
+		//		}
+		for conn := 0; conn < int(e.NumConnectedTris); conn++ {
+			var (
+				k = int(e.ConnectedTris[conn])
+			)
+			revDir := bool(e.ConnectedTriDirection[conn])
+			x1, x2 := dfr.Tris.GetEdgeCoordinates(en, revDir, dfr.VX, dfr.VY)
+			dx := [2]float64{x2[0] - x1[0], x2[1] - x1[1]}
+			normal := normalize([2]float64{-dx[1], dx[0]})
+			normal[0] *= e.IInII[conn]
+			normal[1] *= e.IInII[conn]
+			var edgeStart, edgeEnd int
+			edgeNumber := e.ConnectedTriEdgeNumber[conn]
+			switch edgeNumber {
+			case First:
+				edgeStart, edgeEnd = 2*Nint, 2*Nint+Nedge
+			case Second:
+				edgeStart, edgeEnd = 2*Nint+Nedge, 2*Nint+2*Nedge
+			case Third:
+				edgeStart, edgeEnd = 2*Nint+2*Nedge, 2*Nint+3*Nedge
+			}
+			//fmt.Printf("k, edgeNum, edgeStart, edgeEnd, IInII = %d, %s, %d, %d, %8.5f\n",
+			//	k, edgeNumber.String(), edgeStart, edgeEnd, e.IInII[conn])
+			for n := edgeStart; n < edgeEnd; n++ {
+				ind := n + k*Np
+				fpD[ind] = normal[0]*fxD[ind] + normal[1]*fyD[ind]
+			}
+		}
+	}
+	return
 }

@@ -36,7 +36,7 @@ func NewNDG2D(N int, meshFile string, plotMesh bool) (ndg *NDG2D) {
 	if N < 1 {
 		panic(fmt.Errorf("Polynomial order must be >= 1, have %d", N))
 	}
-	ndg.K, ndg.VX, ndg.VY, ndg.EToV, ndg.BCType = ReadGambit2d(meshFile)
+	ndg.K, ndg.VX, ndg.VY, ndg.EToV, ndg.BCType = ReadGambit2d(meshFile, false)
 	ndg.Startup2D()
 	if plotMesh {
 		PlotMesh(ndg.VX, ndg.VY, ndg.EToV, ndg.BCType, ndg.X, ndg.Y, true)

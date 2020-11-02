@@ -67,13 +67,15 @@ var faceMap = map[string]BCFLAG{
 	"slip":      BC_Slip,
 }
 
-func ReadGambit2d(filename string) (K int, VX, VY utils.Vector, EToV, BCType utils.Matrix) {
+func ReadGambit2d(filename string, verbose bool) (K int, VX, VY utils.Vector, EToV, BCType utils.Matrix) {
 	var (
 		file   *os.File
 		err    error
 		reader *bufio.Reader
 	)
-	fmt.Printf("Reading file named: %s\n", filename)
+	if verbose {
+		fmt.Printf("Reading file named: %s\n", filename)
+	}
 	if file, err = os.Open(filename); err != nil {
 		panic(fmt.Errorf("unable to read file %s\n %s", filename, err))
 	}
@@ -87,16 +89,20 @@ func ReadGambit2d(filename string) (K int, VX, VY utils.Vector, EToV, BCType uti
 	Nv, K, Nmats, Nbcs, Nsd := ReadHeader(reader)
 	skipLines(2, reader)
 
-	fmt.Printf("Nv = %d, K = %d\n", Nv, K)
-	fmt.Printf("Nmats = %d, Nbcs = %d\n%d space dimensions\n", Nmats, Nbcs, Nsd)
+	if verbose {
+		fmt.Printf("Nv = %d, K = %d\n", Nv, K)
+		fmt.Printf("Nmats = %d, Nbcs = %d\n%d space dimensions\n", Nmats, Nbcs, Nsd)
+	}
 	if Nsd > 3 || Nsd < 2 {
 		panic("space dimensions not 2 or 3")
 	}
 
 	NFaces, bIs3D, bCoord3D, bElement3D, bTET := CalculateGeomAttributes(Nsd, false)
 
-	fmt.Printf("NFaces = %d, bIs3D is %v, bCoord3D is %v, bElement3D is %v, bTET is %v\n",
-		NFaces, bIs3D, bCoord3D, bElement3D, bTET)
+	if verbose {
+		fmt.Printf("NFaces = %d, bIs3D is %v, bCoord3D is %v, bElement3D is %v, bTET is %v\n",
+			NFaces, bIs3D, bCoord3D, bElement3D, bTET)
+	}
 
 	var VZ utils.Vector
 	if bCoord3D {
@@ -114,13 +120,15 @@ func ReadGambit2d(filename string) (K int, VX, VY utils.Vector, EToV, BCType uti
 	}
 	skipLines(2, reader)
 
-	switch Nsd {
-	case 2:
-		fmt.Printf("Bounding Box:\nXMin/XMax = %5.3f, %5.3f\nYMin/YMax = %5.3f, %5.3f\n",
-			VX.Min(), VX.Max(), VY.Min(), VY.Max())
-	case 3:
-		fmt.Printf("Bounding Box:\nXMin/XMax = %5.3f, %5.3f\nYMin/YMax = %5.3f, %5.3f\nZMin/ZMax = %5.3f, %5.3f\n",
-			VX.Min(), VX.Max(), VY.Min(), VY.Max(), VZ.Min(), VZ.Max())
+	if verbose {
+		switch Nsd {
+		case 2:
+			fmt.Printf("Bounding Box:\nXMin/XMax = %5.3f, %5.3f\nYMin/YMax = %5.3f, %5.3f\n",
+				VX.Min(), VX.Max(), VY.Min(), VY.Max())
+		case 3:
+			fmt.Printf("Bounding Box:\nXMin/XMax = %5.3f, %5.3f\nYMin/YMax = %5.3f, %5.3f\nZMin/ZMax = %5.3f, %5.3f\n",
+				VX.Min(), VX.Max(), VY.Min(), VY.Max(), VZ.Min(), VZ.Max())
+		}
 	}
 
 	matGroups := make(map[int]*Material)
@@ -133,7 +141,7 @@ func ReadGambit2d(filename string) (K int, VX, VY utils.Vector, EToV, BCType uti
 			MaterialValue: matval,
 			Title:         title,
 		}
-		ReadMaterialGroup(reader, elnum, matval, epsilon)
+		ReadMaterialGroup(reader, elnum, matval, epsilon, false)
 		skipLines(2, reader)
 	}
 
@@ -211,7 +219,6 @@ func ReadBCS(Nbcs, K, NFaces int, reader *bufio.Reader) (BCType utils.Matrix) {
 			skipLines(1, reader)
 		}
 		line = getLine(reader)
-		fmt.Println(line)
 		if n, err = fmt.Sscanf(line, "%32s", &bctyp); err != nil {
 			panic(err)
 		}
@@ -250,7 +257,7 @@ func ReadBCS(Nbcs, K, NFaces int, reader *bufio.Reader) (BCType utils.Matrix) {
 	return
 }
 
-func ReadMaterialGroup(reader *bufio.Reader, elementCount int, matval float64, epsilon utils.Vector) {
+func ReadMaterialGroup(reader *bufio.Reader, elementCount int, matval float64, epsilon utils.Vector, verbose bool) {
 	var (
 		n       int
 		nn      = make([]int, 10)
@@ -262,7 +269,9 @@ func ReadMaterialGroup(reader *bufio.Reader, elementCount int, matval float64, e
 		added = 1
 	}
 	numLines := elementCount/10 + added
-	fmt.Printf("Reading %d lines of materials with %d elements\n", numLines, elementCount)
+	if verbose {
+		fmt.Printf("Reading %d lines of materials with %d elements\n", numLines, elementCount)
+	}
 	for i := 0; i < numLines; i++ {
 		line := getLine(reader)
 		nargs := 10
