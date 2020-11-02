@@ -143,16 +143,14 @@ func (dfr *DFR2D) ProjectFluxOntoRTSpace(Fx, Fy utils.Matrix) (Fp utils.Matrix) 
 				// Unit vector is [0,1]
 				fpD[ind] = fT[1]
 			case Edge1:
+				// Edge3:
+				fpD[ind] = -fT[1]
+			case Edge2:
 				// Edge1:
 				fpD[ind] = oosr2 * (fT[0] + fT[1])
-			case Edge2:
-				// Edge2:
-				//fpD[ind] = fdot2 * edgeNormMag2
-				fpD[ind] = -fT[0]
 			case Edge3:
-				// Edge3:
-				//fpD[ind] = fdot3 * edgeNormMag3
-				fpD[ind] = -fT[1]
+				// Edge2:
+				fpD[ind] = -fT[0]
 			}
 		}
 	}

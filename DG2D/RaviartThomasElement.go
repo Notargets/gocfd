@@ -69,14 +69,14 @@ func (rt *RTElement) ProjectFunctionOntoBasis(s1, s2 []float64) (sp []float64) {
 			// Unit vector is [0,1]
 			sp[i] = s2[i]
 		case Edge1:
-			// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
-			sp[i] = (s1[i] + s2[i]) * oosr2
-		case Edge2:
-			// Edge2: Unit vector is [-1,0]
-			sp[i] = -s1[i]
-		case Edge3:
-			// Edge3: // Unit vector is [0,-1]
+			// Edge1: // Unit vector is [0,-1]
 			sp[i] = -s2[i]
+		case Edge2:
+			// Edge2: Unit vector is [1/sqrt(2), 1/sqrt(2)]
+			sp[i] = (s1[i] + s2[i]) * oosr2
+		case Edge3:
+			// Edge3: Unit vector is [-1,0]
+			sp[i] = -s1[i]
 		}
 	}
 	return
@@ -95,13 +95,13 @@ func (rt *RTElement) GetTermType(i int) (rtt RTPointType) {
 		// Unit vector is [0,1]
 		rtt = InteriorS
 	case i >= 2*NInterior && i < 2*NInterior+(N+1):
-		// Edge1
+		// Edge1: Unit vector is [0,-1]
 		rtt = Edge1
 	case i >= 2*NInterior+(N+1) && i < 2*NInterior+2*(N+1):
-		// Edge2: Unit vector is [-1,0]
+		// Edge2: Unit vector is [1/sqrt(2), 1/sqrt(2)]
 		rtt = Edge2
 	case i >= 2*NInterior+2*(N+1) && i < 2*NInterior+3*(N+1):
-		// Edge3: // Unit vector is [0,-1]
+		// Edge3: Unit vector is [-1,0]
 		rtt = Edge3
 	}
 	return
@@ -201,20 +201,20 @@ func (rt *RTElement) CalculateBasis() {
 			P.M.SetRow(ii, p1)
 		case Edge1:
 			for i := range rowEdge {
-				// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
-				rowEdge[i] = oosr2 * (p0[i] + p1[i])
+				// Edge3: // Unit vector is [0,-1]
+				rowEdge[i] = -p1[i]
 			}
 			P.M.SetRow(ii, rowEdge)
 		case Edge2:
 			for i := range rowEdge {
-				// Edge2: Unit vector is [-1,0]
-				rowEdge[i] = -p0[i]
+				// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
+				rowEdge[i] = oosr2 * (p0[i] + p1[i])
 			}
 			P.M.SetRow(ii, rowEdge)
 		case Edge3:
 			for i := range rowEdge {
-				// Edge3: // Unit vector is [0,-1]
-				rowEdge[i] = -p1[i]
+				// Edge2: Unit vector is [-1,0]
+				rowEdge[i] = -p0[i]
 			}
 			P.M.SetRow(ii, rowEdge)
 		}
@@ -243,51 +243,6 @@ func (rt *RTElement) CalculateBasis() {
 	rt.Np = Np
 	return
 }
-
-/*
-func (rt *RTElement) Divergence(f1, f2 []float64) (div []float64) {
-	if len(f1) != rt.Np || len(f2) != rt.Np {
-		panic(fmt.Errorf("wrong input number of points, should be %d, is %d\n", rt.Np, len(f1)))
-	}
-	f1p, f2p := rt.ProjectFunctionOntoBasis(f1, f2)
-	var (
-		Npm = rt.Np
-	)
-	f1pV, f2pV := utils.NewMatrix(Npm, 1, f1p), utils.NewMatrix(Npm, 1, f2p)
-	// Divergence is (Dr1 * f1pV) + (Ds2 * f2pV)
-	divV := rt.Dr[0].Mul(f1pV).Add(rt.Ds[1].Mul(f2pV))
-	div = divV.Data()
-	return
-}
-*/
-
-/*
-func (rt *RTElement) DivergenceInterior(f1, f2 []float64) (div []float64) {
-	if len(f1) != rt.Np || len(f2) != rt.Np {
-		panic(fmt.Errorf("wrong input number of points, should be %d, is %d\n", rt.Np, len(f1)))
-	}
-	f1p, f2p := rt.ProjectFunctionOntoBasis(f1, f2)
-	var (
-		Npm       = rt.Np
-		N         = rt.N
-		NInterior = N * (N + 1) / 2 // one order less than RT element in (P_k)2
-	)
-	if rt.Dr0Int.IsEmpty() {
-		// Restrict the derivative matrices to the interior points
-		rt.Dr0Int, rt.Ds1Int = utils.NewMatrix(NInterior, Npm), utils.NewMatrix(NInterior, Npm)
-		for i := 0; i < NInterior; i++ {
-			rowDr1, rowDs2 := rt.Dr[0].Row(i).Data(), rt.Ds[1].Row(i).Data()
-			rt.Dr0Int.M.SetRow(i, rowDr1)
-			rt.Ds1Int.M.SetRow(i, rowDs2)
-		}
-	}
-	f1pV, f2pV := utils.NewMatrix(Npm, 1, f1p), utils.NewMatrix(Npm, 1, f2p)
-	// Divergence is (Dr1 * f1pV) + (Ds2 * f2pV)
-	divV := rt.Dr0Int.Mul(f1pV).Add(rt.Ds1Int.Mul(f2pV))
-	div = divV.Data()
-	return
-}
-*/
 
 type DerivativeDirection uint8
 
@@ -360,32 +315,6 @@ func (rt *RTElement) EvaluateRTBasis(r, s float64, derivO ...DerivativeDirection
 	return
 }
 
-/*
-func (rt *RTElement) EvaluatePolynomial(j int, r, s float64, derivO ...DerivativeDirection) (p1, p2 float64) {
-*/
-/*
-	Get the coefficients for the j-th polynomial and compute:
-		p(r,s) = sum(coeff_i*P_i(r,s))
-	for each direction [1,2]
-*/
-/*
-	var (
-		deriv = None
-	)
-	if len(derivO) != 0 {
-		deriv = derivO[0]
-	}
-	coeffs := rt.Ainv.Col(j).Data()
-	b1, b2 := rt.EvaluateRTBasis(r, s, deriv)
-	for i := range coeffs {
-		//fmt.Printf("term(%d} = [%8.5f, %8.5f]\n", i, coeffs1[i]*b1[i], coeffs2[i]*b2[i])
-		p1 += coeffs[i] * b1[i]
-		p2 += coeffs[i] * b2[i]
-	}
-	return
-}
-*/
-
 func ExtendGeomToRT(N int, rInt, sInt utils.Vector) (r, s utils.Vector) {
 	var (
 		NpEdge       = N + 1
@@ -411,16 +340,16 @@ func ExtendGeomToRT(N int, rInt, sInt utils.Vector) (r, s utils.Vector) {
 	sEdgeData := make([]float64, NpEdge*3)
 	for i := 0; i < NpEdge; i++ {
 		gp := GQRData[i]
-		// Edge 1 (hypotenuse)
+		// Edge 1
+		rEdgeData[i] = gp
+		sEdgeData[i] = -1
+		// Edge 2 (hypotenuse)
 		gpT := 0.5 * (gp + 1)
-		rEdgeData[i] = 1 - 2*gpT
-		sEdgeData[i] = -1 + 2*gpT
-		// Edge 2
-		rEdgeData[i+NpEdge] = -1
-		sEdgeData[i+NpEdge] = gp
+		rEdgeData[i+NpEdge] = 1 - 2*gpT
+		sEdgeData[i+NpEdge] = -1 + 2*gpT
 		// Edge 3
-		rEdgeData[i+2*NpEdge] = gp
-		sEdgeData[i+2*NpEdge] = -1
+		rEdgeData[i+2*NpEdge] = -1
+		sEdgeData[i+2*NpEdge] = gp
 	}
 	rData = append(rData, rEdgeData...)
 	sData = append(sData, sEdgeData...)
@@ -506,44 +435,6 @@ func NodesEpsilon(N int) (R, S utils.Vector) {
 	RS := T.Mul(eps)
 	R = RS.Row(0)
 	S = RS.Row(1)
-	return
-}
-
-func CombineBasis(N int, V1, V2 utils.Matrix) (V1m, V2m utils.Matrix) {
-	// Merge the R and S terms for the interior points, where there is duplication in the basis
-	var (
-		Npm  = (N + 6) * (N + 1) / 2 // Number of points in basis with one set of interior points with a vector for R and S
-		Np   = (N + 3) * (N + 1)
-		Nint = N * (N + 1) / 2
-	)
-	trimFloat := func(in float64) (out float64) {
-		thresh := 1.e-12
-		if math.Abs(in) > thresh {
-			out = in
-		}
-		return
-	}
-	V1m, V2m = utils.NewMatrix(Npm, Npm), utils.NewMatrix(Npm, Npm)
-	var j1m, j2m int
-	for j := 0; j < Np; j++ {
-		var i1m, i2m int
-		for i := 0; i < Np; i++ {
-			V1m.M.Set(i1m, j1m, trimFloat(V1.At(i, j)))
-			V2m.M.Set(i2m, j2m, trimFloat(V2.At(i, j)))
-			if i < Nint || i >= 2*Nint {
-				i1m++
-			}
-			if i >= Nint {
-				i2m++
-			}
-		}
-		if j < Nint || j >= 2*Nint {
-			j1m++
-		}
-		if j >= Nint {
-			j2m++
-		}
-	}
 	return
 }
 

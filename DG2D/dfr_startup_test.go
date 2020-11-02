@@ -254,7 +254,6 @@ func TestDFR2D(t *testing.T) {
 					)
 					divM := rt.Div.Mul(Fpk).Scale(1. / Jdet)
 					assert.True(t, nearVec(divCheck.Row(k).Data(), divM.Data(), 0.00001))
-					//_, _ = divM, divCheck
 				}
 			}
 		}
@@ -291,19 +290,8 @@ func SetNormalFluxOnEdges(dfr *DFR2D, Fx, Fy utils.Matrix, Fp *utils.Matrix) {
 			normal := normalize([2]float64{-dx[1], dx[0]})
 			normal[0] *= e.IInII[conn]
 			normal[1] *= e.IInII[conn]
-			var edgeStart, edgeEnd int
-			edgeNumber := e.ConnectedTriEdgeNumber[conn]
-			switch edgeNumber {
-			case Second: // The hypotenuse is stored first
-				edgeStart, edgeEnd = 2*Nint, 2*Nint+Nedge
-			case Third:
-				edgeStart, edgeEnd = 2*Nint+Nedge, 2*Nint+2*Nedge
-			case First:
-				edgeStart, edgeEnd = 2*Nint+2*Nedge, 2*Nint+3*Nedge
-			}
-			//fmt.Printf("k, edgeNum, edgeStart, edgeEnd, IInII = %d, %s, %d, %d, %8.5f\n",
-			//	k, edgeNumber.String(), edgeStart, edgeEnd, e.IInII[conn])
-			for n := edgeStart; n < edgeEnd; n++ {
+			edgeNumber := int(e.ConnectedTriEdgeNumber[conn])
+			for n := 2*Nint + edgeNumber*Nedge; n < 2*Nint+(edgeNumber+1)*Nedge; n++ {
 				ind := n + k*Np
 				fpD[ind] = normal[0]*fxD[ind] + normal[1]*fyD[ind]
 			}
