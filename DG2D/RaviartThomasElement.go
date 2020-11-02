@@ -21,12 +21,12 @@ type RTElement struct {
 type RTPointType uint
 
 const (
-	All RTPointType = iota
-	InteriorR
-	InteriorS
-	Edge1
-	Edge2
-	Edge3
+	All       RTPointType = iota
+	InteriorR             // R component of vector field
+	InteriorS             // S component of vector field
+	Edge1                 // Edge from vertex 0-1, Normal is [0,-1]
+	Edge2                 // Edge from vertex 1-2, Normal is [1./sqrt(2),1./sqrt(2)]
+	Edge3                 // Edge from vertex 2-0, Normal is [-1,0]
 )
 
 func NewRTElement(N int, R, S utils.Vector) (rt *RTElement) {
@@ -84,23 +84,24 @@ func (rt *RTElement) ProjectFunctionOntoBasis(s1, s2 []float64) (sp []float64) {
 
 func (rt *RTElement) GetTermType(i int) (rtt RTPointType) {
 	var (
-		N         = rt.N
-		NInterior = N * (N + 1) / 2 // one order less than RT element in (P_k)2
+		N     = rt.N
+		Nint  = N * (N + 1) / 2 // one order less than RT element in (P_k)2
+		Nedge = (N + 1)
 	)
 	switch {
-	case i < NInterior:
+	case i < Nint:
 		// Unit vector is [1,0]
 		rtt = InteriorR
-	case i >= NInterior && i < 2*NInterior:
+	case i >= Nint && i < 2*Nint:
 		// Unit vector is [0,1]
 		rtt = InteriorS
-	case i >= 2*NInterior && i < 2*NInterior+(N+1):
+	case i >= 2*Nint && i < 2*Nint+Nedge:
 		// Edge1: Unit vector is [0,-1]
 		rtt = Edge1
-	case i >= 2*NInterior+(N+1) && i < 2*NInterior+2*(N+1):
+	case i >= 2*Nint+Nedge && i < 2*Nint+2*Nedge:
 		// Edge2: Unit vector is [1/sqrt(2), 1/sqrt(2)]
 		rtt = Edge2
-	case i >= 2*NInterior+2*(N+1) && i < 2*NInterior+3*(N+1):
+	case i >= 2*Nint+2*Nedge && i < 2*Nint+3*Nedge:
 		// Edge3: Unit vector is [-1,0]
 		rtt = Edge3
 	}
