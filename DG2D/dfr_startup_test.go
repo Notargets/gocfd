@@ -220,7 +220,7 @@ func TestDFR2D(t *testing.T) {
 			}
 			return
 		}
-		if true { // Check Divergence for polynomial vector fields of order < N against analytical solution
+		{ // Check Divergence for polynomial vector fields of order < N against analytical solution
 			N := 7
 			dfr := NewDFR2D(N, "test_tris_5.neu")
 			rt := dfr.FluxElement
@@ -228,10 +228,6 @@ func TestDFR2D(t *testing.T) {
 				//fmt.Printf("Check Order = %d, \n", cOrder)
 				Fx, Fy, divCheck := checkSolution(dfr, cOrder)
 				Fp := dfr.ProjectFluxOntoRTSpace(Fx, Fy)
-				/*
-					fmt.Println(Fp.Print("Fp"))
-					break
-				*/
 				for k := 0; k < dfr.K; k++ {
 					var (
 						Fpk  = Fp.Row(k).ToMatrix()
@@ -242,8 +238,8 @@ func TestDFR2D(t *testing.T) {
 				}
 			}
 		}
-		{ // Check Divergence for polynomial vector fields of order < N against analytical solution
-			N := 2
+		{ // Use transformed edge normal projected flux in place of flux and check divergence again
+			N := 7
 			dfr := NewDFR2D(N, "test_tris_5.neu")
 			rt := dfr.FluxElement
 			for cOrder := 1; cOrder <= N; cOrder++ {
@@ -251,18 +247,14 @@ func TestDFR2D(t *testing.T) {
 				Fx, Fy, divCheck := checkSolution(dfr, cOrder)
 				Fp := dfr.ProjectFluxOntoRTSpace(Fx, Fy)
 				SetNormalFluxOnEdges(dfr, Fx, Fy, &Fp)
-				/*
-					fmt.Println(Fp.Print("Fp_modded"))
-					os.Exit(1)
-				*/
 				for k := 0; k < dfr.K; k++ {
 					var (
 						Fpk  = Fp.Row(k).ToMatrix()
 						Jdet = dfr.Jdet.Row(k).Data()[0]
 					)
 					divM := rt.Div.Mul(Fpk).Scale(1. / Jdet)
-					//assert.True(t, nearVec(divCheck.Row(k).Data(), divM.Data(), 0.00001))
-					_, _ = divM, divCheck
+					assert.True(t, nearVec(divCheck.Row(k).Data(), divM.Data(), 0.00001))
+					//_, _ = divM, divCheck
 				}
 			}
 		}
@@ -288,11 +280,7 @@ func SetNormalFluxOnEdges(dfr *DFR2D, Fx, Fy utils.Matrix, Fp *utils.Matrix) {
 		}
 		return
 	}
-	//fmt.Printf("Nint, Nedge, Np = %d, %d, %d\n", Nint, Nedge, Np)
 	for en, e := range dfr.Tris.Edges {
-		//		if e.NumConnectedTris != 2 {
-		//			continue
-		//		}
 		for conn := 0; conn < int(e.NumConnectedTris); conn++ {
 			var (
 				k = int(e.ConnectedTris[conn])
@@ -306,11 +294,11 @@ func SetNormalFluxOnEdges(dfr *DFR2D, Fx, Fy utils.Matrix, Fp *utils.Matrix) {
 			var edgeStart, edgeEnd int
 			edgeNumber := e.ConnectedTriEdgeNumber[conn]
 			switch edgeNumber {
-			case First:
+			case Second: // The hypotenuse is stored first
 				edgeStart, edgeEnd = 2*Nint, 2*Nint+Nedge
-			case Second:
-				edgeStart, edgeEnd = 2*Nint+Nedge, 2*Nint+2*Nedge
 			case Third:
+				edgeStart, edgeEnd = 2*Nint+Nedge, 2*Nint+2*Nedge
+			case First:
 				edgeStart, edgeEnd = 2*Nint+2*Nedge, 2*Nint+3*Nedge
 			}
 			//fmt.Printf("k, edgeNum, edgeStart, edgeEnd, IInII = %d, %s, %d, %d, %8.5f\n",
