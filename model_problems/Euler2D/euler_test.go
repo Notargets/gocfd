@@ -21,12 +21,6 @@ func TestEuler(t *testing.T) {
 				c.Fx[ii].Data()[i+el.Np] = float64(i + 1)
 			}
 		}
-		/*
-			PrintFlux(c.Fx[0:1])
-			c.AverageFlux()
-			fmt.Printf("After averaging\n")
-			PrintFlux(c.Fx[0:1])
-		*/
 		c.AverageFlux()
 		assert.True(t, nearVec(c.Fx[0].Data(),
 			[]float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 11, 11, 11, 1, 2, 3, 4, 5, 6, 11, 11, 11, 10, 11, 12, 13, 14, 15},

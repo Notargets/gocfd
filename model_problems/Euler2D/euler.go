@@ -78,41 +78,24 @@ func NewEuler(CFL, FinalTime float64, N int, meshFile string, model ModelType, C
 
 func (c *Euler) AverageFlux() {
 	var (
-		el              = c.dfr.FluxElement
-		Nedge           = el.Nedge
-		leftFx, rightFx [4][]float64
-		aveFx           [4][]float64
-		leftFy, rightFy [4][]float64
-		aveFy           [4][]float64
+		el    = c.dfr.FluxElement
+		Nedge = el.Nedge
 	)
-	for ii := 0; ii < 4; ii++ {
-		aveFx[ii] = make([]float64, Nedge)
-		aveFy[ii] = make([]float64, Nedge)
-	}
 	for _, e := range c.dfr.Tris.Edges {
 		if e.BCType == DG2D.BC_None && e.NumConnectedTris == 2 {
 			// We construct a shared flux
 			k1, k2 := int(e.ConnectedTris[0]), int(e.ConnectedTris[1])
 			for ii := 0; ii < 4; ii++ {
+				fxD, fyD := c.Fx[ii].Data(), c.Fy[ii].Data()
 				ind1, ind2 := c.EdgeStart(k1, e, 0), c.EdgeStart(k2, e, 1)
-				leftFx[ii] = c.Fx[ii].Data()[ind1 : ind1+Nedge]
-				rightFx[ii] = c.Fx[ii].Data()[ind2 : ind2+Nedge]
-				leftFy[ii] = c.Fy[ii].Data()[ind1 : ind1+Nedge]
-				rightFy[ii] = c.Fy[ii].Data()[ind2 : ind2+Nedge]
 				for i := 0; i < Nedge; i++ {
-					iR := Nedge - 1 - i
+					ind := i + ind1
+					indR := (Nedge - 1) - i + ind2
 					// Reverse the right relative to the left
-					aveFx[ii][i] = 0.5 * (leftFx[ii][i] + rightFx[ii][iR])
-					aveFy[ii][i] = 0.5 * (leftFy[ii][i] + rightFy[ii][iR])
-				}
-			}
-			for ii := 0; ii < 4; ii++ {
-				for i := 0; i < Nedge; i++ {
-					iR := Nedge - 1 - i
-					leftFx[ii][i] = aveFx[ii][i]
-					rightFx[ii][iR] = aveFx[ii][i]
-					leftFy[ii][i] = aveFy[ii][i]
-					rightFy[ii][iR] = aveFy[ii][i]
+					aveFx := 0.5 * (fxD[ind] + fxD[indR])
+					aveFy := 0.5 * (fyD[ind] + fyD[indR])
+					fxD[ind], fxD[indR] = aveFx, aveFx
+					fyD[ind], fyD[indR] = aveFy, aveFy
 				}
 			}
 		}
