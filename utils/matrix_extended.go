@@ -130,12 +130,16 @@ func (m Matrix) Transpose() (R Matrix) { // Does not change receiver
 	return
 }
 
-func (m Matrix) Mul(A Matrix) (R Matrix) { // Does not change receiver
+func (m Matrix) Mul(A Matrix, dataO ...[]float64) (R Matrix) { // Does not change receiver
 	var (
 		nrM, _ = m.Dims()
 		_, ncA = A.M.Dims()
 	)
-	R = NewMatrix(nrM, ncA)
+	if len(dataO) != 0 {
+		R = NewMatrix(nrM, ncA, dataO[0])
+	} else {
+		R = NewMatrix(nrM, ncA)
+	}
 	R.M.Mul(m.M, A.M)
 	return R
 }
