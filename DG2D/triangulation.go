@@ -133,6 +133,10 @@ const (
 	Third
 )
 
+func (ien InternalEdgeNumber) Index() int {
+	return int(ien)
+}
+
 func (ien InternalEdgeNumber) String() string {
 	switch ien {
 	case First:

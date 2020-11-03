@@ -18,7 +18,7 @@ type RTElement struct {
 	R, S        utils.Vector    // Point locations defining element in [-1,1] Triangle, NpxNp
 }
 
-type RTPointType uint
+type RTPointType uint8
 
 const (
 	All       RTPointType = iota
