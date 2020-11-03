@@ -92,15 +92,13 @@ func (c *Euler) AverageFlux() {
 	for _, e := range c.dfr.Tris.Edges {
 		if e.BCType == DG2D.BC_None && e.NumConnectedTris == 2 {
 			// We construct a shared flux
-			triNum1, triNum2 := e.ConnectedTris[0], e.ConnectedTris[1]
-			edgeNum1, edgeNum2 := e.ConnectedTriEdgeNumber[0], e.ConnectedTriEdgeNumber[1] // one of 0,1,2
-			// Calculate index into flux points storage
-			index1, index2 := c.EdgeIndex(edgeNum1, triNum1), c.EdgeIndex(edgeNum2, triNum2)
+			k1, k2 := int(e.ConnectedTris[0]), int(e.ConnectedTris[1])
 			for ii := 0; ii < 4; ii++ {
-				leftFx[ii] = c.Fx[ii].Data()[index1 : index1+Nedge]
-				rightFx[ii] = c.Fx[ii].Data()[index2 : index2+Nedge]
-				leftFy[ii] = c.Fy[ii].Data()[index1 : index1+Nedge]
-				rightFy[ii] = c.Fy[ii].Data()[index2 : index2+Nedge]
+				ind1, ind2 := c.EdgeStart(k1, e, 0), c.EdgeStart(k2, e, 1)
+				leftFx[ii] = c.Fx[ii].Data()[ind1 : ind1+Nedge]
+				rightFx[ii] = c.Fx[ii].Data()[ind2 : ind2+Nedge]
+				leftFy[ii] = c.Fy[ii].Data()[ind1 : ind1+Nedge]
+				rightFy[ii] = c.Fy[ii].Data()[ind2 : ind2+Nedge]
 				for i := 0; i < Nedge; i++ {
 					iR := Nedge - 1 - i
 					// Reverse the right relative to the left
@@ -121,21 +119,22 @@ func (c *Euler) AverageFlux() {
 	}
 }
 
-func (c *Euler) EdgeIndex(edgeNum DG2D.InternalEdgeNumber, triNum uint32) (index int) {
+func (c *Euler) EdgeStart(k int, e *DG2D.Edge, conn int) (index int) {
 	/*
 			Flux points are stored as (KxNp) for each Flux
 		    Within Np, the flux points are layed out like:
 			<---- Nint ----><---- Nint ----><---Nedge----><---Nedge----><---Nedge---->
-			         Solution Points          Edge 1 pts	Edge 2 pts	  Edge 3 pts
+			         Solution Points          Edge 0 pts	Edge 1 pts	  Edge 2 pts
 			<---- Nint ----><---- Nint ----><---Nedge----><---Nedge----><---Nedge---->
 	*/
 	var (
-		el    = c.dfr.FluxElement
-		Np    = el.Np
-		Nint  = el.Nint
-		Nedge = el.Nedge
+		el      = c.dfr.FluxElement
+		Np      = el.Np
+		Nint    = el.Nint
+		Nedge   = el.Nedge
+		edgeNum = e.ConnectedTriEdgeNumber[conn].Index()
 	)
-	index = int(triNum)*Np + 2*Nint + int(edgeNum)*Nedge
+	index = k*Np + 2*Nint + edgeNum*Nedge
 	return
 }
 
