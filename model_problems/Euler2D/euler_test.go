@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/notargets/gocfd/utils"
 )
 
@@ -13,14 +15,25 @@ func TestEuler(t *testing.T) {
 	c := NewEuler(1, 1, 1, "../../DG2D/test_tris_5.neu", FLUX_Average, FREESTREAM)
 	K := c.dfr.K
 	Np := c.dfr.SolutionElement.Np
-	q0D := c.Q[0].Data()
-	for i := 0; i < K*Np; i++ {
-		q0D[i] = float64(i)
+	for n := 0; n < 4; n++ {
+		for i := 0; i < Np; i++ {
+			for k := 0; k < K; k++ {
+				c.Q[n].Data()[k+i*K] = float64(k + 1)
+			}
+		}
 	}
-	fmt.Println(c.Q[0].Print("Q0"))
 	// Interpolate from solution points to edges using precomputed interpolation matrix
-	c.Q_Face[0] = c.dfr.FluxInterpMatrix.Mul(c.Q[0])
-	fmt.Println(c.Q_Face[0].Print("FIxQ0_opt"))
+	for n := 0; n < 4; n++ {
+		c.Q_Face[n] = c.dfr.FluxInterpMatrix.Mul(c.Q[n])
+	}
+	Nedge := c.dfr.FluxElement.Nedge
+	for n := 0; n < 4; n++ {
+		for i := 0; i < 3*Nedge; i++ {
+			for k := 0; k < K; k++ {
+				assert.True(t, near(float64(k+1), c.Q_Face[n].Data()[k+i*K], 0.000001))
+			}
+		}
+	}
 }
 
 func PrintQ(Q [4]utils.Matrix) {
