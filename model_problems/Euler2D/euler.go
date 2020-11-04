@@ -176,58 +176,23 @@ func (c *Euler) CalculateFluxTransformed(k, i int, Q [4]utils.Matrix) (Fr, Fs [4
 func (c *Euler) CalculateFlux(k, i int, Q [4]utils.Matrix) (Fx, Fy [4]float64) {
 	// From https://www.theoretical-physics.net/dev/fluid-dynamics/euler.html
 	var (
-		Gamma              = c.Gamma
-		GM1                = Gamma - 1 // R / Cv
-		q0D, q1D, q2D, q3D = Q[0].Data(), Q[1].Data(), Q[2].Data(), Q[3].Data()
-		ind                = k + i*c.dfr.K
+		Gamma                 = c.Gamma
+		GM1                   = Gamma - 1 // R / Cv
+		q0D, q1D, q2D, q3D    = Q[0].Data(), Q[1].Data(), Q[2].Data(), Q[3].Data()
+		Kmax                  = c.dfr.K
+		ind                   = k + i*Kmax
+		rho, rhoU, rhoV, rhoE = q0D[ind], q1D[ind], q2D[ind], q3D[ind]
 	)
-	rho, rhoU, rhoV, rhoE := q0D[ind], q1D[ind], q2D[ind], q3D[ind]
 	u := rhoU / rho
 	v := rhoV / rho
 	u2 := u*u + v*v
 	q := 0.5 * rho * u2
 	p := GM1 * (rhoE - q)
-	Fx[0] = rhoU
-	Fx[1] = rhoU*u + p
-	Fx[2] = rhoU * v
-	Fx[3] = u * (rhoE + p)
-
-	Fy[0] = rhoV
-	Fy[1] = rhoV * u
-	Fy[2] = rhoV*v + p
-	Fy[3] = v * (rhoE + p)
+	Fx, Fy =
+		[4]float64{rhoU, rhoU*u + p, rhoU * v, u * (rhoE + p)},
+		[4]float64{rhoV, rhoV * u, rhoV*v + p, v * (rhoE + p)}
 	return
 }
-
-/*
-func (c *Euler) CalculateFlux() {
-	// From https://www.theoretical-physics.net/dev/fluid-dynamics/euler.html
-	var (
-		K              = c.dfr.K
-		Np             = c.dfr.FluxElement.Np
-		Gamma          = 1.4
-		GM1            = Gamma - 1 // R / Cv
-		Q1, Q2, Q3, Q4 = c.Q[0].Data(), c.Q[1].Data(), c.Q[2].Data(), c.Q[3].Data()
-	)
-	for i := 0; i < K*Np; i++ {
-		rho, rhoU, rhoV, rhoE := Q1[i], Q2[i], Q3[i], Q4[i]
-		u := rhoU / rho
-		v := rhoV / rho
-		u2 := u*u + v*v
-		q := 0.5 * rho * u2
-		p := GM1 * (rhoE - q)
-		c.Fx[0].Data()[i] = rhoU
-		c.Fx[1].Data()[i] = rhoU*u + p
-		c.Fx[2].Data()[i] = rhoU * v
-		c.Fx[3].Data()[i] = u * (rhoE + p)
-
-		c.Fy[0].Data()[i] = rhoV
-		c.Fy[1].Data()[i] = rhoV * u
-		c.Fy[2].Data()[i] = rhoV*v + p
-		c.Fy[3].Data()[i] = v * (rhoE + p)
-	}
-}
-*/
 
 /*
 func (c *Euler) CalculateDT(xmin, Time float64) (dt float64) {
