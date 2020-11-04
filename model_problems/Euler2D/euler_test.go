@@ -54,72 +54,75 @@ func TestEuler(t *testing.T) {
 			1) Solution is extrapolated to edge points in Q_Face from Q
 			2) Edges are traversed, flux is calculated and projected onto edge face normals, scaled and placed into F_RT_DOF
 		*/
-		Nmax := 1
+		Nmax := 7
 		for N := 1; N <= Nmax; N++ {
 			c := NewEuler(1, 1, N, "../../DG2D/test_tris_5.neu", FLUX_Average, FREESTREAM, false)
-			K := c.dfr.K
+			Kmax := c.dfr.K
 			Nint := c.dfr.FluxElement.Nint
 			Nedge := c.dfr.FluxElement.Nedge
+			NpFlux := c.dfr.FluxElement.Np // Np = 2*Nint+3*Nedge
 			// Mark the initial state with the element number
 			for i := 0; i < Nint; i++ {
-				for k := 0; k < K; k++ {
-					c.Q[0].Data()[k+i*K] = float64(k + 1)
-					c.Q[1].Data()[k+i*K] = 0.1 * float64(k+1)
-					c.Q[2].Data()[k+i*K] = 0.05 * float64(k+1)
+				for k := 0; k < Kmax; k++ {
+					ind := k + i*Kmax
+					c.Q[0].Data()[ind] = float64(k + 1)
+					c.Q[1].Data()[ind] = 0.1 * float64(k+1)
+					c.Q[2].Data()[ind] = 0.05 * float64(k+1)
+					c.Q[3].Data()[ind] = 2.00 * float64(k+1)
 				}
 			}
-			Fr_k0, Fs_k0 := c.CalculateFlux(0, 0, c.Q)
-			Fr_k1, Fs_k1 := c.CalculateFlux(1, 0, c.Q)
+			// Flux values for later checks are invariant with i (i=0)
+			Fr_check, Fs_check := make([][4]float64, Kmax), make([][4]float64, Kmax)
+			for k := 0; k < Kmax; k++ {
+				Fr_check[k], Fs_check[k] = c.CalculateFlux(k, 0, c.Q)
+			}
 			// Calculate flux and project into R and S (transformed) directions
 			for i := 0; i < Nint; i++ {
 				for k := 0; k < c.dfr.K; k++ {
-					//Fr, Fs := c.CalculateFluxTransformed(k, i, c.Q)
+					ind := k + i*Kmax
 					Fr, Fs := c.CalculateFlux(k, i, c.Q)
 					for n := 0; n < 4; n++ {
 						rtD := c.F_RT_DOF[n].Data()
-						ind := k + i*K
-						rtD[ind], rtD[ind+Nint*K] = Fr[n], Fs[n]
+						rtD[ind], rtD[ind+Nint*Kmax] = Fr[n], Fs[n]
 					}
 				}
 			}
 			// Check to see that the expected values are in the right place (the internal locations)
-			inc := 2*Nint + 3*Nedge
-			for n := 0; n < 4; n++ {
-				assert.True(t, nearVec(c.F_RT_DOF[n].Transpose().Data()[0:Nint], []float64{Fr_k0[n], Fr_k0[n], Fr_k0[n]}, 0.000001))
-				assert.True(t, nearVec(c.F_RT_DOF[n].Transpose().Data()[Nint:2*Nint], []float64{Fs_k0[n], Fs_k0[n], Fs_k0[n]}, 0.000001))
-				assert.True(t, nearVec(c.F_RT_DOF[n].Transpose().Data()[inc:inc+Nint], []float64{Fr_k1[n], Fr_k1[n], Fr_k1[n]}, 0.000001))
-				assert.True(t, nearVec(c.F_RT_DOF[n].Transpose().Data()[inc+Nint:inc+2*Nint], []float64{Fs_k1[n], Fs_k1[n], Fs_k1[n]}, 0.000001))
+			for k := 0; k < Kmax; k++ {
+				for n := 0; n < 4; n++ {
+					val0, val1 := Fr_check[k][n], Fs_check[k][n]
+					is := k * NpFlux
+					assert.True(t, nearVecScalar(c.F_RT_DOF[n].Transpose().Data()[is:is+Nint],
+						val0, 0.000001))
+					is += Nint
+					assert.True(t, nearVecScalar(c.F_RT_DOF[n].Transpose().Data()[is:is+Nint],
+						val1, 0.000001))
+				}
 			}
 			// Interpolate from solution points to edges using precomputed interpolation matrix
 			for n := 0; n < 4; n++ {
 				c.Q_Face[n] = c.dfr.FluxInterpMatrix.Mul(c.Q[n])
 			}
-			for k := 0; k < c.dfr.K; k++ {
+			for k := 0; k < Kmax; k++ {
 				for i := 0; i < 3*Nedge; i++ {
-					//FrE, FsE := c.CalculateFluxTransformed(k, i, c.Q_Face)
+					ind := k + (i+2*Nint)*Kmax
 					FrE, FsE := c.CalculateFlux(k, i, c.Q_Face)
 					for n := 0; n < 4; n++ {
 						rtD := c.F_RT_DOF[n].Data()
-						ind := k + (i+2*Nint)*K
 						rtD[ind] = FrE[n] + FsE[n]
 					}
 				}
 			}
 			// Check to see that the expected values are in the right place (the edge locations)
-			for n := 0; n < 4; n++ {
-				val := Fr_k0[n] + Fs_k0[n]
-				assert.True(t, nearVec(c.F_RT_DOF[n].Transpose().Data()[2*Nint:2*Nint+3*Nedge],
-					[]float64{val, val, val, val, val, val, val, val, val}, 0.000001))
-				val = Fr_k1[n] + Fs_k1[n]
-				assert.True(t, nearVec(c.F_RT_DOF[n].Transpose().Data()[inc+2*Nint:inc+2*Nint+3*Nedge],
-					[]float64{val, val, val, val, val, val, val, val, val}, 0.000001))
+			for k := 0; k < Kmax; k++ {
+				for n := 0; n < 4; n++ {
+					val := Fr_check[k][n] + Fs_check[k][n]
+					is := k * NpFlux
+					ie := (k + 1) * NpFlux
+					assert.True(t, nearVecScalar(c.F_RT_DOF[n].Transpose().Data()[is+2*Nint:ie],
+						val, 0.000001))
+				}
 			}
-			//fmt.Printf("Fr_k0 = %8.5f, Fr_k1 = %8.5f\n", Fr_k0, Fr_k1)
-			//fmt.Printf("Fs_k0 = %8.5f, Fs_k1 = %8.5f\n", Fs_k0, Fs_k1)
-			//PrintQ(c.Q, "Q_Int")
-			//PrintQ(c.Q_Face, "Q_Face")
-			//PrintQ(c.F_RT_DOF, "F_RT")
-			//PrintQ(c.F_RT_DOF, "F_RT")
 		}
 	}
 }
@@ -153,6 +156,16 @@ func nearVec(a, b []float64, tol float64) (l bool) {
 	for i, val := range a {
 		if !near(b[i], val, tol) {
 			fmt.Printf("Diff = %v, Left[%d] = %v, Right[%d] = %v\n", math.Abs(val-b[i]), i, val, i, b[i])
+			return false
+		}
+	}
+	return true
+}
+
+func nearVecScalar(a []float64, b float64, tol float64) (l bool) {
+	for i, val := range a {
+		if !near(b, val, tol) {
+			fmt.Printf("Diff = %v, Left[%d] = %v, Right[%d] = %v\n", math.Abs(val-b), i, val, i, b)
 			return false
 		}
 	}
