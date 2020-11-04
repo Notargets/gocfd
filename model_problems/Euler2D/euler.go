@@ -18,16 +18,16 @@ import (
 */
 type Euler struct {
 	// Input parameters
-	MeshFile       string
-	CFL, FinalTime float64
-	dfr            *DG2D.DFR2D
-	Q              [4]utils.Matrix // Solution variables, stored at solution point locations, Np_solution x K
-	Q_Face         [4]utils.Matrix // Solution variables, interpolated to and stored at edge point locations, Np_edge x K
-	F_RT_DOF       [4]utils.Matrix // Normal Projected Flux, stored at flux/solution point locations, Np_flux x K
-	chart          *chart2d.Chart2D
-	colorMap       *utils2.ColorMap
-	model          ModelType
-	Case           CaseType
+	MeshFile              string
+	CFL, Gamma, FinalTime float64
+	dfr                   *DG2D.DFR2D
+	Q                     [4]utils.Matrix // Solution variables, stored at solution point locations, Np_solution x K
+	Q_Face                [4]utils.Matrix // Solution variables, interpolated to and stored at edge point locations, Np_edge x K
+	F_RT_DOF              [4]utils.Matrix // Normal Projected Flux, stored at flux/solution point locations, Np_flux x K
+	chart                 *chart2d.Chart2D
+	colorMap              *utils2.ColorMap
+	model                 ModelType
+	Case                  CaseType
 }
 
 type CaseType uint
@@ -59,6 +59,7 @@ func NewEuler(CFL, FinalTime float64, N int, meshFile string, model ModelType, C
 		FinalTime: FinalTime,
 		model:     model,
 		Case:      Case,
+		Gamma:     1.4,
 	}
 	c.dfr = DG2D.NewDFR2D(N, meshFile)
 	c.InitializeMemory()
@@ -82,6 +83,8 @@ func NewEuler(CFL, FinalTime float64, N int, meshFile string, model ModelType, C
 	}
 	return
 }
+
+func (c *Euler) AssembleRTNormalFlux() {}
 
 /*
 func (c *Euler) AverageFlux() {
@@ -135,7 +138,7 @@ func (c *Euler) InitializeFS() {
 		rho, u, v, p = 1., 0., 0., 1. // Freestream state
 		K            = c.dfr.K
 		Np           = c.dfr.SolutionElement.Np
-		Gamma        = 1.4
+		Gamma        = c.Gamma
 		GM1          = Gamma - 1 // R / Cv
 	)
 	q := 0.5 * rho * (u*u + v*v)
@@ -148,12 +151,46 @@ func (c *Euler) InitializeFS() {
 
 func (c *Euler) InitializeMemory() {
 	var (
-		K     = c.dfr.K
-		Nedge = c.dfr.FluxElement.Nedge
+		K      = c.dfr.K
+		Nedge  = c.dfr.FluxElement.Nedge
+		NpFlux = c.dfr.FluxElement.Np
 	)
 	for n := 0; n < 4; n++ {
 		c.Q_Face[n] = utils.NewMatrix(Nedge*3, K)
+		c.F_RT_DOF[n] = utils.NewMatrix(NpFlux, K)
 	}
+}
+
+func (c *Euler) CalculateFluxTransformed(k, i int) (Fr, Fs [4]float64) {
+	// From https://www.theoretical-physics.net/dev/fluid-dynamics/euler.html
+	var (
+		Gamma              = c.Gamma
+		GM1                = Gamma - 1 // R / Cv
+		q0D, q1D, q2D, q3D = c.Q[0].Data(), c.Q[1].Data(), c.Q[2].Data(), c.Q[3].Data()
+		ind                = k + i*c.dfr.K
+		Fx, Fy             [4]float64
+		J, _, Jdet         = c.dfr.GetJacobian(k)
+	)
+	rho, rhoU, rhoV, rhoE := q0D[ind], q1D[ind], q2D[ind], q3D[ind]
+	u := rhoU / rho
+	v := rhoV / rho
+	u2 := u*u + v*v
+	q := 0.5 * rho * u2
+	p := GM1 * (rhoE - q)
+	Fx[0] = rhoU
+	Fx[1] = rhoU*u + p
+	Fx[2] = rhoU * v
+	Fx[3] = u * (rhoE + p)
+
+	Fy[0] = rhoV
+	Fy[1] = rhoV * u
+	Fy[2] = rhoV*v + p
+	Fy[3] = v * (rhoE + p)
+	for n := 0; n < 4; n++ {
+		Fr[n] = (1. / Jdet) * (J[0]*Fx[n] + J[1]*Fy[n])
+		Fs[n] = (1. / Jdet) * (J[2]*Fx[n] + J[3]*Fy[n])
+	}
+	return
 }
 
 /*

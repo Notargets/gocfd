@@ -55,6 +55,13 @@ func NewDFR2D(N int, meshFileO ...string) (dfr *DFR2D) {
 	return
 }
 
+func (dfr *DFR2D) GetJacobian(k int) (J, Jinv []float64, Jdet float64) {
+	J = dfr.J.Row(k).Data()[0:4]
+	Jinv = dfr.Jinv.Row(k).Data()[0:4]
+	Jdet = dfr.Jdet.Row(k).Data()[0]
+	return
+}
+
 func (dfr *DFR2D) CalculateJacobian() {
 	Jd := make([]float64, 4*dfr.K)
 	Jdetd := make([]float64, dfr.K)

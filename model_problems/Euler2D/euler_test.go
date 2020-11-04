@@ -13,18 +13,38 @@ import (
 
 func TestEuler(t *testing.T) {
 	{ // Test interpolation of solution to edges for all supported orders
-		Nmax := 7
+		/*
+			Solver approach:
+			0) Solution is stored on sol points as Q
+			0a) Flux is computed and stored in X, Y component projections in the 2*Nint front of F_RT_DOF
+			1) Solution is extrapolated to edge points in Q_Face from Q
+			2) Edges are traversed, flux is calculated and projected onto edge face normals, scaled and placed into F_RT_DOF
+		*/
+		Nmax := 1
 		for N := 1; N <= Nmax; N++ {
 			c := NewEuler(1, 1, N, "../../DG2D/test_tris_5.neu", FLUX_Average, FREESTREAM, false)
 			K := c.dfr.K
-			Np := c.dfr.SolutionElement.Np
+			Nint := c.dfr.SolutionElement.Np
 			for n := 0; n < 4; n++ {
-				for i := 0; i < Np; i++ {
+				for i := 0; i < Nint; i++ {
 					for k := 0; k < K; k++ {
 						c.Q[n].Data()[k+i*K] = float64(k + 1)
 					}
 				}
 			}
+			// Calculate flux and project into R and S (transformed) directions
+			var ind int
+			for k := 0; k < c.dfr.K; k++ {
+				for i := 0; i < Nint; i++ {
+					Fr, Fs := c.CalculateFluxTransformed(k, i)
+					for n := 0; n < 4; n++ {
+						rtD := c.F_RT_DOF[n].Data()
+						rtD[ind], rtD[ind+Nint*K] = Fr[n], Fs[n]
+					}
+					ind++
+				}
+			}
+			PrintQ(c.F_RT_DOF)
 			// Interpolate from solution points to edges using precomputed interpolation matrix
 			for n := 0; n < 4; n++ {
 				c.Q_Face[n] = c.dfr.FluxInterpMatrix.Mul(c.Q[n])
@@ -39,6 +59,7 @@ func TestEuler(t *testing.T) {
 			}
 		}
 	}
+
 }
 
 func PrintQ(Q [4]utils.Matrix) {

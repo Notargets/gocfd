@@ -152,9 +152,9 @@ func TestDFR2D(t *testing.T) {
 			for conn := 0; conn < int(e.NumConnectedTris); conn++ {
 				k := e.ConnectedTris[conn]
 				revDir := bool(e.ConnectedTriDirection[conn])
-				Jt := transpose(dfr.J.Row(int(k)).Data()[0:4])       // Transpose is applied to normals, which are cross products of vectors
-				JtInv := transpose(dfr.Jinv.Row(int(k)).Data()[0:4]) // Transpose is applied to normals, which are cross products of vectors
-				Jdet := math.Abs(dfr.Jdet.Row(int(k)).Data()[0])
+				J, Jinv, Jdet := dfr.GetJacobian(int(k))
+				Jt := transpose(J)       // Transpose is applied to normals, which are cross products of vectors
+				JtInv := transpose(Jinv) // Transpose is applied to normals, which are cross products of vectors
 				x1, x2 := dfr.Tris.GetEdgeCoordinates(en, revDir, dfr.VX, dfr.VY)
 				dx := [2]float64{x2[0] - x1[0], x2[1] - x1[1]}
 				normal := [2]float64{-dx[1], dx[0]}
