@@ -74,13 +74,13 @@ func TestEuler(t *testing.T) {
 			// Flux values for later checks are invariant with i (i=0)
 			Fr_check, Fs_check := make([][4]float64, Kmax), make([][4]float64, Kmax)
 			for k := 0; k < Kmax; k++ {
-				Fr_check[k], Fs_check[k] = c.CalculateFlux(k, 0, c.Q)
+				Fr_check[k], Fs_check[k] = c.CalculateFluxTransformed(k, 0, c.Q)
 			}
 			// Calculate flux and project into R and S (transformed) directions
 			for i := 0; i < Nint; i++ {
 				for k := 0; k < c.dfr.K; k++ {
 					ind := k + i*Kmax
-					Fr, Fs := c.CalculateFlux(k, i, c.Q)
+					Fr, Fs := c.CalculateFluxTransformed(k, i, c.Q)
 					for n := 0; n < 4; n++ {
 						rtD := c.F_RT_DOF[n].Data()
 						rtD[ind], rtD[ind+Nint*Kmax] = Fr[n], Fs[n]
@@ -106,7 +106,7 @@ func TestEuler(t *testing.T) {
 			for k := 0; k < Kmax; k++ {
 				for i := 0; i < 3*Nedge; i++ {
 					ind := k + (i+2*Nint)*Kmax
-					FrE, FsE := c.CalculateFlux(k, i, c.Q_Face)
+					FrE, FsE := c.CalculateFluxTransformed(k, i, c.Q_Face)
 					for n := 0; n < 4; n++ {
 						rtD := c.F_RT_DOF[n].Data()
 						rtD[ind] = FrE[n] + FsE[n]
