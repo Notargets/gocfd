@@ -12,25 +12,30 @@ import (
 )
 
 func TestEuler(t *testing.T) {
-	c := NewEuler(1, 1, 1, "../../DG2D/test_tris_5.neu", FLUX_Average, FREESTREAM)
-	K := c.dfr.K
-	Np := c.dfr.SolutionElement.Np
-	for n := 0; n < 4; n++ {
-		for i := 0; i < Np; i++ {
-			for k := 0; k < K; k++ {
-				c.Q[n].Data()[k+i*K] = float64(k + 1)
+	{ // Test interpolation of solution to edges for all supported orders
+		Nmax := 7
+		for N := 1; N <= Nmax; N++ {
+			c := NewEuler(1, 1, N, "../../DG2D/test_tris_5.neu", FLUX_Average, FREESTREAM, false)
+			K := c.dfr.K
+			Np := c.dfr.SolutionElement.Np
+			for n := 0; n < 4; n++ {
+				for i := 0; i < Np; i++ {
+					for k := 0; k < K; k++ {
+						c.Q[n].Data()[k+i*K] = float64(k + 1)
+					}
+				}
 			}
-		}
-	}
-	// Interpolate from solution points to edges using precomputed interpolation matrix
-	for n := 0; n < 4; n++ {
-		c.Q_Face[n] = c.dfr.FluxInterpMatrix.Mul(c.Q[n])
-	}
-	Nedge := c.dfr.FluxElement.Nedge
-	for n := 0; n < 4; n++ {
-		for i := 0; i < 3*Nedge; i++ {
-			for k := 0; k < K; k++ {
-				assert.True(t, near(float64(k+1), c.Q_Face[n].Data()[k+i*K], 0.000001))
+			// Interpolate from solution points to edges using precomputed interpolation matrix
+			for n := 0; n < 4; n++ {
+				c.Q_Face[n] = c.dfr.FluxInterpMatrix.Mul(c.Q[n])
+			}
+			Nedge := c.dfr.FluxElement.Nedge
+			for n := 0; n < 4; n++ {
+				for i := 0; i < 3*Nedge; i++ {
+					for k := 0; k < K; k++ {
+						assert.True(t, near(float64(k+1), c.Q_Face[n].Data()[k+i*K], 0.000001))
+					}
+				}
 			}
 		}
 	}

@@ -52,7 +52,7 @@ var (
 	}
 )
 
-func NewEuler(CFL, FinalTime float64, N int, meshFile string, model ModelType, Case CaseType) (c *Euler) {
+func NewEuler(CFL, FinalTime float64, N int, meshFile string, model ModelType, Case CaseType, verbose bool) (c *Euler) {
 	c = &Euler{
 		MeshFile:  meshFile,
 		CFL:       CFL,
@@ -62,19 +62,24 @@ func NewEuler(CFL, FinalTime float64, N int, meshFile string, model ModelType, C
 	}
 	c.dfr = DG2D.NewDFR2D(N, meshFile)
 	c.InitializeMemory()
-	fmt.Printf("Euler Equations in 2 Dimensions\n")
+	if verbose {
+		fmt.Printf("Euler Equations in 2 Dimensions\n")
+	}
 	switch c.Case {
 	case FREESTREAM:
 		c.InitializeFS()
-		fmt.Printf("Solving Freestream\n")
+		if verbose {
+			fmt.Printf("Solving Freestream\n")
+		}
 	default:
 		panic("unknown case type")
 	}
-	fmt.Printf("Calling avg flux for file: %s ...\n", c.MeshFile)
-	//c.AverageFlux()
-	fmt.Printf("done\n")
-	fmt.Printf("Algorithm: %s\n", modelNames[c.model])
-	fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, c.dfr.K)
+	if verbose {
+		fmt.Printf("Calling avg flux for file: %s ...\n", c.MeshFile)
+		fmt.Printf("done\n")
+		fmt.Printf("Algorithm: %s\n", modelNames[c.model])
+		fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, c.dfr.K)
+	}
 	return
 }
 
