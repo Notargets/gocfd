@@ -161,15 +161,25 @@ func (c *Euler) InitializeMemory() {
 	}
 }
 
-func (c *Euler) CalculateFluxTransformed(k, i int) (Fr, Fs [4]float64) {
+func (c *Euler) CalculateFluxTransformed(k, i int, Q [4]utils.Matrix) (Fr, Fs [4]float64) {
+	var (
+		J, _, Jdet = c.dfr.GetJacobian(k)
+	)
+	Fx, Fy := c.CalculateFlux(k, i, Q)
+	for n := 0; n < 4; n++ {
+		Fr[n] = (1. / Jdet) * (J[0]*Fx[n] + J[1]*Fy[n])
+		Fs[n] = (1. / Jdet) * (J[2]*Fx[n] + J[3]*Fy[n])
+	}
+	return
+}
+
+func (c *Euler) CalculateFlux(k, i int, Q [4]utils.Matrix) (Fx, Fy [4]float64) {
 	// From https://www.theoretical-physics.net/dev/fluid-dynamics/euler.html
 	var (
 		Gamma              = c.Gamma
 		GM1                = Gamma - 1 // R / Cv
-		q0D, q1D, q2D, q3D = c.Q[0].Data(), c.Q[1].Data(), c.Q[2].Data(), c.Q[3].Data()
+		q0D, q1D, q2D, q3D = Q[0].Data(), Q[1].Data(), Q[2].Data(), Q[3].Data()
 		ind                = k + i*c.dfr.K
-		Fx, Fy             [4]float64
-		J, _, Jdet         = c.dfr.GetJacobian(k)
 	)
 	rho, rhoU, rhoV, rhoE := q0D[ind], q1D[ind], q2D[ind], q3D[ind]
 	u := rhoU / rho
@@ -186,10 +196,6 @@ func (c *Euler) CalculateFluxTransformed(k, i int) (Fr, Fs [4]float64) {
 	Fy[1] = rhoV * u
 	Fy[2] = rhoV*v + p
 	Fy[3] = v * (rhoE + p)
-	for n := 0; n < 4; n++ {
-		Fr[n] = (1. / Jdet) * (J[0]*Fx[n] + J[1]*Fy[n])
-		Fs[n] = (1. / Jdet) * (J[2]*Fx[n] + J[3]*Fy[n])
-	}
 	return
 }
 

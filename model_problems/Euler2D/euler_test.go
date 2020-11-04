@@ -20,11 +20,12 @@ func TestEuler(t *testing.T) {
 			1) Solution is extrapolated to edge points in Q_Face from Q
 			2) Edges are traversed, flux is calculated and projected onto edge face normals, scaled and placed into F_RT_DOF
 		*/
-		Nmax := 1
+		Nmax := 7
 		for N := 1; N <= Nmax; N++ {
 			c := NewEuler(1, 1, N, "../../DG2D/test_tris_5.neu", FLUX_Average, FREESTREAM, false)
 			K := c.dfr.K
-			Nint := c.dfr.SolutionElement.Np
+			Nint := c.dfr.FluxElement.Nint
+			Nedge := c.dfr.FluxElement.Nedge
 			for n := 0; n < 4; n++ {
 				for i := 0; i < Nint; i++ {
 					for k := 0; k < K; k++ {
@@ -32,24 +33,10 @@ func TestEuler(t *testing.T) {
 					}
 				}
 			}
-			// Calculate flux and project into R and S (transformed) directions
-			var ind int
-			for k := 0; k < c.dfr.K; k++ {
-				for i := 0; i < Nint; i++ {
-					Fr, Fs := c.CalculateFluxTransformed(k, i)
-					for n := 0; n < 4; n++ {
-						rtD := c.F_RT_DOF[n].Data()
-						rtD[ind], rtD[ind+Nint*K] = Fr[n], Fs[n]
-					}
-					ind++
-				}
-			}
-			PrintQ(c.F_RT_DOF)
 			// Interpolate from solution points to edges using precomputed interpolation matrix
 			for n := 0; n < 4; n++ {
 				c.Q_Face[n] = c.dfr.FluxInterpMatrix.Mul(c.Q[n])
 			}
-			Nedge := c.dfr.FluxElement.Nedge
 			for n := 0; n < 4; n++ {
 				for i := 0; i < 3*Nedge; i++ {
 					for k := 0; k < K; k++ {
@@ -59,25 +46,71 @@ func TestEuler(t *testing.T) {
 			}
 		}
 	}
-
+	{ // Test solution process
+		/*
+			Solver approach:
+			0) Solution is stored on sol points as Q
+			0a) Flux is computed and stored in X, Y component projections in the 2*Nint front of F_RT_DOF
+			1) Solution is extrapolated to edge points in Q_Face from Q
+			2) Edges are traversed, flux is calculated and projected onto edge face normals, scaled and placed into F_RT_DOF
+		*/
+		Nmax := 1
+		for N := 1; N <= Nmax; N++ {
+			c := NewEuler(1, 1, N, "../../DG2D/test_tris_5.neu", FLUX_Average, FREESTREAM, false)
+			K := c.dfr.K
+			Nint := c.dfr.FluxElement.Nint
+			Nedge := c.dfr.FluxElement.Nedge
+			_ = Nedge
+			// Calculate flux and project into R and S (transformed) directions
+			for k := 0; k < c.dfr.K; k++ {
+				for i := 0; i < Nint; i++ {
+					Fr, Fs := c.CalculateFluxTransformed(k, i, c.Q)
+					for n := 0; n < 4; n++ {
+						rtD := c.F_RT_DOF[n].Data()
+						ind := k + i*K
+						rtD[ind], rtD[ind+Nint*K] = Fr[n], Fs[n]
+					}
+				}
+			}
+			// Interpolate from solution points to edges using precomputed interpolation matrix
+			for n := 0; n < 4; n++ {
+				c.Q_Face[n] = c.dfr.FluxInterpMatrix.Mul(c.Q[n])
+			}
+			/*
+				for k := 0; k < c.dfr.K; k++ {
+					for i := 0; i < 3*Nedge; i++ {
+						FrE, FsE := c.CalculateFluxTransformed(k, i, c.Q_Face)
+						for n := 0; n < 4; n++ {
+							rtD := c.F_RT_DOF[n].Data()
+							ind := k + (i+2*Nint)*K
+							rtD[ind] = FrE[n] + FsE[n] // TODO: replace garbage here with actual edge calculations
+						}
+					}
+				}
+			*/
+			PrintQ(c.Q, "Q_Int")
+			PrintQ(c.Q_Face, "Q_Face")
+			PrintQ(c.F_RT_DOF, "F_RT")
+		}
+	}
 }
 
-func PrintQ(Q [4]utils.Matrix) {
+func PrintQ(Q [4]utils.Matrix, l string) {
 	var (
 		label string
 	)
 	for ii := 0; ii < 4; ii++ {
 		switch ii {
 		case 0:
-			label = "Rho"
+			label = l + "_0"
 		case 1:
-			label = "RhoU"
+			label = l + "_1"
 		case 2:
-			label = "RhoV"
+			label = l + "_2"
 		case 3:
-			label = "RhoE"
+			label = l + "_3"
 		}
-		fmt.Println(Q[ii].Print(label))
+		fmt.Println(Q[ii].Transpose().Print(label))
 	}
 }
 func PrintFlux(F []utils.Matrix) {
