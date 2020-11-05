@@ -132,9 +132,6 @@ func TestEuler(t *testing.T) {
 		Kmax := c.dfr.K
 		NpFlux := c.dfr.FluxElement.Np
 		c.SetNormalFluxInternal()
-		//PrintQ(c.Q, "Q")
-		//PrintQ(c.Q_Face, "Q_Face")
-		//PrintQ(c.F_RT_DOF, "F_RT_DOF")
 		c.SetNormalFluxOnEdges()
 		PrintQ(c.F_RT_DOF, "F_RT_DOF_Edges")
 		var div [4]utils.Matrix
