@@ -133,7 +133,7 @@ func TestEuler(t *testing.T) {
 		NpFlux := c.dfr.FluxElement.Np
 		c.SetNormalFluxInternal()
 		c.SetNormalFluxOnEdges()
-		PrintQ(c.F_RT_DOF, "F_RT_DOF_Edges")
+		// Check that freestream divergence on this mesh is zero
 		var div [4]utils.Matrix
 		for n := 0; n < 4; n++ {
 			div[n] = c.dfr.FluxElement.Div.Mul(c.F_RT_DOF[n])
@@ -144,8 +144,8 @@ func TestEuler(t *testing.T) {
 					div[n].Data()[ind] *= 1. / Jdet
 				}
 			}
+			assert.True(t, nearVecScalar(div[n].Data(), 0., 0.000001))
 		}
-		PrintQ(div, "divergence")
 	}
 }
 

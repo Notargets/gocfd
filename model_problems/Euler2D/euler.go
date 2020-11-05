@@ -145,9 +145,34 @@ func (c *Euler) SetNormalFluxOnEdges() {
 	for n := 0; n < 4; n++ {
 		c.Q_Face[n] = c.dfr.FluxInterpMatrix.Mul(c.Q[n])
 	}
-	// Handle only edges with two connected tris
 	for en, e := range dfr.Tris.Edges {
-		if e.NumConnectedTris == 2 {
+		switch e.NumConnectedTris {
+		case 1: // Handle edges with only one triangle - default is edge flux, which will be replaced by a BC flux
+			var (
+				k          = int(e.ConnectedTris[0])
+				edgeNumber = int(e.ConnectedTriEdgeNumber[0])
+				shift      = edgeNumber * Nedge
+				flux       [2][4]float64
+				normalFlux [4]float64
+			)
+			// TODO: Implement boundary conditions
+			// Get scaling factor ||n|| for each edge, multiplied by untransformed normals
+			normL := getScaledNormal(0, e, en)
+			for i := 0; i < Nedge; i++ {
+				iL := i + shift
+				flux[0], flux[1] = c.CalculateFlux(k, iL, c.Q_Face)
+				// Project the flux onto the scaled normal for each of left/right
+				for n := 0; n < 4; n++ {
+					normalFlux[n] = normL[0]*flux[0][n] + normL[1]*flux[1][n]
+				}
+				// Place normed/scaled flux into the RT element space
+				for n := 0; n < 4; n++ {
+					rtD := c.F_RT_DOF[n].Data()
+					indL := k + (2*Nint+iL)*Kmax
+					rtD[indL] = normalFlux[n]
+				}
+			}
+		case 2: // Handle edges with two connected tris - shared faces
 			var (
 				kL, kR                          = int(e.ConnectedTris[0]), int(e.ConnectedTris[1])
 				edgeNumberL, edgeNumberR        = int(e.ConnectedTriEdgeNumber[0]), int(e.ConnectedTriEdgeNumber[1])
