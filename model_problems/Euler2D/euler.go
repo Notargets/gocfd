@@ -93,6 +93,12 @@ func (c *Euler) AssembleRTNormalFlux() {
 		1) Solution is extrapolated to edge points in Q_Face from Q
 		2) Edges are traversed, flux is calculated and projected onto edge face normals, scaled and placed into F_RT_DOF
 	*/
+	c.SetNormalFluxInternal()
+	// TODO: Implement calculation of flux for BCs
+	c.SetNormalFluxOnEdges()
+}
+
+func (c *Euler) SetNormalFluxInternal() {
 	Kmax := c.dfr.K
 	Nint := c.dfr.FluxElement.Nint
 	// Calculate flux and project into R and S (transformed) directions for the internal points
@@ -106,17 +112,12 @@ func (c *Euler) AssembleRTNormalFlux() {
 			}
 		}
 	}
-	// Interpolate from solution points to edges using precomputed interpolation matrix
-	for n := 0; n < 4; n++ {
-		c.Q_Face[n] = c.dfr.FluxInterpMatrix.Mul(c.Q[n])
-	}
-	c.SetNormalFluxOnEdges()
-	// TODO: Implement calculation of flux for BCs
 }
 
 func (c *Euler) SetNormalFluxOnEdges() {
 	var (
 		dfr   = c.dfr
+		Nint  = dfr.FluxElement.Nint
 		Nedge = dfr.FluxElement.Nedge
 		Kmax  = dfr.K
 	)
@@ -139,6 +140,10 @@ func (c *Euler) SetNormalFluxOnEdges() {
 		scaledNormal[0] *= e.IInII[conn]
 		scaledNormal[1] *= e.IInII[conn]
 		return
+	}
+	// Interpolate from solution points to edges using precomputed interpolation matrix
+	for n := 0; n < 4; n++ {
+		c.Q_Face[n] = c.dfr.FluxInterpMatrix.Mul(c.Q[n])
 	}
 	// Handle only edges with two connected tris
 	for en, e := range dfr.Tris.Edges {
@@ -171,9 +176,9 @@ func (c *Euler) SetNormalFluxOnEdges() {
 				// Place normed/scaled flux into the RT element space
 				for n := 0; n < 4; n++ {
 					rtD := c.F_RT_DOF[n].Data()
-					indL := kL + iL*Kmax
+					indL := kL + (2*Nint+iL)*Kmax
 					rtD[indL] = normalFluxLeft[n]
-					indR := kR + iR*Kmax
+					indR := kR + (2*Nint+iR)*Kmax
 					rtD[indR] = normalFluxLeft[n]
 				}
 			}

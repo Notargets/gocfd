@@ -129,10 +129,12 @@ func TestEuler(t *testing.T) {
 	{ // Test solution process part 2
 		N := 1
 		c := NewEuler(1, 1, N, "../../DG2D/test_tris_5.neu", FLUX_Average, FREESTREAM, false)
-		c.AssembleRTNormalFlux()
-		PrintQ(c.Q, "Q")
-		PrintQ(c.Q_Face, "Q_Face")
+		c.SetNormalFluxInternal()
+		//PrintQ(c.Q, "Q")
+		//PrintQ(c.Q_Face, "Q_Face")
 		PrintQ(c.F_RT_DOF, "F_RT_DOF")
+		c.SetNormalFluxOnEdges()
+		PrintQ(c.F_RT_DOF, "F_RT_DOF_Edges")
 	}
 }
 
