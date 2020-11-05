@@ -110,23 +110,11 @@ func (c *Euler) AssembleRTNormalFlux() {
 	for n := 0; n < 4; n++ {
 		c.Q_Face[n] = c.dfr.FluxInterpMatrix.Mul(c.Q[n])
 	}
-	// TODO: Implement calculation of flux for shared edges and BCs
-	/*
-		// Set normal flux to a simple addition of the two sides to use as a check in assert()
-		for k := 0; k < Kmax; k++ {
-			for i := 0; i < 3*Nedge; i++ {
-				ind := k + (i+2*Nint)*Kmax
-				Fr, Fs := c.CalculateFluxTransformed(k, i, c.Q_Face)
-				for n := 0; n < 4; n++ {
-					rtD := c.F_RT_DOF[n].Data()
-					rtD[ind] = Fr[n] + Fs[n]
-				}
-			}
-		}
-	*/
+	c.SetNormalFluxOnEdges()
+	// TODO: Implement calculation of flux for BCs
 }
 
-func (c *Euler) SetNormalFluxOnEdges(Fx, Fy utils.Matrix, Fp *utils.Matrix) {
+func (c *Euler) SetNormalFluxOnEdges() {
 	var (
 		dfr   = c.dfr
 		Nedge = dfr.FluxElement.Nedge
