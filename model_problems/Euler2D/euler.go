@@ -84,7 +84,46 @@ func NewEuler(CFL, FinalTime float64, N int, meshFile string, model ModelType, C
 	return
 }
 
-func (c *Euler) AssembleRTNormalFlux() {}
+func (c *Euler) AssembleRTNormalFlux() {
+	/*
+		Solver approach:
+		0) Solution is stored on sol points as Q
+		0a) Flux is computed and stored in X, Y component projections in the 2*Nint front of F_RT_DOF
+		1) Solution is extrapolated to edge points in Q_Face from Q
+		2) Edges are traversed, flux is calculated and projected onto edge face normals, scaled and placed into F_RT_DOF
+	*/
+	Kmax := c.dfr.K
+	Nint := c.dfr.FluxElement.Nint
+	// Calculate flux and project into R and S (transformed) directions for the internal points
+	for i := 0; i < Nint; i++ {
+		for k := 0; k < c.dfr.K; k++ {
+			ind := k + i*Kmax
+			Fr, Fs := c.CalculateFluxTransformed(k, i, c.Q)
+			for n := 0; n < 4; n++ {
+				rtD := c.F_RT_DOF[n].Data()
+				rtD[ind], rtD[ind+Nint*Kmax] = Fr[n], Fs[n]
+			}
+		}
+	}
+	// Interpolate from solution points to edges using precomputed interpolation matrix
+	for n := 0; n < 4; n++ {
+		c.Q_Face[n] = c.dfr.FluxInterpMatrix.Mul(c.Q[n])
+	}
+	// TODO: Implement calculation of flux for shared edges and BCs
+	/*
+		// Set normal flux to a simple addition of the two sides to use as a check in assert()
+		for k := 0; k < Kmax; k++ {
+			for i := 0; i < 3*Nedge; i++ {
+				ind := k + (i+2*Nint)*Kmax
+				Fr, Fs := c.CalculateFluxTransformed(k, i, c.Q_Face)
+				for n := 0; n < 4; n++ {
+					rtD := c.F_RT_DOF[n].Data()
+					rtD[ind] = Fr[n] + Fs[n]
+				}
+			}
+		}
+	*/
+}
 
 /*
 func (c *Euler) AverageFlux() {

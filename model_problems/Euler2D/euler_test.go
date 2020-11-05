@@ -103,13 +103,14 @@ func TestEuler(t *testing.T) {
 			for n := 0; n < 4; n++ {
 				c.Q_Face[n] = c.dfr.FluxInterpMatrix.Mul(c.Q[n])
 			}
+			// Set normal flux to a simple addition of the two sides to use as a check in assert()
 			for k := 0; k < Kmax; k++ {
 				for i := 0; i < 3*Nedge; i++ {
 					ind := k + (i+2*Nint)*Kmax
-					FrE, FsE := c.CalculateFluxTransformed(k, i, c.Q_Face)
+					Fr, Fs := c.CalculateFluxTransformed(k, i, c.Q_Face)
 					for n := 0; n < 4; n++ {
 						rtD := c.F_RT_DOF[n].Data()
-						rtD[ind] = FrE[n] + FsE[n]
+						rtD[ind] = Fr[n] + Fs[n]
 					}
 				}
 			}
