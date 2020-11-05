@@ -153,7 +153,7 @@ func (c *Euler) SetNormalFluxOnEdges() {
 				edgeNumber = int(e.ConnectedTriEdgeNumber[0])
 				shift      = edgeNumber * Nedge
 				flux       [2][4]float64
-				normalFlux [4]float64
+				normalFlux float64
 			)
 			// TODO: Implement boundary conditions
 			// Get scaling factor ||n|| for each edge, multiplied by untransformed normals
@@ -163,22 +163,19 @@ func (c *Euler) SetNormalFluxOnEdges() {
 				flux[0], flux[1] = c.CalculateFlux(k, iL, c.Q_Face)
 				// Project the flux onto the scaled normal for each of left/right
 				for n := 0; n < 4; n++ {
-					normalFlux[n] = normL[0]*flux[0][n] + normL[1]*flux[1][n]
-				}
-				// Place normed/scaled flux into the RT element space
-				for n := 0; n < 4; n++ {
+					normalFlux = normL[0]*flux[0][n] + normL[1]*flux[1][n]
+					// Place normed/scaled flux into the RT element space
 					rtD := c.F_RT_DOF[n].Data()
 					indL := k + (2*Nint+iL)*Kmax
-					rtD[indL] = normalFlux[n]
+					rtD[indL] = normalFlux
 				}
 			}
 		case 2: // Handle edges with two connected tris - shared faces
 			var (
-				kL, kR                          = int(e.ConnectedTris[0]), int(e.ConnectedTris[1])
-				edgeNumberL, edgeNumberR        = int(e.ConnectedTriEdgeNumber[0]), int(e.ConnectedTriEdgeNumber[1])
-				shiftL, shiftR                  = edgeNumberL * Nedge, edgeNumberR * Nedge
-				fluxLeft, fluxRight, fluxAve    [2][4]float64
-				normalFluxLeft, normalFluxRight [4]float64
+				kL, kR                   = int(e.ConnectedTris[0]), int(e.ConnectedTris[1])
+				edgeNumberL, edgeNumberR = int(e.ConnectedTriEdgeNumber[0]), int(e.ConnectedTriEdgeNumber[1])
+				shiftL, shiftR           = edgeNumberL * Nedge, edgeNumberR * Nedge
+				fluxLeft, fluxRight      [2][4]float64
 			)
 			// Get scaling factor ||n|| for each edge, multiplied by untransformed normals
 			normLeft, normRight := getScaledNormal(0, e, en), getScaledNormal(1, e, en)
@@ -188,23 +185,22 @@ func (c *Euler) SetNormalFluxOnEdges() {
 				fluxLeft[0], fluxLeft[1] = c.CalculateFlux(kL, iL, c.Q_Face)
 				fluxRight[0], fluxRight[1] = c.CalculateFlux(kR, iR, c.Q_Face) // Reverse the right edge to match
 				// Implement average flux (for now), later we will add Roe, Lax, etc flux calculations
+				var (
+					normalFluxLeft, normalFluxRight float64
+					fluxAve                         [2]float64
+				)
 				for n := 0; n < 4; n++ {
-					for ii := 0; ii < 2; ii++ {
-						fluxAve[ii][n] = 0.5 * (fluxLeft[ii][n] + fluxRight[ii][n])
-					}
-				}
-				// Project the flux onto the scaled normal for each of left/right
-				for n := 0; n < 4; n++ {
-					normalFluxLeft[n] = normLeft[0]*fluxAve[0][n] + normLeft[1]*fluxAve[1][n]
-					normalFluxRight[n] = normRight[0]*fluxAve[0][n] + normRight[1]*fluxAve[1][n]
-				}
-				// Place normed/scaled flux into the RT element space
-				for n := 0; n < 4; n++ {
+					fluxAve[0] = 0.5 * (fluxLeft[0][n] + fluxRight[0][n])
+					fluxAve[1] = 0.5 * (fluxLeft[1][n] + fluxRight[1][n])
+					// Project the flux onto the scaled normal for each of left/right
+					normalFluxLeft = normLeft[0]*fluxAve[0] + normLeft[1]*fluxAve[1]
+					normalFluxRight = normRight[0]*fluxAve[0] + normRight[1]*fluxAve[1]
+					// Place normed/scaled flux into the RT element space
 					rtD := c.F_RT_DOF[n].Data()
 					indL := kL + (2*Nint+iL)*Kmax
-					rtD[indL] = normalFluxLeft[n]
+					rtD[indL] = normalFluxLeft
 					indR := kR + (2*Nint+iR)*Kmax
-					rtD[indR] = normalFluxRight[n]
+					rtD[indR] = normalFluxRight
 				}
 			}
 		}
