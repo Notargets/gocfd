@@ -179,7 +179,7 @@ func (c *Euler) SetNormalFluxOnEdges() {
 					indL := kL + (2*Nint+iL)*Kmax
 					rtD[indL] = normalFluxLeft[n]
 					indR := kR + (2*Nint+iR)*Kmax
-					rtD[indR] = normalFluxLeft[n]
+					rtD[indR] = normalFluxRight[n]
 				}
 			}
 		}
@@ -264,12 +264,12 @@ func (c *Euler) InitializeMemory() {
 
 func (c *Euler) CalculateFluxTransformed(k, i int, Q [4]utils.Matrix) (Fr, Fs [4]float64) {
 	var (
-		J, _, Jdet = c.dfr.GetJacobian(k)
+		_, Jinv, Jdet = c.dfr.GetJacobian(k)
 	)
 	Fx, Fy := c.CalculateFlux(k, i, Q)
 	for n := 0; n < 4; n++ {
-		Fr[n] = (1. / Jdet) * (J[0]*Fx[n] + J[1]*Fy[n])
-		Fs[n] = (1. / Jdet) * (J[2]*Fx[n] + J[3]*Fy[n])
+		Fr[n] = Jdet * (Jinv[0]*Fx[n] + Jinv[1]*Fy[n])
+		Fs[n] = Jdet * (Jinv[2]*Fx[n] + Jinv[3]*Fy[n])
 	}
 	return
 }

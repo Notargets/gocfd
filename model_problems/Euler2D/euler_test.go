@@ -129,12 +129,26 @@ func TestEuler(t *testing.T) {
 	{ // Test solution process part 2
 		N := 1
 		c := NewEuler(1, 1, N, "../../DG2D/test_tris_5.neu", FLUX_Average, FREESTREAM, false)
+		Kmax := c.dfr.K
+		NpFlux := c.dfr.FluxElement.Np
 		c.SetNormalFluxInternal()
 		//PrintQ(c.Q, "Q")
 		//PrintQ(c.Q_Face, "Q_Face")
-		PrintQ(c.F_RT_DOF, "F_RT_DOF")
+		//PrintQ(c.F_RT_DOF, "F_RT_DOF")
 		c.SetNormalFluxOnEdges()
 		PrintQ(c.F_RT_DOF, "F_RT_DOF_Edges")
+		var div [4]utils.Matrix
+		for n := 0; n < 4; n++ {
+			div[n] = c.dfr.FluxElement.Div.Mul(c.F_RT_DOF[n])
+			for k := 0; k < Kmax; k++ {
+				_, _, Jdet := c.dfr.GetJacobian(k)
+				for i := 0; i < NpFlux; i++ {
+					ind := k + i*Kmax
+					div[n].Data()[ind] *= 1. / Jdet
+				}
+			}
+		}
+		PrintQ(div, "divergence")
 	}
 }
 
