@@ -127,24 +127,26 @@ func TestEuler(t *testing.T) {
 		}
 	}
 	{ // Test solution process part 2
-		N := 1
-		c := NewEuler(1, 1, N, "../../DG2D/test_tris_5.neu", FLUX_Average, FREESTREAM, false)
-		Kmax := c.dfr.K
-		NpFlux := c.dfr.FluxElement.Np
-		c.SetNormalFluxInternal()
-		c.SetNormalFluxOnEdges()
-		// Check that freestream divergence on this mesh is zero
-		var div [4]utils.Matrix
-		for n := 0; n < 4; n++ {
-			div[n] = c.dfr.FluxElement.Div.Mul(c.F_RT_DOF[n])
+		Nmax := 7
+		for N := 1; N <= Nmax; N++ {
+			c := NewEuler(1, 1, N, "../../DG2D/test_tris_5.neu", FLUX_Average, FREESTREAM, false)
+			Kmax := c.dfr.K
+			Nint := c.dfr.FluxElement.Nint
+			c.SetNormalFluxInternal()
+			c.SetNormalFluxOnEdges()
+			// Check that freestream divergence on this mesh is zero
 			for k := 0; k < Kmax; k++ {
 				_, _, Jdet := c.dfr.GetJacobian(k)
-				for i := 0; i < NpFlux; i++ {
-					ind := k + i*Kmax
-					div[n].Data()[ind] *= 1. / Jdet
+				var div utils.Matrix
+				for n := 0; n < 4; n++ {
+					div = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
+					for i := 0; i < Nint; i++ {
+						ind := k + i*Kmax
+						div.Data()[ind] *= 1. / Jdet
+					}
+					assert.True(t, nearVecScalar(div.Data(), 0., 0.000001))
 				}
 			}
-			assert.True(t, nearVecScalar(div[n].Data(), 0., 0.000001))
 		}
 	}
 }

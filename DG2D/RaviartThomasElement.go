@@ -14,7 +14,7 @@ type RTElement struct {
 	Nedge, Nint int             // Number of Edge and Interior points
 	A           utils.Matrix    // Polynomial coefficient matrix, NpxNp
 	V           [2]utils.Matrix // Vandermonde matrix for each direction r and s, [2]xNpxNp
-	Div         utils.Matrix    // Divergence matrix, NpxNp
+	Div, DivInt utils.Matrix    // Divergence matrix, NpxNp for all, NintxNp Interior Points
 	R, S        utils.Vector    // Point locations defining element in [-1,1] Triangle, NpxNp
 }
 
@@ -172,6 +172,7 @@ func (rt *RTElement) CalculateBasis() {
 		N    = rt.N
 		R, S = rt.R, rt.S
 		Np   = (N + 1) * (N + 3)
+		Nint = N * (N + 1) / 2
 		P    utils.Matrix
 	)
 	// Add the edge and additional interior (duplicated) points to complete the RT geometry2D
@@ -241,6 +242,10 @@ func (rt *RTElement) CalculateBasis() {
 	rt.V[0] = P0.Mul(rt.A)
 	rt.V[1] = P1.Mul(rt.A)
 	rt.Div = Pdr0.Mul(rt.A).Add(Pds1.Mul(rt.A))
+	rt.DivInt = utils.NewMatrix(Nint, Np)
+	for i := 0; i < Nint; i++ {
+		rt.DivInt.M.SetRow(i, rt.Div.Row(i).Data())
+	}
 	rt.Np = Np
 	return
 }
