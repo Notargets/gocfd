@@ -103,7 +103,7 @@ func (c *Euler) SetNormalFluxInternal() {
 	Nint := c.dfr.FluxElement.Nint
 	// Calculate flux and project into R and S (transformed) directions for the internal points
 	for i := 0; i < Nint; i++ {
-		for k := 0; k < c.dfr.K; k++ {
+		for k := 0; k < Kmax; k++ {
 			ind := k + i*Kmax
 			Fr, Fs := c.CalculateFluxTransformed(k, i, c.Q)
 			for n := 0; n < 4; n++ {
