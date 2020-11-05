@@ -2,6 +2,7 @@ package Euler2D
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/notargets/gocfd/DG2D"
 
@@ -123,6 +124,74 @@ func (c *Euler) AssembleRTNormalFlux() {
 			}
 		}
 	*/
+}
+
+func (c *Euler) SetNormalFluxOnEdges(Fx, Fy utils.Matrix, Fp *utils.Matrix) {
+	var (
+		dfr   = c.dfr
+		Nedge = dfr.FluxElement.Nedge
+		Kmax  = dfr.K
+	)
+	norm := func(vec [2]float64) (n float64) {
+		n = math.Sqrt(vec[0]*vec[0] + vec[1]*vec[1])
+		return
+	}
+	normalize := func(vec [2]float64) (normed [2]float64) {
+		n := norm(vec)
+		for i := 0; i < 2; i++ {
+			normed[i] = vec[i] / n
+		}
+		return
+	}
+	getScaledNormal := func(conn int, e *DG2D.Edge, en DG2D.EdgeNumber) (scaledNormal [2]float64) {
+		revDir := bool(e.ConnectedTriDirection[conn])
+		x1, x2 := dfr.Tris.GetEdgeCoordinates(en, revDir, dfr.VX, dfr.VY)
+		dx := [2]float64{x2[0] - x1[0], x2[1] - x1[1]}
+		scaledNormal = normalize([2]float64{-dx[1], dx[0]})
+		scaledNormal[0] *= e.IInII[conn]
+		scaledNormal[1] *= e.IInII[conn]
+		return
+	}
+	// Handle only edges with two connected tris
+	for en, e := range dfr.Tris.Edges {
+		if e.NumConnectedTris == 2 {
+			var (
+				kL, kR                          = int(e.ConnectedTris[0]), int(e.ConnectedTris[1])
+				edgeNumberL, edgeNumberR        = int(e.ConnectedTriEdgeNumber[0]), int(e.ConnectedTriEdgeNumber[1])
+				shiftL, shiftR                  = edgeNumberL * Nedge, edgeNumberR * Nedge
+				fluxLeft, fluxRight, fluxAve    [2][4]float64
+				normalFluxLeft, normalFluxRight [4]float64
+			)
+			// Get scaling factor ||n|| for each edge, multiplied by untransformed normals
+			normLeft, normRight := getScaledNormal(0, e, en), getScaledNormal(1, e, en)
+			for i := 0; i < Nedge; i++ {
+				iL := i + shiftL
+				iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
+				fluxLeft[0], fluxLeft[1] = c.CalculateFlux(kL, iL, c.Q_Face)
+				fluxRight[0], fluxRight[1] = c.CalculateFlux(kR, iR, c.Q_Face) // Reverse the right edge to match
+				// Implement average flux (for now), later we will add Roe, Lax, etc flux calculations
+				for n := 0; n < 4; n++ {
+					for ii := 0; ii < 2; ii++ {
+						fluxAve[ii][n] = 0.5 * (fluxLeft[ii][n] + fluxRight[ii][n])
+					}
+				}
+				// Project the flux onto the scaled normal for each of left/right
+				for n := 0; n < 4; n++ {
+					normalFluxLeft[n] = normLeft[0]*fluxAve[0][n] + normLeft[1]*fluxAve[1][n]
+					normalFluxRight[n] = normRight[0]*fluxAve[0][n] + normRight[1]*fluxAve[1][n]
+				}
+				// Place normed/scaled flux into the RT element space
+				for n := 0; n < 4; n++ {
+					rtD := c.F_RT_DOF[n].Data()
+					indL := kL + iL*Kmax
+					rtD[indL] = normalFluxLeft[n]
+					indR := kR + iR*Kmax
+					rtD[indR] = normalFluxLeft[n]
+				}
+			}
+		}
+	}
+	return
 }
 
 /*
