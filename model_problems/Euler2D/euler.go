@@ -56,7 +56,7 @@ var (
 	}
 )
 
-func NewEuler(CFL, FinalTime float64, N int, meshFile string, model ModelType, Case CaseType, verbose bool) (c *Euler) {
+func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, model ModelType, Case CaseType, plotMesh, verbose bool) (c *Euler) {
 	c = &Euler{
 		MeshFile:  meshFile,
 		CFL:       CFL,
@@ -65,7 +65,7 @@ func NewEuler(CFL, FinalTime float64, N int, meshFile string, model ModelType, C
 		Case:      Case,
 		Gamma:     1.4,
 	}
-	c.dfr = DG2D.NewDFR2D(N, meshFile)
+	c.dfr = DG2D.NewDFR2D(N, plotMesh, meshFile)
 	c.InitializeMemory()
 	if verbose {
 		fmt.Printf("Euler Equations in 2 Dimensions\n")

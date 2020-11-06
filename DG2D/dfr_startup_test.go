@@ -11,7 +11,7 @@ import (
 func TestDFR2D(t *testing.T) {
 	{ // Test Interpolation
 		N := 2
-		dfr := NewDFR2D(N)
+		dfr := NewDFR2D(N, false)
 		el := dfr.SolutionElement
 		s := make([]float64, el.Np)
 		for i := 0; i < el.Np; i++ {
@@ -25,7 +25,7 @@ func TestDFR2D(t *testing.T) {
 	}
 	{ // Test point distribution
 		N := 1
-		dfr := NewDFR2D(N)
+		dfr := NewDFR2D(N, false)
 		el := dfr.SolutionElement
 		rt := dfr.FluxElement
 		assert.True(t, nearVec(rt.GetInternalLocations(rt.R), el.R.Data(), 0.000001))
@@ -35,7 +35,7 @@ func TestDFR2D(t *testing.T) {
 	}
 	{ // Test interpolation from solution points to flux points
 		N := 1
-		dfr := NewDFR2D(N)
+		dfr := NewDFR2D(N, false)
 		el := dfr.SolutionElement
 		rt := dfr.FluxElement
 		assert.Equal(t, el.Np, rt.Nint)
@@ -111,7 +111,7 @@ func TestDFR2D(t *testing.T) {
 			return
 		}
 		N := 1
-		dfr := NewDFR2D(N, "test_tris_5.neu")
+		dfr := NewDFR2D(N, false, "test_tris_5.neu")
 		/*
 				Coordinates in test triangle case:
 				1     0.000000000e+000    0.000000000e+000
@@ -222,7 +222,7 @@ func TestDFR2D(t *testing.T) {
 		}
 		{ // Check Divergence for polynomial vector fields of order < N against analytical solution
 			N := 7 // Order of element
-			dfr := NewDFR2D(N, "test_tris_5.neu")
+			dfr := NewDFR2D(N, false, "test_tris_5.neu")
 			rt := dfr.FluxElement
 			for cOrder := 1; cOrder <= N; cOrder++ { // Run a test on polynomial flux vector fields up to Nth order
 				Fx, Fy, divCheck := checkSolution(dfr, cOrder)

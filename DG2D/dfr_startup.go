@@ -23,7 +23,7 @@ type DFR2D struct {
 	FaceNorm             [2]utils.Matrix // Magnitude of each face normal, 3xK, used in projection of flux to RT element
 }
 
-func NewDFR2D(N int, meshFileO ...string) (dfr *DFR2D) {
+func NewDFR2D(N int, plotMesh bool, meshFileO ...string) (dfr *DFR2D) {
 	if N < 1 {
 		panic(fmt.Errorf("Polynomial order must be >= 1, have %d", N))
 	}
@@ -45,6 +45,10 @@ func NewDFR2D(N int, meshFileO ...string) (dfr *DFR2D) {
 			CalculateElementLocalGeometry(dfr.Tris.EToV, dfr.VX, dfr.VY, dfr.FluxElement.R, dfr.FluxElement.S)
 		dfr.SolutionX, dfr.SolutionY =
 			CalculateElementLocalGeometry(dfr.Tris.EToV, dfr.VX, dfr.VY, dfr.SolutionElement.R, dfr.SolutionElement.S)
+		if plotMesh {
+			PlotMesh(dfr.VX, dfr.VY, EToV, dfr.BCType, dfr.SolutionX, dfr.SolutionY, true)
+			utils.SleepFor(50000)
+		}
 		dfr.FluxX.SetReadOnly("FluxX")
 		dfr.FluxY.SetReadOnly("FluxY")
 		dfr.SolutionX.SetReadOnly("SolutionX")

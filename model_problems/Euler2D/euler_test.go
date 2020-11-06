@@ -15,7 +15,7 @@ func TestEuler(t *testing.T) {
 	{ // Test interpolation of solution to edges for all supported orders
 		Nmax := 7
 		for N := 1; N <= Nmax; N++ {
-			c := NewEuler(1, 1, N, "../../DG2D/test_tris_5.neu", FLUX_Average, FREESTREAM, false)
+			c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, false, false)
 			K := c.dfr.K
 			Nint := c.dfr.FluxElement.Nint
 			Nedge := c.dfr.FluxElement.Nedge
@@ -49,7 +49,7 @@ func TestEuler(t *testing.T) {
 		*/
 		Nmax := 7
 		for N := 1; N <= Nmax; N++ {
-			c := NewEuler(1, 1, N, "../../DG2D/test_tris_5.neu", FLUX_Average, FREESTREAM, false)
+			c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, false, false)
 			Kmax := c.dfr.K
 			Nint := c.dfr.FluxElement.Nint
 			Nedge := c.dfr.FluxElement.Nedge
@@ -116,7 +116,7 @@ func TestEuler(t *testing.T) {
 	{ // Test solution process part 2 - Freestream divergence should be zero
 		Nmax := 7
 		for N := 1; N <= Nmax; N++ {
-			c := NewEuler(1, 1, N, "../../DG2D/test_tris_5.neu", FLUX_Average, FREESTREAM, false)
+			c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, false, false)
 			Kmax := c.dfr.K
 			Nint := c.dfr.FluxElement.Nint
 			c.SetNormalFluxInternal()
@@ -138,8 +138,10 @@ func TestEuler(t *testing.T) {
 	}
 	{ // Test Isentropic Vortex
 		N := 1
-		c := NewEuler(1, 1, N, "../../DG2D/vortexA04.neu", FLUX_Average, IVORTEX, false)
-		PrintQ(c.Q, "IVortex_Q")
+		plotMesh := false
+		c := NewEuler(1, N, "../../DG2D/vortexA04.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
+		_ = c
+		//PrintQ(c.Q, "IVortex_Q")
 	}
 }
 
