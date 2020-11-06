@@ -285,6 +285,7 @@ func (c *Euler) InitializeIVortex() {
 		X0, Y0 = 5., 0.
 		Gamma  = 1.4
 		GM1    = Gamma - 1.
+		ooGM1  = 1. / GM1
 		X, Y   = c.dfr.SolutionX.Data(), c.dfr.SolutionY.Data()
 		Kmax   = c.dfr.K
 		Np     = c.dfr.SolutionElement.Np
@@ -297,11 +298,10 @@ func (c *Euler) InitializeIVortex() {
 		x, y := X[ii], Y[ii]
 		u, v, rho, p := iv.GetState(0, x, y)
 		q := 0.5 * rho * (u*u + v*v)
-		rhoE := p/GM1 + q
 		c.Q[0].Data()[ii] = rho
 		c.Q[1].Data()[ii] = rho * u
 		c.Q[2].Data()[ii] = rho * v
-		c.Q[3].Data()[ii] = rhoE
+		c.Q[3].Data()[ii] = p*ooGM1 + q
 	}
 }
 
