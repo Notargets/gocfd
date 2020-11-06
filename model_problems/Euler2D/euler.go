@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/notargets/gocfd/model_problems/Euler2D/isentropic_vortex"
+
 	"github.com/notargets/gocfd/DG2D"
 
 	"github.com/notargets/avs/chart2d"
@@ -35,6 +37,7 @@ type CaseType uint
 
 const (
 	FREESTREAM CaseType = iota
+	IVORTEX
 )
 
 type ModelType uint
@@ -72,6 +75,11 @@ func NewEuler(CFL, FinalTime float64, N int, meshFile string, model ModelType, C
 		c.InitializeFS()
 		if verbose {
 			fmt.Printf("Solving Freestream\n")
+		}
+	case IVORTEX:
+		c.InitializeIVortex()
+		if verbose {
+			fmt.Printf("Solving Isentropic Vortex\n")
 		}
 	default:
 		panic("unknown case type")
@@ -269,6 +277,32 @@ func (c *Euler) InitializeFS() {
 	c.Q[1] = utils.NewMatrix(Np, K).AddScalar(rho * u)
 	c.Q[2] = utils.NewMatrix(Np, K).AddScalar(rho * v)
 	c.Q[3] = utils.NewMatrix(Np, K).AddScalar(rhoE)
+}
+
+func (c *Euler) InitializeIVortex() {
+	var (
+		Beta   = 5.
+		X0, Y0 = 5., 0.
+		Gamma  = 1.4
+		GM1    = Gamma - 1.
+		X, Y   = c.dfr.SolutionX.Data(), c.dfr.SolutionY.Data()
+		Kmax   = c.dfr.K
+		Np     = c.dfr.SolutionElement.Np
+	)
+	for n := 0; n < 4; n++ {
+		c.Q[n] = utils.NewMatrix(Np, Kmax)
+	}
+	iv := isentropic_vortex.NewIVortex(Beta, X0, Y0, Gamma)
+	for ii := 0; ii < Np*Kmax; ii++ {
+		x, y := X[ii], Y[ii]
+		u, v, rho, p := iv.GetState(0, x, y)
+		q := 0.5 * rho * (u*u + v*v)
+		rhoE := p/GM1 + q
+		c.Q[0].Data()[ii] = rho
+		c.Q[1].Data()[ii] = rho * u
+		c.Q[2].Data()[ii] = rho * v
+		c.Q[3].Data()[ii] = rhoE
+	}
 }
 
 func (c *Euler) InitializeMemory() {

@@ -136,6 +136,11 @@ func TestEuler(t *testing.T) {
 			}
 		}
 	}
+	{ // Test Isentropic Vortex
+		N := 1
+		c := NewEuler(1, 1, N, "../../DG2D/vortexA04.neu", FLUX_Average, IVORTEX, false)
+		PrintQ(c.Q, "IVortex_Q")
+	}
 }
 
 func PrintQ(Q [4]utils.Matrix, l string) {
