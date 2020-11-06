@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/notargets/gocfd/sod_shock_tube"
+	"github.com/notargets/gocfd/model_problems/Euler1D/sod_shock_tube"
 
 	"github.com/notargets/avs/chart2d"
 	utils2 "github.com/notargets/avs/utils"
