@@ -167,6 +167,8 @@ func (c *Euler) SetNormalFluxOnEdges() {
 	}
 	for en, e := range dfr.Tris.Edges {
 		switch e.NumConnectedTris {
+		case 0:
+			panic("unable to handle unconnected edges")
 		case 1: // Handle edges with only one triangle - default is edge flux, which will be replaced by a BC flux
 			var (
 				k          = int(e.ConnectedTris[0])
@@ -205,8 +207,8 @@ func (c *Euler) SetNormalFluxOnEdges() {
 					normalFlux = normL[0]*flux[0][n] + normL[1]*flux[1][n]
 					// Place normed/scaled flux into the RT element space
 					rtD := c.F_RT_DOF[n].Data()
-					indL := k + (2*Nint+iL)*Kmax
-					rtD[indL] = normalFlux
+					ind := k + (2*Nint+iL)*Kmax
+					rtD[ind] = normalFlux
 				}
 			}
 		case 2: // Handle edges with two connected tris - shared faces

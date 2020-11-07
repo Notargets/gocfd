@@ -16,13 +16,14 @@ func TestEuler(t *testing.T) {
 		Nmax := 7
 		for N := 1; N <= Nmax; N++ {
 			c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, false, false)
-			K := c.dfr.K
+			Kmax := c.dfr.K
 			Nint := c.dfr.FluxElement.Nint
 			Nedge := c.dfr.FluxElement.Nedge
 			for n := 0; n < 4; n++ {
 				for i := 0; i < Nint; i++ {
-					for k := 0; k < K; k++ {
-						c.Q[n].Data()[k+i*K] = float64(k + 1)
+					for k := 0; k < Kmax; k++ {
+						ind := k + i*Kmax
+						c.Q[n].Data()[ind] = float64(k + 1)
 					}
 				}
 			}
@@ -30,10 +31,13 @@ func TestEuler(t *testing.T) {
 			for n := 0; n < 4; n++ {
 				c.Q_Face[n] = c.dfr.FluxInterpMatrix.Mul(c.Q[n])
 			}
+			//PrintQ(c.Q, "Q")
+			//PrintQ(c.Q_Face, "Q_Face")
 			for n := 0; n < 4; n++ {
 				for i := 0; i < 3*Nedge; i++ {
-					for k := 0; k < K; k++ {
-						assert.True(t, near(float64(k+1), c.Q_Face[n].Data()[k+i*K], 0.000001))
+					for k := 0; k < Kmax; k++ {
+						ind := k + i*Kmax
+						assert.True(t, near(float64(k+1), c.Q_Face[n].Data()[ind], 0.000001))
 					}
 				}
 			}
@@ -139,7 +143,11 @@ func TestEuler(t *testing.T) {
 	if false { // Test Isentropic Vortex
 		N := 1
 		plotMesh := false
-		c := NewEuler(1, N, "../../DG2D/vortexA04.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
+		//c := NewEuler(1, N, "../../DG2D/vortexA04.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
+		c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
+		//fmt.Println(c.Q[0].Print("Q0_start"))
+		//fmt.Println(c.Q_Face[0].Print("Q_Face0_start"))
+		//fmt.Println(c.F_RT_DOF[0].Print("F_RT_DOF0_start"))
 		c.SetNormalFluxInternal()
 		c.SetNormalFluxOnEdges()
 		Kmax := c.dfr.K
@@ -148,6 +156,7 @@ func TestEuler(t *testing.T) {
 		var (
 			X, Y = c.dfr.SolutionX.Data(), c.dfr.SolutionY.Data()
 		)
+		//fmt.Println(c.dfr.SolutionX.Print("SolX"))
 		var div utils.Matrix
 		for n := 0; n < 4; n++ {
 			fmt.Printf("component[%d]\n", n)
@@ -159,6 +168,8 @@ func TestEuler(t *testing.T) {
 					div.Data()[ind] *= 1. / Jdet
 				}
 			}
+			//fmt.Println(div.Print("div"))
+			//fmt.Println(c.F_RT_DOF[n].Print("F_RT_DOF"))
 			var divCheck []float64
 			divCheck = make([]float64, Nint*Kmax)
 			for k := 0; k < Kmax; k++ {
@@ -166,16 +177,14 @@ func TestEuler(t *testing.T) {
 					ind := k + i*Kmax
 					x, y := X[ind], Y[ind]
 					qc1, qc2, qc3, qc4 := c.AnalyticSolution.GetStateC(0, x, y)
-					// TODO: BUG: Fix the dimensions of Q, Q_Face to be consistent - KxNp instead of NpxK
-					q1, q2, q3, q4 := c.Q[0].At(k, i), c.Q[1].At(k, i), c.Q[2].At(k, i), c.Q[3].At(k, i)
-					fmt.Printf("q[%d,%d] = %v,%v,%v,%v, qc = %v,%v,%v,%v\n",
-						k, i, q1, q2, q3, q4, qc1, qc2, qc3, qc4)
+					q1, q2, q3, q4 := c.Q[0].Data()[ind], c.Q[1].Data()[ind], c.Q[2].Data()[ind], c.Q[3].Data()[ind]
+					assert.True(t, nearVec([]float64{q1, q2, q3, q4}, []float64{qc1, qc2, qc3, qc4}, 0.000001))
 					divC := c.AnalyticSolution.GetDivergence(0, x, y)
 					divCheck[ind] = divC[n]
 					//fmt.Printf("divCheck[%d][%8.5f,%8.5f] = %8.5f\n", ind, x, y, divCheck[ind])
 				}
 			}
-			assert.True(t, nearVec(div.Data(), divCheck, 0.1))
+			assert.True(t, nearVec(div.Data(), divCheck, 0.0001))
 		}
 	}
 }
