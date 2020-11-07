@@ -148,6 +148,7 @@ func TestEuler(t *testing.T) {
 		//fmt.Println(c.Q[0].Print("Q0_start"))
 		//fmt.Println(c.Q_Face[0].Print("Q_Face0_start"))
 		//fmt.Println(c.F_RT_DOF[0].Print("F_RT_DOF0_start"))
+		// TODO: Set F_RT_DOF manually to the analytic vortex solution (through transform), then compute Div using RT
 		c.SetNormalFluxInternal()
 		c.SetNormalFluxOnEdges()
 		Kmax := c.dfr.K
