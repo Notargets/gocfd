@@ -9,6 +9,7 @@ rho=(1-bt2*(gamma-1)/(4*gamma))^(1/(gamma-1));
 q=0.5*rho*(u^2+v^2);
 p=rho^gamma;
 E=(p/(gamma-1)+q)/rho; % generic calculation of E, not specific to this case, must happen after rho is defined
+U = [ rho, rho*u, rho*v, rho*E];
 F = [ rho*u, rho*u^2+p, rho*u*v, u*(E+p) ];
 G = [ rho*v, rho*u*v, rho*v^2+p, v*(E+p) ];
 div = diff(F,x)+diff(G,y);
@@ -48,3 +49,5 @@ fprintf('*** SHOULD BE ZERO *** Residual at X=[%f,%f] = [%f,%f,%f,%f]\n',double(
 fprintf('F at X=[%f,%f] = [%f,%f,%f,%f]\n',double(X), double(Y), double(subs(F,args,vals)));
 fprintf('G at X=[%f,%f] = [%f,%f,%f,%f]\n',double(X), double(Y), double(subs(G,args,vals)));
 fprintf('Code for Flux in F and G directions\n%s\n%s\n',ccode(F),ccode(G));
+
+fprintf('rho,rhoU,rhoV,rhoE[%f,%f] = [%f,%f,%f,%f]\n',double(X),double(Y),double(subs(U,args,vals))); 

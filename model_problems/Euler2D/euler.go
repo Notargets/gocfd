@@ -361,21 +361,28 @@ func (c *Euler) CalculateFluxTransformed(k, i int, Q [4]utils.Matrix) (Fr, Fs [4
 func (c *Euler) CalculateFlux(k, i int, Q [4]utils.Matrix) (Fx, Fy [4]float64) {
 	// From https://www.theoretical-physics.net/dev/fluid-dynamics/euler.html
 	var (
-		Gamma                 = c.Gamma
-		GM1                   = Gamma - 1 // R / Cv
 		q0D, q1D, q2D, q3D    = Q[0].Data(), Q[1].Data(), Q[2].Data(), Q[3].Data()
 		Kmax                  = c.dfr.K
 		ind                   = k + i*Kmax
 		rho, rhoU, rhoV, rhoE = q0D[ind], q1D[ind], q2D[ind], q3D[ind]
+	)
+	Fx, Fy = FluxCalc(c.Gamma, rho, rhoU, rhoV, rhoE)
+	return
+}
+
+func FluxCalc(Gamma, rho, rhoU, rhoV, rhoE float64) (Fx, Fy [4]float64) {
+	var (
+		GM1 = Gamma - 1.
 	)
 	u := rhoU / rho
 	v := rhoV / rho
 	u2 := u*u + v*v
 	q := 0.5 * rho * u2
 	p := GM1 * (rhoE - q)
+	E := rhoE / rho
 	Fx, Fy =
-		[4]float64{rhoU, rhoU*u + p, rhoU * v, u * (rhoE + p)},
-		[4]float64{rhoV, rhoV * u, rhoV*v + p, v * (rhoE + p)}
+		[4]float64{rhoU, rhoU*u + p, rhoU * v, u * (E + p)},
+		[4]float64{rhoV, rhoV * u, rhoV*v + p, v * (E + p)}
 	return
 }
 
