@@ -117,31 +117,61 @@ func TestEuler(t *testing.T) {
 		Nmax := 7
 		for N := 1; N <= Nmax; N++ {
 			c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, false, false)
-			Kmax := c.dfr.K
-			Nint := c.dfr.FluxElement.Nint
 			c.SetNormalFluxInternal()
 			c.SetNormalFluxOnEdges()
+			Kmax := c.dfr.K
+			Nint := c.dfr.FluxElement.Nint
 			// Check that freestream divergence on this mesh is zero
 			for n := 0; n < 4; n++ {
+				var div utils.Matrix
+				div = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
 				for k := 0; k < Kmax; k++ {
 					_, _, Jdet := c.dfr.GetJacobian(k)
-					var div utils.Matrix
-					div = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
 					for i := 0; i < Nint; i++ {
 						ind := k + i*Kmax
 						div.Data()[ind] *= 1. / Jdet
 					}
-					assert.True(t, nearVecScalar(div.Data(), 0., 0.000001))
 				}
+				assert.True(t, nearVecScalar(div.Data(), 0., 0.000001))
 			}
 		}
 	}
-	{ // Test Isentropic Vortex
+	if false { // Test Isentropic Vortex
 		N := 1
 		plotMesh := false
 		c := NewEuler(1, N, "../../DG2D/vortexA04.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
-		_ = c
-		//PrintQ(c.Q, "IVortex_Q")
+		c.SetNormalFluxInternal()
+		c.SetNormalFluxOnEdges()
+		Kmax := c.dfr.K
+		Nint := c.dfr.FluxElement.Nint
+		// Check that divergence on this mesh is zero
+		var (
+			X, Y = c.dfr.SolutionX.Data(), c.dfr.SolutionY.Data()
+		)
+		var div utils.Matrix
+		for n := 0; n < 4; n++ {
+			fmt.Printf("component[%d]\n", n)
+			div = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
+			for k := 0; k < Kmax; k++ {
+				_, _, Jdet := c.dfr.GetJacobian(k)
+				for i := 0; i < Nint; i++ {
+					ind := k + i*Kmax
+					div.Data()[ind] *= 1. / Jdet
+				}
+			}
+			var divCheck []float64
+			divCheck = make([]float64, Nint*Kmax)
+			for k := 0; k < Kmax; k++ {
+				for i := 0; i < Nint; i++ {
+					ind := k + i*Kmax
+					x, y := X[ind], Y[ind]
+					divC := c.AnalyticSolution.GetDivergence(0, x, y)
+					divCheck[ind] = divC[n]
+					//fmt.Printf("divCheck[%d][%8.5f,%8.5f] = %8.5f\n", ind, x, y, divCheck[ind])
+				}
+			}
+			assert.True(t, nearVec(div.Data(), divCheck, 0.1))
+		}
 	}
 }
 

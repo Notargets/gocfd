@@ -31,6 +31,12 @@ type Euler struct {
 	colorMap              *utils2.ColorMap
 	model                 ModelType
 	Case                  CaseType
+	AnalyticSolution      ExactState
+}
+
+type ExactState interface {
+	GetStateC(t, x, y float64) (rho, rhoU, rhoV, rhoE float64)
+	GetDivergence(t, x, y float64) (div [4]float64)
 }
 
 type CaseType uint
@@ -77,7 +83,13 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, model Mode
 			fmt.Printf("Solving Freestream\n")
 		}
 	case IVORTEX:
-		c.InitializeIVortex()
+		c.AnalyticSolution = c.InitializeIVortex()
+		// Set "Wall" BCs to IVortex
+		for _, e := range c.dfr.Tris.Edges {
+			if e.BCType == DG2D.BC_Wall {
+				e.BCType = DG2D.BC_IVortex
+			}
+		}
 		if verbose {
 			fmt.Printf("Solving Isentropic Vortex\n")
 		}
@@ -163,13 +175,32 @@ func (c *Euler) SetNormalFluxOnEdges() {
 				flux       [2][4]float64
 				normalFlux float64
 			)
-			// TODO: Implement boundary conditions
+			// TODO: Implement more boundary conditions
+			switch e.BCType {
+			case DG2D.BC_IVortex:
+				//fmt.Printf("BC - %s\n", e.BCType.String())
+				// Set the flow variables to the exact solution
+				X, Y := c.dfr.FluxX.Data(), c.dfr.FluxY.Data()
+				for i := 0; i < Nedge; i++ {
+					iL := i + shift
+					ind := k + (2*Nint+iL)*Kmax
+					x, y := X[ind], Y[ind]
+					t := 0.
+					iv := c.AnalyticSolution.(*isentropic_vortex.IVortex)
+					rho, rhoU, rhoV, rhoE := iv.GetStateC(t, x, y)
+					ind = k + iL*Kmax
+					c.Q_Face[0].Data()[ind] = rho
+					c.Q_Face[1].Data()[ind] = rhoU
+					c.Q_Face[2].Data()[ind] = rhoV
+					c.Q_Face[3].Data()[ind] = rhoE
+				}
+			}
 			// Get scaling factor ||n|| for each edge, multiplied by untransformed normals
 			normL := getScaledNormal(0, e, en)
 			for i := 0; i < Nedge; i++ {
 				iL := i + shift
 				flux[0], flux[1] = c.CalculateFlux(k, iL, c.Q_Face)
-				// Project the flux onto the scaled normal for each of left/right
+				// Project the flux onto the scaled normal
 				for n := 0; n < 4; n++ {
 					normalFlux = normL[0]*flux[0][n] + normL[1]*flux[1][n]
 					// Place normed/scaled flux into the RT element space
@@ -279,13 +310,11 @@ func (c *Euler) InitializeFS() {
 	c.Q[3] = utils.NewMatrix(Np, K).AddScalar(rhoE)
 }
 
-func (c *Euler) InitializeIVortex() {
+func (c *Euler) InitializeIVortex() (iv *isentropic_vortex.IVortex) {
 	var (
 		Beta   = 5.
 		X0, Y0 = 5., 0.
 		Gamma  = 1.4
-		GM1    = Gamma - 1.
-		ooGM1  = 1. / GM1
 		X, Y   = c.dfr.SolutionX.Data(), c.dfr.SolutionY.Data()
 		Kmax   = c.dfr.K
 		Np     = c.dfr.SolutionElement.Np
@@ -293,16 +322,16 @@ func (c *Euler) InitializeIVortex() {
 	for n := 0; n < 4; n++ {
 		c.Q[n] = utils.NewMatrix(Np, Kmax)
 	}
-	iv := isentropic_vortex.NewIVortex(Beta, X0, Y0, Gamma)
+	iv = isentropic_vortex.NewIVortex(Beta, X0, Y0, Gamma)
 	for ii := 0; ii < Np*Kmax; ii++ {
 		x, y := X[ii], Y[ii]
-		u, v, rho, p := iv.GetState(0, x, y)
-		q := 0.5 * rho * (u*u + v*v)
+		rho, rhoU, rhoV, rhoE := iv.GetStateC(0, x, y)
 		c.Q[0].Data()[ii] = rho
-		c.Q[1].Data()[ii] = rho * u
-		c.Q[2].Data()[ii] = rho * v
-		c.Q[3].Data()[ii] = p*ooGM1 + q
+		c.Q[1].Data()[ii] = rhoU
+		c.Q[2].Data()[ii] = rhoV
+		c.Q[3].Data()[ii] = rhoE
 	}
+	return
 }
 
 func (c *Euler) InitializeMemory() {

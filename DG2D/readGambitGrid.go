@@ -42,18 +42,9 @@ const (
 	BC_Cyl
 	BC_Neuman
 	BC_Out
+	BC_IVortex
 )
 
-/*
-  if      (match_BC(name, "Infl"))  bcflag = BC_In;
-  else if (match_BC(name, "Outf"))  bcflag = BC_Out;
-  else if (match_BC(name, "Wall"))  bcflag = BC_Wall;
-  else if (match_BC(name, "Far" ))  bcflag = BC_Far;
-  else if (match_BC(name, "Cyl" ))  bcflag = BC_Cyl;
-  else if (match_BC(name, "Diri"))  bcflag = BC_Dirichlet;
-  else if (match_BC(name, "Neum"))  bcflag = BC_Neuman;
-  else if (match_BC(name, "Slip"))  bcflag = BC_Slip;
-*/
 var faceMap = map[string]BCFLAG{
 	"inflow":    BC_In,
 	"in":        BC_In,
