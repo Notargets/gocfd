@@ -12,6 +12,7 @@ E=(p/(gamma-1)+q)/rho; % generic calculation of E, not specific to this case, mu
 F = [ rho*u, rho*u^2+p, rho*u*v, u*(E+p) ];
 G = [ rho*v, rho*u*v, rho*v^2+p, v*(E+p) ];
 div = diff(F,x)+diff(G,y);
+fprintf('Code for Divergence of F and G Fluxes\n%s\n',ccode(div));
 disp(ccode(div(1)));
 disp(ccode(div(2)));
 disp(ccode(div(3)));
@@ -27,22 +28,23 @@ vals=[X-DX/2,Y,Beta,GAMMA,T,X0,Y0];
 Fxm = subs(F,args,vals);
 vals=[X+DX/2,Y,Beta,GAMMA,T,X0,Y0];
 Fxp = subs(F,args,vals);
-fprintf('Fxm at X=[%f,%f] = [%f,%f,%f,%f]\n',double(X-DX/2), double(Y),double(Fxm));
-fprintf('Fxp at X=[%f,%f] = [%f,%f,%f,%f]\n',double(X+DX/2), double(Y),double(Fxp));
 Fx=(Fxp-Fxm)/DX;
-fprintf('Fx at X=[%f,%f] = [%f,%f,%f,%f]\n',double(X), double(Y),double(Fx));
 
 vals=[X,Y-DY/2,Beta,GAMMA,T,X0,Y0];
 Gym = subs(G,args,vals);
 vals=[X,Y+DY/2,Beta,GAMMA,T,X0,Y0];
 Gyp = subs(G,args,vals);
-fprintf('Gym at X=[%f,%f] = [%f,%f,%f,%f]\n',double(X), double(Y-DY/2),double(Gym));
-fprintf('Gyp at X=[%f,%f] = [%f,%f,%f,%f]\n',double(X), double(Y+DY/2),double(Gyp));
 Gy=(Gyp-Gym)/DY;
-fprintf('Gy at X=[%f,%f] = [%f,%f,%f,%f]\n',double(X), double(Y),double(Gy));
 Div=Fx+Gy;
 fprintf('Divergence at X=[%f,%f] = [%f,%f,%f,%f]\n',double(X), double(Y),double(Div));
 
 vals=[X,Y,Beta,GAMMA,T,X0,Y0];
 adiv=subs(div,args,vals);
 fprintf('Analytical Divergence at X=[%f,%f] = [%f,%f,%f,%f]\n',double(X), double(Y), double(adiv));
+
+residual = double(adiv-Div);
+fprintf('*** SHOULD BE ZERO *** Residual at X=[%f,%f] = [%f,%f,%f,%f]\n',double(X), double(Y), double(residual));
+
+fprintf('F at X=[%f,%f] = [%f,%f,%f,%f]\n',double(X), double(Y), double(subs(F,args,vals)));
+fprintf('G at X=[%f,%f] = [%f,%f,%f,%f]\n',double(X), double(Y), double(subs(G,args,vals)));
+fprintf('Code for Flux in F and G directions\n%s\n%s\n',ccode(F),ccode(G));
