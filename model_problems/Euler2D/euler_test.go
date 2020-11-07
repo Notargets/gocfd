@@ -165,6 +165,11 @@ func TestEuler(t *testing.T) {
 				for i := 0; i < Nint; i++ {
 					ind := k + i*Kmax
 					x, y := X[ind], Y[ind]
+					qc1, qc2, qc3, qc4 := c.AnalyticSolution.GetStateC(0, x, y)
+					// TODO: BUG: Fix the dimensions of Q, Q_Face to be consistent - KxNp instead of NpxK
+					q1, q2, q3, q4 := c.Q[0].At(k, i), c.Q[1].At(k, i), c.Q[2].At(k, i), c.Q[3].At(k, i)
+					fmt.Printf("q[%d,%d] = %v,%v,%v,%v, qc = %v,%v,%v,%v\n",
+						k, i, q1, q2, q3, q4, qc1, qc2, qc3, qc4)
 					divC := c.AnalyticSolution.GetDivergence(0, x, y)
 					divCheck[ind] = divC[n]
 					//fmt.Printf("divCheck[%d][%8.5f,%8.5f] = %8.5f\n", ind, x, y, divCheck[ind])
