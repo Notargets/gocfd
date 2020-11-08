@@ -81,18 +81,15 @@ func (dfr *DFR2D) CalculateJacobian() {
 		xs, ys := 0.5*(v3x-v1x), 0.5*(v3y-v1y)
 		// Jacobian is [xr, xs]
 		//             [yr, ys]
-		jd := Jd[k*4:]
-		jd[0], jd[1], jd[2], jd[3] = xr, xs, yr, ys
+		ind := k * 4
+		Jd[ind+0], Jd[ind+1], Jd[ind+2], Jd[ind+3] = xr, xs, yr, ys
 		Jdetd[k] = xr*ys - xs*yr
-		oodet := 1. / Jdetd[k]
-		jdInv := JdInv[k*4:]
 		// Inverse Jacobian is:
-		// (1/(xr*ys-xs*yr)) *
-		//             [ ys,-xs]
-		//             [-yr, xr]
-		jdInv[0], jdInv[1], jdInv[2], jdInv[3] = ys, -xs, -yr, xr
+		// [ ys,-xs] * (1/(xr*ys-xs*yr))
+		// [-yr, xr]
+		JdInv[ind+0], JdInv[ind+1], JdInv[ind+2], JdInv[ind+3] = ys, -xs, -yr, xr
 		for i := 0; i < 4; i++ {
-			jdInv[i] *= oodet
+			JdInv[ind+i] /= Jdetd[k]
 		}
 	}
 	dfr.J, dfr.Jinv = utils.NewMatrix(dfr.K, 4, Jd), utils.NewMatrix(dfr.K, 4, JdInv)

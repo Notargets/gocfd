@@ -126,10 +126,11 @@ func (c *Euler) SetNormalFluxInternal() {
 	for i := 0; i < Nint; i++ {
 		for k := 0; k < Kmax; k++ {
 			ind := k + i*Kmax
+			ind2 := k + (i+Nint)*Kmax
 			Fr, Fs := c.CalculateFluxTransformed(k, i, c.Q)
 			for n := 0; n < 4; n++ {
 				rtD := c.F_RT_DOF[n].Data()
-				rtD[ind], rtD[ind+Nint*Kmax] = Fr[n], Fs[n]
+				rtD[ind], rtD[ind2] = Fr[n], Fs[n]
 			}
 		}
 	}

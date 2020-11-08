@@ -134,7 +134,7 @@ func TestEuler(t *testing.T) {
 					_, _, Jdet := c.dfr.GetJacobian(k)
 					for i := 0; i < Nint; i++ {
 						ind := k + i*Kmax
-						div.Data()[ind] *= 1. / Jdet
+						div.Data()[ind] /= Jdet
 					}
 				}
 				assert.True(t, nearVecScalar(div.Data(), 0., 0.000001))
@@ -144,6 +144,7 @@ func TestEuler(t *testing.T) {
 	if false { // Test divergence of Isentropic Vortex initial condition against analytic values
 		N := 1
 		plotMesh := false
+		//c := NewEuler(1, N, "../../DG2D/vortexA04.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
 		c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
 		X, Y := c.dfr.FluxX, c.dfr.FluxY
 		_, QFlux := c.InitializeIVortex(X, Y)
@@ -152,6 +153,10 @@ func TestEuler(t *testing.T) {
 		Nedge := c.dfr.FluxElement.Nedge
 		for n := 0; n < 4; n++ {
 			for k := 0; k < Kmax; k++ {
+				for i := 0; i < Nint; i++ {
+					ind := k + i*Kmax
+					c.Q[n].Data()[ind] = QFlux[n].Data()[ind]
+				}
 				for i := 0; i < 3*Nedge; i++ {
 					ind := k + i*Kmax
 					ind2 := k + (i+2*Nint)*Kmax
@@ -161,22 +166,23 @@ func TestEuler(t *testing.T) {
 		}
 		c.SetNormalFluxInternal()
 		c.SetNormalFluxOnEdges()
-		//PrintQ(c.F_RT_DOF, "F_RT_DOF_no_interp")
+		PrintQ(c.F_RT_DOF, "F_RT_DOF_no_interp")
 
 		var div utils.Matrix
 		for n := 0; n < 4; n++ {
 			fmt.Printf("component[%d]\n", n)
 			div = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
+			d1, d2 := div.Dims()
+			assert.Equal(t, d1, Nint)
+			assert.Equal(t, d2, Kmax)
 			for k := 0; k < Kmax; k++ {
 				_, _, Jdet := c.dfr.GetJacobian(k)
 				for i := 0; i < Nint; i++ {
 					ind := k + i*Kmax
-					div.Data()[ind] *= 1. / Jdet
+					div.Data()[ind] /= Jdet
 				}
 			}
 			// Get the analytic values of divergence for comparison
-			var divCheck []float64
-			divCheck = make([]float64, Nint*Kmax)
 			for k := 0; k < Kmax; k++ {
 				for i := 0; i < Nint; i++ {
 					ind := k + i*Kmax
@@ -185,10 +191,12 @@ func TestEuler(t *testing.T) {
 					q1, q2, q3, q4 := c.Q[0].Data()[ind], c.Q[1].Data()[ind], c.Q[2].Data()[ind], c.Q[3].Data()[ind]
 					assert.True(t, nearVec([]float64{q1, q2, q3, q4}, []float64{qc1, qc2, qc3, qc4}, 0.000001))
 					divC := c.AnalyticSolution.GetDivergence(0, x, y)
-					divCheck[ind] = divC[n]
+					divCalc := div.Data()[ind]
+					fmt.Printf("div[%d][%d,%d] = %8.5f\n", n, k, i, divCalc)
+					qval := c.Q[n].Data()[ind]
+					assert.True(t, near(div.Data()[ind]/qval, divC[n]/qval, 0.001))
 				}
 			}
-			assert.True(t, nearVec(div.Data(), divCheck, 0.0001))
 		}
 	}
 	if false { // Test Isentropic Vortex
@@ -218,13 +226,9 @@ func TestEuler(t *testing.T) {
 				_, _, Jdet := c.dfr.GetJacobian(k)
 				for i := 0; i < Nint; i++ {
 					ind := k + i*Kmax
-					div.Data()[ind] *= 1. / Jdet
+					div.Data()[ind] /= Jdet
 				}
 			}
-			//fmt.Println(div.Print("div"))
-			//fmt.Println(c.F_RT_DOF[n].Print("F_RT_DOF"))
-			var divCheck []float64
-			divCheck = make([]float64, Nint*Kmax)
 			for k := 0; k < Kmax; k++ {
 				for i := 0; i < Nint; i++ {
 					ind := k + i*Kmax
@@ -233,11 +237,9 @@ func TestEuler(t *testing.T) {
 					q1, q2, q3, q4 := c.Q[0].Data()[ind], c.Q[1].Data()[ind], c.Q[2].Data()[ind], c.Q[3].Data()[ind]
 					assert.True(t, nearVec([]float64{q1, q2, q3, q4}, []float64{qc1, qc2, qc3, qc4}, 0.000001))
 					divC := c.AnalyticSolution.GetDivergence(0, x, y)
-					divCheck[ind] = divC[n]
-					//fmt.Printf("divCheck[%d][%8.5f,%8.5f] = %8.5f\n", ind, x, y, divCheck[ind])
+					assert.True(t, near(div.Data()[ind], divC[n], 0.00001))
 				}
 			}
-			assert.True(t, nearVec(div.Data(), divCheck, 0.0001))
 		}
 	}
 }
@@ -297,8 +299,11 @@ func near(a, b float64, tolI ...float64) (l bool) {
 		tol = tolI[0]
 	}
 	bound := math.Max(tol, tol*math.Abs(a))
-	if math.Abs(a-b) <= bound {
+	val := math.Abs(a - b)
+	if val <= bound {
 		l = true
+	} else {
+		fmt.Printf("Diff = %v, Left = %v, Right = %v\n", val, a, b)
 	}
 	return
 }
