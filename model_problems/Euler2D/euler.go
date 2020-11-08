@@ -35,7 +35,7 @@ type Euler struct {
 }
 
 type ExactState interface {
-	GetStateC(t, x, y float64) (rho, rhoU, rhoV, rhoE float64)
+	GetStateC(t, x, y float64) (rho, rhoU, rhoV, E float64)
 	GetDivergence(t, x, y float64) (div [4]float64)
 }
 
@@ -83,7 +83,7 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, model Mode
 			fmt.Printf("Solving Freestream\n")
 		}
 	case IVORTEX:
-		c.AnalyticSolution = c.InitializeIVortex()
+		c.AnalyticSolution, c.Q = c.InitializeIVortex(c.dfr.SolutionX, c.dfr.SolutionY)
 		// Set "Wall" BCs to IVortex
 		for _, e := range c.dfr.Tris.Edges {
 			if e.BCType == DG2D.BC_Wall {
@@ -114,6 +114,7 @@ func (c *Euler) AssembleRTNormalFlux() {
 		2) Edges are traversed, flux is calculated and projected onto edge face normals, scaled and placed into F_RT_DOF
 	*/
 	c.SetNormalFluxInternal()
+	c.InterpolateSolutionToEdges()
 	// TODO: Implement calculation of flux for BCs
 	c.SetNormalFluxOnEdges()
 }
@@ -131,6 +132,13 @@ func (c *Euler) SetNormalFluxInternal() {
 				rtD[ind], rtD[ind+Nint*Kmax] = Fr[n], Fs[n]
 			}
 		}
+	}
+}
+
+func (c *Euler) InterpolateSolutionToEdges() {
+	// Interpolate from solution points to edges using precomputed interpolation matrix
+	for n := 0; n < 4; n++ {
+		c.Q_Face[n] = c.dfr.FluxInterpMatrix.Mul(c.Q[n])
 	}
 }
 
@@ -161,10 +169,6 @@ func (c *Euler) SetNormalFluxOnEdges() {
 		scaledNormal[1] *= e.IInII[conn]
 		return
 	}
-	// Interpolate from solution points to edges using precomputed interpolation matrix
-	for n := 0; n < 4; n++ {
-		c.Q_Face[n] = c.dfr.FluxInterpMatrix.Mul(c.Q[n])
-	}
 	for en, e := range dfr.Tris.Edges {
 		switch e.NumConnectedTris {
 		case 0:
@@ -189,12 +193,12 @@ func (c *Euler) SetNormalFluxOnEdges() {
 					x, y := X[ind], Y[ind]
 					t := 0.
 					iv := c.AnalyticSolution.(*isentropic_vortex.IVortex)
-					rho, rhoU, rhoV, rhoE := iv.GetStateC(t, x, y)
+					rho, rhoU, rhoV, E := iv.GetStateC(t, x, y)
 					ind = k + iL*Kmax
 					c.Q_Face[0].Data()[ind] = rho
 					c.Q_Face[1].Data()[ind] = rhoU
 					c.Q_Face[2].Data()[ind] = rhoV
-					c.Q_Face[3].Data()[ind] = rhoE
+					c.Q_Face[3].Data()[ind] = E
 				}
 			}
 			// Get scaling factor ||n|| for each edge, multiplied by untransformed normals
@@ -305,33 +309,31 @@ func (c *Euler) InitializeFS() {
 		GM1          = Gamma - 1 // R / Cv
 	)
 	q := 0.5 * rho * (u*u + v*v)
-	rhoE := p/GM1 + q
+	E := p/GM1 + q
 	c.Q[0] = utils.NewMatrix(Np, K).AddScalar(rho)
 	c.Q[1] = utils.NewMatrix(Np, K).AddScalar(rho * u)
 	c.Q[2] = utils.NewMatrix(Np, K).AddScalar(rho * v)
-	c.Q[3] = utils.NewMatrix(Np, K).AddScalar(rhoE)
+	c.Q[3] = utils.NewMatrix(Np, K).AddScalar(E)
 }
 
-func (c *Euler) InitializeIVortex() (iv *isentropic_vortex.IVortex) {
+func (c *Euler) InitializeIVortex(X, Y utils.Matrix) (iv *isentropic_vortex.IVortex, Q [4]utils.Matrix) {
 	var (
-		Beta   = 5.
-		X0, Y0 = 5., 0.
-		Gamma  = 1.4
-		X, Y   = c.dfr.SolutionX.Data(), c.dfr.SolutionY.Data()
-		Kmax   = c.dfr.K
-		Np     = c.dfr.SolutionElement.Np
+		Beta     = 5.
+		X0, Y0   = 5., 0.
+		Gamma    = 1.4
+		Np, Kmax = X.Dims()
 	)
 	for n := 0; n < 4; n++ {
-		c.Q[n] = utils.NewMatrix(Np, Kmax)
+		Q[n] = utils.NewMatrix(Np, Kmax)
 	}
 	iv = isentropic_vortex.NewIVortex(Beta, X0, Y0, Gamma)
 	for ii := 0; ii < Np*Kmax; ii++ {
-		x, y := X[ii], Y[ii]
-		rho, rhoU, rhoV, rhoE := iv.GetStateC(0, x, y)
-		c.Q[0].Data()[ii] = rho
-		c.Q[1].Data()[ii] = rhoU
-		c.Q[2].Data()[ii] = rhoV
-		c.Q[3].Data()[ii] = rhoE
+		x, y := X.Data()[ii], Y.Data()[ii]
+		rho, rhoU, rhoV, E := iv.GetStateC(0, x, y)
+		Q[0].Data()[ii] = rho
+		Q[1].Data()[ii] = rhoU
+		Q[2].Data()[ii] = rhoV
+		Q[3].Data()[ii] = E
 	}
 	return
 }
@@ -363,16 +365,16 @@ func (c *Euler) CalculateFluxTransformed(k, i int, Q [4]utils.Matrix) (Fr, Fs [4
 func (c *Euler) CalculateFlux(k, i int, Q [4]utils.Matrix) (Fx, Fy [4]float64) {
 	// From https://www.theoretical-physics.net/dev/fluid-dynamics/euler.html
 	var (
-		q0D, q1D, q2D, q3D    = Q[0].Data(), Q[1].Data(), Q[2].Data(), Q[3].Data()
-		Kmax                  = c.dfr.K
-		ind                   = k + i*Kmax
-		rho, rhoU, rhoV, rhoE = q0D[ind], q1D[ind], q2D[ind], q3D[ind]
+		q0D, q1D, q2D, q3D = Q[0].Data(), Q[1].Data(), Q[2].Data(), Q[3].Data()
+		Kmax               = c.dfr.K
+		ind                = k + i*Kmax
+		rho, rhoU, rhoV, E = q0D[ind], q1D[ind], q2D[ind], q3D[ind]
 	)
-	Fx, Fy = FluxCalc(c.Gamma, rho, rhoU, rhoV, rhoE)
+	Fx, Fy = FluxCalc(c.Gamma, rho, rhoU, rhoV, E)
 	return
 }
 
-func FluxCalc(Gamma, rho, rhoU, rhoV, rhoE float64) (Fx, Fy [4]float64) {
+func FluxCalc(Gamma, rho, rhoU, rhoV, E float64) (Fx, Fy [4]float64) {
 	var (
 		GM1 = Gamma - 1.
 	)
@@ -380,8 +382,7 @@ func FluxCalc(Gamma, rho, rhoU, rhoV, rhoE float64) (Fx, Fy [4]float64) {
 	v := rhoV / rho
 	u2 := u*u + v*v
 	q := 0.5 * rho * u2
-	p := GM1 * (rhoE - q)
-	E := rhoE / rho
+	p := GM1 * (E - q)
 	Fx, Fy =
 		[4]float64{rhoU, rhoU*u + p, rhoU * v, u * (E + p)},
 		[4]float64{rhoV, rhoV * u, rhoV*v + p, v * (E + p)}

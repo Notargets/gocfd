@@ -11,13 +11,13 @@ import (
 func TestIVortex(t *testing.T) {
 	{ // Test base state
 		iv := NewIVortex(5, 5, 0, 1.4)
-		rho, rhoU, rhoV, rhoE := iv.GetStateC(0, 5, 0)
+		rho, rhoU, rhoV, E := iv.GetStateC(0, 5, 0)
 		// Compare to matlab script results (from isentropic_vortex.m)
-		assert.True(t, nearVec([]float64{rho, rhoU, rhoV, rhoE}, []float64{0.361673, 0.361673, 0.000000, 0.782817}, 0.00001))
-		//fmt.Printf("Q = %v\n", []float64{rho, rhoU, rhoV, rhoE})
+		assert.True(t, nearVec([]float64{rho, rhoU, rhoV, E}, []float64{0.361673, 0.361673, 0.000000, 0.782817}, 0.00001))
+		//fmt.Printf("Q = %v\n", []float64{rho, rhoU, rhoV, E})
 		// Compare to matlab script results (from isentropic_vortex.m)
 		Fx, Fy := iv.GetFlux(0, 5, 0)
-		assert.True(t, near4Vec(Fx, [4]float64{0.361673, 0.602465, 0.000000, 2.405225}, 0.00001))
+		assert.True(t, near4Vec(Fx, [4]float64{0.361673, 0.602465, 0.000000, 1.023609}, 0.00001))
 		assert.True(t, near4Vec(Fy, [4]float64{0.000000, 0.000000, 0.240792, 0.000000}, 0.00001))
 		Div := iv.GetDivergence(0, 5, 0)
 		assert.True(t, near4Vec(Div, [4]float64{0.000000, 0.000000, 0.782349, 0.000000}, 0.00001))

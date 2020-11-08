@@ -122,6 +122,7 @@ func TestEuler(t *testing.T) {
 		for N := 1; N <= Nmax; N++ {
 			c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, false, false)
 			c.SetNormalFluxInternal()
+			c.InterpolateSolutionToEdges()
 			c.SetNormalFluxOnEdges()
 			Kmax := c.dfr.K
 			Nint := c.dfr.FluxElement.Nint
@@ -140,6 +141,56 @@ func TestEuler(t *testing.T) {
 			}
 		}
 	}
+	if false { // Test divergence of Isentropic Vortex initial condition against analytic values
+		N := 1
+		plotMesh := false
+		c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
+		X, Y := c.dfr.FluxX, c.dfr.FluxY
+		_, QFlux := c.InitializeIVortex(X, Y)
+		Kmax := c.dfr.K
+		Nint := c.dfr.FluxElement.Nint
+		Nedge := c.dfr.FluxElement.Nedge
+		for n := 0; n < 4; n++ {
+			for k := 0; k < Kmax; k++ {
+				for i := 0; i < 3*Nedge; i++ {
+					ind := k + i*Kmax
+					ind2 := k + (i+2*Nint)*Kmax
+					c.Q_Face[n].Data()[ind] = QFlux[n].Data()[ind2]
+				}
+			}
+		}
+		c.SetNormalFluxInternal()
+		c.SetNormalFluxOnEdges()
+		//PrintQ(c.F_RT_DOF, "F_RT_DOF_no_interp")
+
+		var div utils.Matrix
+		for n := 0; n < 4; n++ {
+			fmt.Printf("component[%d]\n", n)
+			div = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
+			for k := 0; k < Kmax; k++ {
+				_, _, Jdet := c.dfr.GetJacobian(k)
+				for i := 0; i < Nint; i++ {
+					ind := k + i*Kmax
+					div.Data()[ind] *= 1. / Jdet
+				}
+			}
+			// Get the analytic values of divergence for comparison
+			var divCheck []float64
+			divCheck = make([]float64, Nint*Kmax)
+			for k := 0; k < Kmax; k++ {
+				for i := 0; i < Nint; i++ {
+					ind := k + i*Kmax
+					x, y := X.Data()[ind], Y.Data()[ind]
+					qc1, qc2, qc3, qc4 := c.AnalyticSolution.GetStateC(0, x, y)
+					q1, q2, q3, q4 := c.Q[0].Data()[ind], c.Q[1].Data()[ind], c.Q[2].Data()[ind], c.Q[3].Data()[ind]
+					assert.True(t, nearVec([]float64{q1, q2, q3, q4}, []float64{qc1, qc2, qc3, qc4}, 0.000001))
+					divC := c.AnalyticSolution.GetDivergence(0, x, y)
+					divCheck[ind] = divC[n]
+				}
+			}
+			assert.True(t, nearVec(div.Data(), divCheck, 0.0001))
+		}
+	}
 	if false { // Test Isentropic Vortex
 		N := 1
 		plotMesh := false
@@ -150,6 +201,7 @@ func TestEuler(t *testing.T) {
 		//fmt.Println(c.F_RT_DOF[0].Print("F_RT_DOF0_start"))
 		// TODO: Set F_RT_DOF manually to the analytic vortex solution (through transform), then compute Div using RT
 		c.SetNormalFluxInternal()
+		c.InterpolateSolutionToEdges()
 		c.SetNormalFluxOnEdges()
 		Kmax := c.dfr.K
 		Nint := c.dfr.FluxElement.Nint
