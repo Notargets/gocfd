@@ -144,7 +144,6 @@ func TestEuler(t *testing.T) {
 	if false { // Test divergence of polynomial initial condition against analytic values
 		N := 1
 		plotMesh := false
-		//c := NewEuler(1, N, "../../DG2D/vortexA04.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
 		c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
 		X, Y := c.dfr.FluxX, c.dfr.FluxY
 		QFlux := InitializePolynomial(X, Y)
@@ -165,20 +164,7 @@ func TestEuler(t *testing.T) {
 			}
 		}
 		c.SetNormalFluxInternal()
-		for k := 0; k < Kmax; k++ {
-			for i := 0; i < 3*Nedge; i++ {
-				ind := k + i*Kmax
-				ind2 := k + (i+2*Nint)*Kmax
-				X, Y := c.dfr.FluxX.Data(), c.dfr.FluxY.Data()
-				x, y := X[ind2], Y[ind2]
-				rho, rhoU, rhoV, E := GetStatePoly(x, y)
-				//rho, rhoU, rhoV, E := c.Q[0].Data()[0], c.Q[1].Data()[0], c.Q[2].Data()[0], c.Q[3].Data()[0]
-				c.Q_Face[0].Data()[ind] = rho
-				c.Q_Face[1].Data()[ind] = rhoU
-				c.Q_Face[2].Data()[ind] = rhoV
-				c.Q_Face[3].Data()[ind] = E
-			}
-		}
+		// No need to interpolate to the edges, they are left at initialized state in Q_Face
 		c.SetNormalFluxOnEdges()
 
 		var div utils.Matrix
@@ -205,8 +191,9 @@ func TestEuler(t *testing.T) {
 					assert.True(t, nearVec([]float64{q1, q2, q3, q4}, []float64{qc1, qc2, qc3, qc4}, 0.000001))
 					divC := GetDivergencePoly(0, x, y)
 					divCalc := div.Data()[ind]
+					normalizer := c.Q[n].Data()[ind]
 					fmt.Printf("div[%d][%d,%d] = %8.5f\n", n, k, i, divCalc)
-					assert.True(t, near(divCalc, divC[n], 0.001))
+					assert.True(t, near(divCalc/normalizer, divC[n]/normalizer, 0.01)) // 1% of field value
 				}
 			}
 		}
@@ -395,24 +382,45 @@ func InitializePolynomial(X, Y utils.Matrix) (Q [4]utils.Matrix) {
 }
 
 func GetStatePoly(x, y float64) (rho, rhoU, rhoV, E float64) {
+	/*
+		Matlab script:
+				syms a b c d x y gamma
+				%2D Polynomial field
+				rho=a*abs(x)+b*abs(y);
+				u = c*x; v = d*y;
+				rhou=rho*u; rhov=rho*v;
+				p=rho^gamma;
+				q=0.5*rho*(u^2+v^2);
+				E=p/(gamma-1)+q;
+				U = [ rho, rhou, rhov, E];
+				F = [ rhou, rho*u^2+p, rho*u*v, u*(E+p) ];
+				G = [ rhov, rho*u*v, rho*v^2+p, v*(E+p) ];
+				div = diff(F,x)+diff(G,y);
+				fprintf('Code for Divergence of F and G Fluxes\n%s\n',ccode(div));
+				fprintf('Code for U \n%s\n%s\n%s\n%s\n',ccode(U));
+	*/
 	var (
-		x2 = x * x
-		y2 = y * y
+		a, b, c, d = 1., 1., 1., 1.
+		pow        = math.Pow
+		fabs       = math.Abs
+		gamma      = 1.4
 	)
-	rho = x2 + y2
-	rhoU = x2
-	rhoV = y2
-	E = 10 * rho
+	rho = a*fabs(x) + b*fabs(y)
+	rhoU = c * x * (a*fabs(x) + b*fabs(y))
+	rhoV = d * y * (a*fabs(x) + b*fabs(y))
+	E = ((c*c)*(x*x)+(d*d)*(y*y))*((a*fabs(x))/2.0+(b*fabs(y))/2.0) + pow(a*fabs(x)+b*fabs(y), gamma)/(gamma-1.0)
 	return
 }
 func GetDivergencePoly(t, x, y float64) (div [4]float64) {
 	var (
-		gamma = 1.4
-		pow   = math.Pow
+		gamma      = 1.4
+		pow        = math.Pow
+		fabs       = math.Abs
+		a, b, c, d = 1., 1., 1., 1.
 	)
-	div[0] = x*2.0 + y*2.0
-	div[1] = ((x*x*x)*4.0)/(x*x+y*y) - (x*x*x*x*x)*1.0/pow(x*x+y*y, 2.0)*2.0 + ((x*x)*y*2.0)/(x*x+y*y) + gamma*x*pow(x*x+y*y, gamma-1.0)*2.0 - (x*x)*(y*y*y)*1.0/pow(x*x+y*y, 2.0)*2.0
-	div[2] = ((y*y*y)*4.0)/(x*x+y*y) - (y*y*y*y*y)*1.0/pow(x*x+y*y, 2.0)*2.0 + (x*(y*y)*2.0)/(x*x+y*y) + gamma*y*pow(x*x+y*y, gamma-1.0)*2.0 - (x*x*x)*(y*y)*1.0/pow(x*x+y*y, 2.0)*2.0
-	div[3] = (x*x*x)*1.0/pow(x*x+y*y, 2.0)*(pow(x*x+y*y, gamma)+(x*x)*1.0E+1+(y*y)*1.0E+1)*-2.0 - (y*y*y)*1.0/pow(x*x+y*y, 2.0)*(pow(x*x+y*y, gamma)+(x*x)*1.0E+1+(y*y)*1.0E+1)*2.0 + ((x*x)*(x*2.0E+1+gamma*x*pow(x*x+y*y, gamma-1.0)*2.0))/(x*x+y*y) + ((y*y)*(y*2.0E+1+gamma*y*pow(x*x+y*y, gamma-1.0)*2.0))/(x*x+y*y) + (x*(pow(x*x+y*y, gamma)+(x*x)*1.0E+1+(y*y)*1.0E+1)*2.0)/(x*x+y*y) + (y*(pow(x*x+y*y, gamma)+(x*x)*1.0E+1+(y*y)*1.0E+1)*2.0)/(x*x+y*y)
+	div[0] = c*(a*fabs(x)+b*fabs(y)) + d*(a*fabs(x)+b*fabs(y)) + a*c*x*(x/fabs(x)) + b*d*y*(y/fabs(y))
+	div[1] = (c*c)*x*(a*fabs(x)+b*fabs(y))*2.0 + c*d*x*(a*fabs(x)+b*fabs(y)) + a*(c*c)*(x*x)*(x/fabs(x)) + a*gamma*(x/fabs(x))*pow(a*fabs(x)+b*fabs(y), gamma-1.0) + b*c*d*x*y*(y/fabs(y))
+	div[2] = (d*d)*y*(a*fabs(x)+b*fabs(y))*2.0 + c*d*y*(a*fabs(x)+b*fabs(y)) + b*(d*d)*(y*y)*(y/fabs(y)) + b*gamma*(y/fabs(y))*pow(a*fabs(x)+b*fabs(y), gamma-1.0) + a*c*d*x*y*(x/fabs(x))
+	div[3] = c*(((c*c)*(x*x)+(d*d)*(y*y))*((a*fabs(x))/2.0+(b*fabs(y))/2.0)+pow(a*fabs(x)+b*fabs(y), gamma)+pow(a*fabs(x)+b*fabs(y), gamma)/(gamma-1.0)) + d*(((c*c)*(x*x)+(d*d)*(y*y))*((a*fabs(x))/2.0+(b*fabs(y))/2.0)+pow(a*fabs(x)+b*fabs(y), gamma)+pow(a*fabs(x)+b*fabs(y), gamma)/(gamma-1.0)) + c*x*((c*c)*x*((a*fabs(x))/2.0+(b*fabs(y))/2.0)*2.0+(a*(x/fabs(x))*((c*c)*(x*x)+(d*d)*(y*y)))/2.0+a*gamma*(x/fabs(x))*pow(a*fabs(x)+b*fabs(y), gamma-1.0)+(a*gamma*(x/fabs(x))*pow(a*fabs(x)+b*fabs(y), gamma-1.0))/(gamma-1.0)) + d*y*((b*(y/fabs(y))*((c*c)*(x*x)+(d*d)*(y*y)))/2.0+(d*d)*y*((a*fabs(x))/2.0+(b*fabs(y))/2.0)*2.0+b*gamma*(y/fabs(y))*pow(a*fabs(x)+b*fabs(y), gamma-1.0)+(b*gamma*(y/fabs(y))*pow(a*fabs(x)+b*fabs(y), gamma-1.0))/(gamma-1.0))
 	return
 }
