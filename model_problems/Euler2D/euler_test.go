@@ -142,7 +142,7 @@ func TestEuler(t *testing.T) {
 		}
 	}
 	if false { // Test divergence of polynomial initial condition against analytic values
-		N := 1
+		N := 7
 		plotMesh := false
 		c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
 		X, Y := c.dfr.FluxX, c.dfr.FluxY
@@ -164,7 +164,22 @@ func TestEuler(t *testing.T) {
 			}
 		}
 		c.SetNormalFluxInternal()
+		// TODO: Find out why Rho divergence for element K=0 tests perfectly fine, but K=1 Rho div does not
+		/*
+			ex:
+				div[0][0,0] =  1.58786
+						...
+				div[0][0,32] = 30.28068
+				div[0][0,33] = 24.25538
+				div[0][0,34] = 32.06368
+				div[0][0,35] = 36.08055
+				div[0][1,0] =  1.28840
+				Diff = 0.5657779188412291, Left = 2.434222081158771, Right = 3
+		*/
+		// TODO: Test interpolation operator for correctness - current results are far from ideal
+		// TODO: Find out why Rho divergence performs well, but RhoU,RhoV,E perform poorly - index problem?
 		// No need to interpolate to the edges, they are left at initialized state in Q_Face
+		//c.InterpolateSolutionToEdges()
 		c.SetNormalFluxOnEdges()
 
 		var div utils.Matrix
