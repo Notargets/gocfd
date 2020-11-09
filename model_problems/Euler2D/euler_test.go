@@ -141,6 +141,76 @@ func TestEuler(t *testing.T) {
 			}
 		}
 	}
+	if false { // Test divergence of polynomial initial condition against analytic values
+		N := 1
+		plotMesh := false
+		//c := NewEuler(1, N, "../../DG2D/vortexA04.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
+		c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
+		X, Y := c.dfr.FluxX, c.dfr.FluxY
+		QFlux := InitializePolynomial(X, Y)
+		Kmax := c.dfr.K
+		Nint := c.dfr.FluxElement.Nint
+		Nedge := c.dfr.FluxElement.Nedge
+		for n := 0; n < 4; n++ {
+			for k := 0; k < Kmax; k++ {
+				for i := 0; i < Nint; i++ {
+					ind := k + i*Kmax
+					c.Q[n].Data()[ind] = QFlux[n].Data()[ind]
+				}
+				for i := 0; i < 3*Nedge; i++ {
+					ind := k + i*Kmax
+					ind2 := k + (i+2*Nint)*Kmax
+					c.Q_Face[n].Data()[ind] = QFlux[n].Data()[ind2]
+				}
+			}
+		}
+		c.SetNormalFluxInternal()
+		for k := 0; k < Kmax; k++ {
+			for i := 0; i < 3*Nedge; i++ {
+				ind := k + i*Kmax
+				ind2 := k + (i+2*Nint)*Kmax
+				X, Y := c.dfr.FluxX.Data(), c.dfr.FluxY.Data()
+				x, y := X[ind2], Y[ind2]
+				rho, rhoU, rhoV, E := GetStatePoly(x, y)
+				//rho, rhoU, rhoV, E := c.Q[0].Data()[0], c.Q[1].Data()[0], c.Q[2].Data()[0], c.Q[3].Data()[0]
+				c.Q_Face[0].Data()[ind] = rho
+				c.Q_Face[1].Data()[ind] = rhoU
+				c.Q_Face[2].Data()[ind] = rhoV
+				c.Q_Face[3].Data()[ind] = E
+			}
+		}
+		c.SetNormalFluxOnEdges()
+
+		var div utils.Matrix
+		for n := 0; n < 4; n++ {
+			fmt.Printf("component[%d]\n", n)
+			div = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
+			d1, d2 := div.Dims()
+			assert.Equal(t, d1, Nint)
+			assert.Equal(t, d2, Kmax)
+			for k := 0; k < Kmax; k++ {
+				_, _, Jdet := c.dfr.GetJacobian(k)
+				for i := 0; i < Nint; i++ {
+					ind := k + i*Kmax
+					div.Data()[ind] /= Jdet
+				}
+			}
+			// Get the analytic values of divergence for comparison
+			for k := 0; k < Kmax; k++ {
+				for i := 0; i < Nint; i++ {
+					ind := k + i*Kmax
+					x, y := X.Data()[ind], Y.Data()[ind]
+					qc1, qc2, qc3, qc4 := GetStatePoly(x, y)
+					q1, q2, q3, q4 := c.Q[0].Data()[ind], c.Q[1].Data()[ind], c.Q[2].Data()[ind], c.Q[3].Data()[ind]
+					assert.True(t, nearVec([]float64{q1, q2, q3, q4}, []float64{qc1, qc2, qc3, qc4}, 0.000001))
+					divC := GetDivergencePoly(0, x, y)
+					divCalc := div.Data()[ind]
+					fmt.Printf("div[%d][%d,%d] = %8.5f\n", n, k, i, divCalc)
+					assert.True(t, near(divCalc, divC[n], 0.001))
+				}
+			}
+		}
+	}
 	if false { // Test divergence of Isentropic Vortex initial condition against analytic values
 		N := 1
 		plotMesh := false
@@ -166,7 +236,6 @@ func TestEuler(t *testing.T) {
 		}
 		c.SetNormalFluxInternal()
 		c.SetNormalFluxOnEdges()
-		PrintQ(c.F_RT_DOF, "F_RT_DOF_no_interp")
 
 		var div utils.Matrix
 		for n := 0; n < 4; n++ {
@@ -193,8 +262,7 @@ func TestEuler(t *testing.T) {
 					divC := c.AnalyticSolution.GetDivergence(0, x, y)
 					divCalc := div.Data()[ind]
 					fmt.Printf("div[%d][%d,%d] = %8.5f\n", n, k, i, divCalc)
-					qval := c.Q[n].Data()[ind]
-					assert.True(t, near(div.Data()[ind]/qval, divC[n]/qval, 0.001))
+					assert.True(t, near(divCalc, divC[n], 0.001))
 				}
 			}
 		}
@@ -305,5 +373,46 @@ func near(a, b float64, tolI ...float64) (l bool) {
 	} else {
 		fmt.Printf("Diff = %v, Left = %v, Right = %v\n", val, a, b)
 	}
+	return
+}
+
+func InitializePolynomial(X, Y utils.Matrix) (Q [4]utils.Matrix) {
+	var (
+		Np, Kmax = X.Dims()
+	)
+	for n := 0; n < 4; n++ {
+		Q[n] = utils.NewMatrix(Np, Kmax)
+	}
+	for ii := 0; ii < Np*Kmax; ii++ {
+		x, y := X.Data()[ii], Y.Data()[ii]
+		rho, rhoU, rhoV, E := GetStatePoly(x, y)
+		Q[0].Data()[ii] = rho
+		Q[1].Data()[ii] = rhoU
+		Q[2].Data()[ii] = rhoV
+		Q[3].Data()[ii] = E
+	}
+	return
+}
+
+func GetStatePoly(x, y float64) (rho, rhoU, rhoV, E float64) {
+	var (
+		x2 = x * x
+		y2 = y * y
+	)
+	rho = x2 + y2
+	rhoU = x2
+	rhoV = y2
+	E = 10 * rho
+	return
+}
+func GetDivergencePoly(t, x, y float64) (div [4]float64) {
+	var (
+		gamma = 1.4
+		pow   = math.Pow
+	)
+	div[0] = x*2.0 + y*2.0
+	div[1] = ((x*x*x)*4.0)/(x*x+y*y) - (x*x*x*x*x)*1.0/pow(x*x+y*y, 2.0)*2.0 + ((x*x)*y*2.0)/(x*x+y*y) + gamma*x*pow(x*x+y*y, gamma-1.0)*2.0 - (x*x)*(y*y*y)*1.0/pow(x*x+y*y, 2.0)*2.0
+	div[2] = ((y*y*y)*4.0)/(x*x+y*y) - (y*y*y*y*y)*1.0/pow(x*x+y*y, 2.0)*2.0 + (x*(y*y)*2.0)/(x*x+y*y) + gamma*y*pow(x*x+y*y, gamma-1.0)*2.0 - (x*x*x)*(y*y)*1.0/pow(x*x+y*y, 2.0)*2.0
+	div[3] = (x*x*x)*1.0/pow(x*x+y*y, 2.0)*(pow(x*x+y*y, gamma)+(x*x)*1.0E+1+(y*y)*1.0E+1)*-2.0 - (y*y*y)*1.0/pow(x*x+y*y, 2.0)*(pow(x*x+y*y, gamma)+(x*x)*1.0E+1+(y*y)*1.0E+1)*2.0 + ((x*x)*(x*2.0E+1+gamma*x*pow(x*x+y*y, gamma-1.0)*2.0))/(x*x+y*y) + ((y*y)*(y*2.0E+1+gamma*y*pow(x*x+y*y, gamma-1.0)*2.0))/(x*x+y*y) + (x*(pow(x*x+y*y, gamma)+(x*x)*1.0E+1+(y*y)*1.0E+1)*2.0)/(x*x+y*y) + (y*(pow(x*x+y*y, gamma)+(x*x)*1.0E+1+(y*y)*1.0E+1)*2.0)/(x*x+y*y)
 	return
 }
