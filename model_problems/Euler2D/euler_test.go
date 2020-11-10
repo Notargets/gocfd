@@ -141,10 +141,17 @@ func TestEuler(t *testing.T) {
 			}
 		}
 	}
-	if false { // Test divergence of polynomial initial condition against analytic values
-		N := 7
+	if true { // Test divergence of polynomial initial condition against analytic values
+		/*
+				Conditions of this test:
+				- Two duplicated triangles, removes the question of transformation Jacobian making the results differ
+			    - Flux is calculated identically for each equation (only density components), removes the question of flux
+			      accuracy being different for the more complex equations
+		*/
+		N := 1
 		plotMesh := false
-		c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
+		// Test case is two duplicated triangles, the second tri runs in the reverse direction of the first
+		c := NewEuler(1, N, "../../DG2D/test_tris_dup.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
 		X, Y := c.dfr.FluxX, c.dfr.FluxY
 		QFlux := InitializePolynomial(X, Y)
 		Kmax := c.dfr.K
@@ -163,21 +170,9 @@ func TestEuler(t *testing.T) {
 				}
 			}
 		}
+		c.FluxCalcMock = FluxCalcMomentumOnly // For testing, only consider the first component of flux for all [4]
 		c.SetNormalFluxInternal()
-		// TODO: Find out why Rho divergence for element K=0 tests perfectly fine, but K=1 Rho div does not
-		/*
-			ex:
-				div[0][0,0] =  1.58786
-						...
-				div[0][0,32] = 30.28068
-				div[0][0,33] = 24.25538
-				div[0][0,34] = 32.06368
-				div[0][0,35] = 36.08055
-				div[0][1,0] =  1.28840
-				Diff = 0.5657779188412291, Left = 2.434222081158771, Right = 3
-		*/
 		// TODO: Test interpolation operator for correctness - current results are far from ideal
-		// TODO: Find out why Rho divergence performs well, but RhoU,RhoV,E perform poorly - index problem?
 		// No need to interpolate to the edges, they are left at initialized state in Q_Face
 		//c.InterpolateSolutionToEdges()
 		c.SetNormalFluxOnEdges()
@@ -197,18 +192,19 @@ func TestEuler(t *testing.T) {
 				}
 			}
 			// Get the analytic values of divergence for comparison
+			nn := 0 // Use only the density component of divergence to check
 			for k := 0; k < Kmax; k++ {
 				for i := 0; i < Nint; i++ {
 					ind := k + i*Kmax
 					x, y := X.Data()[ind], Y.Data()[ind]
-					qc1, qc2, qc3, qc4 := GetStatePoly(x, y)
-					q1, q2, q3, q4 := c.Q[0].Data()[ind], c.Q[1].Data()[ind], c.Q[2].Data()[ind], c.Q[3].Data()[ind]
-					assert.True(t, nearVec([]float64{q1, q2, q3, q4}, []float64{qc1, qc2, qc3, qc4}, 0.000001))
+					//qc1, qc2, qc3, qc4 := GetStatePoly(x, y)
+					//q1, q2, q3, q4 := c.Q[0].Data()[ind], c.Q[1].Data()[ind], c.Q[2].Data()[ind], c.Q[3].Data()[ind]
+					//assert.True(t, nearVec([]float64{q1, q2, q3, q4}, []float64{qc1, qc2, qc3, qc4}, 0.000001))
 					divC := GetDivergencePoly(0, x, y)
 					divCalc := div.Data()[ind]
-					normalizer := c.Q[n].Data()[ind]
+					normalizer := c.Q[nn].Data()[ind]
 					fmt.Printf("div[%d][%d,%d] = %8.5f\n", n, k, i, divCalc)
-					assert.True(t, near(divCalc/normalizer, divC[n]/normalizer, 0.01)) // 1% of field value
+					assert.True(t, near(divCalc/normalizer, divC[nn]/normalizer, 0.0001)) // 1% of field value
 				}
 			}
 		}
@@ -437,5 +433,12 @@ func GetDivergencePoly(t, x, y float64) (div [4]float64) {
 	div[1] = (c*c)*x*(a*fabs(x)+b*fabs(y))*2.0 + c*d*x*(a*fabs(x)+b*fabs(y)) + a*(c*c)*(x*x)*(x/fabs(x)) + a*gamma*(x/fabs(x))*pow(a*fabs(x)+b*fabs(y), gamma-1.0) + b*c*d*x*y*(y/fabs(y))
 	div[2] = (d*d)*y*(a*fabs(x)+b*fabs(y))*2.0 + c*d*y*(a*fabs(x)+b*fabs(y)) + b*(d*d)*(y*y)*(y/fabs(y)) + b*gamma*(y/fabs(y))*pow(a*fabs(x)+b*fabs(y), gamma-1.0) + a*c*d*x*y*(x/fabs(x))
 	div[3] = c*(((c*c)*(x*x)+(d*d)*(y*y))*((a*fabs(x))/2.0+(b*fabs(y))/2.0)+pow(a*fabs(x)+b*fabs(y), gamma)+pow(a*fabs(x)+b*fabs(y), gamma)/(gamma-1.0)) + d*(((c*c)*(x*x)+(d*d)*(y*y))*((a*fabs(x))/2.0+(b*fabs(y))/2.0)+pow(a*fabs(x)+b*fabs(y), gamma)+pow(a*fabs(x)+b*fabs(y), gamma)/(gamma-1.0)) + c*x*((c*c)*x*((a*fabs(x))/2.0+(b*fabs(y))/2.0)*2.0+(a*(x/fabs(x))*((c*c)*(x*x)+(d*d)*(y*y)))/2.0+a*gamma*(x/fabs(x))*pow(a*fabs(x)+b*fabs(y), gamma-1.0)+(a*gamma*(x/fabs(x))*pow(a*fabs(x)+b*fabs(y), gamma-1.0))/(gamma-1.0)) + d*y*((b*(y/fabs(y))*((c*c)*(x*x)+(d*d)*(y*y)))/2.0+(d*d)*y*((a*fabs(x))/2.0+(b*fabs(y))/2.0)*2.0+b*gamma*(y/fabs(y))*pow(a*fabs(x)+b*fabs(y), gamma-1.0)+(b*gamma*(y/fabs(y))*pow(a*fabs(x)+b*fabs(y), gamma-1.0))/(gamma-1.0))
+	return
+}
+
+func FluxCalcMomentumOnly(Gamma, rho, rhoU, rhoV, E float64) (Fx, Fy [4]float64) {
+	Fx, Fy =
+		[4]float64{rhoU, rhoU, rhoU, rhoU},
+		[4]float64{rhoV, rhoV, rhoV, rhoV}
 	return
 }

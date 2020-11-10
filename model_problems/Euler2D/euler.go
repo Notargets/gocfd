@@ -32,6 +32,7 @@ type Euler struct {
 	model                 ModelType
 	Case                  CaseType
 	AnalyticSolution      ExactState
+	FluxCalcMock          func(Gamma, rho, rhoU, rhoV, E float64) (Fx, Fy [4]float64) // For testing
 }
 
 type ExactState interface {
@@ -64,12 +65,13 @@ var (
 
 func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, model ModelType, Case CaseType, plotMesh, verbose bool) (c *Euler) {
 	c = &Euler{
-		MeshFile:  meshFile,
-		CFL:       CFL,
-		FinalTime: FinalTime,
-		model:     model,
-		Case:      Case,
-		Gamma:     1.4,
+		MeshFile:     meshFile,
+		CFL:          CFL,
+		FinalTime:    FinalTime,
+		model:        model,
+		Case:         Case,
+		Gamma:        1.4,
+		FluxCalcMock: FluxCalc,
 	}
 	c.dfr = DG2D.NewDFR2D(N, plotMesh, meshFile)
 	c.InitializeMemory()
@@ -371,7 +373,7 @@ func (c *Euler) CalculateFlux(k, i int, Q [4]utils.Matrix) (Fx, Fy [4]float64) {
 		ind                = k + i*Kmax
 		rho, rhoU, rhoV, E = q0D[ind], q1D[ind], q2D[ind], q3D[ind]
 	)
-	Fx, Fy = FluxCalc(c.Gamma, rho, rhoU, rhoV, E)
+	Fx, Fy = c.FluxCalcMock(c.Gamma, rho, rhoU, rhoV, E)
 	return
 }
 
