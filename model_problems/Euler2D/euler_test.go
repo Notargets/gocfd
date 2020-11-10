@@ -143,68 +143,79 @@ func TestEuler(t *testing.T) {
 	}
 	if true { // Test divergence of polynomial initial condition against analytic values
 		/*
-				Conditions of this test:
-				- Two duplicated triangles, removes the question of transformation Jacobian making the results differ
-			    - Flux is calculated identically for each equation (only density components), removes the question of flux
-			      accuracy being different for the more complex equations
+		   		Conditions of this test:
+		            - Two duplicated triangles, removes the question of transformation Jacobian making the results differ
+		            - Flux is calculated identically for each equation (only density components), removes the question of flux
+		              accuracy being different for the more complex equations
+		            - Flowfield is initialized to a freestream for a polynomial field, interpolation to edges is not done,
+		              instead, analytic initialization values are put into the edges
+		             Result:
+		            - No test of different triangle shapes and orientations
+		            - No test of accuracy of interpolation to edges
+		            - No accuracy test of the complex polynomial fluxes in Q[1-3]
 		*/
-		N := 1
-		plotMesh := false
-		// Test case is two duplicated triangles, the second tri runs in the reverse direction of the first
-		c := NewEuler(1, N, "../../DG2D/test_tris_dup.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
-		X, Y := c.dfr.FluxX, c.dfr.FluxY
-		QFlux := InitializePolynomial(X, Y)
-		Kmax := c.dfr.K
-		Nint := c.dfr.FluxElement.Nint
-		Nedge := c.dfr.FluxElement.Nedge
-		for n := 0; n < 4; n++ {
-			for k := 0; k < Kmax; k++ {
-				for i := 0; i < Nint; i++ {
-					ind := k + i*Kmax
-					c.Q[n].Data()[ind] = QFlux[n].Data()[ind]
-				}
-				for i := 0; i < 3*Nedge; i++ {
-					ind := k + i*Kmax
-					ind2 := k + (i+2*Nint)*Kmax
-					c.Q_Face[n].Data()[ind] = QFlux[n].Data()[ind2]
-				}
-			}
-		}
-		c.FluxCalcMock = FluxCalcMomentumOnly // For testing, only consider the first component of flux for all [4]
-		c.SetNormalFluxInternal()
-		// TODO: Test interpolation operator for correctness - current results are far from ideal
-		// No need to interpolate to the edges, they are left at initialized state in Q_Face
-		//c.InterpolateSolutionToEdges()
-		c.SetNormalFluxOnEdges()
+		Nmax := 7
+		for N := 1; N <= Nmax; N++ {
+			plotMesh := false
+			// Test case is two duplicated triangles, the second tri runs in the reverse direction of the first
+			c := NewEuler(1, N, "../../DG2D/test_tris_dup.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
+			c.FluxCalcMock = FluxCalcMomentumOnly // For testing, only consider the first component of flux for all [4]
 
-		var div utils.Matrix
-		for n := 0; n < 4; n++ {
-			fmt.Printf("component[%d]\n", n)
-			div = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
-			d1, d2 := div.Dims()
-			assert.Equal(t, d1, Nint)
-			assert.Equal(t, d2, Kmax)
-			for k := 0; k < Kmax; k++ {
-				_, _, Jdet := c.dfr.GetJacobian(k)
-				for i := 0; i < Nint; i++ {
-					ind := k + i*Kmax
-					div.Data()[ind] /= Jdet
+			// Initialize
+			X, Y := c.dfr.FluxX, c.dfr.FluxY
+			QFlux := InitializePolynomial(X, Y)
+			Kmax := c.dfr.K
+			Nint := c.dfr.FluxElement.Nint
+			Nedge := c.dfr.FluxElement.Nedge
+			for n := 0; n < 4; n++ {
+				for k := 0; k < Kmax; k++ {
+					for i := 0; i < Nint; i++ {
+						ind := k + i*Kmax
+						c.Q[n].Data()[ind] = QFlux[n].Data()[ind]
+					}
+					for i := 0; i < 3*Nedge; i++ {
+						ind := k + i*Kmax
+						ind2 := k + (i+2*Nint)*Kmax
+						c.Q_Face[n].Data()[ind] = QFlux[n].Data()[ind2]
+					}
 				}
 			}
-			// Get the analytic values of divergence for comparison
-			nn := 0 // Use only the density component of divergence to check
-			for k := 0; k < Kmax; k++ {
-				for i := 0; i < Nint; i++ {
-					ind := k + i*Kmax
-					x, y := X.Data()[ind], Y.Data()[ind]
-					//qc1, qc2, qc3, qc4 := GetStatePoly(x, y)
-					//q1, q2, q3, q4 := c.Q[0].Data()[ind], c.Q[1].Data()[ind], c.Q[2].Data()[ind], c.Q[3].Data()[ind]
-					//assert.True(t, nearVec([]float64{q1, q2, q3, q4}, []float64{qc1, qc2, qc3, qc4}, 0.000001))
-					divC := GetDivergencePoly(0, x, y)
-					divCalc := div.Data()[ind]
-					normalizer := c.Q[nn].Data()[ind]
-					fmt.Printf("div[%d][%d,%d] = %8.5f\n", n, k, i, divCalc)
-					assert.True(t, near(divCalc/normalizer, divC[nn]/normalizer, 0.0001)) // 1% of field value
+			c.SetNormalFluxInternal()
+			// TODO: Test interpolation operator for correctness - current results are far from ideal
+			// No need to interpolate to the edges, they are left at initialized state in Q_Face
+			//c.InterpolateSolutionToEdges()
+			c.SetNormalFluxOnEdges()
+
+			var div utils.Matrix
+			for n := 0; n < 4; n++ {
+				//fmt.Printf("component[%d]\n", n)
+				div = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
+				d1, d2 := div.Dims()
+				assert.Equal(t, d1, Nint)
+				assert.Equal(t, d2, Kmax)
+				for k := 0; k < Kmax; k++ {
+					_, _, Jdet := c.dfr.GetJacobian(k)
+					//fmt.Printf("Determinant of J[%d] = %8.5f\n", k, Jdet)
+					for i := 0; i < Nint; i++ {
+						ind := k + i*Kmax
+						div.Data()[ind] /= Jdet
+					}
+				}
+				// Get the analytic values of divergence for comparison
+				nn := 0 // Use only the density component of divergence to check
+				for k := 0; k < Kmax; k++ {
+					for i := 0; i < Nint; i++ {
+						ind := k + i*Kmax
+						x, y := X.Data()[ind], Y.Data()[ind]
+						//qc1, qc2, qc3, qc4 := GetStatePoly(x, y)
+						//q1, q2, q3, q4 := c.Q[0].Data()[ind], c.Q[1].Data()[ind], c.Q[2].Data()[ind], c.Q[3].Data()[ind]
+						//assert.True(t, nearVec([]float64{q1, q2, q3, q4}, []float64{qc1, qc2, qc3, qc4}, 0.000001))
+						divC := GetDivergencePoly(0, x, y)
+						divCalc := div.Data()[ind]
+						normalizer := c.Q[nn].Data()[ind]
+						//fmt.Printf("div[%d][%d,%d] = %8.5f\n", n, k, i, divCalc)
+						assert.True(t, near(divCalc/normalizer, divC[nn]/normalizer, 0.0001)) // 1% of field value
+					}
 				}
 			}
 		}
