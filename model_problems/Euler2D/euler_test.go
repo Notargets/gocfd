@@ -161,6 +161,11 @@ func TestEuler(t *testing.T) {
 				c = NewEuler(1, N, "../../DG2D/test_tris_two.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
 				CheckFlux0(c, t)
 			}
+			if true {
+				// Two widely separated triangles - no shared faces
+				c = NewEuler(1, N, "../../DG2D/test_tris_twoR.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
+				CheckFlux0(c, t)
+			}
 			/*
 				c = NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
 				CheckFlux0(c, t)
