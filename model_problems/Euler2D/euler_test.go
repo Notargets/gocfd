@@ -146,11 +146,21 @@ func TestEuler(t *testing.T) {
 		for N := 1; N <= Nmax; N++ {
 			plotMesh := false
 			// Single triangle test case
-			c := NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
-			CheckFlux0(c, t)
-			// Test case is two duplicated triangles, the second tri runs in the reverse direction of the first
-			c = NewEuler(1, N, "../../DG2D/test_tris_dup.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
-			CheckFlux0(c, t)
+			var c *Euler
+			if true {
+				c = NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
+				CheckFlux0(c, t)
+			}
+			if true {
+				// Test case is two duplicated overlapping triangles, the second tri runs in the reverse direction of the first
+				c = NewEuler(1, N, "../../DG2D/test_tris_dup.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
+				CheckFlux0(c, t)
+			}
+			if true {
+				// Two widely separated triangles - no shared faces
+				c = NewEuler(1, N, "../../DG2D/test_tris_two.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
+				CheckFlux0(c, t)
+			}
 			/*
 				c = NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
 				CheckFlux0(c, t)
