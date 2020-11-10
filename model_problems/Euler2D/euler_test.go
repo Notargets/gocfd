@@ -166,10 +166,10 @@ func TestEuler(t *testing.T) {
 				c = NewEuler(1, N, "../../DG2D/test_tris_twoR.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
 				CheckFlux0(c, t)
 			}
-			/*
-				c = NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
+			if false {
+				c = NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_None, FREESTREAM, plotMesh, false)
 				CheckFlux0(c, t)
-			*/
+			}
 		}
 	}
 	if false { // Test divergence of Isentropic Vortex initial condition against analytic values

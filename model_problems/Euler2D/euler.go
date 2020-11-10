@@ -33,6 +33,7 @@ type Euler struct {
 	Case                  CaseType
 	AnalyticSolution      ExactState
 	FluxCalcMock          func(Gamma, rho, rhoU, rhoV, E float64) (Fx, Fy [4]float64) // For testing
+	FaceFluxAlgo          ModelType
 }
 
 type ExactState interface {
@@ -50,7 +51,8 @@ const (
 type ModelType uint
 
 const (
-	FLUX_LaxFriedrichs ModelType = iota
+	FLUX_None ModelType = iota
+	FLUX_LaxFriedrichs
 	FLUX_Roe
 	FLUX_Average
 )
@@ -72,6 +74,7 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, model Mode
 		Case:         Case,
 		Gamma:        1.4,
 		FluxCalcMock: FluxCalc,
+		FaceFluxAlgo: model,
 	}
 	c.dfr = DG2D.NewDFR2D(N, plotMesh, meshFile)
 	c.InitializeMemory()
@@ -117,7 +120,6 @@ func (c *Euler) AssembleRTNormalFlux() {
 	*/
 	c.SetNormalFluxInternal()
 	c.InterpolateSolutionToEdges()
-	// TODO: Implement calculation of flux for BCs
 	c.SetNormalFluxOnEdges()
 }
 
@@ -227,28 +229,53 @@ func (c *Euler) SetNormalFluxOnEdges() {
 			)
 			// Get scaling factor ||n|| for each edge, multiplied by untransformed normals
 			normLeft, normRight := getScaledNormal(0, e, en), getScaledNormal(1, e, en)
+			averageFlux := func(n int, f1, f2 [2][4]float64) (fave [2]float64) {
+				for i := 0; i < 2; i++ {
+					fave[i] = 0.5 * (f1[i][n] + f2[i][n])
+				}
+				return
+			}
+			projectFlux := func(f, normal [2]float64) (pf float64) {
+				pf = f[0]*normal[0] + f[1]*normal[1]
+				return
+			}
+			projectFluxN := func(n int, f [2][4]float64, normal [2]float64) (pf float64) {
+				pf = f[0][n]*normal[0] + f[1][n]*normal[1]
+				return
+			}
 			for i := 0; i < Nedge; i++ {
 				iL := i + shiftL
 				iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
 				fluxLeft[0], fluxLeft[1] = c.CalculateFlux(kL, iL, c.Q_Face)
 				fluxRight[0], fluxRight[1] = c.CalculateFlux(kR, iR, c.Q_Face) // Reverse the right edge to match
-				// Implement average flux (for now), later we will add Roe, Lax, etc flux calculations
-				var (
-					normalFluxLeft, normalFluxRight float64
-					fluxAve                         [2]float64
-				)
 				for n := 0; n < 4; n++ {
-					fluxAve[0] = 0.5 * (fluxLeft[0][n] + fluxRight[0][n])
-					fluxAve[1] = 0.5 * (fluxLeft[1][n] + fluxRight[1][n])
-					// Project the flux onto the scaled normal for each of left/right
-					normalFluxLeft = normLeft[0]*fluxAve[0] + normLeft[1]*fluxAve[1]
-					normalFluxRight = normRight[0]*fluxAve[0] + normRight[1]*fluxAve[1]
-					// Place normed/scaled flux into the RT element space
-					rtD := c.F_RT_DOF[n].Data()
-					indL := kL + (2*Nint+iL)*Kmax
-					rtD[indL] = normalFluxLeft
-					indR := kR + (2*Nint+iR)*Kmax
-					rtD[indR] = normalFluxRight
+					switch c.FaceFluxAlgo {
+					case FLUX_None:
+						// Place normed/scaled flux into the RT element space
+						if n == 0 {
+							fmt.Printf("Edge#L,Edge#R=%d,%d, Nint, Nedge = %d,%d, kL,iL = [%d,%d], kR,iR = [%d,%d], nL=[%8.5f,%8.5f],nR=[%8.5f,%8.5f], ||n|| L,R = %8.5f,%8.5f\n",
+								edgeNumberL, edgeNumberR, Nint, Nedge, kL, iL, kR, iR,
+								normLeft[0], normLeft[1], normRight[0], normRight[1],
+								e.IInII[0], e.IInII[1])
+						}
+						rtD := c.F_RT_DOF[n].Data()
+						indL := kL + (2*Nint+iL)*Kmax
+						rtD[indL] = projectFluxN(n, fluxLeft, normLeft)
+						indR := kR + (2*Nint+iR)*Kmax
+						rtD[indR] = projectFluxN(n, fluxRight, normRight)
+					case FLUX_Average:
+						// Implement average flux (for now), later we will add Roe, Lax, etc flux calculations
+						var (
+							fluxAve [2]float64
+						)
+						fluxAve = averageFlux(n, fluxLeft, fluxRight)
+						// Place normed/scaled flux into the RT element space
+						rtD := c.F_RT_DOF[n].Data()
+						indL := kL + (2*Nint+iL)*Kmax
+						rtD[indL] = projectFlux(fluxAve, normLeft)
+						indR := kR + (2*Nint+iR)*Kmax
+						rtD[indR] = projectFlux(fluxAve, normRight)
+					}
 				}
 			}
 		}
