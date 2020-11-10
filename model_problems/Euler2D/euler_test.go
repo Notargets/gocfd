@@ -145,9 +145,16 @@ func TestEuler(t *testing.T) {
 		Nmax := 7
 		for N := 1; N <= Nmax; N++ {
 			plotMesh := false
-			// Test case is two duplicated triangles, the second tri runs in the reverse direction of the first
-			c := NewEuler(1, N, "../../DG2D/test_tris_dup.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
+			// Single triangle test case
+			c := NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
 			CheckFlux0(c, t)
+			// Test case is two duplicated triangles, the second tri runs in the reverse direction of the first
+			c = NewEuler(1, N, "../../DG2D/test_tris_dup.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
+			CheckFlux0(c, t)
+			/*
+				c = NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
+				CheckFlux0(c, t)
+			*/
 		}
 	}
 	if false { // Test divergence of Isentropic Vortex initial condition against analytic values
@@ -450,8 +457,11 @@ func CheckFlux0(c *Euler, t *testing.T) {
 				divC := GetDivergencePoly(0, x, y)
 				divCalc := div.Data()[ind]
 				normalizer := c.Q[nn].Data()[ind]
-				//fmt.Printf("div[%d][%d,%d] = %8.5f\n", n, k, i, divCalc)
-				assert.True(t, near(divCalc/normalizer, divC[nn]/normalizer, 0.0001)) // 1% of field value
+				test := near(divCalc/normalizer, divC[nn]/normalizer, 0.0001) // 1% of field value
+				if !test {
+					fmt.Printf("div[%d][%d,%d] = %8.5f\n", n, k, i, divCalc)
+				}
+				assert.True(t, test) // 1% of field value
 			}
 		}
 	}
