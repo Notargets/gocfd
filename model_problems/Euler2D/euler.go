@@ -149,10 +149,86 @@ func (c *Euler) InterpolateSolutionToEdges() {
 
 func (c *Euler) SetNormalFluxOnEdges() {
 	var (
-		dfr   = c.dfr
-		Nint  = dfr.FluxElement.Nint
-		Nedge = dfr.FluxElement.Nedge
-		Kmax  = dfr.K
+		dfr      = c.dfr
+		Nint     = dfr.FluxElement.Nint
+		Nedge    = dfr.FluxElement.Nedge
+		Kmax     = dfr.K
+		edgeFlux = make([][2][4]float64, Nedge)
+	)
+	for en, e := range dfr.Tris.Edges {
+		switch e.NumConnectedTris {
+		case 0:
+			panic("unable to handle unconnected edges")
+		case 1: // Handle edges with only one triangle - default is edge flux, which will be replaced by a BC flux
+			var (
+				k          = int(e.ConnectedTris[0])
+				edgeNumber = int(e.ConnectedTriEdgeNumber[0])
+				shift      = edgeNumber * Nedge
+			)
+			// TODO: Implement more boundary conditions
+			switch e.BCType {
+			case DG2D.BC_IVortex:
+				// fmt.Printf("BC - %s\n", e.BCType.String())
+				// Set the flow variables to the exact solution
+				X, Y := c.dfr.FluxX.Data(), c.dfr.FluxY.Data()
+				for i := 0; i < Nedge; i++ {
+					iL := i + shift
+					ind := k + (2*Nint+iL)*Kmax
+					x, y := X[ind], Y[ind]
+					t := 0.
+					iv := c.AnalyticSolution.(*isentropic_vortex.IVortex)
+					rho, rhoU, rhoV, E := iv.GetStateC(t, x, y)
+					ind = k + iL*Kmax
+					c.Q_Face[0].Data()[ind] = rho
+					c.Q_Face[1].Data()[ind] = rhoU
+					c.Q_Face[2].Data()[ind] = rhoV
+					c.Q_Face[3].Data()[ind] = E
+				}
+			}
+			for i := 0; i < Nedge; i++ {
+				ie := i + shift
+				edgeFlux[i][0], edgeFlux[i][1] = c.CalculateFlux(k, ie, c.Q_Face)
+			}
+		case 2: // Handle edges with two connected tris - shared faces
+			var (
+				kL, kR                   = int(e.ConnectedTris[0]), int(e.ConnectedTris[1])
+				edgeNumberL, edgeNumberR = int(e.ConnectedTriEdgeNumber[0]), int(e.ConnectedTriEdgeNumber[1])
+				shiftL, shiftR           = edgeNumberL * Nedge, edgeNumberR * Nedge
+				fluxLeft, fluxRight      [2][4]float64
+			)
+			averageFluxN := func(f1, f2 [2][4]float64) (fave [2][4]float64) {
+				for ii := 0; ii < 2; ii++ {
+					for n := 0; n < 4; n++ {
+						fave[ii][n] = 0.5 * (f1[ii][n] + f2[ii][n])
+					}
+				}
+				return
+			}
+			for i := 0; i < Nedge; i++ {
+				iL := i + shiftL
+				iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
+				fluxLeft[0], fluxLeft[1] = c.CalculateFlux(kL, iL, c.Q_Face)
+				fluxRight[0], fluxRight[1] = c.CalculateFlux(kR, iR, c.Q_Face) // Reverse the right edge to match
+				edgeFlux[i] = averageFluxN(fluxLeft, fluxRight)
+			}
+		}
+		for ii := 0; ii < int(e.NumConnectedTris); ii++ {
+			ProjectFluxToEdge(c, edgeFlux, e, en, ii)
+		}
+	}
+	return
+}
+
+func ProjectFluxToEdge(c *Euler, edgeFlux [][2][4]float64, e *DG2D.Edge, en DG2D.EdgeNumber, conn int) {
+	var (
+		dfr        = c.dfr
+		Nedge      = dfr.FluxElement.Nedge
+		Nint       = dfr.FluxElement.Nint
+		Kmax       = dfr.K
+		k          = int(e.ConnectedTris[conn])
+		edgeNumber = int(e.ConnectedTriEdgeNumber[conn])
+		shift      = edgeNumber * Nedge
+		normalFlux float64
 	)
 	norm := func(vec [2]float64) (n float64) {
 		n = math.Sqrt(vec[0]*vec[0] + vec[1]*vec[1])
@@ -174,113 +250,26 @@ func (c *Euler) SetNormalFluxOnEdges() {
 		scaledNormal[1] *= e.IInII[conn]
 		return
 	}
-	for en, e := range dfr.Tris.Edges {
-		switch e.NumConnectedTris {
+	// Get scaling factor ||n|| for each edge, multiplied by untransformed normals
+	normL := getScaledNormal(conn, e, en)
+	for i := 0; i < Nedge; i++ {
+		iL := i + shift
+		var ii int
+		switch conn {
 		case 0:
-			panic("unable to handle unconnected edges")
-		case 1: // Handle edges with only one triangle - default is edge flux, which will be replaced by a BC flux
-			var (
-				k          = int(e.ConnectedTris[0])
-				edgeNumber = int(e.ConnectedTriEdgeNumber[0])
-				shift      = edgeNumber * Nedge
-				flux       [2][4]float64
-				normalFlux float64
-			)
-			// TODO: Implement more boundary conditions
-			switch e.BCType {
-			case DG2D.BC_IVortex:
-				//fmt.Printf("BC - %s\n", e.BCType.String())
-				// Set the flow variables to the exact solution
-				X, Y := c.dfr.FluxX.Data(), c.dfr.FluxY.Data()
-				for i := 0; i < Nedge; i++ {
-					iL := i + shift
-					ind := k + (2*Nint+iL)*Kmax
-					x, y := X[ind], Y[ind]
-					t := 0.
-					iv := c.AnalyticSolution.(*isentropic_vortex.IVortex)
-					rho, rhoU, rhoV, E := iv.GetStateC(t, x, y)
-					ind = k + iL*Kmax
-					c.Q_Face[0].Data()[ind] = rho
-					c.Q_Face[1].Data()[ind] = rhoU
-					c.Q_Face[2].Data()[ind] = rhoV
-					c.Q_Face[3].Data()[ind] = E
-				}
-			}
-			// Get scaling factor ||n|| for each edge, multiplied by untransformed normals
-			normL := getScaledNormal(0, e, en)
-			for i := 0; i < Nedge; i++ {
-				iL := i + shift
-				flux[0], flux[1] = c.CalculateFlux(k, iL, c.Q_Face)
-				// Project the flux onto the scaled normal
-				for n := 0; n < 4; n++ {
-					normalFlux = normL[0]*flux[0][n] + normL[1]*flux[1][n]
-					// Place normed/scaled flux into the RT element space
-					rtD := c.F_RT_DOF[n].Data()
-					ind := k + (2*Nint+iL)*Kmax
-					rtD[ind] = normalFlux
-				}
-			}
-		case 2: // Handle edges with two connected tris - shared faces
-			var (
-				kL, kR                   = int(e.ConnectedTris[0]), int(e.ConnectedTris[1])
-				edgeNumberL, edgeNumberR = int(e.ConnectedTriEdgeNumber[0]), int(e.ConnectedTriEdgeNumber[1])
-				shiftL, shiftR           = edgeNumberL * Nedge, edgeNumberR * Nedge
-				fluxLeft, fluxRight      [2][4]float64
-			)
-			// Get scaling factor ||n|| for each edge, multiplied by untransformed normals
-			normLeft, normRight := getScaledNormal(0, e, en), getScaledNormal(1, e, en)
-			averageFlux := func(n int, f1, f2 [2][4]float64) (fave [2]float64) {
-				for i := 0; i < 2; i++ {
-					fave[i] = 0.5 * (f1[i][n] + f2[i][n])
-				}
-				return
-			}
-			projectFlux := func(f, normal [2]float64) (pf float64) {
-				pf = f[0]*normal[0] + f[1]*normal[1]
-				return
-			}
-			projectFluxN := func(n int, f [2][4]float64, normal [2]float64) (pf float64) {
-				pf = f[0][n]*normal[0] + f[1][n]*normal[1]
-				return
-			}
-			for i := 0; i < Nedge; i++ {
-				iL := i + shiftL
-				iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
-				fluxLeft[0], fluxLeft[1] = c.CalculateFlux(kL, iL, c.Q_Face)
-				fluxRight[0], fluxRight[1] = c.CalculateFlux(kR, iR, c.Q_Face) // Reverse the right edge to match
-				for n := 0; n < 4; n++ {
-					switch c.FaceFluxAlgo {
-					case FLUX_None:
-						// Place normed/scaled flux into the RT element space
-						if n == 0 {
-							fmt.Printf("Edge#L,Edge#R=%d,%d, Nint, Nedge = %d,%d, kL,iL = [%d,%d], kR,iR = [%d,%d], nL=[%8.5f,%8.5f],nR=[%8.5f,%8.5f], ||n|| L,R = %8.5f,%8.5f\n",
-								edgeNumberL, edgeNumberR, Nint, Nedge, kL, iL, kR, iR,
-								normLeft[0], normLeft[1], normRight[0], normRight[1],
-								e.IInII[0], e.IInII[1])
-						}
-						rtD := c.F_RT_DOF[n].Data()
-						indL := kL + (2*Nint+iL)*Kmax
-						rtD[indL] = projectFluxN(n, fluxLeft, normLeft)
-						indR := kR + (2*Nint+iR)*Kmax
-						rtD[indR] = projectFluxN(n, fluxRight, normRight)
-					case FLUX_Average:
-						// Implement average flux (for now), later we will add Roe, Lax, etc flux calculations
-						var (
-							fluxAve [2]float64
-						)
-						fluxAve = averageFlux(n, fluxLeft, fluxRight)
-						// Place normed/scaled flux into the RT element space
-						rtD := c.F_RT_DOF[n].Data()
-						indL := kL + (2*Nint+iL)*Kmax
-						rtD[indL] = projectFlux(fluxAve, normLeft)
-						indR := kR + (2*Nint+iR)*Kmax
-						rtD[indR] = projectFlux(fluxAve, normRight)
-					}
-				}
-			}
+			ii = i
+		case 1:
+			ii = Nedge - 1 - i // Reverse the direction flux storage for second connected tri
+		}
+		// Project the flux onto the scaled normal
+		for n := 0; n < 4; n++ {
+			normalFlux = normL[0]*edgeFlux[ii][0][n] + normL[1]*edgeFlux[ii][1][n]
+			// Place normed/scaled flux into the RT element space
+			rtD := c.F_RT_DOF[n].Data()
+			ind := k + (2*Nint+iL)*Kmax
+			rtD[ind] = normalFlux
 		}
 	}
-	return
 }
 
 /*
