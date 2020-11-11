@@ -213,13 +213,13 @@ func (c *Euler) SetNormalFluxOnEdges() {
 			}
 		}
 		for ii := 0; ii < int(e.NumConnectedTris); ii++ {
-			ProjectFluxToEdge(c, edgeFlux, e, en, ii)
+			c.ProjectFluxToEdge(edgeFlux, e, en, ii)
 		}
 	}
 	return
 }
 
-func ProjectFluxToEdge(c *Euler, edgeFlux [][2][4]float64, e *DG2D.Edge, en DG2D.EdgeNumber, conn int) {
+func (c *Euler) ProjectFluxToEdge(edgeFlux [][2][4]float64, e *DG2D.Edge, en DG2D.EdgeNumber, conn int) {
 	var (
 		dfr        = c.dfr
 		Nedge      = dfr.FluxElement.Nedge
@@ -259,7 +259,7 @@ func ProjectFluxToEdge(c *Euler, edgeFlux [][2][4]float64, e *DG2D.Edge, en DG2D
 		case 0:
 			ii = i
 		case 1:
-			ii = Nedge - 1 - i // Reverse the direction flux storage for second connected tri
+			ii = Nedge - 1 - i // Reverse the direction of flux storage for second connected tri
 		}
 		// Project the flux onto the scaled normal
 		for n := 0; n < 4; n++ {

@@ -168,7 +168,7 @@ func TestEuler(t *testing.T) {
 			}
 			if false {
 				// TODO: BUGHUNT: re-write edges structure to exclude joined edges - proves it's the edge treatment that is to blame
-				c = NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_None, FREESTREAM, plotMesh, false)
+				c = NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
 				CheckFlux0(c, t)
 			}
 		}
@@ -444,8 +444,8 @@ func CheckFlux0(c *Euler, t *testing.T) {
 	// TODO: Test interpolation operator for correctness - current results are far from ideal
 	// No need to interpolate to the edges, they are left at initialized state in Q_Face
 	//c.InterpolateSolutionToEdges()
-	//c.TestSetNormalFluxOnEdges()
-	c.SetNormalFluxOnEdges()
+	c.TestSetNormalFluxOnEdges()
+	//c.SetNormalFluxOnEdges()
 
 	var div utils.Matrix
 	for n := 0; n < 4; n++ {
@@ -503,10 +503,10 @@ func (c *Euler) TestSetNormalFluxOnEdges() {
 		case 0:
 			panic("unable to handle unconnected edges")
 		case 1: // Handle edges with only one triangle - default is edge flux, which will be replaced by a BC flux
-			ProjectFluxToEdge(c, edgeFlux, e, en, 0)
+			c.ProjectFluxToEdge(edgeFlux, e, en, 0)
 		case 2: // Handle edges with two connected tris - shared faces
 			for ii := 0; ii < 2; ii++ {
-				ProjectFluxToEdge(c, edgeFlux, e, en, ii)
+				c.ProjectFluxToEdge(edgeFlux, e, en, ii)
 			}
 		}
 	}
