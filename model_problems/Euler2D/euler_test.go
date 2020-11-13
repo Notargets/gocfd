@@ -141,36 +141,28 @@ func TestEuler(t *testing.T) {
 			}
 		}
 	}
-	if true { // Test divergence of polynomial initial condition against analytic values
+	{ // Test divergence of polynomial initial condition against analytic values
+		/*
+			Note: the Polynomial flux is asymmetric around the X and Y axes - it uses abs(x) and abs(y)
+			Elements should not straddle the axes if a perfect polynomial flux capture is needed
+		*/
 		Nmax := 7
 		for N := 1; N <= Nmax; N++ {
 			plotMesh := false
 			// Single triangle test case
 			var c *Euler
-			if true {
-				c = NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
-				CheckFlux0(c, t)
-			}
-			if false {
-				// Test case is two duplicated overlapping triangles, the second tri runs in the reverse direction of the first
-				c = NewEuler(1, N, "../../DG2D/test_tris_dup.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
-				CheckFlux0(c, t)
-			}
-			if true {
-				// Two widely separated triangles - no shared faces
-				c = NewEuler(1, N, "../../DG2D/test_tris_two.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
-				CheckFlux0(c, t)
-			}
-			if true {
-				// Two widely separated triangles - no shared faces
-				c = NewEuler(1, N, "../../DG2D/test_tris_twoR.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
-				CheckFlux0(c, t)
-			}
-			if false {
-				// TODO: BUGHUNT: re-write edges structure to exclude joined edges - proves it's the edge treatment that is to blame
-				c = NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
-				CheckFlux0(c, t)
-			}
+			c = NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
+			CheckFlux0(c, t)
+			// Two widely separated triangles - no shared faces
+			c = NewEuler(1, N, "../../DG2D/test_tris_two.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
+			CheckFlux0(c, t)
+			// Two widely separated triangles - no shared faces - one tri listed in reverse order
+			c = NewEuler(1, N, "../../DG2D/test_tris_twoR.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
+			CheckFlux0(c, t)
+			// Connected tris, sharing one edge
+			//plotMesh = true
+			c = NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
+			CheckFlux0(c, t)
 		}
 	}
 	if false { // Test divergence of Isentropic Vortex initial condition against analytic values
@@ -443,20 +435,16 @@ func CheckFlux0(c *Euler, t *testing.T) {
 	c.SetNormalFluxInternal()
 	// TODO: Test interpolation operator for correctness - current results are far from ideal
 	// No need to interpolate to the edges, they are left at initialized state in Q_Face
-	//c.InterpolateSolutionToEdges()
-	c.TestSetNormalFluxOnEdges()
-	//c.SetNormalFluxOnEdges()
+	c.SetNormalFluxOnEdges()
 
 	var div utils.Matrix
 	for n := 0; n < 4; n++ {
-		//fmt.Printf("component[%d]\n", n)
 		div = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
 		d1, d2 := div.Dims()
 		assert.Equal(t, d1, Nint)
 		assert.Equal(t, d2, Kmax)
 		for k := 0; k < Kmax; k++ {
 			_, _, Jdet := c.dfr.GetJacobian(k)
-			//fmt.Printf("Determinant of J[%d] = %8.5f\n", k, Jdet)
 			for i := 0; i < Nint; i++ {
 				ind := k + i*Kmax
 				div.Data()[ind] /= Jdet
@@ -468,9 +456,6 @@ func CheckFlux0(c *Euler, t *testing.T) {
 			for i := 0; i < Nint; i++ {
 				ind := k + i*Kmax
 				x, y := X.Data()[ind], Y.Data()[ind]
-				//qc1, qc2, qc3, qc4 := GetStatePoly(x, y)
-				//q1, q2, q3, q4 := c.Q[0].Data()[ind], c.Q[1].Data()[ind], c.Q[2].Data()[ind], c.Q[3].Data()[ind]
-				//assert.True(t, nearVec([]float64{q1, q2, q3, q4}, []float64{qc1, qc2, qc3, qc4}, 0.000001))
 				divC := GetDivergencePoly(0, x, y)
 				divCalc := div.Data()[ind]
 				normalizer := c.Q[nn].Data()[ind]
