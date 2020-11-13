@@ -165,39 +165,24 @@ func TestEuler(t *testing.T) {
 			CheckFlux0(c, t)
 		}
 	}
-	if false { // Test divergence of Isentropic Vortex initial condition against analytic values
-		N := 1
-		plotMesh := false
-		//c := NewEuler(1, N, "../../DG2D/vortexA04.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
-		c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
-		X, Y := c.dfr.FluxX, c.dfr.FluxY
-		_, QFlux := c.InitializeIVortex(X, Y)
-		Kmax := c.dfr.K
-		Nint := c.dfr.FluxElement.Nint
-		Nedge := c.dfr.FluxElement.Nedge
-		for n := 0; n < 4; n++ {
-			for k := 0; k < Kmax; k++ {
-				for i := 0; i < Nint; i++ {
-					ind := k + i*Kmax
-					c.Q[n].Data()[ind] = QFlux[n].Data()[ind]
-				}
-				for i := 0; i < 3*Nedge; i++ {
-					ind := k + i*Kmax
-					ind2 := k + (i+2*Nint)*Kmax
-					c.Q_Face[n].Data()[ind] = QFlux[n].Data()[ind2]
-				}
-			}
-		}
-		c.SetNormalFluxInternal()
-		c.SetNormalFluxOnEdges()
-
-		var div utils.Matrix
-		for n := 0; n < 4; n++ {
+	{ // Test divergence of Isentropic Vortex initial condition against analytic values
+		Nmax := 1
+		for N := 1; N <= Nmax; N++ {
+			plotMesh := false
+			// c := NewEuler(1, N, "../../DG2D/vortexA04.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
+			c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
+			X, Y := c.dfr.FluxX, c.dfr.FluxY
+			Kmax := c.dfr.K
+			Nint := c.dfr.FluxElement.Nint
+			c.SetNormalFluxInternal()
+			// TODO: Test interpolation for accuracy at multiple orders
+			c.InterpolateSolutionToEdges()
+			c.SetNormalFluxOnEdges()
+			var div utils.Matrix
+			// Density is the easiest equation to match with a polynomial
+			n := 0
 			fmt.Printf("component[%d]\n", n)
 			div = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
-			d1, d2 := div.Dims()
-			assert.Equal(t, d1, Nint)
-			assert.Equal(t, d2, Kmax)
 			for k := 0; k < Kmax; k++ {
 				_, _, Jdet := c.dfr.GetJacobian(k)
 				for i := 0; i < Nint; i++ {
@@ -215,8 +200,9 @@ func TestEuler(t *testing.T) {
 					assert.True(t, nearVec([]float64{q1, q2, q3, q4}, []float64{qc1, qc2, qc3, qc4}, 0.000001))
 					divC := c.AnalyticSolution.GetDivergence(0, x, y)
 					divCalc := div.Data()[ind]
-					fmt.Printf("div[%d][%d,%d] = %8.5f\n", n, k, i, divCalc)
-					assert.True(t, near(divCalc, divC[n], 0.001))
+					normalizer := q1
+					// fmt.Printf("div[%d][%d,%d] = %8.5f\n", n, k, i, divCalc)
+					assert.True(t, near(divCalc/normalizer, divC[n]/normalizer, 0.001)) // 0.1 percent match
 				}
 			}
 		}
