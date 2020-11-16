@@ -1,7 +1,6 @@
 package DG2D
 
 import (
-	"fmt"
 	"math"
 	"testing"
 
@@ -23,35 +22,35 @@ func TestDFR2D(t *testing.T) {
 		// For each nodal location, interpolate a value (should equal the nodal function value)
 		// Build an interpolating polynomial matrix using the nodal geometry
 		interpM := el.Simplex2DInterpolatingPolyMatrix(fluxEl.R, fluxEl.S)
-		fmt.Println(interpM.Transpose().Print("interpM"))
-		fmt.Println(sM.Print("sM"))
 		values := interpM.Mul(sM)
-		fmt.Println(values.Print("values"))
 		// Verify the interpolated vals match the input solution values from the same [R,S]
 		assert.True(t, nearVec(s, values.Data()[0:3], 0.0000001))
 		assert.True(t, nearVec(s, values.Data()[3:6], 0.0000001))
 		// After 2*Nint points, the values have unknown expected interpolated values
 	}
 	{ // Test accuracy of interpolation
-		N := 1
-		dfr := NewDFR2D(N, false)
-		el := dfr.SolutionElement
-		fluxEl := dfr.FluxElement
-		s := make([]float64, el.Np)
-		for i := 0; i < el.Np; i++ {
-			s[i] = float64(2 * i)
+		Nmax := 7
+		for N := 1; N <= Nmax; N++ {
+			dfr := NewDFR2D(N, false)
+			el := dfr.SolutionElement
+			fluxEl := dfr.FluxElement
+			// Construct a 2D polynomial at the flux element geo locations, the first Nint of which match the interior
+			sFlux := make([]float64, fluxEl.Np)
+			for i := 0; i < fluxEl.Np; i++ {
+				sFlux[i] = utils.POW(fluxEl.R.Data()[i], N) + utils.POW(fluxEl.S.Data()[i], N)
+			}
+			// Copy the polynomial values from the first Nint positions in the flux solution
+			s := make([]float64, el.Np)
+			for i := 0; i < fluxEl.Nint; i++ {
+				s[i] = sFlux[i]
+			}
+			sM := utils.NewMatrix(el.Np, 1, s)
+			// Build an interpolating polynomial matrix using the nodal geometry
+			interpM := el.Simplex2DInterpolatingPolyMatrix(fluxEl.R, fluxEl.S)
+			values := interpM.Mul(sM)
+			// Verify the interpolated values match the input polynomial
+			assert.True(t, nearVec(sFlux, values.Data(), 0.00001))
 		}
-		sM := utils.NewMatrix(el.Np, 1, s)
-		// For each nodal location, interpolate a value (should equal the nodal function value)
-		// Build an interpolating polynomial matrix using the nodal geometry
-		interpM := el.Simplex2DInterpolatingPolyMatrix(fluxEl.R, fluxEl.S)
-		fmt.Println(interpM.Transpose().Print("interpM"))
-		fmt.Println(sM.Print("sM"))
-		values := interpM.Mul(sM)
-		fmt.Println(values.Print("values"))
-		// Verify the interpolated vals match the input solution values from the same [R,S]
-		assert.True(t, nearVec(s, values.Data()[0:3], 0.0000001))
-		assert.True(t, nearVec(s, values.Data()[3:6], 0.0000001))
 	}
 	{ // Test point distribution
 		N := 1
