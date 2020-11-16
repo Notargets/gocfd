@@ -1,6 +1,7 @@
 package DG2D
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -9,19 +10,48 @@ import (
 )
 
 func TestDFR2D(t *testing.T) {
-	{ // Test Interpolation
-		N := 2
+	{ // Basic test of interpolation matrix
+		N := 1
 		dfr := NewDFR2D(N, false)
 		el := dfr.SolutionElement
+		fluxEl := dfr.FluxElement
 		s := make([]float64, el.Np)
 		for i := 0; i < el.Np; i++ {
 			s[i] = float64(2 * i)
 		}
+		sM := utils.NewMatrix(el.Np, 1, s)
 		// For each nodal location, interpolate a value (should equal the nodal function value)
 		// Build an interpolating polynomial matrix using the nodal geometry
-		interpM := el.Simplex2DInterpolatingPolyMatrix(el.R, el.S)
-		values := interpM.Mul(utils.NewMatrix(el.Np, 1, s))
-		assert.True(t, nearVec(s, values.Data(), 0.0000001))
+		interpM := el.Simplex2DInterpolatingPolyMatrix(fluxEl.R, fluxEl.S)
+		fmt.Println(interpM.Transpose().Print("interpM"))
+		fmt.Println(sM.Print("sM"))
+		values := interpM.Mul(sM)
+		fmt.Println(values.Print("values"))
+		// Verify the interpolated vals match the input solution values from the same [R,S]
+		assert.True(t, nearVec(s, values.Data()[0:3], 0.0000001))
+		assert.True(t, nearVec(s, values.Data()[3:6], 0.0000001))
+		// After 2*Nint points, the values have unknown expected interpolated values
+	}
+	{ // Test accuracy of interpolation
+		N := 1
+		dfr := NewDFR2D(N, false)
+		el := dfr.SolutionElement
+		fluxEl := dfr.FluxElement
+		s := make([]float64, el.Np)
+		for i := 0; i < el.Np; i++ {
+			s[i] = float64(2 * i)
+		}
+		sM := utils.NewMatrix(el.Np, 1, s)
+		// For each nodal location, interpolate a value (should equal the nodal function value)
+		// Build an interpolating polynomial matrix using the nodal geometry
+		interpM := el.Simplex2DInterpolatingPolyMatrix(fluxEl.R, fluxEl.S)
+		fmt.Println(interpM.Transpose().Print("interpM"))
+		fmt.Println(sM.Print("sM"))
+		values := interpM.Mul(sM)
+		fmt.Println(values.Print("values"))
+		// Verify the interpolated vals match the input solution values from the same [R,S]
+		assert.True(t, nearVec(s, values.Data()[0:3], 0.0000001))
+		assert.True(t, nearVec(s, values.Data()[3:6], 0.0000001))
 	}
 	{ // Test point distribution
 		N := 1
