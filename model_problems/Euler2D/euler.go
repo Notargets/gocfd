@@ -235,20 +235,23 @@ func (c *Euler) SetNormalFluxOnEdges() {
 				shiftL, shiftR           = edgeNumberL * Nedge, edgeNumberR * Nedge
 				fluxLeft, fluxRight      [2][4]float64
 			)
-			averageFluxN := func(f1, f2 [2][4]float64) (fave [2][4]float64) {
-				for ii := 0; ii < 2; ii++ {
-					for n := 0; n < 4; n++ {
-						fave[ii][n] = 0.5 * (f1[ii][n] + f2[ii][n])
+			switch c.model {
+			case FLUX_Average:
+				averageFluxN := func(f1, f2 [2][4]float64) (fave [2][4]float64) {
+					for ii := 0; ii < 2; ii++ {
+						for n := 0; n < 4; n++ {
+							fave[ii][n] = 0.5 * (f1[ii][n] + f2[ii][n])
+						}
 					}
+					return
 				}
-				return
-			}
-			for i := 0; i < Nedge; i++ {
-				iL := i + shiftL
-				iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
-				fluxLeft[0], fluxLeft[1] = c.CalculateFlux(kL, iL, c.Q_Face)
-				fluxRight[0], fluxRight[1] = c.CalculateFlux(kR, iR, c.Q_Face) // Reverse the right edge to match
-				edgeFlux[i] = averageFluxN(fluxLeft, fluxRight)
+				for i := 0; i < Nedge; i++ {
+					iL := i + shiftL
+					iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
+					fluxLeft[0], fluxLeft[1] = c.CalculateFlux(kL, iL, c.Q_Face)
+					fluxRight[0], fluxRight[1] = c.CalculateFlux(kR, iR, c.Q_Face) // Reverse the right edge to match
+					edgeFlux[i] = averageFluxN(fluxLeft, fluxRight)
+				}
 			}
 		}
 		for ii := 0; ii < int(e.NumConnectedTris); ii++ {
