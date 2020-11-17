@@ -110,7 +110,39 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, model Mode
 	return
 }
 
-func (c *Euler) AssembleRTNormalFlux() {
+func (c *Euler) RHS(Q [4]utils.Matrix) (RHSCalc [4]utils.Matrix) {
+	var (
+		Kmax = c.dfr.K
+		Nint = c.dfr.FluxElement.Nint
+	)
+	/*
+				Calculate the RHS of the equation:
+				dQ/dt = -div(F,G)
+				Where:
+					Q = [rho, rhoU, rhoV, E]
+					F = [rhoU, rhoU*u+p, rhoV*u, u*(E+p)]
+					G = [rhoV, rhoU*v, rhoV*v+p, v*(E+p)]
+
+		    	The divergence div(F,G) is calculated using a Raviart Thomas finite element with flux (F,G) values on the faces
+				of the element "injected" via calculation of a physical flux on those faces, and the (F,G) values in the interior
+				of the element taken directly from the solution values (Q).
+	*/
+	c.AssembleRTNormalFlux(Q)
+	for n := 0; n < 4; n++ {
+		RHSCalc[n] = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
+		for k := 0; k < Kmax; k++ {
+			_, _, Jdet := c.dfr.GetJacobian(k)
+			for i := 0; i < Nint; i++ {
+				ind := k + i*Kmax
+				RHSCalc[n].Data()[ind] /= Jdet
+			}
+		}
+		RHSCalc[n].Scale(-1.) // Multiply divergence by -1 to produce the RHS
+	}
+	return
+}
+
+func (c *Euler) AssembleRTNormalFlux(Q [4]utils.Matrix) {
 	/*
 		Solver approach:
 		0) Solution is stored on sol points as Q
@@ -118,12 +150,19 @@ func (c *Euler) AssembleRTNormalFlux() {
 		1) Solution is extrapolated to edge points in Q_Face from Q
 		2) Edges are traversed, flux is calculated and projected onto edge face normals, scaled and placed into F_RT_DOF
 	*/
-	c.SetNormalFluxInternal()
-	c.InterpolateSolutionToEdges()
+	/*
+		Zero out DOF storage and Q_Face to promote easier bug avoidance
+	*/
+	for n := 0; n < 4; n++ {
+		c.Q_Face[n].Scale(0.)
+		c.F_RT_DOF[n].Scale(0.)
+	}
+	c.SetNormalFluxInternal(Q)
+	c.InterpolateSolutionToEdges(Q)
 	c.SetNormalFluxOnEdges()
 }
 
-func (c *Euler) SetNormalFluxInternal() {
+func (c *Euler) SetNormalFluxInternal(Q [4]utils.Matrix) {
 	Kmax := c.dfr.K
 	Nint := c.dfr.FluxElement.Nint
 	// Calculate flux and project into R and S (transformed) directions for the internal points
@@ -131,7 +170,7 @@ func (c *Euler) SetNormalFluxInternal() {
 		for k := 0; k < Kmax; k++ {
 			ind := k + i*Kmax
 			ind2 := k + (i+Nint)*Kmax
-			Fr, Fs := c.CalculateFluxTransformed(k, i, c.Q)
+			Fr, Fs := c.CalculateFluxTransformed(k, i, Q)
 			for n := 0; n < 4; n++ {
 				rtD := c.F_RT_DOF[n].Data()
 				rtD[ind], rtD[ind2] = Fr[n], Fs[n]
@@ -140,10 +179,10 @@ func (c *Euler) SetNormalFluxInternal() {
 	}
 }
 
-func (c *Euler) InterpolateSolutionToEdges() {
+func (c *Euler) InterpolateSolutionToEdges(Q [4]utils.Matrix) {
 	// Interpolate from solution points to edges using precomputed interpolation matrix
 	for n := 0; n < 4; n++ {
-		c.Q_Face[n] = c.dfr.FluxInterpMatrix.Mul(c.Q[n])
+		c.Q_Face[n] = c.dfr.FluxInterpMatrix.Mul(Q[n])
 	}
 }
 

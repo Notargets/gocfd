@@ -119,8 +119,8 @@ func TestEuler(t *testing.T) {
 		Nmax := 7
 		for N := 1; N <= Nmax; N++ {
 			c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, false, false)
-			c.SetNormalFluxInternal()
-			c.InterpolateSolutionToEdges()
+			c.SetNormalFluxInternal(c.Q)
+			c.InterpolateSolutionToEdges(c.Q)
 			c.SetNormalFluxOnEdges()
 			Kmax := c.dfr.K
 			Nint := c.dfr.FluxElement.Nint
@@ -171,8 +171,8 @@ func TestEuler(t *testing.T) {
 		X, Y := c.dfr.FluxX, c.dfr.FluxY
 		Kmax := c.dfr.K
 		Nint := c.dfr.FluxElement.Nint
-		c.SetNormalFluxInternal()
-		c.InterpolateSolutionToEdges()
+		c.SetNormalFluxInternal(c.Q)
+		c.InterpolateSolutionToEdges(c.Q)
 		c.SetNormalFluxOnEdges()
 		var div utils.Matrix
 		// Density is the easiest equation to match with a polynomial
@@ -369,7 +369,7 @@ func CheckFlux0(c *Euler, t *testing.T) {
 			}
 		}
 	}
-	c.SetNormalFluxInternal()
+	c.SetNormalFluxInternal(c.Q)
 	// No need to interpolate to the edges, they are left at initialized state in Q_Face
 	c.SetNormalFluxOnEdges()
 
