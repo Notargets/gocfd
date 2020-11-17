@@ -31,8 +31,6 @@ func TestEuler(t *testing.T) {
 			for n := 0; n < 4; n++ {
 				c.Q_Face[n] = c.dfr.FluxInterpMatrix.Mul(c.Q[n])
 			}
-			//PrintQ(c.Q, "Q")
-			//PrintQ(c.Q_Face, "Q_Face")
 			for n := 0; n < 4; n++ {
 				for i := 0; i < 3*Nedge; i++ {
 					for k := 0; k < Kmax; k++ {
@@ -165,88 +163,41 @@ func TestEuler(t *testing.T) {
 			CheckFlux0(c, t)
 		}
 	}
-	{ // Test divergence of Isentropic Vortex initial condition against analytic values
-		Nmax := 1
-		for N := 1; N <= Nmax; N++ {
-			plotMesh := false
-			// c := NewEuler(1, N, "../../DG2D/vortexA04.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
-			c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
-			X, Y := c.dfr.FluxX, c.dfr.FluxY
-			Kmax := c.dfr.K
-			Nint := c.dfr.FluxElement.Nint
-			c.SetNormalFluxInternal()
-			// TODO: Test interpolation for accuracy at multiple orders
-			c.InterpolateSolutionToEdges()
-			c.SetNormalFluxOnEdges()
-			var div utils.Matrix
-			// Density is the easiest equation to match with a polynomial
-			n := 0
-			fmt.Printf("component[%d]\n", n)
-			div = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
-			for k := 0; k < Kmax; k++ {
-				_, _, Jdet := c.dfr.GetJacobian(k)
-				for i := 0; i < Nint; i++ {
-					ind := k + i*Kmax
-					div.Data()[ind] /= Jdet
-				}
-			}
-			// Get the analytic values of divergence for comparison
-			for k := 0; k < Kmax; k++ {
-				for i := 0; i < Nint; i++ {
-					ind := k + i*Kmax
-					x, y := X.Data()[ind], Y.Data()[ind]
-					qc1, qc2, qc3, qc4 := c.AnalyticSolution.GetStateC(0, x, y)
-					q1, q2, q3, q4 := c.Q[0].Data()[ind], c.Q[1].Data()[ind], c.Q[2].Data()[ind], c.Q[3].Data()[ind]
-					assert.True(t, nearVec([]float64{q1, q2, q3, q4}, []float64{qc1, qc2, qc3, qc4}, 0.000001))
-					divC := c.AnalyticSolution.GetDivergence(0, x, y)
-					divCalc := div.Data()[ind]
-					normalizer := q1
-					// fmt.Printf("div[%d][%d,%d] = %8.5f\n", n, k, i, divCalc)
-					assert.True(t, near(divCalc/normalizer, divC[n]/normalizer, 0.001)) // 0.1 percent match
-				}
-			}
-		}
-	}
-	if false { // Test Isentropic Vortex
+	{ // Test divergence of Isentropic Vortex initial condition against analytic values - density equation only
 		N := 1
 		plotMesh := false
-		//c := NewEuler(1, N, "../../DG2D/vortexA04.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
+		// c := NewEuler(1, N, "../../DG2D/vortexA04.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
 		c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
-		//fmt.Println(c.Q[0].Print("Q0_start"))
-		//fmt.Println(c.Q_Face[0].Print("Q_Face0_start"))
-		//fmt.Println(c.F_RT_DOF[0].Print("F_RT_DOF0_start"))
-		// TODO: Set F_RT_DOF manually to the analytic vortex solution (through transform), then compute Div using RT
+		X, Y := c.dfr.FluxX, c.dfr.FluxY
+		Kmax := c.dfr.K
+		Nint := c.dfr.FluxElement.Nint
 		c.SetNormalFluxInternal()
 		c.InterpolateSolutionToEdges()
 		c.SetNormalFluxOnEdges()
-		Kmax := c.dfr.K
-		Nint := c.dfr.FluxElement.Nint
-		// Check that divergence on this mesh is zero
-		var (
-			X, Y = c.dfr.SolutionX.Data(), c.dfr.SolutionY.Data()
-		)
-		//fmt.Println(c.dfr.SolutionX.Print("SolX"))
 		var div utils.Matrix
-		for n := 0; n < 4; n++ {
-			fmt.Printf("component[%d]\n", n)
-			div = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
-			for k := 0; k < Kmax; k++ {
-				_, _, Jdet := c.dfr.GetJacobian(k)
-				for i := 0; i < Nint; i++ {
-					ind := k + i*Kmax
-					div.Data()[ind] /= Jdet
-				}
+		// Density is the easiest equation to match with a polynomial
+		n := 0
+		fmt.Printf("component[%d]\n", n)
+		div = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
+		for k := 0; k < Kmax; k++ {
+			_, _, Jdet := c.dfr.GetJacobian(k)
+			for i := 0; i < Nint; i++ {
+				ind := k + i*Kmax
+				div.Data()[ind] /= Jdet
 			}
-			for k := 0; k < Kmax; k++ {
-				for i := 0; i < Nint; i++ {
-					ind := k + i*Kmax
-					x, y := X[ind], Y[ind]
-					qc1, qc2, qc3, qc4 := c.AnalyticSolution.GetStateC(0, x, y)
-					q1, q2, q3, q4 := c.Q[0].Data()[ind], c.Q[1].Data()[ind], c.Q[2].Data()[ind], c.Q[3].Data()[ind]
-					assert.True(t, nearVec([]float64{q1, q2, q3, q4}, []float64{qc1, qc2, qc3, qc4}, 0.000001))
-					divC := c.AnalyticSolution.GetDivergence(0, x, y)
-					assert.True(t, near(div.Data()[ind], divC[n], 0.00001))
-				}
+		}
+		// Get the analytic values of divergence for comparison
+		for k := 0; k < Kmax; k++ {
+			for i := 0; i < Nint; i++ {
+				ind := k + i*Kmax
+				x, y := X.Data()[ind], Y.Data()[ind]
+				qc1, qc2, qc3, qc4 := c.AnalyticSolution.GetStateC(0, x, y)
+				q1, q2, q3, q4 := c.Q[0].Data()[ind], c.Q[1].Data()[ind], c.Q[2].Data()[ind], c.Q[3].Data()[ind]
+				assert.True(t, nearVec([]float64{q1, q2, q3, q4}, []float64{qc1, qc2, qc3, qc4}, 0.000001))
+				divC := c.AnalyticSolution.GetDivergence(0, x, y)
+				divCalc := div.Data()[ind]
+				// fmt.Printf("div[%d][%d,%d] = %8.5f\n", n, k, i, divCalc)
+				assert.True(t, near(divCalc/qc1, divC[n]/qc1, 0.001)) // 0.1 percent match
 			}
 		}
 	}
@@ -419,7 +370,6 @@ func CheckFlux0(c *Euler, t *testing.T) {
 		}
 	}
 	c.SetNormalFluxInternal()
-	// TODO: Test interpolation operator for correctness - current results are far from ideal
 	// No need to interpolate to the edges, they are left at initialized state in Q_Face
 	c.SetNormalFluxOnEdges()
 

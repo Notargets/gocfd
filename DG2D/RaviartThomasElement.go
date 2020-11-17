@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"github.com/notargets/gocfd/DG1D"
+
 	"github.com/notargets/gocfd/utils"
 )
 
@@ -330,6 +331,17 @@ func ExtendGeomToRT(N int, rInt, sInt utils.Vector) (r, s utils.Vector) {
 		Determine geometric locations of edge points, located at Gauss locations in 1D, projected onto the edges
 	*/
 	GQR, _ := DG1D.JacobiGQ(1, 1, N)
+	/*
+		// Equi-spaced edge
+		gqr := make([]float64, NpEdge)
+		space := 2. / float64(NpEdge+1)
+		start := -1.
+		for i := 0; i < NpEdge; i++ {
+			gqr[i] = start + space
+			start = gqr[i]
+		}
+		GQR := utils.NewVector(NpEdge, gqr)
+	*/
 	/*
 		Double the number of interior points to match each direction of the basis
 	*/
