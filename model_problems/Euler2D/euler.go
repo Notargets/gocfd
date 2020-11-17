@@ -110,6 +110,62 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, model Mode
 	return
 }
 
+func (c *Euler) Solve() {
+	/*
+		// outer time step loop
+		while (time<FinalTime) {
+
+			if (time+dt > FinalTime) {dt=FinalTime-time;}
+			tw1=timer.read();   // time NDG work
+
+			// 3rd order SSP Runge-Kutta
+			this->RHS(Q, time,BCSolution);  Q1 = Q + dt*rhsQ;
+			this->RHS(Q1,time,BCSolution);  Q2 = (3.0*Q + Q1 + dt*rhsQ)/4.0;
+			this->RHS(Q2,time,BCSolution);  Q  = (Q + 2.0*Q2 + 2.0*dt*rhsQ)/3.0;
+
+			time += dt;       // increment time
+			SetStepSize();    // compute new timestep
+
+			time_work += timer.read() - tw1;  // accumulate cost of NDG work
+			Report();         // optional reporting
+			++tstep;          // increment timestep
+
+		}
+	*/
+}
+
+func (c *Euler) CalculateDT() (dt float64) {
+	/*
+	   // function dt = Euler2Ddt(Q, gamma)
+	   // compute time step for the compressible Euler equations
+	   DVec rho,rhou,rhov,Ener, u,v,p,c,squv,Fscale_2,w_speeds, q1,q2,q3,q4;
+
+	   // since "self-mapping" of arrays is illegal,
+	   // e.g. rho = rho(vmapM), use temp wrappers
+	   q1.borrow(Np*K,Q.pCol(1));  q2.borrow(Np*K,Q.pCol(2));
+	   q3.borrow(Np*K,Q.pCol(3));  q4.borrow(Np*K,Q.pCol(4));
+
+	   rho=q1(vmapM); rhou=q2(vmapM); rhov=q3(vmapM); Ener=q4(vmapM);
+	   u = rhou.dd(rho); v = rhov.dd(rho);  squv=sqr(u)+sqr(v);
+
+	   p = gm1 * (Ener - rho.dm(squv)/2.0);
+	   c = sqrt(abs(gamma*p.dd(rho)));
+
+	   Fscale_2 = 0.5*Fscale;
+	   w_speeds=SQ(N+1)*Fscale_2.dm(sqrt(squv)+c);
+	   dt = 1.0/w_speeds.max_val();
+
+	   Nsteps = (int)ceil(FinalTime/dt);
+	   dt = FinalTime/(double)Nsteps;
+	*/
+	/*
+		    Fscale = edge_length / Jdet // units of length/area = 1/length
+			w_speeds = 0.5*utils.POW(N+1,2)*(Fscale.*(math.Sqrt(u*u+v*v)+c)
+			dt = CFL / w_speeds.MAX()
+	*/
+	return
+}
+
 func (c *Euler) RHS(Q [4]utils.Matrix) (RHSCalc [4]utils.Matrix) {
 	var (
 		Kmax = c.dfr.K
@@ -127,9 +183,9 @@ func (c *Euler) RHS(Q [4]utils.Matrix) (RHSCalc [4]utils.Matrix) {
 				of the element "injected" via calculation of a physical flux on those faces, and the (F,G) values in the interior
 				of the element taken directly from the solution values (Q).
 	*/
-	c.AssembleRTNormalFlux(Q)
+	c.AssembleRTNormalFlux(Q) // Assembles F_RT_DOF for use in calculations using RT element
 	for n := 0; n < 4; n++ {
-		RHSCalc[n] = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
+		RHSCalc[n] = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n]) // Calculate divergence for the internal node points
 		for k := 0; k < Kmax; k++ {
 			_, _, Jdet := c.dfr.GetJacobian(k)
 			for i := 0; i < Nint; i++ {
@@ -157,9 +213,9 @@ func (c *Euler) AssembleRTNormalFlux(Q [4]utils.Matrix) {
 		c.Q_Face[n].Scale(0.)
 		c.F_RT_DOF[n].Scale(0.)
 	}
-	c.SetNormalFluxInternal(Q)
-	c.InterpolateSolutionToEdges(Q)
-	c.SetNormalFluxOnEdges()
+	c.SetNormalFluxInternal(Q)      // Updates F_RT_DOF with values from Q
+	c.InterpolateSolutionToEdges(Q) // Interpolates Q_Face values from Q
+	c.SetNormalFluxOnEdges()        // Updates F_RT_DOG with values from edges, including BCs and connected tris
 }
 
 func (c *Euler) SetNormalFluxInternal(Q [4]utils.Matrix) {
