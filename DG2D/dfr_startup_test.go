@@ -305,7 +305,10 @@ func TestDFR2D(t *testing.T) {
 			s := dfr.FluxElement.S.Data()[i]
 			tm.AddPoint(r, s)
 		}
-		tm.ToGraphMesh()
+		gm := tm.ToGraphMesh()
+		for k, tri := range gm.Triangles {
+			fmt.Printf("verts[%d] = %d,%d,%d\n", k, tri.Nodes[0], tri.Nodes[1], tri.Nodes[2])
+		}
 	}
 }
 
