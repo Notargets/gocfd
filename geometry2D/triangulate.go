@@ -22,7 +22,7 @@ type Edge struct {
 	IsImmovable bool // Is a BC edge
 }
 
-func (e *Edge) ContainsIndex(pI int) (contains bool) {
+func (e *Edge) containsIndex(pI int) (contains bool) {
 	//fmt.Printf("Verts = %v, Index = %d\n", e.Verts, pI)
 	if e.Verts[0] == pI || e.Verts[1] == pI {
 		return true
@@ -39,7 +39,7 @@ func (tm *TriMesh) NewEdge(verts [2]int, isImmovableO ...bool) (e *Edge) {
 	}
 	// TODO: If this is necessary, use a data structure to make it not O(N^2)
 	for _, ee := range tm.Edges {
-		if ee.ContainsIndex(verts[0]) && ee.ContainsIndex(verts[1]) {
+		if ee.containsIndex(verts[0]) && ee.containsIndex(verts[1]) {
 			//fmt.Printf("reusing edge: %s, inputIsImmovable: %v\n", ee.Print(), isImmovable)
 			return ee
 		}
@@ -97,7 +97,7 @@ func (e *Edge) AddTri(tri *Tri) {
 	e.Tris[tri] = struct{}{}
 }
 
-func (e *Edge) GetOpposingVertices() (pts []int, tris []*Tri) {
+func (e *Edge) getOpposingVertices() (pts []int, tris []*Tri) {
 	// Get vertices opposing this edge from all tris with this edge, could be 1, 2 or 0 points (unconnected edge)
 	for tri := range e.Tris {
 		verts, _ := tri.GetVertices()
@@ -335,13 +335,13 @@ func (tri *Tri) GetVertices() (verts [3]int, fixed [3]bool) {
 	verts[1] = tri.Edges[0].Verts[1-tri.Reversals[0]]
 	verts[2] = tri.Edges[1].Verts[1-tri.Reversals[1]]
 	for _, e := range tri.Edges {
-		if e.ContainsIndex(verts[0]) && e.ContainsIndex(verts[1]) {
+		if e.containsIndex(verts[0]) && e.containsIndex(verts[1]) {
 			fixed[0] = e.IsImmovable
 		}
-		if e.ContainsIndex(verts[1]) && e.ContainsIndex(verts[2]) {
+		if e.containsIndex(verts[1]) && e.containsIndex(verts[2]) {
 			fixed[1] = e.IsImmovable
 		}
-		if e.ContainsIndex(verts[2]) && e.ContainsIndex(verts[0]) {
+		if e.containsIndex(verts[2]) && e.containsIndex(verts[0]) {
 			fixed[2] = e.IsImmovable
 		}
 	}
@@ -394,7 +394,7 @@ func (tm *TriMesh) AddBoundingTriangle(tri *Tri) {
 	tri.TGN = tm.TriGraph
 }
 
-func (tm *TriMesh) TriContainsPoint(tri *Tri, pt Point, traceO ...bool) (contains bool) {
+func (tm *TriMesh) triContainsPoint(tri *Tri, pt Point, traceO ...bool) (contains bool) {
 	var (
 		verts, _ = tri.GetVertices()
 		pts      = tm.Points
@@ -419,7 +419,7 @@ func (tm *TriMesh) TriContainsPoint(tri *Tri, pt Point, traceO ...bool) (contain
 		return false
 	}
 	// Edge test - is point on a triangle edge?
-	if tm.WhichEdgeIsPointOn(pt.X[0], pt.X[1], tri) != -1 {
+	if tm.whichEdgeIsPointOn(pt.X[0], pt.X[1], tri) != -1 {
 		// Point is on an edge of this tri
 		if trace {
 			fmt.Printf("point %v on an edge\n", pt)
@@ -448,7 +448,7 @@ func (tm *TriMesh) getLeafTri(tgn *TriGraphNode, pt Point, traceO ...bool) (triL
 		if trace {
 			fmt.Println(tgn.Print("leaf"))
 		}
-		if tm.TriContainsPoint(tgn.Triangle, pt, trace) {
+		if tm.triContainsPoint(tgn.Triangle, pt, trace) {
 			triLeaf = tgn.Triangle
 			leafNode = tgn
 		} else {
@@ -461,7 +461,7 @@ func (tm *TriMesh) getLeafTri(tgn *TriGraphNode, pt Point, traceO ...bool) (triL
 		}
 		for _, tgnDown := range tgn.Children {
 			tri := tgnDown.Triangle
-			if tm.TriContainsPoint(tri, pt, trace) {
+			if tm.triContainsPoint(tri, pt, trace) {
 				triLeaf, leafNode = tm.getLeafTri(tgnDown, pt, trace)
 				return
 			}
@@ -470,7 +470,7 @@ func (tm *TriMesh) getLeafTri(tgn *TriGraphNode, pt Point, traceO ...bool) (triL
 	return
 }
 
-func (tm *TriMesh) IsPointOnEdge(X, Y float64, e *Edge) (onEdge bool) {
+func (tm *TriMesh) isPointOnEdge(X, Y float64, e *Edge) (onEdge bool) {
 	var (
 		pts        = tm.Points
 		e1x, e1y   = pts[e.Verts[0]].X[0], pts[e.Verts[0]].X[1]
@@ -499,11 +499,11 @@ func (tm *TriMesh) IsPointOnEdge(X, Y float64, e *Edge) (onEdge bool) {
 	return
 }
 
-func (tm *TriMesh) WhichEdgeIsPointOn(X, Y float64, tri *Tri) (edgeNumber int) {
+func (tm *TriMesh) whichEdgeIsPointOn(X, Y float64, tri *Tri) (edgeNumber int) {
 	// Returns -1 if point is not on triangle edge
 	edgeNumber = -1
 	for i, e := range tri.Edges {
-		if tm.IsPointOnEdge(X, Y, e) {
+		if tm.isPointOnEdge(X, Y, e) {
 			return i
 		}
 	}
@@ -528,7 +528,7 @@ func (tm *TriMesh) AddPoint(X, Y float64, traceO ...bool) {
 			pr, tm.PrintTri(tm.TriGraph.Triangle, "bounding triangle"))
 		panic(err)
 	}
-	eNumber := tm.WhichEdgeIsPointOn(X, Y, baseTri)
+	eNumber := tm.whichEdgeIsPointOn(X, Y, baseTri)
 	if eNumber == -1 { // Point is inside base tri, make 3 new triangles by connecting vertices of base tri to pr
 		// Remove base tri from edges, it will be replaced with new tris
 		for _, e := range baseTri.Edges {
@@ -548,20 +548,20 @@ func (tm *TriMesh) AddPoint(X, Y float64, traceO ...bool) {
 			)
 		*/
 		tri := tm.NewTri(e1, e2)
-		tm.AddTriToGraph(tri, leafNode)
+		tm.addTriToGraph(tri, leafNode)
 		tri = tm.NewTri(e2, e3)
-		tm.AddTriToGraph(tri, leafNode)
+		tm.addTriToGraph(tri, leafNode)
 		tri = tm.NewTri(e3, e1)
-		tm.AddTriToGraph(tri, leafNode)
+		tm.addTriToGraph(tri, leafNode)
 		// Legalize edges opposing pR
 		if legalize1 {
-			tm.LegalizeEdge(baseTri.Edges[0], pR)
-			tm.LegalizeEdge(baseTri.Edges[1], pR)
-			tm.LegalizeEdge(baseTri.Edges[2], pR)
+			tm.legalizeEdge(baseTri.Edges[0], pR)
+			tm.legalizeEdge(baseTri.Edges[1], pR)
+			tm.legalizeEdge(baseTri.Edges[2], pR)
 		}
 	} else {
 		edge := baseTri.Edges[eNumber]
-		oppoVerts, oppoTris := edge.GetOpposingVertices() // Must happen before removing tris from edge
+		oppoVerts, oppoTris := edge.getOpposingVertices() // Must happen before removing tris from edge
 		if trace {
 			fmt.Printf("X, Y = [%8.5f,%8.5f], Edge = %s, Oppoverts = %v\n",
 				X, Y, edge.Print(), oppoVerts)
@@ -582,7 +582,7 @@ func (tm *TriMesh) AddPoint(X, Y float64, traceO ...bool) {
 			e1 := tm.NewEdge([2]int{pR, pLorK})
 			var eForNewTri []*Edge
 			for _, ee := range oTri.Edges {
-				if ee.ContainsIndex(pLorK) { // We want only the edges that share pLorK
+				if ee.containsIndex(pLorK) { // We want only the edges that share pLorK
 					eForNewTri = append(eForNewTri, ee)
 				}
 			}
@@ -596,7 +596,7 @@ func (tm *TriMesh) AddPoint(X, Y float64, traceO ...bool) {
 			e2[1] = tm.NewEdge([2]int{edge.Verts[1], pR}, edge.IsImmovable)
 			for ii, vI := range edge.Verts { // Form two new triangles from pR->pLorK->pIorJ
 				var ee *Edge
-				if eForNewTri[0].ContainsIndex(vI) {
+				if eForNewTri[0].containsIndex(vI) {
 					ee = eForNewTri[0]
 				} else {
 					ee = eForNewTri[1]
@@ -608,7 +608,7 @@ func (tm *TriMesh) AddPoint(X, Y float64, traceO ...bool) {
 				if trace {
 					fmt.Println(tm.PrintTri(newTris[numTris]), "new tri")
 				}
-				tm.AddTriToGraph(newTris[numTris], leafNode)
+				tm.addTriToGraph(newTris[numTris], leafNode)
 				numTris++
 			}
 		}
@@ -617,9 +617,9 @@ func (tm *TriMesh) AddPoint(X, Y float64, traceO ...bool) {
 			//fmt.Printf("Working on %d new tris...\n", numTris)
 			for j := 0; j < numTris; j++ {
 				for _, ee := range newTris[j].Edges {
-					if !ee.ContainsIndex(pR) { // We only want the edge opposite of pR
+					if !ee.containsIndex(pR) { // We only want the edge opposite of pR
 						//fmt.Printf("legalizing: %s\n", ee.Print())
-						tm.LegalizeEdge(ee, pR)
+						tm.legalizeEdge(ee, pR)
 					}
 				}
 			}
@@ -627,7 +627,7 @@ func (tm *TriMesh) AddPoint(X, Y float64, traceO ...bool) {
 	}
 }
 
-func (tm *TriMesh) GetEdgeTriWithoutPoint(e *Edge, ptI int) (oppoTri *Tri) {
+func (tm *TriMesh) getEdgeTriWithoutPoint(e *Edge, ptI int) (oppoTri *Tri) {
 	// Get the triangle on the other side of the edge, relative to ptI
 	for tri := range e.Tris {
 		var found bool
@@ -644,7 +644,7 @@ func (tm *TriMesh) GetEdgeTriWithoutPoint(e *Edge, ptI int) (oppoTri *Tri) {
 	return
 }
 
-func IsIllegalEdge(prX, prY, piX, piY, pjX, pjY, pkX, pkY float64) bool {
+func isIllegalEdge(prX, prY, piX, piY, pjX, pjY, pkX, pkY float64) bool {
 	/*
 		pr is a new point for candidate triangle pi-pj-pr
 		pi-pj is a shared edge between pi-pj-pk and pi-pj-pr
@@ -673,10 +673,10 @@ func IsIllegalEdge(prX, prY, piX, piY, pjX, pjY, pkX, pkY float64) bool {
 	return inCircle(piX, piY, pjX, pjY, pkX, pkY, prX, prY)
 }
 
-func (tm *TriMesh) LegalizeEdge(e *Edge, testPtI int) {
+func (tm *TriMesh) legalizeEdge(e *Edge, testPtI int) {
 	var (
 		pts = tm.Points
-		tri = tm.GetEdgeTriWithoutPoint(e, testPtI)
+		tri = tm.getEdgeTriWithoutPoint(e, testPtI)
 	)
 	if tri == nil || e.IsImmovable { // There is no opposing tri, edge may be a boundary
 		return
@@ -685,14 +685,14 @@ func (tm *TriMesh) LegalizeEdge(e *Edge, testPtI int) {
 	v, _ := tri.GetVertices()
 	p1x, p2x, p3x := pts[v[0]].X[0], pts[v[1]].X[0], pts[v[2]].X[0]
 	p1y, p2y, p3y := pts[v[0]].X[1], pts[v[1]].X[1], pts[v[2]].X[1]
-	if IsIllegalEdge(prX, prY, p1x, p1y, p2x, p2y, p3x, p3y) {
+	if isIllegalEdge(prX, prY, p1x, p1y, p2x, p2y, p3x, p3y) {
 		//fmt.Printf("illegal edge, flipping\n")
 		//flip edge, update leaves of trigraph
 		tm.flipEdge(e)
 		// Call recursively for the other two edges in the (formerly) opposing tri
 		for _, eee := range tri.Edges {
 			if eee != e {
-				tm.LegalizeEdge(eee, testPtI)
+				tm.legalizeEdge(eee, testPtI)
 			}
 		}
 	}
@@ -724,7 +724,7 @@ func (tm *TriMesh) flipEdge(e *Edge) {
 	// Get opposing points
 	getPtsExclEdge := func(verts [3]int) (op1 int) {
 		for _, val := range verts {
-			if !e.ContainsIndex(val) {
+			if !e.containsIndex(val) {
 				return val
 			}
 		}
@@ -732,7 +732,7 @@ func (tm *TriMesh) flipEdge(e *Edge) {
 	}
 	findConnectedEdge := func(ptI int) (ee *Edge) {
 		for ee = range eMap {
-			if ee.ContainsIndex(ptI) {
+			if ee.containsIndex(ptI) {
 				delete(eMap, ee) // remove edge from bucket
 				//fmt.Printf("Number of tris (%d) on edge %s\n", len(ee.Tris), ee.Print())
 				return ee
@@ -768,10 +768,10 @@ func (tm *TriMesh) flipEdge(e *Edge) {
 
 	//tris[0].TGN.Triangle = triNew2
 	//tris[1].TGN.Triangle = triNew1
-	tm.AddTriToGraph(triNew1, tris[0].TGN)
-	tm.AddTriToGraph(triNew1, tris[1].TGN)
-	tm.AddTriToGraph(triNew2, tris[0].TGN)
-	tm.AddTriToGraph(triNew2, tris[1].TGN)
+	tm.addTriToGraph(triNew1, tris[0].TGN)
+	tm.addTriToGraph(triNew1, tris[1].TGN)
+	tm.addTriToGraph(triNew2, tris[0].TGN)
+	tm.addTriToGraph(triNew2, tris[1].TGN)
 }
 
 func (tm *TriMesh) extractFinishedTris() {
@@ -831,7 +831,7 @@ func (tm *TriMesh) ToGraphMesh() (trisOut graphics2D.TriMesh) {
 	return
 }
 
-func (tm *TriMesh) AddTriToGraph(tri *Tri, leaf *TriGraphNode) {
+func (tm *TriMesh) addTriToGraph(tri *Tri, leaf *TriGraphNode) {
 	if leaf != nil { // Root node
 		if tri.TGN == nil {
 			tri.TGN = &TriGraphNode{Triangle: tri}

@@ -1,8 +1,11 @@
 package DG2D
 
 import (
+	"fmt"
 	"math"
 	"testing"
+
+	"github.com/notargets/gocfd/geometry2D"
 
 	"github.com/notargets/gocfd/utils"
 	"github.com/stretchr/testify/assert"
@@ -277,6 +280,32 @@ func TestDFR2D(t *testing.T) {
 				}
 			}
 		}
+	}
+	{ // Test output of triangulated mesh for plotting
+		N := 1
+		plotMesh := false
+		dfr := NewDFR2D(N, plotMesh, "test_tris_6.neu")
+		fmt.Println(dfr.FluxX.Print("FluxX"))
+		fmt.Println(dfr.FluxY.Print("FluxY"))
+		/*
+			Triangulate the unit RT triangle
+			start with the bounding triangle, which includes the corners
+		*/
+		R := []float64{-1, 1, -1} // Vertices
+		S := []float64{-1, -1, 1}
+		tm := geometry2D.NewTriMesh(R, S)
+		tri := &geometry2D.Tri{}
+		tri.AddEdge(tm.NewEdge([2]int{0, 1}, true))
+		e2 := tm.NewEdge([2]int{1, 2}, true)
+		tri.AddEdge(e2)
+		tri.AddEdge(tm.NewEdge([2]int{2, 0}, true))
+		tm.AddBoundingTriangle(tri)
+		// Now we add points to incrementally define the triangulation
+		for i, r := range dfr.FluxElement.R.Data() {
+			s := dfr.FluxElement.S.Data()[i]
+			tm.AddPoint(r, s)
+		}
+		tm.ToGraphMesh()
 	}
 }
 

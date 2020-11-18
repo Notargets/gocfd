@@ -118,7 +118,7 @@ func TestTriangulate(t *testing.T) {
 		for i, r := range R {
 			s := S[i]
 			fmt.Printf("point[%8.5f,%8.5f] ", r, s)
-			assert.Equal(t, IsIllegalEdge(r, s, -1, -1, 1, -1, -1, 1), testCheck[i])
+			assert.Equal(t, isIllegalEdge(r, s, -1, -1, 1, -1, -1, 1), testCheck[i])
 			if testCheck[i] {
 				// testCheck is true, so edge is illegal, inside
 				fmt.Printf("is inside, illegal (ccw), ")
@@ -126,7 +126,7 @@ func TestTriangulate(t *testing.T) {
 				fmt.Printf("is outside, legal (ccw), ")
 			}
 			// Test the opposite direction of the base triangle
-			assert.Equal(t, IsIllegalEdge(r, s, -1, 1, 1, -1, -1, -1), testCheck[i])
+			assert.Equal(t, isIllegalEdge(r, s, -1, 1, 1, -1, -1, -1), testCheck[i])
 			if testCheck[i] {
 				// testCheck is true, so edge is illegal, inside
 				fmt.Printf("is inside, illegal\n")
