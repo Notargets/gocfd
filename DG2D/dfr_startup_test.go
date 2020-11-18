@@ -5,6 +5,8 @@ import (
 	"math"
 	"testing"
 
+	graphics2D "github.com/notargets/avs/geometry"
+
 	"github.com/notargets/gocfd/geometry2D"
 
 	"github.com/notargets/gocfd/utils"
@@ -306,6 +308,40 @@ func TestDFR2D(t *testing.T) {
 			tm.AddPoint(r, s)
 		}
 		gm := tm.ToGraphMesh()
+		// Build the X,Y coordinates to support the triangulation index
+		Np := dfr.FluxElement.Np + 3
+		K := dfr.K
+		VX, VY := utils.NewMatrix(Np, K), utils.NewMatrix(Np, K)
+		vxd, vyd := VX.Data(), VY.Data()
+		for k := 0; k < dfr.K; k++ {
+			verts := dfr.Tris.GetTriVerts(uint32(k))
+			for ii := 0; ii < 3; ii++ {
+				vxd[k+ii*K], vyd[k+ii*K] = dfr.VX.Data()[verts[ii]], dfr.VY.Data()[verts[ii]]
+			}
+			for ii := 3; ii < Np; ii++ {
+				ind := k + (ii-3)*K
+				indNew := k + ii*K
+				vxd[indNew], vyd[indNew] = dfr.FluxX.Data()[ind], dfr.FluxY.Data()[ind]
+			}
+		}
+		// Now replicate the triangle mesh for all triangles > k=0
+		for k := 1; k < K; k++ {
+			for _, tri := range gm.Triangles {
+				newTri := graphics2D.Triangle{
+					tri.Nodes,
+				}
+				for ii := 0; ii < 3; ii++ {
+					newTri.Nodes[ii] += int32(k * Np)
+				}
+				gm.Triangles = append(gm.Triangles, newTri)
+				for ii := 0; ii < Np; ii++ {
+					gm.BaseGeometryClass.Geometry = append(gm.BaseGeometryClass.Geometry, graphics2D.Point{
+						X: [2]float32{float32(vxd[k+ii*K]), float32(vyd[k+ii*K])},
+					})
+				}
+			}
+		}
+		gm.Attributes = make([][]float32, len(gm.Triangles))
 		for k, tri := range gm.Triangles {
 			fmt.Printf("verts[%d] = %d,%d,%d\n", k, tri.Nodes[0], tri.Nodes[1], tri.Nodes[2])
 		}
