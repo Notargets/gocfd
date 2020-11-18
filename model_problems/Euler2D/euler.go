@@ -59,6 +59,7 @@ const (
 
 var (
 	modelNames = []string{
+		"None",
 		"Lax Friedrichs Flux",
 		"Roe Flux",
 		"Average Flux",
@@ -117,10 +118,15 @@ func (c *Euler) Solve() {
 		Q1, Q2, Residual [4]utils.Matrix
 		steps            int
 	)
+	fmt.Printf("solving until finaltime = %8.5f\n", FinalTime)
 	for {
 		if time >= FinalTime {
 			break
 		}
+		if time == 0 {
+			c.InterpolateSolutionToEdges(c.Q)
+		}
+		dt = c.CalculateDT()
 		if time+dt > FinalTime {
 			dt = FinalTime - time
 		}
@@ -137,10 +143,9 @@ func (c *Euler) Solve() {
 			Residual[n] = rhsQ[n].Scale(2 * dt).Add(Q2[n].Scale(2)).Add(c.Q[n]).Scale(1. / 3.).Subtract(c.Q[n])
 			c.Q[n].Add(Residual[n])
 		}
-		time += dt
-		dt = c.CalculateDT()
 		steps++
-		fmt.Printf("Time = %8.5f, Residual[eq#]Min/Max:", time)
+		time += dt
+		fmt.Printf("Time,dt = %8.5f,%8.5f, Residual[eq#]Min/Max:", time, dt)
 		for n := 0; n < 4; n++ {
 			fmt.Printf(" [%d] %8.5f,%8.5f ", n, Residual[n].Min(), Residual[n].Max())
 		}
@@ -218,7 +223,7 @@ func (c *Euler) RHS(Q [4]utils.Matrix, time float64) (RHSCalc [4]utils.Matrix) {
 				of the element "injected" via calculation of a physical flux on those faces, and the (F,G) values in the interior
 				of the element taken directly from the solution values (Q).
 	*/
-	c.AssembleRTNormalFlux(Q) // Assembles F_RT_DOF for use in calculations using RT element
+	c.AssembleRTNormalFlux(Q, time) // Assembles F_RT_DOF for use in calculations using RT element
 	for n := 0; n < 4; n++ {
 		RHSCalc[n] = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n]) // Calculate divergence for the internal node points
 		for k := 0; k < Kmax; k++ {
@@ -233,7 +238,7 @@ func (c *Euler) RHS(Q [4]utils.Matrix, time float64) (RHSCalc [4]utils.Matrix) {
 	return
 }
 
-func (c *Euler) AssembleRTNormalFlux(Q [4]utils.Matrix) {
+func (c *Euler) AssembleRTNormalFlux(Q [4]utils.Matrix, time float64) {
 	/*
 		Solver approach:
 		0) Solution is stored on sol points as Q
@@ -250,7 +255,7 @@ func (c *Euler) AssembleRTNormalFlux(Q [4]utils.Matrix) {
 	}
 	c.SetNormalFluxInternal(Q)      // Updates F_RT_DOF with values from Q
 	c.InterpolateSolutionToEdges(Q) // Interpolates Q_Face values from Q
-	c.SetNormalFluxOnEdges()        // Updates F_RT_DOG with values from edges, including BCs and connected tris
+	c.SetNormalFluxOnEdges(time)    // Updates F_RT_DOG with values from edges, including BCs and connected tris
 }
 
 func (c *Euler) SetNormalFluxInternal(Q [4]utils.Matrix) {
@@ -277,7 +282,7 @@ func (c *Euler) InterpolateSolutionToEdges(Q [4]utils.Matrix) {
 	}
 }
 
-func (c *Euler) SetNormalFluxOnEdges() {
+func (c *Euler) SetNormalFluxOnEdges(time float64) {
 	var (
 		dfr      = c.dfr
 		Nint     = dfr.FluxElement.Nint
@@ -305,9 +310,8 @@ func (c *Euler) SetNormalFluxOnEdges() {
 					iL := i + shift
 					ind := k + (2*Nint+iL)*Kmax
 					x, y := X[ind], Y[ind]
-					t := 0.
 					iv := c.AnalyticSolution.(*isentropic_vortex.IVortex)
-					rho, rhoU, rhoV, E := iv.GetStateC(t, x, y)
+					rho, rhoU, rhoV, E := iv.GetStateC(time, x, y)
 					ind = k + iL*Kmax
 					c.Q_Face[0].Data()[ind] = rho
 					c.Q_Face[1].Data()[ind] = rhoU

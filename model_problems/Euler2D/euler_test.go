@@ -121,7 +121,7 @@ func TestEuler(t *testing.T) {
 			c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, false, false)
 			c.SetNormalFluxInternal(c.Q)
 			c.InterpolateSolutionToEdges(c.Q)
-			c.SetNormalFluxOnEdges()
+			c.SetNormalFluxOnEdges(0)
 			Kmax := c.dfr.K
 			Nint := c.dfr.FluxElement.Nint
 			// Check that freestream divergence on this mesh is zero
@@ -173,7 +173,7 @@ func TestEuler(t *testing.T) {
 		Nint := c.dfr.FluxElement.Nint
 		c.SetNormalFluxInternal(c.Q)
 		c.InterpolateSolutionToEdges(c.Q)
-		c.SetNormalFluxOnEdges()
+		c.SetNormalFluxOnEdges(0)
 		var div utils.Matrix
 		// Density is the easiest equation to match with a polynomial
 		n := 0
@@ -204,7 +204,7 @@ func TestEuler(t *testing.T) {
 	{ // Test solver
 		N := 1
 		plotMesh := false
-		c := NewEuler(0.001, N, "../../DG2D/vortexA04.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
+		c := NewEuler(0.1, N, "../../DG2D/vortexA04.neu", 0.1, FLUX_Average, IVORTEX, plotMesh, true)
 		c.Solve()
 	}
 }
@@ -377,7 +377,7 @@ func CheckFlux0(c *Euler, t *testing.T) {
 	}
 	c.SetNormalFluxInternal(c.Q)
 	// No need to interpolate to the edges, they are left at initialized state in Q_Face
-	c.SetNormalFluxOnEdges()
+	c.SetNormalFluxOnEdges(0)
 
 	var div utils.Matrix
 	for n := 0; n < 4; n++ {
