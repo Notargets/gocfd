@@ -107,6 +107,17 @@ type Edge struct {
 	IInII                  [2]float64               // ||n|| scale factor to pre-multiply normal values prior to transforming into unit tri
 }
 
+func (e *Edge) GetEdgeLength() (len float64) {
+	edgeNumber := e.ConnectedTriEdgeNumber[0]
+	switch edgeNumber {
+	case First, Third:
+		len = 2. * e.IInII[0]
+	case Second:
+		len = (2. * math.Sqrt(2)) * e.IInII[0]
+	}
+	return
+}
+
 func (e *Edge) Print() (p string) {
 	//for i, triNum := range e.ConnectedTris {
 	for i := 0; i < int(e.NumConnectedTris); i++ {

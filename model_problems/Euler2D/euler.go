@@ -111,62 +111,97 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, model Mode
 }
 
 func (c *Euler) Solve() {
-	/*
-		// outer time step loop
-		while (time<FinalTime) {
-
-			if (time+dt > FinalTime) {dt=FinalTime-time;}
-			tw1=timer.read();   // time NDG work
-
-			// 3rd order SSP Runge-Kutta
-			this->RHS(Q, time,BCSolution);  Q1 = Q + dt*rhsQ;
-			this->RHS(Q1,time,BCSolution);  Q2 = (3.0*Q + Q1 + dt*rhsQ)/4.0;
-			this->RHS(Q2,time,BCSolution);  Q  = (Q + 2.0*Q2 + 2.0*dt*rhsQ)/3.0;
-
-			time += dt;       // increment time
-			SetStepSize();    // compute new timestep
-
-			time_work += timer.read() - tw1;  // accumulate cost of NDG work
-			Report();         // optional reporting
-			++tstep;          // increment timestep
-
+	var (
+		FinalTime        = c.FinalTime
+		time, dt         float64
+		Q1, Q2, Residual [4]utils.Matrix
+		steps            int
+	)
+	for {
+		if time >= FinalTime {
+			break
 		}
-	*/
+		if time+dt > FinalTime {
+			dt = FinalTime - time
+		}
+		rhsQ := c.RHS(c.Q, time)
+		for n := 0; n < 4; n++ {
+			Q1[n] = rhsQ[n].Scale(dt).Add(c.Q[n])
+		}
+		rhsQ = c.RHS(Q1, time)
+		for n := 0; n < 4; n++ {
+			Q2[n] = rhsQ[n].Scale(dt).Add(Q1[n]).Add(c.Q[n].Copy().Scale(3)).Scale(0.25)
+		}
+		rhsQ = c.RHS(Q2, time)
+		for n := 0; n < 4; n++ {
+			Residual[n] = rhsQ[n].Scale(2 * dt).Add(Q2[n].Scale(2)).Add(c.Q[n]).Scale(1. / 3.).Subtract(c.Q[n])
+			c.Q[n].Add(Residual[n])
+		}
+		time += dt
+		dt = c.CalculateDT()
+		steps++
+		fmt.Printf("Time = %8.5f, Residual[eq#]Min/Max:", time)
+		for n := 0; n < 4; n++ {
+			fmt.Printf(" [%d] %8.5f,%8.5f ", n, Residual[n].Min(), Residual[n].Max())
+		}
+		fmt.Printf("\n")
+	}
 }
 
 func (c *Euler) CalculateDT() (dt float64) {
-	/*
-	   // function dt = Euler2Ddt(Q, gamma)
-	   // compute time step for the compressible Euler equations
-	   DVec rho,rhou,rhov,Ener, u,v,p,c,squv,Fscale_2,w_speeds, q1,q2,q3,q4;
-
-	   // since "self-mapping" of arrays is illegal,
-	   // e.g. rho = rho(vmapM), use temp wrappers
-	   q1.borrow(Np*K,Q.pCol(1));  q2.borrow(Np*K,Q.pCol(2));
-	   q3.borrow(Np*K,Q.pCol(3));  q4.borrow(Np*K,Q.pCol(4));
-
-	   rho=q1(vmapM); rhou=q2(vmapM); rhov=q3(vmapM); Ener=q4(vmapM);
-	   u = rhou.dd(rho); v = rhov.dd(rho);  squv=sqr(u)+sqr(v);
-
-	   p = gm1 * (Ener - rho.dm(squv)/2.0);
-	   c = sqrt(abs(gamma*p.dd(rho)));
-
-	   Fscale_2 = 0.5*Fscale;
-	   w_speeds=SQ(N+1)*Fscale_2.dm(sqrt(squv)+c);
-	   dt = 1.0/w_speeds.max_val();
-
-	   Nsteps = (int)ceil(FinalTime/dt);
-	   dt = FinalTime/(double)Nsteps;
-	*/
+	var (
+		Np1   = c.dfr.N + 1
+		Np12  = float64(Np1 * Np1)
+		wsMax = -math.MaxFloat64
+	)
 	/*
 		    Fscale = edge_length / Jdet // units of length/area = 1/length
 			w_speeds = 0.5*utils.POW(N+1,2)*(Fscale.*(math.Sqrt(u*u+v*v)+c)
 			dt = CFL / w_speeds.MAX()
 	*/
+	// Loop over all edges, calculating max wavespeed
+	for _, e := range c.dfr.Tris.Edges {
+		var (
+			numTris = int(e.NumConnectedTris)
+			edgeLen = e.GetEdgeLength()
+			Nedge   = c.dfr.FluxElement.Nedge
+		)
+		for conn := 0; conn < numTris; conn++ {
+			var (
+				k       = int(e.ConnectedTris[conn])
+				edgeNum = int(e.ConnectedTriEdgeNumber[conn])
+				shift   = edgeNum * Nedge
+			)
+			_, _, Jdet := c.dfr.GetJacobian(k)
+			fs := 0.5 * Np12 * edgeLen / Jdet
+			for i := shift; i < shift+Nedge; i++ {
+				u, v, _, C := c.GetState(k, i, c.Q_Face)
+				waveSpeed := fs * (math.Sqrt(u*u+v*v) + C)
+				wsMax = math.Max(waveSpeed, wsMax)
+			}
+		}
+	}
+	dt = c.CFL / wsMax
 	return
 }
 
-func (c *Euler) RHS(Q [4]utils.Matrix) (RHSCalc [4]utils.Matrix) {
+func (c *Euler) GetState(k, i int, Q [4]utils.Matrix) (u, v, p, C float64) {
+	var (
+		Gamma = c.Gamma
+		GM1   = Gamma - 1.
+		Kmax  = c.dfr.K
+		ind   = k + Kmax*i
+		rho   = Q[0].Data()[ind]
+		E     = Q[3].Data()[ind]
+	)
+	u = Q[1].Data()[ind] / rho
+	v = Q[2].Data()[ind] / rho
+	p = GM1 * (E - 0.5*rho*(u*u+v*v))
+	C = math.Sqrt(math.Abs(Gamma * p / rho))
+	return
+}
+
+func (c *Euler) RHS(Q [4]utils.Matrix, time float64) (RHSCalc [4]utils.Matrix) {
 	var (
 		Kmax = c.dfr.K
 		Nint = c.dfr.FluxElement.Nint

@@ -201,6 +201,12 @@ func TestEuler(t *testing.T) {
 			}
 		}
 	}
+	{ // Test solver
+		N := 1
+		plotMesh := false
+		c := NewEuler(0.001, N, "../../DG2D/vortexA04.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
+		c.Solve()
+	}
 }
 
 func PrintQ(Q [4]utils.Matrix, l string) {
