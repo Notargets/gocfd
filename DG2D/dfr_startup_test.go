@@ -1,7 +1,6 @@
 package DG2D
 
 import (
-	"fmt"
 	"image/color"
 	"math"
 	"testing"
@@ -322,37 +321,44 @@ func TestDFR2D(t *testing.T) {
 		vxd, vyd := VX.Data(), VY.Data()
 		for k := 0; k < dfr.K; k++ {
 			verts := dfr.Tris.GetTriVerts(uint32(k))
-			for ii := 0; ii < 3; ii++ {
-				vxd[k+ii*K], vyd[k+ii*K] = dfr.VX.Data()[verts[ii]], dfr.VY.Data()[verts[ii]]
-			}
-			for ii := 3; ii < Np; ii++ {
-				ind := k + (ii-3+dfr.FluxElement.Nint)*K
-				indNew := k + ii*K
-				vxd[indNew], vyd[indNew] = dfr.FluxX.Data()[ind], dfr.FluxY.Data()[ind]
+			for ii := 0; ii < Np; ii++ {
+				ind := k + ii*K
+				switch {
+				case ii < 3:
+					vxd[ind], vyd[ind] = dfr.VX.Data()[verts[ii]], dfr.VY.Data()[verts[ii]]
+				case ii >= 3:
+					indFlux := k + (ii-3+dfr.FluxElement.Nint)*K
+					vxd[ind], vyd[ind] = dfr.FluxX.Data()[indFlux], dfr.FluxY.Data()[indFlux]
+				}
 			}
 		}
 		// Now replicate the triangle mesh for all triangles > k=0
-		for k := 1; k < K; k++ {
-			for _, tri := range gm.Triangles {
+		baseTris := gm.Triangles
+		gm.Triangles = make([]graphics2D.Triangle, K*len(baseTris))
+		for k := 0; k < K; k++ {
+			for i, tri := range baseTris {
 				newTri := graphics2D.Triangle{Nodes: tri.Nodes}
 				for ii := 0; ii < 3; ii++ {
 					newTri.Nodes[ii] += int32(k * Np)
 				}
-				gm.Triangles = append(gm.Triangles, newTri)
+				ind := k + i*K
+				gm.Triangles[ind] = newTri
 			}
 		}
-		gm.BaseGeometryClass.Geometry = []graphics2D.Point{}
+		gm.BaseGeometryClass.Geometry = make([]graphics2D.Point, K*Np)
 		for k := 0; k < K; k++ {
 			for ii := 0; ii < Np; ii++ {
-				gm.BaseGeometryClass.Geometry = append(gm.BaseGeometryClass.Geometry, graphics2D.Point{
-					X: [2]float32{float32(vxd[k+ii*K]), float32(vyd[k+ii*K])},
-				})
+				ind := k + ii*K
+				ind2 := ii + k*Np
+				gm.BaseGeometryClass.Geometry[ind2] = graphics2D.Point{X: [2]float32{float32(vxd[ind]), float32(vyd[ind])}}
 			}
 		}
 		gm.Attributes = make([][]float32, len(gm.Triangles))
-		for k, tri := range gm.Triangles {
-			fmt.Printf("verts[%d] = %d,%d,%d\n", k, tri.Nodes[0], tri.Nodes[1], tri.Nodes[2])
-		}
+		/*
+			for k, tri := range gm.Triangles {
+				fmt.Printf("verts[%d] = %d,%d,%d\n", k, tri.Nodes[0], tri.Nodes[1], tri.Nodes[2])
+			}
+		*/
 		if false {
 			PlotTriMesh(gm)
 			utils.SleepFor(50000)
