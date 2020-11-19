@@ -2,8 +2,11 @@ package DG2D
 
 import (
 	"fmt"
+	"image/color"
 	"math"
 	"testing"
+
+	"github.com/notargets/avs/chart2d"
 
 	graphics2D "github.com/notargets/avs/geometry"
 
@@ -286,9 +289,8 @@ func TestDFR2D(t *testing.T) {
 	{ // Test output of triangulated mesh for plotting
 		N := 1
 		plotMesh := false
+		//dfr := NewDFR2D(N, plotMesh, "vortexA04.neu")
 		dfr := NewDFR2D(N, plotMesh, "test_tris_6.neu")
-		fmt.Println(dfr.FluxX.Print("FluxX"))
-		fmt.Println(dfr.FluxY.Print("FluxY"))
 		/*
 			Triangulate the unit RT triangle
 			start with the bounding triangle, which includes the corners
@@ -303,13 +305,18 @@ func TestDFR2D(t *testing.T) {
 		tri.AddEdge(tm.NewEdge([2]int{2, 0}, true))
 		tm.AddBoundingTriangle(tri)
 		// Now we add points to incrementally define the triangulation
-		for i, r := range dfr.FluxElement.R.Data() {
+		Nint := dfr.FluxElement.Nint
+		NpFlux := dfr.FluxElement.Np
+		for i := Nint; i < NpFlux; i++ {
+			r := dfr.FluxElement.R.Data()[i]
 			s := dfr.FluxElement.S.Data()[i]
 			tm.AddPoint(r, s)
 		}
 		gm := tm.ToGraphMesh()
+		//PlotTriMesh(gm)
+		//utils.SleepFor(50000)
 		// Build the X,Y coordinates to support the triangulation index
-		Np := dfr.FluxElement.Np + 3
+		Np := dfr.FluxElement.Np - dfr.FluxElement.Nint + 3 // Subtract Nint to remove the dup pts and add 3 for the verts
 		K := dfr.K
 		VX, VY := utils.NewMatrix(Np, K), utils.NewMatrix(Np, K)
 		vxd, vyd := VX.Data(), VY.Data()
@@ -319,7 +326,7 @@ func TestDFR2D(t *testing.T) {
 				vxd[k+ii*K], vyd[k+ii*K] = dfr.VX.Data()[verts[ii]], dfr.VY.Data()[verts[ii]]
 			}
 			for ii := 3; ii < Np; ii++ {
-				ind := k + (ii-3)*K
+				ind := k + (ii-3+dfr.FluxElement.Nint)*K
 				indNew := k + ii*K
 				vxd[indNew], vyd[indNew] = dfr.FluxX.Data()[ind], dfr.FluxY.Data()[ind]
 			}
@@ -327,24 +334,47 @@ func TestDFR2D(t *testing.T) {
 		// Now replicate the triangle mesh for all triangles > k=0
 		for k := 1; k < K; k++ {
 			for _, tri := range gm.Triangles {
-				newTri := graphics2D.Triangle{
-					tri.Nodes,
-				}
+				newTri := graphics2D.Triangle{Nodes: tri.Nodes}
 				for ii := 0; ii < 3; ii++ {
 					newTri.Nodes[ii] += int32(k * Np)
 				}
 				gm.Triangles = append(gm.Triangles, newTri)
-				for ii := 0; ii < Np; ii++ {
-					gm.BaseGeometryClass.Geometry = append(gm.BaseGeometryClass.Geometry, graphics2D.Point{
-						X: [2]float32{float32(vxd[k+ii*K]), float32(vyd[k+ii*K])},
-					})
-				}
+			}
+		}
+		gm.BaseGeometryClass.Geometry = []graphics2D.Point{}
+		for k := 0; k < K; k++ {
+			for ii := 0; ii < Np; ii++ {
+				gm.BaseGeometryClass.Geometry = append(gm.BaseGeometryClass.Geometry, graphics2D.Point{
+					X: [2]float32{float32(vxd[k+ii*K]), float32(vyd[k+ii*K])},
+				})
 			}
 		}
 		gm.Attributes = make([][]float32, len(gm.Triangles))
 		for k, tri := range gm.Triangles {
 			fmt.Printf("verts[%d] = %d,%d,%d\n", k, tri.Nodes[0], tri.Nodes[1], tri.Nodes[2])
 		}
+		if false {
+			PlotTriMesh(gm)
+			utils.SleepFor(50000)
+		}
+	}
+}
+
+func PlotTriMesh(trimesh graphics2D.TriMesh) {
+	box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
+	box = box.Scale(1.5)
+	chart := chart2d.NewChart2D(1920, 1920, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
+	//chart.AddColorMap(colorMap)
+	go chart.Plot()
+	white := color.RGBA{
+		R: 255,
+		G: 255,
+		B: 255,
+		A: 0,
+	}
+	if err := chart.AddTriMesh("TriMesh", trimesh.Geometry, trimesh,
+		chart2d.CrossGlyph, chart2d.Solid, white); err != nil {
+		panic("unable to add graph series")
 	}
 }
 
