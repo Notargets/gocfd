@@ -163,9 +163,18 @@ func (dfr *DFR2D) ProjectFluxOntoRTSpace(Fx, Fy utils.Matrix) (Fp utils.Matrix) 
 
 func (dfr *DFR2D) OutputMesh() (gm graphics2D.TriMesh) {
 	/*
-		Triangulate the unit RT triangle
-		start with the bounding triangle, which includes the corners to constrain the Delaunay triangulation
+				For each of K elements, the layout of the output mesh is:
+				Indexed geometry:
+					Three vertices of the base triangle, followed by RT node points, excluding duplicated Nint pts
+		    	Triangles:
+					Some number of triangles, defined by indexing into the Indexed Geometry / function values
+
+				******************************************************************************************************
+				Given there is no function data for the corners of the RT element, these will have to be supplied when
+				constructing the indexed function data to complement this output mesh
 	*/
+	// Triangulate the unit RT triangle: start with the bounding triangle, which includes the corners to constrain
+	// the Delaunay triangulation
 	R := []float64{-1, 1, -1} // Vertices of unit triangle
 	S := []float64{-1, -1, 1}
 	tm := geometry2D.NewTriMesh(R, S)
