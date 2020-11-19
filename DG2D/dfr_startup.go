@@ -161,10 +161,13 @@ func (dfr *DFR2D) ProjectFluxOntoRTSpace(Fx, Fy utils.Matrix) (Fp utils.Matrix) 
 	return
 }
 
-func (dfr *DFR2D) ConvertScalarToOutputMesh(gm *graphics2D.TriMesh, f utils.Matrix) (fI []float32) {
+func (dfr *DFR2D) ConvertScalarToOutputMesh(f utils.Matrix) (fI []float32) {
 	/*
-		f contains the function data associated with the output mesh
-		The input dimensions of f are: f(Np, K), where Np is the number of RT nodes and K is the element count
+				Input f contains the function data to be associated with the output mesh
+				The input dimensions of f are: f(Np, K), where Np is the number of RT nodes and K is the element count
+
+				Output fI contains the function data in the same order as the vertices of the output mesh
+		    	The corners of each element are formed by averaging the nearest two edge values
 	*/
 	var (
 		fD     = f.Data()
@@ -260,6 +263,8 @@ func (dfr *DFR2D) OutputMesh() (gm graphics2D.TriMesh) {
 			}
 		}
 	}
+	//fmt.Println(VX.Transpose().Print("VX_Out"))
+	//fmt.Println(VY.Transpose().Print("VY_Out"))
 
 	// Now replicate the triangle mesh for all triangles
 	baseTris := gm.Triangles
@@ -268,11 +273,9 @@ func (dfr *DFR2D) OutputMesh() (gm graphics2D.TriMesh) {
 		for i, tri := range baseTris {
 			newTri := graphics2D.Triangle{Nodes: tri.Nodes}
 			for ii := 0; ii < 3; ii++ {
-				node := newTri.Nodes[ii]
-				newTri.Nodes[ii] = int32(k + int(node)*Kmax)
+				newTri.Nodes[ii] = int32(Ind(k, int(newTri.Nodes[ii]), Kmax))
 			}
-			ind := Ind(k, i, Kmax)
-			gm.Triangles[ind] = newTri
+			gm.Triangles[Ind(k, i, Kmax)] = newTri
 		}
 	}
 	gm.BaseGeometryClass.Geometry = make([]graphics2D.Point, Kmax*Np)

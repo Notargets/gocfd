@@ -293,6 +293,19 @@ func TestDFR2D(t *testing.T) {
 			PlotTriMesh(gm)
 			utils.SleepFor(50000)
 		}
+		// Generate a test function for plotting, on the RT element coordinates
+		NpFlux := dfr.FluxElement.Np
+		Kmax := dfr.K
+		f := utils.NewMatrix(NpFlux, Kmax)
+		fD := f.Data()
+		ootwoPi := 1. / (2. * math.Pi)
+		for i := 0; i < NpFlux*Kmax; i++ {
+			//x, y := dfr.FluxX.Data()[i], dfr.FluxY.Data()[i]
+			x := dfr.FluxX.Data()[i]
+			fD[i] = math.Sin(x * ootwoPi)
+		}
+		fI := dfr.ConvertScalarToOutputMesh(f)
+		assert.Equal(t, len(fI), len(gm.Geometry))
 	}
 }
 
