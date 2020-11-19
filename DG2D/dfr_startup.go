@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"math"
 
+	graphics2D "github.com/notargets/avs/geometry"
+	"github.com/notargets/gocfd/geometry2D"
+
 	"github.com/notargets/gocfd/utils"
 )
 
@@ -155,5 +158,73 @@ func (dfr *DFR2D) ProjectFluxOntoRTSpace(Fx, Fy utils.Matrix) (Fp utils.Matrix) 
 			}
 		}
 	}
+	return
+}
+
+func (dfr *DFR2D) OutputMesh() (gm graphics2D.TriMesh) {
+	/*
+		Triangulate the unit RT triangle
+		start with the bounding triangle, which includes the corners to constrain the Delaunay triangulation
+	*/
+	R := []float64{-1, 1, -1} // Vertices of unit triangle
+	S := []float64{-1, -1, 1}
+	tm := geometry2D.NewTriMesh(R, S)
+	tri := &geometry2D.Tri{}
+	tri.AddEdge(tm.NewEdge([2]int{0, 1}, true))
+	e2 := tm.NewEdge([2]int{1, 2}, true)
+	tri.AddEdge(e2)
+	tri.AddEdge(tm.NewEdge([2]int{2, 0}, true))
+	tm.AddBoundingTriangle(tri)
+	// Now we add points to incrementally define the triangulation
+	Nint := dfr.FluxElement.Nint
+	NpFlux := dfr.FluxElement.Np
+	for i := Nint; i < NpFlux; i++ {
+		r := dfr.FluxElement.R.Data()[i]
+		s := dfr.FluxElement.S.Data()[i]
+		tm.AddPoint(r, s)
+	}
+	gm = tm.ToGraphMesh()
+
+	// Build the X,Y coordinates to support the triangulation index
+	Np := dfr.FluxElement.Np - dfr.FluxElement.Nint + 3 // Subtract Nint to remove the dup pts and add 3 for the verts
+	K := dfr.K
+	VX, VY := utils.NewMatrix(Np, K), utils.NewMatrix(Np, K)
+	vxd, vyd := VX.Data(), VY.Data()
+	for k := 0; k < dfr.K; k++ {
+		verts := dfr.Tris.GetTriVerts(uint32(k))
+		for ii := 0; ii < Np; ii++ {
+			ind := k + ii*K
+			switch {
+			case ii < 3:
+				vxd[ind], vyd[ind] = dfr.VX.Data()[verts[ii]], dfr.VY.Data()[verts[ii]]
+			case ii >= 3:
+				indFlux := k + (ii-3+dfr.FluxElement.Nint)*K
+				vxd[ind], vyd[ind] = dfr.FluxX.Data()[indFlux], dfr.FluxY.Data()[indFlux]
+			}
+		}
+	}
+
+	// Now replicate the triangle mesh for all triangles
+	baseTris := gm.Triangles
+	gm.Triangles = make([]graphics2D.Triangle, K*len(baseTris))
+	for k := 0; k < K; k++ {
+		for i, tri := range baseTris {
+			newTri := graphics2D.Triangle{Nodes: tri.Nodes}
+			for ii := 0; ii < 3; ii++ {
+				node := newTri.Nodes[ii]
+				newTri.Nodes[ii] = int32(k + int(node)*K)
+			}
+			ind := k + i*K
+			gm.Triangles[ind] = newTri
+		}
+	}
+	gm.BaseGeometryClass.Geometry = make([]graphics2D.Point, K*Np)
+	for k := 0; k < K; k++ {
+		for ii := 0; ii < Np; ii++ {
+			ind := k + ii*K
+			gm.BaseGeometryClass.Geometry[ind] = graphics2D.Point{X: [2]float32{float32(vxd[ind]), float32(vyd[ind])}}
+		}
+	}
+	gm.Attributes = make([][]float32, len(gm.Triangles)) // Empty attributes
 	return
 }
