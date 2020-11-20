@@ -290,7 +290,7 @@ func TestDFR2D(t *testing.T) {
 	{ // Test output of triangulated mesh for plotting
 		N := 4
 		plotMesh := false
-		plotFunc := true
+		plotFunc := false
 		//dfr := NewDFR2D(N, plotMesh, "vortexA04.neu")
 		dfr := NewDFR2D(N, plotMesh, "test_tris_6.neu")
 		gm := dfr.OutputMesh()
