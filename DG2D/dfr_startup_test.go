@@ -288,10 +288,11 @@ func TestDFR2D(t *testing.T) {
 		}
 	}
 	{ // Test output of triangulated mesh for plotting
-		N := 1
+		N := 4
 		plotMesh := false
-		dfr := NewDFR2D(N, plotMesh, "vortexA04.neu")
-		//dfr := NewDFR2D(N, plotMesh, "test_tris_6.neu")
+		plotFunc := false
+		//dfr := NewDFR2D(N, plotMesh, "vortexA04.neu")
+		dfr := NewDFR2D(N, plotMesh, "test_tris_6.neu")
 		gm := dfr.OutputMesh()
 		if false {
 			PlotTriMesh(gm)
@@ -302,16 +303,16 @@ func TestDFR2D(t *testing.T) {
 		Kmax := dfr.K
 		f := utils.NewMatrix(NpFlux, Kmax)
 		fD := f.Data()
-		ootwoPi := 1. / (2. * math.Pi)
+		xmin, xmax := dfr.FluxX.Min(), dfr.FluxX.Max()
+		norm := 1. / (xmax - xmin)
 		for i := 0; i < NpFlux*Kmax; i++ {
-			//x, y := dfr.FluxX.Data()[i], dfr.FluxY.Data()[i]
-			x := dfr.FluxX.Data()[i]
-			fD[i] = math.Sin(x * ootwoPi)
+			x := (dfr.FluxX.Data()[i] - xmin) * norm
+			fD[i] = math.Sin(0.5 * x * math.Pi)
+			//fmt.Printf("x[%d] = %8.5f, fD[%d] = %8.5f\n", i, x, i, fD[i])
 		}
 		fI := dfr.ConvertScalarToOutputMesh(f)
 		assert.Equal(t, len(fI), len(gm.Geometry))
 		fs := functions.NewFSurface(&gm, [][]float32{fI}, 0)
-		plotFunc := false
 		if plotFunc {
 			PlotFS(fs, 0, 1)
 			utils.SleepFor(50000)
@@ -336,7 +337,14 @@ func PlotFS(fs *functions.FSurface, fmin, fmax float64) {
 		B: 255,
 		A: 0,
 	}
-	if err := chart.AddFunctionSurface("FSurface", *fs, chart2d.Solid, white); err != nil {
+	black := color.RGBA{
+		R: 0,
+		G: 0,
+		B: 0,
+		A: 1,
+	}
+	_, _ = white, black
+	if err := chart.AddFunctionSurface("FSurface", *fs, chart2d.Solid, black); err != nil {
 		panic("unable to add function surface series")
 	}
 }
