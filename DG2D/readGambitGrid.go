@@ -179,7 +179,7 @@ func PlotMesh(VX, VY utils.Vector, EToV, BCType, X, Y utils.Matrix, plotPoints b
 		A: 0,
 	}
 	_ = colorMap
-	if err := chart.AddTriMesh("TriMesh", points, trimesh,
+	if err := chart.AddTriMesh("TriMesh", trimesh,
 		chart2d.CrossGlyph, chart2d.Solid, white); err != nil {
 		panic("unable to add graph series")
 	}

@@ -321,7 +321,7 @@ func PlotTriMesh(trimesh graphics2D.TriMesh) {
 		B: 255,
 		A: 0,
 	}
-	if err := chart.AddTriMesh("TriMesh", trimesh.Geometry, trimesh,
+	if err := chart.AddTriMesh("TriMesh", trimesh,
 		chart2d.CrossGlyph, chart2d.Solid, white); err != nil {
 		panic("unable to add graph series")
 	}

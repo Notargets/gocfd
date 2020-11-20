@@ -149,7 +149,7 @@ func plotTriangles(triMesh graphics2D.TriMesh) (chart *chart2d.Chart2D) {
 }
 
 func updateTriMesh(chart *chart2d.Chart2D, triMesh graphics2D.TriMesh) {
-	if err := chart.AddTriMesh("TriMesh", triMesh.Geometry, triMesh,
+	if err := chart.AddTriMesh("TriMesh", triMesh,
 		chart2d.CrossGlyph, chart2d.Solid, utils.GetColor(utils.White)); err != nil {
 		panic("unable to add graph series")
 	}

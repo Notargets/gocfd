@@ -165,7 +165,7 @@ func PlotTestTri(plotGeom bool) (chart *chart2d.Chart2D) {
 	go chart.Plot()
 
 	if plotGeom {
-		if err := chart.AddTriMesh("TriMesh", points, trimesh,
+		if err := chart.AddTriMesh("TriMesh", trimesh,
 			chart2d.CrossGlyph, chart2d.Solid, utils.GetColor(utils.White)); err != nil {
 			panic("unable to add graph series")
 		}
