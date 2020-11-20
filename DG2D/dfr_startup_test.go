@@ -5,6 +5,10 @@ import (
 	"math"
 	"testing"
 
+	utils2 "github.com/notargets/avs/utils"
+
+	"github.com/notargets/avs/functions"
+
 	"github.com/notargets/avs/chart2d"
 
 	graphics2D "github.com/notargets/avs/geometry"
@@ -286,8 +290,8 @@ func TestDFR2D(t *testing.T) {
 	{ // Test output of triangulated mesh for plotting
 		N := 1
 		plotMesh := false
-		//dfr := NewDFR2D(N, plotMesh, "vortexA04.neu")
-		dfr := NewDFR2D(N, plotMesh, "test_tris_6.neu")
+		dfr := NewDFR2D(N, plotMesh, "vortexA04.neu")
+		//dfr := NewDFR2D(N, plotMesh, "test_tris_6.neu")
 		gm := dfr.OutputMesh()
 		if false {
 			PlotTriMesh(gm)
@@ -306,6 +310,34 @@ func TestDFR2D(t *testing.T) {
 		}
 		fI := dfr.ConvertScalarToOutputMesh(f)
 		assert.Equal(t, len(fI), len(gm.Geometry))
+		fs := functions.NewFSurface(&gm, [][]float32{fI}, 0)
+		plotFunc := false
+		if plotFunc {
+			PlotFS(fs, 0, 1)
+			utils.SleepFor(50000)
+		}
+	}
+}
+
+func PlotFS(fs *functions.FSurface, fmin, fmax float64) {
+	var (
+		trimesh = fs.Tris
+	)
+	box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
+	box = box.Scale(1.5)
+	chart := chart2d.NewChart2D(1920, 1920, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
+
+	colorMap := utils2.NewColorMap(float32(fmin), float32(fmax), 1.)
+	chart.AddColorMap(colorMap)
+	go chart.Plot()
+	white := color.RGBA{
+		R: 255,
+		G: 255,
+		B: 255,
+		A: 0,
+	}
+	if err := chart.AddFunctionSurface("FSurface", *fs, chart2d.Solid, white); err != nil {
+		panic("unable to add function surface series")
 	}
 }
 
