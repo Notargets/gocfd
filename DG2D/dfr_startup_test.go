@@ -288,11 +288,12 @@ func TestDFR2D(t *testing.T) {
 		}
 	}
 	{ // Test output of triangulated mesh for plotting
-		N := 4
+		N := 1
 		plotMesh := false
 		plotFunc := false
 		//dfr := NewDFR2D(N, plotMesh, "vortexA04.neu")
-		dfr := NewDFR2D(N, plotMesh, "test_tris_6.neu")
+		//dfr := NewDFR2D(N, plotMesh, "test_tris_6.neu")
+		dfr := NewDFR2D(N, plotMesh, "test_tris_1.neu")
 		gm := dfr.OutputMesh()
 		if false {
 			PlotTriMesh(gm)
@@ -308,13 +309,13 @@ func TestDFR2D(t *testing.T) {
 		for i := 0; i < NpFlux*Kmax; i++ {
 			x := (dfr.FluxX.Data()[i] - xmin) * norm
 			fD[i] = math.Sin(0.5 * x * math.Pi)
-			//fmt.Printf("x[%d] = %8.5f, fD[%d] = %8.5f\n", i, x, i, fD[i])
 		}
 		fI := dfr.ConvertScalarToOutputMesh(f)
 		assert.Equal(t, len(fI), len(gm.Geometry))
 		fs := functions.NewFSurface(&gm, [][]float32{fI}, 0)
 		if plotFunc {
-			PlotFS(fs, 0, 1)
+			//PlotFS(fs, 0, 1)
+			PlotFS(fs, 0, 1, chart2d.Solid)
 			utils.SleepFor(50000)
 		}
 	}
