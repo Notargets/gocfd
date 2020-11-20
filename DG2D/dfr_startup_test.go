@@ -290,7 +290,7 @@ func TestDFR2D(t *testing.T) {
 	{ // Test output of triangulated mesh for plotting
 		N := 4
 		plotMesh := false
-		plotFunc := false
+		plotFunc := true
 		//dfr := NewDFR2D(N, plotMesh, "vortexA04.neu")
 		dfr := NewDFR2D(N, plotMesh, "test_tris_6.neu")
 		gm := dfr.OutputMesh()
@@ -320,10 +320,14 @@ func TestDFR2D(t *testing.T) {
 	}
 }
 
-func PlotFS(fs *functions.FSurface, fmin, fmax float64) {
+func PlotFS(fs *functions.FSurface, fmin, fmax float64, ltO ...chart2d.LineType) {
 	var (
 		trimesh = fs.Tris
+		lt      = chart2d.NoLine
 	)
+	if len(ltO) != 0 {
+		lt = ltO[0]
+	}
 	box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
 	box = box.Scale(1.5)
 	chart := chart2d.NewChart2D(1920, 1920, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
@@ -334,7 +338,7 @@ func PlotFS(fs *functions.FSurface, fmin, fmax float64) {
 	white := color.RGBA{R: 255, G: 255, B: 255, A: 1}
 	black := color.RGBA{R: 0, G: 0, B: 0, A: 1}
 	_, _ = white, black
-	if err := chart.AddFunctionSurface("FSurface", *fs, chart2d.Solid, black); err != nil {
+	if err := chart.AddFunctionSurface("FSurface", *fs, lt, black); err != nil {
 		panic("unable to add function surface series")
 	}
 }
