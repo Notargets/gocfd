@@ -331,18 +331,8 @@ func PlotFS(fs *functions.FSurface, fmin, fmax float64) {
 	colorMap := utils2.NewColorMap(float32(fmin), float32(fmax), 1.)
 	chart.AddColorMap(colorMap)
 	go chart.Plot()
-	white := color.RGBA{
-		R: 255,
-		G: 255,
-		B: 255,
-		A: 0,
-	}
-	black := color.RGBA{
-		R: 0,
-		G: 0,
-		B: 0,
-		A: 1,
-	}
+	white := color.RGBA{R: 255, G: 255, B: 255, A: 1}
+	black := color.RGBA{R: 0, G: 0, B: 0, A: 1}
 	_, _ = white, black
 	if err := chart.AddFunctionSurface("FSurface", *fs, chart2d.Solid, black); err != nil {
 		panic("unable to add function surface series")
