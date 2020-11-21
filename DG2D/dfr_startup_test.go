@@ -296,7 +296,7 @@ func TestDFR2D(t *testing.T) {
 		//dfr := NewDFR2D(N, plotMesh, "test_tris_1.neu")
 		gm := dfr.OutputMesh()
 		if false {
-			PlotTriMesh(gm)
+			PlotTriMesh(*gm)
 			utils.SleepFor(50000)
 		}
 		// Generate a test function for plotting, on the RT element coordinates
@@ -312,7 +312,7 @@ func TestDFR2D(t *testing.T) {
 		}
 		fI := dfr.ConvertScalarToOutputMesh(f)
 		assert.Equal(t, len(fI), len(gm.Geometry))
-		fs := functions.NewFSurface(&gm, [][]float32{fI}, 0)
+		fs := functions.NewFSurface(gm, [][]float32{fI}, 0)
 		if plotFunc {
 			PlotFS(fs, 0, 1)
 			//PlotFS(fs, 0, 1, chart2d.Solid)

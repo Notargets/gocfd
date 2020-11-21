@@ -205,7 +205,7 @@ func TestEuler(t *testing.T) {
 		N := 2
 		plotMesh := false
 		plotQ := false
-		c := NewEuler(1.0, N, "../../DG2D/vortexA04.neu", 0.2, FLUX_Average, IVORTEX, plotMesh, true)
+		c := NewEuler(1.0, N, "../../DG2D/vortexA04.neu", 0.1, FLUX_Average, IVORTEX, plotMesh, true)
 		c.Solve(plotQ)
 	}
 }
