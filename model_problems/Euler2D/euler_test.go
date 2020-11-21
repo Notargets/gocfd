@@ -210,8 +210,9 @@ func TestEuler(t *testing.T) {
 	{ // Test solver
 		N := 1
 		plotMesh := false
+		plotRho := false
 		c := NewEuler(0.1, N, "../../DG2D/vortexA04.neu", 0.1, FLUX_Average, IVORTEX, plotMesh, true)
-		if false {
+		if plotRho {
 			gm := c.dfr.OutputMesh()
 			oField := c.dfr.FluxInterpMatrix.Mul(c.Q[0])
 			fI := c.dfr.ConvertScalarToOutputMesh(oField)
@@ -234,7 +235,7 @@ func PlotFS(fs *functions.FSurface, fmin, fmax float64, ltO ...chart2d.LineType)
 		lt = ltO[0]
 	}
 	box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
-	box = box.Scale(1.5)
+	box = box.Scale(.5)
 	chart := chart2d.NewChart2D(1920, 1920, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
 
 	colorMap := utils2.NewColorMap(float32(fmin), float32(fmax), 1.)
@@ -243,7 +244,7 @@ func PlotFS(fs *functions.FSurface, fmin, fmax float64, ltO ...chart2d.LineType)
 	white := color.RGBA{R: 255, G: 255, B: 255, A: 1}
 	black := color.RGBA{R: 0, G: 0, B: 0, A: 1}
 	_, _ = white, black
-	if err := chart.AddFunctionSurface("FSurface", *fs, lt, black); err != nil {
+	if err := chart.AddFunctionSurface("FSurface", *fs, lt, white); err != nil {
 		panic("unable to add function surface series")
 	}
 }

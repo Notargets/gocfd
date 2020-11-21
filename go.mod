@@ -10,7 +10,7 @@ require (
 	github.com/james-bowman/sparse v0.0.0-20200204164517-b588421ac5da
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.3.2 // indirect
-	github.com/notargets/avs v0.0.7-0.20201120220431-3d6786786a85
+	github.com/notargets/avs v0.0.7-0.20201121032317-cc994a55a74d
 	github.com/pelletier/go-toml v1.8.0 // indirect
 	github.com/spf13/afero v1.2.2 // indirect
 	github.com/spf13/cast v1.3.1 // indirect
