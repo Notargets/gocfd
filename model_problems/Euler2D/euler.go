@@ -2,7 +2,13 @@ package Euler2D
 
 import (
 	"fmt"
+	"image/color"
 	"math"
+	"time"
+
+	graphics2D "github.com/notargets/avs/geometry"
+
+	"github.com/notargets/avs/functions"
 
 	"github.com/notargets/gocfd/model_problems/Euler2D/isentropic_vortex"
 
@@ -114,42 +120,85 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, model Mode
 func (c *Euler) Solve() {
 	var (
 		FinalTime        = c.FinalTime
-		time, dt         float64
+		Time, dt         float64
 		Q1, Q2, Residual [4]utils.Matrix
 		steps            int
+		fs               *functions.FSurface
 	)
 	fmt.Printf("solving until finaltime = %8.5f\n", FinalTime)
 	for {
-		if time >= FinalTime {
+		if Time >= FinalTime {
 			break
 		}
-		if time == 0 {
+		if Time == 0 {
 			c.InterpolateSolutionToEdges(c.Q)
 		}
 		dt = c.CalculateDT()
-		if time+dt > FinalTime {
-			dt = FinalTime - time
+		if Time+dt > FinalTime {
+			dt = FinalTime - Time
 		}
-		rhsQ := c.RHS(c.Q, time)
+		rhsQ := c.RHS(c.Q, Time)
 		for n := 0; n < 4; n++ {
 			Q1[n] = rhsQ[n].Scale(dt).Add(c.Q[n])
 		}
-		rhsQ = c.RHS(Q1, time)
+		rhsQ = c.RHS(Q1, Time)
 		for n := 0; n < 4; n++ {
 			Q2[n] = rhsQ[n].Scale(dt).Add(Q1[n]).Add(c.Q[n].Copy().Scale(3)).Scale(0.25)
 		}
-		rhsQ = c.RHS(Q2, time)
+		rhsQ = c.RHS(Q2, Time)
 		for n := 0; n < 4; n++ {
 			Residual[n] = rhsQ[n].Scale(2 * dt).Add(Q2[n].Scale(2)).Add(c.Q[n]).Scale(1. / 3.).Subtract(c.Q[n])
 			c.Q[n].Add(Residual[n])
 		}
 		steps++
-		time += dt
-		fmt.Printf("Time,dt = %8.5f,%8.5f, Residual[eq#]Min/Max:", time, dt)
+		Time += dt
+		_ = fs
+		//fs = c.PlotQ(fs, c.Q, 0, 100*time.Millisecond) // wait till we implement time iterative frame updates
+		fmt.Printf("Time,dt = %8.5f,%8.5f, Residual[eq#]Min/Max:", Time, dt)
 		for n := 0; n < 4; n++ {
 			fmt.Printf(" [%d] %8.5f,%8.5f ", n, Residual[n].Min(), Residual[n].Max())
 		}
 		fmt.Printf("\n")
+	}
+}
+
+func (c *Euler) PlotQ(fs *functions.FSurface, Q [4]utils.Matrix, field int, delay time.Duration, lineType chart2d.LineType) (fso *functions.FSurface) {
+	var (
+		oField = c.dfr.FluxInterpMatrix.Mul(Q[field])
+		fI     = c.dfr.ConvertScalarToOutputMesh(oField)
+	)
+	if fs == nil {
+		gm := c.dfr.OutputMesh()
+		fs = functions.NewFSurface(&gm, [][]float32{fI}, 0)
+	}
+	fso = fs
+	fmin, fmax := oField.Min(), oField.Max()
+	fmt.Printf("F min,max = %8.5f,%8.5f\n", fmin, fmax)
+	PlotFS(fs, oField.Min(), oField.Max(), lineType)
+	utils.SleepFor(int(delay.Milliseconds()))
+	return
+}
+
+func PlotFS(fs *functions.FSurface, fmin, fmax float64, ltO ...chart2d.LineType) {
+	var (
+		trimesh = fs.Tris
+		lt      = chart2d.NoLine
+	)
+	if len(ltO) != 0 {
+		lt = ltO[0]
+	}
+	box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
+	box = box.Scale(.5)
+	chart := chart2d.NewChart2D(1920, 1920, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
+
+	colorMap := utils2.NewColorMap(float32(fmin), float32(fmax), 1.)
+	chart.AddColorMap(colorMap)
+	go chart.Plot()
+	white := color.RGBA{R: 255, G: 255, B: 255, A: 1}
+	black := color.RGBA{R: 0, G: 0, B: 0, A: 1}
+	_, _ = white, black
+	if err := chart.AddFunctionSurface("FSurface", *fs, lt, white); err != nil {
+		panic("unable to add function surface series")
 	}
 }
 
