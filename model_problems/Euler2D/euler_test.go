@@ -2,9 +2,15 @@ package Euler2D
 
 import (
 	"fmt"
+	"image/color"
 	"math"
 	"strconv"
 	"testing"
+
+	"github.com/notargets/avs/chart2d"
+	"github.com/notargets/avs/functions"
+	graphics2D "github.com/notargets/avs/geometry"
+	utils2 "github.com/notargets/avs/utils"
 
 	"github.com/stretchr/testify/assert"
 
@@ -29,7 +35,7 @@ func TestEuler(t *testing.T) {
 			}
 			// Interpolate from solution points to edges using precomputed interpolation matrix
 			for n := 0; n < 4; n++ {
-				c.Q_Face[n] = c.dfr.FluxInterpMatrix.Mul(c.Q[n])
+				c.Q_Face[n] = c.dfr.FluxEdgeInterpMatrix.Mul(c.Q[n])
 			}
 			for n := 0; n < 4; n++ {
 				for i := 0; i < 3*Nedge; i++ {
@@ -73,7 +79,7 @@ func TestEuler(t *testing.T) {
 			}
 			// Interpolate from solution points to edges using precomputed interpolation matrix
 			for n := 0; n < 4; n++ {
-				c.Q_Face[n] = c.dfr.FluxInterpMatrix.Mul(c.Q[n])
+				c.Q_Face[n] = c.dfr.FluxEdgeInterpMatrix.Mul(c.Q[n])
 			}
 			// Calculate flux and project into R and S (transformed) directions
 			for n := 0; n < 4; n++ {
@@ -205,7 +211,40 @@ func TestEuler(t *testing.T) {
 		N := 1
 		plotMesh := false
 		c := NewEuler(0.1, N, "../../DG2D/vortexA04.neu", 0.1, FLUX_Average, IVORTEX, plotMesh, true)
+		if false {
+			gm := c.dfr.OutputMesh()
+			oField := c.dfr.FluxInterpMatrix.Mul(c.Q[0])
+			fI := c.dfr.ConvertScalarToOutputMesh(oField)
+			fs := functions.NewFSurface(&gm, [][]float32{fI}, 0)
+			fmin, fmax := oField.Min(), oField.Max()
+			fmt.Printf("F min,max = %8.5f,%8.5f\n", fmin, fmax)
+			PlotFS(fs, oField.Min(), oField.Max(), chart2d.Solid)
+			utils.SleepFor(500000)
+		}
 		c.Solve()
+	}
+}
+
+func PlotFS(fs *functions.FSurface, fmin, fmax float64, ltO ...chart2d.LineType) {
+	var (
+		trimesh = fs.Tris
+		lt      = chart2d.NoLine
+	)
+	if len(ltO) != 0 {
+		lt = ltO[0]
+	}
+	box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
+	box = box.Scale(1.5)
+	chart := chart2d.NewChart2D(1920, 1920, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
+
+	colorMap := utils2.NewColorMap(float32(fmin), float32(fmax), 1.)
+	chart.AddColorMap(colorMap)
+	go chart.Plot()
+	white := color.RGBA{R: 255, G: 255, B: 255, A: 1}
+	black := color.RGBA{R: 0, G: 0, B: 0, A: 1}
+	_, _ = white, black
+	if err := chart.AddFunctionSurface("FSurface", *fs, lt, black); err != nil {
+		panic("unable to add function surface series")
 	}
 }
 

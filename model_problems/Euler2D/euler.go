@@ -278,7 +278,7 @@ func (c *Euler) SetNormalFluxInternal(Q [4]utils.Matrix) {
 func (c *Euler) InterpolateSolutionToEdges(Q [4]utils.Matrix) {
 	// Interpolate from solution points to edges using precomputed interpolation matrix
 	for n := 0; n < 4; n++ {
-		c.Q_Face[n] = c.dfr.FluxInterpMatrix.Mul(Q[n])
+		c.Q_Face[n] = c.dfr.FluxEdgeInterpMatrix.Mul(Q[n])
 	}
 }
 

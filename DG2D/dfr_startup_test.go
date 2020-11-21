@@ -84,7 +84,7 @@ func TestDFR2D(t *testing.T) {
 		}
 		// Interpolate from interior to flux points
 		sV := utils.NewMatrix(rt.Nint, 1, solution)
-		_ = dfr.FluxInterpMatrix.Mul(sV)
+		_ = dfr.FluxEdgeInterpMatrix.Mul(sV)
 		//fmt.Printf("%s\n", fluxInterp.Print("fluxInterp"))
 		//fmt.Printf("%s\n", sV.Print("sV"))
 	}
