@@ -292,8 +292,8 @@ func TestDFR2D(t *testing.T) {
 		plotMesh := false
 		plotFunc := false
 		//dfr := NewDFR2D(N, plotMesh, "vortexA04.neu")
-		//dfr := NewDFR2D(N, plotMesh, "test_tris_6.neu")
-		dfr := NewDFR2D(N, plotMesh, "test_tris_1.neu")
+		dfr := NewDFR2D(N, plotMesh, "test_tris_6.neu")
+		//dfr := NewDFR2D(N, plotMesh, "test_tris_1.neu")
 		gm := dfr.OutputMesh()
 		if false {
 			PlotTriMesh(gm)
@@ -314,8 +314,8 @@ func TestDFR2D(t *testing.T) {
 		assert.Equal(t, len(fI), len(gm.Geometry))
 		fs := functions.NewFSurface(&gm, [][]float32{fI}, 0)
 		if plotFunc {
-			//PlotFS(fs, 0, 1)
-			PlotFS(fs, 0, 1, chart2d.Solid)
+			PlotFS(fs, 0, 1)
+			//PlotFS(fs, 0, 1, chart2d.Solid)
 			utils.SleepFor(50000)
 		}
 	}

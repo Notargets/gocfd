@@ -193,11 +193,6 @@ func (dfr *DFR2D) ConvertScalarToOutputMesh(f utils.Matrix) (fI []float32) {
 			// [ii][0] is the first point on the edge, [ii][1] is the second
 			edge[ii][0], edge[ii][1] = float32(fD[ie0]), float32(fD[ie1])
 		}
-		fmt.Printf("edgeLimits = %v\n", edge)
-		fmt.Printf("edge = %v\n", fD[2*Nint:2*Nint+3*Nedge])
-		// TODO: Fix bug that has last edge (from 2 to 0) reversed
-		fmt.Printf("edgeX = %v\n", dfr.FluxX.Data()[2*Nint:2*Nint+3*Nedge])
-		fmt.Printf("edgeY = %v\n", dfr.FluxY.Data()[2*Nint:2*Nint+3*Nedge])
 		for ii := 0; ii < Np; ii++ {
 			ind := Ind(k, ii, Kmax)
 			switch {

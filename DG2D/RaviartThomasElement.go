@@ -367,7 +367,7 @@ func ExtendGeomToRT(N int, rInt, sInt utils.Vector) (r, s utils.Vector) {
 		sEdgeData[i+NpEdge] = -1 + 2*gpT
 		// Edge 3
 		rEdgeData[i+2*NpEdge] = -1
-		sEdgeData[i+2*NpEdge] = gp
+		sEdgeData[i+2*NpEdge] = -gp
 	}
 	rData = append(rData, rEdgeData...)
 	sData = append(sData, sEdgeData...)
