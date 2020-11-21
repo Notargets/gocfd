@@ -33,13 +33,18 @@ type Euler struct {
 	Q                     [4]utils.Matrix // Solution variables, stored at solution point locations, Np_solution x K
 	Q_Face                [4]utils.Matrix // Solution variables, interpolated to and stored at edge point locations, Np_edge x K
 	F_RT_DOF              [4]utils.Matrix // Normal Projected Flux, stored at flux/solution point locations, Np_flux x K
-	chart                 *chart2d.Chart2D
-	colorMap              *utils2.ColorMap
+	chart                 ChartState
 	model                 ModelType
 	Case                  CaseType
 	AnalyticSolution      ExactState
 	FluxCalcMock          func(Gamma, rho, rhoU, rhoV, E float64) (Fx, Fy [4]float64) // For testing
 	FaceFluxAlgo          ModelType
+}
+
+type ChartState struct {
+	chart *chart2d.Chart2D
+	fs    *functions.FSurface
+	gm    *graphics2D.TriMesh
 }
 
 type ExactState interface {
@@ -117,14 +122,21 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, model Mode
 	return
 }
 
-func (c *Euler) Solve() {
+func (c *Euler) Solve(plotQ bool) {
 	var (
 		FinalTime        = c.FinalTime
 		Time, dt         float64
 		Q1, Q2, Residual [4]utils.Matrix
 		steps            int
-		fs               *functions.FSurface
+		Np               = c.dfr.SolutionElement.Np
+		Kmax             = c.dfr.K
 	)
+	// Initialize memory for RHS
+	for n := 0; n < 4; n++ {
+		Q1[n] = utils.NewMatrix(Np, Kmax)
+		Q2[n] = utils.NewMatrix(Np, Kmax)
+		Residual[n] = utils.NewMatrix(Np, Kmax)
+	}
 	fmt.Printf("solving until finaltime = %8.5f\n", FinalTime)
 	for {
 		if Time >= FinalTime {
@@ -139,21 +151,31 @@ func (c *Euler) Solve() {
 		}
 		rhsQ := c.RHS(c.Q, Time)
 		for n := 0; n < 4; n++ {
-			Q1[n] = rhsQ[n].Scale(dt).Add(c.Q[n])
+			Q1[n].Apply3(rhsQ[n], c.Q[n], func(q1, rhsq, q float64) (res float64) {
+				res = q + rhsq*dt
+				return
+			})
 		}
 		rhsQ = c.RHS(Q1, Time)
 		for n := 0; n < 4; n++ {
-			Q2[n] = rhsQ[n].Scale(dt).Add(Q1[n]).Add(c.Q[n].Copy().Scale(3)).Scale(0.25)
+			Q2[n].Apply4(rhsQ[n], Q1[n], c.Q[n], func(q2, rhsq, q1, q float64) (res float64) {
+				res = 0.25 * (q1 + 3*q + rhsq*dt)
+				return
+			})
 		}
 		rhsQ = c.RHS(Q2, Time)
 		for n := 0; n < 4; n++ {
-			Residual[n] = rhsQ[n].Scale(2 * dt).Add(Q2[n].Scale(2)).Add(c.Q[n]).Scale(1. / 3.).Subtract(c.Q[n])
+			Residual[n].Apply4(rhsQ[n], Q2[n], c.Q[n], func(resid, rhsq, q2, q float64) (res float64) {
+				res = (2. / 3) * (q2 - q + dt*rhsq)
+				return
+			})
 			c.Q[n].Add(Residual[n])
 		}
 		steps++
 		Time += dt
-		_ = fs
-		//fs = c.PlotQ(fs, c.Q, 0, 100*time.Millisecond) // wait till we implement time iterative frame updates
+		if plotQ {
+			c.PlotQ(c.Q, 1, 100*time.Millisecond, chart2d.Dashed) // wait till we implement time iterative frame updates
+		}
 		fmt.Printf("Time,dt = %8.5f,%8.5f, Residual[eq#]Min/Max:", Time, dt)
 		for n := 0; n < 4; n++ {
 			fmt.Printf(" [%d] %8.5f,%8.5f ", n, Residual[n].Min(), Residual[n].Max())
@@ -162,42 +184,43 @@ func (c *Euler) Solve() {
 	}
 }
 
-func (c *Euler) PlotQ(fs *functions.FSurface, Q [4]utils.Matrix, field int, delay time.Duration, lineType chart2d.LineType) (fso *functions.FSurface) {
+func (c *Euler) PlotQ(Q [4]utils.Matrix, field int, delay time.Duration, lineType chart2d.LineType) {
 	var (
 		oField = c.dfr.FluxInterpMatrix.Mul(Q[field])
 		fI     = c.dfr.ConvertScalarToOutputMesh(oField)
 	)
-	if fs == nil {
-		gm := c.dfr.OutputMesh()
-		fs = functions.NewFSurface(&gm, [][]float32{fI}, 0)
+	if c.chart.gm == nil {
+		c.chart.gm = c.dfr.OutputMesh()
 	}
-	fso = fs
-	fmin, fmax := oField.Min(), oField.Max()
-	fmt.Printf("F min,max = %8.5f,%8.5f\n", fmin, fmax)
-	PlotFS(fs, oField.Min(), oField.Max(), lineType)
+	c.chart.fs = functions.NewFSurface(c.chart.gm, [][]float32{fI}, 0)
+	fmt.Printf("F min,max = %8.5f,%8.5f\n", oField.Min(), oField.Max())
+	c.PlotFS(oField.Min(), oField.Max(), lineType)
 	utils.SleepFor(int(delay.Milliseconds()))
 	return
 }
 
-func PlotFS(fs *functions.FSurface, fmin, fmax float64, ltO ...chart2d.LineType) {
+func (c *Euler) PlotFS(fmin, fmax float64, ltO ...chart2d.LineType) {
 	var (
+		fs      = c.chart.fs
 		trimesh = fs.Tris
 		lt      = chart2d.NoLine
 	)
-	if len(ltO) != 0 {
-		lt = ltO[0]
+	if c.chart.chart == nil {
+		box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
+		box = box.Scale(.5)
+		c.chart.chart = chart2d.NewChart2D(1920, 1920, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
+		colorMap := utils2.NewColorMap(float32(fmin), float32(fmax), 1.)
+		c.chart.chart.AddColorMap(colorMap)
+		go c.chart.chart.Plot()
 	}
-	box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
-	box = box.Scale(.5)
-	chart := chart2d.NewChart2D(1920, 1920, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
 
-	colorMap := utils2.NewColorMap(float32(fmin), float32(fmax), 1.)
-	chart.AddColorMap(colorMap)
-	go chart.Plot()
 	white := color.RGBA{R: 255, G: 255, B: 255, A: 1}
 	black := color.RGBA{R: 0, G: 0, B: 0, A: 1}
 	_, _ = white, black
-	if err := chart.AddFunctionSurface("FSurface", *fs, lt, white); err != nil {
+	if len(ltO) != 0 {
+		lt = ltO[0]
+	}
+	if err := c.chart.chart.AddFunctionSurface("FSurface", *fs, lt, white); err != nil {
 		panic("unable to add function surface series")
 	}
 }

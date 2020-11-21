@@ -5,9 +5,6 @@ import (
 	"math"
 	"strconv"
 	"testing"
-	"time"
-
-	"github.com/notargets/avs/chart2d"
 
 	"github.com/stretchr/testify/assert"
 
@@ -205,18 +202,11 @@ func TestEuler(t *testing.T) {
 		}
 	}
 	{ // Test solver
-		N := 7
+		N := 2
 		plotMesh := false
 		plotQ := false
-		c := NewEuler(0.1, N, "../../DG2D/vortexA04.neu", 0.1, FLUX_Average, IVORTEX, plotMesh, true)
-		if plotQ {
-			c.PlotQ(nil, c.Q, 3, 60*time.Second, chart2d.NoLine) // change nil to fs for colormap, no mesh reprocessing
-			//for i := 0; i < 4; i++ {
-			//	c.PlotQ(nil, c.Q, i, 20*time.Second) // change nil to fs for colormap, no mesh reprocessing
-			//}
-
-		}
-		c.Solve()
+		c := NewEuler(1.0, N, "../../DG2D/vortexA04.neu", 0.2, FLUX_Average, IVORTEX, plotMesh, true)
+		c.Solve(plotQ)
 	}
 }
 

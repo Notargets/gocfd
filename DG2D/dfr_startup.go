@@ -210,7 +210,7 @@ func (dfr *DFR2D) ConvertScalarToOutputMesh(f utils.Matrix) (fI []float32) {
 	return
 }
 
-func (dfr *DFR2D) OutputMesh() (gm graphics2D.TriMesh) {
+func (dfr *DFR2D) OutputMesh() (gm *graphics2D.TriMesh) {
 	/*
 				For each of K elements, the layout of the output mesh is:
 				Indexed geometry:
@@ -248,7 +248,8 @@ func (dfr *DFR2D) OutputMesh() (gm graphics2D.TriMesh) {
 		s := dfr.FluxElement.S.Data()[i]
 		tm.AddPoint(r, s)
 	}
-	gm = tm.ToGraphMesh()
+	gmB := tm.ToGraphMesh()
+	gm = &gmB
 
 	// Build the X,Y coordinates to support the triangulation index
 	Np := NpFlux - Nint + 3 // Subtract Nint to remove the dup pts and add 3 for the verts
