@@ -1,7 +1,7 @@
 # gocfd
 Awesome CFD solver written in Go
 
-<img align="text-align:center" src="images/bump-colored.PNG" width="600" height="200" />
+<img align="text-align:center" src="images/render-mesh-isentropic-vortex-initial-zoom-7.PNG"/>
 
 ## An implementation of the Discontinuous Galerkin Method for solving systems of equations
 
@@ -52,6 +52,12 @@ me@home:bash# gocfd 1D -g
 ### Run without graphics:
 me@home:bash# gocfd 1D
 ```
+### Updates (Nov 20 2020):
+Graphics :-D
+Very happy to see the first [avs renderings of the 2D density!](images/render-mesh-isentropic-vortex-initial-zoom-7.PNG) This is a 7-th order mesh, zoomed in on the center of the initial solution for the isentropic vortex.
+
+For comparison - [here is a first order version of the same view](images/render-mesh-isentropic-vortex-initial-zoom.PNG). You can see the triangulation detail - note that there is a nested triangle configuration, a larger layer of triangles has within it a set of internal triangles. Those are the nodes of the finite elements, and the triangulation inside the larger triangles is a Delaunay triangulation, intended to be used as a linear approximation to the polynomial field. 
+
 ### Updates (Nov 18 2020):
 The 2D Euler solver is functionally complete now, although lacking (many) boundary conditions, the Roe and Lax flux calculations and testing / validation. I want to display the solution graphically to debug.
 
