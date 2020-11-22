@@ -135,7 +135,7 @@ func (c *Euler) Solve(plotQ bool) {
 	for n := 0; n < 4; n++ {
 		Q1[n] = utils.NewMatrix(Np, Kmax)
 		Q2[n] = utils.NewMatrix(Np, Kmax)
-		Residual[n] = utils.NewMatrix(Np, Kmax)
+		Residual[n] = Q1[n] // optimize memory using an alias
 	}
 	fmt.Printf("solving until finaltime = %8.5f\n", FinalTime)
 	for {
