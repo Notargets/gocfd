@@ -102,13 +102,16 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, model Mode
 	case IVORTEX:
 		c.AnalyticSolution, c.Q = c.InitializeIVortex(c.dfr.SolutionX, c.dfr.SolutionY)
 		// Set "Wall" BCs to IVortex
+		var count int
 		for _, e := range c.dfr.Tris.Edges {
 			if e.BCType == DG2D.BC_Wall {
+				count++
 				e.BCType = DG2D.BC_IVortex
 			}
 		}
 		if verbose {
 			fmt.Printf("Solving Isentropic Vortex\n")
+			fmt.Printf("\tReplaced %d Wall boundary conditions with analytic BC_IVortex\n", count)
 		}
 	default:
 		panic("unknown case type")
@@ -122,7 +125,16 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, model Mode
 	return
 }
 
-func (c *Euler) Solve(plotQ bool) {
+type PlotField uint8
+
+const (
+	Density PlotField = iota
+	XMomentum
+	YMomentum
+	Energy
+)
+
+func (c *Euler) Solve(plotQ bool, plotField PlotField, plotScale float64) {
 	var (
 		FinalTime        = c.FinalTime
 		Time, dt         float64
@@ -174,7 +186,7 @@ func (c *Euler) Solve(plotQ bool) {
 		steps++
 		Time += dt
 		if plotQ {
-			c.PlotQ(c.Q, 1, 100*time.Millisecond, chart2d.Dashed) // wait till we implement time iterative frame updates
+			c.PlotQ(c.Q, plotField, 100*time.Millisecond, chart2d.Dashed, plotScale) // wait till we implement time iterative frame updates
 		}
 		fmt.Printf("Time,dt = %8.5f,%8.5f, Residual[eq#]Min/Max:", Time, dt)
 		for n := 0; n < 4; n++ {
@@ -184,9 +196,9 @@ func (c *Euler) Solve(plotQ bool) {
 	}
 }
 
-func (c *Euler) PlotQ(Q [4]utils.Matrix, field int, delay time.Duration, lineType chart2d.LineType) {
+func (c *Euler) PlotQ(Q [4]utils.Matrix, plotField PlotField, delay time.Duration, lineType chart2d.LineType, scale float64) {
 	var (
-		oField = c.dfr.FluxInterpMatrix.Mul(Q[field])
+		oField = c.dfr.FluxInterpMatrix.Mul(Q[int(plotField)])
 		fI     = c.dfr.ConvertScalarToOutputMesh(oField)
 	)
 	if c.chart.gm == nil {
@@ -194,12 +206,12 @@ func (c *Euler) PlotQ(Q [4]utils.Matrix, field int, delay time.Duration, lineTyp
 	}
 	c.chart.fs = functions.NewFSurface(c.chart.gm, [][]float32{fI}, 0)
 	fmt.Printf("F min,max = %8.5f,%8.5f\n", oField.Min(), oField.Max())
-	c.PlotFS(oField.Min(), oField.Max(), lineType)
+	c.PlotFS(oField.Min(), oField.Max(), scale, lineType)
 	utils.SleepFor(int(delay.Milliseconds()))
 	return
 }
 
-func (c *Euler) PlotFS(fmin, fmax float64, ltO ...chart2d.LineType) {
+func (c *Euler) PlotFS(fmin, fmax float64, scale float64, ltO ...chart2d.LineType) {
 	var (
 		fs      = c.chart.fs
 		trimesh = fs.Tris
@@ -207,7 +219,7 @@ func (c *Euler) PlotFS(fmin, fmax float64, ltO ...chart2d.LineType) {
 	)
 	if c.chart.chart == nil {
 		box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
-		box = box.Scale(.5)
+		box = box.Scale(float32(scale))
 		c.chart.chart = chart2d.NewChart2D(1920, 1920, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
 		colorMap := utils2.NewColorMap(float32(fmin), float32(fmax), 1.)
 		c.chart.chart.AddColorMap(colorMap)
@@ -278,7 +290,7 @@ func (c *Euler) GetState(k, i int, Q [4]utils.Matrix) (u, v, p, C float64) {
 	return
 }
 
-func (c *Euler) RHS(Q [4]utils.Matrix, time float64) (RHSCalc [4]utils.Matrix) {
+func (c *Euler) RHS(Q [4]utils.Matrix, Time float64) (RHSCalc [4]utils.Matrix) {
 	var (
 		Kmax = c.dfr.K
 		Nint = c.dfr.FluxElement.Nint
@@ -295,7 +307,7 @@ func (c *Euler) RHS(Q [4]utils.Matrix, time float64) (RHSCalc [4]utils.Matrix) {
 				of the element "injected" via calculation of a physical flux on those faces, and the (F,G) values in the interior
 				of the element taken directly from the solution values (Q).
 	*/
-	c.AssembleRTNormalFlux(Q, time) // Assembles F_RT_DOF for use in calculations using RT element
+	c.AssembleRTNormalFlux(Q, Time) // Assembles F_RT_DOF for use in calculations using RT element
 	for n := 0; n < 4; n++ {
 		RHSCalc[n] = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n]) // Calculate divergence for the internal node points
 		for k := 0; k < Kmax; k++ {
@@ -310,7 +322,7 @@ func (c *Euler) RHS(Q [4]utils.Matrix, time float64) (RHSCalc [4]utils.Matrix) {
 	return
 }
 
-func (c *Euler) AssembleRTNormalFlux(Q [4]utils.Matrix, time float64) {
+func (c *Euler) AssembleRTNormalFlux(Q [4]utils.Matrix, Time float64) {
 	/*
 		Solver approach:
 		0) Solution is stored on sol points as Q
@@ -327,7 +339,7 @@ func (c *Euler) AssembleRTNormalFlux(Q [4]utils.Matrix, time float64) {
 	}
 	c.SetNormalFluxInternal(Q)      // Updates F_RT_DOF with values from Q
 	c.InterpolateSolutionToEdges(Q) // Interpolates Q_Face values from Q
-	c.SetNormalFluxOnEdges(time)    // Updates F_RT_DOG with values from edges, including BCs and connected tris
+	c.SetNormalFluxOnEdges(Time)    // Updates F_RT_DOG with values from edges, including BCs and connected tris
 }
 
 func (c *Euler) SetNormalFluxInternal(Q [4]utils.Matrix) {
@@ -354,7 +366,7 @@ func (c *Euler) InterpolateSolutionToEdges(Q [4]utils.Matrix) {
 	}
 }
 
-func (c *Euler) SetNormalFluxOnEdges(time float64) {
+func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 	var (
 		dfr      = c.dfr
 		Nint     = dfr.FluxElement.Nint
@@ -383,7 +395,7 @@ func (c *Euler) SetNormalFluxOnEdges(time float64) {
 					ind := k + (2*Nint+iL)*Kmax
 					x, y := X[ind], Y[ind]
 					iv := c.AnalyticSolution.(*isentropic_vortex.IVortex)
-					rho, rhoU, rhoV, E := iv.GetStateC(time, x, y)
+					rho, rhoU, rhoV, E := iv.GetStateC(Time, x, y)
 					ind = k + iL*Kmax
 					c.Q_Face[0].Data()[ind] = rho
 					c.Q_Face[1].Data()[ind] = rhoU
