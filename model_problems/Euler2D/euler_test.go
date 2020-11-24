@@ -5,6 +5,7 @@ import (
 	"math"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/notargets/avs/chart2d"
 
@@ -213,16 +214,18 @@ func TestEuler(t *testing.T) {
 	{ // Test solver
 		N := 1
 		plotMesh := false
-		//c := NewEuler(100.0, N, "../../DG2D/vortexA04.neu", 0.20, FLUX_LaxFriedrichs, IVORTEX, plotMesh, true)
-		c := NewEuler(10.0, N, "../../DG2D/vortexA04.neu", 0.20, FLUX_LaxFriedrichs, IVORTEX, plotMesh, true)
-		fmin, fmax := 0.4, 1.10
+		c := NewEuler(1.0, N, "../../DG2D/vortexA04.neu", 0.75, FLUX_LaxFriedrichs, IVORTEX, plotMesh, true)
+		//c := NewEuler(10.0, N, "../../DG2D/vortexA04-fs.neu", 0.25, FLUX_LaxFriedrichs, FREESTREAM, plotMesh, true)
+		fmin, fmax := 0.70, 3.65
 		pm := &PlotMeta{
-			Plot:      false,
-			Scale:     1.1,
-			Field:     Density,
+			Plot:  false,
+			Scale: 1.1,
+			Field: Energy,
+			//FieldMinP: nil,
+			//FieldMaxP: nil,
 			FieldMinP: &fmin,
 			FieldMaxP: &fmax,
-			FrameTime: 10,
+			FrameTime: 10 * time.Millisecond,
 			LineType:  chart2d.Dashed,
 		}
 		c.Solve(pm)

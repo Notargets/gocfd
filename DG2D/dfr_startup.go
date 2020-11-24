@@ -11,7 +11,7 @@ import (
 )
 
 type DFR2D struct {
-	N, Np                int
+	N                    int
 	SolutionElement      *LagrangeElement2D
 	FluxElement          *RTElement
 	FluxInterpMatrix     utils.Matrix
@@ -36,6 +36,7 @@ func NewDFR2D(N int, plotMesh bool, meshFileO ...string) (dfr *DFR2D) {
 	RFlux := utils.NewVector(rt.Nedge*3, rt.GetEdgeLocations(rt.R)) // For the Interpolation matrix across three edges
 	SFlux := utils.NewVector(rt.Nedge*3, rt.GetEdgeLocations(rt.S)) // For the Interpolation matrix across three edges
 	dfr = &DFR2D{
+		N:                    N,
 		SolutionElement:      le,
 		FluxElement:          rt,
 		FluxInterpMatrix:     le.Simplex2DInterpolatingPolyMatrix(rt.R, rt.S),   // Interpolation matrix for flux nodes

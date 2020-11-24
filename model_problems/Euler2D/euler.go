@@ -108,8 +108,8 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, model Mode
 		for _, e := range c.dfr.Tris.Edges {
 			if e.BCType == DG2D.BC_Wall {
 				count++
-				//e.BCType = DG2D.BC_IVortex
-				e.BCType = DG2D.BC_Wall
+				e.BCType = DG2D.BC_IVortex
+				//e.BCType = DG2D.BC_Wall
 			}
 		}
 		if verbose {
@@ -263,23 +263,22 @@ func (c *Euler) CalculateDT() (dt float64) {
 	// Loop over all edges, calculating max wavespeed
 	for _, e := range c.dfr.Tris.Edges {
 		var (
-			numTris = int(e.NumConnectedTris)
 			edgeLen = e.GetEdgeLength()
 			Nedge   = c.dfr.FluxElement.Nedge
 		)
-		for conn := 0; conn < numTris; conn++ {
-			var (
-				k       = int(e.ConnectedTris[conn])
-				edgeNum = int(e.ConnectedTriEdgeNumber[conn])
-				shift   = edgeNum * Nedge
-			)
-			_, _, Jdet := c.dfr.GetJacobian(k)
-			fs := 0.5 * Np12 * edgeLen / Jdet
-			for i := shift; i < shift+Nedge; i++ {
-				_, u, v, _, C, _ := c.GetState(k, i, c.Q_Face)
-				waveSpeed := fs * (math.Sqrt(u*u+v*v) + C)
-				wsMax = math.Max(waveSpeed, wsMax)
-			}
+		conn := 0
+		var (
+			k       = int(e.ConnectedTris[conn])
+			edgeNum = int(e.ConnectedTriEdgeNumber[conn])
+			shift   = edgeNum * Nedge
+		)
+		_, _, Jdet := c.dfr.GetJacobian(k)
+		//fmt.Printf("N, Np12, edgelen, Jdet = %d,%8.5f,%8.5f,%8.5f\n", c.dfr.N, Np12, edgeLen, Jdet)
+		fs := 0.5 * Np12 * edgeLen / Jdet
+		for i := shift; i < shift+Nedge; i++ {
+			_, u, v, _, C, _ := c.GetState(k, i, c.Q_Face)
+			waveSpeed := fs * (math.Sqrt(u*u+v*v) + C)
+			wsMax = math.Max(waveSpeed, wsMax)
 		}
 	}
 	dt = c.CFL / wsMax
@@ -659,7 +658,7 @@ func (c *Euler) EdgeStart(k int, e *DG2D.Edge, conn int) (index int) {
 
 func (c *Euler) InitializeFS() {
 	var (
-		rho, u, v, p = 1., 0., 0., 1. // Freestream state
+		rho, u, v, p = 1., 1., 0., 1. // Freestream state
 		K            = c.dfr.K
 		Np           = c.dfr.SolutionElement.Np
 		Gamma        = c.Gamma
