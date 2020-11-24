@@ -6,6 +6,10 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/notargets/avs/chart2d"
+
+	"github.com/notargets/gocfd/DG2D"
+
 	"github.com/stretchr/testify/assert"
 
 	"github.com/notargets/gocfd/utils"
@@ -168,6 +172,11 @@ func TestEuler(t *testing.T) {
 		plotMesh := false
 		// c := NewEuler(1, N, "../../DG2D/vortexA04.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
 		c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
+		for _, e := range c.dfr.Tris.Edges {
+			if e.BCType == DG2D.BC_IVortex {
+				e.BCType = DG2D.BC_None
+			}
+		}
 		X, Y := c.dfr.FluxX, c.dfr.FluxY
 		Kmax := c.dfr.K
 		Nint := c.dfr.FluxElement.Nint
@@ -202,11 +211,21 @@ func TestEuler(t *testing.T) {
 		}
 	}
 	{ // Test solver
-		N := 2
+		N := 1
 		plotMesh := false
-		plotQ := false
-		c := NewEuler(0.2, N, "../../DG2D/vortexA04.neu", 0.1, FLUX_Average, IVORTEX, plotMesh, true)
-		c.Solve(plotQ, XMomentum, 1.0)
+		//c := NewEuler(100.0, N, "../../DG2D/vortexA04.neu", 0.20, FLUX_LaxFriedrichs, IVORTEX, plotMesh, true)
+		c := NewEuler(10.0, N, "../../DG2D/vortexA04.neu", 0.20, FLUX_LaxFriedrichs, IVORTEX, plotMesh, true)
+		fmin, fmax := 0.4, 1.10
+		pm := &PlotMeta{
+			Plot:      false,
+			Scale:     1.1,
+			Field:     Density,
+			FieldMinP: &fmin,
+			FieldMaxP: &fmax,
+			FrameTime: 10,
+			LineType:  chart2d.Dashed,
+		}
+		c.Solve(pm)
 	}
 }
 
