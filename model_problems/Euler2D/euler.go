@@ -35,11 +35,10 @@ type Euler struct {
 	Q_Face                [4]utils.Matrix // Solution variables, interpolated to and stored at edge point locations, Np_edge x K
 	F_RT_DOF              [4]utils.Matrix // Normal Projected Flux, stored at flux/solution point locations, Np_flux x K
 	chart                 ChartState
-	model                 FluxType
+	FluxCalcAlgo          FluxType
 	Case                  CaseType
 	AnalyticSolution      ExactState
 	FluxCalcMock          func(Gamma, rho, rhoU, rhoV, E float64) (Fx, Fy [4]float64) // For testing
-	FaceFluxAlgo          FluxType
 }
 
 type ChartState struct {
@@ -82,11 +81,10 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 		MeshFile:     meshFile,
 		CFL:          CFL,
 		FinalTime:    FinalTime,
-		model:        fluxType,
+		FluxCalcAlgo: fluxType,
 		Case:         Case,
 		Gamma:        1.4,
 		FluxCalcMock: FluxCalc,
-		FaceFluxAlgo: fluxType,
 	}
 	c.dfr = DG2D.NewDFR2D(N, plotMesh, meshFile)
 	c.InitializeMemory()
@@ -121,7 +119,7 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 	if verbose {
 		fmt.Printf("Calling avg flux for file: %s ...\n", c.MeshFile)
 		fmt.Printf("done\n")
-		fmt.Printf("Algorithm: %s\n", modelNames[c.model])
+		fmt.Printf("Algorithm: %s\n", modelNames[c.FluxCalcAlgo])
 		fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, c.dfr.K)
 	}
 	return
@@ -455,7 +453,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 				shiftL, shiftR           = edgeNumberL * Nedge, edgeNumberR * Nedge
 				fluxLeft, fluxRight      [2][4]float64
 			)
-			switch c.model {
+			switch c.FluxCalcAlgo {
 			case FLUX_Average:
 				averageFluxN := func(f1, f2 [2][4]float64) (fave [2][4]float64) {
 					for ii := 0; ii < 2; ii++ {
@@ -500,29 +498,35 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 						edgeFlux[i][1][n] = normalFlux * normal[1]
 					}
 				}
-				/*
-				  // Evaluate primitive variables & flux functions at '-' and '+' traces
-				  this->Fluxes(QM, gamma,  fxM,fyM, rhoM,uM,vM,pM);
-				  this->Fluxes(QP, gamma,  fxP,fyP, rhoP,uP,vP,pP);
-
-				  // Compute wave speed for  Lax-Friedrichs/Rusonov numerical fluxes
-				  maxvel = max( sqrt(sqr(uM)+sqr(vM)) + sqrt(abs(gamma*pM.dd(rhoM))),
-				                sqrt(sqr(uP)+sqr(vP)) + sqrt(abs(gamma*pP.dd(rhoP))));
-
-				  NGauss = m_gauss.NGauss;
-				  maxvel.reshape(NGauss, Nfaces*K);
-				  maxvel = outer( ones(NGauss), maxvel.max_col_vals());
-				  maxvel.reshape(NGauss*Nfaces, K);
-
-				  // Compute + lift fluxes to volume residual
-				  for (int n=1; n<=4; ++n) {
-				    flux(All,n) = 0.5*(lnx.dm(fxP(All,n) + fxM(All,n)) +
-				                       lny.dm(fyP(All,n) + fyM(All,n)) +
-				                       maxvel.dm(QM(All,n) - QP(All,n)));
-				  }
-				*/
 			case FLUX_Roe:
 				panic("not implemented yet")
+				var (
+					rhoL, uL, vL, pL, EL, CL float64
+					rhoR, uR, vR, pR, ER, CR float64
+				)
+				normal, _ := c.getEdgeNormal(0, e, en)
+				rotateMomentum := func(k, i int) {
+					var (
+						umD, vmD = c.Q_Face[1].Data(), c.Q_Face[2].Data()
+					)
+					ind := k + i*Kmax
+					um, vm := umD[ind], vmD[ind]
+					umD[ind] = um*normal[0] + vm*normal[1]
+					vmD[ind] = -um*normal[1] + vm*normal[0]
+				}
+				for i := 0; i < Nedge; i++ {
+					iL := i + shiftL
+					iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
+					// Rotate the momentum into face normal coordinates before calculating fluxes
+					rotateMomentum(kL, iL)
+					rotateMomentum(kR, iR)
+					rhoL, uL, vL, pL, EL, CL = c.GetState(kL, iL, c.Q_Face)
+					rhoR, uR, vR, pR, ER, CR = c.GetState(kR, iR, c.Q_Face)
+					fluxLeft[0], fluxLeft[1] = c.CalculateFlux(kL, iL, c.Q_Face)
+					fluxRight[0], fluxRight[1] = c.CalculateFlux(kR, iR, c.Q_Face) // Reverse the right edge to match
+					_, _, _, _, _, _ = rhoL, uL, vL, pL, EL, CL
+					_, _, _, _, _, _ = rhoR, uR, vR, pR, ER, CR
+				}
 				/*
 				  // Rotate "-" trace momentum to face normal-tangent coordinates
 				  QM(All,2) =  lnx.dm(rhouM) + lny.dm(rhovM);
