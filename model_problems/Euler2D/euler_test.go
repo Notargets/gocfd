@@ -214,7 +214,7 @@ func TestEuler(t *testing.T) {
 		}
 	}
 	{ // Test solver
-		N := 1
+		N := 2
 		//N := 5
 		plotMesh := false
 		c := NewEuler(4.0, N, "../../DG2D/vortexA04.neu", 1.00, FLUX_LaxFriedrichs, IVORTEX, plotMesh, true)
@@ -222,16 +222,18 @@ func TestEuler(t *testing.T) {
 		//c := NewEuler(10.0, N, "../../DG2D/vortexA04-fs.neu", 0.25, FLUX_LaxFriedrichs, FREESTREAM, plotMesh, true)
 		//c := NewEuler(10.0, N, "../../DG2D/vortexA04-fs.neu", 1.00, FLUX_LaxFriedrichs, IVORTEX, plotMesh, true)
 		//fmin, fmax := 0.355, 1.02
-		fmin, fmax := 0.35, 1.10
+		//fmin, fmax := 0.35, 1.10 // Density
+		//fmin, fmax := 0.10, 1.80
+		fmin, fmax := -0.75, 0.80 // YMomentum
 		pm := &PlotMeta{
 			Plot:  false,
-			Scale: 1.1,
-			Field: Density,
+			Scale: 0.8,
+			Field: YMomentum,
 			//FieldMinP: nil,
 			//FieldMaxP: nil,
 			FieldMinP: &fmin,
 			FieldMaxP: &fmax,
-			FrameTime: 1 * time.Millisecond,
+			FrameTime: 0 * time.Millisecond,
 			LineType:  chart2d.NoLine,
 		}
 		c.Solve(pm)

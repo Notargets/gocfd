@@ -183,11 +183,10 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		if plotQ {
 			c.PlotQ(c.Q, pm) // wait till we implement time iterative frame updates
 		}
-		fmt.Printf("Time,dt = %8.5f,%8.5f, Residual[eq#]Min/Max:", Time, dt)
+		fmt.Printf("\nTime,dt = %8.5f,%8.5f, Residual[eq#]Min/Max:", Time, dt)
 		for n := 0; n < 4; n++ {
 			fmt.Printf(" [%d] %8.5f,%8.5f ", n, Residual[n].Min(), Residual[n].Max())
 		}
-		fmt.Printf("\n")
 	}
 }
 
@@ -204,7 +203,7 @@ func (c *Euler) PlotQ(Q [4]utils.Matrix, pm *PlotMeta) {
 		c.chart.gm = c.dfr.OutputMesh()
 	}
 	c.chart.fs = functions.NewFSurface(c.chart.gm, [][]float32{fI}, 0)
-	fmt.Printf("F min,max = %8.5f,%8.5f\n", oField.Min(), oField.Max())
+	fmt.Printf(" Plot>%s min,max = %8.5f,%8.5f\n", pm.Field.String(), oField.Min(), oField.Max())
 	c.PlotFS(pm.FieldMinP, pm.FieldMaxP, oField.Min(), oField.Max(), scale, lineType)
 	utils.SleepFor(int(delay.Milliseconds()))
 	return
@@ -801,6 +800,11 @@ func (c *Euler) RiemannBC(k, i int, QInf [4]float64, normal [2]float64) (Q [4]fl
 /************ Graphics **************
  */
 type PlotField uint8
+
+func (pm PlotField) String() string {
+	strings := []string{"Density", "XMomentum", "YMomentum", "Energy"}
+	return strings[int(pm)]
+}
 
 const (
 	Density PlotField = iota
