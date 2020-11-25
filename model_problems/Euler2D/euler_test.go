@@ -17,216 +17,222 @@ import (
 )
 
 func TestEuler(t *testing.T) {
-	{ // Test interpolation of solution to edges for all supported orders
-		Nmax := 7
-		for N := 1; N <= Nmax; N++ {
-			c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, false, false)
-			Kmax := c.dfr.K
-			Nint := c.dfr.FluxElement.Nint
-			Nedge := c.dfr.FluxElement.Nedge
-			for n := 0; n < 4; n++ {
-				for i := 0; i < Nint; i++ {
-					for k := 0; k < Kmax; k++ {
-						ind := k + i*Kmax
-						c.Q[n].Data()[ind] = float64(k + 1)
+	if false {
+		{ // Test interpolation of solution to edges for all supported orders
+			Nmax := 7
+			for N := 1; N <= Nmax; N++ {
+				c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, false, false)
+				Kmax := c.dfr.K
+				Nint := c.dfr.FluxElement.Nint
+				Nedge := c.dfr.FluxElement.Nedge
+				for n := 0; n < 4; n++ {
+					for i := 0; i < Nint; i++ {
+						for k := 0; k < Kmax; k++ {
+							ind := k + i*Kmax
+							c.Q[n].Data()[ind] = float64(k + 1)
+						}
 					}
 				}
-			}
-			// Interpolate from solution points to edges using precomputed interpolation matrix
-			for n := 0; n < 4; n++ {
-				c.Q_Face[n] = c.dfr.FluxEdgeInterpMatrix.Mul(c.Q[n])
-			}
-			for n := 0; n < 4; n++ {
-				for i := 0; i < 3*Nedge; i++ {
-					for k := 0; k < Kmax; k++ {
-						ind := k + i*Kmax
-						assert.True(t, near(float64(k+1), c.Q_Face[n].Data()[ind], 0.000001))
-					}
+				// Interpolate from solution points to edges using precomputed interpolation matrix
+				for n := 0; n < 4; n++ {
+					c.Q_Face[n] = c.dfr.FluxEdgeInterpMatrix.Mul(c.Q[n])
 				}
-			}
-		}
-	}
-	{ // Test solution process
-		/*
-			Solver approach:
-			0) Solution is stored on sol points as Q
-			0a) Flux is computed and stored in X, Y component projections in the 2*Nint front of F_RT_DOF
-			1) Solution is extrapolated to edge points in Q_Face from Q
-			2) Edges are traversed, flux is calculated and projected onto edge face normals, scaled and placed into F_RT_DOF
-		*/
-		Nmax := 7
-		for N := 1; N <= Nmax; N++ {
-			c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, false, false)
-			Kmax := c.dfr.K
-			Nint := c.dfr.FluxElement.Nint
-			Nedge := c.dfr.FluxElement.Nedge
-			NpFlux := c.dfr.FluxElement.Np // Np = 2*Nint+3*Nedge
-			// Mark the initial state with the element number
-			for i := 0; i < Nint; i++ {
-				for k := 0; k < Kmax; k++ {
-					ind := k + i*Kmax
-					c.Q[0].Data()[ind] = float64(k + 1)
-					c.Q[1].Data()[ind] = 0.1 * float64(k+1)
-					c.Q[2].Data()[ind] = 0.05 * float64(k+1)
-					c.Q[3].Data()[ind] = 2.00 * float64(k+1)
-				}
-			}
-			// Flux values for later checks are invariant with i (i=0)
-			Fr_check, Fs_check := make([][4]float64, Kmax), make([][4]float64, Kmax)
-			for k := 0; k < Kmax; k++ {
-				Fr_check[k], Fs_check[k] = c.CalculateFluxTransformed(k, 0, c.Q)
-			}
-			// Interpolate from solution points to edges using precomputed interpolation matrix
-			for n := 0; n < 4; n++ {
-				c.Q_Face[n] = c.dfr.FluxEdgeInterpMatrix.Mul(c.Q[n])
-			}
-			// Calculate flux and project into R and S (transformed) directions
-			for n := 0; n < 4; n++ {
-				for i := 0; i < Nint; i++ {
-					for k := 0; k < c.dfr.K; k++ {
-						ind := k + i*Kmax
-						Fr, Fs := c.CalculateFluxTransformed(k, i, c.Q)
-						rtD := c.F_RT_DOF[n].Data()
-						rtD[ind], rtD[ind+Nint*Kmax] = Fr[n], Fs[n]
-					}
-				}
-				// Check to see that the expected values are in the right place (the internal locations)
-				for k := 0; k < Kmax; k++ {
-					val0, val1 := Fr_check[k][n], Fs_check[k][n]
-					is := k * NpFlux
-					assert.True(t, nearVecScalar(c.F_RT_DOF[n].Transpose().Data()[is:is+Nint],
-						val0, 0.000001))
-					is += Nint
-					assert.True(t, nearVecScalar(c.F_RT_DOF[n].Transpose().Data()[is:is+Nint],
-						val1, 0.000001))
-				}
-				// Set normal flux to a simple addition of the two sides to use as a check in assert()
-				for k := 0; k < Kmax; k++ {
+				for n := 0; n < 4; n++ {
 					for i := 0; i < 3*Nedge; i++ {
-						ind := k + (2*Nint+i)*Kmax
-						Fr, Fs := c.CalculateFluxTransformed(k, i, c.Q_Face)
-						rtD := c.F_RT_DOF[n].Data()
-						rtD[ind] = Fr[n] + Fs[n]
+						for k := 0; k < Kmax; k++ {
+							ind := k + i*Kmax
+							assert.True(t, near(float64(k+1), c.Q_Face[n].Data()[ind], 0.000001))
+						}
 					}
-				}
-				// Check to see that the expected values are in the right place (the edge locations)
-				for k := 0; k < Kmax; k++ {
-					val := Fr_check[k][n] + Fs_check[k][n]
-					is := k * NpFlux
-					ie := (k + 1) * NpFlux
-					assert.True(t, nearVecScalar(c.F_RT_DOF[n].Transpose().Data()[is+2*Nint:ie],
-						val, 0.000001))
 				}
 			}
 		}
-	}
-	{ // Test solution process part 2 - Freestream divergence should be zero
-		Nmax := 7
-		for N := 1; N <= Nmax; N++ {
-			c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, false, false)
+		{ // Test solution process
+			/*
+				Solver approach:
+				0) Solution is stored on sol points as Q
+				0a) Flux is computed and stored in X, Y component projections in the 2*Nint front of F_RT_DOF
+				1) Solution is extrapolated to edge points in Q_Face from Q
+				2) Edges are traversed, flux is calculated and projected onto edge face normals, scaled and placed into F_RT_DOF
+			*/
+			Nmax := 7
+			for N := 1; N <= Nmax; N++ {
+				c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, false, false)
+				Kmax := c.dfr.K
+				Nint := c.dfr.FluxElement.Nint
+				Nedge := c.dfr.FluxElement.Nedge
+				NpFlux := c.dfr.FluxElement.Np // Np = 2*Nint+3*Nedge
+				// Mark the initial state with the element number
+				for i := 0; i < Nint; i++ {
+					for k := 0; k < Kmax; k++ {
+						ind := k + i*Kmax
+						c.Q[0].Data()[ind] = float64(k + 1)
+						c.Q[1].Data()[ind] = 0.1 * float64(k+1)
+						c.Q[2].Data()[ind] = 0.05 * float64(k+1)
+						c.Q[3].Data()[ind] = 2.00 * float64(k+1)
+					}
+				}
+				// Flux values for later checks are invariant with i (i=0)
+				Fr_check, Fs_check := make([][4]float64, Kmax), make([][4]float64, Kmax)
+				for k := 0; k < Kmax; k++ {
+					Fr_check[k], Fs_check[k] = c.CalculateFluxTransformed(k, 0, c.Q)
+				}
+				// Interpolate from solution points to edges using precomputed interpolation matrix
+				for n := 0; n < 4; n++ {
+					c.Q_Face[n] = c.dfr.FluxEdgeInterpMatrix.Mul(c.Q[n])
+				}
+				// Calculate flux and project into R and S (transformed) directions
+				for n := 0; n < 4; n++ {
+					for i := 0; i < Nint; i++ {
+						for k := 0; k < c.dfr.K; k++ {
+							ind := k + i*Kmax
+							Fr, Fs := c.CalculateFluxTransformed(k, i, c.Q)
+							rtD := c.F_RT_DOF[n].Data()
+							rtD[ind], rtD[ind+Nint*Kmax] = Fr[n], Fs[n]
+						}
+					}
+					// Check to see that the expected values are in the right place (the internal locations)
+					for k := 0; k < Kmax; k++ {
+						val0, val1 := Fr_check[k][n], Fs_check[k][n]
+						is := k * NpFlux
+						assert.True(t, nearVecScalar(c.F_RT_DOF[n].Transpose().Data()[is:is+Nint],
+							val0, 0.000001))
+						is += Nint
+						assert.True(t, nearVecScalar(c.F_RT_DOF[n].Transpose().Data()[is:is+Nint],
+							val1, 0.000001))
+					}
+					// Set normal flux to a simple addition of the two sides to use as a check in assert()
+					for k := 0; k < Kmax; k++ {
+						for i := 0; i < 3*Nedge; i++ {
+							ind := k + (2*Nint+i)*Kmax
+							Fr, Fs := c.CalculateFluxTransformed(k, i, c.Q_Face)
+							rtD := c.F_RT_DOF[n].Data()
+							rtD[ind] = Fr[n] + Fs[n]
+						}
+					}
+					// Check to see that the expected values are in the right place (the edge locations)
+					for k := 0; k < Kmax; k++ {
+						val := Fr_check[k][n] + Fs_check[k][n]
+						is := k * NpFlux
+						ie := (k + 1) * NpFlux
+						assert.True(t, nearVecScalar(c.F_RT_DOF[n].Transpose().Data()[is+2*Nint:ie],
+							val, 0.000001))
+					}
+				}
+			}
+		}
+		{ // Test solution process part 2 - Freestream divergence should be zero
+			Nmax := 7
+			for N := 1; N <= Nmax; N++ {
+				c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, false, false)
+				c.SetNormalFluxInternal(c.Q)
+				c.InterpolateSolutionToEdges(c.Q)
+				c.SetNormalFluxOnEdges(0)
+				Kmax := c.dfr.K
+				Nint := c.dfr.FluxElement.Nint
+				// Check that freestream divergence on this mesh is zero
+				for n := 0; n < 4; n++ {
+					var div utils.Matrix
+					div = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
+					for k := 0; k < Kmax; k++ {
+						_, _, Jdet := c.dfr.GetJacobian(k)
+						for i := 0; i < Nint; i++ {
+							ind := k + i*Kmax
+							div.Data()[ind] /= Jdet
+						}
+					}
+					assert.True(t, nearVecScalar(div.Data(), 0., 0.000001))
+				}
+			}
+		}
+		{ // Test divergence of polynomial initial condition against analytic values
+			/*
+				Note: the Polynomial flux is asymmetric around the X and Y axes - it uses abs(x) and abs(y)
+				Elements should not straddle the axes if a perfect polynomial flux capture is needed
+			*/
+			Nmax := 7
+			for N := 1; N <= Nmax; N++ {
+				plotMesh := false
+				// Single triangle test case
+				var c *Euler
+				c = NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
+				CheckFlux0(c, t)
+				// Two widely separated triangles - no shared faces
+				c = NewEuler(1, N, "../../DG2D/test_tris_two.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
+				CheckFlux0(c, t)
+				// Two widely separated triangles - no shared faces - one tri listed in reverse order
+				c = NewEuler(1, N, "../../DG2D/test_tris_twoR.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
+				CheckFlux0(c, t)
+				// Connected tris, sharing one edge
+				// plotMesh = true
+				c = NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
+				CheckFlux0(c, t)
+			}
+		}
+		{ // Test divergence of Isentropic Vortex initial condition against analytic values - density equation only
+			N := 1
+			plotMesh := false
+			// c := NewEuler(1, N, "../../DG2D/vortexA04.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
+			c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
+			for _, e := range c.dfr.Tris.Edges {
+				if e.BCType == DG2D.BC_IVortex {
+					e.BCType = DG2D.BC_None
+				}
+			}
+			X, Y := c.dfr.FluxX, c.dfr.FluxY
+			Kmax := c.dfr.K
+			Nint := c.dfr.FluxElement.Nint
 			c.SetNormalFluxInternal(c.Q)
 			c.InterpolateSolutionToEdges(c.Q)
 			c.SetNormalFluxOnEdges(0)
-			Kmax := c.dfr.K
-			Nint := c.dfr.FluxElement.Nint
-			// Check that freestream divergence on this mesh is zero
-			for n := 0; n < 4; n++ {
-				var div utils.Matrix
-				div = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
-				for k := 0; k < Kmax; k++ {
-					_, _, Jdet := c.dfr.GetJacobian(k)
-					for i := 0; i < Nint; i++ {
-						ind := k + i*Kmax
-						div.Data()[ind] /= Jdet
-					}
+			var div utils.Matrix
+			// Density is the easiest equation to match with a polynomial
+			n := 0
+			fmt.Printf("component[%d]\n", n)
+			div = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
+			for k := 0; k < Kmax; k++ {
+				_, _, Jdet := c.dfr.GetJacobian(k)
+				for i := 0; i < Nint; i++ {
+					ind := k + i*Kmax
+					div.Data()[ind] /= Jdet
 				}
-				assert.True(t, nearVecScalar(div.Data(), 0., 0.000001))
 			}
-		}
-	}
-	{ // Test divergence of polynomial initial condition against analytic values
-		/*
-			Note: the Polynomial flux is asymmetric around the X and Y axes - it uses abs(x) and abs(y)
-			Elements should not straddle the axes if a perfect polynomial flux capture is needed
-		*/
-		Nmax := 7
-		for N := 1; N <= Nmax; N++ {
-			plotMesh := false
-			// Single triangle test case
-			var c *Euler
-			c = NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
-			CheckFlux0(c, t)
-			// Two widely separated triangles - no shared faces
-			c = NewEuler(1, N, "../../DG2D/test_tris_two.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
-			CheckFlux0(c, t)
-			// Two widely separated triangles - no shared faces - one tri listed in reverse order
-			c = NewEuler(1, N, "../../DG2D/test_tris_twoR.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
-			CheckFlux0(c, t)
-			// Connected tris, sharing one edge
-			//plotMesh = true
-			c = NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, FREESTREAM, plotMesh, false)
-			CheckFlux0(c, t)
-		}
-	}
-	{ // Test divergence of Isentropic Vortex initial condition against analytic values - density equation only
-		N := 1
-		plotMesh := false
-		// c := NewEuler(1, N, "../../DG2D/vortexA04.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
-		c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
-		for _, e := range c.dfr.Tris.Edges {
-			if e.BCType == DG2D.BC_IVortex {
-				e.BCType = DG2D.BC_None
-			}
-		}
-		X, Y := c.dfr.FluxX, c.dfr.FluxY
-		Kmax := c.dfr.K
-		Nint := c.dfr.FluxElement.Nint
-		c.SetNormalFluxInternal(c.Q)
-		c.InterpolateSolutionToEdges(c.Q)
-		c.SetNormalFluxOnEdges(0)
-		var div utils.Matrix
-		// Density is the easiest equation to match with a polynomial
-		n := 0
-		fmt.Printf("component[%d]\n", n)
-		div = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
-		for k := 0; k < Kmax; k++ {
-			_, _, Jdet := c.dfr.GetJacobian(k)
-			for i := 0; i < Nint; i++ {
-				ind := k + i*Kmax
-				div.Data()[ind] /= Jdet
-			}
-		}
-		// Get the analytic values of divergence for comparison
-		for k := 0; k < Kmax; k++ {
-			for i := 0; i < Nint; i++ {
-				ind := k + i*Kmax
-				x, y := X.Data()[ind], Y.Data()[ind]
-				qc1, qc2, qc3, qc4 := c.AnalyticSolution.GetStateC(0, x, y)
-				q1, q2, q3, q4 := c.Q[0].Data()[ind], c.Q[1].Data()[ind], c.Q[2].Data()[ind], c.Q[3].Data()[ind]
-				assert.True(t, nearVec([]float64{q1, q2, q3, q4}, []float64{qc1, qc2, qc3, qc4}, 0.000001))
-				divC := c.AnalyticSolution.GetDivergence(0, x, y)
-				divCalc := div.Data()[ind]
-				// fmt.Printf("div[%d][%d,%d] = %8.5f\n", n, k, i, divCalc)
-				assert.True(t, near(divCalc/qc1, divC[n]/qc1, 0.001)) // 0.1 percent match
+			// Get the analytic values of divergence for comparison
+			for k := 0; k < Kmax; k++ {
+				for i := 0; i < Nint; i++ {
+					ind := k + i*Kmax
+					x, y := X.Data()[ind], Y.Data()[ind]
+					qc1, qc2, qc3, qc4 := c.AnalyticSolution.GetStateC(0, x, y)
+					q1, q2, q3, q4 := c.Q[0].Data()[ind], c.Q[1].Data()[ind], c.Q[2].Data()[ind], c.Q[3].Data()[ind]
+					assert.True(t, nearVec([]float64{q1, q2, q3, q4}, []float64{qc1, qc2, qc3, qc4}, 0.000001))
+					divC := c.AnalyticSolution.GetDivergence(0, x, y)
+					divCalc := div.Data()[ind]
+					// fmt.Printf("div[%d][%d,%d] = %8.5f\n", n, k, i, divCalc)
+					assert.True(t, near(divCalc/qc1, divC[n]/qc1, 0.001)) // 0.1 percent match
+				}
 			}
 		}
 	}
 	{ // Test solver
 		N := 1
+		//N := 5
 		plotMesh := false
-		c := NewEuler(1.0, N, "../../DG2D/vortexA04.neu", 0.75, FLUX_LaxFriedrichs, IVORTEX, plotMesh, true)
+		c := NewEuler(4.0, N, "../../DG2D/vortexA04.neu", 1.00, FLUX_LaxFriedrichs, IVORTEX, plotMesh, true)
+		//c := NewEuler(10.0, N, "../../DG2D/test_tris_1.neu", 0.75, FLUX_LaxFriedrichs, IVORTEX, plotMesh, true)
 		//c := NewEuler(10.0, N, "../../DG2D/vortexA04-fs.neu", 0.25, FLUX_LaxFriedrichs, FREESTREAM, plotMesh, true)
-		fmin, fmax := 0.70, 3.65
+		//c := NewEuler(10.0, N, "../../DG2D/vortexA04-fs.neu", 1.00, FLUX_LaxFriedrichs, IVORTEX, plotMesh, true)
+		//fmin, fmax := 0.355, 1.02
+		fmin, fmax := 0.35, 1.10
 		pm := &PlotMeta{
 			Plot:  false,
 			Scale: 1.1,
-			Field: Energy,
+			Field: Density,
 			//FieldMinP: nil,
 			//FieldMaxP: nil,
 			FieldMinP: &fmin,
 			FieldMaxP: &fmax,
-			FrameTime: 10 * time.Millisecond,
-			LineType:  chart2d.Dashed,
+			FrameTime: 1 * time.Millisecond,
+			LineType:  chart2d.NoLine,
 		}
 		c.Solve(pm)
 	}

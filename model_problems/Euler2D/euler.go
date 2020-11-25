@@ -301,9 +301,9 @@ func GetPrimitiveVariables(Gamma float64, Q [4]float64) (rho, u, v, p, C, E floa
 		GM1 = Gamma - 1.
 	)
 	rho = Q[0]
+	u = Q[1] / rho
+	v = Q[2] / rho
 	E = Q[3]
-	u = Q[1]
-	v = Q[2]
 	p = GM1 * (E - 0.5*rho*(u*u+v*v))
 	C = math.Sqrt(math.Abs(Gamma * p / rho))
 	return
@@ -406,6 +406,11 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 			)
 			// TODO: Implement more boundary conditions
 			normal, _ := c.getEdgeNormal(0, e, en)
+			//fmt.Printf("normal = %8.5f,%8.5f\n", normal[0], normal[1])
+			//tangent := [2]float64{-normal[1], normal[0]}
+			//fmt.Printf("tangent = %8.5f,%8.5f\n", tangent[0], tangent[1])
+			//fmt.Println(e.Print())
+			//fmt.Printf("verts = %v\n", en.GetVertices(false))
 			switch e.BCType {
 			case DG2D.BC_Far:
 				for i := 0; i < Nedge; i++ {
@@ -577,6 +582,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 			c.ProjectFluxToEdge(edgeFlux, e, en, ii)
 		}
 	}
+	//os.Exit(1)
 	return
 }
 
@@ -763,24 +769,26 @@ func (c *Euler) RiemannBC(k, i int, QInf [4]float64, normal [2]float64) (Q [4]fl
 		OOGM1                             = 1. / GM1
 		rhoInf, uInf, vInf, pInf, CInf, _ = GetPrimitiveVariables(Gamma, QInf)
 		Vtang, Beta                       float64
+		tangent                           = [2]float64{-normal[1], normal[0]}
 	)
 	VnormInt := normal[0]*uInt + normal[1]*vInt
 	VnormInf := normal[0]*uInf + normal[1]*vInf
 	Rinf := VnormInf - 2.*CInf*OOGM1
 	Rint := VnormInt + 2.*CInt*OOGM1
 	Vnorm := 0.5 * (Rint + Rinf)
-	tangent := [2]float64{-normal[1], normal[0]}
+	C := 0.25 * GM1 * (Rint - Rinf)
+	//fmt.Printf("normal = %8.5f,%8.5f\n", normal[0], normal[1])
 	switch {
-	case VnormInt <= 0: // Inflow, entropy and tangent velocity from Qinf
+	case VnormInt < 0: // Inflow, entropy and tangent velocity from Qinf
 		Vtang = tangent[0]*uInf + tangent[1]*vInf
 		Beta = pInf / math.Pow(rhoInf, Gamma)
-	case VnormInt > 0: // Outflow
+	case VnormInt >= 0: // Outflow, entropy and tangent velocity from Qint
 		Vtang = tangent[0]*uInt + tangent[1]*vInt
 		Beta = pInt / math.Pow(rhoInt, Gamma)
 	}
 	u := Vnorm*normal[0] + Vtang*tangent[0]
 	v := Vnorm*normal[1] + Vtang*tangent[1]
-	C := 0.25 * GM1 * (Rint - Rinf)
+	//fmt.Printf("uInt,vInt=%8.5f,%8.5f u,v=%8.5f,%8.5f\n", uInt, vInt, u, v)
 	rho := math.Pow(C*C/(Gamma*Beta), OOGM1)
 	p := Beta * math.Pow(rho, Gamma)
 	Q[0] = rho
