@@ -64,6 +64,8 @@ The solver is stable with CFL = 1 using the RK3 SSP time advancement scheme. I'l
 
 ![](images/vortex-1-2-4-7-lax-cropped.gif)
 
+You can recreate the above with ```gocfd 2D -g --gridFile DG2D/vortexA04.neu -n 1```, change the order with the "-n" option. "gocfd help 2D" for all options.
+
 ### Updates (Nov 20 2020):
 Graphics :-D
 Very happy to see the first [avs renderings of the 2D density!](images/render-mesh-isentropic-vortex-initial-zoom-7.PNG) This is a 7-th order mesh, zoomed in on the center of the initial solution for the isentropic vortex.
