@@ -35,11 +35,11 @@ type Euler struct {
 	Q_Face                [4]utils.Matrix // Solution variables, interpolated to and stored at edge point locations, Np_edge x K
 	F_RT_DOF              [4]utils.Matrix // Normal Projected Flux, stored at flux/solution point locations, Np_flux x K
 	chart                 ChartState
-	model                 ModelType
+	model                 FluxType
 	Case                  CaseType
 	AnalyticSolution      ExactState
 	FluxCalcMock          func(Gamma, rho, rhoU, rhoV, E float64) (Fx, Fy [4]float64) // For testing
-	FaceFluxAlgo          ModelType
+	FaceFluxAlgo          FluxType
 }
 
 type ChartState struct {
@@ -60,10 +60,10 @@ const (
 	IVORTEX
 )
 
-type ModelType uint
+type FluxType uint
 
 const (
-	FLUX_None ModelType = iota
+	FLUX_None FluxType = iota
 	FLUX_LaxFriedrichs
 	FLUX_Roe
 	FLUX_Average
@@ -78,16 +78,16 @@ var (
 	}
 )
 
-func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, model ModelType, Case CaseType, plotMesh, verbose bool) (c *Euler) {
+func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType FluxType, Case CaseType, plotMesh, verbose bool) (c *Euler) {
 	c = &Euler{
 		MeshFile:     meshFile,
 		CFL:          CFL,
 		FinalTime:    FinalTime,
-		model:        model,
+		model:        fluxType,
 		Case:         Case,
 		Gamma:        1.4,
 		FluxCalcMock: FluxCalc,
-		FaceFluxAlgo: model,
+		FaceFluxAlgo: fluxType,
 	}
 	c.dfr = DG2D.NewDFR2D(N, plotMesh, meshFile)
 	c.InitializeMemory()
@@ -204,7 +204,7 @@ func (c *Euler) PlotQ(Q [4]utils.Matrix, pm *PlotMeta) {
 	}
 	c.chart.fs = functions.NewFSurface(c.chart.gm, [][]float32{fI}, 0)
 	fmt.Printf(" Plot>%s min,max = %8.5f,%8.5f\n", pm.Field.String(), oField.Min(), oField.Max())
-	c.PlotFS(pm.FieldMinP, pm.FieldMaxP, oField.Min(), oField.Max(), scale, lineType)
+	c.PlotFS(pm.FieldMinP, pm.FieldMaxP, 0.95*oField.Min(), 1.05*oField.Max(), scale, lineType)
 	utils.SleepFor(int(delay.Milliseconds()))
 	return
 }
