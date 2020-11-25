@@ -60,7 +60,9 @@ The 2D Euler solver now works! Yay!
 
 I've tested the Isentropic Vortex case successfully using a Lax flux and a Riemann BC backed by an analytic solution at the boundaries. Unlike the DG solver based on integration in Westhaven, et al, this solver is not stable when using a Dirichlet (fixed) BC set directly to the analytic solution, so the Riemann solution suppresses unstable waves at the boundary. I haven't calculated error yet, but it's clear that as we increase the solver order, the solution gets much more resolved with lower undershoots, so it appears as though a convergence study will show super convergence, as expected.
 
-The solver is stable with CFL = 1 using the RK3 SSP time advancement scheme. I'll plan to do a formal stability analysis later, but all looks good!
+The solver is stable with CFL = 1 using the RK3 SSP time advancement scheme. I'll plan to do a formal stability analysis later, but all looks good! The movie below shows from top left, clockwise, 1st, 2nd, 4th and 7th order solutions of the isentropic vortex case with the same 256 element mesh using a Lax flux. We can see the resolution and dispersion improve as the order increases.
+
+![](images/vortex-1-2-4-7-lax-cropped.gif)
 
 ### Updates (Nov 20 2020):
 Graphics :-D
