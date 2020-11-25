@@ -63,8 +63,7 @@ const (
 type FluxType uint
 
 const (
-	FLUX_None FluxType = iota
-	FLUX_LaxFriedrichs
+	FLUX_LaxFriedrichs FluxType = iota
 	FLUX_Roe
 	FLUX_Average
 )
