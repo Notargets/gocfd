@@ -17,7 +17,7 @@ import (
 )
 
 func TestEuler(t *testing.T) {
-	if false {
+	if true {
 		{ // Test interpolation of solution to edges for all supported orders
 			Nmax := 7
 			for N := 1; N <= Nmax; N++ {
@@ -214,7 +214,7 @@ func TestEuler(t *testing.T) {
 		}
 	}
 	{ // Test solver
-		N := 2
+		N := 1
 		//N := 5
 		plotMesh := false
 		c := NewEuler(4.0, N, "../../DG2D/vortexA04.neu", 1.00, FLUX_LaxFriedrichs, IVORTEX, plotMesh, true)
@@ -231,10 +231,11 @@ func TestEuler(t *testing.T) {
 			Field: YMomentum,
 			//FieldMinP: nil,
 			//FieldMaxP: nil,
-			FieldMinP: &fmin,
-			FieldMaxP: &fmax,
-			FrameTime: 0 * time.Millisecond,
-			LineType:  chart2d.NoLine,
+			FieldMinP:       &fmin,
+			FieldMaxP:       &fmax,
+			FrameTime:       0 * time.Millisecond,
+			StepsBeforePlot: 50,
+			LineType:        chart2d.Solid,
 		}
 		c.Solve(pm)
 	}

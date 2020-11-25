@@ -180,7 +180,7 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		}
 		steps++
 		Time += dt
-		if plotQ {
+		if plotQ && steps%pm.StepsBeforePlot == 0 {
 			c.PlotQ(c.Q, pm) // wait till we implement time iterative frame updates
 		}
 		fmt.Printf("\nTime,dt = %8.5f,%8.5f, Residual[eq#]Min/Max:", Time, dt)
@@ -819,5 +819,6 @@ type PlotMeta struct {
 	Field                PlotField
 	FieldMinP, FieldMaxP *float64 // nil if no forced min, max
 	FrameTime            time.Duration
+	StepsBeforePlot      int
 	LineType             chart2d.LineType
 }
