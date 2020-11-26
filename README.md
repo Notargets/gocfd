@@ -1,14 +1,27 @@
 # gocfd
 Awesome CFD solver written in Go
 
-Density | X Momentum
-:-------------------------:|:-------------------------:
-![](images/render-mesh-isentropic-vortex-initial-zoom-7.PNG) | ![](images/render-mesh-isentropic-vortex-initial-zoom-7-rhoU.png)
+Density | X Momentum | Density
+:-------------------------:|:-------------------------:|:-------------------------:
+![](images/render-mesh-isentropic-vortex-initial-zoom-7.PNG) | ![](images/render-mesh-isentropic-vortex-initial-zoom-7-rhoU.png) | ![](images/vortex-1-2-4-7-lax-cropped.gif)
 
 
-## An implementation of the Discontinuous Galerkin Method for solving systems of equations
+## Discontinuous Galerkin Method for solving systems of equations - CFD, CEM, ... hydrodynamics-fusion (simulate the Sun), etc! 
 
-### Credits to Jan S. Hesthaven and Tim Warburton for their excellent text "Nodal Discontinuous Galerkin Methods" (2007)
+##### Credits to:
+- Jan S. Hesthaven and Tim Warburton for their excellent text "Nodal Discontinuous Galerkin Methods" (2007)
+- J. Romero, K. Asthana and Antony Jameson for "A Simplified Formulation of the Flux Reconstruction Method" (2015) for the DFR approach with Raviart-Thomas elements
+
+### Updates (Nov 24 2020):
+The 2D Euler solver now works! Yay!
+
+I've tested the Isentropic Vortex case successfully using a Lax flux and a Riemann BC backed by an analytic solution at the boundaries. Unlike the DG solver based on integration in Westhaven, et al, this solver is not stable when using a Dirichlet (fixed) BC set directly to the analytic solution, so the Riemann solution suppresses unstable waves at the boundary. I haven't calculated error yet, but it's clear that as we increase the solver order, the solution gets much more resolved with lower undershoots, so it appears as though a convergence study will show super convergence, as expected.
+
+The solver is stable with CFL = 1 using the RK3 SSP time advancement scheme. I'll plan to do a formal stability analysis later, but all looks good! The movie below is 1st Order (top left), 2nd Order (top right), 4th Order (btm left) and 7th Order (btm right) solutions of the isentropic vortex case with the same 256 element mesh using a Lax flux. We can see the resolution and dispersion improve as the order increases.
+
+![](images/vortex-1-2-4-7-lax-cropped.gif)
+
+You can recreate the above with ```gocfd 2D -g --gridFile DG2D/vortexA04.neu -n 1```, change the order with the "-n" option. "gocfd help 2D" for all options.
 
 ### Objectives
 
@@ -55,16 +68,6 @@ me@home:bash# gocfd 1D -g
 ### Run without graphics:
 me@home:bash# gocfd 1D
 ```
-### Updates (Nov 24 2020):
-The 2D Euler solver now works! Yay!
-
-I've tested the Isentropic Vortex case successfully using a Lax flux and a Riemann BC backed by an analytic solution at the boundaries. Unlike the DG solver based on integration in Westhaven, et al, this solver is not stable when using a Dirichlet (fixed) BC set directly to the analytic solution, so the Riemann solution suppresses unstable waves at the boundary. I haven't calculated error yet, but it's clear that as we increase the solver order, the solution gets much more resolved with lower undershoots, so it appears as though a convergence study will show super convergence, as expected.
-
-The solver is stable with CFL = 1 using the RK3 SSP time advancement scheme. I'll plan to do a formal stability analysis later, but all looks good! The movie below shows from top left, clockwise, 1st, 2nd, 4th and 7th order solutions of the isentropic vortex case with the same 256 element mesh using a Lax flux. We can see the resolution and dispersion improve as the order increases.
-
-![](images/vortex-1-2-4-7-lax-cropped.gif)
-
-You can recreate the above with ```gocfd 2D -g --gridFile DG2D/vortexA04.neu -n 1```, change the order with the "-n" option. "gocfd help 2D" for all options.
 
 ### Updates (Nov 20 2020):
 Graphics :-D
