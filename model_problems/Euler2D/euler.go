@@ -62,17 +62,16 @@ const (
 type FluxType uint
 
 const (
-	FLUX_LaxFriedrichs FluxType = iota
+	FLUX_Average FluxType = iota
+	FLUX_LaxFriedrichs
 	FLUX_Roe
-	FLUX_Average
 )
 
 var (
 	modelNames = []string{
-		"None",
+		"Average Flux",
 		"Lax Friedrichs Flux",
 		"Roe Flux",
-		"Average Flux",
 	}
 )
 
@@ -117,7 +116,6 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 		panic("unknown case type")
 	}
 	if verbose {
-		fmt.Printf("Calling avg flux for file: %s ...\n", c.MeshFile)
 		fmt.Printf("done\n")
 		fmt.Printf("Algorithm: %s\n", modelNames[c.FluxCalcAlgo])
 		fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, c.dfr.K)
