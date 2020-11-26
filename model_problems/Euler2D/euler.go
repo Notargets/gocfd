@@ -499,10 +499,13 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 					}
 				}
 			case FLUX_Roe:
-				panic("not implemented yet")
 				var (
-					rhoL, uL, vL, pL, EL, CL float64
-					rhoR, uR, vR, pR, ER, CR float64
+					rhoL, uL, vL, pL, EL float64
+					rhoR, uR, vR, pR, ER float64
+					hL, hR               float64
+					Gamma                = c.Gamma
+					GM1                  = Gamma - 1
+					eF                   [4]float64
 				)
 				normal, _ := c.getEdgeNormal(0, e, en)
 				rotateMomentum := func(k, i int) {
@@ -520,64 +523,84 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 					// Rotate the momentum into face normal coordinates before calculating fluxes
 					rotateMomentum(kL, iL)
 					rotateMomentum(kR, iR)
-					rhoL, uL, vL, pL, EL, CL = c.GetState(kL, iL, c.Q_Face)
-					rhoR, uR, vR, pR, ER, CR = c.GetState(kR, iR, c.Q_Face)
-					fluxLeft[0], fluxLeft[1] = c.CalculateFlux(kL, iL, c.Q_Face)
-					fluxRight[0], fluxRight[1] = c.CalculateFlux(kR, iR, c.Q_Face) // Reverse the right edge to match
-					_, _, _, _, _, _ = rhoL, uL, vL, pL, EL, CL
-					_, _, _, _, _, _ = rhoR, uR, vR, pR, ER, CR
+					rhoL, uL, vL, pL, EL, _ = c.GetState(kL, iL, c.Q_Face)
+					rhoR, uR, vR, pR, ER, _ = c.GetState(kR, iR, c.Q_Face)
+					fluxLeft[0], _ = c.CalculateFlux(kL, iL, c.Q_Face)
+					fluxRight[0], _ = c.CalculateFlux(kR, iR, c.Q_Face) // Reverse the right edge to match
+					/*
+					   HM = (EnerM+pM).dd(rhoM);  HP = (EnerP+pP).dd(rhoP);
+					*/
+					// Enthalpy
+					hL, hR = (EL+pL)/rhoL, (ER+pR)/rhoR
+					/*
+						rhoMs = sqrt(rhoM); rhoPs = sqrt(rhoP);
+						rhoMsPs = rhoMs + rhoPs;
+
+						rho = rhoMs.dm(rhoPs);
+						u   = (rhoMs.dm(uM) + rhoPs.dm(uP)).dd(rhoMsPs);
+						v   = (rhoMs.dm(vM) + rhoPs.dm(vP)).dd(rhoMsPs);
+						H   = (rhoMs.dm(HM) + rhoPs.dm(HP)).dd(rhoMsPs);
+						c2 = gm1 * (H - 0.5*(sqr(u)+sqr(v)));
+						c = sqrt(c2);
+					*/
+					// Compute Roe average variables
+					rhoLs, rhoRs := math.Sqrt(rhoL), math.Sqrt(rhoR)
+					rhoLsRs := rhoLs + rhoRs
+
+					rho := rhoLs * rhoRs
+					u := (rhoLs*uL + rhoRs*uR) / rhoLsRs
+					v := (rhoLs*vL + rhoRs*vR) / rhoLsRs
+					h := (rhoLs*hL + rhoRs*hR) / rhoLsRs
+					c2 := GM1 * (h - 0.5*(u*u+v*v))
+					c := math.Sqrt(c2)
+					/*
+					   dW1 = -0.5*(rho.dm(uP-uM)).dd(c) + 0.5*(pP-pM).dd(c2);
+					   dW2 = (rhoP-rhoM) - (pP-pM).dd(c2);
+					   dW3 = rho.dm(vP-vM);
+					   dW4 = 0.5*(rho.dm(uP-uM)).dd(c) + 0.5*(pP-pM).dd(c2);
+
+					   dW1 = abs(u-c).dm(dW1);
+					   dW2 = abs(u  ).dm(dW2);
+					   dW3 = abs(u  ).dm(dW3);
+					   dW4 = abs(u+c).dm(dW4);
+					*/
+					// Riemann fluxes
+					dW1 := -0.5*(rho*(uR-uL))/c + 0.5*(pR-pL)/c2
+					dW2 := (rhoR - rhoL) - (pR-pL)/c2
+					dW3 := rho * (vR - vL)
+					dW4 := 0.5*(rho*(uR-uL))/c + 0.5*(pR-pL)/c2
+					dW1 = math.Abs(u-c) * dW1
+					dW2 = math.Abs(u) * dW2
+					dW3 = math.Abs(u) * dW3
+					dW4 = math.Abs(u+c) * dW4
+					/*
+					   DMat fx = (fxQP+fxQM)/2.0;
+					   fx(All,1) -= (dW1               + dW2                                   + dW4              )/2.0;
+					   fx(All,2) -= (dW1.dm(u-c)       + dW2.dm(u)                             + dW4.dm(u+c)      )/2.0;
+					   fx(All,3) -= (dW1.dm(v)         + dW2.dm(v)                 + dW3       + dW4.dm(v)        )/2.0;
+					   fx(All,4) -= (dW1.dm(H-u.dm(c)) + dW2.dm(sqr(u)+sqr(v))/2.0 + dW3.dm(v) + dW4.dm(H+u.dm(c)))/2.0;
+					*/
+					// Form Roe Fluxes
+					for n := 0; n < 4; n++ {
+						eF[n] = 0.5 * (fluxLeft[0][n] + fluxRight[0][n]) // Ave of normal component of flux
+					}
+					eF[0] -= 0.5 * (dW1 + dW2 + dW4)
+					eF[1] -= 0.5 * (dW1*(u-c) + dW2*u + dW4*(u+c))
+					eF[2] -= 0.5 * (dW1*v + dW2*v + dW3 + dW4*v)
+					eF[3] -= 0.5 * (dW1*(h-u*c) + 0.5*dW2*(u*u+v*v) + dW3*v + dW4*(h+u*c))
+					/*
+					   flux = fx;    fx2.borrow(Ngf, fx.pCol(2)); fx3.borrow(Ngf, fx.pCol(3));
+					   flux(All,2) = lnx.dm(fx2) - lny.dm(fx3);
+					   flux(All,3) = lny.dm(fx2) + lnx.dm(fx3);
+					*/
+					// rotate back to Cartesian
+					eF[1], eF[2] = normal[0]*eF[1]-normal[1]*eF[2], normal[1]*eF[1]+normal[0]*eF[2]
+					// Project onto normal
+					for n := 0; n < 4; n++ {
+						edgeFlux[i][0][n] = normal[0] * eF[n]
+						edgeFlux[i][1][n] = normal[1] * eF[n]
+					}
 				}
-				/*
-				  // Rotate "-" trace momentum to face normal-tangent coordinates
-				  QM(All,2) =  lnx.dm(rhouM) + lny.dm(rhovM);
-				  QM(All,3) = -lny.dm(rhouM) + lnx.dm(rhovM);
-
-				  // Rotate "+" trace momentum to face normal-tangent coordinates
-				  QP(All,2) =  lnx.dm(rhouP) + lny.dm(rhovP);
-				  QP(All,3) = -lny.dm(rhouP) + lnx.dm(rhovP);
-
-				  // Compute fluxes and primitive variables in rotated coordinates
-				  this->Fluxes(QM, gamma,  fxQM,fyQM, rhoM,uM,vM,pM);
-				  this->Fluxes(QP, gamma,  fxQP,fyQP, rhoP,uP,vP,pP);
-
-				  // Compute enthalpy
-				  HM = (EnerM+pM).dd(rhoM);  HP = (EnerP+pP).dd(rhoP);
-
-				  // Compute Roe average variables
-				  rhoMs = sqrt(rhoM); rhoPs = sqrt(rhoP);
-				  rhoMsPs = rhoMs + rhoPs;
-
-				  rho = rhoMs.dm(rhoPs);
-				  u   = (rhoMs.dm(uM) + rhoPs.dm(uP)).dd(rhoMsPs);
-				  v   = (rhoMs.dm(vM) + rhoPs.dm(vP)).dd(rhoMsPs);
-				  H   = (rhoMs.dm(HM) + rhoPs.dm(HP)).dd(rhoMsPs);
-
-				  c2 = gm1 * (H - 0.5*(sqr(u)+sqr(v)));  c = sqrt(c2);
-
-				  // Riemann fluxes
-				  dW1 = -0.5*(rho.dm(uP-uM)).dd(c) + 0.5*(pP-pM).dd(c2);
-				  dW2 = (rhoP-rhoM) - (pP-pM).dd(c2);
-				  dW3 = rho.dm(vP-vM);
-				  dW4 = 0.5*(rho.dm(uP-uM)).dd(c) + 0.5*(pP-pM).dd(c2);
-
-				  dW1 = abs(u-c).dm(dW1);
-				  dW2 = abs(u  ).dm(dW2);
-				  dW3 = abs(u  ).dm(dW3);
-				  dW4 = abs(u+c).dm(dW4);
-
-				  // Form Roe fluxes
-				  DMat fx = (fxQP+fxQM)/2.0;
-
-				  fx(All,1) -= (dW1               + dW2                                   + dW4              )/2.0;
-				  fx(All,2) -= (dW1.dm(u-c)       + dW2.dm(u)                             + dW4.dm(u+c)      )/2.0;
-				  fx(All,3) -= (dW1.dm(v)         + dW2.dm(v)                 + dW3       + dW4.dm(v)        )/2.0;
-				  fx(All,4) -= (dW1.dm(H-u.dm(c)) + dW2.dm(sqr(u)+sqr(v))/2.0 + dW3.dm(v) + dW4.dm(H+u.dm(c)))/2.0;
-
-				  // rotate back to Cartesian
-				  flux = fx;    fx2.borrow(Ngf, fx.pCol(2)); fx3.borrow(Ngf, fx.pCol(3));
-				  flux(All,2) = lnx.dm(fx2) - lny.dm(fx3);
-				  flux(All,3) = lny.dm(fx2) + lnx.dm(fx3);
-				*/
 			}
 		}
 		for ii := 0; ii < int(e.NumConnectedTris); ii++ {
