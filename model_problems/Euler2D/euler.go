@@ -442,6 +442,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 				ie := i + shift
 				edgeFlux[i][0], edgeFlux[i][1] = c.CalculateFlux(k, ie, c.Q_Face)
 			}
+			c.ProjectFluxToEdge(edgeFlux, e, en, 0)
 		case 2: // Handle edges with two connected tris - shared faces
 			var (
 				kL, kR                   = int(e.ConnectedTris[0]), int(e.ConnectedTris[1])
@@ -598,9 +599,8 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 					}
 				}
 			}
-		}
-		for ii := 0; ii < int(e.NumConnectedTris); ii++ {
-			c.ProjectFluxToEdge(edgeFlux, e, en, ii)
+			c.ProjectFluxToEdge(edgeFlux, e, en, 0)
+			c.ProjectFluxToEdge(edgeFlux, e, en, 1)
 		}
 	}
 	//os.Exit(1)

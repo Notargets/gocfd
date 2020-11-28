@@ -17,7 +17,7 @@ import (
 )
 
 func TestEuler(t *testing.T) {
-	if false {
+	if true {
 		{ // Test interpolation of solution to edges for all supported orders
 			Nmax := 7
 			for N := 1; N <= Nmax; N++ {
