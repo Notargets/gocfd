@@ -17,7 +17,7 @@ import (
 )
 
 func TestEuler(t *testing.T) {
-	if true {
+	if false {
 		{ // Test interpolation of solution to edges for all supported orders
 			Nmax := 7
 			for N := 1; N <= Nmax; N++ {
@@ -128,19 +128,11 @@ func TestEuler(t *testing.T) {
 				c.SetNormalFluxInternal(c.Q)
 				c.InterpolateSolutionToEdges(c.Q)
 				c.SetNormalFluxOnEdges(0)
-				Kmax := c.dfr.K
-				Nint := c.dfr.FluxElement.Nint
 				// Check that freestream divergence on this mesh is zero
 				for n := 0; n < 4; n++ {
 					var div utils.Matrix
 					div = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
-					for k := 0; k < Kmax; k++ {
-						_, _, Jdet := c.dfr.GetJacobian(k)
-						for i := 0; i < Nint; i++ {
-							ind := k + i*Kmax
-							div.Data()[ind] /= Jdet
-						}
-					}
+					c.DivideByJacobian(c.dfr.FluxElement.Nint, div.Data())
 					assert.True(t, nearVecScalar(div.Data(), 0., 0.000001))
 				}
 			}
@@ -169,6 +161,8 @@ func TestEuler(t *testing.T) {
 				CheckFlux0(c, t)
 			}
 		}
+	}
+	if true {
 		{ // Test divergence of Isentropic Vortex initial condition against analytic values - density equation only
 			N := 1
 			plotMesh := false
@@ -213,7 +207,7 @@ func TestEuler(t *testing.T) {
 			}
 		}
 	}
-	{ // Test solver
+	if false { // Test solver
 		N := 2
 		//N := 5
 		plotMesh := false

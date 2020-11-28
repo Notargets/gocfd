@@ -304,10 +304,6 @@ func GetPrimitiveVariables(Gamma float64, Q [4]float64) (rho, u, v, p, C, E floa
 }
 
 func (c *Euler) RHS(Q [4]utils.Matrix, Time float64) (RHSCalc [4]utils.Matrix) {
-	var (
-		Kmax = c.dfr.K
-		Nint = c.dfr.FluxElement.Nint
-	)
 	/*
 				Calculate the RHS of the equation:
 				dQ/dt = -div(F,G)
@@ -323,14 +319,22 @@ func (c *Euler) RHS(Q [4]utils.Matrix, Time float64) (RHSCalc [4]utils.Matrix) {
 	c.AssembleRTNormalFlux(Q, Time) // Assembles F_RT_DOF for use in calculations using RT element
 	for n := 0; n < 4; n++ {
 		RHSCalc[n] = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n]) // Calculate divergence for the internal node points
-		for k := 0; k < Kmax; k++ {
-			_, _, Jdet := c.dfr.GetJacobian(k)
-			for i := 0; i < Nint; i++ {
-				ind := k + i*Kmax
-				RHSCalc[n].Data()[ind] /= Jdet
-			}
-		}
+		c.DivideByJacobian(c.dfr.FluxElement.Nint, RHSCalc[n].Data())
 		RHSCalc[n].Scale(-1.) // Multiply divergence by -1 to produce the RHS
+	}
+	return
+}
+
+func (c *Euler) DivideByJacobian(Nmax int, data []float64) {
+	var (
+		Kmax = c.dfr.K
+	)
+	for k := 0; k < Kmax; k++ {
+		_, _, Jdet := c.dfr.GetJacobian(k)
+		for i := 0; i < Nmax; i++ {
+			ind := k + i*Kmax
+			data[ind] /= Jdet
+		}
 	}
 	return
 }
