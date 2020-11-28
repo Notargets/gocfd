@@ -105,7 +105,6 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 			if e.BCType == DG2D.BC_Wall {
 				count++
 				e.BCType = DG2D.BC_IVortex
-				//e.BCType = DG2D.BC_Wall
 			}
 		}
 		if verbose {
@@ -336,7 +335,6 @@ func (c *Euler) DivideByJacobian(Nmax int, data []float64) {
 			data[ind] /= Jdet
 		}
 	}
-	return
 }
 
 func (c *Euler) AssembleRTNormalFlux(Q [4]utils.Matrix, Time float64) {
@@ -385,12 +383,14 @@ func (c *Euler) InterpolateSolutionToEdges(Q [4]utils.Matrix) {
 
 func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 	var (
-		dfr      = c.dfr
-		Nint     = dfr.FluxElement.Nint
-		Nedge    = dfr.FluxElement.Nedge
-		Kmax     = dfr.K
-		edgeFlux = make([][2][4]float64, Nedge)
+		dfr                            = c.dfr
+		Nint                           = dfr.FluxElement.Nint
+		Nedge                          = dfr.FluxElement.Nedge
+		Kmax                           = dfr.K
+		edgeFlux                       = make([][2][4]float64, Nedge)
+		normalFlux, normalFluxReversed = make([][4]float64, Nedge), make([][4]float64, Nedge)
 	)
+	_, _ = normalFlux, normalFluxReversed
 	for en, e := range dfr.Tris.Edges {
 		switch e.NumConnectedTris {
 		case 0:
@@ -402,13 +402,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 				shift      = edgeNumber * Nedge
 				riemann    = true
 			)
-			// TODO: Implement more boundary conditions
 			normal, _ := c.getEdgeNormal(0, e, en)
-			//fmt.Printf("normal = %8.5f,%8.5f\n", normal[0], normal[1])
-			//tangent := [2]float64{-normal[1], normal[0]}
-			//fmt.Printf("tangent = %8.5f,%8.5f\n", tangent[0], tangent[1])
-			//fmt.Println(e.Print())
-			//fmt.Printf("verts = %v\n", en.GetVertices(false))
 			switch e.BCType {
 			case DG2D.BC_Far:
 				for i := 0; i < Nedge; i++ {
