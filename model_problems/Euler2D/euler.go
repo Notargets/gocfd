@@ -452,22 +452,27 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 			)
 			switch c.FluxCalcAlgo {
 			case FLUX_Average:
-				averageFluxN := func(f1, f2 [2][4]float64) (fave [2][4]float64) {
-					for ii := 0; ii < 2; ii++ {
-						for n := 0; n < 4; n++ {
+				averageFluxN := func(f1, f2 [2][4]float64, normal, normalR [2]float64) (fave [2][4]float64, fnorm [4]float64, fnormR [4]float64) {
+					for n := 0; n < 4; n++ {
+						for ii := 0; ii < 2; ii++ {
 							fave[ii][n] = 0.5 * (f1[ii][n] + f2[ii][n])
 						}
+						fnorm[n] = normal[0]*fave[0][n] + normal[1]*fave[1][n]
+						fnormR[n] = normalR[0]*fave[0][n] + normalR[1]*fave[1][n]
 					}
 					return
 				}
+				normal, _ := c.getEdgeNormal(0, e, en)
+				normalR, _ := c.getEdgeNormal(1, e, en)
 				for i := 0; i < Nedge; i++ {
 					iL := i + shiftL
 					iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
 					fluxLeft[0], fluxLeft[1] = c.CalculateFlux(kL, iL, c.Q_Face)
 					fluxRight[0], fluxRight[1] = c.CalculateFlux(kR, iR, c.Q_Face) // Reverse the right edge to match
-					edgeFlux[i] = averageFluxN(fluxLeft, fluxRight)
+					edgeFlux[i], normalFlux[i], normalFluxReversed[Nedge-1-i] = averageFluxN(fluxLeft, fluxRight, normal, normalR)
 				}
 			case FLUX_LaxFriedrichs:
+				panic("not ready")
 				var (
 					rhoL, uL, vL, pL, CL float64
 					rhoR, uR, vR, pR, CR float64
@@ -496,6 +501,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 					}
 				}
 			case FLUX_Roe:
+				panic("not ready")
 				var (
 					rhoL, uL, vL, pL, EL float64
 					rhoR, uR, vR, pR, ER float64
@@ -599,11 +605,10 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 					}
 				}
 			}
-			c.ProjectFluxToEdge(edgeFlux, e, en, 0)
-			c.ProjectFluxToEdge(edgeFlux, e, en, 1)
+			c.SetNormalFluxOnRTEdge(kL, edgeNumberL, normalFlux, e.IInII[0])
+			c.SetNormalFluxOnRTEdge(kR, edgeNumberR, normalFluxReversed, e.IInII[1])
 		}
 	}
-	//os.Exit(1)
 	return
 }
 
@@ -660,6 +665,25 @@ func (c *Euler) ProjectFluxToEdge(edgeFlux [][2][4]float64, e *DG2D.Edge, en DG2
 			rtD := c.F_RT_DOF[n].Data()
 			ind := k + (2*Nint+iL)*Kmax
 			rtD[ind] = normalFlux
+		}
+	}
+}
+
+func (c *Euler) SetNormalFluxOnRTEdge(k, edgeNumber int, edgeNormalFlux [][4]float64, IInII float64) {
+	var (
+		dfr   = c.dfr
+		Nedge = dfr.FluxElement.Nedge
+		Nint  = dfr.FluxElement.Nint
+		Kmax  = dfr.K
+		shift = edgeNumber * Nedge
+	)
+	// Get scaling factor ||n|| for each edge, multiplied by untransformed normals
+	for n := 0; n < 4; n++ {
+		rtD := c.F_RT_DOF[n].Data()
+		for i := 0; i < Nedge; i++ {
+			// Place normed/scaled flux into the RT element space
+			ind := k + (2*Nint+i+shift)*Kmax
+			rtD[ind] = edgeNormalFlux[i][n] * IInII
 		}
 	}
 }

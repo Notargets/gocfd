@@ -166,7 +166,6 @@ func TestEuler(t *testing.T) {
 		{ // Test divergence of Isentropic Vortex initial condition against analytic values - density equation only
 			N := 1
 			plotMesh := false
-			// c := NewEuler(1, N, "../../DG2D/vortexA04.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
 			c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
 			for _, e := range c.dfr.Tris.Edges {
 				if e.BCType == DG2D.BC_IVortex {
