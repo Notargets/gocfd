@@ -387,7 +387,6 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 		Nint                           = dfr.FluxElement.Nint
 		Nedge                          = dfr.FluxElement.Nedge
 		Kmax                           = dfr.K
-		edgeFlux                       = make([][2][4]float64, Nedge)
 		normalFlux, normalFluxReversed = make([][4]float64, Nedge), make([][4]float64, Nedge)
 	)
 	for en, e := range dfr.Tris.Edges {
@@ -456,7 +455,10 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 			)
 			switch c.FluxCalcAlgo {
 			case FLUX_Average:
-				averageFluxN := func(f1, f2 [2][4]float64, normal [2]float64) (fave [2][4]float64, fnorm [4]float64, fnormR [4]float64) {
+				averageFluxN := func(f1, f2 [2][4]float64, normal [2]float64) (fnorm [4]float64, fnormR [4]float64) {
+					var (
+						fave [2][4]float64
+					)
 					for n := 0; n < 4; n++ {
 						for ii := 0; ii < 2; ii++ {
 							fave[ii][n] = 0.5 * (f1[ii][n] + f2[ii][n])
@@ -472,7 +474,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 					iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
 					fluxLeft[0], fluxLeft[1] = c.CalculateFlux(kL, iL, c.Q_Face)
 					fluxRight[0], fluxRight[1] = c.CalculateFlux(kR, iR, c.Q_Face) // Reverse the right edge to match
-					edgeFlux[i], normalFlux[i], normalFluxReversed[Nedge-1-i] = averageFluxN(fluxLeft, fluxRight, normal)
+					normalFlux[i], normalFluxReversed[Nedge-1-i] = averageFluxN(fluxLeft, fluxRight, normal)
 				}
 			case FLUX_LaxFriedrichs:
 				var (
