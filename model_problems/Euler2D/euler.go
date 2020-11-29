@@ -390,7 +390,6 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 		edgeFlux                       = make([][2][4]float64, Nedge)
 		normalFlux, normalFluxReversed = make([][4]float64, Nedge), make([][4]float64, Nedge)
 	)
-	_, _ = normalFlux, normalFluxReversed
 	for en, e := range dfr.Tris.Edges {
 		switch e.NumConnectedTris {
 		case 0:
@@ -438,11 +437,16 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 					c.Q_Face[3].Data()[ind] = QBC[3]
 				}
 			}
+			var Fx, Fy [4]float64
 			for i := 0; i < Nedge; i++ {
 				ie := i + shift
-				edgeFlux[i][0], edgeFlux[i][1] = c.CalculateFlux(k, ie, c.Q_Face)
+				//edgeFlux[i][0], edgeFlux[i][1] = c.CalculateFlux(k, ie, c.Q_Face)
+				Fx, Fy = c.CalculateFlux(k, ie, c.Q_Face)
+				for n := 0; n < 4; n++ {
+					normalFlux[i][n] = normal[0]*Fx[n] + normal[1]*Fy[n]
+				}
 			}
-			c.ProjectFluxToEdge(edgeFlux, e, en)
+			c.SetNormalFluxOnRTEdge(k, edgeNumber, normalFlux, e.IInII[0])
 		case 2: // Handle edges with two connected tris - shared faces
 			var (
 				kL, kR                   = int(e.ConnectedTris[0]), int(e.ConnectedTris[1])
@@ -471,7 +475,6 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 					edgeFlux[i], normalFlux[i], normalFluxReversed[Nedge-1-i] = averageFluxN(fluxLeft, fluxRight, normal)
 				}
 			case FLUX_LaxFriedrichs:
-				panic("not ready")
 				var (
 					rhoL, uL, vL, pL, CL float64
 					rhoR, uR, vR, pR, CR float64
@@ -492,15 +495,13 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 					maxV = math.Max(maxVF(uL, vL, pL, rhoL, CL), maxVF(uR, vR, pR, rhoR, CR))
 					indL, indR := kL+iL*Kmax, kR+iR*Kmax
 					for n := 0; n < 4; n++ {
-						normalFlux := 0.5 * (normal[0]*(fluxLeft[0][n]+fluxRight[0][n]) + normal[1]*(fluxLeft[1][n]+fluxRight[1][n]))
+						normalFlux[i][n] = 0.5 * (normal[0]*(fluxLeft[0][n]+fluxRight[0][n]) + normal[1]*(fluxLeft[1][n]+fluxRight[1][n]))
 						qD := c.Q_Face[n].Data()
-						normalFlux += 0.5 * maxV * (qD[indL] - qD[indR])
-						edgeFlux[i][0][n] = normalFlux * normal[0] // Project calculated normal flux back to edge normal
-						edgeFlux[i][1][n] = normalFlux * normal[1]
+						normalFlux[i][n] += 0.5 * maxV * (qD[indL] - qD[indR])
+						normalFluxReversed[Nedge-1-i][n] = -normalFlux[i][n]
 					}
 				}
 			case FLUX_Roe:
-				panic("not ready")
 				var (
 					rhoL, uL, vL, pL, EL float64
 					rhoR, uR, vR, pR, ER float64
@@ -599,8 +600,8 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 					eF[1], eF[2] = normal[0]*eF[1]-normal[1]*eF[2], normal[1]*eF[1]+normal[0]*eF[2]
 					// Project onto normal
 					for n := 0; n < 4; n++ {
-						edgeFlux[i][0][n] = normal[0] * eF[n]
-						edgeFlux[i][1][n] = normal[1] * eF[n]
+						normalFlux[i][n] = eF[n]
+						normalFluxReversed[Nedge-1-i][n] = -normalFlux[i][n]
 					}
 				}
 			}
@@ -665,6 +666,10 @@ func (c *Euler) ProjectFluxToEdge(edgeFlux [][2][4]float64, e *DG2D.Edge, en DG2
 }
 
 func (c *Euler) SetNormalFluxOnRTEdge(k, edgeNumber int, edgeNormalFlux [][4]float64, IInII float64) {
+	/*
+		Takes the normal flux (aka "projected flux") multiplies by the ||n|| ratio of edge normals and sets that value for
+		the F_RT_DOF degree of freedom locations for this [k, edgenumber] group
+	*/
 	var (
 		dfr   = c.dfr
 		Nedge = dfr.FluxElement.Nedge

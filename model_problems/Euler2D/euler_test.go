@@ -183,13 +183,7 @@ func TestEuler(t *testing.T) {
 			n := 0
 			fmt.Printf("component[%d]\n", n)
 			div = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
-			for k := 0; k < Kmax; k++ {
-				_, _, Jdet := c.dfr.GetJacobian(k)
-				for i := 0; i < Nint; i++ {
-					ind := k + i*Kmax
-					div.Data()[ind] /= Jdet
-				}
-			}
+			c.DivideByJacobian(Nint, div.Data())
 			// Get the analytic values of divergence for comparison
 			for k := 0; k < Kmax; k++ {
 				for i := 0; i < Nint; i++ {
@@ -206,18 +200,11 @@ func TestEuler(t *testing.T) {
 			}
 		}
 	}
-	if false { // Test solver
+	if true { // Test solver
 		N := 2
 		//N := 5
 		plotMesh := false
-		//c := NewEuler(4.0, N, "../../DG2D/vortexA04.neu", 1.00, FLUX_LaxFriedrichs, IVORTEX, plotMesh, true)
-		c := NewEuler(4.0, N, "../../DG2D/vortexA04.neu", 1.00, FLUX_Roe, IVORTEX, plotMesh, true)
-		//c := NewEuler(10.0, N, "../../DG2D/test_tris_1.neu", 0.75, FLUX_LaxFriedrichs, IVORTEX, plotMesh, true)
-		//c := NewEuler(10.0, N, "../../DG2D/vortexA04-fs.neu", 0.25, FLUX_LaxFriedrichs, FREESTREAM, plotMesh, true)
-		//c := NewEuler(10.0, N, "../../DG2D/vortexA04-fs.neu", 1.00, FLUX_LaxFriedrichs, IVORTEX, plotMesh, true)
-		//fmin, fmax := 0.355, 1.02
-		//fmin, fmax := 0.35, 1.10 // Density
-		//fmin, fmax := 0.10, 1.80
+		c := NewEuler(2.0, N, "../../DG2D/vortexA04.neu", 1.00, FLUX_LaxFriedrichs, IVORTEX, plotMesh, true)
 		fmin, fmax := -0.75, 0.80 // YMomentum
 		pm := &PlotMeta{
 			Plot:  false,
@@ -228,7 +215,7 @@ func TestEuler(t *testing.T) {
 			FieldMinP:       &fmin,
 			FieldMaxP:       &fmax,
 			FrameTime:       0 * time.Millisecond,
-			StepsBeforePlot: 1,
+			StepsBeforePlot: 50,
 			LineType:        chart2d.Solid,
 		}
 		c.Solve(pm)
@@ -435,26 +422,4 @@ func CheckFlux0(c *Euler, t *testing.T) {
 			}
 		}
 	}
-}
-
-func (c *Euler) TestSetNormalFluxOnEdges() {
-	var (
-		Nedge = c.dfr.FluxElement.Nedge
-	)
-	edgeFlux := make([][2][4]float64, Nedge)
-	for en, e := range c.dfr.Tris.Edges {
-		for conn := 0; conn < int(e.NumConnectedTris); conn++ {
-			var (
-				k          = int(e.ConnectedTris[conn]) // Single tri
-				edgeNumber = int(e.ConnectedTriEdgeNumber[conn])
-				shift      = edgeNumber * Nedge
-			)
-			for i := 0; i < Nedge; i++ {
-				ie := i + shift
-				edgeFlux[i][0], edgeFlux[i][1] = c.CalculateFlux(k, ie, c.Q_Face)
-			}
-			c.ProjectFluxToEdge(edgeFlux, e, en)
-		}
-	}
-	return
 }
