@@ -51,6 +51,7 @@ var TwoDCmd = &cobra.Command{
 			panic(err)
 		}
 		m2d.Graph, _ = cmd.Flags().GetBool("graph")
+		m2d.GraphField, _ = cmd.Flags().GetInt("graphField")
 		m2d.N, _ = cmd.Flags().GetInt("n")
 		Run2D(m2d)
 	},
@@ -69,6 +70,7 @@ func init() {
 	TwoDCmd.Flags().IntP("delay", "d", 0, "milliseconds of delay for plotting")
 	TwoDCmd.Flags().IntP("plotSteps", "s", 1, "number of steps before plotting each frame")
 	TwoDCmd.Flags().BoolP("graph", "g", false, "display a graph while computing solution")
+	TwoDCmd.Flags().IntP("graphField", "q", 0, "which field should be displayed - 0=density, 1,2=momenta, 3=energy")
 	TwoDCmd.Flags().Float64("CFL", CFL, "CFL - increase for speedup, decrease for stability")
 	TwoDCmd.Flags().Float64("finalTime", FinalTime, "FinalTime - the target end time for the sim")
 	TwoDCmd.Flags().String("gridFile", "", "Grid file to read in Gambit (.neu) format")
@@ -83,6 +85,7 @@ type Model2D struct {
 	CFL, FinalTime float64
 	GridFile       string
 	Graph          bool
+	GraphField     int
 }
 
 func Run2D(m2d *Model2D) {
@@ -92,7 +95,7 @@ func Run2D(m2d *Model2D) {
 	pm := &Euler2D.PlotMeta{
 		Plot:            m2d.Graph,
 		Scale:           1.1,
-		Field:           0,
+		Field:           Euler2D.PlotField(m2d.GraphField),
 		FieldMinP:       nil,
 		FieldMaxP:       nil,
 		FrameTime:       m2d.Delay,

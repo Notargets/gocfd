@@ -440,7 +440,6 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 			var Fx, Fy [4]float64
 			for i := 0; i < Nedge; i++ {
 				ie := i + shift
-				//edgeFlux[i][0], edgeFlux[i][1] = c.CalculateFlux(k, ie, c.Q_Face)
 				Fx, Fy = c.CalculateFlux(k, ie, c.Q_Face)
 				for n := 0; n < 4; n++ {
 					normalFlux[i][n] = normal[0]*Fx[n] + normal[1]*Fy[n]

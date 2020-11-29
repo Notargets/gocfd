@@ -20,7 +20,7 @@ func NewIVortex(Beta, X0, Y0, Gamma float64) (iv *IVortex) {
 	return
 }
 
-func (iv *IVortex) GetState(t, x, y float64) (u, v, rho, p float64) {
+func (iv *IVortex) GetStateOld(t, x, y float64) (u, v, rho, p float64) {
 	var (
 		oo2pi  = 0.5 * (1. / math.Pi)
 		r2     = utils.POW(x-t-iv.X0, 2) + utils.POW(y-iv.Y0, 2)
@@ -38,14 +38,56 @@ func (iv *IVortex) GetState(t, x, y float64) (u, v, rho, p float64) {
 	return
 }
 
+func (iv *IVortex) GetState(t, x, y float64) (u, v, rho, p float64) {
+	/*
+	  // reset static arrays to constant values
+	  u=1.0;  v=0.0;
+
+	  // base flow parameters
+	  double xo=5.0, yo=0.0, beta=5.0;
+	  double fac = 16.0*gamma*pi*pi;
+
+	  xmut = xi - u*ti;   ymvt = yi - v*ti;
+	  rsqr = sqr(xmut-xo)+sqr(ymvt-yo);
+	  ex1r = exp(1.0-rsqr);
+
+	  // perturbed density
+	  u -= beta * ex1r.dm(ymvt-yo)/(2.0*pi);
+	  v += beta * ex1r.dm(xmut-xo)/(2.0*pi);
+
+	  tv1  = (1.0-(gm1*SQ(beta)*exp(2.0*(1.0-rsqr))/fac));
+	  rho1 = pow(tv1, 1.0/gm1);
+	  p1   = pow(rho1, gamma);
+	*/
+	var (
+		oo2pi = 0.5 * (1. / math.Pi)
+		Gamma = iv.Gamma
+		GM1   = Gamma - 1
+		OOGM1 = 1. / GM1
+		pi2   = math.Pi * math.Pi
+		beta  = iv.Beta
+		beta2 = beta * beta
+		fac   = 16 * Gamma * pi2
+	)
+	u, v = 1., 0.              // start with freestream values, perturb them later
+	xmut, ymvt := x-u*t, y-v*t // vortex center location at time t
+	r2 := utils.POW(xmut-iv.X0, 2) + utils.POW(ymvt-iv.Y0, 2)
+	ex1r := math.Exp(1 - r2)
+	tv1 := 1.0 - (GM1 * beta2 * math.Exp(2.0*(1.0-r2)) / fac)
+	u -= beta * ex1r * (ymvt - iv.Y0) * oo2pi
+	v += beta * ex1r * (xmut - iv.X0) * oo2pi
+	rho = math.Pow(tv1, OOGM1)
+	p = math.Pow(rho, Gamma)
+	return
+}
+
 func (iv *IVortex) GetStateC(t, x, y float64) (Rho, RhoU, RhoV, E float64) {
 	var (
 		ooGM1 = 1. / (iv.Gamma - 1.)
 	)
 	u, v, rho, p := iv.GetState(t, x, y)
 	q := 0.5 * rho * (u*u + v*v)
-	Rho, RhoU, RhoV = rho, rho*u, rho*v
-	E = p*ooGM1 + q
+	Rho, RhoU, RhoV, E = rho, rho*u, rho*v, p*ooGM1+q
 	return
 }
 

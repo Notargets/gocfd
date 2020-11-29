@@ -22,6 +22,15 @@ func TestIVortex(t *testing.T) {
 		Div := iv.GetDivergence(0, 5, 0)
 		assert.True(t, near4Vec(Div, [4]float64{0.000000, 0.000000, 0.782349, 0.000000}, 0.00001))
 	}
+	{ // Test values
+		iv := NewIVortex(5, 5, 0, 1.4)
+		rho, rhoU, rhoV, E := iv.GetStateC(3.99793, 10.00000, -0.14684)
+		fmt.Printf("rho, rhoU, rhoV, E = %8.5f,%8.5f,%8.5f,%8.5f\n", rho, rhoU, rhoV, E)
+		rho, rhoU, rhoV, E = iv.GetStateC(0, 5.00000, 0.0)
+		fmt.Printf("rho, rhoU, rhoV, E = %8.5f,%8.5f,%8.5f,%8.5f\n", rho, rhoU, rhoV, E)
+		rho, u, v, p := iv.GetState(4., 10.00000, 0.0)
+		fmt.Printf("rho, u, v, p = %8.5f,%8.5f,%8.5f,%8.5f\n", rho, u, v, p)
+	}
 }
 
 func near4Vec(a, b [4]float64, tol float64) (l bool) {
