@@ -453,7 +453,7 @@ func (c *Euler) TestSetNormalFluxOnEdges() {
 				ie := i + shift
 				edgeFlux[i][0], edgeFlux[i][1] = c.CalculateFlux(k, ie, c.Q_Face)
 			}
-			c.ProjectFluxToEdge(edgeFlux, e, en, conn)
+			c.ProjectFluxToEdge(edgeFlux, e, en)
 		}
 	}
 	return
