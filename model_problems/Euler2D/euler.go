@@ -394,6 +394,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 		case 0:
 			panic("unable to handle unconnected edges")
 		case 1: // Handle edges with only one triangle - default is edge flux, which will be replaced by a BC flux
+			// TODO: Investigate if BCs are being applied to the wrong edge - I suspect it might be what destabilizes
 			var (
 				k          = int(e.ConnectedTris[0])
 				edgeNumber = int(e.ConnectedTriEdgeNumber[0])
@@ -510,7 +511,6 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 					hL, hR               float64
 					Gamma                = c.Gamma
 					GM1                  = Gamma - 1
-					eF                   [4]float64
 				)
 				normal, _ := c.getEdgeNormal(0, e, en)
 				rotateMomentum := func(k, i int) {
@@ -587,22 +587,21 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 					*/
 					// Form Roe Fluxes
 					for n := 0; n < 4; n++ {
-						eF[n] = 0.5 * (fluxLeft[0][n] + fluxRight[0][n]) // Ave of normal component of flux
+						normalFlux[i][n] = 0.5 * (fluxLeft[0][n] + fluxRight[0][n]) // Ave of normal component of flux
 					}
-					eF[0] -= 0.5 * (dW1 + dW2 + dW4)
-					eF[1] -= 0.5 * (dW1*(u-c) + dW2*u + dW4*(u+c))
-					eF[2] -= 0.5 * (dW1*v + dW2*v + dW3 + dW4*v)
-					eF[3] -= 0.5 * (dW1*(h-u*c) + 0.5*dW2*(u*u+v*v) + dW3*v + dW4*(h+u*c))
+					normalFlux[i][0] -= 0.5 * (dW1 + dW2 + dW4)
+					normalFlux[i][1] -= 0.5 * (dW1*(u-c) + dW2*u + dW4*(u+c))
+					normalFlux[i][2] -= 0.5 * (dW1*v + dW2*v + dW3 + dW4*v)
+					normalFlux[i][3] -= 0.5 * (dW1*(h-u*c) + 0.5*dW2*(u*u+v*v) + dW3*v + dW4*(h+u*c))
 					/*
 					   flux = fx;    fx2.borrow(Ngf, fx.pCol(2)); fx3.borrow(Ngf, fx.pCol(3));
 					   flux(All,2) = lnx.dm(fx2) - lny.dm(fx3);
 					   flux(All,3) = lny.dm(fx2) + lnx.dm(fx3);
 					*/
 					// rotate back to Cartesian
-					eF[1], eF[2] = normal[0]*eF[1]-normal[1]*eF[2], normal[1]*eF[1]+normal[0]*eF[2]
+					normalFlux[i][1], normalFlux[i][2] = normal[0]*normalFlux[i][1]-normal[1]*normalFlux[i][2], normal[1]*normalFlux[i][1]+normal[0]*normalFlux[i][2]
 					// Project onto normal
 					for n := 0; n < 4; n++ {
-						normalFlux[i][n] = eF[n]
 						normalFluxReversed[Nedge-1-i][n] = -normalFlux[i][n]
 					}
 				}
