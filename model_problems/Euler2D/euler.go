@@ -394,7 +394,6 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 		case 0:
 			panic("unable to handle unconnected edges")
 		case 1: // Handle edges with only one triangle - default is edge flux, which will be replaced by a BC flux
-			// TODO: Investigate if BCs are being applied to the wrong edge - I suspect it might be what destabilizes
 			var (
 				k          = int(e.ConnectedTris[0])
 				edgeNumber = int(e.ConnectedTriEdgeNumber[0])
