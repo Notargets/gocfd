@@ -4,10 +4,12 @@ go 1.14
 
 require (
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
+	github.com/ghodss/yaml v1.0.0
 	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20200420212212-258d9bec320e // indirect
 	github.com/gonum/floats v0.0.0-20181209220543-c233463c7e82 // indirect
 	github.com/gonum/internal v0.0.0-20181124074243-f884aa714029 // indirect
 	github.com/james-bowman/sparse v0.0.0-20200204164517-b588421ac5da
+	github.com/magiconair/properties v1.8.1
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.3.2 // indirect
 	github.com/notargets/avs v0.0.7-0.20201121032317-cc994a55a74d

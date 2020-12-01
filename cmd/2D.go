@@ -17,7 +17,11 @@ package cmd
 
 import (
 	"fmt"
+	"io/ioutil"
+	"sort"
 	"time"
+
+	"github.com/ghodss/yaml"
 
 	"github.com/notargets/avs/chart2d"
 
@@ -44,6 +48,37 @@ var (
 	N         = 1
 	FinalTime = 4.
 )
+
+type InputParameters struct {
+	Title           string                                `yaml:"Title"`
+	CFL             float64                               `yaml:"CFL"`
+	FluxType        string                                `yaml:"FluxType"`
+	Case            string                                `yaml:"Case"`
+	PolynomialOrder int                                   `yaml:"PolynomialOrder"`
+	BCs             map[string]map[int]map[string]float64 `yaml:"BCs"` // First key is BC name/type, second is parameter name
+}
+
+func (ip *InputParameters) Parse(data []byte) error {
+	return yaml.Unmarshal(data, ip)
+}
+
+func (ip *InputParameters) Print() {
+	fmt.Printf("\"%s\"\t\t= Title\n", ip.Title)
+	fmt.Printf("%8.5f\t\t= CFL\n", ip.CFL)
+	fmt.Printf("[%s]\t\t\t= Flux Type\n", ip.FluxType)
+	fmt.Printf("[%s]\t\t= Case\n", ip.Case)
+	fmt.Printf("[%d]\t\t\t\t= Polynomial Order\n", ip.PolynomialOrder)
+	keys := make([]string, len(ip.BCs))
+	i := 0
+	for k := range ip.BCs {
+		keys[i] = k
+		i++
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		fmt.Printf("BCs[%s] = %v\n", key, ip.BCs[key])
+	}
+}
 
 // TwoDCmd represents the 2D command
 var TwoDCmd = &cobra.Command{
@@ -75,8 +110,30 @@ var TwoDCmd = &cobra.Command{
 		m2d.Graph, _ = cmd.Flags().GetBool("graph")
 		m2d.GraphField, _ = cmd.Flags().GetInt("graphField")
 		m2d.N, _ = cmd.Flags().GetInt("n")
+		processInput(m2d)
 		Run2D(m2d)
 	},
+}
+
+func processInput(m2d *Model2D) {
+	var (
+		err error
+	)
+	if len(m2d.ICFile) != 0 {
+		var data []byte
+		if data, err = ioutil.ReadFile(m2d.ICFile); err != nil {
+			panic(err)
+		}
+		var input InputParameters
+		if err = input.Parse(data); err != nil {
+			panic(err)
+		}
+		fmt.Println("Input = ", input)
+	}
+	if len(m2d.GridFile) == 0 {
+		err := fmt.Errorf("must have a grid file in .neu (Gambit neutral file) format")
+		panic(err)
+	}
 }
 
 func init() {
