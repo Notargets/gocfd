@@ -26,6 +26,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type Model2D struct {
+	K, N           int // Number of elements, Polynomial Degree
+	Delay          time.Duration
+	PlotSteps      int
+	FluxType       Euler2D.FluxType
+	CaseType       Euler2D.CaseType
+	CFL, FinalTime float64
+	GridFile       string
+	Graph          bool
+	GraphField     int
+	ICFile         string
+}
+
+var (
+	CFL       = 1.
+	N         = 1
+	FinalTime = 4.
+)
+
 // TwoDCmd represents the 2D command
 var TwoDCmd = &cobra.Command{
 	Use:   "2D",
@@ -50,6 +69,9 @@ var TwoDCmd = &cobra.Command{
 		if m2d.GridFile, err = cmd.Flags().GetString("gridFile"); err != nil {
 			panic(err)
 		}
+		if m2d.ICFile, err = cmd.Flags().GetString("inputConditionsFile"); err != nil {
+			panic(err)
+		}
 		m2d.Graph, _ = cmd.Flags().GetBool("graph")
 		m2d.GraphField, _ = cmd.Flags().GetInt("graphField")
 		m2d.N, _ = cmd.Flags().GetInt("n")
@@ -59,13 +81,8 @@ var TwoDCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(TwoDCmd)
-	var (
-		CFL       = 1.
-		N         = 1
-		FinalTime = 4.
-	)
 	TwoDCmd.Flags().IntP("caseType", "c", int(1), "type of model, eg: 0 for freestream, 1 for vortex")
-	TwoDCmd.Flags().IntP("fluxType", "f", int(0), "type of flux calculation, eg: 1 for Lax, 2 for Roe")
+	TwoDCmd.Flags().IntP("fluxType", "f", int(1), "type of flux calculation, eg: 1 for Lax, 2 for Roe")
 	TwoDCmd.Flags().IntP("n", "n", N, "polynomial degree")
 	TwoDCmd.Flags().IntP("delay", "d", 0, "milliseconds of delay for plotting")
 	TwoDCmd.Flags().IntP("plotSteps", "s", 1, "number of steps before plotting each frame")
@@ -73,19 +90,8 @@ func init() {
 	TwoDCmd.Flags().IntP("graphField", "q", 0, "which field should be displayed - 0=density, 1,2=momenta, 3=energy")
 	TwoDCmd.Flags().Float64("CFL", CFL, "CFL - increase for speedup, decrease for stability")
 	TwoDCmd.Flags().Float64("finalTime", FinalTime, "FinalTime - the target end time for the sim")
-	TwoDCmd.Flags().String("gridFile", "", "Grid file to read in Gambit (.neu) format")
-}
-
-type Model2D struct {
-	K, N           int // Number of elements, Polynomial Degree
-	Delay          time.Duration
-	PlotSteps      int
-	FluxType       Euler2D.FluxType
-	CaseType       Euler2D.CaseType
-	CFL, FinalTime float64
-	GridFile       string
-	Graph          bool
-	GraphField     int
+	TwoDCmd.Flags().StringP("gridFile", "F", "", "Grid file to read in Gambit (.neu) format")
+	TwoDCmd.Flags().StringP("inputConditionsFile", "I", "", "YAML file for input parameters like:\n\t- CFL\n\t- NPR (nozzle pressure ratio)")
 }
 
 func Run2D(m2d *Model2D) {
