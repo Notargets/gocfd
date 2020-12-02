@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"math"
+	"strings"
 	"time"
 
 	graphics2D "github.com/notargets/avs/geometry"
@@ -36,7 +37,7 @@ type Euler struct {
 	F_RT_DOF              [4]utils.Matrix // Normal Projected Flux, stored at flux/solution point locations, Np_flux x K
 	chart                 ChartState
 	FluxCalcAlgo          FluxType
-	Case                  CaseType
+	Case                  InitType
 	AnalyticSolution      ExactState
 	FluxCalcMock          func(Gamma, rho, rhoU, rhoV, E float64) (Fx, Fy [4]float64) // For testing
 }
@@ -52,12 +53,42 @@ type ExactState interface {
 	GetDivergence(t, x, y float64) (div [4]float64)
 }
 
-type CaseType uint
+type InitType uint
 
 const (
-	FREESTREAM CaseType = iota
+	FREESTREAM InitType = iota
 	IVORTEX
 )
+
+var (
+	InitNames = map[string]InitType{
+		"freestream": FREESTREAM,
+		"ivortex":    IVORTEX,
+	}
+	InitPrintNames = []string{"Freestream", "Inviscid Vortex Analytic Solution"}
+)
+
+func NewInitType(label string) (it InitType) {
+	var (
+		ok  bool
+		err error
+	)
+	if len(label) == 0 {
+		err = fmt.Errorf("empty init type, must be one of %v", InitNames)
+		panic(err)
+	}
+	label = strings.ToLower(label)
+	if it, ok = InitNames[label]; !ok {
+		err = fmt.Errorf("unable to use init type named %s", label)
+		panic(err)
+	}
+	return
+}
+
+func (it InitType) Print() (txt string) {
+	txt = InitPrintNames[it]
+	return
+}
 
 type FluxType uint
 
@@ -68,14 +99,33 @@ const (
 )
 
 var (
-	modelNames = []string{
-		"Average Flux",
-		"Lax Friedrichs Flux",
-		"Roe Flux",
+	FluxNames = map[string]FluxType{
+		"average": FLUX_Average,
+		"lax":     FLUX_LaxFriedrichs,
+		"roe":     FLUX_Roe,
 	}
+	FluxPrintNames = []string{"Average", "Lax Friedrichs", "Roe"}
 )
 
-func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType FluxType, Case CaseType, plotMesh, verbose bool) (c *Euler) {
+func (ft FluxType) Print() (txt string) {
+	txt = FluxPrintNames[ft]
+	return
+}
+
+func NewFluxType(label string) (ft FluxType) {
+	var (
+		ok  bool
+		err error
+	)
+	label = strings.ToLower(label)
+	if ft, ok = FluxNames[label]; !ok {
+		err = fmt.Errorf("unable to use flux named %s", label)
+		panic(err)
+	}
+	return
+}
+
+func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType FluxType, Case InitType, plotMesh, verbose bool) (c *Euler) {
 	c = &Euler{
 		MeshFile:     meshFile,
 		CFL:          CFL,
@@ -90,12 +140,12 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 	if verbose {
 		fmt.Printf("Euler Equations in 2 Dimensions\n")
 	}
+	if verbose {
+		fmt.Printf("Solving %s\n", c.Case.Print())
+	}
 	switch c.Case {
 	case FREESTREAM:
 		c.InitializeFS()
-		if verbose {
-			fmt.Printf("Solving Freestream\n")
-		}
 	case IVORTEX:
 		c.AnalyticSolution, c.Q = c.InitializeIVortex(c.dfr.SolutionX, c.dfr.SolutionY)
 		c.Qinf = [4]float64{1, 1, 0, 3}
@@ -108,7 +158,6 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 			}
 		}
 		if verbose {
-			fmt.Printf("Solving Isentropic Vortex\n")
 			fmt.Printf("\tReplaced %d Wall boundary conditions with analytic BC_IVortex\n", count)
 		}
 	default:
@@ -116,7 +165,7 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 	}
 	if verbose {
 		fmt.Printf("done\n")
-		fmt.Printf("Algorithm: %s\n", modelNames[c.FluxCalcAlgo])
+		fmt.Printf("Algorithm: %s\n", c.FluxCalcAlgo.Print())
 		fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, c.dfr.K)
 	}
 	return

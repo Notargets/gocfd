@@ -31,30 +31,21 @@ import (
 )
 
 type Model2D struct {
-	K, N           int // Number of elements, Polynomial Degree
-	Delay          time.Duration
-	PlotSteps      int
-	FluxType       Euler2D.FluxType
-	CaseType       Euler2D.CaseType
-	CFL, FinalTime float64
-	GridFile       string
-	Graph          bool
-	GraphField     int
-	ICFile         string
+	GridFile   string
+	ICFile     string
+	Graph      bool
+	GraphField int
+	PlotSteps  int
+	Delay      time.Duration
 }
-
-var (
-	CFL       = 1.
-	N         = 1
-	FinalTime = 4.
-)
 
 type InputParameters struct {
 	Title           string                                `yaml:"Title"`
 	CFL             float64                               `yaml:"CFL"`
 	FluxType        string                                `yaml:"FluxType"`
-	Case            string                                `yaml:"Case"`
+	InitType        string                                `yaml:"InitType"`
 	PolynomialOrder int                                   `yaml:"PolynomialOrder"`
+	FinalTime       float64                               `yaml:"FinalTime"`
 	BCs             map[string]map[int]map[string]float64 `yaml:"BCs"` // First key is BC name/type, second is parameter name
 }
 
@@ -65,8 +56,9 @@ func (ip *InputParameters) Parse(data []byte) error {
 func (ip *InputParameters) Print() {
 	fmt.Printf("\"%s\"\t\t= Title\n", ip.Title)
 	fmt.Printf("%8.5f\t\t= CFL\n", ip.CFL)
+	fmt.Printf("%8.5f\t\t= FinalTime\n", ip.FinalTime)
 	fmt.Printf("[%s]\t\t\t= Flux Type\n", ip.FluxType)
-	fmt.Printf("[%s]\t\t= Case\n", ip.Case)
+	fmt.Printf("[%s]\t= InitType\n", ip.InitType)
 	fmt.Printf("[%d]\t\t\t\t= Polynomial Order\n", ip.PolynomialOrder)
 	keys := make([]string, len(ip.BCs))
 	i := 0
@@ -91,16 +83,6 @@ var TwoDCmd = &cobra.Command{
 		)
 		fmt.Println("2D called")
 		m2d := &Model2D{}
-		ct, _ := cmd.Flags().GetInt("caseType")
-		m2d.CaseType = Euler2D.CaseType(ct)
-		ft, _ := cmd.Flags().GetInt("fluxType")
-		m2d.FluxType = Euler2D.FluxType(ft)
-		dr, _ := cmd.Flags().GetInt("delay")
-		m2d.Delay = time.Duration(time.Duration(dr) * time.Millisecond)
-		ps, _ := cmd.Flags().GetInt("plotSteps")
-		m2d.PlotSteps = ps
-		m2d.FinalTime, _ = cmd.Flags().GetFloat64("finalTime")
-		m2d.CFL, _ = cmd.Flags().GetFloat64("CFL")
 		if m2d.GridFile, err = cmd.Flags().GetString("gridFile"); err != nil {
 			panic(err)
 		}
@@ -109,13 +91,16 @@ var TwoDCmd = &cobra.Command{
 		}
 		m2d.Graph, _ = cmd.Flags().GetBool("graph")
 		m2d.GraphField, _ = cmd.Flags().GetInt("graphField")
-		m2d.N, _ = cmd.Flags().GetInt("n")
-		processInput(m2d)
-		Run2D(m2d)
+		ps, _ := cmd.Flags().GetInt("plotSteps")
+		m2d.PlotSteps = ps
+		dr, _ := cmd.Flags().GetInt("delay")
+		m2d.Delay = time.Duration(time.Duration(dr) * time.Millisecond)
+		ip := processInput(m2d)
+		Run2D(m2d, ip)
 	},
 }
 
-func processInput(m2d *Model2D) {
+func processInput(m2d *Model2D) (ip *InputParameters) {
 	var (
 		err error
 	)
@@ -124,37 +109,34 @@ func processInput(m2d *Model2D) {
 		if data, err = ioutil.ReadFile(m2d.ICFile); err != nil {
 			panic(err)
 		}
-		var input InputParameters
-		if err = input.Parse(data); err != nil {
+		ip = &InputParameters{}
+		if err = ip.Parse(data); err != nil {
 			panic(err)
 		}
-		fmt.Println("Input = ", input)
 	}
 	if len(m2d.GridFile) == 0 {
 		err := fmt.Errorf("must have a grid file in .neu (Gambit neutral file) format")
 		panic(err)
 	}
+	return
 }
 
 func init() {
 	rootCmd.AddCommand(TwoDCmd)
-	TwoDCmd.Flags().IntP("caseType", "c", int(1), "type of model, eg: 0 for freestream, 1 for vortex")
-	TwoDCmd.Flags().IntP("fluxType", "f", int(1), "type of flux calculation, eg: 1 for Lax, 2 for Roe")
-	TwoDCmd.Flags().IntP("n", "n", N, "polynomial degree")
-	TwoDCmd.Flags().IntP("delay", "d", 0, "milliseconds of delay for plotting")
-	TwoDCmd.Flags().IntP("plotSteps", "s", 1, "number of steps before plotting each frame")
-	TwoDCmd.Flags().BoolP("graph", "g", false, "display a graph while computing solution")
-	TwoDCmd.Flags().IntP("graphField", "q", 0, "which field should be displayed - 0=density, 1,2=momenta, 3=energy")
-	TwoDCmd.Flags().Float64("CFL", CFL, "CFL - increase for speedup, decrease for stability")
-	TwoDCmd.Flags().Float64("finalTime", FinalTime, "FinalTime - the target end time for the sim")
 	TwoDCmd.Flags().StringP("gridFile", "F", "", "Grid file to read in Gambit (.neu) format")
 	TwoDCmd.Flags().StringP("inputConditionsFile", "I", "", "YAML file for input parameters like:\n\t- CFL\n\t- NPR (nozzle pressure ratio)")
+	TwoDCmd.Flags().BoolP("graph", "g", false, "display a graph while computing solution")
+	TwoDCmd.Flags().IntP("delay", "d", 0, "milliseconds of delay for plotting")
+	TwoDCmd.Flags().IntP("plotSteps", "s", 1, "number of steps before plotting each frame")
+	TwoDCmd.Flags().IntP("graphField", "q", 0, "which field should be displayed - 0=density, 1,2=momenta, 3=energy")
 }
 
-func Run2D(m2d *Model2D) {
+func Run2D(m2d *Model2D, ip *InputParameters) {
 	c := Euler2D.NewEuler(
-		m2d.FinalTime, m2d.N, m2d.GridFile, m2d.CFL, m2d.FluxType, m2d.CaseType,
+		ip.FinalTime, ip.PolynomialOrder, m2d.GridFile, ip.CFL,
+		Euler2D.NewFluxType(ip.FluxType), Euler2D.NewInitType(ip.InitType),
 		false, true)
+	//m2d.FinalTime, m2d.N, m2d.GridFile, m2d.CFL, m2d.FluxType, m2d.InitType,
 	pm := &Euler2D.PlotMeta{
 		Plot:            m2d.Graph,
 		Scale:           1.1,
