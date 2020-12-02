@@ -18,6 +18,7 @@ package cmd
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"sort"
 	"time"
 
@@ -102,8 +103,33 @@ var TwoDCmd = &cobra.Command{
 
 func processInput(m2d *Model2D) (ip *InputParameters) {
 	var (
-		err error
+		err      error
+		willExit bool
 	)
+	if len(m2d.GridFile) == 0 {
+		err := fmt.Errorf("must supply a grid file (-F, --gridFile) in .neu (Gambit neutral file) format")
+		fmt.Printf("error: %s\n", err.Error())
+		willExit = true
+	}
+	if len(m2d.ICFile) == 0 {
+		err := fmt.Errorf("must supply an input parameters file (-I, --inputConditionsFile) in .neu (Gambit neutral file) format")
+		fmt.Printf("error: %s\n", err.Error())
+		exampleFile := `
+########################################
+Title: "Test Case"
+CFL: 1.
+FluxType: Lax
+InitType: IVortex # Can be "Freestream"
+PolynomialOrder: 1
+FinalTime: 4
+########################################
+`
+		fmt.Printf("Example File:%s\n", exampleFile)
+		willExit = true
+	}
+	if willExit {
+		os.Exit(1)
+	}
 	if len(m2d.ICFile) != 0 {
 		var data []byte
 		if data, err = ioutil.ReadFile(m2d.ICFile); err != nil {
@@ -113,10 +139,6 @@ func processInput(m2d *Model2D) (ip *InputParameters) {
 		if err = ip.Parse(data); err != nil {
 			panic(err)
 		}
-	}
-	if len(m2d.GridFile) == 0 {
-		err := fmt.Errorf("must have a grid file in .neu (Gambit neutral file) format")
-		panic(err)
 	}
 	return
 }
