@@ -676,7 +676,7 @@ func (c *Euler) getEdgeNormal(conn int, e *DG2D.Edge, en DG2D.EdgeNumber) (norma
 		return
 	}
 	revDir := bool(e.ConnectedTriDirection[conn])
-	x1, x2 := dfr.Tris.GetEdgeCoordinates(en, revDir, dfr.VX, dfr.VY)
+	x1, x2 := DG2D.GetEdgeCoordinates(en, revDir, dfr.VX, dfr.VY)
 	dx := [2]float64{x2[0] - x1[0], x2[1] - x1[1]}
 	normal = normalize([2]float64{-dx[1], dx[0]})
 	scaledNormal[0] = normal[0] * e.IInII[conn]
@@ -734,25 +734,6 @@ func (c *Euler) SetNormalFluxOnRTEdge(k, edgeNumber int, edgeNormalFlux [][4]flo
 			rtD[ind] = edgeNormalFlux[i][n] * IInII
 		}
 	}
-}
-
-func (c *Euler) EdgeStart(k int, e *DG2D.Edge, conn int) (index int) {
-	/*
-			Flux points are stored as (KxNp) for each Flux
-		    Within Np, the flux points are layed out like:
-			<---- Nint ----><---- Nint ----><---Nedge----><---Nedge----><---Nedge---->
-			         Solution Points          Edge 0 pts	Edge 1 pts	  Edge 2 pts
-			<---- Nint ----><---- Nint ----><---Nedge----><---Nedge----><---Nedge---->
-	*/
-	var (
-		el      = c.dfr.FluxElement
-		Np      = el.Np
-		Nint    = el.Nint
-		Nedge   = el.Nedge
-		edgeNum = e.ConnectedTriEdgeNumber[conn].Index()
-	)
-	index = k*Np + 2*Nint + edgeNum*Nedge
-	return
 }
 
 func (c *Euler) InitializeFS() {

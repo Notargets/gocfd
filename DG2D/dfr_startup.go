@@ -111,7 +111,7 @@ func (dfr *DFR2D) CalculateFaceNorms() {
 		for connNum, triNum := range e.ConnectedTris {
 			k := int(triNum)
 			fnD1, fnD2 := dfr.FaceNorm[0].Data(), dfr.FaceNorm[1].Data()
-			x1, x2 := dfr.Tris.GetEdgeCoordinates(en, bool(e.ConnectedTriDirection[connNum]), dfr.VX, dfr.VY)
+			x1, x2 := GetEdgeCoordinates(en, bool(e.ConnectedTriDirection[connNum]), dfr.VX, dfr.VY)
 			dx, dy := x2[0]-x1[0], x2[1]-x1[1]
 			nx, ny := -dy, dx
 			edgeNum := e.ConnectedTriEdgeNumber[connNum].Index() // one of [0,1,2], aka "First", "Second", "Third"

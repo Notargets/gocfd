@@ -193,7 +193,7 @@ func TestDFR2D(t *testing.T) {
 				J, Jinv, Jdet := dfr.GetJacobian(int(k))
 				Jt := transpose(J)       // Transpose is applied to normals, which are cross products of vectors
 				JtInv := transpose(Jinv) // Transpose is applied to normals, which are cross products of vectors
-				x1, x2 := dfr.Tris.GetEdgeCoordinates(en, revDir, dfr.VX, dfr.VY)
+				x1, x2 := GetEdgeCoordinates(en, revDir, dfr.VX, dfr.VY)
 				dx := [2]float64{x2[0] - x1[0], x2[1] - x1[1]}
 				normal := [2]float64{-dx[1], dx[0]}
 
@@ -387,7 +387,7 @@ func SetNormalFluxOnEdges(dfr *DFR2D, Fx, Fy utils.Matrix, Fp *utils.Matrix) {
 				k = int(e.ConnectedTris[conn])
 			)
 			revDir := bool(e.ConnectedTriDirection[conn])
-			x1, x2 := dfr.Tris.GetEdgeCoordinates(en, revDir, dfr.VX, dfr.VY)
+			x1, x2 := GetEdgeCoordinates(en, revDir, dfr.VX, dfr.VY)
 			dx := [2]float64{x2[0] - x1[0], x2[1] - x1[1]}
 			normal := normalize([2]float64{-dx[1], dx[0]})
 			normal[0] *= e.IInII[conn]

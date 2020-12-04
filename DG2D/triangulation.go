@@ -38,8 +38,8 @@ func (tmesh *Triangulation) GetTriVerts(k uint32) (verts [3]int) {
 	return
 }
 
-func (tmesh *Triangulation) NewEdge(VX, VY utils.Vector, verts [2]int, connectedElementNumber int, intEdgeNumber InternalEdgeNumber,
-	bcFace int) (e *Edge) {
+func (tmesh *Triangulation) NewEdge(VX, VY utils.Vector,
+	verts [2]int, connectedElementNumber int, intEdgeNumber InternalEdgeNumber, bcFace int) (e *Edge) {
 	var (
 		ok bool
 	)
@@ -64,8 +64,15 @@ func (tmesh *Triangulation) NewEdge(VX, VY utils.Vector, verts [2]int, connected
 			panic("incorrect edge construction, more than two connected triangles")
 		}
 	}
-	e.ConnectedTris[conn] = uint32(connectedElementNumber)
-	e.ConnectedTriDirection[conn] = dir
+	e.AddTri(en, connectedElementNumber, conn, bcFace, intEdgeNumber, dir, VX, VY)
+	return
+}
+
+func (e *Edge) AddTri(en EdgeNumber, k, conn, bcFace int,
+	intEdgeNumber InternalEdgeNumber, direction InternalEdgeDirection,
+	VX, VY utils.Vector) {
+	e.ConnectedTris[conn] = uint32(k)
+	e.ConnectedTriDirection[conn] = direction
 	e.ConnectedTriEdgeNumber[conn] = intEdgeNumber
 	e.NumConnectedTris++
 	if bcFace != 0 {
@@ -78,7 +85,7 @@ func (tmesh *Triangulation) NewEdge(VX, VY utils.Vector, verts [2]int, connected
 	}
 	revDir := bool(e.ConnectedTriDirection[conn])
 	edgeNumber := e.ConnectedTriEdgeNumber[conn]
-	x1, x2 := tmesh.GetEdgeCoordinates(en, revDir, VX, VY)
+	x1, x2 := GetEdgeCoordinates(en, revDir, VX, VY)
 	dx := [2]float64{x2[0] - x1[0], x2[1] - x1[1]}
 	edgeNorm := norm([2]float64{-dx[1], dx[0]}) // Norm of the edge normal
 	// ||n|| = untransformed_edge_length / unit_tri_edge_length
@@ -88,7 +95,6 @@ func (tmesh *Triangulation) NewEdge(VX, VY utils.Vector, verts [2]int, connected
 	case Second:
 		e.IInII[conn] = edgeNorm / (2. * math.Sqrt(2))
 	}
-	return
 }
 
 /*
@@ -129,7 +135,7 @@ func (e *Edge) Print() (p string) {
 	return
 }
 
-func (tmesh *Triangulation) GetEdgeCoordinates(en EdgeNumber, rev bool, VX, VY utils.Vector) (x1, x2 [2]float64) {
+func GetEdgeCoordinates(en EdgeNumber, rev bool, VX, VY utils.Vector) (x1, x2 [2]float64) {
 	ev := en.GetVertices(!rev) // oriented for outward facing normals
 	x1[0], x1[1] = VX.AtVec(ev[0]), VY.AtVec(ev[0])
 	x2[0], x2[1] = VX.AtVec(ev[1]), VY.AtVec(ev[1])
