@@ -2,5 +2,5 @@ Title: "Test Case"
 CFL: 1.
 FluxType: Lax
 InitType: IVortex # Can be "Freestream"
-PolynomialOrder: 1
+PolynomialOrder: 4
 FinalTime: 4

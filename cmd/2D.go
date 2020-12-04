@@ -124,7 +124,7 @@ PolynomialOrder: 1
 FinalTime: 4
 ########################################
 `
-		fmt.Printf("Example File:%s\n", exampleFile)
+		fmt.Printf("Example File Contents:%s\n", exampleFile)
 		willExit = true
 	}
 	if willExit {
