@@ -234,14 +234,14 @@ func ReadBCS(Nbcs, K, NFaces int, reader *bufio.Reader) (BCType utils.Matrix) {
 		for i := 0; i < numfaces; i++ {
 			line = getLine(reader)
 			nargs = 3
-			var n1, n2, n3 int
-			if n, err = fmt.Sscanf(line, "%d %d %d", &n1, &n2, &n3); err != nil || n < nargs {
+			var kp1, n2, faceNumberp1 int
+			if n, err = fmt.Sscanf(line, "%d %d %d", &kp1, &n2, &faceNumberp1); err != nil || n < nargs {
 				if err == nil && n < nargs {
 					err = fmt.Errorf("read fewer than required dimensions, read %d, need %d\n, line: %s", n, nargs, line)
 				}
 				panic(err)
 			}
-			BCType.Set(n1-1, n3-1, float64(bt))
+			BCType.Set(kp1-1, faceNumberp1-1, float64(bt))
 		}
 		skipLines(1, reader)
 	}
