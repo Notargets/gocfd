@@ -5,6 +5,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/notargets/gocfd/DG2D/readfiles"
+
 	utils2 "github.com/notargets/avs/utils"
 
 	"github.com/notargets/avs/functions"
@@ -178,10 +180,10 @@ func TestDFR2D(t *testing.T) {
 			{ // 0-1, 2-3: 	BC Inflow
 				en := NewEdgeNumber([2]int{0, 1})
 				e := trn.Edges[en]
-				assert.Equal(t, BC_In, e.BCType)
+				assert.Equal(t, readfiles.BC_In, e.BCType)
 				en = NewEdgeNumber([2]int{2, 3})
 				e = trn.Edges[en]
-				assert.Equal(t, BC_In, e.BCType)
+				assert.Equal(t, readfiles.BC_In, e.BCType)
 			}
 		}
 		// Test Piola transform and jacobian

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/notargets/gocfd/DG2D/readfiles"
+
 	"github.com/notargets/gocfd/utils"
 )
 
@@ -76,7 +78,7 @@ func (e *Edge) AddTri(en EdgeNumber, k, conn, bcFace int,
 	e.ConnectedTriEdgeNumber[conn] = intEdgeNumber
 	e.NumConnectedTris++
 	if bcFace != 0 {
-		e.BCType = BCFLAG(bcFace)
+		e.BCType = readfiles.BCFLAG(bcFace)
 	}
 	// Calculate ||n|| scaling factor for each edge
 	norm := func(vec [2]float64) (n float64) {
@@ -109,7 +111,7 @@ type Edge struct {
 	ConnectedTris          [2]uint32                // Index numbers of triangles connected to this edge
 	ConnectedTriDirection  [2]InternalEdgeDirection // If false(default), the edge runs from smaller to larger within the connected tri
 	ConnectedTriEdgeNumber [2]InternalEdgeNumber    // For the connected triangles, what is the edge number (one of 0, 1 or 2)
-	BCType                 BCFLAG                   // If not connected to two tris, this field will be used
+	BCType                 readfiles.BCFLAG         // If not connected to two tris, this field will be used
 	IInII                  [2]float64               // ||n|| scale factor to pre-multiply normal values prior to transforming into unit tri
 }
 

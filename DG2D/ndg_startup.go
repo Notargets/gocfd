@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/notargets/gocfd/DG2D/readfiles"
+
 	"github.com/notargets/gocfd/DG1D"
 
 	"github.com/notargets/gocfd/utils"
@@ -36,10 +38,10 @@ func NewNDG2D(N int, meshFile string, plotMesh bool) (ndg *NDG2D) {
 	if N < 1 {
 		panic(fmt.Errorf("Polynomial order must be >= 1, have %d", N))
 	}
-	ndg.K, ndg.VX, ndg.VY, ndg.EToV, ndg.BCType = ReadGambit2d(meshFile, false)
+	ndg.K, ndg.VX, ndg.VY, ndg.EToV, ndg.BCType = readfiles.ReadGambit2d(meshFile, false)
 	ndg.Startup2D()
 	if plotMesh {
-		PlotMesh(ndg.VX, ndg.VY, ndg.EToV, ndg.BCType, ndg.X, ndg.Y, true)
+		readfiles.PlotMesh(ndg.VX, ndg.VY, ndg.EToV, ndg.BCType, ndg.X, ndg.Y, true)
 		utils.SleepFor(50000)
 	}
 	return
@@ -76,7 +78,7 @@ func (ndg *NDG2D) Startup2D() {
 	ndg.Normals2D()
 	ndg.FScale = ndg.sJ.ElDiv(ndg.J.Subset(ndg.GetFaces()))
 	// Build connectivity matrices
-	ndg.EToE, ndg.EToF = Connect2D(ndg.K, ndg.Element.NFaces, ndg.VX.Len(), ndg.EToV)
+	ndg.EToE, ndg.EToF = readfiles.Connect2D(ndg.K, ndg.Element.NFaces, ndg.VX.Len(), ndg.EToV)
 
 	// Mark fields read only
 	ndg.LIFT.SetReadOnly("LIFT")

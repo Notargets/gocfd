@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/notargets/gocfd/DG2D/readfiles"
+
 	graphics2D "github.com/notargets/avs/geometry"
 
 	"github.com/notargets/avs/functions"
@@ -152,9 +154,9 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 		// Set "Wall" BCs to IVortex
 		var count int
 		for _, e := range c.dfr.Tris.Edges {
-			if e.BCType == DG2D.BC_Wall {
+			if e.BCType == readfiles.BC_Wall {
 				count++
-				e.BCType = DG2D.BC_IVortex
+				e.BCType = readfiles.BC_IVortex
 			}
 		}
 		if verbose {
@@ -451,7 +453,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 			)
 			normal, _ := c.getEdgeNormal(0, e, en)
 			switch e.BCType {
-			case DG2D.BC_Far:
+			case readfiles.BC_Far:
 				for i := 0; i < Nedge; i++ {
 					iL := i + shift
 					ind := k + iL*Kmax
@@ -461,7 +463,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 					c.Q_Face[2].Data()[ind] = QBC[2]
 					c.Q_Face[3].Data()[ind] = QBC[3]
 				}
-			case DG2D.BC_IVortex:
+			case readfiles.BC_IVortex:
 				// fmt.Printf("BC - %s\n", e.BCType.String())
 				// Set the flow variables to the exact solution
 				X, Y := c.dfr.FluxX.Data(), c.dfr.FluxY.Data()

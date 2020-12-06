@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/notargets/avs/chart2d"
+	"github.com/notargets/gocfd/DG2D/readfiles"
 
-	"github.com/notargets/gocfd/DG2D"
+	"github.com/notargets/avs/chart2d"
 
 	"github.com/stretchr/testify/assert"
 
@@ -168,8 +168,8 @@ func TestEuler(t *testing.T) {
 			plotMesh := false
 			c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, IVORTEX, plotMesh, false)
 			for _, e := range c.dfr.Tris.Edges {
-				if e.BCType == DG2D.BC_IVortex {
-					e.BCType = DG2D.BC_None
+				if e.BCType == readfiles.BC_IVortex {
+					e.BCType = readfiles.BC_None
 				}
 			}
 			X, Y := c.dfr.FluxX, c.dfr.FluxY

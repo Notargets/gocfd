@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/notargets/gocfd/DG2D/readfiles"
+
 	graphics2D "github.com/notargets/avs/geometry"
 	"github.com/notargets/gocfd/geometry2D"
 
@@ -44,7 +46,7 @@ func NewDFR2D(N int, plotMesh bool, meshFileO ...string) (dfr *DFR2D) {
 	}
 	if len(meshFileO) != 0 {
 		var EToV utils.Matrix
-		dfr.K, dfr.VX, dfr.VY, EToV, dfr.BCType = ReadGambit2d(meshFileO[0], false)
+		dfr.K, dfr.VX, dfr.VY, EToV, dfr.BCType = readfiles.ReadGambit2d(meshFileO[0], false)
 		dfr.Tris = NewTriangulation(dfr.VX, dfr.VY, EToV, dfr.BCType)
 		// Build connectivity matrices
 		dfr.FluxX, dfr.FluxY =
@@ -52,7 +54,7 @@ func NewDFR2D(N int, plotMesh bool, meshFileO ...string) (dfr *DFR2D) {
 		dfr.SolutionX, dfr.SolutionY =
 			CalculateElementLocalGeometry(dfr.Tris.EToV, dfr.VX, dfr.VY, dfr.SolutionElement.R, dfr.SolutionElement.S)
 		if plotMesh {
-			PlotMesh(dfr.VX, dfr.VY, EToV, dfr.BCType, dfr.SolutionX, dfr.SolutionY, true)
+			readfiles.PlotMesh(dfr.VX, dfr.VY, EToV, dfr.BCType, dfr.SolutionX, dfr.SolutionY, true)
 			utils.SleepFor(50000)
 		}
 		dfr.FluxX.SetReadOnly("FluxX")

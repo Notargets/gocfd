@@ -1,4 +1,4 @@
-package DG2D
+package readfiles
 
 //go:generate stringer -type=BCFLAG
 
@@ -65,10 +65,10 @@ func ReadGambit2d(filename string, verbose bool) (K int, VX, VY utils.Vector, ET
 		reader *bufio.Reader
 	)
 	if verbose {
-		fmt.Printf("Reading file named: %s\n", filename)
+		fmt.Printf("Reading Gambit Neutral file named: %s\n", filename)
 	}
 	if file, err = os.Open(filename); err != nil {
-		panic(fmt.Errorf("unable to read file %s\n %s", filename, err))
+		panic(fmt.Errorf("unable to open file %s\n %s", filename, err))
 	}
 	defer file.Close()
 	reader = bufio.NewReader(file)
