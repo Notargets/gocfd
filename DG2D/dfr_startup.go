@@ -3,6 +3,7 @@ package DG2D
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/notargets/gocfd/DG2D/readfiles"
 
@@ -46,7 +47,13 @@ func NewDFR2D(N int, plotMesh bool, meshFileO ...string) (dfr *DFR2D) {
 	}
 	if len(meshFileO) != 0 {
 		var EToV utils.Matrix
-		dfr.K, dfr.VX, dfr.VY, EToV, dfr.BCType = readfiles.ReadGambit2d(meshFileO[0], false)
+		t := getFileTypeFromExtension(meshFileO[0])
+		switch t {
+		case GAMBIT_FILE:
+			dfr.K, dfr.VX, dfr.VY, EToV, dfr.BCType = readfiles.ReadGambit2d(meshFileO[0], false)
+		case SU2_FILE:
+			dfr.K, dfr.VX, dfr.VY, EToV, dfr.BCType = readfiles.ReadSU2(meshFileO[0], false)
+		}
 		dfr.Tris = NewTriangulation(dfr.VX, dfr.VY, EToV, dfr.BCType)
 		// Build connectivity matrices
 		dfr.FluxX, dfr.FluxY =
@@ -65,6 +72,35 @@ func NewDFR2D(N int, plotMesh bool, meshFileO ...string) (dfr *DFR2D) {
 		dfr.CalculateFaceNorms()
 	}
 	return
+}
+
+type MeshFileType uint8
+
+const (
+	GAMBIT_FILE MeshFileType = iota
+	SU2_FILE
+)
+
+func getFileTypeFromExtension(fileName string) (t MeshFileType) {
+	var (
+		err error
+	)
+	fileName = strings.Trim(fileName, " ")
+	l := len(fileName)
+	if l < 4 || fileName[l-4] != '.' {
+		err = fmt.Errorf("unable to determine file type from name: %s", fileName)
+		panic(err)
+	}
+	ext := fileName[l-3:]
+	switch ext {
+	case "neu": // Gambit neutral file
+		return GAMBIT_FILE
+	case "su2": // SU2 file
+		return SU2_FILE
+	default:
+		err = fmt.Errorf("unsupported file type: %s", fileName)
+		panic(err)
+	}
 }
 
 func (dfr *DFR2D) GetJacobian(k int) (J, Jinv []float64, Jdet float64) {
