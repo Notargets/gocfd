@@ -11,6 +11,7 @@ import (
 func TestReadSU2(t *testing.T) {
 	{ // Test reading the file structure
 		reader := bufio.NewReader(bytes.NewReader(inputFile))
+
 		dim := readNumber(reader)
 		assert.Equal(t, 2, dim)
 		nelem := readNumber(reader)
@@ -30,6 +31,20 @@ func TestReadSU2(t *testing.T) {
 			assert.Equal(t, nptsBC[n], nm)
 			skipLines(nm, reader)
 		}
+	}
+	{ // Test read elements and vertices
+		reader := bufio.NewReader(bytes.NewReader(inputFile))
+		_ = readNumber(reader)
+		K, EToV := readElements(reader)
+		assert.Equal(t, 22, K)
+		assert.Equal(t, 17, int(EToV.At(K-1, 2)))
+		VX, VY := readVertices(reader)
+		Nv, _ := VX.Dims()
+		assert.Equal(t, 18, Nv)
+		Nv, _ = VY.Dims()
+		assert.Equal(t, 18, Nv)
+		assert.Equal(t, -7.100939331382065, VX.Data()[Nv-1])
+		assert.Equal(t, 2.889910324036197, VY.Data()[Nv-1])
 	}
 }
 

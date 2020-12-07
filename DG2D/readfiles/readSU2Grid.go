@@ -9,6 +9,70 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
+// From here: https://su2code.github.io/docs_v7/Mesh-File/
+type SU2ElementType uint8
+
+const (
+	ELType_LINE          SU2ElementType = 3
+	ELType_Triangle                     = 5
+	ELType_Quadrilateral                = 9
+	ELType_Tetrahedral                  = 10
+	ELType_Hexahedral                   = 12
+	ELType_Prism                        = 13
+	ELType_Pyramid                      = 14
+)
+
+func readVertices(reader *bufio.Reader) (VX, VY utils.Vector) {
+	var (
+		n    int
+		x, y float64
+		err  error
+	)
+	Nv := readNumber(reader)
+	VX, VY = utils.NewVector(Nv), utils.NewVector(Nv)
+	vxD, vyD := VX.Data(), VY.Data()
+	for i := 0; i < Nv; i++ {
+		line := getLine(reader)
+		if n, err = fmt.Sscanf(line, "%f %f", &x, &y); err != nil {
+			panic(err)
+		}
+		if n != 2 {
+			panic("unable to read coordinates")
+		}
+		vxD[i], vyD[i] = x, y
+		fmt.Printf("x,y[%d] = %8.5f,%8.5f\n", i, x, y)
+	}
+	return
+}
+
+func readElements(reader *bufio.Reader) (K int, EToV utils.Matrix) {
+	var (
+		n          int
+		nType      int
+		v1, v2, v3 int
+		err        error
+	)
+	// EToV is K x 3
+	K = readNumber(reader)
+	EToV = utils.NewMatrix(K, 3)
+	for k := 0; k < K; k++ {
+		line := getLine(reader)
+		if n, err = fmt.Sscanf(line, "%d %d %d %d", &nType, &v1, &v2, &v3); err != nil {
+			panic(err)
+		}
+		if n != 4 {
+			panic("unable to read vertices")
+		}
+		if SU2ElementType(nType) != ELType_Triangle {
+			panic("unable to deal with non-triangular elements right now")
+		}
+		EToV.Set(k, 0, float64(v1))
+		EToV.Set(k, 1, float64(v2))
+		EToV.Set(k, 2, float64(v3))
+	}
+	return
+}
+
 func getToken(reader *bufio.Reader) (token string) {
 	var (
 		line string
