@@ -3,10 +3,7 @@ package readfiles
 import (
 	"bufio"
 	"bytes"
-	"fmt"
 	"testing"
-
-	"github.com/notargets/gocfd/types"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -55,38 +52,21 @@ func TestReadSU2(t *testing.T) {
 		_, _ = readElements(reader)
 		_, _ = readVertices(reader)
 		BCEdges := readBCs(reader)
-		_ = BCEdges
-	}
-}
-
-func readBCs(reader *bufio.Reader) (BCEdges map[string][]types.EdgeNumber) {
-	var (
-		nType  int
-		v1, v2 int
-		err    error
-	)
-	NBCs := readNumber(reader)
-	BCEdges = make(map[string][]types.EdgeNumber, NBCs)
-	for n := 0; n < NBCs; n++ {
-		label := readLabel(reader)
-		if _, ok := BCEdges[label]; ok {
-			err = fmt.Errorf("duplicate boundary condition found with label: [%s]", label)
-			panic(err)
-		}
-		nEdges := readNumber(reader)
-		BCEdges[label] = make([]types.EdgeNumber, nEdges)
-		for i := 0; i < nEdges; i++ {
-			line := getLine(reader)
-			if _, err = fmt.Sscanf(line, "%d %d %d", &nType, &v1, &v2); err != nil {
-				panic(err)
+		/*
+			for tag, bcs := range BCEdges {
+				fmt.Printf("BC Tag [%s]\n", tag)
+				for _, edge := range bcs {
+					fmt.Printf("%v\n", edge.GetVertices())
+				}
 			}
-			if SU2ElementType(nType) != ELType_LINE {
-				panic("BCs should only contain line elements in 2D")
-			}
-			BCEdges[label][i] = types.NewEdgeNumber([2]int{v1, v2})
-		}
+		*/
+		edge := BCEdges["bottom"]
+		assert.Equal(t, [2]int{5, 6}, edge[2].GetVertices())
+		assert.Equal(t, [2]int{6, 1}, edge[3].GetVertices())
+		edge = BCEdges["periodic-right"]
+		assert.Equal(t, [2]int{1, 7}, edge[0].GetVertices())
+		assert.Equal(t, [2]int{7, 2}, edge[1].GetVertices())
 	}
-	return
 }
 
 var (

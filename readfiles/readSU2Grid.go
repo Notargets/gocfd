@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/notargets/gocfd/types"
+
 	"github.com/notargets/gocfd/utils"
 )
 
@@ -21,6 +23,36 @@ const (
 	ELType_Prism                        = 13
 	ELType_Pyramid                      = 14
 )
+
+func readBCs(reader *bufio.Reader) (BCEdges map[string][]types.EdgeInt) {
+	var (
+		nType  int
+		v1, v2 int
+		err    error
+	)
+	NBCs := readNumber(reader)
+	BCEdges = make(map[string][]types.EdgeInt, NBCs)
+	for n := 0; n < NBCs; n++ {
+		label := readLabel(reader)
+		if _, ok := BCEdges[label]; ok {
+			err = fmt.Errorf("duplicate boundary condition found with label: [%s]", label)
+			panic(err)
+		}
+		nEdges := readNumber(reader)
+		BCEdges[label] = make([]types.EdgeInt, nEdges)
+		for i := 0; i < nEdges; i++ {
+			line := getLine(reader)
+			if _, err = fmt.Sscanf(line, "%d %d %d", &nType, &v1, &v2); err != nil {
+				panic(err)
+			}
+			if SU2ElementType(nType) != ELType_LINE {
+				panic("BCs should only contain line elements in 2D")
+			}
+			BCEdges[label][i] = types.NewEdgeInt([2]int{v1, v2})
+		}
+	}
+	return
+}
 
 func readVertices(reader *bufio.Reader) (VX, VY utils.Vector) {
 	var (
@@ -141,6 +173,10 @@ func ReadSU2(filename string, verbose bool) (K int, VX, VY utils.Vector, EToV, B
 
 	dimensionality := readNumber(reader)
 	fmt.Printf("Read file with %d dimensional data...\n", dimensionality)
-
+	K, EToV = readElements(reader)
+	VX, VY = readVertices(reader)
+	BCEdges := readBCs(reader)
+	_ = BCEdges
+	// TODO: Replace BCType with BCEdges above this call
 	return
 }
