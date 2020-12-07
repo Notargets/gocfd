@@ -85,7 +85,7 @@ func TestNDG2D(t *testing.T) {
 
 	{ // Read file to test specific metrics
 		// Check N = 1 briefly
-		ndg := NewNDG2D(1, "fstepA001.neu", false)
+		ndg := NewNDG2D(1, "fstepA001.neu")
 		el := ndg.Element
 		fmt.Printf("%s\n", ndg.LIFT.Print("LIFT"))
 		assert.True(t, nearVec([]float64{
@@ -95,7 +95,7 @@ func TestNDG2D(t *testing.T) {
 		}, ndg.LIFT.Data(), 0.0001))
 
 		// Check N = 2 by comparison with Matlab code
-		ndg = NewNDG2D(2, "fstepA001.neu", false)
+		ndg = NewNDG2D(2, "fstepA001.neu")
 		el = ndg.Element
 		assert.True(t, nearVec([]float64{
 			4.5000, 2.0000, -0.5000, 1.0000, 4.0000, 1.0000, 4.5000, 2.0000, -0.5000,

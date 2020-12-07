@@ -5,7 +5,7 @@ import (
 	"math"
 	"strings"
 
-	"github.com/notargets/gocfd/DG2D/readfiles"
+	"github.com/notargets/gocfd/readfiles"
 
 	graphics2D "github.com/notargets/avs/geometry"
 	"github.com/notargets/gocfd/geometry2D"

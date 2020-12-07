@@ -1,15 +1,14 @@
 package readfiles
 
-//go:generate stringer -type=BCFLAG
-
 import (
 	"bufio"
 	"fmt"
 	"image/color"
 	"io"
-	"math"
 	"os"
 	"strings"
+
+	"github.com/notargets/gocfd/types"
 
 	"github.com/notargets/avs/chart2d"
 	utils2 "github.com/notargets/avs/utils"
@@ -23,39 +22,6 @@ type Material struct {
 	ElementCount  int
 	MaterialValue float64
 	Title         string
-}
-
-type BC struct {
-	Type     BCFLAG
-	ParamMap map[string]float64
-}
-
-type BCFLAG uint8
-
-const (
-	BC_None BCFLAG = iota
-	BC_In
-	BC_Dirichlet
-	BC_Slip
-	BC_Far
-	BC_Wall
-	BC_Cyl
-	BC_Neuman
-	BC_Out
-	BC_IVortex
-)
-
-var faceMap = map[string]BCFLAG{
-	"inflow":    BC_In,
-	"in":        BC_In,
-	"out":       BC_Out,
-	"outflow":   BC_Out,
-	"wall":      BC_Wall,
-	"far":       BC_Far,
-	"cyl":       BC_Cyl,
-	"dirichlet": BC_Dirichlet,
-	"neuman":    BC_Neuman,
-	"slip":      BC_Slip,
 }
 
 func ReadGambit2d(filename string, verbose bool) (K int, VX, VY utils.Vector, EToV, BCType utils.Matrix) {
@@ -154,7 +120,7 @@ func PlotMesh(VX, VY utils.Vector, EToV, BCType, X, Y utils.Matrix, plotPoints b
 		points[i].X[1] = float32(vyD[i])
 	}
 	trimesh.Triangles = make([]graphics2D.Triangle, K)
-	colorMap := utils2.NewColorMap(0, float32(BC_Out), 1)
+	colorMap := utils2.NewColorMap(0, float32(types.BC_Out), 1)
 	trimesh.Attributes = make([][]float32, K) // One BC attribute per face
 	for k := 0; k < K; k++ {
 		trimesh.Triangles[k].Nodes[0] = int32(EToV.At(k, 0))
@@ -214,8 +180,8 @@ func ReadBCS(Nbcs, K, NFaces int, reader *bufio.Reader) (BCType utils.Matrix) {
 			panic(err)
 		}
 		bctyp = strings.ToLower(strings.Trim(bctyp, " "))
-		bt := faceMap[bctyp]
-		if bt == BCFLAG(0) {
+		bt := types.BCNameMap[bctyp]
+		if bt == types.BCFLAG(0) {
 			err = fmt.Errorf("bc named %s not implemented", bctyp)
 			panic(err)
 		}
@@ -459,56 +425,6 @@ func CalculateGeomAttributes(Nsd int, triIn3d bool) (NFaces int, bIs3D, bCoord3D
 	}
 	// Triangles or Tetrahedra?
 	bTET = bElement3D
-	return
-}
-
-func Connect2D(K, NFaces, Nv int, EToV utils.Matrix) (EToE, EToF utils.Matrix) {
-	// Nv = total number of vertices
-	var (
-		TotalFaces = NFaces * K
-	)
-	SpFToVDOK := utils.NewDOK(TotalFaces, Nv)
-	faces := utils.NewMatrix(3, 2, []float64{
-		0, 1,
-		1, 2,
-		0, 2,
-	})
-	var sk int
-	for k := 0; k < K; k++ {
-		for face := 0; face < NFaces; face++ {
-			edge := faces.Range(face, ":")
-			//fmt.Println("Nv, TotalFaces, k, face, edge, range = ", Nv, TotalFaces, k, face, edge, el.EToV.Range(k, edge))
-			SpFToVDOK.Equate(1, sk, EToV.Range(k, edge))
-			sk++
-		}
-	}
-	// Build global face to global face sparse array
-	SpFToV := SpFToVDOK.ToCSR()
-	SpFToF := utils.NewCSR(TotalFaces, TotalFaces)
-	SpFToF.M.Mul(SpFToV, SpFToV.T())
-	for i := 0; i < TotalFaces; i++ {
-		SpFToF.M.Set(i, i, SpFToF.At(i, i)-2)
-	}
-	// Find complete face to face connections
-	F12 := utils.MatFind(SpFToF, utils.Equal, 2)
-
-	element1 := F12.RI.Copy().Apply(func(val int) int { return val / NFaces })
-	face1 := F12.RI.Copy().Apply(func(val int) int { return int(math.Mod(float64(val), float64(NFaces))) })
-
-	element2 := F12.CI.Copy().Apply(func(val int) int { return val / NFaces })
-	face2 := F12.CI.Copy().Apply(func(val int) int { return int(math.Mod(float64(val), float64(NFaces))) })
-
-	// Rearrange into Nelements x Nfaces sized arrays
-	EToE = utils.NewRangeOffset(1, K).Outer(utils.NewOnes(NFaces))
-	EToF = utils.NewOnes(K).Outer(utils.NewRangeOffset(1, NFaces))
-	var I2D utils.Index2D
-	var err error
-	nr, nc := EToE.Dims()
-	if I2D, err = utils.NewIndex2D(nr, nc, element1, face1); err != nil {
-		panic(err)
-	}
-	EToE.Assign(I2D.ToIndex(), element2)
-	EToF.Assign(I2D.ToIndex(), face2)
 	return
 }
 

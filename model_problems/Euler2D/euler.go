@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/notargets/gocfd/DG2D/readfiles"
+	"github.com/notargets/gocfd/types"
 
 	graphics2D "github.com/notargets/avs/geometry"
 
@@ -154,9 +154,9 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 		// Set "Wall" BCs to IVortex
 		var count int
 		for _, e := range c.dfr.Tris.Edges {
-			if e.BCType == readfiles.BC_Wall {
+			if e.BCType == types.BC_Wall {
 				count++
-				e.BCType = readfiles.BC_IVortex
+				e.BCType = types.BC_IVortex
 			}
 		}
 		if verbose {
@@ -453,7 +453,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 			)
 			normal, _ := c.getEdgeNormal(0, e, en)
 			switch e.BCType {
-			case readfiles.BC_Far:
+			case types.BC_Far:
 				for i := 0; i < Nedge; i++ {
 					iL := i + shift
 					ind := k + iL*Kmax
@@ -463,7 +463,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 					c.Q_Face[2].Data()[ind] = QBC[2]
 					c.Q_Face[3].Data()[ind] = QBC[3]
 				}
-			case readfiles.BC_IVortex:
+			case types.BC_IVortex:
 				// fmt.Printf("BC - %s\n", e.BCType.String())
 				// Set the flow variables to the exact solution
 				X, Y := c.dfr.FluxX.Data(), c.dfr.FluxY.Data()
@@ -662,7 +662,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 	return
 }
 
-func (c *Euler) getEdgeNormal(conn int, e *DG2D.Edge, en DG2D.EdgeNumber) (normal, scaledNormal [2]float64) {
+func (c *Euler) getEdgeNormal(conn int, e *DG2D.Edge, en types.EdgeNumber) (normal, scaledNormal [2]float64) {
 	var (
 		dfr = c.dfr
 	)
@@ -686,7 +686,7 @@ func (c *Euler) getEdgeNormal(conn int, e *DG2D.Edge, en DG2D.EdgeNumber) (norma
 	return
 }
 
-func (c *Euler) ProjectFluxToEdge(edgeFlux [][2][4]float64, e *DG2D.Edge, en DG2D.EdgeNumber) {
+func (c *Euler) ProjectFluxToEdge(edgeFlux [][2][4]float64, e *DG2D.Edge, en types.EdgeNumber) {
 	/*
 				Projects a 2D flux: [F, G] onto the face normal, then multiplies by the element/edge rqtio of normals, ||n||
 		 		And places the scaled and projected normal flux into the degree of freedom F_RT_DOF

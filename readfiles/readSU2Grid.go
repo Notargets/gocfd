@@ -40,7 +40,6 @@ func readVertices(reader *bufio.Reader) (VX, VY utils.Vector) {
 			panic("unable to read coordinates")
 		}
 		vxD[i], vyD[i] = x, y
-		fmt.Printf("x,y[%d] = %8.5f,%8.5f\n", i, x, y)
 	}
 	return
 }

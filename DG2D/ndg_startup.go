@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/notargets/gocfd/DG2D/readfiles"
+	"github.com/notargets/gocfd/readfiles"
 
 	"github.com/notargets/gocfd/DG1D"
 
@@ -30,7 +30,7 @@ type NDG2D struct {
 	FMaskI                            utils.Index
 }
 
-func NewNDG2D(N int, meshFile string, plotMesh bool) (ndg *NDG2D) {
+func NewNDG2D(N int, meshFile string) (ndg *NDG2D) {
 	ndg = &NDG2D{
 		Element: NewLagrangeElement2D(N, Hesthaven),
 		NODETOL: 1.e-6,
@@ -40,10 +40,6 @@ func NewNDG2D(N int, meshFile string, plotMesh bool) (ndg *NDG2D) {
 	}
 	ndg.K, ndg.VX, ndg.VY, ndg.EToV, ndg.BCType = readfiles.ReadGambit2d(meshFile, false)
 	ndg.Startup2D()
-	if plotMesh {
-		readfiles.PlotMesh(ndg.VX, ndg.VY, ndg.EToV, ndg.BCType, ndg.X, ndg.Y, true)
-		utils.SleepFor(50000)
-	}
 	return
 }
 
@@ -78,7 +74,7 @@ func (ndg *NDG2D) Startup2D() {
 	ndg.Normals2D()
 	ndg.FScale = ndg.sJ.ElDiv(ndg.J.Subset(ndg.GetFaces()))
 	// Build connectivity matrices
-	ndg.EToE, ndg.EToF = readfiles.Connect2D(ndg.K, ndg.Element.NFaces, ndg.VX.Len(), ndg.EToV)
+	ndg.EToE, ndg.EToF = Connect2D(ndg.K, ndg.Element.NFaces, ndg.VX.Len(), ndg.EToV)
 
 	// Mark fields read only
 	ndg.LIFT.SetReadOnly("LIFT")
@@ -92,6 +88,56 @@ func (ndg *NDG2D) Startup2D() {
 	ndg.FScale.SetReadOnly("FScale")
 	ndg.EToE.SetReadOnly("EToE")
 	ndg.EToF.SetReadOnly("EToF")
+	return
+}
+
+func Connect2D(K, NFaces, Nv int, EToV utils.Matrix) (EToE, EToF utils.Matrix) {
+	// Nv = total number of vertices
+	var (
+		TotalFaces = NFaces * K
+	)
+	SpFToVDOK := utils.NewDOK(TotalFaces, Nv)
+	faces := utils.NewMatrix(3, 2, []float64{
+		0, 1,
+		1, 2,
+		0, 2,
+	})
+	var sk int
+	for k := 0; k < K; k++ {
+		for face := 0; face < NFaces; face++ {
+			edge := faces.Range(face, ":")
+			//fmt.Println("Nv, TotalFaces, k, face, edge, range = ", Nv, TotalFaces, k, face, edge, el.EToV.Range(k, edge))
+			SpFToVDOK.Equate(1, sk, EToV.Range(k, edge))
+			sk++
+		}
+	}
+	// Build global face to global face sparse array
+	SpFToV := SpFToVDOK.ToCSR()
+	SpFToF := utils.NewCSR(TotalFaces, TotalFaces)
+	SpFToF.M.Mul(SpFToV, SpFToV.T())
+	for i := 0; i < TotalFaces; i++ {
+		SpFToF.M.Set(i, i, SpFToF.At(i, i)-2)
+	}
+	// Find complete face to face connections
+	F12 := utils.MatFind(SpFToF, utils.Equal, 2)
+
+	element1 := F12.RI.Copy().Apply(func(val int) int { return val / NFaces })
+	face1 := F12.RI.Copy().Apply(func(val int) int { return int(math.Mod(float64(val), float64(NFaces))) })
+
+	element2 := F12.CI.Copy().Apply(func(val int) int { return val / NFaces })
+	face2 := F12.CI.Copy().Apply(func(val int) int { return int(math.Mod(float64(val), float64(NFaces))) })
+
+	// Rearrange into Nelements x Nfaces sized arrays
+	EToE = utils.NewRangeOffset(1, K).Outer(utils.NewOnes(NFaces))
+	EToF = utils.NewOnes(K).Outer(utils.NewRangeOffset(1, NFaces))
+	var I2D utils.Index2D
+	var err error
+	nr, nc := EToE.Dims()
+	if I2D, err = utils.NewIndex2D(nr, nc, element1, face1); err != nil {
+		panic(err)
+	}
+	EToE.Assign(I2D.ToIndex(), element2)
+	EToF.Assign(I2D.ToIndex(), face2)
 	return
 }
 
