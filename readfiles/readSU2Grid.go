@@ -24,22 +24,23 @@ const (
 	ELType_Pyramid                      = 14
 )
 
-func readBCs(reader *bufio.Reader) (BCEdges map[string][]types.EdgeInt) {
+func readBCs(reader *bufio.Reader) (BCEdges map[types.BCTAG][]types.EdgeInt) {
 	var (
 		nType  int
 		v1, v2 int
 		err    error
 	)
 	NBCs := readNumber(reader)
-	BCEdges = make(map[string][]types.EdgeInt, NBCs)
+	BCEdges = make(map[types.BCTAG][]types.EdgeInt, NBCs)
 	for n := 0; n < NBCs; n++ {
 		label := readLabel(reader)
-		if _, ok := BCEdges[label]; ok {
+		key := types.NewBCTAG(label)
+		if _, ok := BCEdges[key]; ok {
 			err = fmt.Errorf("duplicate boundary condition found with label: [%s]", label)
 			panic(err)
 		}
 		nEdges := readNumber(reader)
-		BCEdges[label] = make([]types.EdgeInt, nEdges)
+		BCEdges[key] = make([]types.EdgeInt, nEdges)
 		for i := 0; i < nEdges; i++ {
 			line := getLine(reader)
 			if _, err = fmt.Sscanf(line, "%d %d %d", &nType, &v1, &v2); err != nil {
@@ -48,7 +49,7 @@ func readBCs(reader *bufio.Reader) (BCEdges map[string][]types.EdgeInt) {
 			if SU2ElementType(nType) != ELType_LINE {
 				panic("BCs should only contain line elements in 2D")
 			}
-			BCEdges[label][i] = types.NewEdgeInt([2]int{v1, v2})
+			BCEdges[key][i] = types.NewEdgeInt([2]int{v1, v2})
 		}
 	}
 	return
