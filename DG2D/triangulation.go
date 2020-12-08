@@ -54,7 +54,7 @@ func (tmesh *Triangulation) NewEdge(VX, VY utils.Vector,
 		dir = Reversed
 	}
 	// Check if edge is already stored, allocate new one if not
-	en := types.NewEdgeNumber(verts)
+	en := types.NewEdgeKey(verts)
 	conn := 1 // If edge exists, this will be the second (max) connection
 	if e, ok = tmesh.Edges[en]; !ok {
 		e = &Edge{}

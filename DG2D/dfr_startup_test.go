@@ -91,40 +91,40 @@ func TestDFR2D(t *testing.T) {
 		//fmt.Printf("%s\n", sV.Print("sV"))
 	}
 	{ // Test packed int for edge labeling
-		en := types.NewEdgeNumber([2]int{1, 0})
+		en := types.NewEdgeKey([2]int{1, 0})
 		assert.Equal(t, types.EdgeKey(1<<32), en)
 		assert.Equal(t, [2]int{0, 1}, en.GetVertices(false))
 
-		en = types.NewEdgeNumber([2]int{0, 1})
+		en = types.NewEdgeKey([2]int{0, 1})
 		assert.Equal(t, types.EdgeKey(1<<32), en)
 		assert.Equal(t, [2]int{0, 1}, en.GetVertices(false))
 
-		en = types.NewEdgeNumber([2]int{0, 10})
+		en = types.NewEdgeKey([2]int{0, 10})
 		assert.Equal(t, types.EdgeKey(10*(1<<32)), en)
 		assert.Equal(t, [2]int{0, 10}, en.GetVertices(false))
 
-		en = types.NewEdgeNumber([2]int{100, 0})
+		en = types.NewEdgeKey([2]int{100, 0})
 		assert.Equal(t, types.EdgeKey(100*(1<<32)), en)
 		assert.Equal(t, [2]int{0, 100}, en.GetVertices(false))
 
-		en = types.NewEdgeNumber([2]int{100, 1})
+		en = types.NewEdgeKey([2]int{100, 1})
 		assert.Equal(t, types.EdgeKey(100*(1<<32)+1), en)
 		assert.Equal(t, [2]int{1, 100}, en.GetVertices(false))
 
-		en = types.NewEdgeNumber([2]int{100, 100001})
+		en = types.NewEdgeKey([2]int{100, 100001})
 		assert.Equal(t, types.EdgeKey(100001*(1<<32)+100), en)
 		assert.Equal(t, [2]int{100, 100001}, en.GetVertices(false))
 
 		// Test maximum/minimum indices
-		en = types.NewEdgeNumber([2]int{1, 1<<32 - 1})
+		en = types.NewEdgeKey([2]int{1, 1<<32 - 1})
 		assert.Equal(t, types.EdgeKey((1<<32-1)<<32+1), en)
 		assert.Equal(t, [2]int{1, 1<<32 - 1}, en.GetVertices(false))
 
-		en = types.NewEdgeNumber([2]int{1<<32 - 1, 1<<32 - 1})
+		en = types.NewEdgeKey([2]int{1<<32 - 1, 1<<32 - 1})
 		assert.Equal(t, types.EdgeKey(1<<64-1), en)
 		assert.Equal(t, [2]int{1<<32 - 1, 1<<32 - 1}, en.GetVertices(false))
 
-		en = types.NewEdgeNumber([2]int{1<<32 - 1, 1})
+		en = types.NewEdgeKey([2]int{1<<32 - 1, 1})
 		assert.Equal(t, types.EdgeKey((1<<32-1)<<32+1), en)
 		assert.Equal(t, [2]int{1, 1<<32 - 1}, en.GetVertices(false))
 	}
@@ -169,7 +169,7 @@ func TestDFR2D(t *testing.T) {
 		trn := dfr.Tris
 		{ // Test edge construction
 			{ // 0-2: 		Shared between Tri 0 and Tri 1
-				en := types.NewEdgeNumber([2]int{0, 2}) // Edge formed by vertices 0 and 2
+				en := types.NewEdgeKey([2]int{0, 2}) // Edge formed by vertices 0 and 2
 				e := trn.Edges[en]
 				assert.Equal(t, uint8(2), e.NumConnectedTris)
 				assert.Equal(t, uint32(0), e.ConnectedTris[0])
@@ -178,10 +178,10 @@ func TestDFR2D(t *testing.T) {
 				assert.Equal(t, InternalEdgeNumber(0), e.ConnectedTriEdgeNumber[Second])
 			}
 			{ // 0-1, 2-3: 	BC Inflow
-				en := types.NewEdgeNumber([2]int{0, 1})
+				en := types.NewEdgeKey([2]int{0, 1})
 				e := trn.Edges[en]
 				assert.Equal(t, types.BC_In, e.BCType)
-				en = types.NewEdgeNumber([2]int{2, 3})
+				en = types.NewEdgeKey([2]int{2, 3})
 				e = trn.Edges[en]
 				assert.Equal(t, types.BC_In, e.BCType)
 			}

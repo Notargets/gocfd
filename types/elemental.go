@@ -11,7 +11,7 @@ An edge between vertices [4] and [0] will always be stored as [0,4], in the asce
 */
 type EdgeKey uint64
 
-func NewEdgeNumber(verts [2]int) (packed EdgeKey) {
+func NewEdgeKey(verts [2]int) (packed EdgeKey) {
 	// This packs two index coordinates into two 32 bit unsigned integers to act as a hash and an indirect access method
 	var (
 		limit = math.MaxUint32
@@ -58,7 +58,7 @@ func NewEdgeInt(verts [2]int) (packed EdgeInt) {
 	)
 	for _, vert := range verts {
 		if vert < 0 || vert > limit {
-			panic(fmt.Errorf("unable to pack two ints into a uint64, have %d and %d as inputs",
+			panic(fmt.Errorf("unable to pack two ints into an int64, have %d and %d as inputs",
 				verts[0], verts[1]))
 		}
 	}
@@ -91,5 +91,10 @@ func (e EdgeInt) GetVertices() (verts [2]int) {
 	if sign {
 		verts[0], verts[1] = verts[1], verts[0]
 	}
+	return
+}
+
+func (e EdgeInt) GetKey() (ek EdgeKey) {
+	ek = NewEdgeKey(e.GetVertices())
 	return
 }
