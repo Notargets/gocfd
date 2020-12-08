@@ -26,21 +26,27 @@ const (
 
 func readBCs(reader *bufio.Reader) (BCEdges map[types.BCTAG][]types.EdgeInt) {
 	var (
-		nType  int
-		v1, v2 int
-		err    error
+		nType   int
+		v1, v2  int
+		err     error
+		prevInd int
 	)
 	NBCs := readNumber(reader)
 	BCEdges = make(map[types.BCTAG][]types.EdgeInt, NBCs)
 	for n := 0; n < NBCs; n++ {
 		label := readLabel(reader)
 		key := types.NewBCTAG(label)
-		if _, ok := BCEdges[key]; ok {
-			err = fmt.Errorf("duplicate boundary condition found with label: [%s]", label)
-			panic(err)
-		}
 		nEdges := readNumber(reader)
-		BCEdges[key] = make([]types.EdgeInt, nEdges)
+		if _, ok := BCEdges[key]; !ok {
+			BCEdges[key] = make([]types.EdgeInt, nEdges)
+		} else {
+			// Add Nedges more storage to the map
+			// This will end up appending duplicate tagged BCs to a common slice
+			// For instance: Periodic BCs should come in pairs, so there should be Nedges x 2 edges
+			prevInd = len(BCEdges[key])
+			bsI := types.GrowSlice(BCEdges[key], prevInd+nEdges)
+			BCEdges[key] = bsI.([]types.EdgeInt)
+		}
 		for i := 0; i < nEdges; i++ {
 			line := getLine(reader)
 			if _, err = fmt.Sscanf(line, "%d %d %d", &nType, &v1, &v2); err != nil {
@@ -49,7 +55,7 @@ func readBCs(reader *bufio.Reader) (BCEdges map[types.BCTAG][]types.EdgeInt) {
 			if SU2ElementType(nType) != ELType_LINE {
 				panic("BCs should only contain line elements in 2D")
 			}
-			BCEdges[key][i] = types.NewEdgeInt([2]int{v1, v2})
+			BCEdges[key][i+prevInd] = types.NewEdgeInt([2]int{v1, v2})
 		}
 	}
 	return
