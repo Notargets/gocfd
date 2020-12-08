@@ -6,12 +6,12 @@ import (
 )
 
 /*
-EdgeNumber is an always positive number that stores an edge's vertices as indices in a way that can be compared
+EdgeKey is an always positive number that stores an edge's vertices as indices in a way that can be compared
 An edge between vertices [4] and [0] will always be stored as [0,4], in the ascending order of the index values
 */
-type EdgeNumber uint64
+type EdgeKey uint64
 
-func NewEdgeNumber(verts [2]int) (packed EdgeNumber) {
+func NewEdgeNumber(verts [2]int) (packed EdgeKey) {
 	// This packs two index coordinates into two 32 bit unsigned integers to act as a hash and an indirect access method
 	var (
 		limit = math.MaxUint32
@@ -28,17 +28,17 @@ func NewEdgeNumber(verts [2]int) (packed EdgeNumber) {
 	} else {
 		i1, i2 = verts[1], verts[0]
 	}
-	packed = EdgeNumber(i1 + i2<<32)
+	packed = EdgeKey(i1 + i2<<32)
 	return
 }
 
-func (en EdgeNumber) GetVertices(rev bool) (verts [2]int) {
+func (ek EdgeKey) GetVertices(rev bool) (verts [2]int) {
 	var (
-		enTmp EdgeNumber
+		enTmp EdgeKey
 	)
-	enTmp = en >> 32
+	enTmp = ek >> 32
 	verts[1] = int(enTmp)
-	verts[0] = int(en - enTmp*(1<<32))
+	verts[0] = int(ek - enTmp*(1<<32))
 	if rev {
 		verts[0], verts[1] = verts[1], verts[0]
 	}

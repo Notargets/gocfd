@@ -10,14 +10,14 @@ import (
 )
 
 type Triangulation struct {
-	EToV  utils.Matrix               // K x 3 matrix mapping vertices to triangles
-	Edges map[types.EdgeNumber]*Edge // map of edges, key is the edge number, an int packed with the two vertices of each edge
+	EToV  utils.Matrix            // K x 3 matrix mapping vertices to triangles
+	Edges map[types.EdgeKey]*Edge // map of edges, key is the edge number, an int packed with the two vertices of each edge
 }
 
 func NewTriangulation(VX, VY utils.Vector, EToV, BCType utils.Matrix) (tmesh *Triangulation) {
 	tmesh = &Triangulation{
 		EToV:  EToV,
-		Edges: make(map[types.EdgeNumber]*Edge),
+		Edges: make(map[types.EdgeKey]*Edge),
 	}
 	K, _ := EToV.Dims()
 	// Create edges map
@@ -70,7 +70,7 @@ func (tmesh *Triangulation) NewEdge(VX, VY utils.Vector,
 	return
 }
 
-func (e *Edge) AddTri(en types.EdgeNumber, k, conn, bcFace int,
+func (e *Edge) AddTri(en types.EdgeKey, k, conn, bcFace int,
 	intEdgeNumber InternalEdgeNumber, direction InternalEdgeDirection,
 	VX, VY utils.Vector) {
 	e.ConnectedTris[conn] = uint32(k)
@@ -137,7 +137,7 @@ func (e *Edge) Print() (p string) {
 	return
 }
 
-func GetEdgeCoordinates(en types.EdgeNumber, rev bool, VX, VY utils.Vector) (x1, x2 [2]float64) {
+func GetEdgeCoordinates(en types.EdgeKey, rev bool, VX, VY utils.Vector) (x1, x2 [2]float64) {
 	ev := en.GetVertices(!rev) // oriented for outward facing normals
 	x1[0], x1[1] = VX.AtVec(ev[0]), VY.AtVec(ev[0])
 	x2[0], x2[1] = VX.AtVec(ev[1]), VY.AtVec(ev[1])

@@ -662,7 +662,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 	return
 }
 
-func (c *Euler) getEdgeNormal(conn int, e *DG2D.Edge, en types.EdgeNumber) (normal, scaledNormal [2]float64) {
+func (c *Euler) getEdgeNormal(conn int, e *DG2D.Edge, en types.EdgeKey) (normal, scaledNormal [2]float64) {
 	var (
 		dfr = c.dfr
 	)
@@ -686,7 +686,7 @@ func (c *Euler) getEdgeNormal(conn int, e *DG2D.Edge, en types.EdgeNumber) (norm
 	return
 }
 
-func (c *Euler) ProjectFluxToEdge(edgeFlux [][2][4]float64, e *DG2D.Edge, en types.EdgeNumber) {
+func (c *Euler) ProjectFluxToEdge(edgeFlux [][2][4]float64, e *DG2D.Edge, en types.EdgeKey) {
 	/*
 				Projects a 2D flux: [F, G] onto the face normal, then multiplies by the element/edge rqtio of normals, ||n||
 		 		And places the scaled and projected normal flux into the degree of freedom F_RT_DOF
