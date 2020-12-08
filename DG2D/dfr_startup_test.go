@@ -90,44 +90,6 @@ func TestDFR2D(t *testing.T) {
 		//fmt.Printf("%s\n", fluxInterp.Print("fluxInterp"))
 		//fmt.Printf("%s\n", sV.Print("sV"))
 	}
-	{ // Test packed int for edge labeling
-		en := types.NewEdgeKey([2]int{1, 0})
-		assert.Equal(t, types.EdgeKey(1<<32), en)
-		assert.Equal(t, [2]int{0, 1}, en.GetVertices(false))
-
-		en = types.NewEdgeKey([2]int{0, 1})
-		assert.Equal(t, types.EdgeKey(1<<32), en)
-		assert.Equal(t, [2]int{0, 1}, en.GetVertices(false))
-
-		en = types.NewEdgeKey([2]int{0, 10})
-		assert.Equal(t, types.EdgeKey(10*(1<<32)), en)
-		assert.Equal(t, [2]int{0, 10}, en.GetVertices(false))
-
-		en = types.NewEdgeKey([2]int{100, 0})
-		assert.Equal(t, types.EdgeKey(100*(1<<32)), en)
-		assert.Equal(t, [2]int{0, 100}, en.GetVertices(false))
-
-		en = types.NewEdgeKey([2]int{100, 1})
-		assert.Equal(t, types.EdgeKey(100*(1<<32)+1), en)
-		assert.Equal(t, [2]int{1, 100}, en.GetVertices(false))
-
-		en = types.NewEdgeKey([2]int{100, 100001})
-		assert.Equal(t, types.EdgeKey(100001*(1<<32)+100), en)
-		assert.Equal(t, [2]int{100, 100001}, en.GetVertices(false))
-
-		// Test maximum/minimum indices
-		en = types.NewEdgeKey([2]int{1, 1<<32 - 1})
-		assert.Equal(t, types.EdgeKey((1<<32-1)<<32+1), en)
-		assert.Equal(t, [2]int{1, 1<<32 - 1}, en.GetVertices(false))
-
-		en = types.NewEdgeKey([2]int{1<<32 - 1, 1<<32 - 1})
-		assert.Equal(t, types.EdgeKey(1<<64-1), en)
-		assert.Equal(t, [2]int{1<<32 - 1, 1<<32 - 1}, en.GetVertices(false))
-
-		en = types.NewEdgeKey([2]int{1<<32 - 1, 1})
-		assert.Equal(t, types.EdgeKey((1<<32-1)<<32+1), en)
-		assert.Equal(t, [2]int{1, 1<<32 - 1}, en.GetVertices(false))
-	}
 	{ // Test triangulation
 		transpose := func(J []float64) (JT []float64) {
 			JT = []float64{J[0], J[2], J[1], J[3]}
