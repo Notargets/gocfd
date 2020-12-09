@@ -24,31 +24,18 @@ const (
 	ELType_Pyramid                      = 14
 )
 
-func readBCs(reader *bufio.Reader) (BCEdges map[types.BCTAG][]types.EdgeInt) {
+func readBCs(reader *bufio.Reader) (BCEdges types.BCMAP) {
 	var (
 		nType  int
 		v1, v2 int
 		err    error
 	)
 	NBCs := readNumber(reader)
-	BCEdges = make(map[types.BCTAG][]types.EdgeInt, NBCs)
+	BCEdges = make(types.BCMAP, NBCs)
 	for n := 0; n < NBCs; n++ {
-		var (
-			prevInd int
-		)
 		label := readLabel(reader)
-		key := types.NewBCTAG(label)
 		nEdges := readNumber(reader)
-		if _, ok := BCEdges[key]; !ok {
-			BCEdges[key] = make([]types.EdgeInt, nEdges)
-		} else {
-			// Add Nedges more storage to the map
-			// This will end up appending duplicate tagged BCs to a common slice
-			// For instance: Periodic BCs should come in pairs, so there should be Nedges x 2 edges
-			prevInd = len(BCEdges[key])
-			bsI := types.GrowSlice(BCEdges[key], prevInd+nEdges)
-			BCEdges[key] = bsI.([]types.EdgeInt)
-		}
+		edges := make([]types.EdgeInt, nEdges)
 		for i := 0; i < nEdges; i++ {
 			line := getLine(reader)
 			if _, err = fmt.Sscanf(line, "%d %d %d", &nType, &v1, &v2); err != nil {
@@ -57,8 +44,9 @@ func readBCs(reader *bufio.Reader) (BCEdges map[types.BCTAG][]types.EdgeInt) {
 			if SU2ElementType(nType) != ELType_LINE {
 				panic("BCs should only contain line elements in 2D")
 			}
-			BCEdges[key][i+prevInd] = types.NewEdgeInt([2]int{v1, v2})
+			edges[i] = types.NewEdgeInt([2]int{v1, v2})
 		}
+		BCEdges.AddEdges(types.NewBCTAG(label), edges)
 	}
 	return
 }
@@ -165,7 +153,9 @@ func getLineNoComments(reader *bufio.Reader) (line string) {
 	}
 }
 
-func ReadSU2(filename string, verbose bool) (K int, VX, VY utils.Vector, EToV, BCType utils.Matrix) {
+func ReadSU2(filename string, verbose bool) (K int,
+	VX, VY utils.Vector, EToV,
+	BCType utils.Matrix, BCEdges types.BCMAP) {
 	var (
 		file   *os.File
 		err    error
@@ -184,8 +174,6 @@ func ReadSU2(filename string, verbose bool) (K int, VX, VY utils.Vector, EToV, B
 	fmt.Printf("Read file with %d dimensional data...\n", dimensionality)
 	K, EToV = readElements(reader)
 	VX, VY = readVertices(reader)
-	BCEdges := readBCs(reader)
-	_ = BCEdges
-	// TODO: Replace BCType with BCEdges above this call
+	BCEdges = readBCs(reader)
 	return
 }

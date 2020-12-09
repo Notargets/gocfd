@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/notargets/gocfd/types"
+
 	"github.com/notargets/gocfd/readfiles"
 
 	"github.com/notargets/gocfd/DG1D"
@@ -20,6 +22,7 @@ type NDG2D struct {
 	FMask, Fx, Fy                     utils.Matrix
 	EToV, EToE, EToF                  utils.Matrix
 	BCType                            utils.Matrix
+	BCEdges                           types.BCMAP
 	X, Y, FScale, LIFT                utils.Matrix
 	Rx, Ry, Sx, Sy                    utils.Matrix
 	xs, xr, ys, yr                    utils.Matrix
@@ -38,7 +41,8 @@ func NewNDG2D(N int, meshFile string) (ndg *NDG2D) {
 	if N < 1 {
 		panic(fmt.Errorf("Polynomial order must be >= 1, have %d", N))
 	}
-	ndg.K, ndg.VX, ndg.VY, ndg.EToV, ndg.BCType = readfiles.ReadGambit2d(meshFile, false)
+	ndg.K, ndg.VX, ndg.VY, ndg.EToV, ndg.BCType, ndg.BCEdges =
+		readfiles.ReadGambit2d(meshFile, false)
 	ndg.Startup2D()
 	return
 }

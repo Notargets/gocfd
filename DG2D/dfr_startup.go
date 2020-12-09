@@ -5,6 +5,8 @@ import (
 	"math"
 	"strings"
 
+	"github.com/notargets/gocfd/types"
+
 	"github.com/notargets/gocfd/readfiles"
 
 	graphics2D "github.com/notargets/avs/geometry"
@@ -20,9 +22,10 @@ type DFR2D struct {
 	FluxInterpMatrix     utils.Matrix
 	FluxEdgeInterpMatrix utils.Matrix // A pre-calculated interpolation matrix covering all Flux (edge) points in K elements
 	// Mesh Parameters
-	K                    int             // Number of elements (triangles) in mesh
-	VX, VY               utils.Vector    // X,Y vertex points in mesh (vertices)
-	BCType               utils.Matrix    // Mapping of elements to vertices, each element has three integer vertex coordinates
+	K                    int          // Number of elements (triangles) in mesh
+	VX, VY               utils.Vector // X,Y vertex points in mesh (vertices)
+	BCType               utils.Matrix // Mapping of elements to vertices, each element has three integer vertex coordinates
+	BCEdges              types.BCMAP
 	FluxX, FluxY         utils.Matrix    // Flux Element local coordinates
 	SolutionX, SolutionY utils.Matrix    // Solution Element local coordinates
 	Tris                 *Triangulation  // Triangle mesh and edge/face structures
@@ -50,10 +53,13 @@ func NewDFR2D(N int, plotMesh bool, meshFileO ...string) (dfr *DFR2D) {
 		t := getFileTypeFromExtension(meshFileO[0])
 		switch t {
 		case GAMBIT_FILE:
-			dfr.K, dfr.VX, dfr.VY, EToV, dfr.BCType = readfiles.ReadGambit2d(meshFileO[0], false)
+			dfr.K, dfr.VX, dfr.VY, EToV, dfr.BCType, dfr.BCEdges =
+				readfiles.ReadGambit2d(meshFileO[0], false)
 		case SU2_FILE:
-			dfr.K, dfr.VX, dfr.VY, EToV, dfr.BCType = readfiles.ReadSU2(meshFileO[0], false)
+			dfr.K, dfr.VX, dfr.VY, EToV, dfr.BCType, dfr.BCEdges =
+				readfiles.ReadSU2(meshFileO[0], false)
 		}
+		//dfr.BCEdges.Print()
 		dfr.Tris = NewTriangulation(dfr.VX, dfr.VY, EToV, dfr.BCType)
 		// Build connectivity matrices
 		dfr.FluxX, dfr.FluxY =

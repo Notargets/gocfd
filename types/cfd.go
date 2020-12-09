@@ -73,3 +73,31 @@ func (bt BCTAG) GetLabel() (label string) {
 	}
 	return
 }
+
+func (bm BCMAP) AddEdges(key BCTAG, edges []EdgeInt) {
+	var (
+		prevInd int
+		nEdges  = len(edges)
+	)
+	if _, ok := bm[key]; !ok {
+		bm[key] = make([]EdgeInt, nEdges)
+	} else {
+		// Add Nedges more storage to the map
+		// This will end up appending duplicate tagged BCs to a common slice
+		// For instance: Periodic BCs should come in pairs, so there should be Nedges x 2 edges
+		prevInd = len(bm[key])
+		bsI := GrowSlice(bm[key], prevInd+nEdges)
+		bm[key] = bsI.([]EdgeInt)
+	}
+	for i, e := range edges {
+		bm[key][i+prevInd] = e
+	}
+}
+
+func (bm BCMAP) Print() {
+	for key, edges := range bm {
+		for i, e := range edges {
+			fmt.Printf("bc[%s][%d]=%v\n", key, i, e.GetVertices())
+		}
+	}
+}

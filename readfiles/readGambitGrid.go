@@ -24,7 +24,9 @@ type Material struct {
 	Title         string
 }
 
-func ReadGambit2d(filename string, verbose bool) (K int, VX, VY utils.Vector, EToV, BCType utils.Matrix) {
+func ReadGambit2d(filename string, verbose bool) (K int,
+	VX, VY utils.Vector, EToV,
+	BCType utils.Matrix, BCEdges types.BCMAP) {
 	var (
 		file   *os.File
 		err    error
@@ -103,7 +105,7 @@ func ReadGambit2d(filename string, verbose bool) (K int, VX, VY utils.Vector, ET
 	}
 
 	// Read BCs
-	BCType = ReadBCS(Nbcs, K, NFaces, reader)
+	BCType, BCEdges = ReadBCS(Nbcs, K, NFaces, reader, EToV)
 	return
 }
 
@@ -162,7 +164,7 @@ func PlotMesh(VX, VY utils.Vector, EToV, BCType, X, Y utils.Matrix, plotPoints b
 	return
 }
 
-func ReadBCS(Nbcs, K, NFaces int, reader *bufio.Reader) (BCType utils.Matrix) {
+func ReadBCS(Nbcs, K, NFaces int, reader *bufio.Reader, EToV utils.Matrix) (BCType utils.Matrix, BCEdges types.BCMAP) {
 	var (
 		line, bctyp string
 		err         error
@@ -170,6 +172,7 @@ func ReadBCS(Nbcs, K, NFaces int, reader *bufio.Reader) (BCType utils.Matrix) {
 		n, bcid     int
 	)
 	BCType = utils.NewMatrix(K, NFaces)
+	BCEdges = make(types.BCMAP, Nbcs)
 	for i := 0; i < Nbcs; i++ {
 		// Read BC header, if BC text is "Cyl", read a float parameter
 		if i != 0 {
@@ -197,6 +200,8 @@ func ReadBCS(Nbcs, K, NFaces int, reader *bufio.Reader) (BCType utils.Matrix) {
 				panic(err)
 			}
 		}
+		edges := make([]types.EdgeInt, numfaces)
+		var verts [3]int
 		for i := 0; i < numfaces; i++ {
 			line = getLine(reader)
 			nargs = 3
@@ -208,7 +213,21 @@ func ReadBCS(Nbcs, K, NFaces int, reader *bufio.Reader) (BCType utils.Matrix) {
 				panic(err)
 			}
 			BCType.Set(kp1-1, faceNumberp1-1, float64(bt))
+			verts[0] = int(EToV.At(kp1-1, 0))
+			verts[1] = int(EToV.At(kp1-1, 1))
+			verts[2] = int(EToV.At(kp1-1, 2))
+			var e types.EdgeInt
+			switch faceNumberp1 {
+			case 1:
+				e = types.NewEdgeInt([2]int{verts[0], verts[1]})
+			case 2:
+				e = types.NewEdgeInt([2]int{verts[1], verts[2]})
+			case 3:
+				e = types.NewEdgeInt([2]int{verts[2], verts[0]})
+			}
+			edges[i] = e
 		}
+		BCEdges.AddEdges(types.NewBCTAG(bctyp), edges)
 		skipLines(1, reader)
 	}
 	return
