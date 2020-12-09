@@ -26,14 +26,16 @@ const (
 
 func readBCs(reader *bufio.Reader) (BCEdges map[types.BCTAG][]types.EdgeInt) {
 	var (
-		nType   int
-		v1, v2  int
-		err     error
-		prevInd int
+		nType  int
+		v1, v2 int
+		err    error
 	)
 	NBCs := readNumber(reader)
 	BCEdges = make(map[types.BCTAG][]types.EdgeInt, NBCs)
 	for n := 0; n < NBCs; n++ {
+		var (
+			prevInd int
+		)
 		label := readLabel(reader)
 		key := types.NewBCTAG(label)
 		nEdges := readNumber(reader)

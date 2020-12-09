@@ -22,7 +22,7 @@ func TestReadSU2(t *testing.T) {
 		skipLines(18, reader)
 		nmark := readNumber(reader)
 		assert.Equal(t, 4, nmark)
-		labels := []string{"periodic-left", "periodic-right", "top", "bottom"}
+		labels := []string{"periodic-rightleft", "periodic-rightleft", "top", "bottom"}
 		nptsBC := []int{2, 2, 4, 4}
 		for n := 0; n < nmark; n++ {
 			mark := readLabel(reader)
@@ -63,9 +63,11 @@ func TestReadSU2(t *testing.T) {
 		edge := BCEdges["bottom"]
 		assert.Equal(t, [2]int{5, 6}, edge[2].GetVertices())
 		assert.Equal(t, [2]int{6, 1}, edge[3].GetVertices())
-		edge = BCEdges["periodic-right"]
-		assert.Equal(t, [2]int{1, 7}, edge[0].GetVertices())
-		assert.Equal(t, [2]int{7, 2}, edge[1].GetVertices())
+		edge = BCEdges["periodic-rightleft"]
+		assert.Equal(t, [2]int{3, 11}, edge[0].GetVertices())
+		assert.Equal(t, [2]int{11, 0}, edge[1].GetVertices())
+		assert.Equal(t, [2]int{1, 7}, edge[2].GetVertices())
+		assert.Equal(t, [2]int{7, 2}, edge[3].GetVertices())
 	}
 }
 
@@ -119,13 +121,13 @@ NPOIN= 18
 -7.100939331382065 2.889910324036197 17
 NMARK= 4
 % Comments can appear outside of data areas
-MARKER_TAG= periodic-left
+MARKER_TAG= periodic-rightleft
 % Comments can appear outside of data areas
 MARKER_ELEMS= 2
 3 3 11
 3 11 0
 % Comments can appear outside of data areas
-MARKER_TAG= periodic-right
+MARKER_TAG= periodic-rightleft
 MARKER_ELEMS= 2
 3 1 7
 3 7 2
