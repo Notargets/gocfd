@@ -34,10 +34,24 @@ func NewTriangulation(VX, VY utils.Vector, EToV utils.Matrix, BCEdges types.BCMA
 	for key, edges := range BCEdges {
 		flag := key.GetFLAG()
 		switch flag {
-		case types.BC_Far, types.BC_IVortex, types.BC_Wall:
+		case types.BC_Far, types.BC_IVortex, types.BC_Wall, types.BC_In:
 			for _, e := range edges {
 				ee := tmesh.Edges[e.GetKey()]
 				ee.BCType = flag
+			}
+		case types.BC_Periodic:
+			l := len(edges)
+			if l%2 != 0 {
+				err = fmt.Errorf("periodic boundaries must be present in pairs, have dimension %d, not even", l)
+				panic(err)
+			}
+			l2 := l / 2
+			for i := 0; i < l2; i++ {
+				e1, e2 := edges[i], edges[i+l2] // paired edges
+				ee1, ee2 := tmesh.Edges[e1.GetKey()], tmesh.Edges[e2.GetKey()]
+				k2 := int(ee2.ConnectedTris[0])
+				en2 := ee2.ConnectedTriEdgeNumber[0]
+				ee1.AddTri(e2.GetKey(), k2, 1, en2, e2 < 0, VX, VY)
 			}
 		default:
 			err = fmt.Errorf("BC type %s not implemented yet", flag.String())
