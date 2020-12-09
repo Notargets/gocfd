@@ -24,9 +24,7 @@ type Material struct {
 	Title         string
 }
 
-func ReadGambit2d(filename string, verbose bool) (K int,
-	VX, VY utils.Vector, EToV,
-	BCType utils.Matrix, BCEdges types.BCMAP) {
+func ReadGambit2d(filename string, verbose bool) (K int, VX, VY utils.Vector, EToV utils.Matrix, BCEdges types.BCMAP) {
 	var (
 		file   *os.File
 		err    error
@@ -105,11 +103,11 @@ func ReadGambit2d(filename string, verbose bool) (K int,
 	}
 
 	// Read BCs
-	BCType, BCEdges = ReadBCS(Nbcs, K, NFaces, reader, EToV)
+	BCEdges = ReadBCS(Nbcs, K, NFaces, reader, EToV)
 	return
 }
 
-func PlotMesh(VX, VY utils.Vector, EToV, BCType, X, Y utils.Matrix, plotPoints bool) (chart *chart2d.Chart2D) {
+func PlotMesh(VX, VY utils.Vector, EToV, X, Y utils.Matrix, plotPoints bool) (chart *chart2d.Chart2D) {
 	var (
 		points   []graphics2D.Point
 		trimesh  graphics2D.TriMesh
@@ -128,11 +126,6 @@ func PlotMesh(VX, VY utils.Vector, EToV, BCType, X, Y utils.Matrix, plotPoints b
 		trimesh.Triangles[k].Nodes[0] = int32(EToV.At(k, 0))
 		trimesh.Triangles[k].Nodes[1] = int32(EToV.At(k, 1))
 		trimesh.Triangles[k].Nodes[2] = int32(EToV.At(k, 2))
-		trimesh.Attributes[k] = []float32{
-			float32(BCType.At(k, 0)),
-			float32(BCType.At(k, 1)),
-			float32(BCType.At(k, 2)),
-		}
 	}
 	trimesh.Geometry = points
 	box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
@@ -164,14 +157,13 @@ func PlotMesh(VX, VY utils.Vector, EToV, BCType, X, Y utils.Matrix, plotPoints b
 	return
 }
 
-func ReadBCS(Nbcs, K, NFaces int, reader *bufio.Reader, EToV utils.Matrix) (BCType utils.Matrix, BCEdges types.BCMAP) {
+func ReadBCS(Nbcs, K, NFaces int, reader *bufio.Reader, EToV utils.Matrix) (BCEdges types.BCMAP) {
 	var (
 		line, bctyp string
 		err         error
 		nargs       int
 		n, bcid     int
 	)
-	BCType = utils.NewMatrix(K, NFaces)
 	BCEdges = make(types.BCMAP, Nbcs)
 	for i := 0; i < Nbcs; i++ {
 		// Read BC header, if BC text is "Cyl", read a float parameter
@@ -183,11 +175,6 @@ func ReadBCS(Nbcs, K, NFaces int, reader *bufio.Reader, EToV utils.Matrix) (BCTy
 			panic(err)
 		}
 		bctyp = strings.ToLower(strings.Trim(bctyp, " "))
-		bt := types.BCNameMap[bctyp]
-		if bt == types.BCFLAG(0) {
-			err = fmt.Errorf("bc named %s not implemented", bctyp)
-			panic(err)
-		}
 		var paramf float64
 		var numfaces int
 		switch bctyp {
@@ -212,7 +199,6 @@ func ReadBCS(Nbcs, K, NFaces int, reader *bufio.Reader, EToV utils.Matrix) (BCTy
 				}
 				panic(err)
 			}
-			BCType.Set(kp1-1, faceNumberp1-1, float64(bt))
 			verts[0] = int(EToV.At(kp1-1, 0))
 			verts[1] = int(EToV.At(kp1-1, 1))
 			verts[2] = int(EToV.At(kp1-1, 2))

@@ -14,7 +14,7 @@ type Triangulation struct {
 	Edges map[types.EdgeKey]*Edge // map of edges, key is the edge number, an int packed with the two vertices of each edge
 }
 
-func NewTriangulation(VX, VY utils.Vector, EToV, BCType utils.Matrix) (tmesh *Triangulation) {
+func NewTriangulation(VX, VY utils.Vector, EToV utils.Matrix, BCEdges types.BCMAP) (tmesh *Triangulation) {
 	tmesh = &Triangulation{
 		EToV:  EToV,
 		Edges: make(map[types.EdgeKey]*Edge),
@@ -24,12 +24,25 @@ func NewTriangulation(VX, VY utils.Vector, EToV, BCType utils.Matrix) (tmesh *Tr
 	for k := 0; k < K; k++ {
 		tri := EToV.Row(k).Data()
 		verts := [3]int{int(tri[0]), int(tri[1]), int(tri[2])}
-		bcs := BCType.Row(k).Data()
-		bcFaces := [3]int{int(bcs[0]), int(bcs[1]), int(bcs[2])}
 		// Create / store the edges for this triangle
-		tmesh.NewEdge(VX, VY, [2]int{verts[0], verts[1]}, k, First, bcFaces[0])
-		tmesh.NewEdge(VX, VY, [2]int{verts[1], verts[2]}, k, Second, bcFaces[1])
-		tmesh.NewEdge(VX, VY, [2]int{verts[2], verts[0]}, k, Third, bcFaces[2])
+		tmesh.NewEdge(VX, VY, [2]int{verts[0], verts[1]}, k, First)
+		tmesh.NewEdge(VX, VY, [2]int{verts[1], verts[2]}, k, Second)
+		tmesh.NewEdge(VX, VY, [2]int{verts[2], verts[0]}, k, Third)
+	}
+	// Insert BCs into edges map
+	var err error
+	for key, edges := range BCEdges {
+		flag := key.GetFLAG()
+		switch flag {
+		case types.BC_Far, types.BC_IVortex, types.BC_Wall:
+			for _, e := range edges {
+				ee := tmesh.Edges[e.GetKey()]
+				ee.BCType = flag
+			}
+		default:
+			err = fmt.Errorf("BC type %s not implemented yet", flag.String())
+			panic(err)
+		}
 	}
 	return
 }
@@ -40,8 +53,7 @@ func (tmesh *Triangulation) GetTriVerts(k uint32) (verts [3]int) {
 	return
 }
 
-func (tmesh *Triangulation) NewEdge(VX, VY utils.Vector,
-	verts [2]int, connectedElementNumber int, intEdgeNumber InternalEdgeNumber, bcFace int) (e *Edge) {
+func (tmesh *Triangulation) NewEdge(VX, VY utils.Vector, verts [2]int, connectedElementNumber int, intEdgeNumber InternalEdgeNumber) (e *Edge) {
 	var (
 		ok bool
 	)
@@ -66,20 +78,15 @@ func (tmesh *Triangulation) NewEdge(VX, VY utils.Vector,
 			panic("incorrect edge construction, more than two connected triangles")
 		}
 	}
-	e.AddTri(en, connectedElementNumber, conn, bcFace, intEdgeNumber, dir, VX, VY)
+	e.AddTri(en, connectedElementNumber, conn, intEdgeNumber, dir, VX, VY)
 	return
 }
 
-func (e *Edge) AddTri(en types.EdgeKey, k, conn, bcFace int,
-	intEdgeNumber InternalEdgeNumber, direction InternalEdgeDirection,
-	VX, VY utils.Vector) {
+func (e *Edge) AddTri(en types.EdgeKey, k, conn int, intEdgeNumber InternalEdgeNumber, direction InternalEdgeDirection, VX, VY utils.Vector) {
 	e.ConnectedTris[conn] = uint32(k)
 	e.ConnectedTriDirection[conn] = direction
 	e.ConnectedTriEdgeNumber[conn] = intEdgeNumber
 	e.NumConnectedTris++
-	if bcFace != 0 {
-		e.BCType = types.BCFLAG(bcFace)
-	}
 	// Calculate ||n|| scaling factor for each edge
 	norm := func(vec [2]float64) (n float64) {
 		n = math.Sqrt(vec[0]*vec[0] + vec[1]*vec[1])

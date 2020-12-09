@@ -153,9 +153,7 @@ func getLineNoComments(reader *bufio.Reader) (line string) {
 	}
 }
 
-func ReadSU2(filename string, verbose bool) (K int,
-	VX, VY utils.Vector, EToV,
-	BCType utils.Matrix, BCEdges types.BCMAP) {
+func ReadSU2(filename string, verbose bool) (K int, VX, VY utils.Vector, EToV utils.Matrix, BCEdges types.BCMAP) {
 	var (
 		file   *os.File
 		err    error

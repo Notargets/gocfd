@@ -24,7 +24,6 @@ type DFR2D struct {
 	// Mesh Parameters
 	K                    int          // Number of elements (triangles) in mesh
 	VX, VY               utils.Vector // X,Y vertex points in mesh (vertices)
-	BCType               utils.Matrix // Mapping of elements to vertices, each element has three integer vertex coordinates
 	BCEdges              types.BCMAP
 	FluxX, FluxY         utils.Matrix    // Flux Element local coordinates
 	SolutionX, SolutionY utils.Matrix    // Solution Element local coordinates
@@ -53,21 +52,21 @@ func NewDFR2D(N int, plotMesh bool, meshFileO ...string) (dfr *DFR2D) {
 		t := getFileTypeFromExtension(meshFileO[0])
 		switch t {
 		case GAMBIT_FILE:
-			dfr.K, dfr.VX, dfr.VY, EToV, dfr.BCType, dfr.BCEdges =
+			dfr.K, dfr.VX, dfr.VY, EToV, dfr.BCEdges =
 				readfiles.ReadGambit2d(meshFileO[0], false)
 		case SU2_FILE:
-			dfr.K, dfr.VX, dfr.VY, EToV, dfr.BCType, dfr.BCEdges =
+			dfr.K, dfr.VX, dfr.VY, EToV, dfr.BCEdges =
 				readfiles.ReadSU2(meshFileO[0], false)
 		}
 		//dfr.BCEdges.Print()
-		dfr.Tris = NewTriangulation(dfr.VX, dfr.VY, EToV, dfr.BCType)
+		dfr.Tris = NewTriangulation(dfr.VX, dfr.VY, EToV, dfr.BCEdges)
 		// Build connectivity matrices
 		dfr.FluxX, dfr.FluxY =
 			CalculateElementLocalGeometry(dfr.Tris.EToV, dfr.VX, dfr.VY, dfr.FluxElement.R, dfr.FluxElement.S)
 		dfr.SolutionX, dfr.SolutionY =
 			CalculateElementLocalGeometry(dfr.Tris.EToV, dfr.VX, dfr.VY, dfr.SolutionElement.R, dfr.SolutionElement.S)
 		if plotMesh {
-			readfiles.PlotMesh(dfr.VX, dfr.VY, EToV, dfr.BCType, dfr.SolutionX, dfr.SolutionY, true)
+			readfiles.PlotMesh(dfr.VX, dfr.VY, EToV, dfr.SolutionX, dfr.SolutionY, true)
 			utils.SleepFor(50000)
 		}
 		dfr.FluxX.SetReadOnly("FluxX")

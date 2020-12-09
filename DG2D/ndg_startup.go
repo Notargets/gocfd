@@ -41,7 +41,7 @@ func NewNDG2D(N int, meshFile string) (ndg *NDG2D) {
 	if N < 1 {
 		panic(fmt.Errorf("Polynomial order must be >= 1, have %d", N))
 	}
-	ndg.K, ndg.VX, ndg.VY, ndg.EToV, ndg.BCType, ndg.BCEdges =
+	ndg.K, ndg.VX, ndg.VY, ndg.EToV, ndg.BCEdges =
 		readfiles.ReadGambit2d(meshFile, false)
 	ndg.Startup2D()
 	return
