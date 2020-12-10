@@ -57,4 +57,17 @@ func TestTypes(t *testing.T) {
 			assert.Equal(t, labels[i], bt.GetLabel())
 		}
 	}
+	{ // Test curve ordering/reordering
+		// combo of int1, int2 equals edges
+		ind1 := []int{40, 39, 38, 37}
+		ind2 := []int{0, 40, 39, 38}
+		edges := make(Curve, len(ind1))
+		for i := range ind1 {
+			edges[i] = NewEdgeInt([2]int{ind1[i], ind2[i]})
+		}
+		for i, e := range edges {
+			fmt.Printf("e[%d] = %v\n", i, e.GetVertices())
+		}
+		edges.ReOrder(false)
+	}
 }

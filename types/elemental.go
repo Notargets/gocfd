@@ -98,3 +98,50 @@ func (e EdgeInt) GetKey() (ek EdgeKey) {
 	ek = NewEdgeKey(e.GetVertices())
 	return
 }
+
+type vertEdgeBucket struct {
+	numberOfEdges int
+	vertEdge      [2]EdgeInt
+}
+
+type bucketMap map[int]*vertEdgeBucket
+
+func (bm bucketMap) AddEdge(e EdgeInt) {
+	var (
+		b  *vertEdgeBucket
+		ok bool
+	)
+	verts := e.GetVertices()
+	for i := 0; i < 2; i++ {
+		if b, ok = bm[verts[i]]; !ok {
+			bm[verts[i]] = &vertEdgeBucket{}
+			b = bm[verts[i]]
+		}
+		b.vertEdge[b.numberOfEdges] = e
+		b.numberOfEdges++
+	}
+}
+
+type Curve []EdgeInt
+
+func (c Curve) ReOrder(reverse bool) {
+	/*
+	   Orders a curve's line segments to form a connected curve
+
+	   Optionally, reverses the order relative to the default ordering obtained using the first edge as the start
+	   If the original slice of segments is unordered, order reversale is arbitrary, otherwise it reflects
+	   reversal of the original ordering of the ordered curve.
+	*/
+	var (
+		l = len(c)
+		//first, last = c[0], c[l-1] // Original first/last segments, used for ordering later
+	)
+	vb := make(bucketMap, l)
+	// load up the vb with edges
+	for _, e := range c {
+		vb.AddEdge(e)
+	}
+	for v, b := range vb {
+		fmt.Printf("b[%d] = %v\n", v, b)
+	}
+}
