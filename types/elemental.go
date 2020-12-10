@@ -133,15 +133,49 @@ func (c Curve) ReOrder(reverse bool) {
 	   reversal of the original ordering of the ordered curve.
 	*/
 	var (
-		l = len(c)
-		//first, last = c[0], c[l-1] // Original first/last segments, used for ordering later
+		l           = len(c)
+		first, last = c[0], c[l-1] // Original first/last segments, used for ordering later
+		ends        [2]int         // index of ends
 	)
-	vb := make(bucketMap, l)
-	// load up the vb with edges
+	bm := make(bucketMap, l)
+	// load up the bm with edges
 	for _, e := range c {
-		vb.AddEdge(e)
+		bm.AddEdge(e)
 	}
-	for v, b := range vb {
+	for v, b := range bm {
 		fmt.Printf("b[%d] = %v\n", v, b)
 	}
+	// Find the ends
+	var cnt int
+	for i, b := range bm {
+		if b.numberOfEdges == 1 {
+			if cnt == 2 {
+				panic("unable to construct contiguous curve from line segments, too many unconnected edges")
+			}
+			ends[cnt] = i
+			cnt++
+		}
+	}
+	// Default is to use the first edge to begin the curve, assuming the first/last edges are really the ends
+	start := first
+	if reverse {
+		start = last
+	}
+	var startInd int
+	startInd = -1
+	for i := 0; i < 2; i++ {
+		if c[ends[i]] == start {
+			startInd = i
+			break
+		}
+	}
+	if startInd == -1 {
+		start = c[ends[0]] // arbitrary start because the curve starts unordered
+	}
+	c2 := AssembleCurve(bm, start)
+	_ = c2
+}
+
+func AssembleCurve(bm bucketMap, start EdgeInt) (c Curve) {
+	return
 }
