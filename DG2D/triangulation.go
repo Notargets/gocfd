@@ -51,7 +51,8 @@ func NewTriangulation(VX, VY utils.Vector, EToV utils.Matrix, BCEdges types.BCMA
 				ee1, ee2 := tmesh.Edges[e1.GetKey()], tmesh.Edges[e2.GetKey()]
 				k2 := int(ee2.ConnectedTris[0])
 				en2 := ee2.ConnectedTriEdgeNumber[0]
-				ee1.AddTri(e2.GetKey(), k2, 1, en2, e2 < 0, VX, VY)
+				dir := ee2.ConnectedTriDirection[0] // Direction is relative to order of edge traversal in element/tri
+				ee1.AddTri(e2.GetKey(), k2, 1, en2, dir, VX, VY)
 			}
 		default:
 			err = fmt.Errorf("BC type %s not implemented yet", flag.String())
@@ -73,6 +74,8 @@ func (tmesh *Triangulation) NewEdge(VX, VY utils.Vector, verts [2]int, connected
 	)
 	/*
 		The input vertices are ordered as the normal traversal within the triangle
+		The reversal boolean checks if this "natural order" is opposite to the "always least first"
+		orientation of the edge key
 	*/
 	// Determine edge direction
 	var dir InternalEdgeDirection

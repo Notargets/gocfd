@@ -213,6 +213,7 @@ func ReadBCS(Nbcs, K, NFaces int, reader *bufio.Reader, EToV utils.Matrix) (BCEd
 			}
 			edges[i] = e
 		}
+		//fmt.Printf("Adding BC = [%s]\n", types.NewBCTAG(bctyp))
 		BCEdges.AddEdges(types.NewBCTAG(bctyp), edges)
 		skipLines(1, reader)
 	}
