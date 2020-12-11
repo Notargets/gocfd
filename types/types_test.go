@@ -65,12 +65,17 @@ func TestTypes(t *testing.T) {
 		for i := range ind1 {
 			edges[i] = NewEdgeInt([2]int{ind1[i], ind2[i]})
 		}
-		fmt.Printf("before reordering = \n")
-		for i, e := range edges {
-			fmt.Printf("e[%d] = %v\n", i, e.GetVertices())
-		}
+		//fmt.Printf("before reordering = \n")
+		//edges.Print()
 		edges = edges.ReOrder(false)
-		fmt.Printf("reordered edges = \n")
-		edges.Print()
+		assert.Equal(t, [2]int{40, 0}, edges[0].GetVertices())
+		assert.Equal(t, [2]int{37, 38}, edges[3].GetVertices())
+		//fmt.Printf("reordered edges = \n")
+		//edges.Print()
+		edges = edges.ReOrder(true)
+		//fmt.Printf("reverse reordered edges = \n")
+		//edges.Print()
+		assert.Equal(t, [2]int{37, 38}, edges[0].GetVertices())
+		assert.Equal(t, [2]int{40, 0}, edges[3].GetVertices())
 	}
 }

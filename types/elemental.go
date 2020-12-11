@@ -106,6 +106,14 @@ type vertEdgeBucket struct {
 
 type bucketMap map[int]*vertEdgeBucket // Key is the index of the vertex
 
+func (bm bucketMap) Connectable(ind int) bool { // Checks to see if the vertex in this bucket is "connectable", or is dangling
+	if bm[ind].numberOfEdges == 2 {
+		return true
+	} else {
+		return false
+	}
+}
+
 func (bm bucketMap) AddEdge(e EdgeInt) {
 	var (
 		b  *vertEdgeBucket
@@ -155,7 +163,7 @@ func (c Curve) ReOrder(reverse bool) (cc Curve) {
 	*/
 	// Find the endKeys
 	var endCount int
-	for key, b := range bm { // TODO: remove random map traversal DOH! Alternatively, order by key later - better
+	for key, b := range bm {
 		if b.numberOfEdges == 1 { // this is one of two endKeys
 			if endCount == 2 {
 				panic("unable to construct contiguous curve from line segments, too many unconnected edges")
@@ -164,7 +172,7 @@ func (c Curve) ReOrder(reverse bool) (cc Curve) {
 			endCount++
 		}
 	}
-	fmt.Printf("End vertex index keys = %v\n", endKeys)
+	//fmt.Printf("End vertex index keys = %v\n", endKeys)
 	if endCount != 2 {
 		panic("unable to find two unconnected endKeys")
 	}
@@ -173,6 +181,7 @@ func (c Curve) ReOrder(reverse bool) (cc Curve) {
 	if reverse {
 		start = last
 	}
+	//fmt.Printf("start edge = %v\n", start.GetVertices())
 	var startInd int
 	startInd = -1
 	for i := 0; i < 2; i++ {
@@ -193,31 +202,28 @@ func AssembleCurve(bm bucketMap, start EdgeInt) (c Curve) {
 		verts [2]int
 		end   int
 		b     *vertEdgeBucket
-		ok    bool
 	)
 	verts = start.GetVertices()
-	end = verts[0]            // The open end, to be connected
-	if b, ok = bm[end]; !ok { // Check if conn is connectable, or is the "dangling" end
+	// Check if conn is connectable, or is the "dangling" end
+	end = verts[0] // The open end, to be connected
+	if !bm.Connectable(end) {
 		end = verts[1]
 	}
 	// Begin connecting edges
-	c = make(Curve, len(bm)/2)
+	c = make(Curve, len(bm)-1)
 	var ii int
 	c[ii] = start
 	ii++
 	for {
-		if b, ok = bm[end]; !ok { // Check if end is connectable, or is the "dangling" end
-			panic("unable to find edge index")
-		}
-		if b.numberOfEdges == 1 { // We're done
-			c[ii] = b.vertEdge[0]
-			ii++
+		if !bm.Connectable(end) { // When we reach an unconnectable end, stop
 			break
 		}
+		b = bm[end]
 		for i := 0; i < 2; i++ {
 			e := b.vertEdge[i]
 			if e != start {
 				c[ii] = e
+				ii++
 				verts = e.GetVertices()
 				if verts[0] == end {
 					end = verts[1]
