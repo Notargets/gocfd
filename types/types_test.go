@@ -65,9 +65,12 @@ func TestTypes(t *testing.T) {
 		for i := range ind1 {
 			edges[i] = NewEdgeInt([2]int{ind1[i], ind2[i]})
 		}
+		fmt.Printf("before reordering = \n")
 		for i, e := range edges {
 			fmt.Printf("e[%d] = %v\n", i, e.GetVertices())
 		}
-		edges.ReOrder(false)
+		edges = edges.ReOrder(false)
+		fmt.Printf("reordered edges = \n")
+		edges.Print()
 	}
 }
