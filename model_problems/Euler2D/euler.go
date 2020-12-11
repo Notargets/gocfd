@@ -141,8 +141,6 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 	c.InitializeMemory()
 	if verbose {
 		fmt.Printf("Euler Equations in 2 Dimensions\n")
-	}
-	if verbose {
 		fmt.Printf("Solving %s\n", c.Case.Print())
 	}
 	switch c.Case {

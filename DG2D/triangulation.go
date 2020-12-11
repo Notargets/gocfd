@@ -31,6 +31,7 @@ func NewTriangulation(VX, VY utils.Vector, EToV utils.Matrix, BCEdges types.BCMA
 	}
 	// Insert BCs into edges map
 	var err error
+	var reversedEdge bool
 	for key, edges := range BCEdges {
 		flag := key.GetFLAG()
 		switch flag {
@@ -39,6 +40,10 @@ func NewTriangulation(VX, VY utils.Vector, EToV utils.Matrix, BCEdges types.BCMA
 				ee := tmesh.Edges[e.GetKey()]
 				ee.BCType = flag
 			}
+		case types.BC_PeriodicReversed:
+			fmt.Printf("reversing periodic edge\n")
+			reversedEdge = true
+			fallthrough
 		case types.BC_Periodic:
 			l := len(edges)
 			if l%2 != 0 {
@@ -46,8 +51,25 @@ func NewTriangulation(VX, VY utils.Vector, EToV utils.Matrix, BCEdges types.BCMA
 				panic(err)
 			}
 			l2 := l / 2
+			// First, treat the edge lists as connected curves and order them
+			var periodicEdges [2]types.Curve
+			for i := 0; i < 2; i++ {
+				periodicEdges[i] = make(types.Curve, l2)
+			}
 			for i := 0; i < l2; i++ {
-				e1, e2 := edges[i], edges[i+l2] // paired edges
+				periodicEdges[0][i] = edges[i]
+				periodicEdges[1][i] = edges[i+l2]
+			}
+			for i := 0; i < 2; i++ {
+				if reversedEdge && i == 1 {
+					// Reverse one edge if requested
+					periodicEdges[i], _ = periodicEdges[i].ReOrder(true)
+				} else {
+					periodicEdges[i], _ = periodicEdges[i].ReOrder(false)
+				}
+			}
+			for i := 0; i < l2; i++ {
+				e1, e2 := periodicEdges[0][i], periodicEdges[1][i] // paired edges
 				ee1, ee2 := tmesh.Edges[e1.GetKey()], tmesh.Edges[e2.GetKey()]
 				k2 := int(ee2.ConnectedTris[0])
 				en2 := ee2.ConnectedTriEdgeNumber[0]

@@ -21,20 +21,22 @@ const (
 	BC_Out
 	BC_IVortex
 	BC_Periodic
+	BC_PeriodicReversed
 )
 
 var BCNameMap = map[string]BCFLAG{
-	"inflow":    BC_In,
-	"in":        BC_In,
-	"out":       BC_Out,
-	"outflow":   BC_Out,
-	"wall":      BC_Wall,
-	"far":       BC_Far,
-	"cyl":       BC_Cyl,
-	"dirichlet": BC_Dirichlet,
-	"neuman":    BC_Neuman,
-	"slip":      BC_Slip,
-	"periodic":  BC_Periodic,
+	"inflow":           BC_In,
+	"in":               BC_In,
+	"out":              BC_Out,
+	"outflow":          BC_Out,
+	"wall":             BC_Wall,
+	"far":              BC_Far,
+	"cyl":              BC_Cyl,
+	"dirichlet":        BC_Dirichlet,
+	"neuman":           BC_Neuman,
+	"slip":             BC_Slip,
+	"periodic":         BC_Periodic,
+	"periodicreversed": BC_PeriodicReversed,
 }
 
 type BCMAP map[BCTAG][]EdgeInt // Map of BCs, key is BC tag name, e.g. "Periodic-1" or "Wall" or "Wall-top"
