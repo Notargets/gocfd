@@ -1,7 +1,6 @@
 package types
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -52,34 +51,26 @@ func TestTypes(t *testing.T) {
 		labels := []string{"", "1", "2", "22", "top", "10"}
 		for i, token := range tokens {
 			bt := NewBCTAG(token)
-			fmt.Printf("bt = %s, bcflag = %v\n", bt, bt.GetFLAG().String())
+			//fmt.Printf("bt = %s, bcflag = %v\n", bt, bt.GetFLAG().String())
 			assert.Equal(t, flags[i], bt.GetFLAG())
 			assert.Equal(t, labels[i], bt.GetLabel())
 		}
 	}
 	{ // Test curve ordering/reordering
 		// combo of int1, int2 equals edges
-		//ind1 := []int{40, 39, 38, 37}
-		//ind2 := []int{0, 40, 39, 38}
 		ind1 := []int{38, 40, 39, 37}
 		ind2 := []int{39, 0, 40, 38}
 		edges := make(Curve, len(ind1))
 		for i := range ind1 {
 			edges[i] = NewEdgeInt([2]int{ind1[i], ind2[i]})
 		}
-		//fmt.Printf("before reordering = \n")
-		//edges.Print()
 		var unordered bool
 		edges, unordered = edges.ReOrder(false)
 		assert.Equal(t, true, unordered)
 		assert.Equal(t, [2]int{40, 0}, edges[0].GetVertices())
 		assert.Equal(t, [2]int{37, 38}, edges[3].GetVertices())
-		//fmt.Printf("reordered edges = \n")
-		//edges.Print()
 		edges, unordered = edges.ReOrder(true)
 		assert.Equal(t, false, unordered)
-		//fmt.Printf("reverse reordered edges = \n")
-		//edges.Print()
 		assert.Equal(t, [2]int{37, 38}, edges[0].GetVertices())
 		assert.Equal(t, [2]int{40, 0}, edges[3].GetVertices())
 	}
