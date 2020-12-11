@@ -59,20 +59,25 @@ func TestTypes(t *testing.T) {
 	}
 	{ // Test curve ordering/reordering
 		// combo of int1, int2 equals edges
-		ind1 := []int{40, 39, 38, 37}
-		ind2 := []int{0, 40, 39, 38}
+		//ind1 := []int{40, 39, 38, 37}
+		//ind2 := []int{0, 40, 39, 38}
+		ind1 := []int{38, 40, 39, 37}
+		ind2 := []int{39, 0, 40, 38}
 		edges := make(Curve, len(ind1))
 		for i := range ind1 {
 			edges[i] = NewEdgeInt([2]int{ind1[i], ind2[i]})
 		}
 		//fmt.Printf("before reordering = \n")
 		//edges.Print()
-		edges = edges.ReOrder(false)
+		var unordered bool
+		edges, unordered = edges.ReOrder(false)
+		assert.Equal(t, true, unordered)
 		assert.Equal(t, [2]int{40, 0}, edges[0].GetVertices())
 		assert.Equal(t, [2]int{37, 38}, edges[3].GetVertices())
 		//fmt.Printf("reordered edges = \n")
 		//edges.Print()
-		edges = edges.ReOrder(true)
+		edges, unordered = edges.ReOrder(true)
+		assert.Equal(t, false, unordered)
 		//fmt.Printf("reverse reordered edges = \n")
 		//edges.Print()
 		assert.Equal(t, [2]int{37, 38}, edges[0].GetVertices())

@@ -138,7 +138,7 @@ func (c Curve) Print() {
 	}
 }
 
-func (c Curve) ReOrder(reverse bool) (cc Curve) {
+func (c Curve) ReOrder(reverse bool) (cc Curve, unordered bool) {
 	/*
 	   Orders a curve's line segments to form a connected curve
 
@@ -191,6 +191,7 @@ func (c Curve) ReOrder(reverse bool) (cc Curve) {
 		}
 	}
 	if startInd == -1 {
+		unordered = true                   // This list started unordered
 		start = bm[endKeys[0]].vertEdge[0] // arbitrary start because the curve starts unordered
 	}
 	cc = AssembleCurve(bm, start)
