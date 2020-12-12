@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -42,6 +43,7 @@ type Euler struct {
 	Case                  InitType
 	AnalyticSolution      ExactState
 	FluxCalcMock          func(Gamma, rho, rhoU, rhoV, E float64) (Fx, Fy [4]float64) // For testing
+	SortedEdgeKeys        EdgeKeySlice
 }
 
 type ChartState struct {
@@ -430,6 +432,15 @@ func (c *Euler) InterpolateSolutionToEdges(Q [4]utils.Matrix) {
 	}
 }
 
+type EdgeKeySlice []types.EdgeKey
+
+func (p EdgeKeySlice) Len() int           { return len(p) }
+func (p EdgeKeySlice) Less(i, j int) bool { return p[i] < p[j] }
+func (p EdgeKeySlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+
+// Sort is a convenience method.
+func (p EdgeKeySlice) Sort() { sort.Sort(p) }
+
 func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 	var (
 		dfr                            = c.dfr
@@ -438,7 +449,19 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 		Kmax                           = dfr.K
 		normalFlux, normalFluxReversed = make([][4]float64, Nedge), make([][4]float64, Nedge)
 	)
-	for en, e := range dfr.Tris.Edges {
+	if len(c.SortedEdgeKeys) == 0 {
+		c.SortedEdgeKeys = make(EdgeKeySlice, len(dfr.Tris.Edges))
+		var i int
+		for en := range dfr.Tris.Edges {
+			c.SortedEdgeKeys[i] = en
+			i++
+		}
+		c.SortedEdgeKeys.Sort()
+	}
+
+	for _, en := range c.SortedEdgeKeys {
+		e := dfr.Tris.Edges[en]
+		//for en, e := range dfr.Tris.Edges {
 		switch e.NumConnectedTris {
 		case 0:
 			panic("unable to handle unconnected edges")
