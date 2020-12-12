@@ -1,6 +1,6 @@
 Title: "Test Case"
-CFL: 0.70
+CFL: 1.00
 FluxType: Lax
 InitType: IVortex # Can be "Freestream"
 PolynomialOrder: 1
-FinalTime: 6
+FinalTime: 20

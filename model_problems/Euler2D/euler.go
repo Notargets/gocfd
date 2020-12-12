@@ -449,32 +449,53 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 		Kmax                           = dfr.K
 		normalFlux, normalFluxReversed = make([][4]float64, Nedge), make([][4]float64, Nedge)
 	)
-	if len(c.SortedEdgeKeys) == 0 {
-		c.SortedEdgeKeys = make(EdgeKeySlice, len(dfr.Tris.Edges))
-		var i int
-		for en := range dfr.Tris.Edges {
-			c.SortedEdgeKeys[i] = en
-			i++
+	/*
+		if len(c.SortedEdgeKeys) == 0 {
+			c.SortedEdgeKeys = make(EdgeKeySlice, len(dfr.Tris.Edges))
+			var i int
+			for en := range dfr.Tris.Edges {
+				c.SortedEdgeKeys[i] = en
+				i++
+			}
+			c.SortedEdgeKeys.Sort()
+			fmt.Printf("Total number of edges = %d\n", 3*dfr.K)
+			var internalEdgesCount, boundaryEdgesCount, unconnectedEdgesCount int
+			for _, e := range dfr.Tris.Edges {
+				switch e.NumConnectedTris {
+				case 0:
+					unconnectedEdgesCount++
+				case 1:
+					boundaryEdgesCount++
+				case 2:
+					internalEdgesCount++
+				}
+			}
+			fmt.Printf("Count of internal edges, incl Periodic Boundaries = %d\n", internalEdgesCount)
+			fmt.Printf("Count of unhandled edges = %d\n", unconnectedEdgesCount)
+			fmt.Printf("Count of boundary edges = %d\n", boundaryEdgesCount)
 		}
-		c.SortedEdgeKeys.Sort()
-	}
+	*/
 
-	for _, en := range c.SortedEdgeKeys {
-		e := dfr.Tris.Edges[en]
-		//for en, e := range dfr.Tris.Edges {
+	//var internalProcessedCount, boundaryEdgesCount, nobcCount int
+	//for _, en := range c.SortedEdgeKeys {
+	//e := dfr.Tris.Edges[en]
+	for en, e := range dfr.Tris.Edges {
 		switch e.NumConnectedTris {
 		case 0:
 			panic("unable to handle unconnected edges")
 		case 1: // Handle edges with only one triangle - default is edge flux, which will be replaced by a BC flux
 			var (
-				k          = int(e.ConnectedTris[0])
-				edgeNumber = int(e.ConnectedTriEdgeNumber[0])
-				shift      = edgeNumber * Nedge
-				riemann    = true
+				k           = int(e.ConnectedTris[0])
+				edgeNumber  = int(e.ConnectedTriEdgeNumber[0])
+				shift       = edgeNumber * Nedge
+				riemann     = true
+				processFlux bool
 			)
+			processFlux = true
 			normal, _ := c.getEdgeNormal(0, e, en)
 			switch e.BCType {
 			case types.BC_Far:
+				//boundaryEdgesCount++
 				for i := 0; i < Nedge; i++ {
 					iL := i + shift
 					ind := k + iL*Kmax
@@ -485,6 +506,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 					c.Q_Face[3].Data()[ind] = QBC[3]
 				}
 			case types.BC_IVortex:
+				//boundaryEdgesCount++
 				// fmt.Printf("BC - %s\n", e.BCType.String())
 				// Set the flow variables to the exact solution
 				X, Y := c.dfr.FluxX.Data(), c.dfr.FluxY.Data()
@@ -507,16 +529,20 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 					c.Q_Face[2].Data()[ind] = QBC[2]
 					c.Q_Face[3].Data()[ind] = QBC[3]
 				}
+			case types.BC_PeriodicReversed, types.BC_Periodic:
+				processFlux = false
 			}
-			var Fx, Fy [4]float64
-			for i := 0; i < Nedge; i++ {
-				ie := i + shift
-				Fx, Fy = c.CalculateFlux(k, ie, c.Q_Face)
-				for n := 0; n < 4; n++ {
-					normalFlux[i][n] = normal[0]*Fx[n] + normal[1]*Fy[n]
+			if processFlux {
+				var Fx, Fy [4]float64
+				for i := 0; i < Nedge; i++ {
+					ie := i + shift
+					Fx, Fy = c.CalculateFlux(k, ie, c.Q_Face)
+					for n := 0; n < 4; n++ {
+						normalFlux[i][n] = normal[0]*Fx[n] + normal[1]*Fy[n]
+					}
 				}
+				c.SetNormalFluxOnRTEdge(k, edgeNumber, normalFlux, e.IInII[0])
 			}
-			c.SetNormalFluxOnRTEdge(k, edgeNumber, normalFlux, e.IInII[0])
 		case 2: // Handle edges with two connected tris - shared faces
 			var (
 				kL, kR                   = int(e.ConnectedTris[0]), int(e.ConnectedTris[1])
@@ -524,6 +550,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 				shiftL, shiftR           = edgeNumberL * Nedge, edgeNumberR * Nedge
 				fluxLeft, fluxRight      [2][4]float64
 			)
+			//internalProcessedCount++
 			switch c.FluxCalcAlgo {
 			case FLUX_Average:
 				averageFluxN := func(f1, f2 [2][4]float64, normal [2]float64) (fnorm [4]float64, fnormR [4]float64) {
@@ -680,6 +707,12 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 			c.SetNormalFluxOnRTEdge(kR, edgeNumberR, normalFluxReversed, e.IInII[1])
 		}
 	}
+	/*
+		fmt.Printf("Actual number of internal processed edges = %d\n", internalProcessedCount)
+		fmt.Printf("Actual number of boundary processed edges = %d\n", boundaryEdgesCount)
+		fmt.Printf("Actual number of noBC edges = %d\n", nobcCount)
+	*/
+
 	return
 }
 
