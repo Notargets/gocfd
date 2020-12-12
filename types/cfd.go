@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -97,7 +98,17 @@ func (bm BCMAP) AddEdges(key BCTAG, edges []EdgeInt) {
 }
 
 func (bm BCMAP) Print() {
-	for key, edges := range bm {
+	var (
+		keys = make(sort.StringSlice, len(bm))
+	)
+	var i int
+	for key := range bm {
+		keys[i] = string(key)
+		i++
+	}
+	keys.Sort()
+	for _, key := range keys {
+		edges := bm[BCTAG(key)]
 		for i, e := range edges {
 			fmt.Printf("bc[%s][%d]=%v\n", key, i, e.GetVertices())
 		}

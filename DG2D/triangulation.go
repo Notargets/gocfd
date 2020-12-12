@@ -31,7 +31,7 @@ func NewTriangulation(VX, VY utils.Vector, EToV utils.Matrix, BCEdges types.BCMA
 	}
 	// Insert BCs into edges map
 	var err error
-	var reversedEdge bool
+	var reversedLastEdge bool
 	for key, edges := range BCEdges {
 		flag := key.GetFLAG()
 		switch flag {
@@ -42,7 +42,7 @@ func NewTriangulation(VX, VY utils.Vector, EToV utils.Matrix, BCEdges types.BCMA
 			}
 		case types.BC_PeriodicReversed:
 			fmt.Printf("reversing periodic edge\n")
-			reversedEdge = true
+			reversedLastEdge = true
 			fallthrough
 		case types.BC_Periodic:
 			l := len(edges)
@@ -60,13 +60,12 @@ func NewTriangulation(VX, VY utils.Vector, EToV utils.Matrix, BCEdges types.BCMA
 				periodicEdges[0][i] = edges[i]
 				periodicEdges[1][i] = edges[i+l2]
 			}
+			var reverseEdge bool
 			for i := 0; i < 2; i++ {
-				if reversedEdge && i == 1 {
-					// Reverse one edge if requested
-					periodicEdges[i], _ = periodicEdges[i].ReOrder(true)
-				} else {
-					periodicEdges[i], _ = periodicEdges[i].ReOrder(false)
+				if reversedLastEdge && i == 1 { // Reverse one edge if requested
+					reverseEdge = true
 				}
+				periodicEdges[i], _ = periodicEdges[i].ReOrder(reverseEdge)
 			}
 			for i := 0; i < l2; i++ {
 				e1, e2 := periodicEdges[0][i], periodicEdges[1][i] // paired edges
