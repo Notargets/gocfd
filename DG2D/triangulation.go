@@ -70,6 +70,7 @@ func NewTriangulation(VX, VY utils.Vector, EToV utils.Matrix, BCEdges types.BCMA
 			for i := 0; i < l2; i++ {
 				e1, e2 := periodicEdges[0][i], periodicEdges[1][i] // paired edges
 				ee1, ee2 := tmesh.Edges[e1.GetKey()], tmesh.Edges[e2.GetKey()]
+				ee1.BCType = flag
 				k2 := int(ee2.ConnectedTris[0])
 				en2 := ee2.ConnectedTriEdgeNumber[0]
 				dir := ee2.ConnectedTriDirection[0] // Direction is relative to order of edge traversal in element/tri
