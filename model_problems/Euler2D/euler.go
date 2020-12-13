@@ -443,9 +443,8 @@ func (c *Euler) AssembleRTNormalFlux(Q [4]utils.Matrix, Time float64) {
 		c.Q_Face[n].Scale(0.)
 		c.F_RT_DOF[n].Scale(0.)
 	}
-	c.SetNormalFluxInternal(Q)      // Updates F_RT_DOF with values from Q
-	c.InterpolateSolutionToEdges(Q) // Interpolates Q_Face values from Q
-	//c.SetNormalFluxOnEdges(Time, c.SortedEdgeKeys) // Updates F_RT_DOG with values from edges, including BCs and connected tris
+	c.SetNormalFluxInternal(Q)           // Updates F_RT_DOF with values from Q
+	c.InterpolateSolutionToEdges(Q)      // Interpolates Q_Face values from Q
 	c.ParallelSetNormalFluxOnEdges(Time) // Updates F_RT_DOG with values from edges, including BCs and connected tris
 }
 
@@ -499,15 +498,14 @@ func (c *Euler) ParallelSetNormalFluxOnEdges(Time float64) {
 		Ntot = len(c.SortedEdgeKeys)
 		wg   = sync.WaitGroup{}
 	)
-	doit := func(ind, end int) {
-		c.SetNormalFluxOnEdges(Time, c.SortedEdgeKeys[ind:end])
-		wg.Done()
-	}
 	var ind, end int
 	for n := 0; n < c.ParallelDegree; n++ {
 		ind, end = c.split1D(Ntot, n)
 		wg.Add(1)
-		go doit(ind, end)
+		go func(ind, end int) {
+			c.SetNormalFluxOnEdges(Time, c.SortedEdgeKeys[ind:end])
+			wg.Done()
+		}(ind, end)
 	}
 	wg.Wait()
 }
