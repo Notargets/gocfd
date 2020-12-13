@@ -456,20 +456,24 @@ func (c *Euler) SetNormalFluxInternal(Q [4]utils.Matrix) {
 		wg   = sync.WaitGroup{}
 	)
 	// Calculate flux and project into R and S (transformed) directions for the internal points
-	for i := 0; i < Nint; i++ {
+	//for k := 0; k < Kmax; k++ {
+	for np := 0; np < c.ParallelDegree; np++ {
+		ind, end := c.split1D(Kmax, np)
 		wg.Add(1)
-		go func(i int) {
-			for k := 0; k < Kmax; k++ {
-				ind := k + i*Kmax
-				ind2 := k + (i+Nint)*Kmax
-				Fr, Fs := c.CalculateFluxTransformed(k, i, Q)
-				for n := 0; n < 4; n++ {
-					rtD := c.F_RT_DOF[n].Data()
-					rtD[ind], rtD[ind2] = Fr[n], Fs[n]
+		go func() {
+			for k := ind; k < end; k++ {
+				for i := 0; i < Nint; i++ {
+					ind := k + i*Kmax
+					ind2 := k + (i+Nint)*Kmax
+					Fr, Fs := c.CalculateFluxTransformed(k, i, Q)
+					for n := 0; n < 4; n++ {
+						rtD := c.F_RT_DOF[n].Data()
+						rtD[ind], rtD[ind2] = Fr[n], Fs[n]
+					}
 				}
 			}
 			wg.Done()
-		}(i)
+		}()
 	}
 	wg.Wait()
 }
@@ -492,9 +496,8 @@ func (p EdgeKeySlice) Sort() { sort.Sort(p) }
 
 func (c *Euler) ParallelSetNormalFluxOnEdges(Time float64) {
 	var (
-		Ntot  = len(c.SortedEdgeKeys)
-		Npart = Ntot / c.ParallelDegree
-		wg    = sync.WaitGroup{}
+		Ntot = len(c.SortedEdgeKeys)
+		wg   = sync.WaitGroup{}
 	)
 	doit := func(ind, end int) {
 		c.SetNormalFluxOnEdges(Time, c.SortedEdgeKeys[ind:end])
@@ -502,11 +505,7 @@ func (c *Euler) ParallelSetNormalFluxOnEdges(Time float64) {
 	}
 	var ind, end int
 	for n := 0; n < c.ParallelDegree; n++ {
-		ind = n * Npart
-		end = ind + Npart
-		if n == c.ParallelDegree-1 {
-			end = Ntot
-		}
+		ind, end = c.split1D(Ntot, n)
 		wg.Add(1)
 		go doit(ind, end)
 	}
@@ -987,4 +986,18 @@ type PlotMeta struct {
 	FrameTime            time.Duration
 	StepsBeforePlot      int
 	LineType             chart2d.LineType
+}
+
+/************** Parallelism */
+
+func (c *Euler) split1D(iMax, threadNum int) (istart, iend int) {
+	var (
+		Npart = iMax / c.ParallelDegree
+	)
+	istart = threadNum * Npart
+	iend = istart + Npart
+	if threadNum == c.ParallelDegree-1 {
+		iend = iMax
+	}
+	return
 }
