@@ -450,20 +450,28 @@ func (c *Euler) AssembleRTNormalFlux(Q [4]utils.Matrix, Time float64) {
 }
 
 func (c *Euler) SetNormalFluxInternal(Q [4]utils.Matrix) {
-	Kmax := c.dfr.K
-	Nint := c.dfr.FluxElement.Nint
+	var (
+		Kmax = c.dfr.K
+		Nint = c.dfr.FluxElement.Nint
+		wg   = sync.WaitGroup{}
+	)
 	// Calculate flux and project into R and S (transformed) directions for the internal points
 	for i := 0; i < Nint; i++ {
-		for k := 0; k < Kmax; k++ {
-			ind := k + i*Kmax
-			ind2 := k + (i+Nint)*Kmax
-			Fr, Fs := c.CalculateFluxTransformed(k, i, Q)
-			for n := 0; n < 4; n++ {
-				rtD := c.F_RT_DOF[n].Data()
-				rtD[ind], rtD[ind2] = Fr[n], Fs[n]
+		wg.Add(1)
+		go func(i int) {
+			for k := 0; k < Kmax; k++ {
+				ind := k + i*Kmax
+				ind2 := k + (i+Nint)*Kmax
+				Fr, Fs := c.CalculateFluxTransformed(k, i, Q)
+				for n := 0; n < 4; n++ {
+					rtD := c.F_RT_DOF[n].Data()
+					rtD[ind], rtD[ind2] = Fr[n], Fs[n]
+				}
 			}
-		}
+			wg.Done()
+		}(i)
 	}
+	wg.Wait()
 }
 
 func (c *Euler) InterpolateSolutionToEdges(Q [4]utils.Matrix) {
