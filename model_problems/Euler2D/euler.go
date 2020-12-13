@@ -190,6 +190,7 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		Residual[n] = Q1[n] // optimize memory using an alias
 	}
 	fmt.Printf("solving until finaltime = %8.5f\n", FinalTime)
+	start := time.Now()
 	for {
 		if Time >= FinalTime {
 			break
@@ -235,6 +236,9 @@ func (c *Euler) Solve(pm *PlotMeta) {
 			}
 		}
 	}
+	elapsed := time.Now().Sub(start)
+	rate := float64(elapsed.Microseconds()) / (float64(Kmax * steps))
+	fmt.Printf("\nRate of execution = %8.5f us/(element*iteration) over %d iterations\n", rate, steps)
 }
 
 func (c *Euler) PlotQ(Q [4]utils.Matrix, pm *PlotMeta) {
