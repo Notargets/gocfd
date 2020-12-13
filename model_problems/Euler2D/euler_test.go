@@ -419,7 +419,7 @@ func CheckFlux0(c *Euler, t *testing.T) {
 		assert.Equal(t, d1, Nint)
 		assert.Equal(t, d2, Kmax)
 		for k := 0; k < Kmax; k++ {
-			_, _, Jdet := c.dfr.GetJacobian(k)
+			Jdet := c.dfr.Jdet.At(k, 0)
 			for i := 0; i < Nint; i++ {
 				ind := k + i*Kmax
 				div.Data()[ind] /= Jdet

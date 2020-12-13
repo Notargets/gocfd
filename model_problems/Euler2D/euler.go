@@ -318,7 +318,7 @@ func (c *Euler) CalculateDT() (dt float64) {
 			edgeNum = int(e.ConnectedTriEdgeNumber[conn])
 			shift   = edgeNum * Nedge
 		)
-		_, _, Jdet := c.dfr.GetJacobian(k)
+		Jdet := c.dfr.Jdet.At(k, 0)
 		//fmt.Printf("N, Np12, edgelen, Jdet = %d,%8.5f,%8.5f,%8.5f\n", c.dfr.N, Np12, edgeLen, Jdet)
 		fs := 0.5 * Np12 * edgeLen / Jdet
 		for i := shift; i < shift+Nedge; i++ {
@@ -382,7 +382,7 @@ func (c *Euler) DivideByJacobian(Nmax int, data []float64) {
 		Kmax = c.dfr.K
 	)
 	for k := 0; k < Kmax; k++ {
-		_, _, Jdet := c.dfr.GetJacobian(k)
+		Jdet := c.dfr.Jdet.At(k, 0)
 		for i := 0; i < Nmax; i++ {
 			ind := k + i*Kmax
 			data[ind] /= Jdet
@@ -847,7 +847,9 @@ func (c *Euler) InitializeMemory() {
 
 func (c *Euler) CalculateFluxTransformed(k, i int, Q [4]utils.Matrix) (Fr, Fs [4]float64) {
 	var (
-		_, Jinv, Jdet = c.dfr.GetJacobian(k)
+		//_, Jinv, Jdet = c.dfr.GetJacobian(k)
+		Jdet = c.dfr.Jdet.At(k, 0)
+		Jinv = c.dfr.Jinv.Data()[4*k : 4*(k+1)]
 	)
 	Fx, Fy := c.CalculateFlux(k, i, Q)
 	for n := 0; n < 4; n++ {

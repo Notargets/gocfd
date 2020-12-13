@@ -109,9 +109,9 @@ func getFileTypeFromExtension(fileName string) (t MeshFileType) {
 }
 
 func (dfr *DFR2D) GetJacobian(k int) (J, Jinv []float64, Jdet float64) {
-	J = dfr.J.Row(k).Data()[0:4]
-	Jinv = dfr.Jinv.Row(k).Data()[0:4]
-	Jdet = dfr.Jdet.Row(k).Data()[0]
+	J = dfr.J.Data()[k*4 : (k+1)*4]
+	Jinv = dfr.Jinv.Data()[k*4 : (k+1)*4]
+	Jdet = dfr.Jdet.At(k, 0)
 	return
 }
 
