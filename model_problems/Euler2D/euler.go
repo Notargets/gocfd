@@ -228,9 +228,11 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		if plotQ && steps%pm.StepsBeforePlot == 0 {
 			c.PlotQ(c.Q, pm) // wait till we implement time iterative frame updates
 		}
-		fmt.Printf("\nTime,dt = %8.5f,%8.5f, Residual[eq#]Min/Max:", Time, dt)
-		for n := 0; n < 4; n++ {
-			fmt.Printf(" [%d] %8.5f,%8.5f ", n, Residual[n].Min(), Residual[n].Max())
+		if steps%pm.StepsBeforePlot == 0 {
+			fmt.Printf("\nTime,dt = %8.5f,%8.5f, Residual[eq#]Min/Max:", Time, dt)
+			for n := 0; n < 4; n++ {
+				fmt.Printf(" [%d] %8.5f,%8.5f ", n, Residual[n].Min(), Residual[n].Max())
+			}
 		}
 	}
 }

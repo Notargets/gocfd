@@ -200,25 +200,45 @@ func TestEuler(t *testing.T) {
 			}
 		}
 	}
-	if true { // Test solver
-		N := 2
-		//N := 5
-		plotMesh := false
-		c := NewEuler(2.0, N, "../../DG2D/vortexA04.neu", 1.00, FLUX_LaxFriedrichs, IVORTEX, plotMesh, true)
-		fmin, fmax := -0.75, 0.80 // YMomentum
-		pm := &PlotMeta{
-			Plot:  false,
-			Scale: 0.8,
-			Field: YMomentum,
-			//FieldMinP: nil,
-			//FieldMaxP: nil,
-			FieldMinP:       &fmin,
-			FieldMaxP:       &fmax,
-			FrameTime:       0 * time.Millisecond,
-			StepsBeforePlot: 5,
-			LineType:        chart2d.Solid,
+}
+
+func TestEuler_Solve(t *testing.T) {
+	// This is separate to enable easy performance and memory profiling
+	N := 2
+	plotMesh := false
+	c := NewEuler(0.1, N, "../../DG2D/vortexA04.neu", 1.00, FLUX_LaxFriedrichs, IVORTEX, plotMesh, true)
+	fmin, fmax := -0.75, 0.80 // YMomentum
+	pm := &PlotMeta{
+		Plot:            false,
+		Scale:           0.8,
+		Field:           YMomentum,
+		FieldMinP:       &fmin,
+		FieldMaxP:       &fmax,
+		FrameTime:       0 * time.Millisecond,
+		StepsBeforePlot: 5,
+		LineType:        chart2d.Solid,
+	}
+	c.Solve(pm)
+}
+
+func BenchmarkEuler_Solve(b *testing.B) {
+	var (
+		plotMesh  = false
+		pm        = &PlotMeta{Plot: false, StepsBeforePlot: 100}
+		Nmax      = 2
+		FinalTime = 0.1
+		c         = make([]*Euler, Nmax+1)
+	)
+	for n := 1; n <= Nmax; n++ {
+		c[n] = NewEuler(FinalTime, n, "../../DG2D/vortex-new.su2", 1.00, FLUX_LaxFriedrichs, IVORTEX, plotMesh, false)
+	}
+	b.ResetTimer()
+	// The benchmark loop
+	for i := 0; i < b.N; i++ {
+		// This is separate to enable easy performance and memory profiling
+		for n := 1; n <= Nmax; n++ {
+			c[n].Solve(pm)
 		}
-		c.Solve(pm)
 	}
 }
 

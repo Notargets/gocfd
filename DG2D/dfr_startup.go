@@ -58,7 +58,7 @@ func NewDFR2D(N int, plotMesh bool, meshFileO ...string) (dfr *DFR2D) {
 			dfr.K, dfr.VX, dfr.VY, EToV, dfr.BCEdges =
 				readfiles.ReadSU2(meshFileO[0], false)
 		}
-		dfr.BCEdges.Print()
+		//dfr.BCEdges.Print()
 		dfr.Tris = NewTriangulation(dfr.VX, dfr.VY, EToV, dfr.BCEdges)
 		// Build connectivity matrices
 		dfr.FluxX, dfr.FluxY =
