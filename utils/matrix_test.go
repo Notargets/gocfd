@@ -229,6 +229,22 @@ func TestMatrix(t *testing.T) {
 		}, ":", ":")
 		testRowMajor(B)
 	}
+	{ // Test parallel multiply
+		A := NewMatrix(2, 4, []float64{
+			0., 1., 2., 3.,
+			4., 5., 6., 7.,
+		})
+		B := NewMatrix(3, 2, []float64{
+			10., 20.,
+			30., 40.,
+			50., 60.,
+		})
+		assert.Equal(t, B.Mul(A), B.MulParallel(A, 1))
+		assert.Equal(t, B.Mul(A), B.MulParallel(A, 2))
+		assert.Equal(t, B.Mul(A), B.MulParallel(A, 4))
+		assert.Equal(t, B.Mul(A), B.MulParallel(A, 5))
+		//fmt.Println(B.MulParallel(A, 2).Print("BmulA"))
+	}
 }
 
 func nearVec(a, b []float64, tol float64) (l bool) {

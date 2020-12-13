@@ -3,4 +3,4 @@ CFL: 1.00
 FluxType: Lax
 InitType: IVortex # Can be "Freestream"
 PolynomialOrder: 2
-FinalTime: 0.5
+FinalTime: 10.

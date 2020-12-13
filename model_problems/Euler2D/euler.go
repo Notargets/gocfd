@@ -224,13 +224,11 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		Residual[n] = Q1[n] // optimize memory using an alias
 	}
 	fmt.Printf("solving until finaltime = %8.5f\n", FinalTime)
+	c.InterpolateSolutionToEdges(c.Q)
 	start := time.Now()
 	for {
 		if Time >= FinalTime {
 			break
-		}
-		if Time == 0 {
-			c.InterpolateSolutionToEdges(c.Q)
 		}
 		dt = c.CalculateDT()
 		if Time+dt > FinalTime {
@@ -238,24 +236,24 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		}
 		rhsQ := c.RHS(c.Q, Time)
 		for n := 0; n < 4; n++ {
-			Q1[n].Apply3(rhsQ[n], c.Q[n], func(q1, rhsq, q float64) (res float64) {
+			Q1[n].Apply3Parallel(rhsQ[n], c.Q[n], func(q1, rhsq, q float64) (res float64) {
 				res = q + rhsq*dt
 				return
-			})
+			}, c.ParallelDegree)
 		}
 		rhsQ = c.RHS(Q1, Time)
 		for n := 0; n < 4; n++ {
-			Q2[n].Apply4(rhsQ[n], Q1[n], c.Q[n], func(q2, rhsq, q1, q float64) (res float64) {
+			Q2[n].Apply4Parallel(rhsQ[n], Q1[n], c.Q[n], func(q2, rhsq, q1, q float64) (res float64) {
 				res = 0.25 * (q1 + 3*q + rhsq*dt)
 				return
-			})
+			}, c.ParallelDegree)
 		}
 		rhsQ = c.RHS(Q2, Time)
 		for n := 0; n < 4; n++ {
-			Residual[n].Apply4(rhsQ[n], Q2[n], c.Q[n], func(resid, rhsq, q2, q float64) (res float64) {
+			Residual[n].Apply4Parallel(rhsQ[n], Q2[n], c.Q[n], func(resid, rhsq, q2, q float64) (res float64) {
 				res = (2. / 3) * (q2 - q + dt*rhsq)
 				return
-			})
+			}, c.ParallelDegree)
 			c.Q[n].Add(Residual[n])
 		}
 		steps++
@@ -335,37 +333,56 @@ func (c *Euler) PlotFS(fminP, fmaxP *float64, fmin, fmax float64, scale float64,
 
 func (c *Euler) CalculateDT() (dt float64) {
 	var (
-		Np1   = c.dfr.N + 1
-		Np12  = float64(Np1 * Np1)
-		wsMax = -math.MaxFloat64
+		Np1      = c.dfr.N + 1
+		Np12     = float64(Np1 * Np1)
+		wsMaxAll = -math.MaxFloat64
+		wsMax    = make([]float64, c.ParallelDegree)
+		wg       = sync.WaitGroup{}
 	)
+	for nn := 0; nn < c.ParallelDegree; nn++ {
+		wsMax[nn] = wsMaxAll
+	}
 	/*
 		    Fscale = edge_length / Jdet // units of length/area = 1/length
 			w_speeds = 0.5*utils.POW(N+1,2)*(Fscale.*(math.Sqrt(u*u+v*v)+c)
 			dt = CFL / w_speeds.MAX()
 	*/
 	// Loop over all edges, calculating max wavespeed
-	for _, e := range c.dfr.Tris.Edges {
-		var (
-			edgeLen = e.GetEdgeLength()
-			Nedge   = c.dfr.FluxElement.Nedge
-		)
-		conn := 0
-		var (
-			k       = int(e.ConnectedTris[conn])
-			edgeNum = int(e.ConnectedTriEdgeNumber[conn])
-			shift   = edgeNum * Nedge
-		)
-		Jdet := c.dfr.Jdet.At(k, 0)
-		//fmt.Printf("N, Np12, edgelen, Jdet = %d,%8.5f,%8.5f,%8.5f\n", c.dfr.N, Np12, edgeLen, Jdet)
-		fs := 0.5 * Np12 * edgeLen / Jdet
-		for i := shift; i < shift+Nedge; i++ {
-			_, u, v, _, C, _ := c.GetState(k, i, c.Q_Face)
-			waveSpeed := fs * (math.Sqrt(u*u+v*v) + C)
-			wsMax = math.Max(waveSpeed, wsMax)
-		}
+	for nn := 0; nn < c.ParallelDegree; nn++ {
+		ind, end := c.split1D(len(c.SortedEdgeKeys), nn)
+		wg.Add(1)
+		go func(ind, end, nn int) {
+			for ii := ind; ii < end; ii++ {
+				edgeKey := c.SortedEdgeKeys[ii]
+				e := c.dfr.Tris.Edges[edgeKey]
+				// for _, e := range c.dfr.Tris.Edges {
+				var (
+					edgeLen = e.GetEdgeLength()
+					Nedge   = c.dfr.FluxElement.Nedge
+				)
+				conn := 0
+				var (
+					k       = int(e.ConnectedTris[conn])
+					edgeNum = int(e.ConnectedTriEdgeNumber[conn])
+					shift   = edgeNum * Nedge
+				)
+				Jdet := c.dfr.Jdet.At(k, 0)
+				// fmt.Printf("N, Np12, edgelen, Jdet = %d,%8.5f,%8.5f,%8.5f\n", c.dfr.N, Np12, edgeLen, Jdet)
+				fs := 0.5 * Np12 * edgeLen / Jdet
+				for i := shift; i < shift+Nedge; i++ {
+					_, u, v, _, C, _ := c.GetState(k, i, c.Q_Face)
+					waveSpeed := fs * (math.Sqrt(u*u+v*v) + C)
+					wsMax[nn] = math.Max(waveSpeed, wsMax[nn])
+				}
+			}
+			wg.Done()
+		}(ind, end, nn)
 	}
-	dt = c.CFL / wsMax
+	wg.Wait()
+	for nn := 0; nn < c.ParallelDegree; nn++ {
+		wsMaxAll = math.Max(wsMaxAll, wsMax[nn])
+	}
+	dt = c.CFL / wsMaxAll
 	return
 }
 
@@ -407,15 +424,20 @@ func (c *Euler) RHS(Q [4]utils.Matrix, Time float64) (RHSCalc [4]utils.Matrix) {
 				of the element taken directly from the solution values (Q).
 	*/
 	c.AssembleRTNormalFlux(Q, Time) // Assembles F_RT_DOF for use in calculations using RT element
+	var wg = sync.WaitGroup{}
 	for n := 0; n < 4; n++ {
-		RHSCalc[n] = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n]) // Calculate divergence for the internal node points
-		c.DivideByJacobian(c.dfr.FluxElement.Nint, RHSCalc[n].Data())
-		RHSCalc[n].Scale(-1.) // Multiply divergence by -1 to produce the RHS
+		wg.Add(1)
+		go func(n int) {
+			RHSCalc[n] = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n]) // Calculate divergence for the internal node points
+			c.DivideByJacobian(c.dfr.FluxElement.Nint, RHSCalc[n].Data(), -1)
+			wg.Done()
+		}(n)
 	}
+	wg.Wait()
 	return
 }
 
-func (c *Euler) DivideByJacobian(Nmax int, data []float64) {
+func (c *Euler) DivideByJacobian(Nmax int, data []float64, scale float64) {
 	var (
 		Kmax = c.dfr.K
 	)
@@ -423,7 +445,7 @@ func (c *Euler) DivideByJacobian(Nmax int, data []float64) {
 		Jdet := c.dfr.Jdet.At(k, 0)
 		for i := 0; i < Nmax; i++ {
 			ind := k + i*Kmax
-			data[ind] /= Jdet
+			data[ind] /= (Jdet * scale) // Multiply divergence by -1 to produce the RHS
 		}
 	}
 }
@@ -479,9 +501,15 @@ func (c *Euler) SetNormalFluxInternal(Q [4]utils.Matrix) {
 
 func (c *Euler) InterpolateSolutionToEdges(Q [4]utils.Matrix) {
 	// Interpolate from solution points to edges using precomputed interpolation matrix
+	var wg = sync.WaitGroup{}
 	for n := 0; n < 4; n++ {
-		c.Q_Face[n] = c.dfr.FluxEdgeInterpMatrix.Mul(Q[n])
+		wg.Add(1)
+		go func(n int) {
+			c.Q_Face[n] = c.dfr.FluxEdgeInterpMatrix.Mul(Q[n])
+			wg.Done()
+		}(n)
 	}
+	wg.Wait()
 }
 
 type EdgeKeySlice []types.EdgeKey

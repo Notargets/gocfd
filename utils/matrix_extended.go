@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"math"
+	"sync"
 
 	"gonum.org/v1/gonum/lapack/lapack64"
 
@@ -20,11 +21,12 @@ type Matrix struct {
 func NewMatrix(nr, nc int, dataO ...[]float64) (R Matrix) {
 	var m *mat.Dense
 	if len(dataO) != 0 {
-		m = mat.NewDense(nr, nc, dataO[0])
-		if len(dataO[0]) != nr*nc {
+		if len(dataO[0]) < nr*nc {
 			err := fmt.Errorf("mismatch in allocation: NewMatrix nr,nc = %v,%v, len(data[0]) = %v\n", nr, nc, len(dataO[0]))
 			panic(err)
 		}
+		dataArea := dataO[0][0 : nr*nc]
+		m = mat.NewDense(nr, nc, dataArea)
 	} else {
 		m = mat.NewDense(nr, nc, make([]float64, nr*nc))
 	}
@@ -141,6 +143,49 @@ func (m Matrix) Mul(A Matrix, dataO ...[]float64) (R Matrix) { // Does not chang
 		R = NewMatrix(nrM, ncA)
 	}
 	R.M.Mul(m.M, A.M)
+	return R
+}
+
+func (m Matrix) MulParallel(A Matrix, nP int) (R Matrix) { // Does not change receiver
+	var (
+		nrM, _   = m.Dims()
+		nrA, ncA = A.M.Dims()
+		wg       = sync.WaitGroup{}
+	)
+	if nP > ncA {
+		nP = ncA
+	}
+	R = NewMatrix(nrM, ncA)
+	ncAChunk := Split1DMaxChunk(ncA, nP)
+	subAChunkSize := nrA * ncAChunk
+	subRChunkSize := nrM * ncAChunk
+	subAstorage := make([]float64, nP*subAChunkSize)
+	subRstorage := make([]float64, nP*subRChunkSize)
+	for n := 0; n < nP; n++ {
+		ind, end := Split1D(ncA, nP, n)
+		ncSubA := end - ind
+		wg.Add(1)
+		go func(ind, end, ncSubA, n int) {
+			subA := NewMatrix(nrA, ncSubA, subAstorage[n*subAChunkSize:])
+			for j := 0; j < nrA; j++ {
+				var ii int
+				for i := ind; i < end; i++ {
+					subA.Data()[ii+ncSubA*j] = A.Data()[i+ncA*j]
+					ii++
+				}
+			}
+			subR := m.Mul(subA, subRstorage[n*subRChunkSize:])
+			for j := 0; j < nrM; j++ {
+				var ii int
+				for i := ind; i < end; i++ {
+					R.Data()[i+ncA*j] = subR.Data()[ii+ncSubA*j]
+					ii++
+				}
+			}
+			wg.Done()
+		}(ind, end, ncSubA, n)
+	}
+	wg.Wait()
 	return R
 }
 
@@ -512,6 +557,29 @@ func (m Matrix) Apply3(A, B Matrix, f func(float64, float64, float64) float64) M
 	return m
 }
 
+func (m Matrix) Apply3Parallel(A, B Matrix, f func(float64, float64, float64) float64, nP int) Matrix { // Changes receiver
+	var (
+		dataM  = m.RawMatrix().Data
+		dA, dB = A.RawMatrix().Data, B.RawMatrix().Data
+		wg     = sync.WaitGroup{}
+		l      = len(dataM)
+	)
+	m.checkWritable()
+	for n := 0; n < nP; n++ {
+		ind, end := Split1D(l, nP, n)
+		wg.Add(1)
+		go func(ind, end int) {
+			for i := ind; i < end; i++ {
+				val := dataM[i]
+				dataM[i] = f(val, dA[i], dB[i])
+			}
+			wg.Done()
+		}(ind, end)
+	}
+	wg.Wait()
+	return m
+}
+
 func (m Matrix) Apply4(A, B, C Matrix, f func(float64, float64, float64, float64) float64) Matrix { // Changes receiver
 	var (
 		dataM      = m.RawMatrix().Data
@@ -521,6 +589,29 @@ func (m Matrix) Apply4(A, B, C Matrix, f func(float64, float64, float64, float64
 	for i, val := range dataM {
 		dataM[i] = f(val, dA[i], dB[i], dC[i])
 	}
+	return m
+}
+
+func (m Matrix) Apply4Parallel(A, B, C Matrix, f func(float64, float64, float64, float64) float64, nP int) Matrix { // Changes receiver
+	var (
+		dataM      = m.RawMatrix().Data
+		dA, dB, dC = A.RawMatrix().Data, B.RawMatrix().Data, C.RawMatrix().Data
+		wg         = sync.WaitGroup{}
+		l          = len(dataM)
+	)
+	m.checkWritable()
+	for n := 0; n < nP; n++ {
+		ind, end := Split1D(l, nP, n)
+		wg.Add(1)
+		go func(ind, end int) {
+			for i := ind; i < end; i++ {
+				val := dataM[i]
+				dataM[i] = f(val, dA[i], dB[i], dC[i])
+			}
+			wg.Done()
+		}(ind, end)
+	}
+	wg.Wait()
 	return m
 }
 
