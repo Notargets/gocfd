@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"image/color"
 	"math"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/notargets/gocfd/types"
@@ -44,6 +46,7 @@ type Euler struct {
 	AnalyticSolution      ExactState
 	FluxCalcMock          func(Gamma, rho, rhoU, rhoV, E float64) (Fx, Fy [4]float64) // For testing
 	SortedEdgeKeys        EdgeKeySlice
+	ParallelDegree        int // Number of go routines to use for parallel execution
 }
 
 type ChartState struct {
@@ -131,20 +134,51 @@ func NewFluxType(label string) (ft FluxType) {
 
 func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType FluxType, Case InitType, plotMesh, verbose bool) (c *Euler) {
 	c = &Euler{
-		MeshFile:     meshFile,
-		CFL:          CFL,
-		FinalTime:    FinalTime,
-		FluxCalcAlgo: fluxType,
-		Case:         Case,
-		Gamma:        1.4,
-		FluxCalcMock: FluxCalc,
+		MeshFile:       meshFile,
+		CFL:            CFL,
+		FinalTime:      FinalTime,
+		FluxCalcAlgo:   fluxType,
+		Case:           Case,
+		Gamma:          1.4,
+		FluxCalcMock:   FluxCalc,
+		ParallelDegree: runtime.NumCPU(),
 	}
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
 	c.dfr = DG2D.NewDFR2D(N, plotMesh, meshFile)
 	c.InitializeMemory()
 	if verbose {
 		fmt.Printf("Euler Equations in 2 Dimensions\n")
+		fmt.Printf("Using %d go routines in parallel\n", runtime.NumCPU())
 		fmt.Printf("Solving %s\n", c.Case.Print())
 	}
+
+	// Setup the key for edge calculations, useful for parallelizing the process
+	c.SortedEdgeKeys = make(EdgeKeySlice, len(c.dfr.Tris.Edges))
+	var i int
+	for en := range c.dfr.Tris.Edges {
+		c.SortedEdgeKeys[i] = en
+		i++
+	}
+	c.SortedEdgeKeys.Sort()
+	/*
+		fmt.Printf("Total number of edges = %d\n", 3*c.dfr.K)
+		var internalEdgesCount, boundaryEdgesCount, unconnectedEdgesCount int
+		for _, e := range c.dfr.Tris.Edges {
+			switch e.NumConnectedTris {
+			case 0:
+				unconnectedEdgesCount++
+			case 1:
+				boundaryEdgesCount++
+			case 2:
+				internalEdgesCount++
+			}
+		}
+		fmt.Printf("Count of internal edges, incl Periodic Boundaries = %d\n", internalEdgesCount)
+		fmt.Printf("Count of unhandled edges = %d\n", unconnectedEdgesCount)
+		fmt.Printf("Count of boundary edges = %d\n", boundaryEdgesCount)
+	*/
+
 	switch c.Case {
 	case FREESTREAM:
 		c.InitializeFS()
@@ -411,7 +445,8 @@ func (c *Euler) AssembleRTNormalFlux(Q [4]utils.Matrix, Time float64) {
 	}
 	c.SetNormalFluxInternal(Q)      // Updates F_RT_DOF with values from Q
 	c.InterpolateSolutionToEdges(Q) // Interpolates Q_Face values from Q
-	c.SetNormalFluxOnEdges(Time)    // Updates F_RT_DOG with values from edges, including BCs and connected tris
+	//c.SetNormalFluxOnEdges(Time, c.SortedEdgeKeys) // Updates F_RT_DOG with values from edges, including BCs and connected tris
+	c.ParallelSetNormalFluxOnEdges(Time) // Updates F_RT_DOG with values from edges, including BCs and connected tris
 }
 
 func (c *Euler) SetNormalFluxInternal(Q [4]utils.Matrix) {
@@ -447,7 +482,30 @@ func (p EdgeKeySlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 // Sort is a convenience method.
 func (p EdgeKeySlice) Sort() { sort.Sort(p) }
 
-func (c *Euler) SetNormalFluxOnEdges(Time float64) {
+func (c *Euler) ParallelSetNormalFluxOnEdges(Time float64) {
+	var (
+		Ntot  = len(c.SortedEdgeKeys)
+		Npart = Ntot / c.ParallelDegree
+		wg    = sync.WaitGroup{}
+	)
+	doit := func(ind, end int) {
+		c.SetNormalFluxOnEdges(Time, c.SortedEdgeKeys[ind:end])
+		wg.Done()
+	}
+	var ind, end int
+	for n := 0; n < c.ParallelDegree; n++ {
+		ind = n * Npart
+		end = ind + Npart
+		if n == c.ParallelDegree-1 {
+			end = Ntot
+		}
+		wg.Add(1)
+		go doit(ind, end)
+	}
+	wg.Wait()
+}
+
+func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 	var (
 		dfr                            = c.dfr
 		Nint                           = dfr.FluxElement.Nint
@@ -455,37 +513,9 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 		Kmax                           = dfr.K
 		normalFlux, normalFluxReversed = make([][4]float64, Nedge), make([][4]float64, Nedge)
 	)
-	/*
-		if len(c.SortedEdgeKeys) == 0 {
-			c.SortedEdgeKeys = make(EdgeKeySlice, len(dfr.Tris.Edges))
-			var i int
-			for en := range dfr.Tris.Edges {
-				c.SortedEdgeKeys[i] = en
-				i++
-			}
-			c.SortedEdgeKeys.Sort()
-			fmt.Printf("Total number of edges = %d\n", 3*dfr.K)
-			var internalEdgesCount, boundaryEdgesCount, unconnectedEdgesCount int
-			for _, e := range dfr.Tris.Edges {
-				switch e.NumConnectedTris {
-				case 0:
-					unconnectedEdgesCount++
-				case 1:
-					boundaryEdgesCount++
-				case 2:
-					internalEdgesCount++
-				}
-			}
-			fmt.Printf("Count of internal edges, incl Periodic Boundaries = %d\n", internalEdgesCount)
-			fmt.Printf("Count of unhandled edges = %d\n", unconnectedEdgesCount)
-			fmt.Printf("Count of boundary edges = %d\n", boundaryEdgesCount)
-		}
-	*/
-
-	//var internalProcessedCount, boundaryEdgesCount, nobcCount int
-	//for _, en := range c.SortedEdgeKeys {
-	//e := dfr.Tris.Edges[en]
-	for en, e := range dfr.Tris.Edges {
+	for _, en := range edgeKeys {
+		e := dfr.Tris.Edges[en]
+		//for en, e := range dfr.Tris.Edges {
 		switch e.NumConnectedTris {
 		case 0:
 			panic("unable to handle unconnected edges")
@@ -501,7 +531,6 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 			normal, _ := c.getEdgeNormal(0, e, en)
 			switch e.BCType {
 			case types.BC_Far:
-				//boundaryEdgesCount++
 				for i := 0; i < Nedge; i++ {
 					iL := i + shift
 					ind := k + iL*Kmax
@@ -512,8 +541,6 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 					c.Q_Face[3].Data()[ind] = QBC[3]
 				}
 			case types.BC_IVortex:
-				//boundaryEdgesCount++
-				// fmt.Printf("BC - %s\n", e.BCType.String())
 				// Set the flow variables to the exact solution
 				X, Y := c.dfr.FluxX.Data(), c.dfr.FluxY.Data()
 				for i := 0; i < Nedge; i++ {
@@ -556,7 +583,6 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 				shiftL, shiftR           = edgeNumberL * Nedge, edgeNumberR * Nedge
 				fluxLeft, fluxRight      [2][4]float64
 			)
-			//internalProcessedCount++
 			switch c.FluxCalcAlgo {
 			case FLUX_Average:
 				averageFluxN := func(f1, f2 [2][4]float64, normal [2]float64) (fnorm [4]float64, fnormR [4]float64) {
@@ -713,12 +739,6 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64) {
 			c.SetNormalFluxOnRTEdge(kR, edgeNumberR, normalFluxReversed, e.IInII[1])
 		}
 	}
-	/*
-		fmt.Printf("Actual number of internal processed edges = %d\n", internalProcessedCount)
-		fmt.Printf("Actual number of boundary processed edges = %d\n", boundaryEdgesCount)
-		fmt.Printf("Actual number of noBC edges = %d\n", nobcCount)
-	*/
-
 	return
 }
 
@@ -851,7 +871,6 @@ func (c *Euler) InitializeMemory() {
 
 func (c *Euler) CalculateFluxTransformed(k, i int, Q [4]utils.Matrix) (Fr, Fs [4]float64) {
 	var (
-		//_, Jinv, Jdet = c.dfr.GetJacobian(k)
 		Jdet = c.dfr.Jdet.At(k, 0)
 		Jinv = c.dfr.Jinv.Data()[4*k : 4*(k+1)]
 	)
