@@ -32,12 +32,13 @@ import (
 )
 
 type Model2D struct {
-	GridFile   string
-	ICFile     string
-	Graph      bool
-	GraphField int
-	PlotSteps  int
-	Delay      time.Duration
+	GridFile          string
+	ICFile            string
+	Graph             bool
+	GraphField        int
+	PlotSteps         int
+	Delay             time.Duration
+	ParallelProcLimit int
 }
 
 type InputParameters struct {
@@ -95,7 +96,8 @@ var TwoDCmd = &cobra.Command{
 		ps, _ := cmd.Flags().GetInt("plotSteps")
 		m2d.PlotSteps = ps
 		dr, _ := cmd.Flags().GetInt("delay")
-		m2d.Delay = time.Duration(time.Duration(dr) * time.Millisecond)
+		m2d.Delay = time.Duration(dr) * time.Millisecond
+		m2d.ParallelProcLimit, _ = cmd.Flags().GetInt("parallelProcs")
 		ip := processInput(m2d)
 		Run2D(m2d, ip)
 	},
@@ -151,12 +153,13 @@ func init() {
 	TwoDCmd.Flags().IntP("delay", "d", 0, "milliseconds of delay for plotting")
 	TwoDCmd.Flags().IntP("plotSteps", "s", 1, "number of steps before plotting each frame")
 	TwoDCmd.Flags().IntP("graphField", "q", 0, "which field should be displayed - 0=density, 1,2=momenta, 3=energy")
+	TwoDCmd.Flags().IntP("parallelProcs", "p", 0, "limits the parallelism to the number of specified processes")
 }
 
 func Run2D(m2d *Model2D, ip *InputParameters) {
 	c := Euler2D.NewEuler(
 		ip.FinalTime, ip.PolynomialOrder, m2d.GridFile, ip.CFL,
-		Euler2D.NewFluxType(ip.FluxType), Euler2D.NewInitType(ip.InitType),
+		Euler2D.NewFluxType(ip.FluxType), Euler2D.NewInitType(ip.InitType), m2d.ParallelProcLimit,
 		false, true)
 	//m2d.FinalTime, m2d.N, m2d.GridFile, m2d.CFL, m2d.FluxType, m2d.InitType,
 	pm := &Euler2D.PlotMeta{

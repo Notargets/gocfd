@@ -132,16 +132,21 @@ func NewFluxType(label string) (ft FluxType) {
 	return
 }
 
-func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType FluxType, Case InitType, plotMesh, verbose bool) (c *Euler) {
+func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType FluxType, Case InitType, ProcLimit int,
+	plotMesh, verbose bool) (c *Euler) {
 	c = &Euler{
-		MeshFile:       meshFile,
-		CFL:            CFL,
-		FinalTime:      FinalTime,
-		FluxCalcAlgo:   fluxType,
-		Case:           Case,
-		Gamma:          1.4,
-		FluxCalcMock:   FluxCalc,
-		ParallelDegree: runtime.NumCPU(),
+		MeshFile:     meshFile,
+		CFL:          CFL,
+		FinalTime:    FinalTime,
+		FluxCalcAlgo: fluxType,
+		Case:         Case,
+		Gamma:        1.4,
+		FluxCalcMock: FluxCalc,
+	}
+	if ProcLimit != 0 {
+		c.ParallelDegree = ProcLimit
+	} else {
+		c.ParallelDegree = runtime.NumCPU()
 	}
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
