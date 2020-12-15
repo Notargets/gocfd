@@ -12,16 +12,23 @@ Density | X Momentum | Density
 - Jan S. Hesthaven and Tim Warburton for their excellent text "Nodal Discontinuous Galerkin Methods" (2007)
 - J. Romero, K. Asthana and Antony Jameson for "A Simplified Formulation of the Flux Reconstruction Method" (2015) for the DFR approach with Raviart-Thomas elements
 
-### Updates (Nov 24 2020):
-The 2D Euler solver now works! Yay!
+### Updates (Dec 15, 2020):
+![](images/scaling-study-vortex-opt.gif)
 
-I've tested the Isentropic Vortex case successfully using a Lax flux and a Riemann BC backed by an analytic solution at the boundaries. Unlike the DG solver based on integration in Westhaven, et al, this solver is not stable when using a Dirichlet (fixed) BC set directly to the analytic solution, so the Riemann solution suppresses unstable waves at the boundary. I haven't calculated error yet, but it's clear that as we increase the solver order, the solution gets much more resolved with lower undershoots, so it appears as though a convergence study will show super convergence, as expected.
+The solver now uses multiple cores / CPUs to speed things up. The speedup is somewhat limited, I'm currently getting about 6x speedup on a 16 core machine, but it was very short work to get this level of speedup (a couple of hours). The face computations are parallelized very efficiently, and the same approach and structure should be fine to scale to thousands of cores.
 
-The solver is stable with CFL = 1 using the RK3 SSP time advancement scheme. I'll plan to do a formal stability analysis later, but all looks good! The movie below is 1st Order (top left), 2nd Order (top right), 4th Order (btm left) and 7th Order (btm right) solutions of the isentropic vortex case with the same 256 element mesh using a Lax flux. We can see the resolution and dispersion improve as the order increases.
+The shortcoming of the current parallelism is that it uses only 4 processes to handle the heavy compute matrix multiplications, so about half of the computation is only getting four cores applied to it. The number 4 comes from the number of 2D Euler equations (mass, x,y momentum and energy = 4 equations). I could improve the speedup drastically by re-arranging the core to accept partitioned meshes, but in 2D I think that might be overkill. The 3D solver will absolutely be built to do parallelism this way, so that we can use 1000 core architectures, like GPUs. I did parallelize the matrix multiplication directly, but the overhead is too high without more aggressive memory re-use work, which would begin to make the code ugly. 
 
-![](images/vortex-1-2-4-7-lax-cropped.gif)
+The animation shows a closeup of the isentropic vortex core on three meshes:
+- Coarse: 460 triangles
+- Middle: 2402 triangles
+- Fine: 32174 triangles
 
-You can recreate the above with ```gocfd 2D -g --gridFile DG2D/vortexA04.neu -n 1```, change the order with the "-n" option. "gocfd help 2D" for all options.
+On the left is the coarse mesh at Order=2 and Order=4, middle is the same for the medium mesh and on the right is the fine mesh at Order=2. We can see the benefits of both h (grid density) and p (polynomial degree) scaling and we can also see the time penalty for each increase in h or p density.
+
+This current work includes the use of periodic boundary conditions for the right and left boundaries, which works really well.
+
+Next up: solid wall BCs so we can run airfoils, cylinders, etc etc.
 
 ### Objectives
 
@@ -68,6 +75,16 @@ me@home:bash# gocfd 1D -g
 ### Run without graphics:
 me@home:bash# gocfd 1D
 ```
+### Updates (Nov 24 2020):
+The 2D Euler solver now works! Yay!
+
+I've tested the Isentropic Vortex case successfully using a Lax flux and a Riemann BC backed by an analytic solution at the boundaries. Unlike the DG solver based on integration in Westhaven, et al, this solver is not stable when using a Dirichlet (fixed) BC set directly to the analytic solution, so the Riemann solution suppresses unstable waves at the boundary. I haven't calculated error yet, but it's clear that as we increase the solver order, the solution gets much more resolved with lower undershoots, so it appears as though a convergence study will show super convergence, as expected.
+
+The solver is stable with CFL = 1 using the RK3 SSP time advancement scheme. I'll plan to do a formal stability analysis later, but all looks good! The movie below is 1st Order (top left), 2nd Order (top right), 4th Order (btm left) and 7th Order (btm right) solutions of the isentropic vortex case with the same 256 element mesh using a Lax flux. We can see the resolution and dispersion improve as the order increases.
+
+![](images/vortex-1-2-4-7-lax-cropped.gif)
+
+You can recreate the above with ```gocfd 2D -g --gridFile DG2D/vortexA04.neu -n 1```, change the order with the "-n" option. "gocfd help 2D" for all options.
 
 ### Updates (Nov 20 2020):
 Graphics :-D
