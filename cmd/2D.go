@@ -32,13 +32,14 @@ import (
 )
 
 type Model2D struct {
-	GridFile          string
-	ICFile            string
-	Graph             bool
-	GraphField        int
-	PlotSteps         int
-	Delay             time.Duration
-	ParallelProcLimit int
+	GridFile                     string
+	ICFile                       string
+	Graph                        bool
+	GraphField                   int
+	PlotSteps                    int
+	Delay                        time.Duration
+	ParallelProcLimit            int
+	Zoom, TranslateX, TranslateY float64
 }
 
 type InputParameters struct {
@@ -98,6 +99,9 @@ var TwoDCmd = &cobra.Command{
 		dr, _ := cmd.Flags().GetInt("delay")
 		m2d.Delay = time.Duration(dr) * time.Millisecond
 		m2d.ParallelProcLimit, _ = cmd.Flags().GetInt("parallelProcs")
+		m2d.Zoom, _ = cmd.Flags().GetFloat64("zoom")
+		m2d.TranslateX, _ = cmd.Flags().GetFloat64("translateX")
+		m2d.TranslateY, _ = cmd.Flags().GetFloat64("translateY")
 		ip := processInput(m2d)
 		Run2D(m2d, ip)
 	},
@@ -153,6 +157,9 @@ func init() {
 	TwoDCmd.Flags().IntP("delay", "d", 0, "milliseconds of delay for plotting")
 	TwoDCmd.Flags().IntP("plotSteps", "s", 1, "number of steps before plotting each frame")
 	TwoDCmd.Flags().IntP("graphField", "q", 0, "which field should be displayed - 0=density, 1,2=momenta, 3=energy")
+	TwoDCmd.Flags().Float64P("zoom", "z", 1.1, "zoom level for plotting")
+	TwoDCmd.Flags().Float64P("translateX", "x", 0, "translation in X for plotting")
+	TwoDCmd.Flags().Float64P("translateY", "y", 0, "translation in X for plotting")
 	TwoDCmd.Flags().IntP("parallelProcs", "p", 0, "limits the parallelism to the number of specified processes")
 }
 
@@ -164,13 +171,15 @@ func Run2D(m2d *Model2D, ip *InputParameters) {
 	//m2d.FinalTime, m2d.N, m2d.GridFile, m2d.CFL, m2d.FluxType, m2d.InitType,
 	pm := &Euler2D.PlotMeta{
 		Plot:            m2d.Graph,
-		Scale:           1.1,
 		Field:           Euler2D.PlotField(m2d.GraphField),
 		FieldMinP:       nil,
 		FieldMaxP:       nil,
 		FrameTime:       m2d.Delay,
 		StepsBeforePlot: m2d.PlotSteps,
 		LineType:        chart2d.NoLine,
+		Scale:           m2d.Zoom,
+		TranslateX:      m2d.TranslateX,
+		TranslateY:      m2d.TranslateY,
 	}
 	c.Solve(pm)
 }

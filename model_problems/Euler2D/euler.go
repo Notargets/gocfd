@@ -284,6 +284,7 @@ func (c *Euler) PlotQ(Q [4]utils.Matrix, pm *PlotMeta) {
 		delay     = pm.FrameTime
 		lineType  = pm.LineType
 		scale     = pm.Scale
+		translate = [2]float32{float32(pm.TranslateX), float32(pm.TranslateY)}
 		oField    = c.dfr.FluxInterpMatrix.Mul(Q[int(plotField)])
 		fI        = c.dfr.ConvertScalarToOutputMesh(oField)
 	)
@@ -292,12 +293,12 @@ func (c *Euler) PlotQ(Q [4]utils.Matrix, pm *PlotMeta) {
 	}
 	c.chart.fs = functions.NewFSurface(c.chart.gm, [][]float32{fI}, 0)
 	fmt.Printf(" Plot>%s min,max = %8.5f,%8.5f\n", pm.Field.String(), oField.Min(), oField.Max())
-	c.PlotFS(pm.FieldMinP, pm.FieldMaxP, 0.95*oField.Min(), 1.05*oField.Max(), scale, lineType)
+	c.PlotFS(pm.FieldMinP, pm.FieldMaxP, 0.95*oField.Min(), 1.05*oField.Max(), scale, translate, lineType)
 	utils.SleepFor(int(delay.Milliseconds()))
 	return
 }
 
-func (c *Euler) PlotFS(fminP, fmaxP *float64, fmin, fmax float64, scale float64, ltO ...chart2d.LineType) {
+func (c *Euler) PlotFS(fminP, fmaxP *float64, fmin, fmax float64, scale float64, translate [2]float32, ltO ...chart2d.LineType) {
 	var (
 		fs      = c.chart.fs
 		trimesh = fs.Tris
@@ -306,7 +307,8 @@ func (c *Euler) PlotFS(fminP, fmaxP *float64, fmin, fmax float64, scale float64,
 	if c.chart.chart == nil {
 		box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
 		box = box.Scale(float32(scale))
-		c.chart.chart = chart2d.NewChart2D(1920, 1920, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
+		box = box.Translate(translate)
+		c.chart.chart = chart2d.NewChart2D(1200, 1200, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
 		colorMap := utils2.NewColorMap(float32(fmin), float32(fmax), 1.)
 		c.chart.chart.AddColorMap(colorMap)
 		go c.chart.chart.Plot()
@@ -1010,13 +1012,14 @@ const (
 )
 
 type PlotMeta struct {
-	Plot                 bool
-	Scale                float64
-	Field                PlotField
-	FieldMinP, FieldMaxP *float64 // nil if no forced min, max
-	FrameTime            time.Duration
-	StepsBeforePlot      int
-	LineType             chart2d.LineType
+	Plot                   bool
+	Scale                  float64
+	TranslateX, TranslateY float64
+	Field                  PlotField
+	FieldMinP, FieldMaxP   *float64 // nil if no forced min, max
+	FrameTime              time.Duration
+	StepsBeforePlot        int
+	LineType               chart2d.LineType
 }
 
 /************** Parallelism */
