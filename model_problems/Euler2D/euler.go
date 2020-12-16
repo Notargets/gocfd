@@ -377,7 +377,7 @@ func (c *Euler) CalculateDT() (dt float64) {
 				// fmt.Printf("N, Np12, edgelen, Jdet = %d,%8.5f,%8.5f,%8.5f\n", c.dfr.N, Np12, edgeLen, Jdet)
 				fs := 0.5 * Np12 * edgeLen / Jdet
 				for i := shift; i < shift+Nedge; i++ {
-					_, u, v, _, C, _ := c.GetState(k, i, c.Q_Face)
+					C, u, v := c.GetSpeeds(k, i, c.Q_Face)
 					waveSpeed := fs * (math.Sqrt(u*u+v*v) + C)
 					wsMax[nn] = math.Max(waveSpeed, wsMax[nn])
 				}
@@ -401,6 +401,34 @@ func (c *Euler) GetState(k, i int, Q [4]utils.Matrix) (rho, u, v, p, C, E float6
 		q     = [4]float64{Q[0].Data()[ind], Q[1].Data()[ind], Q[2].Data()[ind], Q[3].Data()[ind]}
 	)
 	rho, u, v, p, C, E = GetPrimitiveVariables(Gamma, q)
+	return
+}
+
+func (c *Euler) GetPressure(k, i int, Q [4]utils.Matrix) (p float64) {
+	var (
+		Gamma              = c.Gamma
+		GM1                = Gamma - 1.
+		Kmax               = c.dfr.K
+		ind                = k + Kmax*i
+		rho, rhou, rhov, E = Q[0].Data()[ind], Q[1].Data()[ind], Q[2].Data()[ind], Q[3].Data()[ind]
+	)
+	p = GM1 * (E - 0.5*(rhou*rhou+rhov*rhov)/rho)
+	return
+}
+
+func (c *Euler) GetSpeeds(k, i int, Q [4]utils.Matrix) (C, u, v float64) {
+	var (
+		Gamma              = c.Gamma
+		GM1                = Gamma - 1.
+		Kmax               = c.dfr.K
+		ind                = k + Kmax*i
+		rho, rhou, rhov, E = Q[0].Data()[ind], Q[1].Data()[ind], Q[2].Data()[ind], Q[3].Data()[ind]
+		oorho              = 1. / rho
+		p                  = GM1 * (E - 0.5*(rhou*rhou+rhov*rhov)*oorho)
+	)
+	C = math.Sqrt(math.Abs(Gamma * p * oorho))
+	u = rhou * oorho
+	v = rhov * oorho
 	return
 }
 
@@ -606,7 +634,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 				processFlux = false
 				for i := 0; i < Nedge; i++ {
 					ie := i + shift
-					_, _, _, p, _, _ := c.GetState(k, ie, c.Q_Face) // Get pressure
+					p := c.GetPressure(k, ie, c.Q_Face) // Get pressure
 					for n := 0; n < 4; n++ {
 						switch n {
 						case 0, 3:
@@ -675,8 +703,8 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 				for i := 0; i < Nedge; i++ {
 					iL := i + shiftL
 					iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
-					rhoL, uL, vL, pL, _, CL = c.GetState(kL, iL, c.Q_Face)
-					rhoR, uR, vR, pR, _, CR = c.GetState(kR, iR, c.Q_Face)
+					rhoL, uL, vL, pL, CL, _ = c.GetState(kL, iL, c.Q_Face)
+					rhoR, uR, vR, pR, CR, _ = c.GetState(kR, iR, c.Q_Face)
 					fluxLeft[0], fluxLeft[1] = c.CalculateFlux(kL, iL, c.Q_Face)
 					fluxRight[0], fluxRight[1] = c.CalculateFlux(kR, iR, c.Q_Face) // Reverse the right edge to match
 					maxV = math.Max(maxVF(uL, vL, pL, rhoL, CL), maxVF(uR, vR, pR, rhoR, CR))
@@ -712,8 +740,8 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 					// Rotate the momentum into face normal coordinates before calculating fluxes
 					rotateMomentum(kL, iL)
 					rotateMomentum(kR, iR)
-					rhoL, uL, vL, pL, EL, _ = c.GetState(kL, iL, c.Q_Face)
-					rhoR, uR, vR, pR, ER, _ = c.GetState(kR, iR, c.Q_Face)
+					rhoL, uL, vL, pL, _, EL = c.GetState(kL, iL, c.Q_Face)
+					rhoR, uR, vR, pR, _, ER = c.GetState(kR, iR, c.Q_Face)
 					fluxLeft[0], _ = c.CalculateFlux(kL, iL, c.Q_Face)
 					fluxRight[0], _ = c.CalculateFlux(kR, iR, c.Q_Face) // Reverse the right edge to match
 					/*
