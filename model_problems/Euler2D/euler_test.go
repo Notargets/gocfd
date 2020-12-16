@@ -157,7 +157,7 @@ func TestEuler(t *testing.T) {
 				CheckFlux0(c, t)
 				// Connected tris, sharing one edge
 				// plotMesh = true
-				c = NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, FREESTREAM, 0, plotMesh, false)
+				c = NewEuler(1, N, "../../DG2D/test_tris_6_nowall.neu", 1, FLUX_Average, FREESTREAM, 0, plotMesh, false)
 				CheckFlux0(c, t)
 			}
 		}

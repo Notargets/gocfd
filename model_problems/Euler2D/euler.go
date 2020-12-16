@@ -602,6 +602,21 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 					c.Q_Face[2].Data()[ind] = QBC[2]
 					c.Q_Face[3].Data()[ind] = QBC[3]
 				}
+			case types.BC_Wall, types.BC_Cyl:
+				processFlux = false
+				for i := 0; i < Nedge; i++ {
+					ie := i + shift
+					_, _, _, p, _, _ := c.GetState(k, ie, c.Q_Face) // Get pressure
+					for n := 0; n < 4; n++ {
+						switch n {
+						case 0, 3:
+							normalFlux[i][n] = 0
+						case 1, 2:
+							normalFlux[i][n] = p
+						}
+					}
+				}
+				c.SetNormalFluxOnRTEdge(k, edgeNumber, normalFlux, e.IInII[0])
 			case types.BC_PeriodicReversed, types.BC_Periodic:
 				processFlux = false
 			}

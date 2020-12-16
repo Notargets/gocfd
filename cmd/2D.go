@@ -43,13 +43,14 @@ type Model2D struct {
 }
 
 type InputParameters struct {
-	Title           string                                `yaml:"Title"`
-	CFL             float64                               `yaml:"CFL"`
-	FluxType        string                                `yaml:"FluxType"`
-	InitType        string                                `yaml:"InitType"`
-	PolynomialOrder int                                   `yaml:"PolynomialOrder"`
-	FinalTime       float64                               `yaml:"FinalTime"`
-	BCs             map[string]map[int]map[string]float64 `yaml:"BCs"` // First key is BC name/type, second is parameter name
+	Title           string  `yaml:"Title"`
+	CFL             float64 `yaml:"CFL"`
+	FluxType        string  `yaml:"FluxType"`
+	InitType        string  `yaml:"InitType"`
+	PolynomialOrder int     `yaml:"PolynomialOrder"`
+	FinalTime       float64 `yaml:"FinalTime"`
+	Minf, Gamma,
+	BCs map[string]map[int]map[string]float64 `yaml:"BCs"` // First key is BC name/type, second is parameter name
 }
 
 func (ip *InputParameters) Parse(data []byte) error {
