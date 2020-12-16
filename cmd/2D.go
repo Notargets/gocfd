@@ -40,6 +40,7 @@ type Model2D struct {
 	Delay                        time.Duration
 	ParallelProcLimit            int
 	Zoom, TranslateX, TranslateY float64
+	fminP, fmaxP                 *float64
 }
 
 type InputParameters struct {
@@ -105,6 +106,14 @@ var TwoDCmd = &cobra.Command{
 		m2d.Zoom, _ = cmd.Flags().GetFloat64("zoom")
 		m2d.TranslateX, _ = cmd.Flags().GetFloat64("translateX")
 		m2d.TranslateY, _ = cmd.Flags().GetFloat64("translateY")
+		fmin, _ := cmd.Flags().GetFloat64("plotMin")
+		fmax, _ := cmd.Flags().GetFloat64("plotMax")
+		if fmin != -1000 {
+			m2d.fminP = &fmin
+		}
+		if fmax != -1000 {
+			m2d.fmaxP = &fmax
+		}
 		ip := processInput(m2d)
 		Run2D(m2d, ip)
 	},
@@ -166,6 +175,8 @@ func init() {
 	TwoDCmd.Flags().Float64P("translateX", "x", 0, "translation in X for plotting")
 	TwoDCmd.Flags().Float64P("translateY", "y", 0, "translation in X for plotting")
 	TwoDCmd.Flags().IntP("parallelProcs", "p", 0, "limits the parallelism to the number of specified processes")
+	TwoDCmd.Flags().Float64P("plotMin", "k", -1000, "field min for plotting")
+	TwoDCmd.Flags().Float64P("plotMax", "l", -1000, "field max for plotting")
 }
 
 func Run2D(m2d *Model2D, ip *InputParameters) {
@@ -174,8 +185,8 @@ func Run2D(m2d *Model2D, ip *InputParameters) {
 	pm := &Euler2D.PlotMeta{
 		Plot:            m2d.Graph,
 		Field:           Euler2D.PlotField(m2d.GraphField),
-		FieldMinP:       nil,
-		FieldMaxP:       nil,
+		FieldMinP:       m2d.fminP,
+		FieldMaxP:       m2d.fmaxP,
 		FrameTime:       m2d.Delay,
 		StepsBeforePlot: m2d.PlotSteps,
 		LineType:        chart2d.NoLine,
