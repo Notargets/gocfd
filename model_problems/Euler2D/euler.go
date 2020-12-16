@@ -132,15 +132,24 @@ func NewFluxType(label string) (ft FluxType) {
 	return
 }
 
-func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType FluxType, Case InitType, ProcLimit int,
-	plotMesh, verbose bool) (c *Euler) {
+func (c *Euler) CalcFS(Minf, Gamma, Alpha float64) {
+	var (
+		ooggm1 = 1. / (Gamma * (Gamma - 1.))
+	)
+	c.Qinf[0] = 1
+	c.Qinf[1] = Minf * math.Cos(Alpha*math.Pi/180.)
+	c.Qinf[2] = Minf * math.Sin(Alpha*math.Pi/180.)
+	c.Qinf[3] = ooggm1 + 0.5*Minf*Minf
+}
+
+func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType FluxType, Case InitType, ProcLimit int, Minf, Gamma, Alpha float64, plotMesh, verbose bool) (c *Euler) {
 	c = &Euler{
 		MeshFile:     meshFile,
 		CFL:          CFL,
 		FinalTime:    FinalTime,
 		FluxCalcAlgo: fluxType,
 		Case:         Case,
-		Gamma:        1.4,
+		Gamma:        Gamma,
 		FluxCalcMock: FluxCalc,
 	}
 	if ProcLimit != 0 {
@@ -156,6 +165,9 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 		fmt.Printf("Euler Equations in 2 Dimensions\n")
 		fmt.Printf("Using %d go routines in parallel\n", runtime.NumCPU())
 		fmt.Printf("Solving %s\n", c.Case.Print())
+		if c.Case == FREESTREAM {
+			fmt.Printf("Mach Infinity = %8.5f, Angle of Attack = %8.5f\n", Minf, Alpha)
+		}
 	}
 
 	// Setup the key for edge calculations, useful for parallelizing the process
@@ -186,10 +198,11 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 
 	switch c.Case {
 	case FREESTREAM:
+		c.CalcFS(Minf, Gamma, Alpha)
 		c.InitializeFS()
 	case IVORTEX:
-		c.AnalyticSolution, c.Q = c.InitializeIVortex(c.dfr.SolutionX, c.dfr.SolutionY)
 		c.Qinf = [4]float64{1, 1, 0, 3}
+		c.AnalyticSolution, c.Q = c.InitializeIVortex(c.dfr.SolutionX, c.dfr.SolutionY)
 		// Set "Wall" BCs to IVortex
 		var count int
 		for _, e := range c.dfr.Tris.Edges {
@@ -268,6 +281,22 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		}
 		if steps%pm.StepsBeforePlot == 0 {
 			fmt.Printf("\nTime,dt = %8.5f,%8.5f, Residual[eq#]Min/Max:", Time, dt)
+			var Mmin, Mmax float64
+			Mmax, Mmin = -1, 1000
+			for k := 0; k < c.dfr.K; k++ {
+				for i := 0; i < c.dfr.SolutionElement.Np; i++ {
+					C, u, v := c.GetSpeeds(k, i, c.Q)
+					U := math.Sqrt(u*u + v*v)
+					M := U / C
+					if M < Mmin {
+						Mmin = M
+					}
+					if M > Mmax {
+						Mmax = M
+					}
+				}
+			}
+			fmt.Printf(" Mach min:%8.5f max:%8.5f ", Mmin, Mmax)
 			for n := 0; n < 4; n++ {
 				fmt.Printf(" [%d] %8.5f,%8.5f ", n, Residual[n].Min(), Residual[n].Max())
 			}
@@ -636,12 +665,10 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 					ie := i + shift
 					p := c.GetPressure(k, ie, c.Q_Face) // Get pressure
 					for n := 0; n < 4; n++ {
-						switch n {
-						case 0, 3:
-							normalFlux[i][n] = 0
-						case 1, 2:
-							normalFlux[i][n] = p
-						}
+						normalFlux[i][0] = 0
+						normalFlux[i][3] = 0
+						normalFlux[i][1] = normal[0] * p
+						normalFlux[i][2] = normal[1] * p
 					}
 				}
 				c.SetNormalFluxOnRTEdge(k, edgeNumber, normalFlux, e.IInII[0])
@@ -903,15 +930,9 @@ func (c *Euler) SetNormalFluxOnRTEdge(k, edgeNumber int, edgeNormalFlux [][4]flo
 
 func (c *Euler) InitializeFS() {
 	var (
-		rho, u, v, p = 1., 1., 0., 1. // Freestream state
-		K            = c.dfr.K
-		Np           = c.dfr.SolutionElement.Np
-		Gamma        = c.Gamma
-		GM1          = Gamma - 1 // R / Cv
+		K  = c.dfr.K
+		Np = c.dfr.SolutionElement.Np
 	)
-	q := 0.5 * rho * (u*u + v*v)
-	E := p/GM1 + q
-	c.Qinf = [4]float64{rho, rho * u, rho * v, E}
 	c.Q[0] = utils.NewMatrix(Np, K).AddScalar(c.Qinf[0])
 	c.Q[1] = utils.NewMatrix(Np, K).AddScalar(c.Qinf[1])
 	c.Q[2] = utils.NewMatrix(Np, K).AddScalar(c.Qinf[2])

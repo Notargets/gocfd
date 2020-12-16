@@ -43,14 +43,16 @@ type Model2D struct {
 }
 
 type InputParameters struct {
-	Title           string  `yaml:"Title"`
-	CFL             float64 `yaml:"CFL"`
-	FluxType        string  `yaml:"FluxType"`
-	InitType        string  `yaml:"InitType"`
-	PolynomialOrder int     `yaml:"PolynomialOrder"`
-	FinalTime       float64 `yaml:"FinalTime"`
-	Minf, Gamma,
-	BCs map[string]map[int]map[string]float64 `yaml:"BCs"` // First key is BC name/type, second is parameter name
+	Title           string                                `yaml:"Title"`
+	CFL             float64                               `yaml:"CFL"`
+	FluxType        string                                `yaml:"FluxType"`
+	InitType        string                                `yaml:"InitType"`
+	PolynomialOrder int                                   `yaml:"PolynomialOrder"`
+	FinalTime       float64                               `yaml:"FinalTime"`
+	Minf            float64                               `yaml:"Minf"`
+	Gamma           float64                               `yaml:"Gamma"`
+	Alpha           float64                               `yaml:"Alpha"`
+	BCs             map[string]map[int]map[string]float64 `yaml:"BCs"` // First key is BC name/type, second is parameter name
 }
 
 func (ip *InputParameters) Parse(data []byte) error {
@@ -143,6 +145,8 @@ FinalTime: 4
 			panic(err)
 		}
 		ip = &InputParameters{}
+		ip.Gamma = 1.4 // Default
+		ip.Minf = 0.1  // Default
 		if err = ip.Parse(data); err != nil {
 			panic(err)
 		}
@@ -165,11 +169,8 @@ func init() {
 }
 
 func Run2D(m2d *Model2D, ip *InputParameters) {
-	c := Euler2D.NewEuler(
-		ip.FinalTime, ip.PolynomialOrder, m2d.GridFile, ip.CFL,
-		Euler2D.NewFluxType(ip.FluxType), Euler2D.NewInitType(ip.InitType), m2d.ParallelProcLimit,
-		false, true)
-	//m2d.FinalTime, m2d.N, m2d.GridFile, m2d.CFL, m2d.FluxType, m2d.InitType,
+	c := Euler2D.NewEuler(ip.FinalTime, ip.PolynomialOrder, m2d.GridFile,
+		ip.CFL, Euler2D.NewFluxType(ip.FluxType), Euler2D.NewInitType(ip.InitType), m2d.ParallelProcLimit, ip.Minf, ip.Gamma, ip.Alpha, false, true)
 	pm := &Euler2D.PlotMeta{
 		Plot:            m2d.Graph,
 		Field:           Euler2D.PlotField(m2d.GraphField),
