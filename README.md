@@ -1,5 +1,8 @@
 # gocfd
 Awesome CFD solver written in Go
+NACA 0012 Airfoil at M=0.3, Alpha=6, Roe flux, Local Time Stepping|
+:----------------------------------------------------------------:|
+![](images/naca12_2d_m0.3_a6_roe.gif)|
 
 Density | X Momentum | Density
 :-------------------------:|:-------------------------:|:-------------------------:
