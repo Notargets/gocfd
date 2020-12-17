@@ -195,7 +195,6 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 		fmt.Printf("Count of unhandled edges = %d\n", unconnectedEdgesCount)
 		fmt.Printf("Count of boundary edges = %d\n", boundaryEdgesCount)
 	*/
-
 	switch c.Case {
 	case FREESTREAM:
 		c.CalcFS(Minf, Gamma, Alpha)
@@ -281,11 +280,11 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		}
 		if steps%pm.StepsBeforePlot == 0 {
 			fmt.Printf("\nTime,dt = %8.5f,%8.5f, Residual[eq#]Min/Max:", Time, dt)
-			var Mmin, Mmax float64
-			Mmax, Mmin = -1, 1000
-			for k := 0; k < c.dfr.K; k++ {
-				for i := 0; i < c.dfr.SolutionElement.Np; i++ {
-					C, u, v := c.GetSpeeds(k, i, c.Q)
+			/*
+				var Mmin, Mmax float64
+				Mmax, Mmin = -1, 1000
+				for ik := 0; ik < c.dfr.K*c.dfr.SolutionElement.Np; ik++ {
+					C, u, v := GetSpeedsDirect(ik, c.Gamma, c.Q)
 					U := math.Sqrt(u*u + v*v)
 					M := U / C
 					if M < Mmin {
@@ -295,8 +294,8 @@ func (c *Euler) Solve(pm *PlotMeta) {
 						Mmax = M
 					}
 				}
-			}
-			fmt.Printf(" Mach min:%8.5f max:%8.5f ", Mmin, Mmax)
+				fmt.Printf(" Mach min:%8.5f max:%8.5f ", Mmin, Mmax)
+			*/
 			for n := 0; n < 4; n++ {
 				fmt.Printf(" [%d] %8.5f,%8.5f ", n, Residual[n].Min(), Residual[n].Max())
 			}
@@ -314,9 +313,11 @@ func (c *Euler) PlotQ(Q [4]utils.Matrix, pm *PlotMeta) {
 		lineType  = pm.LineType
 		scale     = pm.Scale
 		translate = [2]float32{float32(pm.TranslateX), float32(pm.TranslateY)}
-		oField    = c.dfr.FluxInterpMatrix.Mul(Q[int(plotField)])
-		fI        = c.dfr.ConvertScalarToOutputMesh(oField)
+		//oField    = c.dfr.FluxInterpMatrix.Mul(Q[int(plotField)])
+		oField = c.GetPlotField(Q, plotField)
+		fI     = c.dfr.ConvertScalarToOutputMesh(oField)
 	)
+
 	if c.chart.gm == nil {
 		c.chart.gm = c.dfr.OutputMesh()
 	}
@@ -324,6 +325,25 @@ func (c *Euler) PlotQ(Q [4]utils.Matrix, pm *PlotMeta) {
 	fmt.Printf(" Plot>%s min,max = %8.5f,%8.5f\n", pm.Field.String(), oField.Min(), oField.Max())
 	c.PlotFS(pm.FieldMinP, pm.FieldMaxP, 0.95*oField.Min(), 1.05*oField.Max(), scale, translate, lineType)
 	utils.SleepFor(int(delay.Milliseconds()))
+	return
+}
+
+func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField PlotField) (field utils.Matrix) {
+	var (
+		Kmax = c.dfr.K
+		Np   = c.dfr.SolutionElement.Np
+	)
+	switch plotField {
+	case Density, XMomentum, YMomentum, Energy:
+		field = c.dfr.FluxInterpMatrix.Mul(Q[int(plotField)])
+	case Mach:
+		fld := utils.NewMatrix(Np, Kmax)
+		for ik := 0; ik < Kmax*Np; ik++ {
+			C, u, v := GetSpeedsDirect(ik, c.Gamma, Q)
+			fld.Data()[ik] = math.Sqrt(u*u+v*v) / C
+		}
+		field = c.dfr.FluxInterpMatrix.Mul(fld)
+	}
 	return
 }
 
@@ -337,7 +357,7 @@ func (c *Euler) PlotFS(fminP, fmaxP *float64, fmin, fmax float64, scale float64,
 		box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
 		box = box.Scale(float32(scale))
 		box = box.Translate(translate)
-		c.chart.chart = chart2d.NewChart2D(1200, 1200, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
+		c.chart.chart = chart2d.NewChart2D(1900, 1080, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
 		colorMap := utils2.NewColorMap(float32(fmin), float32(fmax), 1.)
 		c.chart.chart.AddColorMap(colorMap)
 		go c.chart.chart.Plot()
@@ -447,10 +467,17 @@ func (c *Euler) GetPressure(k, i int, Q [4]utils.Matrix) (p float64) {
 
 func (c *Euler) GetSpeeds(k, i int, Q [4]utils.Matrix) (C, u, v float64) {
 	var (
-		Gamma              = c.Gamma
+		Kmax = c.dfr.K
+		ind  = k + Kmax*i
+	)
+	C, u, v = GetSpeedsDirect(ind, c.Gamma, Q)
+	return
+}
+
+func GetSpeedsDirect(ind int, gamma float64, Q [4]utils.Matrix) (C, u, v float64) {
+	var (
+		Gamma              = gamma
 		GM1                = Gamma - 1.
-		Kmax               = c.dfr.K
-		ind                = k + Kmax*i
 		rho, rhou, rhov, E = Q[0].Data()[ind], Q[1].Data()[ind], Q[2].Data()[ind], Q[3].Data()[ind]
 		oorho              = 1. / rho
 		p                  = GM1 * (E - 0.5*(rhou*rhou+rhov*rhov)*oorho)
@@ -1064,7 +1091,7 @@ func (c *Euler) RiemannBC(k, i int, QInf [4]float64, normal [2]float64) (Q [4]fl
 type PlotField uint8
 
 func (pm PlotField) String() string {
-	strings := []string{"Density", "XMomentum", "YMomentum", "Energy"}
+	strings := []string{"Density", "XMomentum", "YMomentum", "Energy", "Mach"}
 	return strings[int(pm)]
 }
 
@@ -1073,6 +1100,7 @@ const (
 	XMomentum
 	YMomentum
 	Energy
+	Mach
 )
 
 type PlotMeta struct {

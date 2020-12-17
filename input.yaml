@@ -2,5 +2,5 @@ Title: "Test Case"
 CFL: 1.00
 FluxType: Roe
 InitType: IVortex # Can be "Freestream" or "IVortex"
-PolynomialOrder: 2
+PolynomialOrder: 4
 FinalTime: 20
