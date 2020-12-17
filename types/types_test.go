@@ -67,6 +67,10 @@ func TestTypes(t *testing.T) {
 		var unordered bool
 		edges, unordered = edges.ReOrder(false)
 		assert.Equal(t, true, unordered)
+		if edges[0].GetVertices() != [2]int{40, 0} {
+			edges, unordered = edges.ReOrder(true)
+			assert.Equal(t, unordered, false)
+		}
 		assert.Equal(t, [2]int{40, 0}, edges[0].GetVertices())
 		assert.Equal(t, [2]int{37, 38}, edges[3].GetVertices())
 	}
