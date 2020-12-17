@@ -38,6 +38,7 @@ type Euler struct {
 	Qinf                  [4]float64
 	dfr                   *DG2D.DFR2D
 	Q                     [4]utils.Matrix // Solution variables, stored at solution point locations, Np_solution x K
+	DT                    utils.Matrix    // Local time step for steady state solution
 	Q_Face                [4]utils.Matrix // Solution variables, interpolated to and stored at edge point locations, Np_edge x K
 	F_RT_DOF              [4]utils.Matrix // Normal Projected Flux, stored at flux/solution point locations, Np_flux x K
 	chart                 ChartState
@@ -47,6 +48,7 @@ type Euler struct {
 	FluxCalcMock          func(Gamma, rho, rhoU, rhoV, E float64) (Fx, Fy [4]float64) // For testing
 	SortedEdgeKeys        EdgeKeySlice
 	ParallelDegree        int // Number of go routines to use for parallel execution
+	LocalTimeStepping     bool
 }
 
 type ChartState struct {
@@ -142,15 +144,16 @@ func (c *Euler) CalcFS(Minf, Gamma, Alpha float64) {
 	c.Qinf[3] = ooggm1 + 0.5*Minf*Minf
 }
 
-func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType FluxType, Case InitType, ProcLimit int, Minf, Gamma, Alpha float64, plotMesh, verbose bool) (c *Euler) {
+func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType FluxType, Case InitType, ProcLimit int, Minf, Gamma, Alpha float64, LocalTime, plotMesh, verbose bool) (c *Euler) {
 	c = &Euler{
-		MeshFile:     meshFile,
-		CFL:          CFL,
-		FinalTime:    FinalTime,
-		FluxCalcAlgo: fluxType,
-		Case:         Case,
-		Gamma:        Gamma,
-		FluxCalcMock: FluxCalc,
+		MeshFile:          meshFile,
+		CFL:               CFL,
+		FinalTime:         FinalTime,
+		FluxCalcAlgo:      fluxType,
+		Case:              Case,
+		Gamma:             Gamma,
+		FluxCalcMock:      FluxCalc,
+		LocalTimeStepping: LocalTime,
 	}
 	if ProcLimit != 0 {
 		c.ParallelDegree = ProcLimit
@@ -253,24 +256,45 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		}
 		rhsQ := c.RHS(c.Q, Time)
 		for n := 0; n < 4; n++ {
-			Q1[n].Apply3Parallel(rhsQ[n], c.Q[n], func(q1, rhsq, q float64) (res float64) {
-				res = q + rhsq*dt
-				return
-			}, c.ParallelDegree)
+			if c.LocalTimeStepping {
+				Q1[n].Apply4Parallel(rhsQ[n], c.Q[n], c.DT, func(q1, rhsq, q, dT float64) (res float64) {
+					res = q + rhsq*dT
+					return
+				}, c.ParallelDegree)
+			} else {
+				Q1[n].Apply3Parallel(rhsQ[n], c.Q[n], func(q1, rhsq, q float64) (res float64) {
+					res = q + rhsq*dt
+					return
+				}, c.ParallelDegree)
+			}
 		}
 		rhsQ = c.RHS(Q1, Time)
 		for n := 0; n < 4; n++ {
-			Q2[n].Apply4Parallel(rhsQ[n], Q1[n], c.Q[n], func(q2, rhsq, q1, q float64) (res float64) {
-				res = 0.25 * (q1 + 3*q + rhsq*dt)
-				return
-			}, c.ParallelDegree)
+			if c.LocalTimeStepping {
+				Q2[n].Apply5Parallel(rhsQ[n], Q1[n], c.Q[n], c.DT, func(q2, rhsq, q1, q, dT float64) (res float64) {
+					res = 0.25 * (q1 + 3*q + rhsq*dT)
+					return
+				}, c.ParallelDegree)
+			} else {
+				Q2[n].Apply4Parallel(rhsQ[n], Q1[n], c.Q[n], func(q2, rhsq, q1, q float64) (res float64) {
+					res = 0.25 * (q1 + 3*q + rhsq*dt)
+					return
+				}, c.ParallelDegree)
+			}
 		}
 		rhsQ = c.RHS(Q2, Time)
 		for n := 0; n < 4; n++ {
-			Residual[n].Apply4Parallel(rhsQ[n], Q2[n], c.Q[n], func(resid, rhsq, q2, q float64) (res float64) {
-				res = (2. / 3) * (q2 - q + dt*rhsq)
-				return
-			}, c.ParallelDegree)
+			if c.LocalTimeStepping {
+				Residual[n].Apply5Parallel(rhsQ[n], Q2[n], c.Q[n], c.DT, func(resid, rhsq, q2, q, dT float64) (res float64) {
+					res = (2. / 3) * (q2 - q + dT*rhsq)
+					return
+				}, c.ParallelDegree)
+			} else {
+				Residual[n].Apply4Parallel(rhsQ[n], Q2[n], c.Q[n], func(resid, rhsq, q2, q float64) (res float64) {
+					res = (2. / 3) * (q2 - q + dt*rhsq)
+					return
+				}, c.ParallelDegree)
+			}
 			c.Q[n].Add(Residual[n])
 		}
 		steps++
@@ -313,9 +337,8 @@ func (c *Euler) PlotQ(Q [4]utils.Matrix, pm *PlotMeta) {
 		lineType  = pm.LineType
 		scale     = pm.Scale
 		translate = [2]float32{float32(pm.TranslateX), float32(pm.TranslateY)}
-		//oField    = c.dfr.FluxInterpMatrix.Mul(Q[int(plotField)])
-		oField = c.GetPlotField(Q, plotField)
-		fI     = c.dfr.ConvertScalarToOutputMesh(oField)
+		oField    = c.GetPlotField(Q, plotField)
+		fI        = c.dfr.ConvertScalarToOutputMesh(oField)
 	)
 
 	if c.chart.gm == nil {
@@ -395,14 +418,13 @@ func (c *Euler) CalculateDT() (dt float64) {
 		wsMax    = make([]float64, c.ParallelDegree)
 		wg       = sync.WaitGroup{}
 	)
+	// Setup max wavespeed before loop
+	for k := 0; k < c.dfr.K; k++ {
+		c.DT.Data()[k] = -100
+	}
 	for nn := 0; nn < c.ParallelDegree; nn++ {
 		wsMax[nn] = wsMaxAll
 	}
-	/*
-		    Fscale = edge_length / Jdet // units of length/area = 1/length
-			w_speeds = 0.5*utils.POW(N+1,2)*(Fscale.*(math.Sqrt(u*u+v*v)+c)
-			dt = CFL / w_speeds.MAX()
-	*/
 	// Loop over all edges, calculating max wavespeed
 	for nn := 0; nn < c.ParallelDegree; nn++ {
 		ind, end := c.split1D(len(c.SortedEdgeKeys), nn)
@@ -425,16 +447,39 @@ func (c *Euler) CalculateDT() (dt float64) {
 				Jdet := c.dfr.Jdet.At(k, 0)
 				// fmt.Printf("N, Np12, edgelen, Jdet = %d,%8.5f,%8.5f,%8.5f\n", c.dfr.N, Np12, edgeLen, Jdet)
 				fs := 0.5 * Np12 * edgeLen / Jdet
+				edgeMax := -100.
 				for i := shift; i < shift+Nedge; i++ {
 					C, u, v := c.GetSpeeds(k, i, c.Q_Face)
 					waveSpeed := fs * (math.Sqrt(u*u+v*v) + C)
 					wsMax[nn] = math.Max(waveSpeed, wsMax[nn])
+					if waveSpeed > edgeMax {
+						edgeMax = waveSpeed
+					}
+				}
+				if edgeMax > c.DT.Data()[k] {
+					c.DT.Data()[k] = edgeMax
+				}
+				if e.NumConnectedTris == 2 { // Add the wavespeed to the other tri connected to this edge if needed
+					k = int(e.ConnectedTris[1])
+					if edgeMax > c.DT.Data()[k] {
+						c.DT.Data()[k] = edgeMax
+					}
 				}
 			}
 			wg.Done()
 		}(ind, end, nn)
 	}
 	wg.Wait()
+	// Replicate local time step to the other solution points for each k
+	for k := 0; k < c.dfr.K; k++ {
+		c.DT.Data()[k] = c.CFL / c.DT.Data()[k]
+	}
+	for i := 1; i < c.dfr.SolutionElement.Np; i++ {
+		for k := 0; k < c.dfr.K; k++ {
+			ind := k + c.dfr.K*i
+			c.DT.Data()[ind] = c.DT.Data()[k]
+		}
+	}
 	for nn := 0; nn < c.ParallelDegree; nn++ {
 		wsMaxAll = math.Max(wsMaxAll, wsMax[nn])
 	}
@@ -990,13 +1035,15 @@ func (c *Euler) InitializeIVortex(X, Y utils.Matrix) (iv *isentropic_vortex.IVor
 
 func (c *Euler) InitializeMemory() {
 	var (
-		K      = c.dfr.K
-		Nedge  = c.dfr.FluxElement.Nedge
-		NpFlux = c.dfr.FluxElement.Np
+		K          = c.dfr.K
+		Nedge      = c.dfr.FluxElement.Nedge
+		NpFlux     = c.dfr.FluxElement.Np
+		NpSolution = c.dfr.SolutionElement.Np
 	)
 	for n := 0; n < 4; n++ {
 		c.Q_Face[n] = utils.NewMatrix(Nedge*3, K)
 		c.F_RT_DOF[n] = utils.NewMatrix(NpFlux, K)
+		c.DT = utils.NewMatrix(NpSolution, K) // Local time step
 	}
 }
 

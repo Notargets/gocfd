@@ -615,6 +615,29 @@ func (m Matrix) Apply4Parallel(A, B, C Matrix, f func(float64, float64, float64,
 	return m
 }
 
+func (m Matrix) Apply5Parallel(A, B, C, D Matrix, f func(float64, float64, float64, float64, float64) float64, nP int) Matrix { // Changes receiver
+	var (
+		dataM          = m.RawMatrix().Data
+		dA, dB, dC, dD = A.RawMatrix().Data, B.RawMatrix().Data, C.RawMatrix().Data, D.RawMatrix().Data
+		wg             = sync.WaitGroup{}
+		l              = len(dataM)
+	)
+	m.checkWritable()
+	for n := 0; n < nP; n++ {
+		ind, end := Split1D(l, nP, n)
+		wg.Add(1)
+		go func(ind, end int) {
+			for i := ind; i < end; i++ {
+				val := dataM[i]
+				dataM[i] = f(val, dA[i], dB[i], dC[i], dD[i])
+			}
+			wg.Done()
+		}(ind, end)
+	}
+	wg.Wait()
+	return m
+}
+
 func (m Matrix) Apply8(A, B, C, D, E, F, G Matrix, f func(float64, float64, float64, float64, float64, float64, float64, float64) float64) Matrix { // Changes receiver
 	var (
 		dataM                      = m.RawMatrix().Data

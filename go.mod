@@ -12,7 +12,7 @@ require (
 	github.com/magiconair/properties v1.8.1
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.3.2 // indirect
-	github.com/notargets/avs v0.0.7-0.20201121032317-cc994a55a74d
+	github.com/notargets/avs v0.0.7-0.20201217183319-0f9c8f3d02f3
 	github.com/pelletier/go-toml v1.8.0 // indirect
 	github.com/spf13/afero v1.2.2 // indirect
 	github.com/spf13/cast v1.3.1 // indirect
