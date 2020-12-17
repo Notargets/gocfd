@@ -56,6 +56,7 @@ type InputParameters struct {
 	Alpha             float64                               `yaml:"Alpha"`
 	BCs               map[string]map[int]map[string]float64 `yaml:"BCs"` // First key is BC name/type, second is parameter name
 	LocalTimeStepping bool                                  `yaml:"LocalTimeStep"`
+	MaxIterations     int                                   `yaml:"MaxIterations"`
 }
 
 func (ip *InputParameters) Parse(data []byte) error {
@@ -182,9 +183,10 @@ func init() {
 }
 
 func Run2D(m2d *Model2D, ip *InputParameters) {
-	c := Euler2D.NewEuler(ip.FinalTime, ip.PolynomialOrder, m2d.GridFile, ip.CFL, Euler2D.NewFluxType(ip.FluxType),
-		Euler2D.NewInitType(ip.InitType), m2d.ParallelProcLimit,
-		ip.Minf, ip.Gamma, ip.Alpha, ip.LocalTimeStepping, false, true)
+	c := Euler2D.NewEuler(ip.FinalTime, ip.PolynomialOrder, m2d.GridFile, ip.CFL,
+		Euler2D.NewFluxType(ip.FluxType), Euler2D.NewInitType(ip.InitType),
+		m2d.ParallelProcLimit,
+		ip.Minf, ip.Gamma, ip.Alpha, ip.LocalTimeStepping, ip.MaxIterations, false, true)
 	pm := &Euler2D.PlotMeta{
 		Plot:            m2d.Graph,
 		Field:           Euler2D.PlotField(m2d.GraphField),

@@ -49,6 +49,7 @@ type Euler struct {
 	SortedEdgeKeys        EdgeKeySlice
 	ParallelDegree        int // Number of go routines to use for parallel execution
 	LocalTimeStepping     bool
+	MaxIterations         int
 }
 
 type ChartState struct {
@@ -144,7 +145,9 @@ func (c *Euler) CalcFS(Minf, Gamma, Alpha float64) {
 	c.Qinf[3] = ooggm1 + 0.5*Minf*Minf
 }
 
-func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType FluxType, Case InitType, ProcLimit int, Minf, Gamma, Alpha float64, LocalTime, plotMesh, verbose bool) (c *Euler) {
+func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
+	fluxType FluxType, Case InitType, ProcLimit int,
+	Minf, Gamma, Alpha float64, LocalTime bool, MaxIterations int, plotMesh, verbose bool) (c *Euler) {
 	c = &Euler{
 		MeshFile:          meshFile,
 		CFL:               CFL,
@@ -154,6 +157,7 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 		Gamma:             Gamma,
 		FluxCalcMock:      FluxCalc,
 		LocalTimeStepping: LocalTime,
+		MaxIterations:     MaxIterations,
 	}
 	if ProcLimit != 0 {
 		c.ParallelDegree = ProcLimit
@@ -181,23 +185,6 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 		i++
 	}
 	c.SortedEdgeKeys.Sort()
-	/*
-		fmt.Printf("Total number of edges = %d\n", 3*c.dfr.K)
-		var internalEdgesCount, boundaryEdgesCount, unconnectedEdgesCount int
-		for _, e := range c.dfr.Tris.Edges {
-			switch e.NumConnectedTris {
-			case 0:
-				unconnectedEdgesCount++
-			case 1:
-				boundaryEdgesCount++
-			case 2:
-				internalEdgesCount++
-			}
-		}
-		fmt.Printf("Count of internal edges, incl Periodic Boundaries = %d\n", internalEdgesCount)
-		fmt.Printf("Count of unhandled edges = %d\n", unconnectedEdgesCount)
-		fmt.Printf("Count of boundary edges = %d\n", boundaryEdgesCount)
-	*/
 	switch c.Case {
 	case FREESTREAM:
 		c.CalcFS(Minf, Gamma, Alpha)
@@ -220,7 +207,6 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 		panic("unknown case type")
 	}
 	if verbose {
-		fmt.Printf("done\n")
 		fmt.Printf("Algorithm: %s\n", c.FluxCalcAlgo.Print())
 		fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, c.dfr.K)
 	}
@@ -233,6 +219,7 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		Time, dt         float64
 		Q1, Q2, Residual [4]utils.Matrix
 		steps            int
+		finished         bool
 		Np               = c.dfr.SolutionElement.Np
 		Kmax             = c.dfr.K
 		plotQ            = pm.Plot
@@ -243,13 +230,13 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		Q2[n] = utils.NewMatrix(Np, Kmax)
 		Residual[n] = Q1[n] // optimize memory using an alias
 	}
-	fmt.Printf("solving until finaltime = %8.5f\n", FinalTime)
+	fmt.Printf("Solving until finaltime = %8.5f or until Max Iterations = %d\n", FinalTime, c.MaxIterations)
 	c.InterpolateSolutionToEdges(c.Q)
 	start := time.Now()
-	for {
-		if Time >= FinalTime {
-			break
-		}
+	fmt.Printf("    iter    time  min_dt")
+	fmt.Printf("       Res0       Res1       Res2")
+	fmt.Printf("       Res3         L1         L2\n")
+	for !finished {
 		dt = c.CalculateDT()
 		if Time+dt > FinalTime {
 			dt = FinalTime - Time
@@ -299,30 +286,27 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		}
 		steps++
 		Time += dt
-		if plotQ && steps%pm.StepsBeforePlot == 0 {
-			c.PlotQ(c.Q, pm) // wait till we implement time iterative frame updates
+		if Time >= FinalTime || steps >= c.MaxIterations {
+			finished = true
 		}
-		if steps%pm.StepsBeforePlot == 0 {
-			fmt.Printf("\nTime,dt = %8.5f,%8.5f, Residual[eq#]Min/Max:", Time, dt)
-			/*
-				var Mmin, Mmax float64
-				Mmax, Mmin = -1, 1000
-				for ik := 0; ik < c.dfr.K*c.dfr.SolutionElement.Np; ik++ {
-					C, u, v := GetSpeedsDirect(ik, c.Gamma, c.Q)
-					U := math.Sqrt(u*u + v*v)
-					M := U / C
-					if M < Mmin {
-						Mmin = M
-					}
-					if M > Mmax {
-						Mmax = M
-					}
-				}
-				fmt.Printf(" Mach min:%8.5f max:%8.5f ", Mmin, Mmax)
-			*/
-			for n := 0; n < 4; n++ {
-				fmt.Printf(" [%d] %8.5f,%8.5f ", n, Residual[n].Min(), Residual[n].Max())
+		if steps%pm.StepsBeforePlot == 0 || finished {
+			format := "%11.4e"
+			if plotQ {
+				c.PlotQ(c.Q, pm) // wait till we implement time iterative frame updates
 			}
+			fmt.Printf("%8d%8.5f%8.5f", steps, Time, dt)
+			var l1, l2 float64
+			for n := 0; n < 4; n++ {
+				maxR := Residual[n].Max()
+				fmt.Printf(format, maxR)
+				if maxR > l1 {
+					l1 = maxR
+				}
+				l2 += maxR * maxR
+			}
+			fmt.Printf(format, l1)
+			fmt.Printf(format, math.Sqrt(l2)/4.)
+			fmt.Printf("\n")
 		}
 	}
 	elapsed := time.Now().Sub(start)
