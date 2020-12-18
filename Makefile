@@ -13,3 +13,6 @@ push:
 
 generate:
 	go generate ./...
+
+bench:
+	go test -run BenchmarkEuler_Solve -bench . ./model_problems/Euler2D/ -v
