@@ -1,0 +1,2 @@
+https://turbmodels.larc.nasa.gov/NACA0012_validation/CP_Ladson.dat
+https://turbmodels.larc.nasa.gov/NACA0012_validation/CP_Gregory_expdata.dat
