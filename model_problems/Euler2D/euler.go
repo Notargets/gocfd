@@ -419,8 +419,9 @@ func (c *Euler) CalculateDT() (dt float64) {
 		qfD      = [4][]float64{c.Q_Face[0].Data(), c.Q_Face[1].Data(), c.Q_Face[2].Data(), c.Q_Face[3].Data()}
 	)
 	// Setup max wavespeed before loop
+	dtD := c.DT.Data()
 	for k := 0; k < c.dfr.K; k++ {
-		c.DT.Data()[k] = -100
+		dtD[k] = -100
 	}
 	for nn := 0; nn < c.ParallelDegree; nn++ {
 		wsMax[nn] = wsMaxAll
@@ -458,13 +459,13 @@ func (c *Euler) CalculateDT() (dt float64) {
 						edgeMax = waveSpeed
 					}
 				}
-				if edgeMax > c.DT.Data()[k] {
-					c.DT.Data()[k] = edgeMax
+				if edgeMax > dtD[k] {
+					dtD[k] = edgeMax
 				}
 				if e.NumConnectedTris == 2 { // Add the wavespeed to the other tri connected to this edge if needed
 					k = int(e.ConnectedTris[1])
-					if edgeMax > c.DT.Data()[k] {
-						c.DT.Data()[k] = edgeMax
+					if edgeMax > dtD[k] {
+						dtD[k] = edgeMax
 					}
 				}
 			}
@@ -474,12 +475,12 @@ func (c *Euler) CalculateDT() (dt float64) {
 	wg.Wait()
 	// Replicate local time step to the other solution points for each k
 	for k := 0; k < c.dfr.K; k++ {
-		c.DT.Data()[k] = c.CFL / c.DT.Data()[k]
+		dtD[k] = c.CFL / dtD[k]
 	}
 	for i := 1; i < c.dfr.SolutionElement.Np; i++ {
 		for k := 0; k < c.dfr.K; k++ {
 			ind := k + c.dfr.K*i
-			c.DT.Data()[ind] = c.DT.Data()[k]
+			dtD[ind] = dtD[k]
 		}
 	}
 	for nn := 0; nn < c.ParallelDegree; nn++ {
@@ -564,9 +565,11 @@ func (c *Euler) AssembleRTNormalFlux(Q [4]utils.Matrix, Time float64) {
 
 func (c *Euler) SetNormalFluxInternal(Q [4]utils.Matrix) {
 	var (
-		Kmax = c.dfr.K
-		Nint = c.dfr.FluxElement.Nint
-		wg   = sync.WaitGroup{}
+		Kmax  = c.dfr.K
+		Nint  = c.dfr.FluxElement.Nint
+		wg    = sync.WaitGroup{}
+		qD    = [4][]float64{Q[0].Data(), Q[1].Data(), Q[2].Data(), Q[3].Data()}
+		fdofD = [4][]float64{c.F_RT_DOF[0].Data(), c.F_RT_DOF[1].Data(), c.F_RT_DOF[2].Data(), c.F_RT_DOF[3].Data()}
 	)
 	// Calculate flux and project into R and S (transformed) directions for the internal points
 	//for k := 0; k < Kmax; k++ {
@@ -578,10 +581,9 @@ func (c *Euler) SetNormalFluxInternal(Q [4]utils.Matrix) {
 				for i := 0; i < Nint; i++ {
 					ind := k + i*Kmax
 					ind2 := k + (i+Nint)*Kmax
-					Fr, Fs := c.CalculateFluxTransformed(k, i, Q)
+					Fr, Fs := c.CalculateFluxTransformed(k, i, qD)
 					for n := 0; n < 4; n++ {
-						rtD := c.F_RT_DOF[n].Data()
-						rtD[ind], rtD[ind2] = Fr[n], Fs[n]
+						fdofD[n][ind], fdofD[n][ind2] = Fr[n], Fs[n]
 					}
 				}
 			}
@@ -1014,13 +1016,12 @@ func (c *Euler) InitializeMemory() {
 	}
 }
 
-func (c *Euler) CalculateFluxTransformed(k, i int, Q [4]utils.Matrix) (Fr, Fs [4]float64) {
+func (c *Euler) CalculateFluxTransformed(k, i int, QQ [4][]float64) (Fr, Fs [4]float64) {
 	var (
 		Jdet = c.dfr.Jdet.At(k, 0)
 		Jinv = c.dfr.Jinv.Data()[4*k : 4*(k+1)]
-		qD   = [4][]float64{Q[0].Data(), Q[1].Data(), Q[2].Data(), Q[3].Data()}
 	)
-	Fx, Fy := c.CalculateFlux(k, i, qD)
+	Fx, Fy := c.CalculateFlux(k, i, QQ)
 	for n := 0; n < 4; n++ {
 		Fr[n] = Jdet * (Jinv[0]*Fx[n] + Jinv[1]*Fy[n])
 		Fs[n] = Jdet * (Jinv[2]*Fx[n] + Jinv[3]*Fy[n])

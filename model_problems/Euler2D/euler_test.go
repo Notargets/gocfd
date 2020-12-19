@@ -63,32 +63,34 @@ func TestEuler(t *testing.T) {
 				Nedge := c.dfr.FluxElement.Nedge
 				NpFlux := c.dfr.FluxElement.Np // Np = 2*Nint+3*Nedge
 				// Mark the initial state with the element number
+				qD := [4][]float64{c.Q[0].Data(), c.Q[1].Data(), c.Q[2].Data(), c.Q[3].Data()}
+				fdofD := [4][]float64{c.F_RT_DOF[0].Data(), c.F_RT_DOF[1].Data(), c.F_RT_DOF[2].Data(), c.F_RT_DOF[3].Data()}
 				for i := 0; i < Nint; i++ {
 					for k := 0; k < Kmax; k++ {
 						ind := k + i*Kmax
-						c.Q[0].Data()[ind] = float64(k + 1)
-						c.Q[1].Data()[ind] = 0.1 * float64(k+1)
-						c.Q[2].Data()[ind] = 0.05 * float64(k+1)
-						c.Q[3].Data()[ind] = 2.00 * float64(k+1)
+						qD[0][ind] = float64(k + 1)
+						qD[1][ind] = 0.1 * float64(k+1)
+						qD[2][ind] = 0.05 * float64(k+1)
+						qD[3][ind] = 2.00 * float64(k+1)
 					}
 				}
 				// Flux values for later checks are invariant with i (i=0)
 				Fr_check, Fs_check := make([][4]float64, Kmax), make([][4]float64, Kmax)
 				for k := 0; k < Kmax; k++ {
-					Fr_check[k], Fs_check[k] = c.CalculateFluxTransformed(k, 0, c.Q)
+					Fr_check[k], Fs_check[k] = c.CalculateFluxTransformed(k, 0, qD)
 				}
 				// Interpolate from solution points to edges using precomputed interpolation matrix
 				for n := 0; n < 4; n++ {
 					c.Q_Face[n] = c.dfr.FluxEdgeInterpMatrix.Mul(c.Q[n])
 				}
+				qfD := [4][]float64{c.Q_Face[0].Data(), c.Q_Face[1].Data(), c.Q_Face[2].Data(), c.Q_Face[3].Data()}
 				// Calculate flux and project into R and S (transformed) directions
 				for n := 0; n < 4; n++ {
 					for i := 0; i < Nint; i++ {
 						for k := 0; k < c.dfr.K; k++ {
 							ind := k + i*Kmax
-							Fr, Fs := c.CalculateFluxTransformed(k, i, c.Q)
-							rtD := c.F_RT_DOF[n].Data()
-							rtD[ind], rtD[ind+Nint*Kmax] = Fr[n], Fs[n]
+							Fr, Fs := c.CalculateFluxTransformed(k, i, qD)
+							fdofD[n][ind], fdofD[n][ind+Nint*Kmax] = Fr[n], Fs[n]
 						}
 					}
 					// Check to see that the expected values are in the right place (the internal locations)
@@ -105,7 +107,7 @@ func TestEuler(t *testing.T) {
 					for k := 0; k < Kmax; k++ {
 						for i := 0; i < 3*Nedge; i++ {
 							ind := k + (2*Nint+i)*Kmax
-							Fr, Fs := c.CalculateFluxTransformed(k, i, c.Q_Face)
+							Fr, Fs := c.CalculateFluxTransformed(k, i, qfD)
 							rtD := c.F_RT_DOF[n].Data()
 							rtD[ind] = Fr[n] + Fs[n]
 						}
