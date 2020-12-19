@@ -345,7 +345,7 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField PlotFunction) (field u
 	} else {
 		fld := utils.NewMatrix(Np, Kmax)
 		for ik := 0; ik < Kmax*Np; ik++ {
-			fld.Data()[ik] = c.GetFunction(ik, Q, plotField)
+			fld.Data()[ik] = c.GetFlowFunctionAtIndex(ik, Q, plotField)
 		}
 		field = c.dfr.FluxInterpMatrix.Mul(fld)
 	}
@@ -437,7 +437,7 @@ func (c *Euler) CalculateDT() (dt float64) {
 				for i := shift; i < shift+Nedge; i++ {
 					qq := c.GetQQ(k, i, c.Q_Face)
 					u, v := qq[1]/qq[0], qq[2]/qq[0]
-					C := c.GetFunctionBase(qq, SoundSpeed)
+					C := c.GetFlowFunction(qq, SoundSpeed)
 					waveSpeed := fs * (math.Sqrt(u*u+v*v) + C)
 					wsMax[nn] = math.Max(waveSpeed, wsMax[nn])
 					if waveSpeed > edgeMax {
@@ -664,7 +664,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 				processFlux = false
 				for i := 0; i < Nedge; i++ {
 					ie := i + shift
-					p := c.GetFunction(k+ie*Kmax, c.Q_Face, StaticPressure)
+					p := c.GetFlowFunctionAtIndex(k+ie*Kmax, c.Q_Face, StaticPressure)
 					for n := 0; n < 4; n++ {
 						normalFlux[i][0] = 0
 						normalFlux[i][3] = 0
@@ -733,10 +733,10 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 					iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
 					qL := c.GetQQ(kL, iL, c.Q_Face)
 					rhoL, uL, vL = qL[0], qL[1]/qL[0], qL[2]/qL[0]
-					pL, CL = c.GetFunctionBase(qL, StaticPressure), c.GetFunctionBase(qL, SoundSpeed)
+					pL, CL = c.GetFlowFunction(qL, StaticPressure), c.GetFlowFunction(qL, SoundSpeed)
 					qR := c.GetQQ(kR, iR, c.Q_Face)
 					rhoR, uR, vR = qR[0], qR[1]/qR[0], qR[2]/qR[0]
-					pR, CR = c.GetFunctionBase(qR, StaticPressure), c.GetFunctionBase(qR, SoundSpeed)
+					pR, CR = c.GetFlowFunction(qR, StaticPressure), c.GetFlowFunction(qR, SoundSpeed)
 					fluxLeft[0], fluxLeft[1] = c.CalculateFlux(kL, iL, c.Q_Face)
 					fluxRight[0], fluxRight[1] = c.CalculateFlux(kR, iR, c.Q_Face) // Reverse the right edge to match
 					maxV = math.Max(maxVF(uL, vL, pL, rhoL, CL), maxVF(uR, vR, pR, rhoR, CR))
@@ -774,17 +774,17 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 					rotateMomentum(kR, iR)
 					qL := c.GetQQ(kL, iL, c.Q_Face)
 					rhoL, uL, vL = qL[0], qL[1]/qL[0], qL[2]/qL[0]
-					pL = c.GetFunctionBase(qL, StaticPressure)
+					pL = c.GetFlowFunction(qL, StaticPressure)
 					qR := c.GetQQ(kR, iR, c.Q_Face)
 					rhoR, uR, vR = qR[0], qR[1]/qR[0], qR[2]/qR[0]
-					pR = c.GetFunctionBase(qR, StaticPressure)
+					pR = c.GetFlowFunction(qR, StaticPressure)
 					fluxLeft[0], _ = c.CalculateFlux(kL, iL, c.Q_Face)
 					fluxRight[0], _ = c.CalculateFlux(kR, iR, c.Q_Face) // Reverse the right edge to match
 					/*
 					   HM = (EnerM+pM).dd(rhoM);  HP = (EnerP+pP).dd(rhoP);
 					*/
 					// Enthalpy
-					hL, hR = c.GetFunctionBase(qL, Enthalpy), c.GetFunctionBase(qR, Enthalpy)
+					hL, hR = c.GetFlowFunction(qL, Enthalpy), c.GetFlowFunction(qR, Enthalpy)
 					/*
 						rhoMs = sqrt(rhoM); rhoPs = sqrt(rhoP);
 						rhoMsPs = rhoMs + rhoPs;
@@ -1045,14 +1045,14 @@ func (c *Euler) RiemannBC(k, i int, QInf [4]float64, normal [2]float64) (Q [4]fl
 	var (
 		qq                 = c.GetQQ(k, i, c.Q_Face)
 		rhoInt, uInt, vInt = qq[0], qq[1] / qq[0], qq[2] / qq[0]
-		pInt               = c.GetFunctionBase(qq, StaticPressure)
-		CInt               = c.GetFunctionBase(qq, SoundSpeed)
+		pInt               = c.GetFlowFunction(qq, StaticPressure)
+		CInt               = c.GetFlowFunction(qq, SoundSpeed)
 		Gamma              = c.Gamma
 		GM1                = Gamma - 1.
 		OOGM1              = 1. / GM1
 		rhoInf, uInf, vInf = QInf[0], QInf[1] / QInf[0], QInf[2] / QInf[0]
-		pInf               = c.GetFunctionBase(QInf, StaticPressure)
-		CInf               = c.GetFunctionBase(QInf, SoundSpeed)
+		pInf               = c.GetFlowFunction(QInf, StaticPressure)
+		CInf               = c.GetFlowFunction(QInf, SoundSpeed)
 		Vtang, Beta        float64
 		tangent            = [2]float64{-normal[1], normal[0]}
 	)
@@ -1149,7 +1149,7 @@ func (c *Euler) split1D(iMax, threadNum int) (istart, iend int) {
 
 /************** Output */
 
-func (c *Euler) GetFunctionBase(Q [4]float64, pf PlotFunction) (f float64) {
+func (c *Euler) GetFlowFunction(Q [4]float64, pf PlotFunction) (f float64) {
 	var (
 		Gamma              = c.Gamma
 		GM1                = Gamma - 1.
@@ -1166,18 +1166,18 @@ func (c *Euler) GetFunctionBase(Q [4]float64, pf PlotFunction) (f float64) {
 	case Energy:
 		f = E
 	case StaticPressure:
-		q := c.GetFunctionBase(Q, DynamicPressure)
+		q := c.GetFlowFunction(Q, DynamicPressure)
 		f = GM1 * (E - q)
 	case DynamicPressure:
 		f = 0.5 * (rhou*rhou + rhov*rhov) * oorho
 	case PressureCoefficient:
-		q := c.GetFunctionBase(Q, DynamicPressure)
+		q := c.GetFlowFunction(Q, DynamicPressure)
 		p := GM1 * (E - q)
-		pInf := c.GetFunctionBase(c.Qinf, StaticPressure)
-		qInf := c.GetFunctionBase(c.Qinf, DynamicPressure)
+		pInf := c.GetFlowFunction(c.Qinf, StaticPressure)
+		qInf := c.GetFlowFunction(c.Qinf, DynamicPressure)
 		f = (p - pInf) / qInf
 	case SoundSpeed:
-		p := c.GetFunctionBase(Q, StaticPressure)
+		p := c.GetFlowFunction(Q, StaticPressure)
 		f = math.Sqrt(math.Abs(Gamma * p * oorho))
 	case Velocity:
 		f = math.Sqrt((rhou*rhou + rhov*rhov) * oorho)
@@ -1186,21 +1186,21 @@ func (c *Euler) GetFunctionBase(Q [4]float64, pf PlotFunction) (f float64) {
 	case YVelocity:
 		f = rhov * oorho
 	case Mach:
-		U := c.GetFunctionBase(Q, Velocity)
-		C := c.GetFunctionBase(Q, SoundSpeed)
+		U := c.GetFlowFunction(Q, Velocity)
+		C := c.GetFlowFunction(Q, SoundSpeed)
 		f = U / C
 	case Enthalpy:
-		p := c.GetFunctionBase(Q, StaticPressure)
+		p := c.GetFlowFunction(Q, StaticPressure)
 		f = (E + p) / rho
 	}
 	return
 }
 
-func (c *Euler) GetFunction(ind int, Q [4]utils.Matrix, pf PlotFunction) (f float64) {
+func (c *Euler) GetFlowFunctionAtIndex(ind int, Q [4]utils.Matrix, pf PlotFunction) (f float64) {
 	var (
 		QI = [4]float64{Q[0].Data()[ind], Q[1].Data()[ind], Q[2].Data()[ind], Q[3].Data()[ind]}
 	)
-	f = c.GetFunctionBase(QI, pf)
+	f = c.GetFlowFunction(QI, pf)
 	return
 }
 
