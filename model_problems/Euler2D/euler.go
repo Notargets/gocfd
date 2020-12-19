@@ -45,7 +45,7 @@ type Euler struct {
 	FluxCalcAlgo          FluxType
 	Case                  InitType
 	AnalyticSolution      ExactState
-	FluxCalcMock          func(Gamma, rho, rhoU, rhoV, E float64) (Fx, Fy [4]float64) // For testing
+	FluxCalcMock          func(Q [4]float64) (Fx, Fy [4]float64) // For testing
 	SortedEdgeKeys        EdgeKeySlice
 	ParallelDegree        int // Number of go routines to use for parallel execution
 	LocalTimeStepping     bool
@@ -155,10 +155,10 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
 		FluxCalcAlgo:      fluxType,
 		Case:              Case,
 		Gamma:             Gamma,
-		FluxCalcMock:      FluxCalc,
 		LocalTimeStepping: LocalTime,
 		MaxIterations:     MaxIterations,
 	}
+	c.FluxCalcMock = c.FluxCalc
 	if ProcLimit != 0 {
 		c.ParallelDegree = ProcLimit
 	} else {
@@ -330,7 +330,7 @@ func (c *Euler) PlotQ(Q [4]utils.Matrix, pm *PlotMeta) {
 	}
 	c.chart.fs = functions.NewFSurface(c.chart.gm, [][]float32{fI}, 0)
 	fmt.Printf(" Plot>%s min,max = %8.5f,%8.5f\n", pm.Field.String(), oField.Min(), oField.Max())
-	c.PlotFS(pm.FieldMinP, pm.FieldMaxP, oField.Min(), oField.Max(), scale, translate, lineType)
+	c.PlotFS(pm.FieldMinP, pm.FieldMaxP, 0.99*oField.Min(), 1.01*oField.Max(), scale, translate, lineType)
 	utils.SleepFor(int(delay.Milliseconds()))
 	return
 }
@@ -999,24 +999,22 @@ func (c *Euler) CalculateFluxTransformed(k, i int, Q [4]utils.Matrix) (Fr, Fs [4
 func (c *Euler) CalculateFlux(k, i int, Q [4]utils.Matrix) (Fx, Fy [4]float64) {
 	// From https://www.theoretical-physics.net/dev/fluid-dynamics/euler.html
 	var (
-		q0D, q1D, q2D, q3D = Q[0].Data(), Q[1].Data(), Q[2].Data(), Q[3].Data()
-		Kmax               = c.dfr.K
-		ind                = k + i*Kmax
-		rho, rhoU, rhoV, E = q0D[ind], q1D[ind], q2D[ind], q3D[ind]
+		Kmax = c.dfr.K
+		ind  = k + i*Kmax
+		qq   = [4]float64{Q[0].Data()[ind], Q[1].Data()[ind], Q[2].Data()[ind], Q[3].Data()[ind]}
 	)
-	Fx, Fy = c.FluxCalcMock(c.Gamma, rho, rhoU, rhoV, E)
+	Fx, Fy = c.FluxCalcMock(qq)
 	return
 }
 
-func FluxCalc(Gamma, rho, rhoU, rhoV, E float64) (Fx, Fy [4]float64) {
+func (c *Euler) FluxCalc(q [4]float64) (Fx, Fy [4]float64) {
 	var (
-		GM1 = Gamma - 1.
+		rho, rhoU, rhoV, E = q[0], q[1], q[2], q[3]
+		oorho              = 1. / rho
+		u                  = rhoU * oorho
+		v                  = rhoV * oorho
+		p                  = c.GetFlowFunction(q, StaticPressure)
 	)
-	u := rhoU / rho
-	v := rhoV / rho
-	u2 := u*u + v*v
-	q := 0.5 * rho * u2
-	p := GM1 * (E - q)
 	Fx, Fy =
 		[4]float64{rhoU, rhoU*u + p, rhoU * v, u * (E + p)},
 		[4]float64{rhoV, rhoV * u, rhoV*v + p, v * (E + p)}

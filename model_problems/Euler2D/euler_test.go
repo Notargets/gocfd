@@ -368,10 +368,10 @@ func GetDivergencePoly(t, x, y float64) (div [4]float64) {
 	return
 }
 
-func FluxCalcMomentumOnly(Gamma, rho, rhoU, rhoV, E float64) (Fx, Fy [4]float64) {
+func FluxCalcMomentumOnly(q [4]float64) (Fx, Fy [4]float64) {
 	Fx, Fy =
-		[4]float64{rhoU, rhoU, rhoU, rhoU},
-		[4]float64{rhoV, rhoV, rhoV, rhoV}
+		[4]float64{q[1], q[1], q[1], q[1]},
+		[4]float64{q[2], q[2], q[2], q[2]}
 	return
 }
 
