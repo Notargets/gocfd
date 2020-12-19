@@ -36,6 +36,7 @@ type Euler struct {
 	MeshFile              string
 	CFL, Gamma, FinalTime float64
 	Qinf                  [4]float64
+	Pinf, QQinf           float64
 	dfr                   *DG2D.DFR2D
 	Q                     [4]utils.Matrix // Solution variables, stored at solution point locations, Np_solution x K
 	DT                    utils.Matrix    // Local time step for steady state solution
@@ -143,6 +144,8 @@ func (c *Euler) CalcFS(Minf, Gamma, Alpha float64) {
 	c.Qinf[1] = Minf * math.Cos(Alpha*math.Pi/180.)
 	c.Qinf[2] = Minf * math.Sin(Alpha*math.Pi/180.)
 	c.Qinf[3] = ooggm1 + 0.5*Minf*Minf
+	c.Pinf = c.GetFlowFunction(c.Qinf, StaticPressure)
+	c.QQinf = c.GetFlowFunction(c.Qinf, DynamicPressure)
 }
 
 func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
@@ -158,6 +161,7 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
 		LocalTimeStepping: LocalTime,
 		MaxIterations:     MaxIterations,
 	}
+	c.CalcFS(Minf, Gamma, Alpha)
 	c.FluxCalcMock = c.FluxCalc
 	if ProcLimit != 0 {
 		c.ParallelDegree = ProcLimit
@@ -165,6 +169,10 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
 		c.ParallelDegree = runtime.NumCPU()
 	}
 	runtime.GOMAXPROCS(runtime.NumCPU())
+
+	if len(meshFile) == 0 {
+		return
+	}
 
 	c.dfr = DG2D.NewDFR2D(N, plotMesh, meshFile)
 	c.InitializeMemory()
@@ -187,10 +195,11 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
 	c.SortedEdgeKeys.Sort()
 	switch c.Case {
 	case FREESTREAM:
-		c.CalcFS(Minf, Gamma, Alpha)
 		c.InitializeFS()
 	case IVORTEX:
 		c.Qinf = [4]float64{1, 1, 0, 3}
+		c.Pinf = c.GetFlowFunction(c.Qinf, StaticPressure)
+		c.QQinf = c.GetFlowFunction(c.Qinf, DynamicPressure)
 		c.AnalyticSolution, c.Q = c.InitializeIVortex(c.dfr.SolutionX, c.dfr.SolutionY)
 		// Set "Wall" BCs to IVortex
 		var count int
@@ -339,13 +348,15 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField PlotFunction) (field u
 	var (
 		Kmax = c.dfr.K
 		Np   = c.dfr.SolutionElement.Np
+		qfD  = [4][]float64{Q[0].Data(), Q[1].Data(), Q[2].Data(), Q[3].Data()}
 	)
 	if plotField <= Energy {
 		field = c.dfr.FluxInterpMatrix.Mul(Q[int(plotField)])
 	} else {
 		fld := utils.NewMatrix(Np, Kmax)
+		fldD := fld.Data()
 		for ik := 0; ik < Kmax*Np; ik++ {
-			fld.Data()[ik] = c.GetFlowFunctionAtIndex(ik, Q, plotField)
+			fldD[ik] = c.GetFlowFunctionAtIndex(ik, qfD, plotField)
 		}
 		field = c.dfr.FluxInterpMatrix.Mul(fld)
 	}
@@ -516,6 +527,13 @@ func (c *Euler) DivideByJacobian(Nmax int, data []float64, scale float64) {
 }
 
 func (c *Euler) AssembleRTNormalFlux(Q [4]utils.Matrix, Time float64) {
+	var (
+		Kmax  = c.dfr.K
+		Nedge = c.dfr.FluxElement.Nedge
+		Np    = c.dfr.FluxElement.Np
+		qfD   = [4][]float64{c.Q_Face[0].Data(), c.Q_Face[1].Data(), c.Q_Face[2].Data(), c.Q_Face[3].Data()}
+		fdofD = [4][]float64{c.F_RT_DOF[0].Data(), c.F_RT_DOF[1].Data(), c.F_RT_DOF[2].Data(), c.F_RT_DOF[3].Data()}
+	)
 	/*
 		Solver approach:
 		0) Solution is stored on sol points as Q
@@ -527,8 +545,14 @@ func (c *Euler) AssembleRTNormalFlux(Q [4]utils.Matrix, Time float64) {
 		Zero out DOF storage and Q_Face to promote easier bug avoidance
 	*/
 	for n := 0; n < 4; n++ {
-		c.Q_Face[n].Scale(0.)
-		c.F_RT_DOF[n].Scale(0.)
+		//c.Q_Face[n].Scale(0.)
+		for i := 0; i < Kmax*Nedge; i++ {
+			qfD[n][i] = 0.
+		}
+		//c.F_RT_DOF[n].Scale(0.)
+		for i := 0; i < Kmax*Np; i++ {
+			fdofD[n][i] = 0.
+		}
 	}
 	c.SetNormalFluxInternal(Q)           // Updates F_RT_DOF with values from Q
 	c.InterpolateSolutionToEdges(Q)      // Interpolates Q_Face values from Q
@@ -624,6 +648,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 				shift       = edgeNumber * Nedge
 				riemann     = true
 				processFlux bool
+				qfD         = [4][]float64{c.Q_Face[0].Data(), c.Q_Face[1].Data(), c.Q_Face[2].Data(), c.Q_Face[3].Data()}
 			)
 			processFlux = true
 			normal, _ := c.getEdgeNormal(0, e, en)
@@ -633,10 +658,10 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 					iL := i + shift
 					ind := k + iL*Kmax
 					QBC := c.RiemannBC(k, iL, c.Qinf, normal)
-					c.Q_Face[0].Data()[ind] = QBC[0]
-					c.Q_Face[1].Data()[ind] = QBC[1]
-					c.Q_Face[2].Data()[ind] = QBC[2]
-					c.Q_Face[3].Data()[ind] = QBC[3]
+					qfD[0][ind] = QBC[0]
+					qfD[1][ind] = QBC[1]
+					qfD[2][ind] = QBC[2]
+					qfD[3][ind] = QBC[3]
 				}
 			case types.BC_IVortex:
 				// Set the flow variables to the exact solution
@@ -655,16 +680,16 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 					} else {
 						QBC = [4]float64{rho, rhoU, rhoV, E}
 					}
-					c.Q_Face[0].Data()[ind] = QBC[0]
-					c.Q_Face[1].Data()[ind] = QBC[1]
-					c.Q_Face[2].Data()[ind] = QBC[2]
-					c.Q_Face[3].Data()[ind] = QBC[3]
+					qfD[0][ind] = QBC[0]
+					qfD[1][ind] = QBC[1]
+					qfD[2][ind] = QBC[2]
+					qfD[3][ind] = QBC[3]
 				}
 			case types.BC_Wall, types.BC_Cyl:
 				processFlux = false
 				for i := 0; i < Nedge; i++ {
 					ie := i + shift
-					p := c.GetFlowFunctionAtIndex(k+ie*Kmax, c.Q_Face, StaticPressure)
+					p := c.GetFlowFunctionAtIndex(k+ie*Kmax, qfD, StaticPressure)
 					for n := 0; n < 4; n++ {
 						normalFlux[i][0] = 0
 						normalFlux[i][3] = 0
@@ -680,7 +705,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 				var Fx, Fy [4]float64
 				for i := 0; i < Nedge; i++ {
 					ie := i + shift
-					Fx, Fy = c.CalculateFlux(k, ie, c.Q_Face)
+					Fx, Fy = c.CalculateFlux(k, ie, qfD)
 					for n := 0; n < 4; n++ {
 						normalFlux[i][n] = normal[0]*Fx[n] + normal[1]*Fy[n]
 					}
@@ -693,6 +718,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 				edgeNumberL, edgeNumberR = int(e.ConnectedTriEdgeNumber[0]), int(e.ConnectedTriEdgeNumber[1])
 				shiftL, shiftR           = edgeNumberL * Nedge, edgeNumberR * Nedge
 				fluxLeft, fluxRight      [2][4]float64
+				qfD                      = [4][]float64{c.Q_Face[0].Data(), c.Q_Face[1].Data(), c.Q_Face[2].Data(), c.Q_Face[3].Data()}
 			)
 			switch c.FluxCalcAlgo {
 			case FLUX_Average:
@@ -713,8 +739,8 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 				for i := 0; i < Nedge; i++ {
 					iL := i + shiftL
 					iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
-					fluxLeft[0], fluxLeft[1] = c.CalculateFlux(kL, iL, c.Q_Face)
-					fluxRight[0], fluxRight[1] = c.CalculateFlux(kR, iR, c.Q_Face) // Reverse the right edge to match
+					fluxLeft[0], fluxLeft[1] = c.CalculateFlux(kL, iL, qfD)
+					fluxRight[0], fluxRight[1] = c.CalculateFlux(kR, iR, qfD) // Reverse the right edge to match
 					normalFlux[i], normalFluxReversed[Nedge-1-i] = averageFluxN(fluxLeft, fluxRight, normal)
 				}
 			case FLUX_LaxFriedrichs:
@@ -737,8 +763,8 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 					qR := c.GetQQ(kR, iR, c.Q_Face)
 					rhoR, uR, vR = qR[0], qR[1]/qR[0], qR[2]/qR[0]
 					pR, CR = c.GetFlowFunction(qR, StaticPressure), c.GetFlowFunction(qR, SoundSpeed)
-					fluxLeft[0], fluxLeft[1] = c.CalculateFlux(kL, iL, c.Q_Face)
-					fluxRight[0], fluxRight[1] = c.CalculateFlux(kR, iR, c.Q_Face) // Reverse the right edge to match
+					fluxLeft[0], fluxLeft[1] = c.CalculateFlux(kL, iL, qfD)
+					fluxRight[0], fluxRight[1] = c.CalculateFlux(kR, iR, qfD) // Reverse the right edge to match
 					maxV = math.Max(maxVF(uL, vL, pL, rhoL, CL), maxVF(uR, vR, pR, rhoR, CR))
 					indL, indR := kL+iL*Kmax, kR+iR*Kmax
 					for n := 0; n < 4; n++ {
@@ -778,8 +804,8 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 					qR := c.GetQQ(kR, iR, c.Q_Face)
 					rhoR, uR, vR = qR[0], qR[1]/qR[0], qR[2]/qR[0]
 					pR = c.GetFlowFunction(qR, StaticPressure)
-					fluxLeft[0], _ = c.CalculateFlux(kL, iL, c.Q_Face)
-					fluxRight[0], _ = c.CalculateFlux(kR, iR, c.Q_Face) // Reverse the right edge to match
+					fluxLeft[0], _ = c.CalculateFlux(kL, iL, qfD)
+					fluxRight[0], _ = c.CalculateFlux(kR, iR, qfD) // Reverse the right edge to match
 					/*
 					   HM = (EnerM+pM).dd(rhoM);  HP = (EnerP+pP).dd(rhoP);
 					*/
@@ -958,13 +984,15 @@ func (c *Euler) InitializeIVortex(X, Y utils.Matrix) (iv *isentropic_vortex.IVor
 		Q[n] = utils.NewMatrix(Np, Kmax)
 	}
 	iv = isentropic_vortex.NewIVortex(Beta, X0, Y0, Gamma)
+	qD := [4][]float64{Q[0].Data(), Q[1].Data(), Q[2].Data(), Q[3].Data()}
+	xD, yD := X.Data(), Y.Data()
 	for ii := 0; ii < Np*Kmax; ii++ {
-		x, y := X.Data()[ii], Y.Data()[ii]
+		x, y := xD[ii], yD[ii]
 		rho, rhoU, rhoV, E := iv.GetStateC(0, x, y)
-		Q[0].Data()[ii] = rho
-		Q[1].Data()[ii] = rhoU
-		Q[2].Data()[ii] = rhoV
-		Q[3].Data()[ii] = E
+		qD[0][ii] = rho
+		qD[1][ii] = rhoU
+		qD[2][ii] = rhoV
+		qD[3][ii] = E
 	}
 	return
 }
@@ -987,8 +1015,9 @@ func (c *Euler) CalculateFluxTransformed(k, i int, Q [4]utils.Matrix) (Fr, Fs [4
 	var (
 		Jdet = c.dfr.Jdet.At(k, 0)
 		Jinv = c.dfr.Jinv.Data()[4*k : 4*(k+1)]
+		qD   = [4][]float64{Q[0].Data(), Q[1].Data(), Q[2].Data(), Q[3].Data()}
 	)
-	Fx, Fy := c.CalculateFlux(k, i, Q)
+	Fx, Fy := c.CalculateFlux(k, i, qD)
 	for n := 0; n < 4; n++ {
 		Fr[n] = Jdet * (Jinv[0]*Fx[n] + Jinv[1]*Fy[n])
 		Fs[n] = Jdet * (Jinv[2]*Fx[n] + Jinv[3]*Fy[n])
@@ -996,12 +1025,12 @@ func (c *Euler) CalculateFluxTransformed(k, i int, Q [4]utils.Matrix) (Fr, Fs [4
 	return
 }
 
-func (c *Euler) CalculateFlux(k, i int, Q [4]utils.Matrix) (Fx, Fy [4]float64) {
+func (c *Euler) CalculateFlux(k, i int, QQ [4][]float64) (Fx, Fy [4]float64) {
 	// From https://www.theoretical-physics.net/dev/fluid-dynamics/euler.html
 	var (
 		Kmax = c.dfr.K
 		ind  = k + i*Kmax
-		qq   = [4]float64{Q[0].Data()[ind], Q[1].Data()[ind], Q[2].Data()[ind], Q[3].Data()[ind]}
+		qq   = [4]float64{QQ[0][ind], QQ[1][ind], QQ[2][ind], QQ[3][ind]}
 	)
 	Fx, Fy = c.FluxCalcMock(qq)
 	return
@@ -1153,7 +1182,19 @@ func (c *Euler) GetFlowFunction(Q [4]float64, pf PlotFunction) (f float64) {
 		GM1                = Gamma - 1.
 		rho, rhou, rhov, E = Q[0], Q[1], Q[2], Q[3]
 		oorho              = 1. / rho
+		q, p               float64
 	)
+	// Calculate q if needed
+	switch pf {
+	case StaticPressure, PressureCoefficient, SoundSpeed:
+		q = 0.5 * (rhou*rhou + rhov*rhov) * oorho
+	}
+	// Calculate p if needed
+	switch pf {
+	case PressureCoefficient, SoundSpeed, Enthalpy:
+		p = GM1 * (E - q)
+	}
+
 	switch pf {
 	case Density:
 		f = rho
@@ -1164,18 +1205,12 @@ func (c *Euler) GetFlowFunction(Q [4]float64, pf PlotFunction) (f float64) {
 	case Energy:
 		f = E
 	case StaticPressure:
-		q := c.GetFlowFunction(Q, DynamicPressure)
 		f = GM1 * (E - q)
 	case DynamicPressure:
 		f = 0.5 * (rhou*rhou + rhov*rhov) * oorho
 	case PressureCoefficient:
-		q := c.GetFlowFunction(Q, DynamicPressure)
-		p := GM1 * (E - q)
-		pInf := c.GetFlowFunction(c.Qinf, StaticPressure)
-		qInf := c.GetFlowFunction(c.Qinf, DynamicPressure)
-		f = (p - pInf) / qInf
+		f = (p - c.Pinf) / c.QQinf
 	case SoundSpeed:
-		p := c.GetFlowFunction(Q, StaticPressure)
 		f = math.Sqrt(math.Abs(Gamma * p * oorho))
 	case Velocity:
 		f = math.Sqrt((rhou*rhou + rhov*rhov) * oorho)
@@ -1184,19 +1219,18 @@ func (c *Euler) GetFlowFunction(Q [4]float64, pf PlotFunction) (f float64) {
 	case YVelocity:
 		f = rhov * oorho
 	case Mach:
-		U := c.GetFlowFunction(Q, Velocity)
-		C := c.GetFlowFunction(Q, SoundSpeed)
+		C := math.Sqrt(math.Abs(Gamma * p * oorho))
+		U := math.Sqrt((rhou*rhou + rhov*rhov) * oorho)
 		f = U / C
 	case Enthalpy:
-		p := c.GetFlowFunction(Q, StaticPressure)
 		f = (E + p) / rho
 	}
 	return
 }
 
-func (c *Euler) GetFlowFunctionAtIndex(ind int, Q [4]utils.Matrix, pf PlotFunction) (f float64) {
+func (c *Euler) GetFlowFunctionAtIndex(ind int, QQ [4][]float64, pf PlotFunction) (f float64) {
 	var (
-		QI = [4]float64{Q[0].Data()[ind], Q[1].Data()[ind], Q[2].Data()[ind], Q[3].Data()[ind]}
+		QI = [4]float64{QQ[0][ind], QQ[1][ind], QQ[2][ind], QQ[3][ind]}
 	)
 	f = c.GetFlowFunction(QI, pf)
 	return

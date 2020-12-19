@@ -221,27 +221,6 @@ func TestEuler_Solve(t *testing.T) {
 	c.Solve(pm)
 }
 
-func BenchmarkEuler_Solve(b *testing.B) {
-	var (
-		plotMesh  = false
-		pm        = &PlotMeta{Plot: false, StepsBeforePlot: 100}
-		Nmax      = 2
-		FinalTime = 0.1
-		c         = make([]*Euler, Nmax+1)
-	)
-	for n := 1; n <= Nmax; n++ {
-		c[n] = NewEuler(FinalTime, n, "../../DG2D/vortex-new.su2", 1.00, FLUX_LaxFriedrichs, IVORTEX, 0, 0, 1.4, 0, false, 5000, plotMesh, false)
-	}
-	b.ResetTimer()
-	// The benchmark loop
-	for i := 0; i < b.N; i++ {
-		// This is separate to enable easy performance and memory profiling
-		for n := 1; n <= Nmax; n++ {
-			c[n].Solve(pm)
-		}
-	}
-}
-
 func PrintQ(Q [4]utils.Matrix, l string) {
 	var (
 		label string
