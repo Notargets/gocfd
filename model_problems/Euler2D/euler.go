@@ -36,7 +36,7 @@ type Euler struct {
 	MeshFile              string
 	CFL, Gamma, FinalTime float64
 	Qinf                  [4]float64
-	Pinf, QQinf           float64
+	Pinf, QQinf, Cinf     float64
 	dfr                   *DG2D.DFR2D
 	Q                     [4]utils.Matrix // Solution variables, stored at solution point locations, Np_solution x K
 	DT                    utils.Matrix    // Local time step for steady state solution
@@ -146,6 +146,7 @@ func (c *Euler) CalcFS(Minf, Gamma, Alpha float64) {
 	c.Qinf[3] = ooggm1 + 0.5*Minf*Minf
 	c.Pinf = c.GetFlowFunction(c.Qinf, StaticPressure)
 	c.QQinf = c.GetFlowFunction(c.Qinf, DynamicPressure)
+	c.Cinf = c.GetFlowFunction(c.Qinf, SoundSpeed)
 }
 
 func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
@@ -200,6 +201,7 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
 		c.Qinf = [4]float64{1, 1, 0, 3}
 		c.Pinf = c.GetFlowFunction(c.Qinf, StaticPressure)
 		c.QQinf = c.GetFlowFunction(c.Qinf, DynamicPressure)
+		c.Cinf = c.GetFlowFunction(c.Qinf, SoundSpeed)
 		c.AnalyticSolution, c.Q = c.InitializeIVortex(c.dfr.SolutionX, c.dfr.SolutionY)
 		// Set "Wall" BCs to IVortex
 		var count int
@@ -414,6 +416,7 @@ func (c *Euler) CalculateDT() (dt float64) {
 		wsMaxAll = -math.MaxFloat64
 		wsMax    = make([]float64, c.ParallelDegree)
 		wg       = sync.WaitGroup{}
+		qfD      = [4][]float64{c.Q_Face[0].Data(), c.Q_Face[1].Data(), c.Q_Face[2].Data(), c.Q_Face[3].Data()}
 	)
 	// Setup max wavespeed before loop
 	for k := 0; k < c.dfr.K; k++ {
@@ -446,7 +449,7 @@ func (c *Euler) CalculateDT() (dt float64) {
 				fs := 0.5 * Np12 * edgeLen / Jdet
 				edgeMax := -100.
 				for i := shift; i < shift+Nedge; i++ {
-					qq := c.GetQQ(k, i, c.Q_Face)
+					qq := c.GetQQ(k, i, qfD)
 					u, v := qq[1]/qq[0], qq[2]/qq[0]
 					C := c.GetFlowFunction(qq, SoundSpeed)
 					waveSpeed := fs * (math.Sqrt(u*u+v*v) + C)
@@ -657,7 +660,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 				for i := 0; i < Nedge; i++ {
 					iL := i + shift
 					ind := k + iL*Kmax
-					QBC := c.RiemannBC(k, iL, c.Qinf, normal)
+					QBC := c.RiemannBC(k, iL, qfD, c.Qinf, normal)
 					qfD[0][ind] = QBC[0]
 					qfD[1][ind] = QBC[1]
 					qfD[2][ind] = QBC[2]
@@ -676,7 +679,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 					var QBC [4]float64
 					if riemann {
 						Qinf := [4]float64{rho, rhoU, rhoV, E}
-						QBC = c.RiemannBC(k, iL, Qinf, normal)
+						QBC = c.RiemannBC(k, iL, qfD, Qinf, normal)
 					} else {
 						QBC = [4]float64{rho, rhoU, rhoV, E}
 					}
@@ -757,10 +760,10 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 				for i := 0; i < Nedge; i++ {
 					iL := i + shiftL
 					iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
-					qL := c.GetQQ(kL, iL, c.Q_Face)
+					qL := c.GetQQ(kL, iL, qfD)
 					rhoL, uL, vL = qL[0], qL[1]/qL[0], qL[2]/qL[0]
 					pL, CL = c.GetFlowFunction(qL, StaticPressure), c.GetFlowFunction(qL, SoundSpeed)
-					qR := c.GetQQ(kR, iR, c.Q_Face)
+					qR := c.GetQQ(kR, iR, qfD)
 					rhoR, uR, vR = qR[0], qR[1]/qR[0], qR[2]/qR[0]
 					pR, CR = c.GetFlowFunction(qR, StaticPressure), c.GetFlowFunction(qR, SoundSpeed)
 					fluxLeft[0], fluxLeft[1] = c.CalculateFlux(kL, iL, qfD)
@@ -798,10 +801,10 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 					// Rotate the momentum into face normal coordinates before calculating fluxes
 					rotateMomentum(kL, iL)
 					rotateMomentum(kR, iR)
-					qL := c.GetQQ(kL, iL, c.Q_Face)
+					qL := c.GetQQ(kL, iL, qfD)
 					rhoL, uL, vL = qL[0], qL[1]/qL[0], qL[2]/qL[0]
 					pL = c.GetFlowFunction(qL, StaticPressure)
-					qR := c.GetQQ(kR, iR, c.Q_Face)
+					qR := c.GetQQ(kR, iR, qfD)
 					rhoR, uR, vR = qR[0], qR[1]/qR[0], qR[2]/qR[0]
 					pR = c.GetFlowFunction(qR, StaticPressure)
 					fluxLeft[0], _ = c.CalculateFlux(kL, iL, qfD)
@@ -1050,16 +1053,16 @@ func (c *Euler) FluxCalc(q [4]float64) (Fx, Fy [4]float64) {
 	return
 }
 
-func (c *Euler) GetQQ(k, i int, Q [4]utils.Matrix) (qq [4]float64) {
+func (c *Euler) GetQQ(k, i int, Q [4][]float64) (qq [4]float64) {
 	var (
 		Kmax = c.dfr.K
 		ind  = k + Kmax*i
 	)
-	qq = [4]float64{Q[0].Data()[ind], Q[1].Data()[ind], Q[2].Data()[ind], Q[3].Data()[ind]}
+	qq = [4]float64{Q[0][ind], Q[1][ind], Q[2][ind], Q[3][ind]}
 	return
 }
 
-func (c *Euler) RiemannBC(k, i int, QInf [4]float64, normal [2]float64) (Q [4]float64) {
+func (c *Euler) RiemannBC(k, i int, QQ [4][]float64, QInf [4]float64, normal [2]float64) (Q [4]float64) {
 	/*
 			Use Riemann invariants along characteristic lines to calculate 1D flow properties normal to boundary
 		Rinf = VnormInf - 2 * Cinf / (Gamma -1)
@@ -1070,7 +1073,7 @@ func (c *Euler) RiemannBC(k, i int, QInf [4]float64, normal [2]float64) (Q [4]fl
 		P/(rho^Gamma) = constant
 	*/
 	var (
-		qq                 = c.GetQQ(k, i, c.Q_Face)
+		qq                 = c.GetQQ(k, i, QQ)
 		rhoInt, uInt, vInt = qq[0], qq[1] / qq[0], qq[2] / qq[0]
 		pInt               = c.GetFlowFunction(qq, StaticPressure)
 		CInt               = c.GetFlowFunction(qq, SoundSpeed)
@@ -1078,8 +1081,8 @@ func (c *Euler) RiemannBC(k, i int, QInf [4]float64, normal [2]float64) (Q [4]fl
 		GM1                = Gamma - 1.
 		OOGM1              = 1. / GM1
 		rhoInf, uInf, vInf = QInf[0], QInf[1] / QInf[0], QInf[2] / QInf[0]
-		pInf               = c.GetFlowFunction(QInf, StaticPressure)
-		CInf               = c.GetFlowFunction(QInf, SoundSpeed)
+		pInf               = c.Pinf
+		CInf               = c.Cinf
 		Vtang, Beta        float64
 		tangent            = [2]float64{-normal[1], normal[0]}
 	)
