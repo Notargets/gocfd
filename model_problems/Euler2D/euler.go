@@ -289,7 +289,7 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		if Time >= FinalTime || steps >= c.MaxIterations {
 			finished = true
 		}
-		if steps%pm.StepsBeforePlot == 0 || finished {
+		if steps%pm.StepsBeforePlot == 0 || finished || steps == 1 {
 			format := "%11.4e"
 			if plotQ {
 				c.PlotQ(c.Q, pm) // wait till we implement time iterative frame updates
@@ -330,24 +330,22 @@ func (c *Euler) PlotQ(Q [4]utils.Matrix, pm *PlotMeta) {
 	}
 	c.chart.fs = functions.NewFSurface(c.chart.gm, [][]float32{fI}, 0)
 	fmt.Printf(" Plot>%s min,max = %8.5f,%8.5f\n", pm.Field.String(), oField.Min(), oField.Max())
-	c.PlotFS(pm.FieldMinP, pm.FieldMaxP, 0.95*oField.Min(), 1.05*oField.Max(), scale, translate, lineType)
+	c.PlotFS(pm.FieldMinP, pm.FieldMaxP, oField.Min(), oField.Max(), scale, translate, lineType)
 	utils.SleepFor(int(delay.Milliseconds()))
 	return
 }
 
-func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField PlotField) (field utils.Matrix) {
+func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField PlotFunction) (field utils.Matrix) {
 	var (
 		Kmax = c.dfr.K
 		Np   = c.dfr.SolutionElement.Np
 	)
-	switch plotField {
-	case Density, XMomentum, YMomentum, Energy:
+	if plotField <= Energy {
 		field = c.dfr.FluxInterpMatrix.Mul(Q[int(plotField)])
-	case Mach:
+	} else {
 		fld := utils.NewMatrix(Np, Kmax)
 		for ik := 0; ik < Kmax*Np; ik++ {
-			C, u, v := GetSpeedsDirect(ik, c.Gamma, Q)
-			fld.Data()[ik] = math.Sqrt(u*u+v*v) / C
+			fld.Data()[ik] = c.GetFunction(ik, Q, plotField)
 		}
 		field = c.dfr.FluxInterpMatrix.Mul(fld)
 	}
@@ -356,33 +354,37 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField PlotField) (field util
 
 func (c *Euler) PlotFS(fminP, fmaxP *float64, fmin, fmax float64, scale float64, translate [2]float32, ltO ...chart2d.LineType) {
 	var (
-		fs      = c.chart.fs
-		trimesh = fs.Tris
-		lt      = chart2d.NoLine
+		fs             = c.chart.fs
+		trimesh        = fs.Tris
+		lt             = chart2d.NoLine
+		specifiedScale = fminP != nil || fmaxP != nil
+		autoScale      = !specifiedScale
 	)
 	if c.chart.chart == nil {
 		box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
 		box = box.Scale(float32(scale))
 		box = box.Translate(translate)
 		c.chart.chart = chart2d.NewChart2D(1900, 1080, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
-		colorMap := utils2.NewColorMap(float32(fmin), float32(fmax), 1.)
-		c.chart.chart.AddColorMap(colorMap)
 		go c.chart.chart.Plot()
-	}
-
-	if fminP != nil || fmaxP != nil {
-		switch {
-		case fminP != nil && fmaxP != nil:
-			fmin, fmax = *fminP, *fmaxP
-		case fminP != nil:
-			fmin = *fminP
-		case fmaxP != nil:
-			fmax = *fmaxP
+		if specifiedScale {
+			// Scale field min/max to preset values
+			switch {
+			case fminP != nil && fmaxP != nil:
+				fmin, fmax = *fminP, *fmaxP
+			case fminP != nil:
+				fmin = *fminP
+			case fmaxP != nil:
+				fmax = *fmaxP
+			}
+			colorMap := utils2.NewColorMap(float32(fmin), float32(fmax), 1.)
+			c.chart.chart.AddColorMap(colorMap)
 		}
+	}
+	if autoScale {
+		// Autoscale field min/max every time
 		colorMap := utils2.NewColorMap(float32(fmin), float32(fmax), 1.)
 		c.chart.chart.AddColorMap(colorMap)
 	}
-
 	white := color.RGBA{R: 255, G: 255, B: 255, A: 1}
 	black := color.RGBA{R: 0, G: 0, B: 0, A: 1}
 	_, _ = white, black
@@ -433,7 +435,9 @@ func (c *Euler) CalculateDT() (dt float64) {
 				fs := 0.5 * Np12 * edgeLen / Jdet
 				edgeMax := -100.
 				for i := shift; i < shift+Nedge; i++ {
-					C, u, v := c.GetSpeeds(k, i, c.Q_Face)
+					qq := c.GetQQ(k, i, c.Q_Face)
+					u, v := qq[1]/qq[0], qq[2]/qq[0]
+					C := c.GetFunctionBase(qq, SoundSpeed)
 					waveSpeed := fs * (math.Sqrt(u*u+v*v) + C)
 					wsMax[nn] = math.Max(waveSpeed, wsMax[nn])
 					if waveSpeed > edgeMax {
@@ -468,65 +472,6 @@ func (c *Euler) CalculateDT() (dt float64) {
 		wsMaxAll = math.Max(wsMaxAll, wsMax[nn])
 	}
 	dt = c.CFL / wsMaxAll
-	return
-}
-
-func (c *Euler) GetState(k, i int, Q [4]utils.Matrix) (rho, u, v, p, C, E float64) {
-	var (
-		Gamma = c.Gamma
-		Kmax  = c.dfr.K
-		ind   = k + Kmax*i
-		q     = [4]float64{Q[0].Data()[ind], Q[1].Data()[ind], Q[2].Data()[ind], Q[3].Data()[ind]}
-	)
-	rho, u, v, p, C, E = GetPrimitiveVariables(Gamma, q)
-	return
-}
-
-func (c *Euler) GetPressure(k, i int, Q [4]utils.Matrix) (p float64) {
-	var (
-		Gamma              = c.Gamma
-		GM1                = Gamma - 1.
-		Kmax               = c.dfr.K
-		ind                = k + Kmax*i
-		rho, rhou, rhov, E = Q[0].Data()[ind], Q[1].Data()[ind], Q[2].Data()[ind], Q[3].Data()[ind]
-	)
-	p = GM1 * (E - 0.5*(rhou*rhou+rhov*rhov)/rho)
-	return
-}
-
-func (c *Euler) GetSpeeds(k, i int, Q [4]utils.Matrix) (C, u, v float64) {
-	var (
-		Kmax = c.dfr.K
-		ind  = k + Kmax*i
-	)
-	C, u, v = GetSpeedsDirect(ind, c.Gamma, Q)
-	return
-}
-
-func GetSpeedsDirect(ind int, gamma float64, Q [4]utils.Matrix) (C, u, v float64) {
-	var (
-		Gamma              = gamma
-		GM1                = Gamma - 1.
-		rho, rhou, rhov, E = Q[0].Data()[ind], Q[1].Data()[ind], Q[2].Data()[ind], Q[3].Data()[ind]
-		oorho              = 1. / rho
-		p                  = GM1 * (E - 0.5*(rhou*rhou+rhov*rhov)*oorho)
-	)
-	C = math.Sqrt(math.Abs(Gamma * p * oorho))
-	u = rhou * oorho
-	v = rhov * oorho
-	return
-}
-
-func GetPrimitiveVariables(Gamma float64, Q [4]float64) (rho, u, v, p, C, E float64) {
-	var (
-		GM1 = Gamma - 1.
-	)
-	rho = Q[0]
-	u = Q[1] / rho
-	v = Q[2] / rho
-	E = Q[3]
-	p = GM1 * (E - 0.5*rho*(u*u+v*v))
-	C = math.Sqrt(math.Abs(Gamma * p / rho))
 	return
 }
 
@@ -719,7 +664,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 				processFlux = false
 				for i := 0; i < Nedge; i++ {
 					ie := i + shift
-					p := c.GetPressure(k, ie, c.Q_Face) // Get pressure
+					p := c.GetFunction(k+ie*Kmax, c.Q_Face, StaticPressure)
 					for n := 0; n < 4; n++ {
 						normalFlux[i][0] = 0
 						normalFlux[i][3] = 0
@@ -786,8 +731,12 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 				for i := 0; i < Nedge; i++ {
 					iL := i + shiftL
 					iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
-					rhoL, uL, vL, pL, CL, _ = c.GetState(kL, iL, c.Q_Face)
-					rhoR, uR, vR, pR, CR, _ = c.GetState(kR, iR, c.Q_Face)
+					qL := c.GetQQ(kL, iL, c.Q_Face)
+					rhoL, uL, vL = qL[0], qL[1]/qL[0], qL[2]/qL[0]
+					pL, CL = c.GetFunctionBase(qL, StaticPressure), c.GetFunctionBase(qL, SoundSpeed)
+					qR := c.GetQQ(kR, iR, c.Q_Face)
+					rhoR, uR, vR = qR[0], qR[1]/qR[0], qR[2]/qR[0]
+					pR, CR = c.GetFunctionBase(qR, StaticPressure), c.GetFunctionBase(qR, SoundSpeed)
 					fluxLeft[0], fluxLeft[1] = c.CalculateFlux(kL, iL, c.Q_Face)
 					fluxRight[0], fluxRight[1] = c.CalculateFlux(kR, iR, c.Q_Face) // Reverse the right edge to match
 					maxV = math.Max(maxVF(uL, vL, pL, rhoL, CL), maxVF(uR, vR, pR, rhoR, CR))
@@ -801,11 +750,11 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 				}
 			case FLUX_Roe:
 				var (
-					rhoL, uL, vL, pL, EL float64
-					rhoR, uR, vR, pR, ER float64
-					hL, hR               float64
-					Gamma                = c.Gamma
-					GM1                  = Gamma - 1
+					rhoL, uL, vL, pL float64
+					rhoR, uR, vR, pR float64
+					hL, hR           float64
+					Gamma            = c.Gamma
+					GM1              = Gamma - 1
 				)
 				normal, _ := c.getEdgeNormal(0, e, en)
 				rotateMomentum := func(k, i int) {
@@ -823,15 +772,19 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 					// Rotate the momentum into face normal coordinates before calculating fluxes
 					rotateMomentum(kL, iL)
 					rotateMomentum(kR, iR)
-					rhoL, uL, vL, pL, _, EL = c.GetState(kL, iL, c.Q_Face)
-					rhoR, uR, vR, pR, _, ER = c.GetState(kR, iR, c.Q_Face)
+					qL := c.GetQQ(kL, iL, c.Q_Face)
+					rhoL, uL, vL = qL[0], qL[1]/qL[0], qL[2]/qL[0]
+					pL = c.GetFunctionBase(qL, StaticPressure)
+					qR := c.GetQQ(kR, iR, c.Q_Face)
+					rhoR, uR, vR = qR[0], qR[1]/qR[0], qR[2]/qR[0]
+					pR = c.GetFunctionBase(qR, StaticPressure)
 					fluxLeft[0], _ = c.CalculateFlux(kL, iL, c.Q_Face)
 					fluxRight[0], _ = c.CalculateFlux(kR, iR, c.Q_Face) // Reverse the right edge to match
 					/*
 					   HM = (EnerM+pM).dd(rhoM);  HP = (EnerP+pP).dd(rhoP);
 					*/
 					// Enthalpy
-					hL, hR = (EL+pL)/rhoL, (ER+pR)/rhoR
+					hL, hR = c.GetFunctionBase(qL, Enthalpy), c.GetFunctionBase(qR, Enthalpy)
 					/*
 						rhoMs = sqrt(rhoM); rhoPs = sqrt(rhoP);
 						rhoMsPs = rhoMs + rhoPs;
@@ -895,7 +848,6 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 					*/
 					// rotate back to Cartesian
 					normalFlux[i][1], normalFlux[i][2] = normal[0]*normalFlux[i][1]-normal[1]*normalFlux[i][2], normal[1]*normalFlux[i][1]+normal[0]*normalFlux[i][2]
-					// Project onto normal
 					for n := 0; n < 4; n++ {
 						normalFluxReversed[Nedge-1-i][n] = -normalFlux[i][n]
 					}
@@ -1071,6 +1023,15 @@ func FluxCalc(Gamma, rho, rhoU, rhoV, E float64) (Fx, Fy [4]float64) {
 	return
 }
 
+func (c *Euler) GetQQ(k, i int, Q [4]utils.Matrix) (qq [4]float64) {
+	var (
+		Kmax = c.dfr.K
+		ind  = k + Kmax*i
+	)
+	qq = [4]float64{Q[0].Data()[ind], Q[1].Data()[ind], Q[2].Data()[ind], Q[3].Data()[ind]}
+	return
+}
+
 func (c *Euler) RiemannBC(k, i int, QInf [4]float64, normal [2]float64) (Q [4]float64) {
 	/*
 			Use Riemann invariants along characteristic lines to calculate 1D flow properties normal to boundary
@@ -1082,13 +1043,18 @@ func (c *Euler) RiemannBC(k, i int, QInf [4]float64, normal [2]float64) (Q [4]fl
 		P/(rho^Gamma) = constant
 	*/
 	var (
-		rhoInt, uInt, vInt, pInt, CInt, _ = c.GetState(k, i, c.Q_Face)
-		Gamma                             = c.Gamma
-		GM1                               = Gamma - 1.
-		OOGM1                             = 1. / GM1
-		rhoInf, uInf, vInf, pInf, CInf, _ = GetPrimitiveVariables(Gamma, QInf)
-		Vtang, Beta                       float64
-		tangent                           = [2]float64{-normal[1], normal[0]}
+		qq                 = c.GetQQ(k, i, c.Q_Face)
+		rhoInt, uInt, vInt = qq[0], qq[1] / qq[0], qq[2] / qq[0]
+		pInt               = c.GetFunctionBase(qq, StaticPressure)
+		CInt               = c.GetFunctionBase(qq, SoundSpeed)
+		Gamma              = c.Gamma
+		GM1                = Gamma - 1.
+		OOGM1              = 1. / GM1
+		rhoInf, uInf, vInf = QInf[0], QInf[1] / QInf[0], QInf[2] / QInf[0]
+		pInf               = c.GetFunctionBase(QInf, StaticPressure)
+		CInf               = c.GetFunctionBase(QInf, SoundSpeed)
+		Vtang, Beta        float64
+		tangent            = [2]float64{-normal[1], normal[0]}
 	)
 	VnormInt := normal[0]*uInt + normal[1]*vInt
 	VnormInf := normal[0]*uInf + normal[1]*vInf
@@ -1119,26 +1085,48 @@ func (c *Euler) RiemannBC(k, i int, QInf [4]float64, normal [2]float64) (Q [4]fl
 
 /************ Graphics **************
  */
-type PlotField uint8
+type PlotFunction uint8
 
-func (pm PlotField) String() string {
-	strings := []string{"Density", "XMomentum", "YMomentum", "Energy", "Mach"}
+func (pm PlotFunction) String() string {
+	strings := []string{
+		"Density",
+		"XMomentum",
+		"YMomentum",
+		"Energy",
+		"Mach",
+		"Static Pressure",
+		"Dynamic Pressure",
+		"Pressure Coefficient",
+		"Sound Speed",
+		"Velocity",
+		"XVelocity",
+		"YVelocity",
+		"Enthalpy",
+	}
 	return strings[int(pm)]
 }
 
 const (
-	Density PlotField = iota
+	Density PlotFunction = iota
 	XMomentum
 	YMomentum
 	Energy
-	Mach
+	Mach                // 4
+	StaticPressure      // 5
+	DynamicPressure     // 6
+	PressureCoefficient // 7
+	SoundSpeed          // 8
+	Velocity            // 9
+	XVelocity           // 10
+	YVelocity           // 11
+	Enthalpy            // 12
 )
 
 type PlotMeta struct {
 	Plot                   bool
 	Scale                  float64
 	TranslateX, TranslateY float64
-	Field                  PlotField
+	Field                  PlotFunction
 	FieldMinP, FieldMaxP   *float64 // nil if no forced min, max
 	FrameTime              time.Duration
 	StepsBeforePlot        int
@@ -1158,3 +1146,78 @@ func (c *Euler) split1D(iMax, threadNum int) (istart, iend int) {
 	}
 	return
 }
+
+/************** Output */
+
+func (c *Euler) GetFunctionBase(Q [4]float64, pf PlotFunction) (f float64) {
+	var (
+		Gamma              = c.Gamma
+		GM1                = Gamma - 1.
+		rho, rhou, rhov, E = Q[0], Q[1], Q[2], Q[3]
+		oorho              = 1. / rho
+	)
+	switch pf {
+	case Density:
+		f = rho
+	case XMomentum:
+		f = rhou
+	case YMomentum:
+		f = rhov
+	case Energy:
+		f = E
+	case StaticPressure:
+		q := c.GetFunctionBase(Q, DynamicPressure)
+		f = GM1 * (E - q)
+	case DynamicPressure:
+		f = 0.5 * (rhou*rhou + rhov*rhov) * oorho
+	case PressureCoefficient:
+		q := c.GetFunctionBase(Q, DynamicPressure)
+		p := GM1 * (E - q)
+		pInf := c.GetFunctionBase(c.Qinf, StaticPressure)
+		qInf := c.GetFunctionBase(c.Qinf, DynamicPressure)
+		f = (p - pInf) / qInf
+	case SoundSpeed:
+		p := c.GetFunctionBase(Q, StaticPressure)
+		f = math.Sqrt(math.Abs(Gamma * p * oorho))
+	case Velocity:
+		f = math.Sqrt((rhou*rhou + rhov*rhov) * oorho)
+	case XVelocity:
+		f = rhou * oorho
+	case YVelocity:
+		f = rhov * oorho
+	case Mach:
+		U := c.GetFunctionBase(Q, Velocity)
+		C := c.GetFunctionBase(Q, SoundSpeed)
+		f = U / C
+	case Enthalpy:
+		p := c.GetFunctionBase(Q, StaticPressure)
+		f = (E + p) / rho
+	}
+	return
+}
+
+func (c *Euler) GetFunction(ind int, Q [4]utils.Matrix, pf PlotFunction) (f float64) {
+	var (
+		QI = [4]float64{Q[0].Data()[ind], Q[1].Data()[ind], Q[2].Data()[ind], Q[3].Data()[ind]}
+	)
+	f = c.GetFunctionBase(QI, pf)
+	return
+}
+
+/*
+func (c *Euler) OutputWalls(Q [4]utils.Matrix) {
+	var (
+		oField = c.GetPlotField(Q, plotField)
+		fI     = c.dfr.ConvertScalarToOutputMesh(oField)
+	)
+
+	if c.chart.gm == nil {
+		c.chart.gm = c.dfr.OutputMesh()
+	}
+	c.chart.fs = functions.NewFSurface(c.chart.gm, [][]float32{fI}, 0)
+	fmt.Printf(" Plot>%s min,max = %8.5f,%8.5f\n", pm.Field.String(), oField.Min(), oField.Max())
+	c.PlotFS(pm.FieldMinP, pm.FieldMaxP, 0.95*oField.Min(), 1.05*oField.Max(), scale, translate, lineType)
+	utils.SleepFor(int(delay.Milliseconds()))
+	return
+}
+*/

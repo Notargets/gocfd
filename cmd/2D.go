@@ -189,7 +189,7 @@ func Run2D(m2d *Model2D, ip *InputParameters) {
 		ip.Minf, ip.Gamma, ip.Alpha, ip.LocalTimeStepping, ip.MaxIterations, false, true)
 	pm := &Euler2D.PlotMeta{
 		Plot:            m2d.Graph,
-		Field:           Euler2D.PlotField(m2d.GraphField),
+		Field:           Euler2D.PlotFunction(m2d.GraphField),
 		FieldMinP:       m2d.fminP,
 		FieldMaxP:       m2d.fmaxP,
 		FrameTime:       m2d.Delay,
