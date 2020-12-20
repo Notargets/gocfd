@@ -15,5 +15,5 @@ generate:
 	go generate ./...
 
 bench:
-	#go test -run GetFlowFunction -bench=. ./model_problems/Euler2D/benchmarks/...
 	 go test github.com/notargets/gocfd/model_problems/Euler2D/benchmarks/... -bench=GetFlowFunction
+	 #go test github.com/notargets/gocfd/model_problems/Euler2D/benchmarks/... -bench=EulerSolve

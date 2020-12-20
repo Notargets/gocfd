@@ -224,6 +224,11 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
 	return
 }
 
+func Get4DP(Q [4]utils.Matrix) (qD [4][]float64) {
+	qD = [4][]float64{Q[0].Data(), Q[1].Data(), Q[2].Data(), Q[3].Data()}
+	return
+}
+
 func (c *Euler) Solve(pm *PlotMeta) {
 	var (
 		FinalTime        = c.FinalTime
@@ -234,6 +239,7 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		Np               = c.dfr.SolutionElement.Np
 		Kmax             = c.dfr.K
 		plotQ            = pm.Plot
+		wg               = sync.WaitGroup{}
 	)
 	// Initialize memory for RHS
 	for n := 0; n < 4; n++ {
@@ -241,6 +247,12 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		Q2[n] = utils.NewMatrix(Np, Kmax)
 		Residual[n] = Q1[n] // optimize memory using an alias
 	}
+	// Get pointers to the underlying data for each matrix
+	qD := Get4DP(c.Q)
+	q1D := Get4DP(Q1)
+	q2D := Get4DP(Q2)
+	resD := Get4DP(Residual)
+
 	fmt.Printf("Solving until finaltime = %8.5f or until Max Iterations = %d\n", FinalTime, c.MaxIterations)
 	c.InterpolateSolutionToEdges(c.Q)
 	start := time.Now()
@@ -249,51 +261,67 @@ func (c *Euler) Solve(pm *PlotMeta) {
 	fmt.Printf("       Res3         L1         L2\n")
 	for !finished {
 		dt = c.CalculateDT()
+		dtD := c.DT.Data()
 		if Time+dt > FinalTime {
 			dt = FinalTime - Time
 		}
 		rhsQ := c.RHS(c.Q, Time)
-		for n := 0; n < 4; n++ {
-			if c.LocalTimeStepping {
-				Q1[n].Apply4Parallel(rhsQ[n], c.Q[n], c.DT, func(q1, rhsq, q, dT float64) (res float64) {
-					res = q + rhsq*dT
-					return
-				}, c.ParallelDegree)
-			} else {
-				Q1[n].Apply3Parallel(rhsQ[n], c.Q[n], func(q1, rhsq, q float64) (res float64) {
-					res = q + rhsq*dt
-					return
-				}, c.ParallelDegree)
-			}
+		rhsD := Get4DP(rhsQ)
+		for np := 0; np < c.ParallelDegree; np++ {
+			ind, end := utils.Split1D(Kmax*Np, c.ParallelDegree, np)
+			wg.Add(1)
+			go func(ind, end int) {
+				for n := 0; n < 4; n++ {
+					for i := ind; i < end; i++ {
+						if c.LocalTimeStepping {
+							q1D[n][i] = qD[n][i] + rhsD[n][i]*dtD[i]
+						} else {
+							q1D[n][i] = qD[n][i] + rhsD[n][i]*dt
+						}
+					}
+				}
+				wg.Done()
+			}(ind, end)
+			wg.Wait()
 		}
 		rhsQ = c.RHS(Q1, Time)
-		for n := 0; n < 4; n++ {
-			if c.LocalTimeStepping {
-				Q2[n].Apply5Parallel(rhsQ[n], Q1[n], c.Q[n], c.DT, func(q2, rhsq, q1, q, dT float64) (res float64) {
-					res = 0.25 * (q1 + 3*q + rhsq*dT)
-					return
-				}, c.ParallelDegree)
-			} else {
-				Q2[n].Apply4Parallel(rhsQ[n], Q1[n], c.Q[n], func(q2, rhsq, q1, q float64) (res float64) {
-					res = 0.25 * (q1 + 3*q + rhsq*dt)
-					return
-				}, c.ParallelDegree)
-			}
+		rhsD = Get4DP(rhsQ)
+		for np := 0; np < c.ParallelDegree; np++ {
+			ind, end := utils.Split1D(Kmax*Np, c.ParallelDegree, np)
+			wg.Add(1)
+			go func(ind, end int) {
+				for n := 0; n < 4; n++ {
+					for i := ind; i < end; i++ {
+						if c.LocalTimeStepping {
+							q2D[n][i] = 0.25 * (q1D[n][i] + 3*qD[n][i] + rhsD[n][i]*dtD[i])
+						} else {
+							q2D[n][i] = 0.25 * (q1D[n][i] + 3*qD[n][i] + rhsD[n][i]*dt)
+						}
+					}
+				}
+				wg.Done()
+			}(ind, end)
+			wg.Wait()
 		}
 		rhsQ = c.RHS(Q2, Time)
-		for n := 0; n < 4; n++ {
-			if c.LocalTimeStepping {
-				Residual[n].Apply5Parallel(rhsQ[n], Q2[n], c.Q[n], c.DT, func(resid, rhsq, q2, q, dT float64) (res float64) {
-					res = (2. / 3) * (q2 - q + dT*rhsq)
-					return
-				}, c.ParallelDegree)
-			} else {
-				Residual[n].Apply4Parallel(rhsQ[n], Q2[n], c.Q[n], func(resid, rhsq, q2, q float64) (res float64) {
-					res = (2. / 3) * (q2 - q + dt*rhsq)
-					return
-				}, c.ParallelDegree)
-			}
-			c.Q[n].Add(Residual[n])
+		rhsD = Get4DP(rhsQ)
+		for np := 0; np < c.ParallelDegree; np++ {
+			ind, end := utils.Split1D(Kmax*Np, c.ParallelDegree, np)
+			wg.Add(1)
+			go func(ind, end int) {
+				for n := 0; n < 4; n++ {
+					for i := ind; i < end; i++ {
+						if c.LocalTimeStepping {
+							resD[n][i] = (2. / 3.) * (q2D[n][i] - qD[n][i] + rhsD[n][i]*dtD[i])
+						} else {
+							resD[n][i] = (2. / 3.) * (q2D[n][i] - qD[n][i] + rhsD[n][i]*dt)
+						}
+						qD[n][i] += resD[n][i]
+					}
+				}
+				wg.Done()
+			}(ind, end)
+			wg.Wait()
 		}
 		steps++
 		Time += dt
@@ -519,10 +547,11 @@ func (c *Euler) RHS(Q [4]utils.Matrix, Time float64) (RHSCalc [4]utils.Matrix) {
 
 func (c *Euler) DivideByJacobian(Nmax int, data []float64, scale float64) {
 	var (
-		Kmax = c.dfr.K
+		Kmax  = c.dfr.K
+		JdetD = c.dfr.Jdet.Data()
 	)
 	for k := 0; k < Kmax; k++ {
-		Jdet := c.dfr.Jdet.At(k, 0)
+		Jdet := JdetD[k]
 		for i := 0; i < Nmax; i++ {
 			ind := k + i*Kmax
 			data[ind] /= (Jdet * scale) // Multiply divergence by -1 to produce the RHS
@@ -535,8 +564,8 @@ func (c *Euler) AssembleRTNormalFlux(Q [4]utils.Matrix, Time float64) {
 		Kmax  = c.dfr.K
 		Nedge = c.dfr.FluxElement.Nedge
 		Np    = c.dfr.FluxElement.Np
-		qfD   = [4][]float64{c.Q_Face[0].Data(), c.Q_Face[1].Data(), c.Q_Face[2].Data(), c.Q_Face[3].Data()}
-		fdofD = [4][]float64{c.F_RT_DOF[0].Data(), c.F_RT_DOF[1].Data(), c.F_RT_DOF[2].Data(), c.F_RT_DOF[3].Data()}
+		qfD   = Get4DP(c.Q_Face)
+		fdofD = Get4DP(c.F_RT_DOF)
 	)
 	/*
 		Solver approach:
@@ -568,8 +597,8 @@ func (c *Euler) SetNormalFluxInternal(Q [4]utils.Matrix) {
 		Kmax  = c.dfr.K
 		Nint  = c.dfr.FluxElement.Nint
 		wg    = sync.WaitGroup{}
-		qD    = [4][]float64{Q[0].Data(), Q[1].Data(), Q[2].Data(), Q[3].Data()}
-		fdofD = [4][]float64{c.F_RT_DOF[0].Data(), c.F_RT_DOF[1].Data(), c.F_RT_DOF[2].Data(), c.F_RT_DOF[3].Data()}
+		qD    = Get4DP(Q)
+		fdofD = Get4DP(c.F_RT_DOF)
 	)
 	// Calculate flux and project into R and S (transformed) directions for the internal points
 	//for k := 0; k < Kmax; k++ {
@@ -774,8 +803,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 					indL, indR := kL+iL*Kmax, kR+iR*Kmax
 					for n := 0; n < 4; n++ {
 						normalFlux[i][n] = 0.5 * (normal[0]*(fluxLeft[0][n]+fluxRight[0][n]) + normal[1]*(fluxLeft[1][n]+fluxRight[1][n]))
-						qD := c.Q_Face[n].Data()
-						normalFlux[i][n] += 0.5 * maxV * (qD[indL] - qD[indR])
+						normalFlux[i][n] += 0.5 * maxV * (qfD[n][indL] - qfD[n][indR])
 						normalFluxReversed[Nedge-1-i][n] = -normalFlux[i][n]
 					}
 				}
@@ -989,7 +1017,7 @@ func (c *Euler) InitializeIVortex(X, Y utils.Matrix) (iv *isentropic_vortex.IVor
 		Q[n] = utils.NewMatrix(Np, Kmax)
 	}
 	iv = isentropic_vortex.NewIVortex(Beta, X0, Y0, Gamma)
-	qD := [4][]float64{Q[0].Data(), Q[1].Data(), Q[2].Data(), Q[3].Data()}
+	qD := Get4DP(Q)
 	xD, yD := X.Data(), Y.Data()
 	for ii := 0; ii < Np*Kmax; ii++ {
 		x, y := xD[ii], yD[ii]
@@ -1018,7 +1046,7 @@ func (c *Euler) InitializeMemory() {
 
 func (c *Euler) CalculateFluxTransformed(k, i int, QQ [4][]float64) (Fr, Fs [4]float64) {
 	var (
-		Jdet = c.dfr.Jdet.At(k, 0)
+		Jdet = c.dfr.Jdet.Data()[k]
 		Jinv = c.dfr.Jinv.Data()[4*k : 4*(k+1)]
 	)
 	Fx, Fy := c.CalculateFlux(k, i, QQ)

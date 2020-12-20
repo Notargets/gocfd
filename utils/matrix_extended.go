@@ -151,11 +151,13 @@ func (m Matrix) MulParallel(A Matrix, nP int) (R Matrix) { // Does not change re
 		nrM, _   = m.Dims()
 		nrA, ncA = A.M.Dims()
 		wg       = sync.WaitGroup{}
+		aD       = A.Data()
 	)
 	if nP > ncA {
 		nP = ncA
 	}
 	R = NewMatrix(nrM, ncA)
+	rD := R.Data()
 	ncAChunk := Split1DMaxChunk(ncA, nP)
 	subAChunkSize := nrA * ncAChunk
 	subRChunkSize := nrM * ncAChunk
@@ -167,18 +169,20 @@ func (m Matrix) MulParallel(A Matrix, nP int) (R Matrix) { // Does not change re
 		wg.Add(1)
 		go func(ind, end, ncSubA, n int) {
 			subA := NewMatrix(nrA, ncSubA, subAstorage[n*subAChunkSize:])
+			sAD := subA.Data()
 			for j := 0; j < nrA; j++ {
 				var ii int
 				for i := ind; i < end; i++ {
-					subA.Data()[ii+ncSubA*j] = A.Data()[i+ncA*j]
+					sAD[ii+ncSubA*j] = aD[i+ncA*j]
 					ii++
 				}
 			}
 			subR := m.Mul(subA, subRstorage[n*subRChunkSize:])
+			sRD := subR.Data()
 			for j := 0; j < nrM; j++ {
 				var ii int
 				for i := ind; i < end; i++ {
-					R.Data()[i+ncA*j] = subR.Data()[ii+ncSubA*j]
+					rD[i+ncA*j] = sRD[ii+ncSubA*j]
 					ii++
 				}
 			}

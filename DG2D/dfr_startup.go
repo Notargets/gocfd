@@ -167,17 +167,19 @@ func (dfr *DFR2D) CalculateFaceNorms() {
 
 func (dfr *DFR2D) ProjectFluxOntoRTSpace(Fx, Fy utils.Matrix) (Fp utils.Matrix) {
 	var (
-		Np = dfr.FluxElement.Np
-		K  = dfr.K
-		rt = dfr.FluxElement
+		Np       = dfr.FluxElement.Np
+		K        = dfr.K
+		rt       = dfr.FluxElement
+		JdetD    = dfr.Jdet.Data()
+		JinvD    = dfr.Jinv.Data()
+		fxD, fyD = Fx.Data(), Fy.Data()
 	)
 	Fp = utils.NewMatrix(K, Np)
+	fpD := Fp.Data()
 	for k := 0; k < K; k++ {
 		var (
-			Jdet     = dfr.Jdet.Row(k).Data()[0]
-			Jinv     = dfr.Jinv.Row(k).Data()[0:4]
-			fxD, fyD = Fx.Data(), Fy.Data()
-			fpD      = Fp.Data()
+			Jdet = JdetD[k]
+			Jinv = JinvD[4*k : 4*k+4]
 		)
 		for n := 0; n < Np; n++ {
 			ind := n + k*Np
