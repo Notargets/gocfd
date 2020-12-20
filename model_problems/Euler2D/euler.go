@@ -378,7 +378,7 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField PlotFunction) (field u
 	var (
 		Kmax = c.dfr.K
 		Np   = c.dfr.SolutionElement.Np
-		qfD  = [4][]float64{Q[0].Data(), Q[1].Data(), Q[2].Data(), Q[3].Data()}
+		qD   = Get4DP(Q)
 	)
 	if plotField <= Energy {
 		field = c.dfr.FluxInterpMatrix.Mul(Q[int(plotField)])
@@ -386,7 +386,7 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField PlotFunction) (field u
 		fld := utils.NewMatrix(Np, Kmax)
 		fldD := fld.Data()
 		for ik := 0; ik < Kmax*Np; ik++ {
-			fldD[ik] = c.GetFlowFunctionAtIndex(ik, qfD, plotField)
+			fldD[ik] = c.GetFlowFunctionAtIndex(ik, qD, plotField)
 		}
 		field = c.dfr.FluxInterpMatrix.Mul(fld)
 	}
@@ -444,7 +444,8 @@ func (c *Euler) CalculateDT() (dt float64) {
 		wsMaxAll = -math.MaxFloat64
 		wsMax    = make([]float64, c.ParallelDegree)
 		wg       = sync.WaitGroup{}
-		qfD      = [4][]float64{c.Q_Face[0].Data(), c.Q_Face[1].Data(), c.Q_Face[2].Data(), c.Q_Face[3].Data()}
+		qfD      = Get4DP(c.Q_Face)
+		JdetD    = c.dfr.Jdet.Data()
 	)
 	// Setup max wavespeed before loop
 	dtD := c.DT.Data()
@@ -473,7 +474,7 @@ func (c *Euler) CalculateDT() (dt float64) {
 					edgeNum = int(e.ConnectedTriEdgeNumber[conn])
 					shift   = edgeNum * Nedge
 				)
-				Jdet := c.dfr.Jdet.At(k, 0)
+				Jdet := JdetD[k]
 				// fmt.Printf("N, Np12, edgelen, Jdet = %d,%8.5f,%8.5f,%8.5f\n", c.dfr.N, Np12, edgeLen, Jdet)
 				fs := 0.5 * Np12 * edgeLen / Jdet
 				edgeMax := -100.
@@ -578,11 +579,9 @@ func (c *Euler) AssembleRTNormalFlux(Q [4]utils.Matrix, Time float64) {
 		Zero out DOF storage and Q_Face to promote easier bug avoidance
 	*/
 	for n := 0; n < 4; n++ {
-		//c.Q_Face[n].Scale(0.)
 		for i := 0; i < Kmax*Nedge; i++ {
 			qfD[n][i] = 0.
 		}
-		//c.F_RT_DOF[n].Scale(0.)
 		for i := 0; i < Kmax*Np; i++ {
 			fdofD[n][i] = 0.
 		}
@@ -682,7 +681,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 				shift       = edgeNumber * Nedge
 				riemann     = true
 				processFlux bool
-				qfD         = [4][]float64{c.Q_Face[0].Data(), c.Q_Face[1].Data(), c.Q_Face[2].Data(), c.Q_Face[3].Data()}
+				qfD         = Get4DP(c.Q_Face)
 			)
 			processFlux = true
 			normal, _ := c.getEdgeNormal(0, e, en)
@@ -752,7 +751,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 				edgeNumberL, edgeNumberR = int(e.ConnectedTriEdgeNumber[0]), int(e.ConnectedTriEdgeNumber[1])
 				shiftL, shiftR           = edgeNumberL * Nedge, edgeNumberR * Nedge
 				fluxLeft, fluxRight      [2][4]float64
-				qfD                      = [4][]float64{c.Q_Face[0].Data(), c.Q_Face[1].Data(), c.Q_Face[2].Data(), c.Q_Face[3].Data()}
+				qfD                      = Get4DP(c.Q_Face)
 			)
 			switch c.FluxCalcAlgo {
 			case FLUX_Average:
@@ -1223,7 +1222,7 @@ func (c *Euler) GetFlowFunction(Q [4]float64, pf PlotFunction) (f float64) {
 	}
 	// Calculate p if needed
 	switch pf {
-	case PressureCoefficient, SoundSpeed, Enthalpy:
+	case PressureCoefficient, SoundSpeed, Enthalpy, Mach:
 		p = GM1 * (E - q)
 	}
 
