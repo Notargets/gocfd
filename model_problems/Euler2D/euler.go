@@ -253,9 +253,14 @@ func (c *Euler) Solve(pm *PlotMeta) {
 	q2D := Get4DP(Q2)
 	resD := Get4DP(Residual)
 
-	fmt.Printf("Solving until finaltime = %8.5f or until Max Iterations = %d\n", FinalTime, c.MaxIterations)
+	if c.LocalTimeStepping {
+		fmt.Printf("Solving until Max Iterations = %d\n", c.MaxIterations)
+		fmt.Printf("    iter                ")
+	} else {
+		fmt.Printf("Solving until finaltime = %8.5f\n", FinalTime)
+		fmt.Printf("    iter    time  min_dt")
+	}
 	start := time.Now()
-	fmt.Printf("    iter    time  min_dt")
 	fmt.Printf("       Res0       Res1       Res2")
 	fmt.Printf("       Res3         L1         L2\n")
 	for !finished {
@@ -332,7 +337,11 @@ func (c *Euler) Solve(pm *PlotMeta) {
 			if plotQ {
 				c.PlotQ(c.Q, pm) // wait till we implement time iterative frame updates
 			}
-			fmt.Printf("%8d%8.5f%8.5f", steps, Time, dt)
+			if c.LocalTimeStepping {
+				fmt.Printf("%10d              ", steps)
+			} else {
+				fmt.Printf("%8d%8.5f%8.5f", steps, Time, dt)
+			}
 			var l1, l2 float64
 			for n := 0; n < 4; n++ {
 				maxR := Residual[n].Max()
@@ -464,7 +473,8 @@ func (c *Euler) CalculateDT() (dt float64) {
 				e := c.dfr.Tris.Edges[edgeKey]
 				// for _, e := range c.dfr.Tris.Edges {
 				var (
-					//edgeLen = e.GetEdgeLength()
+					edgeLen = e.GetEdgeLength()
+					//edgeLen = e.IInII[0]
 					Nedge = c.dfr.FluxElement.Nedge
 				)
 				conn := 0
@@ -475,8 +485,8 @@ func (c *Euler) CalculateDT() (dt float64) {
 				)
 				Jdet := JdetD[k]
 				// fmt.Printf("N, Np12, edgelen, Jdet = %d,%8.5f,%8.5f,%8.5f\n", c.dfr.N, Np12, edgeLen, Jdet)
-				//fs := 0.5 * Np12 * edgeLen / Jdet
-				fs := 0.5 * Np12 / math.Sqrt(Jdet) // Using the Sqrt of area is more aggressive
+				fs := 0.5 * Np12 * edgeLen / Jdet
+				//fs := 0.5 * Np12 / math.Sqrt(Jdet) // Using the Sqrt of area is more aggressive
 				edgeMax := -100.
 				for i := shift; i < shift+Nedge; i++ {
 					qq := c.GetQQ(k, i, qfD)
