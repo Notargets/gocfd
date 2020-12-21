@@ -254,19 +254,18 @@ func (c *Euler) Solve(pm *PlotMeta) {
 	resD := Get4DP(Residual)
 
 	fmt.Printf("Solving until finaltime = %8.5f or until Max Iterations = %d\n", FinalTime, c.MaxIterations)
-	c.InterpolateSolutionToEdges(c.Q)
 	start := time.Now()
 	fmt.Printf("    iter    time  min_dt")
 	fmt.Printf("       Res0       Res1       Res2")
 	fmt.Printf("       Res3         L1         L2\n")
 	for !finished {
+		rhsQ := c.RHS(c.Q, Time)
+		rhsD := Get4DP(rhsQ)
 		dt = c.CalculateDT()
 		dtD := c.DT.Data()
 		if Time+dt > FinalTime {
 			dt = FinalTime - Time
 		}
-		rhsQ := c.RHS(c.Q, Time)
-		rhsD := Get4DP(rhsQ)
 		for np := 0; np < c.ParallelDegree; np++ {
 			ind, end := utils.Split1D(Kmax*Np, c.ParallelDegree, np)
 			wg.Add(1)
@@ -465,8 +464,8 @@ func (c *Euler) CalculateDT() (dt float64) {
 				e := c.dfr.Tris.Edges[edgeKey]
 				// for _, e := range c.dfr.Tris.Edges {
 				var (
-					edgeLen = e.GetEdgeLength()
-					Nedge   = c.dfr.FluxElement.Nedge
+					//edgeLen = e.GetEdgeLength()
+					Nedge = c.dfr.FluxElement.Nedge
 				)
 				conn := 0
 				var (
@@ -476,13 +475,14 @@ func (c *Euler) CalculateDT() (dt float64) {
 				)
 				Jdet := JdetD[k]
 				// fmt.Printf("N, Np12, edgelen, Jdet = %d,%8.5f,%8.5f,%8.5f\n", c.dfr.N, Np12, edgeLen, Jdet)
-				fs := 0.5 * Np12 * edgeLen / Jdet
+				//fs := 0.5 * Np12 * edgeLen / Jdet
+				fs := 0.5 * Np12 / math.Sqrt(Jdet) // Using the Sqrt of area is more aggressive
 				edgeMax := -100.
 				for i := shift; i < shift+Nedge; i++ {
 					qq := c.GetQQ(k, i, qfD)
-					u, v := qq[1]/qq[0], qq[2]/qq[0]
 					C := c.GetFlowFunction(qq, SoundSpeed)
-					waveSpeed := fs * (math.Sqrt(u*u+v*v) + C)
+					U := c.GetFlowFunction(qq, Velocity)
+					waveSpeed := fs * (U + C)
 					wsMax[nn] = math.Max(waveSpeed, wsMax[nn])
 					if waveSpeed > edgeMax {
 						edgeMax = waveSpeed
@@ -1251,7 +1251,7 @@ func (c *Euler) GetFlowFunction(Q [4]float64, pf PlotFunction) (f float64) {
 		f = rhov * oorho
 	case Mach:
 		C := math.Sqrt(math.Abs(Gamma * p * oorho))
-		U := math.Sqrt((rhou*rhou + rhov*rhov) * oorho)
+		U := math.Sqrt((rhou*rhou + rhov*rhov)) * oorho
 		f = U / C
 	case Enthalpy:
 		f = (E + p) / rho

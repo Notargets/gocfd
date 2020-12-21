@@ -234,17 +234,6 @@ Line Loop(9) = {5,6,7,20,21};
 Line Loop(10) = {2,3,4,1};
 Plane Surface(11) = {9,10};
 
-//Field[1] = Box;
-//Field[1].VIn = 0.01;
-//Field[1].VOut = 1;
-//Field[1].XMax = 0.6;
-//Field[1].XMin = 0.4;
-//Field[1].YMax = 0.1;
-//Field[1].YMin = -0.1;
-//Field[1].ZMax = 1;
-//Field[1].ZMin = -1;
-
-//Field[2] = Distance;
-//Field[2].NumPointsPerCurve = 10;
-//Field[2].CurvesList = {1,2,3,4};
-//Background Field = 2;
+Physical Curve("wall") = {2,3,4,1};
+Physical Curve("far") = {5,6,7,20,21};
+Physical Surface("mesh") = {11};
