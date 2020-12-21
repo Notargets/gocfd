@@ -823,16 +823,14 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 					hL, hR           float64
 					Gamma            = c.Gamma
 					GM1              = Gamma - 1
+					qfD              = Get4DP(c.Q_Face)
 				)
 				normal, _ := c.getEdgeNormal(0, e, en)
 				rotateMomentum := func(k, i int) {
-					var (
-						umD, vmD = c.Q_Face[1].Data(), c.Q_Face[2].Data()
-					)
 					ind := k + i*Kmax
-					um, vm := umD[ind], vmD[ind]
-					umD[ind] = um*normal[0] + vm*normal[1]
-					vmD[ind] = -um*normal[1] + vm*normal[0]
+					um, vm := qfD[1][ind], qfD[2][ind]
+					qfD[1][ind] = um*normal[0] + vm*normal[1]
+					qfD[2][ind] = -um*normal[1] + vm*normal[0]
 				}
 				for i := 0; i < Nedge; i++ {
 					iL := i + shiftL
