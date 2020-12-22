@@ -231,14 +231,14 @@ func Get4DP(Q [4]utils.Matrix) (qD [4][]float64) {
 
 func (c *Euler) Solve(pm *PlotMeta) {
 	var (
-		FinalTime        = c.FinalTime
-		Time, dt         float64
-		Q1, Q2, Residual [4]utils.Matrix
-		steps            int
-		finished         bool
-		Np               = c.dfr.SolutionElement.Np
-		Kmax             = c.dfr.K
-		plotQ            = pm.Plot
+		FinalTime            = c.FinalTime
+		Time, dt             float64
+		Q1, Q2, Q3, Residual [4]utils.Matrix
+		steps                int
+		finished             bool
+		Np                   = c.dfr.SolutionElement.Np
+		Kmax                 = c.dfr.K
+		plotQ                = pm.Plot
 	)
 	fmt.Printf("Using mesh from file: [%s]\n", c.MeshFile)
 	if c.LocalTimeStepping {
@@ -254,10 +254,11 @@ func (c *Euler) Solve(pm *PlotMeta) {
 	for n := 0; n < 4; n++ {
 		Q1[n] = utils.NewMatrix(Np, Kmax)
 		Q2[n] = utils.NewMatrix(Np, Kmax)
+		Q3[n] = utils.NewMatrix(Np, Kmax)
 	}
 	start := time.Now()
 	for !finished {
-		Residual, dt = c.RungeKutta3SSP(Time, Q1, Q2)
+		Residual, dt = c.RungeKutta4SSP(Time, Q1, Q2, Q3)
 		steps++
 		Time += dt
 		if Time >= FinalTime || steps >= c.MaxIterations {
@@ -363,6 +364,107 @@ func (c *Euler) RungeKutta3SSP(Time float64, Q1, Q2 [4]utils.Matrix) (Residual [
 						dT = dtD[i]
 					}
 					resD[n][i] = (2. / 3.) * (q2D[n][i] - qD[n][i] + 0.5*rhsD[n][i]*dT)
+					qD[n][i] += resD[n][i]
+				}
+			}
+			wg.Done()
+		}(ind, end)
+	}
+	wg.Wait()
+	return
+}
+
+func (c *Euler) RungeKutta4SSP(Time float64, Q1, Q2, Q3 [4]utils.Matrix) (Residual [4]utils.Matrix, dt float64) {
+	var (
+		Np   = c.dfr.SolutionElement.Np
+		Kmax = c.dfr.K
+		wg   = sync.WaitGroup{}
+	)
+	for n := 0; n < 4; n++ {
+		Residual[n] = Q1[n] // optimize memory using an alias
+	}
+	// Get pointers to the underlying data for each matrix
+	qD := Get4DP(c.Q)
+	q1D := Get4DP(Q1)
+	q2D := Get4DP(Q2)
+	q3D := Get4DP(Q3)
+	resD := Get4DP(Residual)
+	dtD := c.DT.Data()
+
+	rhsQ := c.RHS(c.Q, Time)
+	rhsD := Get4DP(rhsQ)
+	dt = c.CalculateDT()
+	if Time+dt > c.FinalTime {
+		dt = c.FinalTime - Time
+	}
+	for np := 0; np < c.ParallelDegree; np++ {
+		ind, end := utils.Split1D(Kmax*Np, c.ParallelDegree, np)
+		wg.Add(1)
+		go func(ind, end int) {
+			var dT = dt
+			for n := 0; n < 4; n++ {
+				for i := ind; i < end; i++ {
+					if c.LocalTimeStepping {
+						dT = dtD[i]
+					}
+					q1D[n][i] = qD[n][i] + 0.5*rhsD[n][i]*dT
+				}
+			}
+			wg.Done()
+		}(ind, end)
+	}
+	wg.Wait()
+	rhsQ = c.RHS(Q1, Time)
+	rhsD = Get4DP(rhsQ)
+	for np := 0; np < c.ParallelDegree; np++ {
+		ind, end := utils.Split1D(Kmax*Np, c.ParallelDegree, np)
+		wg.Add(1)
+		go func(ind, end int) {
+			var dT = dt
+			for n := 0; n < 4; n++ {
+				for i := ind; i < end; i++ {
+					if c.LocalTimeStepping {
+						dT = dtD[i]
+					}
+					q2D[n][i] = q1D[n][i] + 0.25*rhsD[n][i]*dT
+				}
+			}
+			wg.Done()
+		}(ind, end)
+	}
+	wg.Wait()
+	rhsQ = c.RHS(Q2, Time)
+	rhsD = Get4DP(rhsQ)
+	for np := 0; np < c.ParallelDegree; np++ {
+		ind, end := utils.Split1D(Kmax*Np, c.ParallelDegree, np)
+		wg.Add(1)
+		go func(ind, end int) {
+			var dT = dt
+			for n := 0; n < 4; n++ {
+				for i := ind; i < end; i++ {
+					if c.LocalTimeStepping {
+						dT = dtD[i]
+					}
+					q3D[n][i] = (1. / 3.) * (2*qD[n][i] + q2D[n][i] + rhsD[n][i]*dT)
+				}
+			}
+			wg.Done()
+		}(ind, end)
+	}
+	wg.Wait()
+	rhsQ = c.RHS(Q3, Time)
+	rhsD = Get4DP(rhsQ)
+	for np := 0; np < c.ParallelDegree; np++ {
+		ind, end := utils.Split1D(Kmax*Np, c.ParallelDegree, np)
+		wg.Add(1)
+		go func(ind, end int) {
+			var dT = dt
+			for n := 0; n < 4; n++ {
+				for i := ind; i < end; i++ {
+					if c.LocalTimeStepping {
+						dT = dtD[i]
+					}
+					resD[n][i] = q3D[n][i] + 0.25*rhsD[n][i]*dT - qD[n][i]
 					qD[n][i] += resD[n][i]
 				}
 			}
