@@ -317,52 +317,37 @@ func (c *Euler) RungeKutta3SSP(Time float64, Q1, Q2 [4]utils.Matrix) (Residual [
 	for np := 0; np < c.ParallelDegree; np++ {
 		ind, end := utils.Split1D(Kmax*Np, c.ParallelDegree, np)
 		wg.Add(1)
-		if c.LocalTimeStepping {
-			go func(ind, end int) {
-				for n := 0; n < 4; n++ {
-					for i := ind; i < end; i++ {
-						q1D[n][i] = qD[n][i] + rhsD[n][i]*dtD[i]
+		go func(ind, end int) {
+			var dT = dt
+			for n := 0; n < 4; n++ {
+				for i := ind; i < end; i++ {
+					if c.LocalTimeStepping {
+						dT = dtD[i]
 					}
+					q1D[n][i] = qD[n][i] + rhsD[n][i]*dT
 				}
-				wg.Done()
-			}(ind, end)
-		} else {
-			go func(ind, end int) {
-				for n := 0; n < 4; n++ {
-					for i := ind; i < end; i++ {
-						q1D[n][i] = qD[n][i] + rhsD[n][i]*dt
-					}
-				}
-				wg.Done()
-			}(ind, end)
-		}
+			}
+			wg.Done()
+		}(ind, end)
 	}
 	wg.Wait()
 	rhsQ = c.RHS(Q1, Time)
 	rhsD = Get4DP(rhsQ)
 	for np := 0; np < c.ParallelDegree; np++ {
 		ind, end := utils.Split1D(Kmax*Np, c.ParallelDegree, np)
-		if c.LocalTimeStepping {
-			wg.Add(1)
-			go func(ind, end int) {
-				for n := 0; n < 4; n++ {
-					for i := ind; i < end; i++ {
-						q2D[n][i] = 0.25 * (q1D[n][i] + 3*qD[n][i] + rhsD[n][i]*dtD[i])
+		wg.Add(1)
+		go func(ind, end int) {
+			var dT = dt
+			for n := 0; n < 4; n++ {
+				for i := ind; i < end; i++ {
+					if c.LocalTimeStepping {
+						dT = dtD[i]
 					}
+					q2D[n][i] = 0.25 * (q1D[n][i] + 3*qD[n][i] + rhsD[n][i]*dT)
 				}
-				wg.Done()
-			}(ind, end)
-		} else {
-			wg.Add(1)
-			go func(ind, end int) {
-				for n := 0; n < 4; n++ {
-					for i := ind; i < end; i++ {
-						q2D[n][i] = 0.25 * (q1D[n][i] + 3*qD[n][i] + rhsD[n][i]*dt)
-					}
-				}
-				wg.Done()
-			}(ind, end)
-		}
+			}
+			wg.Done()
+		}(ind, end)
 	}
 	wg.Wait()
 	rhsQ = c.RHS(Q2, Time)
@@ -370,27 +355,19 @@ func (c *Euler) RungeKutta3SSP(Time float64, Q1, Q2 [4]utils.Matrix) (Residual [
 	for np := 0; np < c.ParallelDegree; np++ {
 		ind, end := utils.Split1D(Kmax*Np, c.ParallelDegree, np)
 		wg.Add(1)
-		if c.LocalTimeStepping {
-			go func(ind, end int) {
-				for n := 0; n < 4; n++ {
-					for i := ind; i < end; i++ {
-						resD[n][i] = (2. / 3.) * (q2D[n][i] - qD[n][i] + 0.5*rhsD[n][i]*dtD[i])
-						qD[n][i] += resD[n][i]
+		go func(ind, end int) {
+			var dT = dt
+			for n := 0; n < 4; n++ {
+				for i := ind; i < end; i++ {
+					if c.LocalTimeStepping {
+						dT = dtD[i]
 					}
+					resD[n][i] = (2. / 3.) * (q2D[n][i] - qD[n][i] + 0.5*rhsD[n][i]*dT)
+					qD[n][i] += resD[n][i]
 				}
-				wg.Done()
-			}(ind, end)
-		} else {
-			go func(ind, end int) {
-				for n := 0; n < 4; n++ {
-					for i := ind; i < end; i++ {
-						resD[n][i] = (2. / 3.) * (q2D[n][i] - qD[n][i] + 0.5*rhsD[n][i]*dt)
-						qD[n][i] += resD[n][i]
-					}
-				}
-				wg.Done()
-			}(ind, end)
-		}
+			}
+			wg.Done()
+		}(ind, end)
 	}
 	wg.Wait()
 	return
