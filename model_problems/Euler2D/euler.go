@@ -332,7 +332,7 @@ func (c *Euler) Solve(pm *PlotMeta) {
 				go func(ind, end int) {
 					for n := 0; n < 4; n++ {
 						for i := ind; i < end; i++ {
-							resD[n][i] = (2. / 3.) * (q2D[n][i] - qD[n][i] + rhsD[n][i]*dtD[i])
+							resD[n][i] = (2. / 3.) * (q2D[n][i] - qD[n][i] + 0.5*rhsD[n][i]*dtD[i])
 							qD[n][i] += resD[n][i]
 						}
 					}
@@ -342,7 +342,7 @@ func (c *Euler) Solve(pm *PlotMeta) {
 				go func(ind, end int) {
 					for n := 0; n < 4; n++ {
 						for i := ind; i < end; i++ {
-							resD[n][i] = (2. / 3.) * (q2D[n][i] - qD[n][i] + rhsD[n][i]*dt)
+							resD[n][i] = (2. / 3.) * (q2D[n][i] - qD[n][i] + 0.5*rhsD[n][i]*dt)
 							qD[n][i] += resD[n][i]
 						}
 					}
