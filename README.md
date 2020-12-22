@@ -15,23 +15,27 @@ Density | X Momentum | Density
 - Jan S. Hesthaven and Tim Warburton for their excellent text "Nodal Discontinuous Galerkin Methods" (2007)
 - J. Romero, K. Asthana and Antony Jameson for "A Simplified Formulation of the Flux Reconstruction Method" (2015) for the DFR approach with Raviart-Thomas elements
 
-### Updates (Dec 15, 2020):
-![](images/scaling-study-vortex-opt.gif)
+### Updates (Dec 22, 2020):
+![](images/convergence-naca0012.PNG)
 
-The solver now uses multiple cores / CPUs to speed things up. The speedup is somewhat limited, I'm currently getting about 6x speedup on a 16 core machine, but it was very short work to get this level of speedup (a couple of hours). The face computations are parallelized very efficiently, and the same approach and structure should be fine to scale to thousands of cores.
+In the graph we compare convergence to steady state using two kinds of flux calculation and two types of Runge Kutta time advancement. The RK4 SSP time advancement is far superior in terms of CFL stability, as expected, without much increase in computational work or storage as compared with the RK3 method. The difference between the interpolated flux and the normal (interpolated Q, then calculate flux) is very small.
 
-The shortcoming of the current parallelism is that it uses only 4 processes to handle the heavy compute matrix multiplications, so about half of the computation is only getting four cores applied to it. The number 4 comes from the number of 2D Euler equations (mass, x,y momentum and energy = 4 equations). I could improve the speedup drastically by re-arranging the core to accept partitioned meshes, but in 2D I think that might be overkill. The 3D solver will absolutely be built to do parallelism this way, so that we can use 1000 core architectures, like GPUs. I did parallelize the matrix multiplication directly, but the overhead is too high without more aggressive memory re-use work, which would begin to make the code ugly. 
+A lot of progress across a number of areas this week:
+- Time advancement scheme - RK4 SSP in place of RK3 SSP, big stability and speed improvement with CFL now up to 4 (was 2) on NACA 0012 test cases
+- Experiments with direct interpolation of Flux to edges in place of interpolation of conserved variables and calculation of flux
+-- did not appear to improve odd-even oscillations or higher order stability
+-- only tested on Lax flux, as current Roe flux would need extensive changes to implement
+- Convergence acceleration for steady state problems - local time stepping
+- Experiments with transonic flow with moderate shocks over airfoils
+-- Odd-even oscilations pollute the solution when there are shock waves and cause fatal instability for the Roe flux, although the Roe Flux is the original Roe flux, which has known issues with odd-even oscillation stability
 
-The animation shows a closeup of the isentropic vortex core on three meshes:
-- Coarse: 460 triangles
-- Middle: 2402 triangles
-- Fine: 32174 triangles
-
-On the left is the coarse mesh at Order=2 and Order=4, middle is the same for the medium mesh and on the right is the fine mesh at Order=2. We can see the benefits of both h (grid density) and p (polynomial degree) scaling and we can also see the time penalty for each increase in h or p density.
-
-This current work includes the use of periodic boundary conditions for the right and left boundaries, which works really well.
-
-Next up: solid wall BCs so we can run airfoils, cylinders, etc etc.
+As a result of the above experiments, the next focus is on:
+1) Solution filtering with shock/discontinuity detection
+- Must be compatible with higher order methods and allow high order fields with shocks without destroying the high order capture
+-- I found a promising compact WENO filtering scheme designed for high order Galerkin type methods, paper [here](research/filters_and_flux_limiters/multi-resolution_WENO_limiters_3D_tetrahedral_meshes.pdf)
+2) Multigrid convergence acceleration
+- A complication: normal multigrid methods use agglomeration to compose the lower order meshes from the fine mesh. Currently, we only have triangular elements, so we can not use quad or other polygons that arise from agglomeration.
+- A possible solution: compose RT and Lagrange elements for quads and polygons to enable later use in Navier-Stokes and multigrid
 
 ### Objectives
 
@@ -78,6 +82,24 @@ me@home:bash# gocfd 1D -g
 ### Run without graphics:
 me@home:bash# gocfd 1D
 ```
+### Updates (Dec 15, 2020):
+![](images/scaling-study-vortex-opt.gif)
+
+The solver now uses multiple cores / CPUs to speed things up. The speedup is somewhat limited, I'm currently getting about 6x speedup on a 16 core machine, but it was very short work to get this level of speedup (a couple of hours). The face computations are parallelized very efficiently, and the same approach and structure should be fine to scale to thousands of cores.
+
+The shortcoming of the current parallelism is that it uses only 4 processes to handle the heavy compute matrix multiplications, so about half of the computation is only getting four cores applied to it. The number 4 comes from the number of 2D Euler equations (mass, x,y momentum and energy = 4 equations). I could improve the speedup drastically by re-arranging the core to accept partitioned meshes, but in 2D I think that might be overkill. The 3D solver will absolutely be built to do parallelism this way, so that we can use 1000 core architectures, like GPUs. I did parallelize the matrix multiplication directly, but the overhead is too high without more aggressive memory re-use work, which would begin to make the code ugly. 
+
+The animation shows a closeup of the isentropic vortex core on three meshes:
+- Coarse: 460 triangles
+- Middle: 2402 triangles
+- Fine: 32174 triangles
+
+On the left is the coarse mesh at Order=2 and Order=4, middle is the same for the medium mesh and on the right is the fine mesh at Order=2. We can see the benefits of both h (grid density) and p (polynomial degree) scaling and we can also see the time penalty for each increase in h or p density.
+
+This current work includes the use of periodic boundary conditions for the right and left boundaries, which works really well.
+
+Next up: solid wall BCs so we can run airfoils, cylinders, etc etc.
+
 ### Updates (Nov 24 2020):
 The 2D Euler solver now works! Yay!
 
