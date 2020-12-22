@@ -253,6 +253,7 @@ func (c *Euler) Solve(pm *PlotMeta) {
 	q2D := Get4DP(Q2)
 	resD := Get4DP(Residual)
 
+	fmt.Printf("Using mesh from file: [%s]\n", c.MeshFile)
 	if c.LocalTimeStepping {
 		fmt.Printf("Solving until Max Iterations = %d\n", c.MaxIterations)
 		fmt.Printf("    iter                ")
