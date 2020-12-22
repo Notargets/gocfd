@@ -16,7 +16,7 @@ Density | X Momentum | Density
 - J. Romero, K. Asthana and Antony Jameson for "A Simplified Formulation of the Flux Reconstruction Method" (2015) for the DFR approach with Raviart-Thomas elements
 
 ### Updates (Dec 22, 2020):
-![](images/convergence-naca0012.PNG)
+![](images/convergence-study-naca0012.PNG)
 
 In the graph we compare convergence to steady state using two kinds of flux calculation and two types of Runge Kutta time advancement. The RK4 SSP time advancement is far superior in terms of CFL stability, as expected, without much increase in computational work or storage as compared with the RK3 method. The difference between the interpolated flux and the normal (interpolated Q, then calculate flux) is very small.
 
