@@ -275,59 +275,82 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		for np := 0; np < c.ParallelDegree; np++ {
 			ind, end := utils.Split1D(Kmax*Np, c.ParallelDegree, np)
 			wg.Add(1)
-			go func(ind, end int) {
-				for n := 0; n < 4; n++ {
-					for i := ind; i < end; i++ {
-						if c.LocalTimeStepping {
+			if c.LocalTimeStepping {
+				go func(ind, end int) {
+					for n := 0; n < 4; n++ {
+						for i := ind; i < end; i++ {
 							q1D[n][i] = qD[n][i] + rhsD[n][i]*dtD[i]
-						} else {
+						}
+					}
+					wg.Done()
+				}(ind, end)
+			} else {
+				go func(ind, end int) {
+					for n := 0; n < 4; n++ {
+						for i := ind; i < end; i++ {
 							q1D[n][i] = qD[n][i] + rhsD[n][i]*dt
 						}
 					}
-				}
-				wg.Done()
-			}(ind, end)
-			wg.Wait()
+					wg.Done()
+				}(ind, end)
+			}
 		}
+		wg.Wait()
 		rhsQ = c.RHS(Q1, Time)
 		rhsD = Get4DP(rhsQ)
 		for np := 0; np < c.ParallelDegree; np++ {
 			ind, end := utils.Split1D(Kmax*Np, c.ParallelDegree, np)
-			wg.Add(1)
-			go func(ind, end int) {
-				for n := 0; n < 4; n++ {
-					for i := ind; i < end; i++ {
-						if c.LocalTimeStepping {
+			if c.LocalTimeStepping {
+				wg.Add(1)
+				go func(ind, end int) {
+					for n := 0; n < 4; n++ {
+						for i := ind; i < end; i++ {
 							q2D[n][i] = 0.25 * (q1D[n][i] + 3*qD[n][i] + rhsD[n][i]*dtD[i])
-						} else {
+						}
+					}
+					wg.Done()
+				}(ind, end)
+			} else {
+				wg.Add(1)
+				go func(ind, end int) {
+					for n := 0; n < 4; n++ {
+						for i := ind; i < end; i++ {
 							q2D[n][i] = 0.25 * (q1D[n][i] + 3*qD[n][i] + rhsD[n][i]*dt)
 						}
 					}
-				}
-				wg.Done()
-			}(ind, end)
-			wg.Wait()
+					wg.Done()
+				}(ind, end)
+			}
 		}
+		wg.Wait()
 		rhsQ = c.RHS(Q2, Time)
 		rhsD = Get4DP(rhsQ)
 		for np := 0; np < c.ParallelDegree; np++ {
 			ind, end := utils.Split1D(Kmax*Np, c.ParallelDegree, np)
 			wg.Add(1)
-			go func(ind, end int) {
-				for n := 0; n < 4; n++ {
-					for i := ind; i < end; i++ {
-						if c.LocalTimeStepping {
+			if c.LocalTimeStepping {
+				go func(ind, end int) {
+					for n := 0; n < 4; n++ {
+						for i := ind; i < end; i++ {
 							resD[n][i] = (2. / 3.) * (q2D[n][i] - qD[n][i] + rhsD[n][i]*dtD[i])
-						} else {
-							resD[n][i] = (2. / 3.) * (q2D[n][i] - qD[n][i] + rhsD[n][i]*dt)
+							qD[n][i] += resD[n][i]
 						}
-						qD[n][i] += resD[n][i]
 					}
-				}
-				wg.Done()
-			}(ind, end)
-			wg.Wait()
+					wg.Done()
+				}(ind, end)
+			} else {
+				go func(ind, end int) {
+					for n := 0; n < 4; n++ {
+						for i := ind; i < end; i++ {
+							resD[n][i] = (2. / 3.) * (q2D[n][i] - qD[n][i] + rhsD[n][i]*dt)
+							qD[n][i] += resD[n][i]
+						}
+					}
+					wg.Done()
+				}(ind, end)
+			}
 		}
+		wg.Wait()
 		steps++
 		Time += dt
 		if Time >= FinalTime || steps >= c.MaxIterations {

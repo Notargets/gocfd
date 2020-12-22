@@ -2,10 +2,10 @@ Title: "Test Case"
 CFL: 1.50
 FluxType: Lax
 InitType: Freestream # Can be "Freestream" or "IVortex"
-PolynomialOrder: 2
+PolynomialOrder: 4
 FinalTime: 20
-Minf: 0.5
+Minf: 0.7
 Gamma: 1.4
-Alpha: 0.
+Alpha: 4.
 LocalTimeStepping: true
 MaxIterations: 80000
