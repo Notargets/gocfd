@@ -11,19 +11,6 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-func (c *Euler) InterpolateSolutionToEdges(Q [4]utils.Matrix) {
-	// Interpolate from solution points to edges using precomputed interpolation matrix
-	var wg = sync.WaitGroup{}
-	for n := 0; n < 4; n++ {
-		wg.Add(1)
-		go func(n int) {
-			c.Q_Face[n] = c.dfr.FluxEdgeInterpMatrix.Mul(Q[n])
-			wg.Done()
-		}(n)
-	}
-	wg.Wait()
-}
-
 type EdgeKeySlice []types.EdgeKey
 
 func (p EdgeKeySlice) Len() int           { return len(p) }
@@ -380,4 +367,17 @@ func (c *Euler) SetNormalFluxOnRTEdge(k, edgeNumber int, edgeNormalFlux [][4]flo
 			rtD[ind] = edgeNormalFlux[i][n] * IInII
 		}
 	}
+}
+
+func (c *Euler) InterpolateSolutionToEdges(Q [4]utils.Matrix) {
+	// Interpolate from solution points to edges using precomputed interpolation matrix
+	var wg = sync.WaitGroup{}
+	for n := 0; n < 4; n++ {
+		wg.Add(1)
+		go func(n int) {
+			c.Q_Face[n] = c.dfr.FluxEdgeInterpMatrix.Mul(Q[n])
+			wg.Done()
+		}(n)
+	}
+	wg.Wait()
 }

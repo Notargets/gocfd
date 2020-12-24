@@ -9,13 +9,8 @@ import (
 
 	"github.com/notargets/gocfd/types"
 
-	graphics2D "github.com/notargets/avs/geometry"
-
-	"github.com/notargets/avs/functions"
-
 	"github.com/notargets/gocfd/DG2D"
 
-	"github.com/notargets/avs/chart2d"
 	"github.com/notargets/gocfd/utils"
 )
 
@@ -44,12 +39,6 @@ type Euler struct {
 	ParallelDegree    int // Number of go routines to use for parallel execution
 	LocalTimeStepping bool
 	MaxIterations     int
-}
-
-type ChartState struct {
-	chart *chart2d.Chart2D
-	fs    *functions.FSurface
-	gm    *graphics2D.TriMesh
 }
 
 func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
@@ -137,16 +126,7 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		Kmax                 = c.dfr.K
 		plotQ                = pm.Plot
 	)
-	fmt.Printf("Using mesh from file: [%s]\n", c.MeshFile)
-	if c.LocalTimeStepping {
-		fmt.Printf("Solving until Max Iterations = %d\n", c.MaxIterations)
-		fmt.Printf("    iter                ")
-	} else {
-		fmt.Printf("Solving until finaltime = %8.5f\n", FinalTime)
-		fmt.Printf("    iter    time  min_dt")
-	}
-	fmt.Printf("       Res0       Res1       Res2")
-	fmt.Printf("       Res3         L1         L2\n")
+	c.PrintInitialization(FinalTime)
 	// Initialize memory for RHS
 	for n := 0; n < 4; n++ {
 		Q1[n] = utils.NewMatrix(Np, Kmax)
@@ -158,36 +138,27 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		Residual, dt = c.RungeKutta4SSP(Time, Q1, Q2, Q3)
 		steps++
 		Time += dt
-		if Time >= FinalTime || steps >= c.MaxIterations {
-			finished = true
-		}
-		if steps%pm.StepsBeforePlot == 0 || finished || steps == 1 {
-			format := "%11.4e"
-			if plotQ {
-				c.PlotQ(c.Q, pm) // wait till we implement time iterative frame updates
-			}
-			if c.LocalTimeStepping {
-				fmt.Printf("%10d              ", steps)
-			} else {
-				fmt.Printf("%8d%8.5f%8.5f", steps, Time, dt)
-			}
-			var l1, l2 float64
-			for n := 0; n < 4; n++ {
-				maxR := Residual[n].Max()
-				fmt.Printf(format, maxR)
-				if maxR > l1 {
-					l1 = maxR
-				}
-				l2 += maxR * maxR
-			}
-			fmt.Printf(format, l1)
-			fmt.Printf(format, math.Sqrt(l2)/4.)
-			fmt.Printf("\n")
+		finished = c.CheckIfFinished(Time, FinalTime, steps)
+		if finished || steps%pm.StepsBeforePlot == 0 || steps == 1 {
+			c.PrintUpdate(Time, dt, steps, Residual, plotQ, pm)
 		}
 	}
 	elapsed := time.Now().Sub(start)
-	rate := float64(elapsed.Microseconds()) / (float64(Kmax * steps))
-	fmt.Printf("\nRate of execution = %8.5f us/(element*iteration) over %d iterations\n", rate, steps)
+	c.PrintFinal(elapsed, steps)
+}
+
+func (c *Euler) InitializeMemory() {
+	var (
+		K          = c.dfr.K
+		Nedge      = c.dfr.FluxElement.Nedge
+		NpFlux     = c.dfr.FluxElement.Np
+		NpSolution = c.dfr.SolutionElement.Np
+	)
+	for n := 0; n < 4; n++ {
+		c.Q_Face[n] = utils.NewMatrix(Nedge*3, K)
+		c.F_RT_DOF[n] = utils.NewMatrix(NpFlux, K)
+		c.DT = utils.NewMatrix(NpSolution, K) // Local time step
+	}
 }
 
 func (c *Euler) RungeKutta3SSP(Time float64, Q1, Q2 [4]utils.Matrix) (Residual [4]utils.Matrix, dt float64) {
@@ -555,20 +526,6 @@ func (c *Euler) SetNormalFluxInternal(Q [4]utils.Matrix) {
 	wg.Wait()
 }
 
-func (c *Euler) InitializeMemory() {
-	var (
-		K          = c.dfr.K
-		Nedge      = c.dfr.FluxElement.Nedge
-		NpFlux     = c.dfr.FluxElement.Np
-		NpSolution = c.dfr.SolutionElement.Np
-	)
-	for n := 0; n < 4; n++ {
-		c.Q_Face[n] = utils.NewMatrix(Nedge*3, K)
-		c.F_RT_DOF[n] = utils.NewMatrix(NpFlux, K)
-		c.DT = utils.NewMatrix(NpSolution, K) // Local time step
-	}
-}
-
 func (c *Euler) RiemannBC(k, i int, QQ [4][]float64, QInf [4]float64, normal [2]float64) (Q [4]float64) {
 	/*
 			Use Riemann invariants along characteristic lines to calculate 1D flow properties normal to boundary
@@ -618,4 +575,50 @@ func (c *Euler) RiemannBC(k, i int, QQ [4][]float64, QInf [4]float64, normal [2]
 	Q[2] = rho * v
 	Q[3] = p*OOGM1 + 0.5*rho*(u*u+v*v)
 	return
+}
+
+func (c *Euler) CheckIfFinished(Time, FinalTime float64, steps int) (finished bool) {
+	if Time >= FinalTime || steps >= c.MaxIterations {
+		finished = true
+	}
+	return
+}
+func (c *Euler) PrintInitialization(FinalTime float64) {
+	fmt.Printf("Using mesh from file: [%s]\n", c.MeshFile)
+	if c.LocalTimeStepping {
+		fmt.Printf("Solving until Max Iterations = %d\n", c.MaxIterations)
+		fmt.Printf("    iter                ")
+	} else {
+		fmt.Printf("Solving until finaltime = %8.5f\n", FinalTime)
+		fmt.Printf("    iter    time  min_dt")
+	}
+	fmt.Printf("       Res0       Res1       Res2")
+	fmt.Printf("       Res3         L1         L2\n")
+}
+func (c *Euler) PrintUpdate(Time, dt float64, steps int, Residual [4]utils.Matrix, plotQ bool, pm *PlotMeta) {
+	format := "%11.4e"
+	if plotQ {
+		c.PlotQ(c.Q, pm) // wait till we implement time iterative frame updates
+	}
+	if c.LocalTimeStepping {
+		fmt.Printf("%10d              ", steps)
+	} else {
+		fmt.Printf("%8d%8.5f%8.5f", steps, Time, dt)
+	}
+	var l1, l2 float64
+	for n := 0; n < 4; n++ {
+		maxR := Residual[n].Max()
+		fmt.Printf(format, maxR)
+		if maxR > l1 {
+			l1 = maxR
+		}
+		l2 += maxR * maxR
+	}
+	fmt.Printf(format, l1)
+	fmt.Printf(format, math.Sqrt(l2)/4.)
+	fmt.Printf("\n")
+}
+func (c *Euler) PrintFinal(elapsed time.Duration, steps int) {
+	rate := float64(elapsed.Microseconds()) / (float64(c.dfr.K * steps))
+	fmt.Printf("\nRate of execution = %8.5f us/(element*iteration) over %d iterations\n", rate, steps)
 }

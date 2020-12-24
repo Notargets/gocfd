@@ -23,25 +23,10 @@ type PlotMeta struct {
 	LineType               chart2d.LineType
 }
 
-func (c *Euler) PlotQ(Q [4]utils.Matrix, pm *PlotMeta) {
-	var (
-		plotField = pm.Field
-		delay     = pm.FrameTime
-		lineType  = pm.LineType
-		scale     = pm.Scale
-		translate = [2]float32{float32(pm.TranslateX), float32(pm.TranslateY)}
-		oField    = c.GetPlotField(Q, plotField)
-		fI        = c.dfr.ConvertScalarToOutputMesh(oField)
-	)
-
-	if c.chart.gm == nil {
-		c.chart.gm = c.dfr.OutputMesh()
-	}
-	c.chart.fs = functions.NewFSurface(c.chart.gm, [][]float32{fI}, 0)
-	fmt.Printf(" Plot>%s min,max = %8.5f,%8.5f\n", pm.Field.String(), oField.Min(), oField.Max())
-	c.PlotFS(pm.FieldMinP, pm.FieldMaxP, 0.99*oField.Min(), 1.01*oField.Max(), scale, translate, lineType)
-	utils.SleepFor(int(delay.Milliseconds()))
-	return
+type ChartState struct {
+	chart *chart2d.Chart2D
+	fs    *functions.FSurface
+	gm    *graphics2D.TriMesh
 }
 
 func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field utils.Matrix) {
@@ -60,6 +45,27 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 		}
 		field = c.dfr.FluxInterpMatrix.Mul(fld)
 	}
+	return
+}
+
+func (c *Euler) PlotQ(Q [4]utils.Matrix, pm *PlotMeta) {
+	var (
+		plotField = pm.Field
+		delay     = pm.FrameTime
+		lineType  = pm.LineType
+		scale     = pm.Scale
+		translate = [2]float32{float32(pm.TranslateX), float32(pm.TranslateY)}
+		oField    = c.GetPlotField(Q, plotField)
+		fI        = c.dfr.ConvertScalarToOutputMesh(oField)
+	)
+
+	if c.chart.gm == nil {
+		c.chart.gm = c.dfr.OutputMesh()
+	}
+	c.chart.fs = functions.NewFSurface(c.chart.gm, [][]float32{fI}, 0)
+	fmt.Printf(" Plot>%s min,max = %8.5f,%8.5f\n", pm.Field.String(), oField.Min(), oField.Max())
+	c.PlotFS(pm.FieldMinP, pm.FieldMaxP, 0.99*oField.Min(), 1.01*oField.Max(), scale, translate, lineType)
+	utils.SleepFor(int(delay.Milliseconds()))
 	return
 }
 
