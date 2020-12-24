@@ -80,7 +80,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 				for i := 0; i < Nedge; i++ {
 					iL := i + shift
 					ind := k + iL*Kmax
-					QBC := c.RiemannBC(k, iL, qfD, c.Qinf, normal)
+					QBC := c.RiemannBC(k, iL, qfD, c.FS.Qinf, normal)
 					qfD[0][ind] = QBC[0]
 					qfD[1][ind] = QBC[1]
 					qfD[2][ind] = QBC[2]
@@ -112,7 +112,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 				processFlux = false
 				for i := 0; i < Nedge; i++ {
 					ie := i + shift
-					p := c.GetFlowFunctionAtIndex(k+ie*Kmax, qfD, StaticPressure)
+					p := c.FS.GetFlowFunctionAtIndex(k+ie*Kmax, qfD, StaticPressure)
 					for n := 0; n < 4; n++ {
 						normalFlux[i][0] = 0
 						normalFlux[i][3] = 0
@@ -182,10 +182,10 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 					iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
 					qL := c.GetQQ(kL, iL, qfD)
 					rhoL, uL, vL = qL[0], qL[1]/qL[0], qL[2]/qL[0]
-					pL, CL = c.GetFlowFunction(qL, StaticPressure), c.GetFlowFunction(qL, SoundSpeed)
+					pL, CL = c.FS.GetFlowFunction(qL, StaticPressure), c.FS.GetFlowFunction(qL, SoundSpeed)
 					qR := c.GetQQ(kR, iR, qfD)
 					rhoR, uR, vR = qR[0], qR[1]/qR[0], qR[2]/qR[0]
-					pR, CR = c.GetFlowFunction(qR, StaticPressure), c.GetFlowFunction(qR, SoundSpeed)
+					pR, CR = c.FS.GetFlowFunction(qR, StaticPressure), c.FS.GetFlowFunction(qR, SoundSpeed)
 					fluxLeft[0], fluxLeft[1] = c.CalculateFlux(kL, iL, qfD)
 					fluxRight[0], fluxRight[1] = c.CalculateFlux(kR, iR, qfD) // Reverse the right edge to match
 					maxV = math.Max(maxVF(uL, vL, pL, rhoL, CL), maxVF(uR, vR, pR, rhoR, CR))
@@ -201,7 +201,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 					rhoL, uL, vL, pL float64
 					rhoR, uR, vR, pR float64
 					hL, hR           float64
-					Gamma            = c.Gamma
+					Gamma            = c.FS.Gamma
 					GM1              = Gamma - 1
 					qfD              = Get4DP(c.Q_Face)
 				)
@@ -220,17 +220,17 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 					rotateMomentum(kR, iR)
 					qL := c.GetQQ(kL, iL, qfD)
 					rhoL, uL, vL = qL[0], qL[1]/qL[0], qL[2]/qL[0]
-					pL = c.GetFlowFunction(qL, StaticPressure)
+					pL = c.FS.GetFlowFunction(qL, StaticPressure)
 					qR := c.GetQQ(kR, iR, qfD)
 					rhoR, uR, vR = qR[0], qR[1]/qR[0], qR[2]/qR[0]
-					pR = c.GetFlowFunction(qR, StaticPressure)
+					pR = c.FS.GetFlowFunction(qR, StaticPressure)
 					fluxLeft[0], _ = c.CalculateFlux(kL, iL, qfD)
 					fluxRight[0], _ = c.CalculateFlux(kR, iR, qfD) // Reverse the right edge to match
 					/*
 					   HM = (EnerM+pM).dd(rhoM);  HP = (EnerP+pP).dd(rhoP);
 					*/
 					// Enthalpy
-					hL, hR = c.GetFlowFunction(qL, Enthalpy), c.GetFlowFunction(qR, Enthalpy)
+					hL, hR = c.FS.GetFlowFunction(qL, Enthalpy), c.FS.GetFlowFunction(qR, Enthalpy)
 					/*
 						rhoMs = sqrt(rhoM); rhoPs = sqrt(rhoP);
 						rhoMsPs = rhoMs + rhoPs;

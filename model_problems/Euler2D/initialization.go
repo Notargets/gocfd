@@ -2,7 +2,6 @@ package Euler2D
 
 import (
 	"fmt"
-	"math"
 	"strings"
 
 	"github.com/notargets/gocfd/model_problems/Euler2D/isentropic_vortex"
@@ -46,28 +45,15 @@ func NewInitType(label string) (it InitType) {
 	return
 }
 
-func (c *Euler) CalcFS(Minf, Gamma, Alpha float64) {
-	var (
-		ooggm1 = 1. / (Gamma * (Gamma - 1.))
-	)
-	c.Qinf[0] = 1
-	c.Qinf[1] = Minf * math.Cos(Alpha*math.Pi/180.)
-	c.Qinf[2] = Minf * math.Sin(Alpha*math.Pi/180.)
-	c.Qinf[3] = ooggm1 + 0.5*Minf*Minf
-	c.Pinf = c.GetFlowFunction(c.Qinf, StaticPressure)
-	c.QQinf = c.GetFlowFunction(c.Qinf, DynamicPressure)
-	c.Cinf = c.GetFlowFunction(c.Qinf, SoundSpeed)
-}
-
 func (c *Euler) InitializeFS() {
 	var (
 		K  = c.dfr.K
 		Np = c.dfr.SolutionElement.Np
 	)
-	c.Q[0] = utils.NewMatrix(Np, K).AddScalar(c.Qinf[0])
-	c.Q[1] = utils.NewMatrix(Np, K).AddScalar(c.Qinf[1])
-	c.Q[2] = utils.NewMatrix(Np, K).AddScalar(c.Qinf[2])
-	c.Q[3] = utils.NewMatrix(Np, K).AddScalar(c.Qinf[3])
+	c.Q[0] = utils.NewMatrix(Np, K).AddScalar(c.FS.Qinf[0])
+	c.Q[1] = utils.NewMatrix(Np, K).AddScalar(c.FS.Qinf[1])
+	c.Q[2] = utils.NewMatrix(Np, K).AddScalar(c.FS.Qinf[2])
+	c.Q[3] = utils.NewMatrix(Np, K).AddScalar(c.FS.Qinf[3])
 }
 
 func (c *Euler) InitializeIVortex(X, Y utils.Matrix) (iv *isentropic_vortex.IVortex, Q [4]utils.Matrix) {

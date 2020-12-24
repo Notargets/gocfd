@@ -39,9 +39,33 @@ const (
 	Enthalpy            // 12
 )
 
-func (c *Euler) GetFlowFunction(Q [4]float64, pf FlowFunction) (f float64) {
+type FreeStream struct {
+	Gamma             float64
+	Qinf              [4]float64
+	Pinf, QQinf, Cinf float64
+	Alpha             float64
+}
+
+func NewFreeStream(Minf, Gamma, Alpha float64) (fs *FreeStream) {
 	var (
-		Gamma              = c.Gamma
+		ooggm1 = 1. / (Gamma * (Gamma - 1.))
+		uinf   = Minf * math.Cos(Alpha*math.Pi/180.)
+		vinf   = Minf * math.Sin(Alpha*math.Pi/180.)
+	)
+	fs = &FreeStream{
+		Gamma: Gamma,
+		Qinf:  [4]float64{1, uinf, vinf, ooggm1 + 0.5*Minf*Minf},
+		Alpha: Alpha,
+	}
+	fs.Pinf = fs.GetFlowFunction(fs.Qinf, StaticPressure)
+	fs.QQinf = fs.GetFlowFunction(fs.Qinf, DynamicPressure)
+	fs.Cinf = fs.GetFlowFunction(fs.Qinf, SoundSpeed)
+	return
+}
+
+func (fs *FreeStream) GetFlowFunction(Q [4]float64, pf FlowFunction) (f float64) {
+	var (
+		Gamma              = fs.Gamma
 		GM1                = Gamma - 1.
 		rho, rhou, rhov, E = Q[0], Q[1], Q[2], Q[3]
 		oorho              = 1. / rho
@@ -72,7 +96,7 @@ func (c *Euler) GetFlowFunction(Q [4]float64, pf FlowFunction) (f float64) {
 	case DynamicPressure:
 		f = 0.5 * (rhou*rhou + rhov*rhov) * oorho
 	case PressureCoefficient:
-		f = (p - c.Pinf) / c.QQinf
+		f = (p - fs.Pinf) / fs.QQinf
 	case SoundSpeed:
 		f = math.Sqrt(math.Abs(Gamma * p * oorho))
 	case Velocity:
@@ -91,10 +115,10 @@ func (c *Euler) GetFlowFunction(Q [4]float64, pf FlowFunction) (f float64) {
 	return
 }
 
-func (c *Euler) GetFlowFunctionAtIndex(ind int, QQ [4][]float64, pf FlowFunction) (f float64) {
+func (fs *FreeStream) GetFlowFunctionAtIndex(ind int, QQ [4][]float64, pf FlowFunction) (f float64) {
 	var (
 		QI = [4]float64{QQ[0][ind], QQ[1][ind], QQ[2][ind], QQ[3][ind]}
 	)
-	f = c.GetFlowFunction(QI, pf)
+	f = fs.GetFlowFunction(QI, pf)
 	return
 }

@@ -75,7 +75,7 @@ func (c *Euler) FluxCalc(q [4]float64) (Fx, Fy [4]float64) {
 		oorho              = 1. / rho
 		u                  = rhoU * oorho
 		v                  = rhoV * oorho
-		p                  = c.GetFlowFunction(q, StaticPressure)
+		p                  = c.FS.GetFlowFunction(q, StaticPressure)
 	)
 	Fx, Fy =
 		[4]float64{rhoU, rhoU*u + p, rhoU * v, u * (E + p)},

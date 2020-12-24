@@ -27,24 +27,23 @@ import (
 */
 type Euler struct {
 	// Input parameters
-	MeshFile              string
-	CFL, Gamma, FinalTime float64
-	Qinf                  [4]float64
-	Pinf, QQinf, Cinf     float64
-	dfr                   *DG2D.DFR2D
-	Q                     [4]utils.Matrix // Solution variables, stored at solution point locations, Np_solution x K
-	DT                    utils.Matrix    // Local time step for steady state solution
-	Q_Face                [4]utils.Matrix // Solution variables, interpolated to and stored at edge point locations, Np_edge x K
-	F_RT_DOF              [4]utils.Matrix // Normal Projected Flux, stored at flux/solution point locations, Np_flux x K
-	chart                 ChartState
-	FluxCalcAlgo          FluxType
-	Case                  InitType
-	AnalyticSolution      ExactState
-	FluxCalcMock          func(Q [4]float64) (Fx, Fy [4]float64) // For testing
-	SortedEdgeKeys        EdgeKeySlice
-	ParallelDegree        int // Number of go routines to use for parallel execution
-	LocalTimeStepping     bool
-	MaxIterations         int
+	MeshFile          string
+	CFL, FinalTime    float64
+	FS                *FreeStream
+	dfr               *DG2D.DFR2D
+	Q                 [4]utils.Matrix // Solution variables, stored at solution point locations, Np_solution x K
+	DT                utils.Matrix    // Local time step for steady state solution
+	Q_Face            [4]utils.Matrix // Solution variables, interpolated to and stored at edge point locations, Np_edge x K
+	F_RT_DOF          [4]utils.Matrix // Normal Projected Flux, stored at flux/solution point locations, Np_flux x K
+	chart             ChartState
+	FluxCalcAlgo      FluxType
+	Case              InitType
+	AnalyticSolution  ExactState
+	FluxCalcMock      func(Q [4]float64) (Fx, Fy [4]float64) // For testing
+	SortedEdgeKeys    EdgeKeySlice
+	ParallelDegree    int // Number of go routines to use for parallel execution
+	LocalTimeStepping bool
+	MaxIterations     int
 }
 
 type ChartState struct {
@@ -62,11 +61,10 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
 		FinalTime:         FinalTime,
 		FluxCalcAlgo:      fluxType,
 		Case:              Case,
-		Gamma:             Gamma,
 		LocalTimeStepping: LocalTime,
 		MaxIterations:     MaxIterations,
+		FS:                NewFreeStream(Minf, Gamma, Alpha),
 	}
-	c.CalcFS(Minf, Gamma, Alpha)
 	c.FluxCalcMock = c.FluxCalc
 	if ProcLimit != 0 {
 		c.ParallelDegree = ProcLimit
@@ -102,10 +100,10 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
 	case FREESTREAM:
 		c.InitializeFS()
 	case IVORTEX:
-		c.Qinf = [4]float64{1, 1, 0, 3}
-		c.Pinf = c.GetFlowFunction(c.Qinf, StaticPressure)
-		c.QQinf = c.GetFlowFunction(c.Qinf, DynamicPressure)
-		c.Cinf = c.GetFlowFunction(c.Qinf, SoundSpeed)
+		c.FS.Qinf = [4]float64{1, 1, 0, 3}
+		c.FS.Pinf = c.FS.GetFlowFunction(c.FS.Qinf, StaticPressure)
+		c.FS.QQinf = c.FS.GetFlowFunction(c.FS.Qinf, DynamicPressure)
+		c.FS.Cinf = c.FS.GetFlowFunction(c.FS.Qinf, SoundSpeed)
 		c.AnalyticSolution, c.Q = c.InitializeIVortex(c.dfr.SolutionX, c.dfr.SolutionY)
 		// Set "Wall" BCs to IVortex
 		var count int
@@ -400,11 +398,9 @@ func (c *Euler) CalculateDT() (dt float64) {
 			for ii := ind; ii < end; ii++ {
 				edgeKey := c.SortedEdgeKeys[ii]
 				e := c.dfr.Tris.Edges[edgeKey]
-				// for _, e := range c.dfr.Tris.Edges {
 				var (
 					edgeLen = e.GetEdgeLength()
-					//edgeLen = e.IInII[0]
-					Nedge = c.dfr.FluxElement.Nedge
+					Nedge   = c.dfr.FluxElement.Nedge
 				)
 				conn := 0
 				var (
@@ -415,12 +411,11 @@ func (c *Euler) CalculateDT() (dt float64) {
 				Jdet := JdetD[k]
 				// fmt.Printf("N, Np12, edgelen, Jdet = %d,%8.5f,%8.5f,%8.5f\n", c.dfr.N, Np12, edgeLen, Jdet)
 				fs := 0.5 * Np12 * edgeLen / Jdet
-				//fs := 0.5 * Np12 / math.Sqrt(Jdet) // Using the Sqrt of area is more aggressive
 				edgeMax := -100.
 				for i := shift; i < shift+Nedge; i++ {
 					qq := c.GetQQ(k, i, qfD)
-					C := c.GetFlowFunction(qq, SoundSpeed)
-					U := c.GetFlowFunction(qq, Velocity)
+					C := c.FS.GetFlowFunction(qq, SoundSpeed)
+					U := c.FS.GetFlowFunction(qq, Velocity)
 					waveSpeed := fs * (U + C)
 					wsMax[nn] = math.Max(waveSpeed, wsMax[nn])
 					if waveSpeed > edgeMax {
@@ -587,14 +582,14 @@ func (c *Euler) RiemannBC(k, i int, QQ [4][]float64, QInf [4]float64, normal [2]
 	var (
 		qq                 = c.GetQQ(k, i, QQ)
 		rhoInt, uInt, vInt = qq[0], qq[1] / qq[0], qq[2] / qq[0]
-		pInt               = c.GetFlowFunction(qq, StaticPressure)
-		CInt               = c.GetFlowFunction(qq, SoundSpeed)
-		Gamma              = c.Gamma
+		pInt               = c.FS.GetFlowFunction(qq, StaticPressure)
+		CInt               = c.FS.GetFlowFunction(qq, SoundSpeed)
+		Gamma              = c.FS.Gamma
 		GM1                = Gamma - 1.
 		OOGM1              = 1. / GM1
 		rhoInf, uInf, vInf = QInf[0], QInf[1] / QInf[0], QInf[2] / QInf[0]
-		pInf               = c.Pinf
-		CInf               = c.Cinf
+		pInf               = c.FS.Pinf
+		CInf               = c.FS.Cinf
 		Vtang, Beta        float64
 		tangent            = [2]float64{-normal[1], normal[0]}
 	)
