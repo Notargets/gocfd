@@ -2,6 +2,7 @@ package Euler2D
 
 import (
 	"fmt"
+	"math"
 	"strings"
 )
 
@@ -81,4 +82,37 @@ func (c *Euler) FluxCalc(q [4]float64) (Fx, Fy [4]float64) {
 		[4]float64{rhoU, rhoU*u + p, rhoU * v, u * (E + p)},
 		[4]float64{rhoV, rhoV * u, rhoV*v + p, v * (E + p)}
 	return
+}
+
+func (c *Euler) LaxFlux(kL, kR, shiftL, shiftR int, normal [2]float64, normalFlux, normalFluxReversed [][4]float64) {
+	var (
+		Nedge                = c.dfr.FluxElement.Nedge
+		Kmax                 = c.dfr.K
+		rhoL, uL, vL, pL, CL float64
+		rhoR, uR, vR, pR, CR float64
+		qfD                  = Get4DP(c.Q_Face)
+	)
+	maxVF := func(u, v, p, rho, C float64) (vmax float64) {
+		vmax = math.Sqrt(u*u+v*v) + C
+		return
+	}
+	for i := 0; i < Nedge; i++ {
+		iL := i + shiftL
+		iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
+		qL := c.GetQQ(kL, iL, qfD)
+		rhoL, uL, vL = qL[0], qL[1]/qL[0], qL[2]/qL[0]
+		pL, CL = c.FS.GetFlowFunction(qL, StaticPressure), c.FS.GetFlowFunction(qL, SoundSpeed)
+		qR := c.GetQQ(kR, iR, qfD)
+		rhoR, uR, vR = qR[0], qR[1]/qR[0], qR[2]/qR[0]
+		pR, CR = c.FS.GetFlowFunction(qR, StaticPressure), c.FS.GetFlowFunction(qR, SoundSpeed)
+		FxL, FyL := c.CalculateFlux(kL, iL, qfD)
+		FxR, FyR := c.CalculateFlux(kR, iR, qfD) // Reverse the right edge to match
+		maxV := math.Max(maxVF(uL, vL, pL, rhoL, CL), maxVF(uR, vR, pR, rhoR, CR))
+		indL, indR := kL+iL*Kmax, kR+iR*Kmax
+		for n := 0; n < 4; n++ {
+			normalFlux[i][n] = 0.5 * (normal[0]*(FxL[n]+FxR[n]) + normal[1]*(FyL[n]+FyR[n]))
+			normalFlux[i][n] += 0.5 * maxV * (qfD[n][indL] - qfD[n][indR])
+			normalFluxReversed[Nedge-1-i][n] = -normalFlux[i][n]
+		}
+	}
 }

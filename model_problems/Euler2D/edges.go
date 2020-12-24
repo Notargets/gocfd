@@ -154,35 +154,8 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 					normalFlux[i], normalFluxReversed[Nedge-1-i] = averageFluxN(fluxLeft, fluxRight, normal)
 				}
 			case FLUX_LaxFriedrichs:
-				var (
-					rhoL, uL, vL, pL, CL float64
-					rhoR, uR, vR, pR, CR float64
-					maxV                 float64
-				)
-				maxVF := func(u, v, p, rho, C float64) (vmax float64) {
-					vmax = math.Sqrt(u*u+v*v) + C
-					return
-				}
 				normal, _ := c.getEdgeNormal(0, e, en)
-				for i := 0; i < Nedge; i++ {
-					iL := i + shiftL
-					iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
-					qL := c.GetQQ(kL, iL, qfD)
-					rhoL, uL, vL = qL[0], qL[1]/qL[0], qL[2]/qL[0]
-					pL, CL = c.FS.GetFlowFunction(qL, StaticPressure), c.FS.GetFlowFunction(qL, SoundSpeed)
-					qR := c.GetQQ(kR, iR, qfD)
-					rhoR, uR, vR = qR[0], qR[1]/qR[0], qR[2]/qR[0]
-					pR, CR = c.FS.GetFlowFunction(qR, StaticPressure), c.FS.GetFlowFunction(qR, SoundSpeed)
-					fluxLeft[0], fluxLeft[1] = c.CalculateFlux(kL, iL, qfD)
-					fluxRight[0], fluxRight[1] = c.CalculateFlux(kR, iR, qfD) // Reverse the right edge to match
-					maxV = math.Max(maxVF(uL, vL, pL, rhoL, CL), maxVF(uR, vR, pR, rhoR, CR))
-					indL, indR := kL+iL*Kmax, kR+iR*Kmax
-					for n := 0; n < 4; n++ {
-						normalFlux[i][n] = 0.5 * (normal[0]*(fluxLeft[0][n]+fluxRight[0][n]) + normal[1]*(fluxLeft[1][n]+fluxRight[1][n]))
-						normalFlux[i][n] += 0.5 * maxV * (qfD[n][indL] - qfD[n][indR])
-						normalFluxReversed[Nedge-1-i][n] = -normalFlux[i][n]
-					}
-				}
+				c.LaxFlux(kL, kR, shiftL, shiftR, normal, normalFlux, normalFluxReversed)
 			case FLUX_Roe:
 				var (
 					rhoL, uL, vL, pL float64
