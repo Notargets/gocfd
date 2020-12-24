@@ -1,11 +1,11 @@
 Title: "Test Case"
-CFL: 4.00
+CFL: 5.00
 FluxType: Roe
 InitType: Freestream # Can be "Freestream" or "IVortex"
 PolynomialOrder: 2
 FinalTime: 20
 Minf: 0.5
 Gamma: 1.4
-Alpha: 0.
+Alpha: 4.
 LocalTimeStepping: true
-MaxIterations: 10000
+MaxIterations: 80000
