@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"github.com/notargets/gocfd/DG2D"
-	"github.com/notargets/gocfd/model_problems/Euler2D/isentropic_vortex"
 	"github.com/notargets/gocfd/types"
 	"github.com/notargets/gocfd/utils"
 )
@@ -40,7 +39,6 @@ func (c *Euler) ParallelSetNormalFluxOnEdges(Time float64) {
 func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 	var (
 		dfr                            = c.dfr
-		Nint                           = dfr.FluxElement.Nint
 		Nedge                          = dfr.FluxElement.Nedge
 		Kmax                           = dfr.K
 		normalFlux, normalFluxReversed = make([][4]float64, Nedge), make([][4]float64, Nedge)
@@ -56,7 +54,6 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 				k           = int(e.ConnectedTris[0])
 				edgeNumber  = int(e.ConnectedTriEdgeNumber[0])
 				shift       = edgeNumber * Nedge
-				riemann     = true
 				processFlux bool
 				qfD         = Get4DP(c.Q_Face)
 			)
@@ -64,37 +61,9 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 			normal, _ := c.getEdgeNormal(0, e, en)
 			switch e.BCType {
 			case types.BC_Far:
-				for i := 0; i < Nedge; i++ {
-					iL := i + shift
-					ind := k + iL*Kmax
-					QBC := c.RiemannBC(k, iL, qfD, c.FS.Qinf, normal)
-					qfD[0][ind] = QBC[0]
-					qfD[1][ind] = QBC[1]
-					qfD[2][ind] = QBC[2]
-					qfD[3][ind] = QBC[3]
-				}
+				c.FarBC(k, shift, normal)
 			case types.BC_IVortex:
-				// Set the flow variables to the exact solution
-				X, Y := c.dfr.FluxX.Data(), c.dfr.FluxY.Data()
-				for i := 0; i < Nedge; i++ {
-					iL := i + shift
-					indFlux := k + (2*Nint+iL)*Kmax
-					x, y := X[indFlux], Y[indFlux]
-					iv := c.AnalyticSolution.(*isentropic_vortex.IVortex)
-					rho, rhoU, rhoV, E := iv.GetStateC(Time, x, y)
-					ind := k + iL*Kmax
-					var QBC [4]float64
-					if riemann {
-						Qinf := [4]float64{rho, rhoU, rhoV, E}
-						QBC = c.RiemannBC(k, iL, qfD, Qinf, normal)
-					} else {
-						QBC = [4]float64{rho, rhoU, rhoV, E}
-					}
-					qfD[0][ind] = QBC[0]
-					qfD[1][ind] = QBC[1]
-					qfD[2][ind] = QBC[2]
-					qfD[3][ind] = QBC[3]
-				}
+				c.IVortexBC(Time, k, shift, normal)
 			case types.BC_Wall, types.BC_Cyl:
 				processFlux = false
 				for i := 0; i < Nedge; i++ {
