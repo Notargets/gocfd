@@ -127,137 +127,17 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 				kL, kR                   = int(e.ConnectedTris[0]), int(e.ConnectedTris[1])
 				edgeNumberL, edgeNumberR = int(e.ConnectedTriEdgeNumber[0]), int(e.ConnectedTriEdgeNumber[1])
 				shiftL, shiftR           = edgeNumberL * Nedge, edgeNumberR * Nedge
-				fluxLeft, fluxRight      [2][4]float64
-				qfD                      = Get4DP(c.Q_Face)
 			)
 			switch c.FluxCalcAlgo {
 			case FLUX_Average:
-				averageFluxN := func(f1, f2 [2][4]float64, normal [2]float64) (fnorm [4]float64, fnormR [4]float64) {
-					var (
-						fave [2][4]float64
-					)
-					for n := 0; n < 4; n++ {
-						for ii := 0; ii < 2; ii++ {
-							fave[ii][n] = 0.5 * (f1[ii][n] + f2[ii][n])
-						}
-						fnorm[n] = normal[0]*fave[0][n] + normal[1]*fave[1][n]
-						fnormR[n] = -fnorm[n]
-					}
-					return
-				}
 				normal, _ := c.getEdgeNormal(0, e, en)
-				for i := 0; i < Nedge; i++ {
-					iL := i + shiftL
-					iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
-					fluxLeft[0], fluxLeft[1] = c.CalculateFlux(kL, iL, qfD)
-					fluxRight[0], fluxRight[1] = c.CalculateFlux(kR, iR, qfD) // Reverse the right edge to match
-					normalFlux[i], normalFluxReversed[Nedge-1-i] = averageFluxN(fluxLeft, fluxRight, normal)
-				}
+				c.LaxFlux(kL, kR, shiftL, shiftR, normal, normalFlux, normalFluxReversed)
 			case FLUX_LaxFriedrichs:
 				normal, _ := c.getEdgeNormal(0, e, en)
 				c.LaxFlux(kL, kR, shiftL, shiftR, normal, normalFlux, normalFluxReversed)
 			case FLUX_Roe:
-				var (
-					rhoL, uL, vL, pL float64
-					rhoR, uR, vR, pR float64
-					hL, hR           float64
-					Gamma            = c.FS.Gamma
-					GM1              = Gamma - 1
-					qfD              = Get4DP(c.Q_Face)
-				)
 				normal, _ := c.getEdgeNormal(0, e, en)
-				rotateMomentum := func(k, i int) {
-					ind := k + i*Kmax
-					um, vm := qfD[1][ind], qfD[2][ind]
-					qfD[1][ind] = um*normal[0] + vm*normal[1]
-					qfD[2][ind] = -um*normal[1] + vm*normal[0]
-				}
-				for i := 0; i < Nedge; i++ {
-					iL := i + shiftL
-					iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
-					// Rotate the momentum into face normal coordinates before calculating fluxes
-					rotateMomentum(kL, iL)
-					rotateMomentum(kR, iR)
-					qL := c.GetQQ(kL, iL, qfD)
-					rhoL, uL, vL = qL[0], qL[1]/qL[0], qL[2]/qL[0]
-					pL = c.FS.GetFlowFunction(qL, StaticPressure)
-					qR := c.GetQQ(kR, iR, qfD)
-					rhoR, uR, vR = qR[0], qR[1]/qR[0], qR[2]/qR[0]
-					pR = c.FS.GetFlowFunction(qR, StaticPressure)
-					fluxLeft[0], _ = c.CalculateFlux(kL, iL, qfD)
-					fluxRight[0], _ = c.CalculateFlux(kR, iR, qfD) // Reverse the right edge to match
-					/*
-					   HM = (EnerM+pM).dd(rhoM);  HP = (EnerP+pP).dd(rhoP);
-					*/
-					// Enthalpy
-					hL, hR = c.FS.GetFlowFunction(qL, Enthalpy), c.FS.GetFlowFunction(qR, Enthalpy)
-					/*
-						rhoMs = sqrt(rhoM); rhoPs = sqrt(rhoP);
-						rhoMsPs = rhoMs + rhoPs;
-
-						rho = rhoMs.dm(rhoPs);
-						u   = (rhoMs.dm(uM) + rhoPs.dm(uP)).dd(rhoMsPs);
-						v   = (rhoMs.dm(vM) + rhoPs.dm(vP)).dd(rhoMsPs);
-						H   = (rhoMs.dm(HM) + rhoPs.dm(HP)).dd(rhoMsPs);
-						c2 = gm1 * (H - 0.5*(sqr(u)+sqr(v)));
-						c = sqrt(c2);
-					*/
-					// Compute Roe average variables
-					rhoLs, rhoRs := math.Sqrt(rhoL), math.Sqrt(rhoR)
-					rhoLsRs := rhoLs + rhoRs
-
-					rho := rhoLs * rhoRs
-					u := (rhoLs*uL + rhoRs*uR) / rhoLsRs
-					v := (rhoLs*vL + rhoRs*vR) / rhoLsRs
-					h := (rhoLs*hL + rhoRs*hR) / rhoLsRs
-					c2 := GM1 * (h - 0.5*(u*u+v*v))
-					c := math.Sqrt(c2)
-					/*
-					   dW1 = -0.5*(rho.dm(uP-uM)).dd(c) + 0.5*(pP-pM).dd(c2);
-					   dW2 = (rhoP-rhoM) - (pP-pM).dd(c2);
-					   dW3 = rho.dm(vP-vM);
-					   dW4 = 0.5*(rho.dm(uP-uM)).dd(c) + 0.5*(pP-pM).dd(c2);
-
-					   dW1 = abs(u-c).dm(dW1);
-					   dW2 = abs(u  ).dm(dW2);
-					   dW3 = abs(u  ).dm(dW3);
-					   dW4 = abs(u+c).dm(dW4);
-					*/
-					// Riemann fluxes
-					dW1 := -0.5*(rho*(uR-uL))/c + 0.5*(pR-pL)/c2
-					dW2 := (rhoR - rhoL) - (pR-pL)/c2
-					dW3 := rho * (vR - vL)
-					dW4 := 0.5*(rho*(uR-uL))/c + 0.5*(pR-pL)/c2
-					dW1 = math.Abs(u-c) * dW1
-					dW2 = math.Abs(u) * dW2
-					dW3 = math.Abs(u) * dW3
-					dW4 = math.Abs(u+c) * dW4
-					/*
-					   DMat fx = (fxQP+fxQM)/2.0;
-					   fx(All,1) -= (dW1               + dW2                                   + dW4              )/2.0;
-					   fx(All,2) -= (dW1.dm(u-c)       + dW2.dm(u)                             + dW4.dm(u+c)      )/2.0;
-					   fx(All,3) -= (dW1.dm(v)         + dW2.dm(v)                 + dW3       + dW4.dm(v)        )/2.0;
-					   fx(All,4) -= (dW1.dm(H-u.dm(c)) + dW2.dm(sqr(u)+sqr(v))/2.0 + dW3.dm(v) + dW4.dm(H+u.dm(c)))/2.0;
-					*/
-					// Form Roe Fluxes
-					for n := 0; n < 4; n++ {
-						normalFlux[i][n] = 0.5 * (fluxLeft[0][n] + fluxRight[0][n]) // Ave of normal component of flux
-					}
-					normalFlux[i][0] -= 0.5 * (dW1 + dW2 + dW4)
-					normalFlux[i][1] -= 0.5 * (dW1*(u-c) + dW2*u + dW4*(u+c))
-					normalFlux[i][2] -= 0.5 * (dW1*v + dW2*v + dW3 + dW4*v)
-					normalFlux[i][3] -= 0.5 * (dW1*(h-u*c) + 0.5*dW2*(u*u+v*v) + dW3*v + dW4*(h+u*c))
-					/*
-					   flux = fx;    fx2.borrow(Ngf, fx.pCol(2)); fx3.borrow(Ngf, fx.pCol(3));
-					   flux(All,2) = lnx.dm(fx2) - lny.dm(fx3);
-					   flux(All,3) = lny.dm(fx2) + lnx.dm(fx3);
-					*/
-					// rotate back to Cartesian
-					normalFlux[i][1], normalFlux[i][2] = normal[0]*normalFlux[i][1]-normal[1]*normalFlux[i][2], normal[1]*normalFlux[i][1]+normal[0]*normalFlux[i][2]
-					for n := 0; n < 4; n++ {
-						normalFluxReversed[Nedge-1-i][n] = -normalFlux[i][n]
-					}
-				}
+				c.RoeFlux(kL, kR, shiftL, shiftR, normal, normalFlux, normalFluxReversed)
 			}
 			c.SetNormalFluxOnRTEdge(kL, edgeNumberL, normalFlux, e.IInII[0])
 			c.SetNormalFluxOnRTEdge(kR, edgeNumberR, normalFluxReversed, e.IInII[1])
