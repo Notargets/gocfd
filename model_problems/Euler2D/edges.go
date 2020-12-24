@@ -38,26 +38,24 @@ func (c *Euler) ParallelSetNormalFluxOnEdges(Time float64) {
 
 func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 	var (
-		dfr                            = c.dfr
-		Nedge                          = dfr.FluxElement.Nedge
-		Kmax                           = dfr.K
+		Nedge                          = c.dfr.FluxElement.Nedge
 		normalFlux, normalFluxReversed = make([][4]float64, Nedge), make([][4]float64, Nedge)
 	)
 	for _, en := range edgeKeys {
-		e := dfr.Tris.Edges[en]
+		e := c.dfr.Tris.Edges[en]
 		//for en, e := range dfr.Tris.Edges {
 		switch e.NumConnectedTris {
 		case 0:
 			panic("unable to handle unconnected edges")
 		case 1: // Handle edges with only one triangle - default is edge flux, which will be replaced by a BC flux
 			var (
-				k           = int(e.ConnectedTris[0])
-				edgeNumber  = int(e.ConnectedTriEdgeNumber[0])
-				shift       = edgeNumber * Nedge
-				processFlux bool
-				qfD         = Get4DP(c.Q_Face)
+				k                   = int(e.ConnectedTris[0])
+				edgeNumber          = int(e.ConnectedTriEdgeNumber[0])
+				shift               = edgeNumber * Nedge
+				calculateNormalFlux bool
+				qfD                 = Get4DP(c.Q_Face)
 			)
-			processFlux = true
+			calculateNormalFlux = true
 			normal, _ := c.getEdgeNormal(0, e, en)
 			switch e.BCType {
 			case types.BC_Far:
@@ -65,22 +63,13 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 			case types.BC_IVortex:
 				c.IVortexBC(Time, k, shift, normal)
 			case types.BC_Wall, types.BC_Cyl:
-				processFlux = false
-				for i := 0; i < Nedge; i++ {
-					ie := i + shift
-					p := c.FS.GetFlowFunctionAtIndex(k+ie*Kmax, qfD, StaticPressure)
-					for n := 0; n < 4; n++ {
-						normalFlux[i][0] = 0
-						normalFlux[i][3] = 0
-						normalFlux[i][1] = normal[0] * p
-						normalFlux[i][2] = normal[1] * p
-					}
-				}
-				c.SetNormalFluxOnRTEdge(k, edgeNumber, normalFlux, e.IInII[0])
+				calculateNormalFlux = false
+				c.WallBC(k, shift, normal, normalFlux) // Calculates normal flux directly
 			case types.BC_PeriodicReversed, types.BC_Periodic:
-				processFlux = false
+				// One edge of the Periodic BC leads to calculation of both sides within the connected tris section, so noop here
+				calculateNormalFlux = false
 			}
-			if processFlux {
+			if calculateNormalFlux {
 				var Fx, Fy [4]float64
 				for i := 0; i < Nedge; i++ {
 					ie := i + shift
@@ -89,8 +78,8 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 						normalFlux[i][n] = normal[0]*Fx[n] + normal[1]*Fy[n]
 					}
 				}
-				c.SetNormalFluxOnRTEdge(k, edgeNumber, normalFlux, e.IInII[0])
 			}
+			c.SetNormalFluxOnRTEdge(k, edgeNumber, normalFlux, e.IInII[0])
 		case 2: // Handle edges with two connected tris - shared faces
 			var (
 				kL, kR                   = int(e.ConnectedTris[0]), int(e.ConnectedTris[1])

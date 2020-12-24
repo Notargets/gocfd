@@ -6,6 +6,24 @@ import (
 	"github.com/notargets/gocfd/model_problems/Euler2D/isentropic_vortex"
 )
 
+func (c *Euler) WallBC(k, ishift int, normal [2]float64, normalFlux [][4]float64) {
+	var (
+		Nedge = c.dfr.FluxElement.Nedge
+		Kmax  = c.dfr.K
+		qfD   = Get4DP(c.Q_Face)
+	)
+	for i := 0; i < Nedge; i++ {
+		ie := i + ishift
+		p := c.FS.GetFlowFunctionAtIndex(k+ie*Kmax, qfD, StaticPressure)
+		for n := 0; n < 4; n++ {
+			normalFlux[i][0] = 0
+			normalFlux[i][1] = normal[0] * p
+			normalFlux[i][2] = normal[1] * p
+			normalFlux[i][3] = 0
+		}
+	}
+}
+
 func (c *Euler) IVortexBC(Time float64, k, ishift int, normal [2]float64) {
 	var (
 		Nedge   = c.dfr.FluxElement.Nedge
