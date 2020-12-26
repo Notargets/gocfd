@@ -68,6 +68,10 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
 
 	c.dfr = DG2D.NewDFR2D(N, plotMesh, meshFile)
 	c.InitializeMemory()
+	if c.ParallelDegree > c.dfr.K {
+		c.ParallelDegree = 1
+	}
+
 	if verbose {
 		fmt.Printf("Euler Equations in 2 Dimensions\n")
 		fmt.Printf("Using %d go routines in parallel\n", runtime.NumCPU())
