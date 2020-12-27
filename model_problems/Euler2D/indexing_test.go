@@ -5,18 +5,15 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/notargets/gocfd/DG2D"
 )
 
 func TestEuler_Indexing(t *testing.T) {
-	{
+	{ // Test PartitionMap
 		getHisto := func(K, Np int) (histo map[int]int) {
+			pm := NewPartitionMap(Np, K)
 			histo = make(map[int]int)
-			d := &DG2D.DFR2D{K: K}
-			c := &Euler{dfr: d, ParallelDegree: Np}
-			for np := 0; np < c.ParallelDegree; np++ {
-				maxK := c.GetKSplitMaxK(np)
+			for np := 0; np < pm.ParallelDegree; np++ {
+				maxK := pm.GetBucketDimension(np)
 				histo[maxK]++
 			}
 			return
@@ -33,9 +30,9 @@ func TestEuler_Indexing(t *testing.T) {
 		assert.Equal(t, map[int]int{8: 1, 9: 31}, getHisto(287, 32))
 		assert.Equal(t, 287, getTotal(getHisto(287, 32)))
 		for n := 64; n < 10000; n++ {
-			//for n := 64; n < 10000; n++ {
-			//n := 64
-			//{
+			// for n := 64; n < 10000; n++ {
+			// n := 64
+			// {
 			var (
 				keys   [2]float64
 				keyNum int
@@ -48,9 +45,18 @@ func TestEuler_Indexing(t *testing.T) {
 			if keyNum == 2 {
 				assert.Equal(t, 1., math.Abs(keys[0]-keys[1])) // Maximum imbalance of 1
 			}
-			//fmt.Printf("keys = %v, histo[%d] = %v\n", keys, n, histo)
+			// fmt.Printf("keys = %v, histo[%d] = %v\n", keys, n, histo)
 			assert.Equal(t, n, getTotal(histo))
 		}
-		//fmt.Printf("histogram = %v\n", getHisto(287, 32))
+	}
+	{ // Test inverted bucket probe - find bucket that contains index (efficiently)
+		for maxIndex := 10; maxIndex < 1000; maxIndex++ {
+			pm := NewPartitionMap(5, maxIndex)
+			for k := 0; k < maxIndex; k++ {
+				tryCount, bn, min, max := pm.getBucketWithTryCount(k)
+				mmin, mmax := pm.GetBucketRange(bn)
+				assert.True(t, k >= min && k < max && min == mmin && max == mmax && tryCount <= 1)
+			}
+		}
 	}
 }
