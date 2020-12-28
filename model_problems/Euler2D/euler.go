@@ -208,7 +208,7 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		FinalTime            = c.FinalTime
 		Time, dt             float64
 		Q1, Q2, Q3, Residual [][4]utils.Matrix
-		Q_Face, F_RT_DOF     [][4]utils.Matrix
+		F_RT_DOF             [][4]utils.Matrix
 		DT                   []utils.Matrix
 		steps                int
 		finished             bool
@@ -217,8 +217,7 @@ func (c *Euler) Solve(pm *PlotMeta) {
 	)
 	c.PrintInitialization(FinalTime)
 	// Initialize memory for RHS
-	Q1, Q2, Q3, Residual, Q_Face, F_RT_DOF =
-		make([][4]utils.Matrix, c.Partitions.ParallelDegree),
+	Q1, Q2, Q3, Residual, F_RT_DOF =
 		make([][4]utils.Matrix, c.Partitions.ParallelDegree),
 		make([][4]utils.Matrix, c.Partitions.ParallelDegree),
 		make([][4]utils.Matrix, c.Partitions.ParallelDegree),
@@ -238,7 +237,7 @@ func (c *Euler) Solve(pm *PlotMeta) {
 	}
 	start := time.Now()
 	for !finished {
-		Residual, dt = c.RungeKutta4SSP(Time, DT, Q_Face, F_RT_DOF, c.Q, Q1, Q2, Q3)
+		Residual, dt = c.RungeKutta4SSP(Time, DT, F_RT_DOF, c.Q, Q1, Q2, Q3)
 		steps++
 		Time += dt
 		finished = c.CheckIfFinished(Time, FinalTime, steps)
@@ -252,13 +251,14 @@ func (c *Euler) Solve(pm *PlotMeta) {
 	c.PrintFinal(elapsed, steps)
 }
 
-func (c *Euler) RungeKutta4SSP(Time float64, DT []utils.Matrix, Q_Face, F_RT_DOF, Q0, Q1, Q2, Q3 [][4]utils.Matrix) (Residual [][4]utils.Matrix, dt float64) {
+func (c *Euler) RungeKutta4SSP(Time float64, DT []utils.Matrix, F_RT_DOF, Q0, Q1, Q2, Q3 [][4]utils.Matrix) (Residual [][4]utils.Matrix, dt float64) {
 	var (
-		Np = c.dfr.SolutionElement.Np
-		dT float64
-		NP = c.Partitions.ParallelDegree
+		Np     = c.dfr.SolutionElement.Np
+		dT     float64
+		NP     = c.Partitions.ParallelDegree
+		Q_Face [][4]utils.Matrix
 	)
-	Residual = make([][4]utils.Matrix, NP)
+	Q_Face, Residual = make([][4]utils.Matrix, NP), make([][4]utils.Matrix, NP)
 	for np := 0; np < NP; np++ {
 		for n := 0; n < 4; n++ {
 			Residual[np][n] = Q1[np][n] // optimize memory using an alias
@@ -266,7 +266,11 @@ func (c *Euler) RungeKutta4SSP(Time float64, DT []utils.Matrix, Q_Face, F_RT_DOF
 		Kmax := c.Partitions.GetBucketDimension(np)
 		Q_Face[np] = c.PrepareEdgeFlux(Kmax, F_RT_DOF[np], Q0[np], Time)
 	}
-	c.ParallelSetNormalFluxOnEdges(Time)
+	dt = c.CalculateDT(DT, Q_Face) // Operates on edges/ internally parallel
+	if Time+dt > c.FinalTime {
+		dt = c.FinalTime - Time
+	}
+	c.ParallelSetNormalFluxOnEdges(Time) // Must sync parallel before calling
 	for np := 0; np < NP; np++ {
 		Kmax := c.Partitions.GetBucketDimension(np)
 		qD := Get4DP(Q0[np])
@@ -274,10 +278,6 @@ func (c *Euler) RungeKutta4SSP(Time float64, DT []utils.Matrix, Q_Face, F_RT_DOF
 		dtD := DT[np].Data()
 		rhsQ := c.RHS(Kmax, Q_Face[np], F_RT_DOF[np], Q0[np], Time)
 		rhsD := Get4DP(rhsQ)
-		dt = c.CalculateDT(DT[np], Q_Face[np])
-		if Time+dt > c.FinalTime {
-			dt = c.FinalTime - Time
-		}
 		for n := 0; n < 4; n++ {
 			for i := 0; i < Kmax*Np; i++ {
 				if c.LocalTimeStepping {
@@ -288,7 +288,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, DT []utils.Matrix, Q_Face, F_RT_DOF
 		}
 		Q_Face[np] = c.PrepareEdgeFlux(Kmax, F_RT_DOF[np], Q1[np], Time)
 	}
-	c.ParallelSetNormalFluxOnEdges(Time)
+	c.ParallelSetNormalFluxOnEdges(Time) // Must sync parallel before calling
 	for np := 0; np < NP; np++ {
 		Kmax := c.Partitions.GetBucketDimension(np)
 		q1D := Get4DP(Q1[np])
@@ -306,7 +306,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, DT []utils.Matrix, Q_Face, F_RT_DOF
 		}
 		Q_Face[np] = c.PrepareEdgeFlux(Kmax, F_RT_DOF[np], Q2[np], Time)
 	}
-	c.ParallelSetNormalFluxOnEdges(Time)
+	c.ParallelSetNormalFluxOnEdges(Time) // Must sync parallel before calling
 	for np := 0; np < NP; np++ {
 		Kmax := c.Partitions.GetBucketDimension(np)
 		qD := Get4DP(Q0[np])
@@ -325,7 +325,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, DT []utils.Matrix, Q_Face, F_RT_DOF
 		}
 		Q_Face[np] = c.PrepareEdgeFlux(Kmax, F_RT_DOF[np], Q3[np], Time)
 	}
-	c.ParallelSetNormalFluxOnEdges(Time)
+	c.ParallelSetNormalFluxOnEdges(Time) // Must sync parallel before calling
 	for np := 0; np < NP; np++ {
 		Kmax := c.Partitions.GetBucketDimension(np)
 		qD := Get4DP(Q0[np])
@@ -347,7 +347,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, DT []utils.Matrix, Q_Face, F_RT_DOF
 	return
 }
 
-func (c *Euler) CalculateDT(DT utils.Matrix, Q_Face [4]utils.Matrix) (dt float64) {
+func (c *Euler) CalculateDT(DT []utils.Matrix, Q_Face [][4]utils.Matrix) (dt float64) {
 	var (
 		Np1      = c.dfr.N + 1
 		Np12     = float64(Np1 * Np1)
@@ -388,6 +388,7 @@ func (c *Euler) CalculateDT(DT utils.Matrix, Q_Face [4]utils.Matrix) (dt float64
 				fs := 0.5 * Np12 * edgeLen / Jdet
 				edgeMax := -100.
 				for i := shift; i < shift+Nedge; i++ {
+					// TODO: Change the definition of qq to use partitioned element of Q_Face
 					qq := c.GetQQ(k, i, qfD)
 					C := c.FS.GetFlowFunction(qq, SoundSpeed)
 					U := c.FS.GetFlowFunction(qq, Velocity)
