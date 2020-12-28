@@ -26,10 +26,6 @@ type Euler struct {
 	CFL, FinalTime    float64
 	FS                *FreeStream
 	dfr               *DG2D.DFR2D
-	Q                 [4]utils.Matrix // Solution variables, stored at solution point locations, Np_solution x K
-	DT                utils.Matrix    // Local time step for steady state solution
-	Q_Face            [4]utils.Matrix // Solution variables, interpolated to and stored at edge point locations, Np_edge x K
-	F_RT_DOF          [4]utils.Matrix // Normal Projected Flux, stored at flux/solution point locations, Np_flux x K
 	chart             ChartState
 	FluxCalcAlgo      FluxType
 	Case              InitType
@@ -37,8 +33,12 @@ type Euler struct {
 	FluxCalcMock      func(Q [4]float64) (Fx, Fy [4]float64) // For testing
 	SortedEdgeKeys    EdgeKeySlice
 	ParallelDegree    int // Number of go routines to use for parallel execution
+	Partitions        *PartitionMap
 	LocalTimeStepping bool
 	MaxIterations     int
+	// Below are partitioned by K (elements) in the first slice
+	Q                    [][4]utils.Matrix // Solution variables, stored at solution point locations, Np_solution x K
+	SolutionX, SolutionY []utils.Matrix
 }
 
 func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
@@ -67,14 +67,14 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
 	}
 
 	c.dfr = DG2D.NewDFR2D(N, plotMesh, meshFile)
-	c.InitializeMemory()
 	if c.ParallelDegree > c.dfr.K {
 		c.ParallelDegree = 1
 	}
+	c.Partitions = NewPartitionMap(c.ParallelDegree, c.dfr.K)
 
 	if verbose {
 		fmt.Printf("Euler Equations in 2 Dimensions\n")
-		fmt.Printf("Using %d go routines in parallel\n", runtime.NumCPU())
+		fmt.Printf("Using %d go routines in parallel\n", c.Partitions.ParallelDegree)
 		fmt.Printf("Solving %s\n", c.Case.Print())
 		if c.Case == FREESTREAM {
 			fmt.Printf("Mach Infinity = %8.5f, Angle of Attack = %8.5f\n", Minf, Alpha)
@@ -89,15 +89,27 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
 		i++
 	}
 	c.SortedEdgeKeys.Sort()
+
+	// Initialize solution
+	c.Q = make([][4]utils.Matrix, c.Partitions.ParallelDegree) // Allocate shards to store solution
 	switch c.Case {
 	case FREESTREAM:
-		c.InitializeFS()
+		NP := c.Partitions.ParallelDegree
+		for np := 0; np < NP; np++ {
+			Kmax := c.Partitions.GetBucketDimension(np)
+			c.Q[np] = c.InitializeFS(Kmax)
+		}
 	case IVORTEX:
 		c.FS.Qinf = [4]float64{1, 1, 0, 3}
 		c.FS.Pinf = c.FS.GetFlowFunction(c.FS.Qinf, StaticPressure)
 		c.FS.QQinf = c.FS.GetFlowFunction(c.FS.Qinf, DynamicPressure)
 		c.FS.Cinf = c.FS.GetFlowFunction(c.FS.Qinf, SoundSpeed)
-		c.AnalyticSolution, c.Q = c.InitializeIVortex(c.dfr.SolutionX, c.dfr.SolutionY)
+		c.SolutionX = c.ShardByK(c.dfr.SolutionX)
+		c.SolutionY = c.ShardByK(c.dfr.SolutionY)
+		NP := c.Partitions.ParallelDegree
+		for np := 0; np < NP; np++ {
+			c.AnalyticSolution, c.Q[np] = c.InitializeIVortex(c.SolutionX[np], c.SolutionY[np])
+		}
 		// Set "Wall" BCs to IVortex
 		var count int
 		for _, e := range c.dfr.Tris.Edges {
@@ -119,246 +131,234 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
 	return
 }
 
+func (c *Euler) ShardByK(A utils.Matrix) (pA []utils.Matrix) {
+	var (
+		NP      = c.Partitions.ParallelDegree
+		_, Imax = A.Dims()
+		aD      = A.Data()
+	)
+	pA = make([]utils.Matrix, NP)
+	for np := 0; np < NP; np++ {
+		kMin, kMax := c.Partitions.GetBucketRange(np)
+		Kmax := c.Partitions.GetBucketDimension(np)
+		pA[np] = utils.NewMatrix(Kmax, Imax)
+		pAD := pA[np].Data()
+		for k := kMin; k < kMax; k++ {
+			pk := k - kMin
+			for i := 0; i < Imax; i++ {
+				ind := k + i*c.dfr.K
+				pind := pk + Kmax*i
+				pAD[pind] = aD[ind]
+			}
+		}
+	}
+	return
+}
+
+func (c *Euler) RecombineShardsK(pA []utils.Matrix) (A utils.Matrix) {
+	var (
+		NP      = c.Partitions.ParallelDegree
+		_, Imax = pA[0].Dims()
+	)
+	A = utils.NewMatrix(c.dfr.K, Imax)
+	aD := A.Data()
+	for np := 0; np < NP; np++ {
+		kMin, kMax := c.Partitions.GetBucketRange(np)
+		Kmax := c.Partitions.GetBucketDimension(np)
+		pAD := pA[np].Data()
+		for k := kMin; k < kMax; k++ {
+			pk := k - kMin
+			for i := 0; i < Imax; i++ {
+				ind := k + i*c.dfr.K
+				pind := pk + Kmax*i
+				aD[ind] = pAD[pind]
+			}
+		}
+	}
+	return
+}
+
+func (c *Euler) RecombineShardsKBy4(pA [][4]utils.Matrix) (A [4]utils.Matrix) {
+	var (
+		NP      = c.Partitions.ParallelDegree
+		_, Imax = pA[0][0].Dims()
+	)
+	for np := 0; np < NP; np++ {
+		for n := 0; n < 4; n++ {
+			A[n] = utils.NewMatrix(c.dfr.K, Imax)
+			aD := A[n].Data()
+			kMin, kMax := c.Partitions.GetBucketRange(np)
+			Kmax := c.Partitions.GetBucketDimension(np)
+			pAD := pA[np][n].Data()
+			for k := kMin; k < kMax; k++ {
+				pk := k - kMin
+				for i := 0; i < Imax; i++ {
+					ind := k + i*c.dfr.K
+					pind := pk + Kmax*i
+					aD[ind] = pAD[pind]
+				}
+			}
+		}
+	}
+	return
+}
+
 func (c *Euler) Solve(pm *PlotMeta) {
 	var (
 		FinalTime            = c.FinalTime
 		Time, dt             float64
-		Q1, Q2, Q3, Residual [4]utils.Matrix
+		Q1, Q2, Q3, Residual [][4]utils.Matrix
+		Q_Face, F_RT_DOF     [][4]utils.Matrix
+		DT                   []utils.Matrix
 		steps                int
 		finished             bool
 		Np                   = c.dfr.SolutionElement.Np
-		Kmax                 = c.dfr.K
 		plotQ                = pm.Plot
 	)
 	c.PrintInitialization(FinalTime)
 	// Initialize memory for RHS
-	for n := 0; n < 4; n++ {
-		Q1[n] = utils.NewMatrix(Np, Kmax)
-		Q2[n] = utils.NewMatrix(Np, Kmax)
-		Q3[n] = utils.NewMatrix(Np, Kmax)
+	Q1, Q2, Q3, Residual, Q_Face, F_RT_DOF =
+		make([][4]utils.Matrix, c.Partitions.ParallelDegree),
+		make([][4]utils.Matrix, c.Partitions.ParallelDegree),
+		make([][4]utils.Matrix, c.Partitions.ParallelDegree),
+		make([][4]utils.Matrix, c.Partitions.ParallelDegree),
+		make([][4]utils.Matrix, c.Partitions.ParallelDegree),
+		make([][4]utils.Matrix, c.Partitions.ParallelDegree)
+	DT = make([]utils.Matrix, c.Partitions.ParallelDegree)
+
+	for np := 0; np < c.Partitions.ParallelDegree; np++ {
+		Kmax := c.Partitions.GetBucketDimension(np)
+		for n := 0; n < 4; n++ {
+			Q1[np][n] = utils.NewMatrix(Np, Kmax)
+			Q2[np][n] = utils.NewMatrix(Np, Kmax)
+			Q3[np][n] = utils.NewMatrix(Np, Kmax)
+			F_RT_DOF[np][n] = utils.NewMatrix(Np, Kmax)
+		}
+		DT[np] = utils.NewMatrix(Np, Kmax)
 	}
 	start := time.Now()
 	for !finished {
-		Residual, dt = c.RungeKutta4SSP(Time, Q1, Q2, Q3)
+		Residual, dt = c.RungeKutta4SSP(Time, DT, Q_Face, F_RT_DOF, c.Q, Q1, Q2, Q3)
 		steps++
 		Time += dt
 		finished = c.CheckIfFinished(Time, FinalTime, steps)
 		if finished || steps%pm.StepsBeforePlot == 0 || steps == 1 {
-			c.PrintUpdate(Time, dt, steps, Residual, plotQ, pm)
+			QQ := c.RecombineShardsKBy4(c.Q)
+			ResidFull := c.RecombineShardsKBy4(Residual)
+			c.PrintUpdate(Time, dt, steps, QQ, ResidFull, plotQ, pm)
 		}
 	}
 	elapsed := time.Now().Sub(start)
 	c.PrintFinal(elapsed, steps)
 }
 
-func (c *Euler) InitializeMemory() {
+func (c *Euler) RungeKutta4SSP(Time float64, DT []utils.Matrix, Q_Face, F_RT_DOF, Q0, Q1, Q2, Q3 [][4]utils.Matrix) (Residual [][4]utils.Matrix, dt float64) {
 	var (
-		K          = c.dfr.K
-		Nedge      = c.dfr.FluxElement.Nedge
-		NpFlux     = c.dfr.FluxElement.Np
-		NpSolution = c.dfr.SolutionElement.Np
+		Np = c.dfr.SolutionElement.Np
+		dT float64
+		NP = c.Partitions.ParallelDegree
 	)
-	for n := 0; n < 4; n++ {
-		c.Q_Face[n] = utils.NewMatrix(Nedge*3, K)
-		c.F_RT_DOF[n] = utils.NewMatrix(NpFlux, K)
-		c.DT = utils.NewMatrix(NpSolution, K) // Local time step
+	Residual = make([][4]utils.Matrix, NP)
+	for np := 0; np < NP; np++ {
+		for n := 0; n < 4; n++ {
+			Residual[np][n] = Q1[np][n] // optimize memory using an alias
+		}
+		Kmax := c.Partitions.GetBucketDimension(np)
+		Q_Face[np] = c.PrepareEdgeFlux(Kmax, F_RT_DOF[np], Q0[np], Time)
 	}
-}
-
-func (c *Euler) RungeKutta3SSP(Time float64, Q1, Q2 [4]utils.Matrix) (Residual [4]utils.Matrix, dt float64) {
-	var (
-		Np   = c.dfr.SolutionElement.Np
-		Kmax = c.dfr.K
-		wg   = sync.WaitGroup{}
-	)
-	for n := 0; n < 4; n++ {
-		Residual[n] = Q1[n] // optimize memory using an alias
-	}
-	// Get pointers to the underlying data for each matrix
-	qD := Get4DP(c.Q)
-	q1D := Get4DP(Q1)
-	q2D := Get4DP(Q2)
-	resD := Get4DP(Residual)
-	dtD := c.DT.Data()
-
-	rhsQ := c.RHS(c.Q, Time)
-	rhsD := Get4DP(rhsQ)
-	dt = c.CalculateDT()
-	if Time+dt > c.FinalTime {
-		dt = c.FinalTime - Time
-	}
-	for np := 0; np < c.ParallelDegree; np++ {
-		ind, end := utils.Split1D(Kmax*Np, c.ParallelDegree, np)
-		wg.Add(1)
-		go func(ind, end int) {
-			var dT = dt
-			for n := 0; n < 4; n++ {
-				for i := ind; i < end; i++ {
-					if c.LocalTimeStepping {
-						dT = dtD[i]
-					}
-					q1D[n][i] = qD[n][i] + rhsD[n][i]*dT
+	c.ParallelSetNormalFluxOnEdges(Time)
+	for np := 0; np < NP; np++ {
+		Kmax := c.Partitions.GetBucketDimension(np)
+		qD := Get4DP(Q0[np])
+		q1D := Get4DP(Q1[np])
+		dtD := DT[np].Data()
+		rhsQ := c.RHS(Kmax, Q_Face[np], F_RT_DOF[np], Q0[np], Time)
+		rhsD := Get4DP(rhsQ)
+		dt = c.CalculateDT(DT[np], Q_Face[np])
+		if Time+dt > c.FinalTime {
+			dt = c.FinalTime - Time
+		}
+		for n := 0; n < 4; n++ {
+			for i := 0; i < Kmax*Np; i++ {
+				if c.LocalTimeStepping {
+					dT = dtD[i]
 				}
+				q1D[n][i] = qD[n][i] + 0.5*rhsD[n][i]*dT
 			}
-			wg.Done()
-		}(ind, end)
+		}
+		Q_Face[np] = c.PrepareEdgeFlux(Kmax, F_RT_DOF[np], Q1[np], Time)
 	}
-	wg.Wait()
-	rhsQ = c.RHS(Q1, Time)
-	rhsD = Get4DP(rhsQ)
-	for np := 0; np < c.ParallelDegree; np++ {
-		ind, end := utils.Split1D(Kmax*Np, c.ParallelDegree, np)
-		wg.Add(1)
-		go func(ind, end int) {
-			var dT = dt
-			for n := 0; n < 4; n++ {
-				for i := ind; i < end; i++ {
-					if c.LocalTimeStepping {
-						dT = dtD[i]
-					}
-					q2D[n][i] = 0.25 * (q1D[n][i] + 3*qD[n][i] + rhsD[n][i]*dT)
+	c.ParallelSetNormalFluxOnEdges(Time)
+	for np := 0; np < NP; np++ {
+		Kmax := c.Partitions.GetBucketDimension(np)
+		q1D := Get4DP(Q1[np])
+		q2D := Get4DP(Q2[np])
+		dtD := DT[np].Data()
+		rhsQ := c.RHS(Kmax, Q_Face[np], F_RT_DOF[np], Q1[np], Time)
+		rhsD := Get4DP(rhsQ)
+		for n := 0; n < 4; n++ {
+			for i := 0; i < Kmax*Np; i++ {
+				if c.LocalTimeStepping {
+					dT = dtD[i]
 				}
+				q2D[n][i] = q1D[n][i] + 0.25*rhsD[n][i]*dT
 			}
-			wg.Done()
-		}(ind, end)
+		}
+		Q_Face[np] = c.PrepareEdgeFlux(Kmax, F_RT_DOF[np], Q2[np], Time)
 	}
-	wg.Wait()
-	rhsQ = c.RHS(Q2, Time)
-	rhsD = Get4DP(rhsQ)
-	for np := 0; np < c.ParallelDegree; np++ {
-		ind, end := utils.Split1D(Kmax*Np, c.ParallelDegree, np)
-		wg.Add(1)
-		go func(ind, end int) {
-			var dT = dt
-			for n := 0; n < 4; n++ {
-				for i := ind; i < end; i++ {
-					if c.LocalTimeStepping {
-						dT = dtD[i]
-					}
-					resD[n][i] = (2. / 3.) * (q2D[n][i] - qD[n][i] + 0.5*rhsD[n][i]*dT)
-					qD[n][i] += resD[n][i]
+	c.ParallelSetNormalFluxOnEdges(Time)
+	for np := 0; np < NP; np++ {
+		Kmax := c.Partitions.GetBucketDimension(np)
+		qD := Get4DP(Q0[np])
+		q2D := Get4DP(Q2[np])
+		q3D := Get4DP(Q3[np])
+		dtD := DT[np].Data()
+		rhsQ := c.RHS(Kmax, Q_Face[np], F_RT_DOF[np], Q2[np], Time)
+		rhsD := Get4DP(rhsQ)
+		for n := 0; n < 4; n++ {
+			for i := 0; i < Kmax*Np; i++ {
+				if c.LocalTimeStepping {
+					dT = dtD[i]
 				}
+				q3D[n][i] = (1. / 3.) * (2*qD[n][i] + q2D[n][i] + rhsD[n][i]*dT)
 			}
-			wg.Done()
-		}(ind, end)
+		}
+		Q_Face[np] = c.PrepareEdgeFlux(Kmax, F_RT_DOF[np], Q3[np], Time)
 	}
-	wg.Wait()
+	c.ParallelSetNormalFluxOnEdges(Time)
+	for np := 0; np < NP; np++ {
+		Kmax := c.Partitions.GetBucketDimension(np)
+		qD := Get4DP(Q0[np])
+		q3D := Get4DP(Q3[np])
+		resD := Get4DP(Residual[np])
+		dtD := DT[np].Data()
+		rhsQ := c.RHS(Kmax, Q_Face[np], F_RT_DOF[np], Q3[np], Time)
+		rhsD := Get4DP(rhsQ)
+		for n := 0; n < 4; n++ {
+			for i := 0; i < Kmax*Np; i++ {
+				if c.LocalTimeStepping {
+					dT = dtD[i]
+				}
+				resD[n][i] = q3D[n][i] + 0.25*rhsD[n][i]*dT - qD[n][i]
+				qD[n][i] += resD[n][i]
+			}
+		}
+	}
 	return
 }
 
-func (c *Euler) RungeKutta4SSP(Time float64, Q1, Q2, Q3 [4]utils.Matrix) (Residual [4]utils.Matrix, dt float64) {
-	var (
-		Np   = c.dfr.SolutionElement.Np
-		Kmax = c.dfr.K
-		wg   = sync.WaitGroup{}
-	)
-	for n := 0; n < 4; n++ {
-		Residual[n] = Q1[n] // optimize memory using an alias
-	}
-	// Get pointers to the underlying data for each matrix
-	qD := Get4DP(c.Q)
-	q1D := Get4DP(Q1)
-	q2D := Get4DP(Q2)
-	q3D := Get4DP(Q3)
-	resD := Get4DP(Residual)
-	dtD := c.DT.Data()
-
-	rhsQ := c.RHS(c.Q, Time)
-	rhsD := Get4DP(rhsQ)
-	dt = c.CalculateDT()
-	if Time+dt > c.FinalTime {
-		dt = c.FinalTime - Time
-	}
-	for np := 0; np < c.ParallelDegree; np++ {
-		ind, end := utils.Split1D(Kmax*Np, c.ParallelDegree, np)
-		wg.Add(1)
-		go func(ind, end int) {
-			var dT = dt
-			for n := 0; n < 4; n++ {
-				for i := ind; i < end; i++ {
-					if c.LocalTimeStepping {
-						dT = dtD[i]
-					}
-					q1D[n][i] = qD[n][i] + 0.5*rhsD[n][i]*dT
-				}
-			}
-			wg.Done()
-		}(ind, end)
-	}
-	wg.Wait()
-	rhsQ = c.RHS(Q1, Time)
-	rhsD = Get4DP(rhsQ)
-	for np := 0; np < c.ParallelDegree; np++ {
-		ind, end := utils.Split1D(Kmax*Np, c.ParallelDegree, np)
-		wg.Add(1)
-		go func(ind, end int) {
-			var dT = dt
-			for n := 0; n < 4; n++ {
-				for i := ind; i < end; i++ {
-					if c.LocalTimeStepping {
-						dT = dtD[i]
-					}
-					q2D[n][i] = q1D[n][i] + 0.25*rhsD[n][i]*dT
-				}
-			}
-			wg.Done()
-		}(ind, end)
-	}
-	wg.Wait()
-	rhsQ = c.RHS(Q2, Time)
-	rhsD = Get4DP(rhsQ)
-	for np := 0; np < c.ParallelDegree; np++ {
-		ind, end := utils.Split1D(Kmax*Np, c.ParallelDegree, np)
-		wg.Add(1)
-		go func(ind, end int) {
-			var dT = dt
-			for n := 0; n < 4; n++ {
-				for i := ind; i < end; i++ {
-					if c.LocalTimeStepping {
-						dT = dtD[i]
-					}
-					q3D[n][i] = (1. / 3.) * (2*qD[n][i] + q2D[n][i] + rhsD[n][i]*dT)
-				}
-			}
-			wg.Done()
-		}(ind, end)
-	}
-	wg.Wait()
-	rhsQ = c.RHS(Q3, Time)
-	rhsD = Get4DP(rhsQ)
-	for np := 0; np < c.ParallelDegree; np++ {
-		ind, end := utils.Split1D(Kmax*Np, c.ParallelDegree, np)
-		wg.Add(1)
-		go func(ind, end int) {
-			var dT = dt
-			for n := 0; n < 4; n++ {
-				for i := ind; i < end; i++ {
-					if c.LocalTimeStepping {
-						dT = dtD[i]
-					}
-					resD[n][i] = q3D[n][i] + 0.25*rhsD[n][i]*dT - qD[n][i]
-					qD[n][i] += resD[n][i]
-				}
-			}
-			wg.Done()
-		}(ind, end)
-	}
-	wg.Wait()
-	return
-}
-
-func (c *Euler) CalculateDT() (dt float64) {
+func (c *Euler) CalculateDT(DT utils.Matrix, Q_Face [4]utils.Matrix) (dt float64) {
 	var (
 		Np1      = c.dfr.N + 1
 		Np12     = float64(Np1 * Np1)
 		wsMaxAll = -math.MaxFloat64
 		wsMax    = make([]float64, c.ParallelDegree)
 		wg       = sync.WaitGroup{}
-		qfD      = Get4DP(c.Q_Face)
+		qfD      = Get4DP(Q_Face)
 		JdetD    = c.dfr.Jdet.Data()
 	)
 	// Setup max wavespeed before loop
-	dtD := c.DT.Data()
+	dtD := DT.Data()
 	for k := 0; k < c.dfr.K; k++ {
 		dtD[k] = -100
 	}
@@ -428,7 +428,7 @@ func (c *Euler) CalculateDT() (dt float64) {
 	return
 }
 
-func (c *Euler) RHS(Q [4]utils.Matrix, Time float64) (RHSCalc [4]utils.Matrix) {
+func (c *Euler) RHS(Kmax int, Q_Face, F_RT_DOF, Q [4]utils.Matrix, Time float64) (RHSCalc [4]utils.Matrix) {
 	/*
 				Calculate the RHS of the equation:
 				dQ/dt = -div(F,G)
@@ -441,17 +441,10 @@ func (c *Euler) RHS(Q [4]utils.Matrix, Time float64) (RHSCalc [4]utils.Matrix) {
 				of the element "injected" via calculation of a physical flux on those faces, and the (F,G) values in the interior
 				of the element taken directly from the solution values (Q).
 	*/
-	c.AssembleRTNormalFlux(Q, Time) // Assembles F_RT_DOF for use in calculations using RT element
-	var wg = sync.WaitGroup{}
 	for n := 0; n < 4; n++ {
-		wg.Add(1)
-		go func(n int) {
-			RHSCalc[n] = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n]) // Calculate divergence for the internal node points
-			c.DivideByJacobian(c.dfr.FluxElement.Nint, RHSCalc[n].Data(), -1)
-			wg.Done()
-		}(n)
+		RHSCalc[n] = c.dfr.FluxElement.DivInt.Mul(F_RT_DOF[n]) // Calculate divergence for the internal node points
+		c.DivideByJacobian(c.dfr.FluxElement.Nint, RHSCalc[n].Data(), -1)
 	}
-	wg.Wait()
 	return
 }
 
@@ -469,13 +462,10 @@ func (c *Euler) DivideByJacobian(Nmax int, data []float64, scale float64) {
 	}
 }
 
-func (c *Euler) AssembleRTNormalFlux(Q [4]utils.Matrix, Time float64) {
+func (c *Euler) PrepareEdgeFlux(Kmax int, F_RT_DOF, Q [4]utils.Matrix, Time float64) (Q_Face [4]utils.Matrix) {
 	var (
-		Kmax  = c.dfr.K
-		Nedge = c.dfr.FluxElement.Nedge
 		Np    = c.dfr.FluxElement.Np
-		qfD   = Get4DP(c.Q_Face)
-		fdofD = Get4DP(c.F_RT_DOF)
+		fdofD = Get4DP(F_RT_DOF)
 	)
 	/*
 		Solver approach:
@@ -485,49 +475,60 @@ func (c *Euler) AssembleRTNormalFlux(Q [4]utils.Matrix, Time float64) {
 		2) Edges are traversed, flux is calculated and projected onto edge face normals, scaled and placed into F_RT_DOF
 	*/
 	/*
-		Zero out DOF storage and Q_Face to promote easier bug avoidance
+		Zero out DOF storage to promote easier bug avoidance
 	*/
 	for n := 0; n < 4; n++ {
-		for i := 0; i < Kmax*Nedge; i++ {
-			qfD[n][i] = 0.
-		}
 		for i := 0; i < Kmax*Np; i++ {
 			fdofD[n][i] = 0.
 		}
 	}
-	c.SetNormalFluxInternal(Q)           // Updates F_RT_DOF with values from Q
-	c.InterpolateSolutionToEdges(Q)      // Interpolates Q_Face values from Q
-	c.ParallelSetNormalFluxOnEdges(Time) // Updates F_RT_DOG with values from edges, including BCs and connected tris
+	c.SetNormalFluxInternal(Kmax, F_RT_DOF, Q) // Updates F_RT_DOF with values from Q
+	Q_Face = c.InterpolateSolutionToEdges(Q)   // Interpolates Q_Face values from Q
+	return
 }
 
-func (c *Euler) SetNormalFluxInternal(Q [4]utils.Matrix) {
+func (c *Euler) AssembleRTNormalFlux(Kmax int, Q_Face, F_RT_DOF, Q [4]utils.Matrix, Time float64) {
 	var (
-		Kmax  = c.dfr.K
+		Np    = c.dfr.FluxElement.Np
+		fdofD = Get4DP(F_RT_DOF)
+	)
+	/*
+		Solver approach:
+		0) Solution is stored on sol points as Q
+		0a) Flux is computed and stored in X, Y component projections in the 2*Nint front of F_RT_DOF
+		1) Solution is extrapolated to edge points in Q_Face from Q
+		2) Edges are traversed, flux is calculated and projected onto edge face normals, scaled and placed into F_RT_DOF
+	*/
+	/*
+		Zero out DOF storage to promote easier bug avoidance
+	*/
+	for n := 0; n < 4; n++ {
+		for i := 0; i < Kmax*Np; i++ {
+			fdofD[n][i] = 0.
+		}
+	}
+	c.SetNormalFluxInternal(Kmax, F_RT_DOF, Q) // Updates F_RT_DOF with values from Q
+	Q_Face = c.InterpolateSolutionToEdges(Q)   // Interpolates Q_Face values from Q
+	c.ParallelSetNormalFluxOnEdges(Time)       // Updates F_RT_DOG with values from edges, including BCs and connected tris
+}
+
+func (c *Euler) SetNormalFluxInternal(Kmax int, F_RT_DOF, Q [4]utils.Matrix) {
+	var (
 		Nint  = c.dfr.FluxElement.Nint
-		wg    = sync.WaitGroup{}
 		qD    = Get4DP(Q)
-		fdofD = Get4DP(c.F_RT_DOF)
+		fdofD = Get4DP(F_RT_DOF)
 	)
 	// Calculate flux and project into R and S (transformed) directions for the internal points
-	//for k := 0; k < Kmax; k++ {
-	for np := 0; np < c.ParallelDegree; np++ {
-		ind, end := c.split1D(Kmax, np)
-		wg.Add(1)
-		go func() {
-			for k := ind; k < end; k++ {
-				for i := 0; i < Nint; i++ {
-					ind := k + i*Kmax
-					ind2 := k + (i+Nint)*Kmax
-					Fr, Fs := c.CalculateFluxTransformed(k, i, qD)
-					for n := 0; n < 4; n++ {
-						fdofD[n][ind], fdofD[n][ind2] = Fr[n], Fs[n]
-					}
-				}
+	for k := 0; k < Kmax; k++ {
+		for i := 0; i < Nint; i++ {
+			ind := k + i*Kmax
+			ind2 := k + (i+Nint)*Kmax
+			Fr, Fs := c.CalculateFluxTransformed(k, i, qD)
+			for n := 0; n < 4; n++ {
+				fdofD[n][ind], fdofD[n][ind2] = Fr[n], Fs[n]
 			}
-			wg.Done()
-		}()
+		}
 	}
-	wg.Wait()
 }
 
 func (c *Euler) CheckIfFinished(Time, FinalTime float64, steps int) (finished bool) {
@@ -548,10 +549,10 @@ func (c *Euler) PrintInitialization(FinalTime float64) {
 	fmt.Printf("       Res0       Res1       Res2")
 	fmt.Printf("       Res3         L1         L2\n")
 }
-func (c *Euler) PrintUpdate(Time, dt float64, steps int, Residual [4]utils.Matrix, plotQ bool, pm *PlotMeta) {
+func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [4]utils.Matrix, plotQ bool, pm *PlotMeta) {
 	format := "%11.4e"
 	if plotQ {
-		c.PlotQ(c.Q, pm) // wait till we implement time iterative frame updates
+		c.PlotQ(Q, pm) // wait till we implement time iterative frame updates
 	}
 	if c.LocalTimeStepping {
 		fmt.Printf("%10d              ", steps)

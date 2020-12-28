@@ -180,15 +180,10 @@ func (c *Euler) SetNormalFluxOnRTEdge(k, edgeNumber int, edgeNormalFlux [][4]flo
 	}
 }
 
-func (c *Euler) InterpolateSolutionToEdges(Q [4]utils.Matrix) {
+func (c *Euler) InterpolateSolutionToEdges(Q [4]utils.Matrix) (Q_Face [4]utils.Matrix) {
 	// Interpolate from solution points to edges using precomputed interpolation matrix
-	var wg = sync.WaitGroup{}
 	for n := 0; n < 4; n++ {
-		wg.Add(1)
-		go func(n int) {
-			c.Q_Face[n] = c.dfr.FluxEdgeInterpMatrix.Mul(Q[n])
-			wg.Done()
-		}(n)
+		Q_Face[n] = c.dfr.FluxEdgeInterpMatrix.Mul(Q[n])
 	}
-	wg.Wait()
+	return
 }
