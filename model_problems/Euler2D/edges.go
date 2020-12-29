@@ -79,7 +79,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, F_RT_DOF, Q_Face [][4]utils.M
 					}
 				}
 			}
-			c.SetNormalFluxOnRTEdge(k, Kmax, edgeNumber, normalFlux, e.IInII[0], F_RT_DOF[bn])
+			c.SetNormalFluxOnRTEdge(k, Kmax, F_RT_DOF[bn], edgeNumber, normalFlux, e.IInII[0])
 		case 2: // Handle edges with two connected tris - shared faces
 			var (
 				//				kL, kR                   = int(e.ConnectedTris[0]), int(e.ConnectedTris[1])
@@ -99,8 +99,8 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, F_RT_DOF, Q_Face [][4]utils.M
 				normal, _ := c.getEdgeNormal(0, e, en)
 				c.RoeFlux(kL, kR, shiftL, shiftR, normal, normalFlux, normalFluxReversed)
 			}
-			c.SetNormalFluxOnRTEdge(kL, KmaxL, edgeNumberL, normalFlux, e.IInII[0], F_RT_DOF[bnL])
-			c.SetNormalFluxOnRTEdge(kR, KmaxR, edgeNumberR, normalFluxReversed, e.IInII[1], F_RT_DOF[bnR])
+			c.SetNormalFluxOnRTEdge(kL, KmaxL, F_RT_DOF[bnL], edgeNumberL, normalFlux, e.IInII[0])
+			c.SetNormalFluxOnRTEdge(kR, KmaxR, F_RT_DOF[bnR], edgeNumberR, normalFluxReversed, e.IInII[1])
 		}
 	}
 	return
@@ -130,7 +130,7 @@ func (c *Euler) getEdgeNormal(conn int, e *DG2D.Edge, en types.EdgeKey) (normal,
 	return
 }
 
-func (c *Euler) SetNormalFluxOnRTEdge(k, Kmax, edgeNumber int, edgeNormalFlux [][4]float64, IInII float64, F_RT_DOF [4]utils.Matrix) {
+func (c *Euler) SetNormalFluxOnRTEdge(k, Kmax int, F_RT_DOF [4]utils.Matrix, edgeNumber int, edgeNormalFlux [][4]float64, IInII float64) {
 	/*
 		Takes the normal flux (aka "projected flux") multiplies by the ||n|| ratio of edge normals and sets that value for
 		the F_RT_DOF degree of freedom locations for this [k, edgenumber] group
