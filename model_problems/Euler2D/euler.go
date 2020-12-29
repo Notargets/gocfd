@@ -348,6 +348,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, DT []utils.Matrix, F_RT_DOF, Q0, Q1
 }
 
 func (c *Euler) CalculateDT(DT []utils.Matrix, Q_Face [][4]utils.Matrix) (dt float64) {
+	// TODO: Do the DT calculation inside the edges code while doing fluxes for clarity and efficiency
 	var (
 		Np1      = c.dfr.N + 1
 		Np12     = float64(Np1 * Np1)
