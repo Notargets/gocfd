@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"runtime"
-	"sync"
 	"time"
 
 	"github.com/notargets/gocfd/types"
@@ -347,89 +346,6 @@ func (c *Euler) RungeKutta4SSP(Time float64, DT []utils.Matrix, F_RT_DOF, Q0, Q1
 	return
 }
 
-func (c *Euler) CalculateDT(DT []utils.Matrix, Q_Face [][4]utils.Matrix) (dt float64) {
-	// TODO: Do the DT calculation inside the edges code while doing fluxes for clarity and efficiency
-	var (
-		Np1      = c.dfr.N + 1
-		Np12     = float64(Np1 * Np1)
-		wsMaxAll = -math.MaxFloat64
-		wsMax    = make([]float64, c.ParallelDegree)
-		wg       = sync.WaitGroup{}
-		qfD      = Get4DP(Q_Face)
-		JdetD    = c.dfr.Jdet.Data()
-	)
-	// Setup max wavespeed before loop
-	dtD := DT.Data()
-	for k := 0; k < c.dfr.K; k++ {
-		dtD[k] = -100
-	}
-	for nn := 0; nn < c.ParallelDegree; nn++ {
-		wsMax[nn] = wsMaxAll
-	}
-	// Loop over all edges, calculating max wavespeed
-	for nn := 0; nn < c.ParallelDegree; nn++ {
-		ind, end := c.split1D(len(c.SortedEdgeKeys), nn)
-		wg.Add(1)
-		go func(ind, end, nn int) {
-			for ii := ind; ii < end; ii++ {
-				edgeKey := c.SortedEdgeKeys[ii]
-				e := c.dfr.Tris.Edges[edgeKey]
-				var (
-					edgeLen = e.GetEdgeLength()
-					Nedge   = c.dfr.FluxElement.Nedge
-				)
-				conn := 0
-				var (
-					k       = int(e.ConnectedTris[conn])
-					edgeNum = int(e.ConnectedTriEdgeNumber[conn])
-					shift   = edgeNum * Nedge
-				)
-				Jdet := JdetD[k]
-				// fmt.Printf("N, Np12, edgelen, Jdet = %d,%8.5f,%8.5f,%8.5f\n", c.dfr.N, Np12, edgeLen, Jdet)
-				fs := 0.5 * Np12 * edgeLen / Jdet
-				edgeMax := -100.
-				for i := shift; i < shift+Nedge; i++ {
-					// TODO: Change the definition of qq to use partitioned element of Q_Face
-					qq := c.GetQQ(k, Kmax, i, qfD)
-					C := c.FS.GetFlowFunction(qq, SoundSpeed)
-					U := c.FS.GetFlowFunction(qq, Velocity)
-					waveSpeed := fs * (U + C)
-					wsMax[nn] = math.Max(waveSpeed, wsMax[nn])
-					if waveSpeed > edgeMax {
-						edgeMax = waveSpeed
-					}
-				}
-				if edgeMax > dtD[k] {
-					dtD[k] = edgeMax
-				}
-				if e.NumConnectedTris == 2 { // Add the wavespeed to the other tri connected to this edge if needed
-					k = int(e.ConnectedTris[1])
-					if edgeMax > dtD[k] {
-						dtD[k] = edgeMax
-					}
-				}
-			}
-			wg.Done()
-		}(ind, end, nn)
-	}
-	wg.Wait()
-	// Replicate local time step to the other solution points for each k
-	for k := 0; k < c.dfr.K; k++ {
-		dtD[k] = c.CFL / dtD[k]
-	}
-	for i := 1; i < c.dfr.SolutionElement.Np; i++ {
-		for k := 0; k < c.dfr.K; k++ {
-			ind := k + c.dfr.K*i
-			dtD[ind] = dtD[k]
-		}
-	}
-	for nn := 0; nn < c.ParallelDegree; nn++ {
-		wsMaxAll = math.Max(wsMaxAll, wsMax[nn])
-	}
-	dt = c.CFL / wsMaxAll
-	return
-}
-
 func (c *Euler) RHS(Kmax int, Q_Face, F_RT_DOF, Q [4]utils.Matrix, Time float64) (RHSCalc [4]utils.Matrix) {
 	/*
 				Calculate the RHS of the equation:
@@ -452,8 +368,10 @@ func (c *Euler) RHS(Kmax int, Q_Face, F_RT_DOF, Q [4]utils.Matrix, Time float64)
 
 func (c *Euler) DivideByJacobian(Nmax int, data []float64, scale float64) {
 	var (
-		Kmax  = c.dfr.K
-		JdetD = c.dfr.Jdet.Data()
+		Kmax = c.dfr.K
+		// TODO: Partition Jacobian and add to method signature
+		intentional_bug float64
+		JdetD           = c.dfr.Jdet.Data()
 	)
 	for k := 0; k < Kmax; k++ {
 		Jdet := JdetD[k]
@@ -487,31 +405,6 @@ func (c *Euler) PrepareEdgeFlux(Kmax int, F_RT_DOF, Q [4]utils.Matrix, Time floa
 	c.SetNormalFluxInternal(Kmax, F_RT_DOF, Q) // Updates F_RT_DOF with values from Q
 	Q_Face = c.InterpolateSolutionToEdges(Q)   // Interpolates Q_Face values from Q
 	return
-}
-
-func (c *Euler) AssembleRTNormalFlux(Kmax int, Q_Face, F_RT_DOF, Q [4]utils.Matrix, Time float64) {
-	var (
-		Np    = c.dfr.FluxElement.Np
-		fdofD = Get4DP(F_RT_DOF)
-	)
-	/*
-		Solver approach:
-		0) Solution is stored on sol points as Q
-		0a) Flux is computed and stored in X, Y component projections in the 2*Nint front of F_RT_DOF
-		1) Solution is extrapolated to edge points in Q_Face from Q
-		2) Edges are traversed, flux is calculated and projected onto edge face normals, scaled and placed into F_RT_DOF
-	*/
-	/*
-		Zero out DOF storage to promote easier bug avoidance
-	*/
-	for n := 0; n < 4; n++ {
-		for i := 0; i < Kmax*Np; i++ {
-			fdofD[n][i] = 0.
-		}
-	}
-	c.SetNormalFluxInternal(Kmax, F_RT_DOF, Q)             // Updates F_RT_DOF with values from Q
-	Q_Face = c.InterpolateSolutionToEdges(Q)               // Interpolates Q_Face values from Q
-	c.ParallelSetNormalFluxOnEdges(Time, F_RT_DOF, Q_Face) // Updates F_RT_DOG with values from edges, including BCs and connected tris
 }
 
 func (c *Euler) SetNormalFluxInternal(Kmax int, F_RT_DOF, Q [4]utils.Matrix) {
