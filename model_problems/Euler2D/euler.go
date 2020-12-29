@@ -270,7 +270,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, DT []utils.Matrix, F_RT_DOF, Q0, Q1
 	if Time+dt > c.FinalTime {
 		dt = c.FinalTime - Time
 	}
-	c.ParallelSetNormalFluxOnEdges(Time) // Must sync parallel before calling
+	c.ParallelSetNormalFluxOnEdges(Time, F_RT_DOF, Q_Face) // Must sync parallel before calling
 	for np := 0; np < NP; np++ {
 		Kmax := c.Partitions.GetBucketDimension(np)
 		qD := Get4DP(Q0[np])
@@ -288,7 +288,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, DT []utils.Matrix, F_RT_DOF, Q0, Q1
 		}
 		Q_Face[np] = c.PrepareEdgeFlux(Kmax, F_RT_DOF[np], Q1[np], Time)
 	}
-	c.ParallelSetNormalFluxOnEdges(Time) // Must sync parallel before calling
+	c.ParallelSetNormalFluxOnEdges(Time, F_RT_DOF, Q_Face) // Must sync parallel before calling
 	for np := 0; np < NP; np++ {
 		Kmax := c.Partitions.GetBucketDimension(np)
 		q1D := Get4DP(Q1[np])
@@ -306,7 +306,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, DT []utils.Matrix, F_RT_DOF, Q0, Q1
 		}
 		Q_Face[np] = c.PrepareEdgeFlux(Kmax, F_RT_DOF[np], Q2[np], Time)
 	}
-	c.ParallelSetNormalFluxOnEdges(Time) // Must sync parallel before calling
+	c.ParallelSetNormalFluxOnEdges(Time, F_RT_DOF, Q_Face) // Must sync parallel before calling
 	for np := 0; np < NP; np++ {
 		Kmax := c.Partitions.GetBucketDimension(np)
 		qD := Get4DP(Q0[np])
@@ -325,7 +325,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, DT []utils.Matrix, F_RT_DOF, Q0, Q1
 		}
 		Q_Face[np] = c.PrepareEdgeFlux(Kmax, F_RT_DOF[np], Q3[np], Time)
 	}
-	c.ParallelSetNormalFluxOnEdges(Time) // Must sync parallel before calling
+	c.ParallelSetNormalFluxOnEdges(Time, F_RT_DOF, Q_Face) // Must sync parallel before calling
 	for np := 0; np < NP; np++ {
 		Kmax := c.Partitions.GetBucketDimension(np)
 		qD := Get4DP(Q0[np])
@@ -508,9 +508,9 @@ func (c *Euler) AssembleRTNormalFlux(Kmax int, Q_Face, F_RT_DOF, Q [4]utils.Matr
 			fdofD[n][i] = 0.
 		}
 	}
-	c.SetNormalFluxInternal(Kmax, F_RT_DOF, Q) // Updates F_RT_DOF with values from Q
-	Q_Face = c.InterpolateSolutionToEdges(Q)   // Interpolates Q_Face values from Q
-	c.ParallelSetNormalFluxOnEdges(Time)       // Updates F_RT_DOG with values from edges, including BCs and connected tris
+	c.SetNormalFluxInternal(Kmax, F_RT_DOF, Q)             // Updates F_RT_DOF with values from Q
+	Q_Face = c.InterpolateSolutionToEdges(Q)               // Interpolates Q_Face values from Q
+	c.ParallelSetNormalFluxOnEdges(Time, F_RT_DOF, Q_Face) // Updates F_RT_DOG with values from edges, including BCs and connected tris
 }
 
 func (c *Euler) SetNormalFluxInternal(Kmax int, F_RT_DOF, Q [4]utils.Matrix) {

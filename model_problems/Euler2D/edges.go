@@ -19,7 +19,7 @@ func (p EdgeKeySlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 // Sort is a convenience method.
 func (p EdgeKeySlice) Sort() { sort.Sort(p) }
 
-func (c *Euler) ParallelSetNormalFluxOnEdges(Time float64) {
+func (c *Euler) ParallelSetNormalFluxOnEdges(Time float64, F_RT_DOF, Q_Face [][4]utils.Matrix) {
 	var (
 		Ntot = len(c.SortedEdgeKeys)
 		wg   = sync.WaitGroup{}
@@ -29,31 +29,31 @@ func (c *Euler) ParallelSetNormalFluxOnEdges(Time float64) {
 		ind, end = c.split1D(Ntot, n)
 		wg.Add(1)
 		go func(ind, end int) {
-			c.SetNormalFluxOnEdges(Time, c.SortedEdgeKeys[ind:end])
+			c.SetNormalFluxOnEdges(Time, F_RT_DOF, Q_Face, c.SortedEdgeKeys[ind:end])
 			wg.Done()
 		}(ind, end)
 	}
 	wg.Wait()
 }
 
-func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
+func (c *Euler) SetNormalFluxOnEdges(Time float64, F_RT_DOF, Q_Face [][4]utils.Matrix, edgeKeys EdgeKeySlice) {
 	var (
 		Nedge                          = c.dfr.FluxElement.Nedge
 		normalFlux, normalFluxReversed = make([][4]float64, Nedge), make([][4]float64, Nedge)
+		pm                             = c.Partitions
 	)
 	for _, en := range edgeKeys {
 		e := c.dfr.Tris.Edges[en]
-		//for en, e := range dfr.Tris.Edges {
 		switch e.NumConnectedTris {
 		case 0:
 			panic("unable to handle unconnected edges")
 		case 1: // Handle edges with only one triangle - default is edge flux, which will be replaced by a BC flux
 			var (
-				k                   = int(e.ConnectedTris[0])
+				k, Kmax, bn         = pm.GetLocalK(int(e.ConnectedTris[0]))
+				qfD                 = Get4DP(Q_Face[bn])
 				edgeNumber          = int(e.ConnectedTriEdgeNumber[0])
 				shift               = edgeNumber * Nedge
 				calculateNormalFlux bool
-				qfD                 = Get4DP(c.Q_Face)
 			)
 			calculateNormalFlux = true
 			normal, _ := c.getEdgeNormal(0, e, en)
@@ -79,17 +79,19 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 					}
 				}
 			}
-			c.SetNormalFluxOnRTEdge(k, edgeNumber, normalFlux, e.IInII[0])
+			c.SetNormalFluxOnRTEdge(k, Kmax, edgeNumber, normalFlux, e.IInII[0], F_RT_DOF[bn])
 		case 2: // Handle edges with two connected tris - shared faces
 			var (
-				kL, kR                   = int(e.ConnectedTris[0]), int(e.ConnectedTris[1])
+				//				kL, kR                   = int(e.ConnectedTris[0]), int(e.ConnectedTris[1])
+				kL, KmaxL, bnL           = pm.GetLocalK(int(e.ConnectedTris[0]))
+				kR, KmaxR, bnR           = pm.GetLocalK(int(e.ConnectedTris[1]))
 				edgeNumberL, edgeNumberR = int(e.ConnectedTriEdgeNumber[0]), int(e.ConnectedTriEdgeNumber[1])
 				shiftL, shiftR           = edgeNumberL * Nedge, edgeNumberR * Nedge
 			)
 			switch c.FluxCalcAlgo {
 			case FLUX_Average:
 				normal, _ := c.getEdgeNormal(0, e, en)
-				c.LaxFlux(kL, kR, shiftL, shiftR, normal, normalFlux, normalFluxReversed)
+				c.AvgFlux(kL, kR, shiftL, shiftR, normal, normalFlux, normalFluxReversed)
 			case FLUX_LaxFriedrichs:
 				normal, _ := c.getEdgeNormal(0, e, en)
 				c.LaxFlux(kL, kR, shiftL, shiftR, normal, normalFlux, normalFluxReversed)
@@ -97,8 +99,8 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, edgeKeys EdgeKeySlice) {
 				normal, _ := c.getEdgeNormal(0, e, en)
 				c.RoeFlux(kL, kR, shiftL, shiftR, normal, normalFlux, normalFluxReversed)
 			}
-			c.SetNormalFluxOnRTEdge(kL, edgeNumberL, normalFlux, e.IInII[0])
-			c.SetNormalFluxOnRTEdge(kR, edgeNumberR, normalFluxReversed, e.IInII[1])
+			c.SetNormalFluxOnRTEdge(kL, KmaxL, edgeNumberL, normalFlux, e.IInII[0], F_RT_DOF[bnL])
+			c.SetNormalFluxOnRTEdge(kR, KmaxR, edgeNumberR, normalFluxReversed, e.IInII[1], F_RT_DOF[bnR])
 		}
 	}
 	return
@@ -128,36 +130,7 @@ func (c *Euler) getEdgeNormal(conn int, e *DG2D.Edge, en types.EdgeKey) (normal,
 	return
 }
 
-func (c *Euler) ProjectFluxToEdge(edgeFlux [][2][4]float64, e *DG2D.Edge, en types.EdgeKey) {
-	/*
-				Projects a 2D flux: [F, G] onto the face normal, then multiplies by the element/edge rqtio of normals, ||n||
-		 		And places the scaled and projected normal flux into the degree of freedom F_RT_DOF
-	*/
-	var (
-		dfr        = c.dfr
-		Nedge      = dfr.FluxElement.Nedge
-		Nint       = dfr.FluxElement.Nint
-		Kmax       = dfr.K
-		conn       = 0
-		k          = int(e.ConnectedTris[conn])
-		edgeNumber = int(e.ConnectedTriEdgeNumber[conn])
-		shift      = edgeNumber * Nedge
-	)
-	// Get scaling factor ||n|| for each edge, multiplied by untransformed normals
-	_, scaledNormal := c.getEdgeNormal(conn, e, en)
-	for i := 0; i < Nedge; i++ {
-		iL := i + shift
-		// Project the flux onto the scaled scaledNormal
-		for n := 0; n < 4; n++ {
-			// Place normed/scaled flux into the RT element space
-			rtD := c.F_RT_DOF[n].Data()
-			ind := k + (2*Nint+iL)*Kmax
-			rtD[ind] = scaledNormal[0]*edgeFlux[i][0][n] + scaledNormal[1]*edgeFlux[i][1][n]
-		}
-	}
-}
-
-func (c *Euler) SetNormalFluxOnRTEdge(k, edgeNumber int, edgeNormalFlux [][4]float64, IInII float64) {
+func (c *Euler) SetNormalFluxOnRTEdge(k, Kmax, edgeNumber int, edgeNormalFlux [][4]float64, IInII float64, F_RT_DOF [4]utils.Matrix) {
 	/*
 		Takes the normal flux (aka "projected flux") multiplies by the ||n|| ratio of edge normals and sets that value for
 		the F_RT_DOF degree of freedom locations for this [k, edgenumber] group
@@ -166,12 +139,11 @@ func (c *Euler) SetNormalFluxOnRTEdge(k, edgeNumber int, edgeNormalFlux [][4]flo
 		dfr   = c.dfr
 		Nedge = dfr.FluxElement.Nedge
 		Nint  = dfr.FluxElement.Nint
-		Kmax  = dfr.K
 		shift = edgeNumber * Nedge
 	)
 	// Get scaling factor ||n|| for each edge, multiplied by untransformed normals
 	for n := 0; n < 4; n++ {
-		rtD := c.F_RT_DOF[n].Data()
+		rtD := F_RT_DOF[n].Data()
 		for i := 0; i < Nedge; i++ {
 			// Place normed/scaled flux into the RT element space
 			ind := k + (2*Nint+i+shift)*Kmax

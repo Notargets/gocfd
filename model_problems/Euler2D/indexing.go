@@ -83,6 +83,16 @@ func (pm *PartitionMap) GetBucketRange(bucketNum int) (kMin, kMax int) {
 	return
 }
 
+func (pm *PartitionMap) GetLocalK(baseK int) (k, Kmax, bn int) {
+	var (
+		kmin, kmax int
+	)
+	bn, kmin, kmax = pm.GetBucket(baseK)
+	Kmax = kmax - kmin
+	k = baseK - kmin
+	return
+}
+
 func (pm *PartitionMap) GetBucketDimension(bucketNum int) (kMax int) {
 	var (
 		k1, k2 = pm.GetBucketRange(bucketNum)
