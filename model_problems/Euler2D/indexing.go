@@ -140,10 +140,9 @@ func (c *Euler) GetKSplitMaxK(threadnum int) (kMax int) {
 	return
 }
 
-func (c *Euler) GetQQ(k, i int, Q [4][]float64) (qq [4]float64) {
+func (c *Euler) GetQQ(k, Kmax, i int, Q [4][]float64) (qq [4]float64) {
 	var (
-		Kmax = c.dfr.K
-		ind  = k + Kmax*i
+		ind = k + Kmax*i
 	)
 	qq = [4]float64{Q[0][ind], Q[1][ind], Q[2][ind], Q[3][ind]}
 	return

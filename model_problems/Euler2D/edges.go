@@ -59,12 +59,12 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, F_RT_DOF, Q_Face [][4]utils.M
 			normal, _ := c.getEdgeNormal(0, e, en)
 			switch e.BCType {
 			case types.BC_Far:
-				c.FarBC(k, shift, normal)
+				c.FarBC(k, Kmax, shift, Q_Face[bn], normal)
 			case types.BC_IVortex:
-				c.IVortexBC(Time, k, shift, normal)
+				c.IVortexBC(Time, k, Kmax, shift, Q_Face[bn], normal)
 			case types.BC_Wall, types.BC_Cyl:
 				calculateNormalFlux = false
-				c.WallBC(k, shift, normal, normalFlux) // Calculates normal flux directly
+				c.WallBC(k, Kmax, Q_Face[bn], shift, normal, normalFlux) // Calculates normal flux directly
 			case types.BC_PeriodicReversed, types.BC_Periodic:
 				// One edge of the Periodic BC leads to calculation of both sides within the connected tris section, so noop here
 				calculateNormalFlux = false
@@ -73,7 +73,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, F_RT_DOF, Q_Face [][4]utils.M
 				var Fx, Fy [4]float64
 				for i := 0; i < Nedge; i++ {
 					ie := i + shift
-					Fx, Fy = c.CalculateFlux(k, ie, qfD)
+					Fx, Fy = c.CalculateFlux(k, Kmax, ie, qfD)
 					for n := 0; n < 4; n++ {
 						normalFlux[i][n] = normal[0]*Fx[n] + normal[1]*Fy[n]
 					}
@@ -91,13 +91,16 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, F_RT_DOF, Q_Face [][4]utils.M
 			switch c.FluxCalcAlgo {
 			case FLUX_Average:
 				normal, _ := c.getEdgeNormal(0, e, en)
-				c.AvgFlux(kL, kR, shiftL, shiftR, normal, normalFlux, normalFluxReversed)
+				c.AvgFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR,
+					Q_Face[bnL], Q_Face[bnR], normal, normalFlux, normalFluxReversed)
 			case FLUX_LaxFriedrichs:
 				normal, _ := c.getEdgeNormal(0, e, en)
-				c.LaxFlux(kL, kR, shiftL, shiftR, normal, normalFlux, normalFluxReversed)
+				c.LaxFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR,
+					Q_Face[bnL], Q_Face[bnR], normal, normalFlux, normalFluxReversed)
 			case FLUX_Roe:
 				normal, _ := c.getEdgeNormal(0, e, en)
-				c.RoeFlux(kL, kR, shiftL, shiftR, normal, normalFlux, normalFluxReversed)
+				c.RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR,
+					Q_Face[bnL], Q_Face[bnR], normal, normalFlux, normalFluxReversed)
 			}
 			c.SetNormalFluxOnRTEdge(kL, KmaxL, F_RT_DOF[bnL], edgeNumberL, normalFlux, e.IInII[0])
 			c.SetNormalFluxOnRTEdge(kR, KmaxR, F_RT_DOF[bnR], edgeNumberR, normalFluxReversed, e.IInII[1])

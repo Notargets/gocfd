@@ -390,7 +390,7 @@ func (c *Euler) CalculateDT(DT []utils.Matrix, Q_Face [][4]utils.Matrix) (dt flo
 				edgeMax := -100.
 				for i := shift; i < shift+Nedge; i++ {
 					// TODO: Change the definition of qq to use partitioned element of Q_Face
-					qq := c.GetQQ(k, i, qfD)
+					qq := c.GetQQ(k, Kmax, i, qfD)
 					C := c.FS.GetFlowFunction(qq, SoundSpeed)
 					U := c.FS.GetFlowFunction(qq, Velocity)
 					waveSpeed := fs * (U + C)
@@ -525,7 +525,7 @@ func (c *Euler) SetNormalFluxInternal(Kmax int, F_RT_DOF, Q [4]utils.Matrix) {
 		for i := 0; i < Nint; i++ {
 			ind := k + i*Kmax
 			ind2 := k + (i+Nint)*Kmax
-			Fr, Fs := c.CalculateFluxTransformed(k, i, qD)
+			Fr, Fs := c.CalculateFluxTransformed(k, Kmax, i, qD)
 			for n := 0; n < 4; n++ {
 				fdofD[n][ind], fdofD[n][ind2] = Fr[n], Fs[n]
 			}
