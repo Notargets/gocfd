@@ -67,17 +67,14 @@ func TestEuler(t *testing.T) {
 				Nint := c.dfr.FluxElement.Nint
 				Nedge := c.dfr.FluxElement.Nedge
 				NpFlux := c.dfr.FluxElement.Np // Np = 2*Nint+3*Nedge
-				// Mark the initial state with the element number
 				var Q, Q_Face, F_RT_DOF [4]utils.Matrix
 				for n := 0; n < 4; n++ {
 					Q[n] = utils.NewMatrix(Nint, Kmax)
 					Q_Face[n] = utils.NewMatrix(3*Nedge, Kmax)
 					F_RT_DOF[n] = utils.NewMatrix(NpFlux, Kmax)
 				}
-				//qD := [4][]float64{Q[0].Data(), Q[1].Data(), Q[2].Data(), Q[3].Data()}
-				//fdofD := [4][]float64{c.F_RT_DOF[0].Data(), c.F_RT_DOF[1].Data(), c.F_RT_DOF[2].Data(), c.F_RT_DOF[3].Data()}
+				// Mark the initial state with the element number
 				qD := Get4DP(Q)
-				fdofD := Get4DP(F_RT_DOF)
 				for i := 0; i < Nint; i++ {
 					for k := 0; k < Kmax; k++ {
 						ind := k + i*Kmax
@@ -96,15 +93,15 @@ func TestEuler(t *testing.T) {
 				for n := 0; n < 4; n++ {
 					Q_Face[n] = c.dfr.FluxEdgeInterpMatrix.Mul(Q[n])
 				}
-				//qfD := [4][]float64{c.Q_Face[0].Data(), c.Q_Face[1].Data(), c.Q_Face[2].Data(), c.Q_Face[3].Data()}
-				qfD := Get4DP(Q_Face)
 				// Calculate flux and project into R and S (transformed) directions
+				rtD := Get4DP(F_RT_DOF)
+				qfD := Get4DP(Q_Face)
 				for n := 0; n < 4; n++ {
 					for i := 0; i < Nint; i++ {
-						for k := 0; k < c.dfr.K; k++ {
+						for k := 0; k < Kmax; k++ {
 							ind := k + i*Kmax
 							Fr, Fs := c.CalculateFluxTransformed(k, Kmax, i, c.dfr.Jdet, c.dfr.Jinv, qD)
-							fdofD[n][ind], fdofD[n][ind+Nint*Kmax] = Fr[n], Fs[n]
+							rtD[n][ind], rtD[n][ind+Nint*Kmax] = Fr[n], Fs[n]
 						}
 					}
 					// Check to see that the expected values are in the right place (the internal locations)
@@ -112,19 +109,16 @@ func TestEuler(t *testing.T) {
 					for k := 0; k < Kmax; k++ {
 						val0, val1 := Fr_check[k][n], Fs_check[k][n]
 						is := k * NpFlux
-						//assert.True(t, nearVecScalar(F_RT_DOF[n].Transpose().Data()[is:is+Nint], val0, 0.000001))
 						assert.True(t, nearVecScalar(rtTD[is:is+Nint], val0, 0.000001))
 						is += Nint
-						//assert.True(t, nearVecScalar(F_RT_DOF[n].Transpose().Data()[is:is+Nint], val1, 0.000001))
 						assert.True(t, nearVecScalar(rtTD[is:is+Nint], val1, 0.000001))
 					}
 					// Set normal flux to a simple addition of the two sides to use as a check in assert()
-					rtD := F_RT_DOF[n].Data()
 					for k := 0; k < Kmax; k++ {
 						for i := 0; i < 3*Nedge; i++ {
 							ind := k + (2*Nint+i)*Kmax
 							Fr, Fs := c.CalculateFluxTransformed(k, Kmax, i, c.dfr.Jdet, c.dfr.Jinv, qfD)
-							rtD[ind] = Fr[n] + Fs[n]
+							rtD[n][ind] = Fr[n] + Fs[n]
 						}
 					}
 					// Check to see that the expected values are in the right place (the edge locations)
