@@ -134,7 +134,7 @@ func TestEuler(t *testing.T) {
 				for n := 0; n < 4; n++ {
 					var div utils.Matrix
 					div = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
-					c.DivideByJacobian(c.dfr.FluxElement.Nint, div.Data(), 1)
+					c.DivideByJacobian(Kmax, c.dfr.FluxElement.Nint, div.Data(), 1)
 					assert.True(t, nearVecScalar(div.Data(), 0., 0.000001))
 				}
 			}
@@ -185,7 +185,7 @@ func TestEuler(t *testing.T) {
 			n := 0
 			fmt.Printf("component[%d]\n", n)
 			div = c.dfr.FluxElement.DivInt.Mul(c.F_RT_DOF[n])
-			c.DivideByJacobian(Nint, div.Data(), 1)
+			c.DivideByJacobian(Kmax, Nint, div.Data(), 1)
 			// Get the analytic values of divergence for comparison
 			for k := 0; k < Kmax; k++ {
 				for i := 0; i < Nint; i++ {

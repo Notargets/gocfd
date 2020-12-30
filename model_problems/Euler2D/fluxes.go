@@ -48,17 +48,15 @@ func NewFluxType(label string) (ft FluxType) {
 	return
 }
 
-func (c *Euler) CalculateFluxTransformed(k, Kmax, i int, QQ [4][]float64) (Fr, Fs [4]float64) {
+func (c *Euler) CalculateFluxTransformed(k, Kmax, i int, Jdet, Jinv utils.Matrix, QQ [4][]float64) (Fr, Fs [4]float64) {
 	var (
-		// TODO: Partition Jacobian and add it to the function signature
-		intentional_bug float64
-		Jdet            = c.dfr.Jdet.Data()[k]
-		Jinv            = c.dfr.Jinv.Data()[4*k : 4*(k+1)]
+		JdetD = Jdet.Data()[k]
+		JinvD = Jinv.Data()[4*k : 4*(k+1)]
 	)
 	Fx, Fy := c.CalculateFlux(k, Kmax, i, QQ)
 	for n := 0; n < 4; n++ {
-		Fr[n] = Jdet * (Jinv[0]*Fx[n] + Jinv[1]*Fy[n])
-		Fs[n] = Jdet * (Jinv[2]*Fx[n] + Jinv[3]*Fy[n])
+		Fr[n] = JdetD * (JinvD[0]*Fx[n] + JinvD[1]*Fy[n])
+		Fs[n] = JdetD * (JinvD[2]*Fx[n] + JinvD[3]*Fy[n])
 	}
 	return
 }
