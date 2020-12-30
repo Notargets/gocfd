@@ -150,7 +150,7 @@ func (c *Euler) Solve(pm *PlotMeta) {
 	Q1, Q2, Q3, Residual, F_RT_DOF = make([][4]utils.Matrix, NPar), make([][4]utils.Matrix, NPar),
 		make([][4]utils.Matrix, NPar), make([][4]utils.Matrix, NPar), make([][4]utils.Matrix, NPar)
 	DT = make([]utils.Matrix, NPar)
-	Jdet, Jinv := c.ShardByK(c.dfr.Jdet), c.ShardByK(c.dfr.Jinv)
+	Jdet, Jinv := c.ShardByKTranspose(c.dfr.Jdet), c.ShardByKTranspose(c.dfr.Jinv)
 
 	for np := 0; np < NPar; np++ {
 		Kmax := pts.GetBucketDimension(np)
@@ -413,6 +413,32 @@ func (c *Euler) ShardByK(A utils.Matrix) (pA []utils.Matrix) {
 			for i := 0; i < Imax; i++ {
 				ind := k + i*c.dfr.K
 				pind := pk + Kmax*i
+				pAD[pind] = aD[ind]
+			}
+		}
+	}
+	return
+}
+
+func (c *Euler) ShardByKTranspose(A utils.Matrix) (pA []utils.Matrix) {
+	var (
+		NP      = c.Partitions.ParallelDegree
+		_, Imax = A.Dims()
+		aD      = A.Data()
+	)
+	pA = make([]utils.Matrix, NP)
+	for np := 0; np < NP; np++ {
+		kMin, kMax := c.Partitions.GetBucketRange(np)
+		Kmax := c.Partitions.GetBucketDimension(np)
+		pA[np] = utils.NewMatrix(Kmax, Imax)
+		pAD := pA[np].Data()
+		for k := kMin; k < kMax; k++ {
+			pk := k - kMin
+			for i := 0; i < Imax; i++ {
+				//ind := k + i*c.dfr.K
+				//pind := pk + Kmax*i
+				ind := i + k*Imax
+				pind := i + pk*Imax
 				pAD[pind] = aD[ind]
 			}
 		}
