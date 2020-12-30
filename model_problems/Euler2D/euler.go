@@ -399,14 +399,14 @@ func (c *Euler) PrintFinal(elapsed time.Duration, steps int) {
 func (c *Euler) ShardByK(A utils.Matrix) (pA []utils.Matrix) {
 	var (
 		NP      = c.Partitions.ParallelDegree
-		_, Imax = A.Dims()
+		Imax, _ = A.Dims()
 		aD      = A.Data()
 	)
 	pA = make([]utils.Matrix, NP)
 	for np := 0; np < NP; np++ {
 		kMin, kMax := c.Partitions.GetBucketRange(np)
 		Kmax := c.Partitions.GetBucketDimension(np)
-		pA[np] = utils.NewMatrix(Kmax, Imax)
+		pA[np] = utils.NewMatrix(Imax, Kmax)
 		pAD := pA[np].Data()
 		for k := kMin; k < kMax; k++ {
 			pk := k - kMin
@@ -425,7 +425,7 @@ func (c *Euler) RecombineShardsK(pA []utils.Matrix) (A utils.Matrix) {
 		NP      = c.Partitions.ParallelDegree
 		_, Imax = pA[0].Dims()
 	)
-	A = utils.NewMatrix(c.dfr.K, Imax)
+	A = utils.NewMatrix(Imax, c.dfr.K)
 	aD := A.Data()
 	for np := 0; np < NP; np++ {
 		kMin, kMax := c.Partitions.GetBucketRange(np)

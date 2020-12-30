@@ -188,7 +188,7 @@ func TestEuler(t *testing.T) {
 			}
 		}
 	}
-	if true {
+	if false {
 		{ // Test divergence of Isentropic Vortex initial condition against analytic values - density equation only
 			N := 1
 			plotMesh := false
