@@ -193,11 +193,10 @@ func (c *Euler) RungeKutta4SSP(Time float64, Jdet, Jinv []utils.Matrix,
 		Kmax := c.Partitions.GetBucketDimension(np)
 		Q_Face[np] = c.PrepareEdgeFlux(Kmax, Jdet[np], Jinv[np], F_RT_DOF[np], Q0[np], Time)
 	}
-	dt = c.CalculateDT(DT, Q_Face) // Operates on edges/ internally parallel
+	dt = c.ParallelEdgeUpdate(Time, true, Jdet, DT, F_RT_DOF, Q_Face) // Must sync parallel before calling
 	if Time+dt > c.FinalTime {
 		dt = c.FinalTime - Time
 	}
-	c.ParallelSetNormalFluxOnEdges(Time, F_RT_DOF, Q_Face) // Must sync parallel before calling
 	for np := 0; np < NP; np++ {
 		Kmax := c.Partitions.GetBucketDimension(np)
 		qD := Get4DP(Q0[np])
@@ -215,7 +214,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Jdet, Jinv []utils.Matrix,
 		}
 		Q_Face[np] = c.PrepareEdgeFlux(Kmax, Jdet[np], Jinv[np], F_RT_DOF[np], Q1[np], Time)
 	}
-	c.ParallelSetNormalFluxOnEdges(Time, F_RT_DOF, Q_Face) // Must sync parallel before calling
+	_ = c.ParallelEdgeUpdate(Time, false, Jdet, DT, F_RT_DOF, Q_Face) // Must sync parallel before calling
 	for np := 0; np < NP; np++ {
 		Kmax := c.Partitions.GetBucketDimension(np)
 		q1D := Get4DP(Q1[np])
@@ -233,7 +232,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Jdet, Jinv []utils.Matrix,
 		}
 		Q_Face[np] = c.PrepareEdgeFlux(Kmax, Jdet[np], Jinv[np], F_RT_DOF[np], Q2[np], Time)
 	}
-	c.ParallelSetNormalFluxOnEdges(Time, F_RT_DOF, Q_Face) // Must sync parallel before calling
+	_ = c.ParallelEdgeUpdate(Time, false, Jdet, DT, F_RT_DOF, Q_Face) // Must sync parallel before calling
 	for np := 0; np < NP; np++ {
 		Kmax := c.Partitions.GetBucketDimension(np)
 		qD := Get4DP(Q0[np])
@@ -252,7 +251,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Jdet, Jinv []utils.Matrix,
 		}
 		Q_Face[np] = c.PrepareEdgeFlux(Kmax, Jdet[np], Jinv[np], F_RT_DOF[np], Q3[np], Time)
 	}
-	c.ParallelSetNormalFluxOnEdges(Time, F_RT_DOF, Q_Face) // Must sync parallel before calling
+	_ = c.ParallelEdgeUpdate(Time, false, Jdet, DT, F_RT_DOF, Q_Face) // Must sync parallel before calling
 	for np := 0; np < NP; np++ {
 		Kmax := c.Partitions.GetBucketDimension(np)
 		qD := Get4DP(Q0[np])

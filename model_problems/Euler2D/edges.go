@@ -19,21 +19,108 @@ func (p EdgeKeySlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 // Sort is a convenience method.
 func (p EdgeKeySlice) Sort() { sort.Sort(p) }
 
-func (c *Euler) ParallelSetNormalFluxOnEdges(Time float64, F_RT_DOF, Q_Face [][4]utils.Matrix) {
+func (c *Euler) ParallelEdgeUpdate(Time float64, CalculateDT bool,
+	Jdet, DT []utils.Matrix, F_RT_DOF, Q_Face [][4]utils.Matrix) (dt float64) {
 	var (
 		Ntot = len(c.SortedEdgeKeys)
 		wg   = sync.WaitGroup{}
+		pm   = c.Partitions
+		NPar = pm.ParallelDegree
 	)
-	var ind, end int
-	for np := 0; np < c.ParallelDegree; np++ {
-		ind, end = c.split1D(Ntot, np)
+	if CalculateDT {
+		// Reset per-element wavespeed max
+		for np := 0; np < NPar; np++ {
+			dtD := DT[np].Data()
+			Kmax := pm.GetBucketDimension(np)
+			for k := 0; k < Kmax; k++ {
+				dtD[k] = -100
+			}
+		}
+	}
+	maxWaveSpeed := make([]float64, NPar)
+	for np := 0; np < NPar; np++ {
+		ind, end := c.split1D(Ntot, np)
 		wg.Add(1)
-		go func(ind, end int) {
+		go func(np, ind, end int) {
 			c.SetNormalFluxOnEdges(Time, F_RT_DOF, Q_Face, c.SortedEdgeKeys[ind:end])
+			if CalculateDT {
+				maxWaveSpeed[np] = c.CalculateMaxWaveSpeed(Jdet, DT, Q_Face, c.SortedEdgeKeys[ind:end])
+			}
 			wg.Done()
-		}(ind, end)
+		}(np, ind, end)
 	}
 	wg.Wait()
+	if CalculateDT {
+		// Calculate global maximum time step
+		var wsMaxAll float64
+		for np := 0; np < NPar; np++ {
+			wsMaxAll = math.Max(wsMaxAll, maxWaveSpeed[np])
+		}
+		dt = c.CFL / wsMaxAll
+		if c.LocalTimeStepping {
+			// Replicate local time step to the other solution points for each k
+			for np := 0; np < NPar; np++ {
+				dtD := DT[np].Data()
+				Kmax := pm.GetBucketDimension(np)
+				for k := 0; k < Kmax; k++ {
+					dtD[k] = c.CFL / dtD[k]
+				}
+				for i := 1; i < c.dfr.SolutionElement.Np; i++ {
+					for k := 0; k < Kmax; k++ {
+						ind := k + Kmax*i
+						dtD[ind] = dtD[k]
+					}
+				}
+			}
+		}
+	}
+	return
+}
+
+func (c *Euler) CalculateMaxWaveSpeed(Jdet, DT []utils.Matrix, Q_Face [][4]utils.Matrix, edgeKeys EdgeKeySlice) (waveSpeedMax float64) {
+	var (
+		pm    = c.Partitions
+		Nedge = c.dfr.FluxElement.Nedge
+		Np1   = c.dfr.N + 1
+		Np12  = float64(Np1 * Np1)
+	)
+	for _, en := range edgeKeys {
+		e := c.dfr.Tris.Edges[en]
+		var (
+			conn        = 0
+			edgeNum     = int(e.ConnectedTriEdgeNumber[conn])
+			shift       = edgeNum * Nedge
+			edgeLen     = e.GetEdgeLength()
+			k, Kmax, bn = pm.GetLocalK(int(e.ConnectedTris[conn]))
+			JdetD       = Jdet[bn].Data()
+			qfD         = Get4DP(Q_Face[bn])
+			dtD         = DT[bn].Data()
+		)
+		// fmt.Printf("N, Np12, edgelen, Jdet = %d,%8.5f,%8.5f,%8.5f\n", c.dfr.N, Np12, edgeLen, Jdet)
+		fs := 0.5 * Np12 * edgeLen / JdetD[k]
+		edgeMax := -100.
+		for i := shift; i < shift+Nedge; i++ {
+			qq := c.GetQQ(k, Kmax, i, qfD)
+			C := c.FS.GetFlowFunction(qq, SoundSpeed)
+			U := c.FS.GetFlowFunction(qq, Velocity)
+			waveSpeed := fs * (U + C)
+			waveSpeedMax = math.Max(waveSpeed, waveSpeedMax)
+			if waveSpeed > edgeMax {
+				edgeMax = waveSpeed
+			}
+		}
+		if edgeMax > dtD[k] {
+			dtD[k] = edgeMax
+		}
+		if e.NumConnectedTris == 2 { // Add the wavespeed to the other tri connected to this edge if needed
+			k, Kmax, bn = pm.GetLocalK(int(e.ConnectedTris[1]))
+			dtD = DT[bn].Data()
+			if edgeMax > dtD[k] {
+				dtD[k] = edgeMax
+			}
+		}
+	}
+	return
 }
 
 func (c *Euler) SetNormalFluxOnEdges(Time float64, F_RT_DOF, Q_Face [][4]utils.Matrix, edgeKeys EdgeKeySlice) {
@@ -106,89 +193,6 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, F_RT_DOF, Q_Face [][4]utils.M
 			c.SetNormalFluxOnRTEdge(kR, KmaxR, F_RT_DOF[bnR], edgeNumberR, normalFluxReversed, e.IInII[1])
 		}
 	}
-	return
-}
-
-func (c *Euler) CalculateDT(DT []utils.Matrix, Q_Face [][4]utils.Matrix) (dt float64) {
-	// TODO: Do the DT calculation inside the edges code while doing fluxes for clarity and efficiency
-	var (
-		Np1      = c.dfr.N + 1
-		Np12     = float64(Np1 * Np1)
-		wsMaxAll = -math.MaxFloat64
-		wsMax    = make([]float64, c.ParallelDegree)
-		wg       = sync.WaitGroup{}
-		qfD      = Get4DP(Q_Face)
-		JdetD    = c.dfr.Jdet.Data()
-	)
-	// Setup max wavespeed before loop
-	dtD := DT.Data()
-	for k := 0; k < c.dfr.K; k++ {
-		dtD[k] = -100
-	}
-	for nn := 0; nn < c.ParallelDegree; nn++ {
-		wsMax[nn] = wsMaxAll
-	}
-	// Loop over all edges, calculating max wavespeed
-	for nn := 0; nn < c.ParallelDegree; nn++ {
-		ind, end := c.split1D(len(c.SortedEdgeKeys), nn)
-		wg.Add(1)
-		go func(ind, end, nn int) {
-			for ii := ind; ii < end; ii++ {
-				edgeKey := c.SortedEdgeKeys[ii]
-				e := c.dfr.Tris.Edges[edgeKey]
-				var (
-					edgeLen = e.GetEdgeLength()
-					Nedge   = c.dfr.FluxElement.Nedge
-				)
-				conn := 0
-				var (
-					k       = int(e.ConnectedTris[conn])
-					edgeNum = int(e.ConnectedTriEdgeNumber[conn])
-					shift   = edgeNum * Nedge
-				)
-				Jdet := JdetD[k]
-				// fmt.Printf("N, Np12, edgelen, Jdet = %d,%8.5f,%8.5f,%8.5f\n", c.dfr.N, Np12, edgeLen, Jdet)
-				fs := 0.5 * Np12 * edgeLen / Jdet
-				edgeMax := -100.
-				for i := shift; i < shift+Nedge; i++ {
-					// TODO: Change the definition of qq to use partitioned element of Q_Face
-					qq := c.GetQQ(k, Kmax, i, qfD)
-					C := c.FS.GetFlowFunction(qq, SoundSpeed)
-					U := c.FS.GetFlowFunction(qq, Velocity)
-					waveSpeed := fs * (U + C)
-					wsMax[nn] = math.Max(waveSpeed, wsMax[nn])
-					if waveSpeed > edgeMax {
-						edgeMax = waveSpeed
-					}
-				}
-				if edgeMax > dtD[k] {
-					dtD[k] = edgeMax
-				}
-				if e.NumConnectedTris == 2 { // Add the wavespeed to the other tri connected to this edge if needed
-					k = int(e.ConnectedTris[1])
-					if edgeMax > dtD[k] {
-						dtD[k] = edgeMax
-					}
-				}
-			}
-			wg.Done()
-		}(ind, end, nn)
-	}
-	wg.Wait()
-	// Replicate local time step to the other solution points for each k
-	for k := 0; k < c.dfr.K; k++ {
-		dtD[k] = c.CFL / dtD[k]
-	}
-	for i := 1; i < c.dfr.SolutionElement.Np; i++ {
-		for k := 0; k < c.dfr.K; k++ {
-			ind := k + c.dfr.K*i
-			dtD[ind] = dtD[k]
-		}
-	}
-	for nn := 0; nn < c.ParallelDegree; nn++ {
-		wsMaxAll = math.Max(wsMaxAll, wsMax[nn])
-	}
-	dt = c.CFL / wsMaxAll
 	return
 }
 
