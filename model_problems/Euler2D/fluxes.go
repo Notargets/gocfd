@@ -149,7 +149,6 @@ func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux, normalFluxReversed [][4]float64) {
 	var (
 		Nedge            = c.dfr.FluxElement.Nedge
-		Kmax             = c.dfr.K
 		rhoL, uL, vL, pL float64
 		rhoR, uR, vR, pR float64
 		hL, hR           float64
@@ -175,8 +174,8 @@ func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		qR := c.GetQQ(kR, KmaxR, iR, qfDR)
 		rhoR, uR, vR = qR[0], qR[1]/qR[0], qR[2]/qR[0]
 		pR = c.FS.GetFlowFunction(qR, StaticPressure)
-		FxL, _ := c.CalculateFlux(kL, Kmax, iL, qfDL)
-		FxR, _ := c.CalculateFlux(kR, Kmax, iR, qfDR) // Reverse the right edge to match
+		FxL, _ := c.CalculateFlux(kL, KmaxL, iL, qfDL)
+		FxR, _ := c.CalculateFlux(kR, KmaxR, iR, qfDR) // Reverse the right edge to match
 		/*
 		   HM = (EnerM+pM).dd(rhoM);  HP = (EnerP+pP).dd(rhoP);
 		*/

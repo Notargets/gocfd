@@ -137,6 +137,7 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		steps                int
 		finished             bool
 		Np                   = c.dfr.SolutionElement.Np
+		NpFlux               = c.dfr.FluxElement.Np
 		plotQ                = pm.Plot
 		pts                  = c.Partitions
 		NPar                 = pts.ParallelDegree
@@ -157,7 +158,7 @@ func (c *Euler) Solve(pm *PlotMeta) {
 			Q1[np][n] = utils.NewMatrix(Np, Kmax)
 			Q2[np][n] = utils.NewMatrix(Np, Kmax)
 			Q3[np][n] = utils.NewMatrix(Np, Kmax)
-			F_RT_DOF[np][n] = utils.NewMatrix(Np, Kmax)
+			F_RT_DOF[np][n] = utils.NewMatrix(NpFlux, Kmax)
 		}
 		DT[np] = utils.NewMatrix(Np, Kmax)
 	}
@@ -445,11 +446,11 @@ func (c *Euler) RecombineShardsK(pA []utils.Matrix) (A utils.Matrix) {
 func (c *Euler) RecombineShardsKBy4(pA [][4]utils.Matrix) (A [4]utils.Matrix) {
 	var (
 		NP      = c.Partitions.ParallelDegree
-		_, Imax = pA[0][0].Dims()
+		Imax, _ = pA[0][0].Dims()
 	)
 	for np := 0; np < NP; np++ {
 		for n := 0; n < 4; n++ {
-			A[n] = utils.NewMatrix(c.dfr.K, Imax)
+			A[n] = utils.NewMatrix(Imax, c.dfr.K)
 			aD := A[n].Data()
 			kMin, kMax := c.Partitions.GetBucketRange(np)
 			Kmax := c.Partitions.GetBucketDimension(np)
