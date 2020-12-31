@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/notargets/gocfd/types"
@@ -120,19 +121,27 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		}
 		DT[np] = utils.NewMatrix(Np, Kmax)
 	}
-	start := time.Now()
+	elapsed := time.Duration(0)
+	var start time.Time
 	for !finished {
+		start = time.Now()
 		Residual, dt = c.RungeKutta4SSP(Time, Jdet, Jinv, DT, F_RT_DOF, c.Q, Q1, Q2, Q3)
+		elapsed += time.Now().Sub(start)
 		steps++
 		Time += dt
 		finished = c.CheckIfFinished(Time, FinalTime, steps)
 		if finished || steps%pm.StepsBeforePlot == 0 || steps == 1 {
-			QQ := c.RecombineShardsKBy4(c.Q)
+			var QQ [4]utils.Matrix
+			if plotQ {
+				QQ = c.RecombineShardsKBy4(c.Q)
+			} else {
+				nilM := utils.Matrix{}
+				QQ = [4]utils.Matrix{nilM, nilM, nilM, nilM}
+			}
 			ResidFull := c.RecombineShardsKBy4(Residual)
 			c.PrintUpdate(Time, dt, steps, QQ, ResidFull, plotQ, pm)
 		}
 	}
-	elapsed := time.Now().Sub(start)
 	c.PrintFinal(elapsed, steps)
 }
 
@@ -141,94 +150,121 @@ func (c *Euler) RungeKutta4SSP(Time float64, Jdet, Jinv []utils.Matrix,
 	var (
 		Np     = c.dfr.SolutionElement.Np
 		dT     float64
-		NP     = c.Partitions.ParallelDegree
+		pm     = c.Partitions
+		NP     = pm.ParallelDegree
 		Q_Face [][4]utils.Matrix
+		wg     = sync.WaitGroup{}
 	)
 	Q_Face, Residual = make([][4]utils.Matrix, NP), make([][4]utils.Matrix, NP)
 	for np := 0; np < NP; np++ {
-		for n := 0; n < 4; n++ {
-			Residual[np][n] = Q1[np][n] // optimize memory using an alias
-		}
-		Kmax := c.Partitions.GetBucketDimension(np)
-		Q_Face[np] = c.PrepareEdgeFlux(Kmax, Jdet[np], Jinv[np], F_RT_DOF[np], Q0[np], Time)
+		wg.Add(1)
+		go func(np int) {
+			for n := 0; n < 4; n++ {
+				Residual[np][n] = Q1[np][n] // optimize memory using an alias
+			}
+			Kmax := pm.GetBucketDimension(np)
+			Q_Face[np] = c.PrepareEdgeFlux(Kmax, Jdet[np], Jinv[np], F_RT_DOF[np], Q0[np], Time)
+			wg.Done()
+		}(np)
 	}
+	wg.Wait()
 	dt = c.ParallelEdgeUpdate(Time, true, Jdet, DT, F_RT_DOF, Q_Face) // Must sync parallel before calling
 	if Time+dt > c.FinalTime {
 		dt = c.FinalTime - Time
 	}
 	for np := 0; np < NP; np++ {
-		Kmax := c.Partitions.GetBucketDimension(np)
-		qD := Get4DP(Q0[np])
-		q1D := Get4DP(Q1[np])
-		dtD := DT[np].Data()
-		rhsQ := c.RHS(Kmax, Jdet[np], Q_Face[np], F_RT_DOF[np], Q0[np], Time)
-		rhsD := Get4DP(rhsQ)
-		for n := 0; n < 4; n++ {
-			for i := 0; i < Kmax*Np; i++ {
-				if c.LocalTimeStepping {
-					dT = dtD[i]
+		wg.Add(1)
+		go func(np int) {
+			Kmax := pm.GetBucketDimension(np)
+			qD := Get4DP(Q0[np])
+			q1D := Get4DP(Q1[np])
+			dtD := DT[np].Data()
+			rhsQ := c.RHS(Kmax, Jdet[np], Q_Face[np], F_RT_DOF[np], Q0[np], Time)
+			rhsD := Get4DP(rhsQ)
+			for n := 0; n < 4; n++ {
+				for i := 0; i < Kmax*Np; i++ {
+					if c.LocalTimeStepping {
+						dT = dtD[i]
+					}
+					q1D[n][i] = qD[n][i] + 0.5*rhsD[n][i]*dT
 				}
-				q1D[n][i] = qD[n][i] + 0.5*rhsD[n][i]*dT
 			}
-		}
-		Q_Face[np] = c.PrepareEdgeFlux(Kmax, Jdet[np], Jinv[np], F_RT_DOF[np], Q1[np], Time)
+			Q_Face[np] = c.PrepareEdgeFlux(Kmax, Jdet[np], Jinv[np], F_RT_DOF[np], Q1[np], Time)
+			wg.Done()
+		}(np)
 	}
+	wg.Wait()
 	_ = c.ParallelEdgeUpdate(Time, false, Jdet, DT, F_RT_DOF, Q_Face) // Must sync parallel before calling
 	for np := 0; np < NP; np++ {
-		Kmax := c.Partitions.GetBucketDimension(np)
-		q1D := Get4DP(Q1[np])
-		q2D := Get4DP(Q2[np])
-		dtD := DT[np].Data()
-		rhsQ := c.RHS(Kmax, Jdet[np], Q_Face[np], F_RT_DOF[np], Q1[np], Time)
-		rhsD := Get4DP(rhsQ)
-		for n := 0; n < 4; n++ {
-			for i := 0; i < Kmax*Np; i++ {
-				if c.LocalTimeStepping {
-					dT = dtD[i]
+		wg.Add(1)
+		go func(np int) {
+			Kmax := pm.GetBucketDimension(np)
+			q1D := Get4DP(Q1[np])
+			q2D := Get4DP(Q2[np])
+			dtD := DT[np].Data()
+			rhsQ := c.RHS(Kmax, Jdet[np], Q_Face[np], F_RT_DOF[np], Q1[np], Time)
+			rhsD := Get4DP(rhsQ)
+			for n := 0; n < 4; n++ {
+				for i := 0; i < Kmax*Np; i++ {
+					if c.LocalTimeStepping {
+						dT = dtD[i]
+					}
+					q2D[n][i] = q1D[n][i] + 0.25*rhsD[n][i]*dT
 				}
-				q2D[n][i] = q1D[n][i] + 0.25*rhsD[n][i]*dT
 			}
-		}
-		Q_Face[np] = c.PrepareEdgeFlux(Kmax, Jdet[np], Jinv[np], F_RT_DOF[np], Q2[np], Time)
+			Q_Face[np] = c.PrepareEdgeFlux(Kmax, Jdet[np], Jinv[np], F_RT_DOF[np], Q2[np], Time)
+			wg.Done()
+		}(np)
 	}
+	wg.Wait()
 	_ = c.ParallelEdgeUpdate(Time, false, Jdet, DT, F_RT_DOF, Q_Face) // Must sync parallel before calling
 	for np := 0; np < NP; np++ {
-		Kmax := c.Partitions.GetBucketDimension(np)
-		qD := Get4DP(Q0[np])
-		q2D := Get4DP(Q2[np])
-		q3D := Get4DP(Q3[np])
-		dtD := DT[np].Data()
-		rhsQ := c.RHS(Kmax, Jdet[np], Q_Face[np], F_RT_DOF[np], Q2[np], Time)
-		rhsD := Get4DP(rhsQ)
-		for n := 0; n < 4; n++ {
-			for i := 0; i < Kmax*Np; i++ {
-				if c.LocalTimeStepping {
-					dT = dtD[i]
+		wg.Add(1)
+		go func(np int) {
+			Kmax := pm.GetBucketDimension(np)
+			qD := Get4DP(Q0[np])
+			q2D := Get4DP(Q2[np])
+			q3D := Get4DP(Q3[np])
+			dtD := DT[np].Data()
+			rhsQ := c.RHS(Kmax, Jdet[np], Q_Face[np], F_RT_DOF[np], Q2[np], Time)
+			rhsD := Get4DP(rhsQ)
+			for n := 0; n < 4; n++ {
+				for i := 0; i < Kmax*Np; i++ {
+					if c.LocalTimeStepping {
+						dT = dtD[i]
+					}
+					q3D[n][i] = (1. / 3.) * (2*qD[n][i] + q2D[n][i] + rhsD[n][i]*dT)
 				}
-				q3D[n][i] = (1. / 3.) * (2*qD[n][i] + q2D[n][i] + rhsD[n][i]*dT)
 			}
-		}
-		Q_Face[np] = c.PrepareEdgeFlux(Kmax, Jdet[np], Jinv[np], F_RT_DOF[np], Q3[np], Time)
+			Q_Face[np] = c.PrepareEdgeFlux(Kmax, Jdet[np], Jinv[np], F_RT_DOF[np], Q3[np], Time)
+			wg.Done()
+		}(np)
 	}
+	wg.Wait()
 	_ = c.ParallelEdgeUpdate(Time, false, Jdet, DT, F_RT_DOF, Q_Face) // Must sync parallel before calling
 	for np := 0; np < NP; np++ {
-		Kmax := c.Partitions.GetBucketDimension(np)
-		qD := Get4DP(Q0[np])
-		q3D := Get4DP(Q3[np])
-		resD := Get4DP(Residual[np])
-		dtD := DT[np].Data()
-		rhsQ := c.RHS(Kmax, Jdet[np], Q_Face[np], F_RT_DOF[np], Q3[np], Time)
-		rhsD := Get4DP(rhsQ)
-		for n := 0; n < 4; n++ {
-			for i := 0; i < Kmax*Np; i++ {
-				if c.LocalTimeStepping {
-					dT = dtD[i]
+		wg.Add(1)
+		go func(np int) {
+			Kmax := pm.GetBucketDimension(np)
+			qD := Get4DP(Q0[np])
+			q3D := Get4DP(Q3[np])
+			resD := Get4DP(Residual[np])
+			dtD := DT[np].Data()
+			rhsQ := c.RHS(Kmax, Jdet[np], Q_Face[np], F_RT_DOF[np], Q3[np], Time)
+			rhsD := Get4DP(rhsQ)
+			for n := 0; n < 4; n++ {
+				for i := 0; i < Kmax*Np; i++ {
+					if c.LocalTimeStepping {
+						dT = dtD[i]
+					}
+					resD[n][i] = q3D[n][i] + 0.25*rhsD[n][i]*dT - qD[n][i]
+					qD[n][i] += resD[n][i]
 				}
-				resD[n][i] = q3D[n][i] + 0.25*rhsD[n][i]*dT - qD[n][i]
-				qD[n][i] += resD[n][i]
 			}
-		}
+			wg.Done()
+		}(np)
 	}
+	wg.Wait()
 	return
 }
 
