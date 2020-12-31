@@ -138,8 +138,8 @@ func (c *Euler) Solve(pm *PlotMeta) {
 				nilM := utils.Matrix{}
 				QQ = [4]utils.Matrix{nilM, nilM, nilM, nilM}
 			}
-			ResidFull := c.RecombineShardsKBy4(Residual)
-			c.PrintUpdate(Time, dt, steps, QQ, ResidFull, plotQ, pm)
+			//ResidFull := c.RecombineShardsKBy4(Residual)
+			c.PrintUpdate(Time, dt, steps, QQ, Residual, plotQ, pm)
 		}
 	}
 	c.PrintFinal(elapsed, steps)
@@ -149,7 +149,6 @@ func (c *Euler) RungeKutta4SSP(Time float64, Jdet, Jinv []utils.Matrix,
 	DT []utils.Matrix, F_RT_DOF, Q0, Q1, Q2, Q3 [][4]utils.Matrix) (Residual [][4]utils.Matrix, dt float64) {
 	var (
 		Np     = c.dfr.SolutionElement.Np
-		dT     float64
 		pm     = c.Partitions
 		NP     = pm.ParallelDegree
 		Q_Face [][4]utils.Matrix
@@ -159,9 +158,6 @@ func (c *Euler) RungeKutta4SSP(Time float64, Jdet, Jinv []utils.Matrix,
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {
-			for n := 0; n < 4; n++ {
-				Residual[np][n] = Q1[np][n] // optimize memory using an alias
-			}
 			Kmax := pm.GetBucketDimension(np)
 			Q_Face[np] = c.PrepareEdgeFlux(Kmax, Jdet[np], Jinv[np], F_RT_DOF[np], Q0[np], Time)
 			wg.Done()
@@ -181,6 +177,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Jdet, Jinv []utils.Matrix,
 			dtD := DT[np].Data()
 			rhsQ := c.RHS(Kmax, Jdet[np], Q_Face[np], F_RT_DOF[np], Q0[np], Time)
 			rhsD := Get4DP(rhsQ)
+			var dT float64
 			for n := 0; n < 4; n++ {
 				for i := 0; i < Kmax*Np; i++ {
 					if c.LocalTimeStepping {
@@ -204,6 +201,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Jdet, Jinv []utils.Matrix,
 			dtD := DT[np].Data()
 			rhsQ := c.RHS(Kmax, Jdet[np], Q_Face[np], F_RT_DOF[np], Q1[np], Time)
 			rhsD := Get4DP(rhsQ)
+			var dT float64
 			for n := 0; n < 4; n++ {
 				for i := 0; i < Kmax*Np; i++ {
 					if c.LocalTimeStepping {
@@ -228,6 +226,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Jdet, Jinv []utils.Matrix,
 			dtD := DT[np].Data()
 			rhsQ := c.RHS(Kmax, Jdet[np], Q_Face[np], F_RT_DOF[np], Q2[np], Time)
 			rhsD := Get4DP(rhsQ)
+			var dT float64
 			for n := 0; n < 4; n++ {
 				for i := 0; i < Kmax*Np; i++ {
 					if c.LocalTimeStepping {
@@ -245,6 +244,9 @@ func (c *Euler) RungeKutta4SSP(Time float64, Jdet, Jinv []utils.Matrix,
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {
+			for n := 0; n < 4; n++ {
+				Residual[np][n] = Q1[np][n] // optimize memory using an alias
+			}
 			Kmax := pm.GetBucketDimension(np)
 			qD := Get4DP(Q0[np])
 			q3D := Get4DP(Q3[np])
@@ -252,6 +254,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Jdet, Jinv []utils.Matrix,
 			dtD := DT[np].Data()
 			rhsQ := c.RHS(Kmax, Jdet[np], Q_Face[np], F_RT_DOF[np], Q3[np], Time)
 			rhsD := Get4DP(rhsQ)
+			var dT float64
 			for n := 0; n < 4; n++ {
 				for i := 0; i < Kmax*Np; i++ {
 					if c.LocalTimeStepping {
@@ -362,7 +365,7 @@ func (c *Euler) PrintInitialization(FinalTime float64) {
 	fmt.Printf("       Res0       Res1       Res2")
 	fmt.Printf("       Res3         L1         L2\n")
 }
-func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [4]utils.Matrix, plotQ bool, pm *PlotMeta) {
+func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q [4]utils.Matrix, Residual [][4]utils.Matrix, plotQ bool, pm *PlotMeta) {
 	format := "%11.4e"
 	if plotQ {
 		c.PlotQ(Q, pm) // wait till we implement time iterative frame updates
@@ -374,7 +377,13 @@ func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [4]utils.Ma
 	}
 	var l1, l2 float64
 	for n := 0; n < 4; n++ {
-		maxR := Residual[n].Max()
+		var maxR float64
+		for np := 0; np < c.Partitions.ParallelDegree; np++ {
+			m := Residual[np][n].Max()
+			if m > maxR {
+				maxR = m
+			}
+		}
 		fmt.Printf(format, maxR)
 		if maxR > l1 {
 			l1 = maxR
