@@ -121,6 +121,7 @@ func TestEuler(t *testing.T) {
 						}
 					}
 					// Check to see that the expected values are in the right place (the edge locations)
+					rtTD = F_RT_DOF[n].Transpose().Data()
 					for k := 0; k < Kmax; k++ {
 						val := Fr_check[k][n] + Fs_check[k][n]
 						is := k * NpFlux
@@ -131,7 +132,7 @@ func TestEuler(t *testing.T) {
 			}
 		}
 	}
-	if false {
+	if true {
 		{ // Test solution process part 2 - Freestream divergence should be zero
 			Nmax := 7
 			for N := 1; N <= Nmax; N++ {
