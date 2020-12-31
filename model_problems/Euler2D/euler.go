@@ -66,6 +66,8 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
 
 	// Setup the key for edge calculations, useful for parallelizing the process
 	c.SortedEdgeKeys = make(EdgeKeySlice, len(c.dfr.Tris.Edges))
+	// TODO: Create three buckets of keys, one for two connections (flux), one for one conn (BCs) and third for zero conns (face partners)
+	// The problem with the current approach is that an imbalance of edges can occur where one CPU gets too much flux work compared to others
 	var i int
 	for en := range c.dfr.Tris.Edges {
 		c.SortedEdgeKeys[i] = en
