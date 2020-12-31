@@ -15,27 +15,13 @@ Density | X Momentum | Density
 - Jan S. Hesthaven and Tim Warburton for their excellent text "Nodal Discontinuous Galerkin Methods" (2007)
 - J. Romero, K. Asthana and Antony Jameson for "A Simplified Formulation of the Flux Reconstruction Method" (2015) for the DFR approach with Raviart-Thomas elements
 
-### Updates (Dec 22, 2020):
-![](images/convergence-study-naca0012.PNG)
+### Updates (Dec 31, 2020):
 
-In the graph we compare convergence to steady state using two kinds of flux calculation and two types of Runge Kutta time advancement. The RK4 SSP time advancement is far superior in terms of CFL stability, as expected, without much increase in computational work or storage as compared with the RK3 method. The difference between the interpolated flux and the normal (interpolated Q, then calculate flux) is very small. The Lax and Roe flux results with RK4 are almost identical, the two lines on the graph are indistinguishable. 
+New Year's Day progress!
 
-A lot of progress across a number of areas this week:
-- Time advancement scheme - RK4 SSP in place of RK3 SSP, big stability and speed improvement with CFL now up to 4 (was 2) on NACA 0012 test cases
-- Experiments with direct interpolation of Flux to edges in place of interpolation of conserved variables and calculation of flux
--- did not appear to improve odd-even oscillations or higher order stability
--- only tested on Lax flux, as current Roe flux would need extensive changes to implement
-- Convergence acceleration for steady state problems - local time stepping
-- Experiments with transonic flow with moderate shocks over airfoils
--- Odd-even oscilations pollute the solution when there are shock waves and cause fatal instability for the Roe flux, although the Roe Flux is the original Roe flux, which has known issues with odd-even oscillation stability
+I partitioned the 2D solver by elements for enhanced parallelism. The solver now computes the RHS and time stepping fully parallel, but must still synchronize between each time sub-step (within the Runge-Kutta solver) to exchange data at edges, which is also done in parallel. So there are now two discrete stages/types of parallelism, one for the full domain of elements, and one for the edge exchanges and flux computation.
 
-As a result of the above experiments, the next focus is on:
-1) Solution filtering with shock/discontinuity detection
-- Must be compatible with higher order methods and allow high order fields with shocks without destroying the high order capture
--- I found a promising compact WENO filtering scheme designed for high order Galerkin type methods, paper [here](research/filters_and_flux_limiters/multi-resolution_WENO_limiters_3D_tetrahedral_meshes.pdf)
-2) Multigrid convergence acceleration
-- A complication: normal multigrid methods use agglomeration to compose the lower order meshes from the fine mesh. Currently, we only have triangular elements, so we can not use quad or other polygons that arise from agglomeration.
-- A possible solution: compose RT and Lagrange elements for quads and polygons to enable later use in Navier-Stokes and multigrid
+As a result of the partitioning, the parallelism is far better and we can get much faster solution times. The level of parallelism is well suited to machines with less than 100 processors. For more parallelism, we will need to use a mesh partitioning algorithm that selects the element partitions so as to minimize the surface area shared between partitions, such as the commonly used tool "metis". When the elements are partitioned in that way, we can isolate the time spent in synchronization to exactly the minimum necessary. By comparison, now we're doing all edge flux computation during the synchronization period.
 
 ### Objectives
 
@@ -82,6 +68,28 @@ me@home:bash# gocfd 1D -g
 ### Run without graphics:
 me@home:bash# gocfd 1D
 ```
+### Updates (Dec 22, 2020):
+![](images/convergence-study-naca0012.PNG)
+
+In the graph we compare convergence to steady state using two kinds of flux calculation and two types of Runge Kutta time advancement. The RK4 SSP time advancement is far superior in terms of CFL stability, as expected, without much increase in computational work or storage as compared with the RK3 method. The difference between the interpolated flux and the normal (interpolated Q, then calculate flux) is very small. The Lax and Roe flux results with RK4 are almost identical, the two lines on the graph are indistinguishable. 
+
+A lot of progress across a number of areas this week:
+- Time advancement scheme - RK4 SSP in place of RK3 SSP, big stability and speed improvement with CFL now up to 4 (was 2) on NACA 0012 test cases
+- Experiments with direct interpolation of Flux to edges in place of interpolation of conserved variables and calculation of flux
+-- did not appear to improve odd-even oscillations or higher order stability
+-- only tested on Lax flux, as current Roe flux would need extensive changes to implement
+- Convergence acceleration for steady state problems - local time stepping
+- Experiments with transonic flow with moderate shocks over airfoils
+-- Odd-even oscilations pollute the solution when there are shock waves and cause fatal instability for the Roe flux, although the Roe Flux is the original Roe flux, which has known issues with odd-even oscillation stability
+
+As a result of the above experiments, the next focus is on:
+1) Solution filtering with shock/discontinuity detection
+- Must be compatible with higher order methods and allow high order fields with shocks without destroying the high order capture
+-- I found a promising compact WENO filtering scheme designed for high order Galerkin type methods, paper [here](research/filters_and_flux_limiters/multi-resolution_WENO_limiters_3D_tetrahedral_meshes.pdf)
+2) Multigrid convergence acceleration
+- A complication: normal multigrid methods use agglomeration to compose the lower order meshes from the fine mesh. Currently, we only have triangular elements, so we can not use quad or other polygons that arise from agglomeration.
+- A possible solution: compose RT and Lagrange elements for quads and polygons to enable later use in Navier-Stokes and multigrid
+
 ### Updates (Dec 15, 2020):
 ![](images/scaling-study-vortex-opt.gif)
 
