@@ -5,11 +5,8 @@ import (
 	"math"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/notargets/gocfd/types"
-
-	"github.com/notargets/avs/chart2d"
 
 	"github.com/stretchr/testify/assert"
 
@@ -52,6 +49,8 @@ func TestEuler(t *testing.T) {
 				}
 			}
 		}
+	}
+	if true {
 		{ // Test solution process
 			/*
 				Solver approach:
@@ -131,6 +130,8 @@ func TestEuler(t *testing.T) {
 				}
 			}
 		}
+	}
+	if false {
 		{ // Test solution process part 2 - Freestream divergence should be zero
 			Nmax := 7
 			for N := 1; N <= Nmax; N++ {
@@ -227,25 +228,6 @@ func TestEuler(t *testing.T) {
 			}
 		}
 	}
-}
-
-func TestEuler_Solve(t *testing.T) {
-	// This is separate to enable easy performance and memory profiling
-	N := 2
-	plotMesh := false
-	c := NewEuler(0.1, N, "../../DG2D/vortexA04.neu", 1.00, FLUX_LaxFriedrichs, IVORTEX, 0, 0, 1.4, 0, false, 5000, plotMesh, true)
-	fmin, fmax := -0.75, 0.80 // YMomentum
-	pm := &PlotMeta{
-		Plot:            false,
-		Scale:           0.8,
-		Field:           YMomentum,
-		FieldMinP:       &fmin,
-		FieldMaxP:       &fmax,
-		FrameTime:       0 * time.Millisecond,
-		StepsBeforePlot: 5,
-		LineType:        chart2d.Solid,
-	}
-	c.Solve(pm)
 }
 
 func PrintQ(Q [4]utils.Matrix, l string) {

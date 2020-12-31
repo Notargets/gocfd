@@ -54,31 +54,15 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
 		FS:                NewFreeStream(Minf, Gamma, Alpha),
 	}
 	c.FluxCalcMock = c.FluxCalc
-	if ProcLimit != 0 {
-		c.ParallelDegree = ProcLimit
-	} else {
-		c.ParallelDegree = runtime.NumCPU()
-	}
-	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	if len(meshFile) == 0 {
 		return
 	}
 
+	// Read mesh file, initialize geometry and finite elements
 	c.dfr = DG2D.NewDFR2D(N, plotMesh, meshFile)
-	if c.ParallelDegree > c.dfr.K {
-		c.ParallelDegree = 1
-	}
-	c.Partitions = NewPartitionMap(c.ParallelDegree, c.dfr.K)
 
-	if verbose {
-		fmt.Printf("Euler Equations in 2 Dimensions\n")
-		fmt.Printf("Using %d go routines in parallel\n", c.Partitions.ParallelDegree)
-		fmt.Printf("Solving %s\n", c.Case.Print())
-		if c.Case == FREESTREAM {
-			fmt.Printf("Mach Infinity = %8.5f, Angle of Attack = %8.5f\n", Minf, Alpha)
-		}
-	}
+	c.SetParallelDegree(ProcLimit, c.dfr.K) // Must occur after determining the number of elements
 
 	// Setup the key for edge calculations, useful for parallelizing the process
 	c.SortedEdgeKeys = make(EdgeKeySlice, len(c.dfr.Tris.Edges))
@@ -89,41 +73,15 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
 	}
 	c.SortedEdgeKeys.Sort()
 
-	// Initialize solution
-	c.Q = make([][4]utils.Matrix, c.Partitions.ParallelDegree) // Allocate shards to store solution
-	switch c.Case {
-	case FREESTREAM:
-		NP := c.Partitions.ParallelDegree
-		for np := 0; np < NP; np++ {
-			Kmax := c.Partitions.GetBucketDimension(np)
-			c.Q[np] = c.InitializeFS(Kmax)
-		}
-	case IVORTEX:
-		c.FS.Qinf = [4]float64{1, 1, 0, 3}
-		c.FS.Pinf = c.FS.GetFlowFunction(c.FS.Qinf, StaticPressure)
-		c.FS.QQinf = c.FS.GetFlowFunction(c.FS.Qinf, DynamicPressure)
-		c.FS.Cinf = c.FS.GetFlowFunction(c.FS.Qinf, SoundSpeed)
-		c.SolutionX = c.ShardByK(c.dfr.SolutionX)
-		c.SolutionY = c.ShardByK(c.dfr.SolutionY)
-		NP := c.Partitions.ParallelDegree
-		for np := 0; np < NP; np++ {
-			c.AnalyticSolution, c.Q[np] = c.InitializeIVortex(c.SolutionX[np], c.SolutionY[np])
-		}
-		// Set "Wall" BCs to IVortex
-		var count int
-		for _, e := range c.dfr.Tris.Edges {
-			if e.BCType == types.BC_Wall {
-				count++
-				e.BCType = types.BC_IVortex
-			}
-		}
-		if verbose {
-			fmt.Printf("\tReplaced %d Wall boundary conditions with analytic BC_IVortex\n", count)
-		}
-	default:
-		panic("unknown case type")
-	}
+	c.InitializeSolution(verbose)
+
 	if verbose {
+		fmt.Printf("Euler Equations in 2 Dimensions\n")
+		fmt.Printf("Using %d go routines in parallel\n", c.Partitions.ParallelDegree)
+		fmt.Printf("Solving %s\n", c.Case.Print())
+		if c.Case == FREESTREAM {
+			fmt.Printf("Mach Infinity = %8.5f, Angle of Attack = %8.5f\n", Minf, Alpha)
+		}
 		fmt.Printf("Algorithm: %s\n", c.FluxCalcAlgo.Print())
 		fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, c.dfr.K)
 	}
@@ -492,4 +450,54 @@ func (c *Euler) RecombineShardsKBy4(pA [][4]utils.Matrix) (A [4]utils.Matrix) {
 		}
 	}
 	return
+}
+
+func (c *Euler) SetParallelDegree(ProcLimit, Kmax int) {
+	if ProcLimit != 0 {
+		c.ParallelDegree = ProcLimit
+	} else {
+		c.ParallelDegree = runtime.NumCPU()
+	}
+	runtime.GOMAXPROCS(runtime.NumCPU())
+	if c.ParallelDegree > Kmax {
+		c.ParallelDegree = 1
+	}
+	c.Partitions = NewPartitionMap(c.ParallelDegree, Kmax)
+}
+
+func (c *Euler) InitializeSolution(verbose bool) {
+	// Initialize solution
+	c.Q = make([][4]utils.Matrix, c.Partitions.ParallelDegree) // Allocate shards to store solution
+	switch c.Case {
+	case FREESTREAM:
+		NP := c.Partitions.ParallelDegree
+		for np := 0; np < NP; np++ {
+			Kmax := c.Partitions.GetBucketDimension(np)
+			c.Q[np] = c.InitializeFS(Kmax)
+		}
+	case IVORTEX:
+		c.FS.Qinf = [4]float64{1, 1, 0, 3}
+		c.FS.Pinf = c.FS.GetFlowFunction(c.FS.Qinf, StaticPressure)
+		c.FS.QQinf = c.FS.GetFlowFunction(c.FS.Qinf, DynamicPressure)
+		c.FS.Cinf = c.FS.GetFlowFunction(c.FS.Qinf, SoundSpeed)
+		c.SolutionX = c.ShardByK(c.dfr.SolutionX)
+		c.SolutionY = c.ShardByK(c.dfr.SolutionY)
+		NP := c.Partitions.ParallelDegree
+		for np := 0; np < NP; np++ {
+			c.AnalyticSolution, c.Q[np] = c.InitializeIVortex(c.SolutionX[np], c.SolutionY[np])
+		}
+		// Set "Wall" BCs to IVortex
+		var count int
+		for _, e := range c.dfr.Tris.Edges {
+			if e.BCType == types.BC_Wall {
+				count++
+				e.BCType = types.BC_IVortex
+			}
+		}
+		if verbose {
+			fmt.Printf("\tReplaced %d Wall boundary conditions with analytic BC_IVortex\n", count)
+		}
+	default:
+		panic("unknown case type")
+	}
 }
