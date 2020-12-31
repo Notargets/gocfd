@@ -131,15 +131,7 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		Time += dt
 		finished = c.CheckIfFinished(Time, FinalTime, steps)
 		if finished || steps%pm.StepsBeforePlot == 0 || steps == 1 {
-			var QQ [4]utils.Matrix
-			if plotQ {
-				QQ = c.RecombineShardsKBy4(c.Q)
-			} else {
-				nilM := utils.Matrix{}
-				QQ = [4]utils.Matrix{nilM, nilM, nilM, nilM}
-			}
-			//ResidFull := c.RecombineShardsKBy4(Residual)
-			c.PrintUpdate(Time, dt, steps, QQ, Residual, plotQ, pm)
+			c.PrintUpdate(Time, dt, steps, c.Q, Residual, plotQ, pm)
 		}
 	}
 	c.PrintFinal(elapsed, steps)
@@ -365,10 +357,17 @@ func (c *Euler) PrintInitialization(FinalTime float64) {
 	fmt.Printf("       Res0       Res1       Res2")
 	fmt.Printf("       Res3         L1         L2\n")
 }
-func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q [4]utils.Matrix, Residual [][4]utils.Matrix, plotQ bool, pm *PlotMeta) {
+func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [][4]utils.Matrix, plotQ bool, pm *PlotMeta) {
 	format := "%11.4e"
 	if plotQ {
-		c.PlotQ(Q, pm) // wait till we implement time iterative frame updates
+		var QQ [4]utils.Matrix
+		if plotQ {
+			QQ = c.RecombineShardsKBy4(c.Q)
+		} else {
+			nilM := utils.Matrix{}
+			QQ = [4]utils.Matrix{nilM, nilM, nilM, nilM}
+		}
+		c.PlotQ(QQ, pm) // wait till we implement time iterative frame updates
 	}
 	if c.LocalTimeStepping {
 		fmt.Printf("%10d              ", steps)
@@ -477,10 +476,10 @@ func (c *Euler) RecombineShardsKBy4(pA [][4]utils.Matrix) (A [4]utils.Matrix) {
 		NP      = c.Partitions.ParallelDegree
 		Imax, _ = pA[0][0].Dims()
 	)
-	for np := 0; np < NP; np++ {
-		for n := 0; n < 4; n++ {
-			A[n] = utils.NewMatrix(Imax, c.dfr.K)
-			aD := A[n].Data()
+	for n := 0; n < 4; n++ {
+		A[n] = utils.NewMatrix(Imax, c.dfr.K)
+		aD := A[n].Data()
+		for np := 0; np < NP; np++ {
 			kMin, kMax := c.Partitions.GetBucketRange(np)
 			Kmax := c.Partitions.GetBucketDimension(np)
 			pAD := pA[np][n].Data()
