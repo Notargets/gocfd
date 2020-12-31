@@ -3,7 +3,6 @@ package Euler2D
 import (
 	"fmt"
 	"math"
-	"runtime"
 	"sync"
 	"time"
 
@@ -167,7 +166,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Jdet, Jinv []utils.Matrix,
 			qD := Get4DP(Q0[np])
 			q1D := Get4DP(Q1[np])
 			dtD := DT[np].Data()
-			rhsQ := c.RHS(Kmax, Jdet[np], Q_Face[np], F_RT_DOF[np], Q0[np], Time)
+			rhsQ := c.RHS(Kmax, Jdet[np], F_RT_DOF[np], Q0[np], Time)
 			rhsD := Get4DP(rhsQ)
 			var dT float64
 			for n := 0; n < 4; n++ {
@@ -191,7 +190,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Jdet, Jinv []utils.Matrix,
 			q1D := Get4DP(Q1[np])
 			q2D := Get4DP(Q2[np])
 			dtD := DT[np].Data()
-			rhsQ := c.RHS(Kmax, Jdet[np], Q_Face[np], F_RT_DOF[np], Q1[np], Time)
+			rhsQ := c.RHS(Kmax, Jdet[np], F_RT_DOF[np], Q1[np], Time)
 			rhsD := Get4DP(rhsQ)
 			var dT float64
 			for n := 0; n < 4; n++ {
@@ -216,7 +215,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Jdet, Jinv []utils.Matrix,
 			q2D := Get4DP(Q2[np])
 			q3D := Get4DP(Q3[np])
 			dtD := DT[np].Data()
-			rhsQ := c.RHS(Kmax, Jdet[np], Q_Face[np], F_RT_DOF[np], Q2[np], Time)
+			rhsQ := c.RHS(Kmax, Jdet[np], F_RT_DOF[np], Q2[np], Time)
 			rhsD := Get4DP(rhsQ)
 			var dT float64
 			for n := 0; n < 4; n++ {
@@ -244,7 +243,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Jdet, Jinv []utils.Matrix,
 			q3D := Get4DP(Q3[np])
 			resD := Get4DP(Residual[np])
 			dtD := DT[np].Data()
-			rhsQ := c.RHS(Kmax, Jdet[np], Q_Face[np], F_RT_DOF[np], Q3[np], Time)
+			rhsQ := c.RHS(Kmax, Jdet[np], F_RT_DOF[np], Q3[np], Time)
 			rhsD := Get4DP(rhsQ)
 			var dT float64
 			for n := 0; n < 4; n++ {
@@ -263,7 +262,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Jdet, Jinv []utils.Matrix,
 	return
 }
 
-func (c *Euler) RHS(Kmax int, Jdet utils.Matrix, Q_Face, F_RT_DOF, Q [4]utils.Matrix, Time float64) (RHSCalc [4]utils.Matrix) {
+func (c *Euler) RHS(Kmax int, Jdet utils.Matrix, F_RT_DOF, Q [4]utils.Matrix, Time float64) (RHSCalc [4]utils.Matrix) {
 	/*
 				Calculate the RHS of the equation:
 				dQ/dt = -div(F,G)
@@ -339,6 +338,43 @@ func (c *Euler) SetNormalFluxInternal(Kmax int, Jdet, Jinv utils.Matrix, F_RT_DO
 	}
 }
 
+func (c *Euler) InitializeSolution(verbose bool) {
+	// Initialize solution
+	c.Q = make([][4]utils.Matrix, c.Partitions.ParallelDegree) // Allocate shards to store solution
+	switch c.Case {
+	case FREESTREAM:
+		NP := c.Partitions.ParallelDegree
+		for np := 0; np < NP; np++ {
+			Kmax := c.Partitions.GetBucketDimension(np)
+			c.Q[np] = c.InitializeFS(Kmax)
+		}
+	case IVORTEX:
+		c.FS.Qinf = [4]float64{1, 1, 0, 3}
+		c.FS.Pinf = c.FS.GetFlowFunction(c.FS.Qinf, StaticPressure)
+		c.FS.QQinf = c.FS.GetFlowFunction(c.FS.Qinf, DynamicPressure)
+		c.FS.Cinf = c.FS.GetFlowFunction(c.FS.Qinf, SoundSpeed)
+		c.SolutionX = c.ShardByK(c.dfr.SolutionX)
+		c.SolutionY = c.ShardByK(c.dfr.SolutionY)
+		NP := c.Partitions.ParallelDegree
+		for np := 0; np < NP; np++ {
+			c.AnalyticSolution, c.Q[np] = c.InitializeIVortex(c.SolutionX[np], c.SolutionY[np])
+		}
+		// Set "Wall" BCs to IVortex
+		var count int
+		for _, e := range c.dfr.Tris.Edges {
+			if e.BCType == types.BC_Wall {
+				count++
+				e.BCType = types.BC_IVortex
+			}
+		}
+		if verbose {
+			fmt.Printf("\tReplaced %d Wall boundary conditions with analytic BC_IVortex\n", count)
+		}
+	default:
+		panic("unknown case type")
+	}
+}
+
 func (c *Euler) CheckIfFinished(Time, FinalTime float64, steps int) (finished bool) {
 	if Time >= FinalTime || steps >= c.MaxIterations {
 		finished = true
@@ -396,152 +432,4 @@ func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [][4]utils.
 func (c *Euler) PrintFinal(elapsed time.Duration, steps int) {
 	rate := float64(elapsed.Microseconds()) / (float64(c.dfr.K * steps))
 	fmt.Printf("\nRate of execution = %8.5f us/(element*iteration) over %d iterations\n", rate, steps)
-}
-
-func (c *Euler) ShardByK(A utils.Matrix) (pA []utils.Matrix) {
-	var (
-		NP      = c.Partitions.ParallelDegree
-		Imax, _ = A.Dims()
-		aD      = A.Data()
-	)
-	pA = make([]utils.Matrix, NP)
-	for np := 0; np < NP; np++ {
-		kMin, kMax := c.Partitions.GetBucketRange(np)
-		Kmax := c.Partitions.GetBucketDimension(np)
-		pA[np] = utils.NewMatrix(Imax, Kmax)
-		pAD := pA[np].Data()
-		for k := kMin; k < kMax; k++ {
-			pk := k - kMin
-			for i := 0; i < Imax; i++ {
-				ind := k + i*c.dfr.K
-				pind := pk + Kmax*i
-				pAD[pind] = aD[ind]
-			}
-		}
-	}
-	return
-}
-
-func (c *Euler) ShardByKTranspose(A utils.Matrix) (pA []utils.Matrix) {
-	var (
-		NP      = c.Partitions.ParallelDegree
-		_, Imax = A.Dims()
-		aD      = A.Data()
-	)
-	pA = make([]utils.Matrix, NP)
-	for np := 0; np < NP; np++ {
-		kMin, kMax := c.Partitions.GetBucketRange(np)
-		Kmax := c.Partitions.GetBucketDimension(np)
-		pA[np] = utils.NewMatrix(Kmax, Imax)
-		pAD := pA[np].Data()
-		for k := kMin; k < kMax; k++ {
-			pk := k - kMin
-			for i := 0; i < Imax; i++ {
-				//ind := k + i*c.dfr.K
-				//pind := pk + Kmax*i
-				ind := i + k*Imax
-				pind := i + pk*Imax
-				pAD[pind] = aD[ind]
-			}
-		}
-	}
-	return
-}
-
-func (c *Euler) RecombineShardsK(pA []utils.Matrix) (A utils.Matrix) {
-	var (
-		NP      = c.Partitions.ParallelDegree
-		_, Imax = pA[0].Dims()
-	)
-	A = utils.NewMatrix(Imax, c.dfr.K)
-	aD := A.Data()
-	for np := 0; np < NP; np++ {
-		kMin, kMax := c.Partitions.GetBucketRange(np)
-		Kmax := c.Partitions.GetBucketDimension(np)
-		pAD := pA[np].Data()
-		for k := kMin; k < kMax; k++ {
-			pk := k - kMin
-			for i := 0; i < Imax; i++ {
-				ind := k + i*c.dfr.K
-				pind := pk + Kmax*i
-				aD[ind] = pAD[pind]
-			}
-		}
-	}
-	return
-}
-
-func (c *Euler) RecombineShardsKBy4(pA [][4]utils.Matrix) (A [4]utils.Matrix) {
-	var (
-		NP      = c.Partitions.ParallelDegree
-		Imax, _ = pA[0][0].Dims()
-	)
-	for n := 0; n < 4; n++ {
-		A[n] = utils.NewMatrix(Imax, c.dfr.K)
-		aD := A[n].Data()
-		for np := 0; np < NP; np++ {
-			kMin, kMax := c.Partitions.GetBucketRange(np)
-			Kmax := c.Partitions.GetBucketDimension(np)
-			pAD := pA[np][n].Data()
-			for k := kMin; k < kMax; k++ {
-				pk := k - kMin
-				for i := 0; i < Imax; i++ {
-					ind := k + i*c.dfr.K
-					pind := pk + Kmax*i
-					aD[ind] = pAD[pind]
-				}
-			}
-		}
-	}
-	return
-}
-
-func (c *Euler) SetParallelDegree(ProcLimit, Kmax int) {
-	if ProcLimit != 0 {
-		c.ParallelDegree = ProcLimit
-	} else {
-		c.ParallelDegree = runtime.NumCPU()
-	}
-	runtime.GOMAXPROCS(runtime.NumCPU())
-	if c.ParallelDegree > Kmax {
-		c.ParallelDegree = 1
-	}
-	c.Partitions = NewPartitionMap(c.ParallelDegree, Kmax)
-}
-
-func (c *Euler) InitializeSolution(verbose bool) {
-	// Initialize solution
-	c.Q = make([][4]utils.Matrix, c.Partitions.ParallelDegree) // Allocate shards to store solution
-	switch c.Case {
-	case FREESTREAM:
-		NP := c.Partitions.ParallelDegree
-		for np := 0; np < NP; np++ {
-			Kmax := c.Partitions.GetBucketDimension(np)
-			c.Q[np] = c.InitializeFS(Kmax)
-		}
-	case IVORTEX:
-		c.FS.Qinf = [4]float64{1, 1, 0, 3}
-		c.FS.Pinf = c.FS.GetFlowFunction(c.FS.Qinf, StaticPressure)
-		c.FS.QQinf = c.FS.GetFlowFunction(c.FS.Qinf, DynamicPressure)
-		c.FS.Cinf = c.FS.GetFlowFunction(c.FS.Qinf, SoundSpeed)
-		c.SolutionX = c.ShardByK(c.dfr.SolutionX)
-		c.SolutionY = c.ShardByK(c.dfr.SolutionY)
-		NP := c.Partitions.ParallelDegree
-		for np := 0; np < NP; np++ {
-			c.AnalyticSolution, c.Q[np] = c.InitializeIVortex(c.SolutionX[np], c.SolutionY[np])
-		}
-		// Set "Wall" BCs to IVortex
-		var count int
-		for _, e := range c.dfr.Tris.Edges {
-			if e.BCType == types.BC_Wall {
-				count++
-				e.BCType = types.BC_IVortex
-			}
-		}
-		if verbose {
-			fmt.Printf("\tReplaced %d Wall boundary conditions with analytic BC_IVortex\n", count)
-		}
-	default:
-		panic("unknown case type")
-	}
 }
