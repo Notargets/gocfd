@@ -83,6 +83,16 @@ func (pm *PartitionMap) GetBucketRange(bucketNum int) (kMin, kMax int) {
 	return
 }
 
+func (pm *PartitionMap) GetLocalK(baseK int) (k, Kmax, bn int) {
+	var (
+		kmin, kmax int
+	)
+	bn, kmin, kmax = pm.GetBucket(baseK)
+	Kmax = kmax - kmin
+	k = baseK - kmin
+	return
+}
+
 func (pm *PartitionMap) GetBucketDimension(bucketNum int) (kMax int) {
 	var (
 		k1, k2 = pm.GetBucketRange(bucketNum)
@@ -130,10 +140,9 @@ func (c *Euler) GetKSplitMaxK(threadnum int) (kMax int) {
 	return
 }
 
-func (c *Euler) GetQQ(k, i int, Q [4][]float64) (qq [4]float64) {
+func (c *Euler) GetQQ(k, Kmax, i int, Q [4][]float64) (qq [4]float64) {
 	var (
-		Kmax = c.dfr.K
-		ind  = k + Kmax*i
+		ind = k + Kmax*i
 	)
 	qq = [4]float64{Q[0][ind], Q[1][ind], Q[2][ind], Q[3][ind]}
 	return

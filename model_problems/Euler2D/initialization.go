@@ -45,15 +45,15 @@ func NewInitType(label string) (it InitType) {
 	return
 }
 
-func (c *Euler) InitializeFS() {
+func (c *Euler) InitializeFS(Kmax int) (Q [4]utils.Matrix) {
 	var (
-		K  = c.dfr.K
 		Np = c.dfr.SolutionElement.Np
 	)
-	c.Q[0] = utils.NewMatrix(Np, K).AddScalar(c.FS.Qinf[0])
-	c.Q[1] = utils.NewMatrix(Np, K).AddScalar(c.FS.Qinf[1])
-	c.Q[2] = utils.NewMatrix(Np, K).AddScalar(c.FS.Qinf[2])
-	c.Q[3] = utils.NewMatrix(Np, K).AddScalar(c.FS.Qinf[3])
+	Q[0] = utils.NewMatrix(Np, Kmax).AddScalar(c.FS.Qinf[0])
+	Q[1] = utils.NewMatrix(Np, Kmax).AddScalar(c.FS.Qinf[1])
+	Q[2] = utils.NewMatrix(Np, Kmax).AddScalar(c.FS.Qinf[2])
+	Q[3] = utils.NewMatrix(Np, Kmax).AddScalar(c.FS.Qinf[3])
+	return
 }
 
 func (c *Euler) InitializeIVortex(X, Y utils.Matrix) (iv *isentropic_vortex.IVortex, Q [4]utils.Matrix) {

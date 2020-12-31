@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"strings"
+
+	"github.com/notargets/gocfd/utils"
 )
 
 func (it InitType) Print() (txt string) {
@@ -46,25 +48,24 @@ func NewFluxType(label string) (ft FluxType) {
 	return
 }
 
-func (c *Euler) CalculateFluxTransformed(k, i int, QQ [4][]float64) (Fr, Fs [4]float64) {
+func (c *Euler) CalculateFluxTransformed(k, Kmax, i int, Jdet, Jinv utils.Matrix, QQ [4][]float64) (Fr, Fs [4]float64) {
 	var (
-		Jdet = c.dfr.Jdet.Data()[k]
-		Jinv = c.dfr.Jinv.Data()[4*k : 4*(k+1)]
+		JdetD = Jdet.Data()[k]
+		JinvD = Jinv.Data()[4*k : 4*(k+1)]
 	)
-	Fx, Fy := c.CalculateFlux(k, i, QQ)
+	Fx, Fy := c.CalculateFlux(k, Kmax, i, QQ)
 	for n := 0; n < 4; n++ {
-		Fr[n] = Jdet * (Jinv[0]*Fx[n] + Jinv[1]*Fy[n])
-		Fs[n] = Jdet * (Jinv[2]*Fx[n] + Jinv[3]*Fy[n])
+		Fr[n] = JdetD * (JinvD[0]*Fx[n] + JinvD[1]*Fy[n])
+		Fs[n] = JdetD * (JinvD[2]*Fx[n] + JinvD[3]*Fy[n])
 	}
 	return
 }
 
-func (c *Euler) CalculateFlux(k, i int, QQ [4][]float64) (Fx, Fy [4]float64) {
+func (c *Euler) CalculateFlux(k, Kmax, i int, QQ [4][]float64) (Fx, Fy [4]float64) {
 	// From https://www.theoretical-physics.net/dev/fluid-dynamics/euler.html
 	var (
-		Kmax = c.dfr.K
-		ind  = k + i*Kmax
-		qq   = [4]float64{QQ[0][ind], QQ[1][ind], QQ[2][ind], QQ[3][ind]}
+		ind = k + i*Kmax
+		qq  = [4]float64{QQ[0][ind], QQ[1][ind], QQ[2][ind], QQ[3][ind]}
 	)
 	Fx, Fy = c.FluxCalcMock(qq)
 	return
@@ -84,10 +85,11 @@ func (c *Euler) FluxCalc(q [4]float64) (Fx, Fy [4]float64) {
 	return
 }
 
-func (c *Euler) AvgFlux(kL, kR, shiftL, shiftR int, normal [2]float64, normalFlux, normalFluxReversed [][4]float64) {
+func (c *Euler) AvgFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
+	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux, normalFluxReversed [][4]float64) {
 	var (
-		Nedge = c.dfr.FluxElement.Nedge
-		qfD   = Get4DP(c.Q_Face)
+		Nedge      = c.dfr.FluxElement.Nedge
+		qfDL, qfDR = Get4DP(Q_FaceL), Get4DP(Q_FaceR)
 	)
 	averageFluxN := func(fx1, fy1, fx2, fy2 [4]float64, normal [2]float64) (fnorm [4]float64, fnormR [4]float64) {
 		var (
@@ -104,19 +106,19 @@ func (c *Euler) AvgFlux(kL, kR, shiftL, shiftR int, normal [2]float64, normalFlu
 	for i := 0; i < Nedge; i++ {
 		iL := i + shiftL
 		iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
-		FxL, FyL := c.CalculateFlux(kL, iL, qfD)
-		FxR, FyR := c.CalculateFlux(kR, iR, qfD) // Reverse the right edge to match
+		FxL, FyL := c.CalculateFlux(kL, KmaxL, iL, qfDL)
+		FxR, FyR := c.CalculateFlux(kR, KmaxR, iR, qfDR) // Reverse the right edge to match
 		normalFlux[i], normalFluxReversed[Nedge-1-i] = averageFluxN(FxL, FyL, FxR, FyR, normal)
 	}
 }
 
-func (c *Euler) LaxFlux(kL, kR, shiftL, shiftR int, normal [2]float64, normalFlux, normalFluxReversed [][4]float64) {
+func (c *Euler) LaxFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
+	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux, normalFluxReversed [][4]float64) {
 	var (
 		Nedge                = c.dfr.FluxElement.Nedge
-		Kmax                 = c.dfr.K
 		rhoL, uL, vL, pL, CL float64
 		rhoR, uR, vR, pR, CR float64
-		qfD                  = Get4DP(c.Q_Face)
+		qfDL, qfDR           = Get4DP(Q_FaceL), Get4DP(Q_FaceR)
 	)
 	maxVF := func(u, v, p, rho, C float64) (vmax float64) {
 		vmax = math.Sqrt(u*u+v*v) + C
@@ -125,36 +127,36 @@ func (c *Euler) LaxFlux(kL, kR, shiftL, shiftR int, normal [2]float64, normalFlu
 	for i := 0; i < Nedge; i++ {
 		iL := i + shiftL
 		iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
-		qL := c.GetQQ(kL, iL, qfD)
+		qL := c.GetQQ(kL, KmaxL, iL, qfDL)
 		rhoL, uL, vL = qL[0], qL[1]/qL[0], qL[2]/qL[0]
 		pL, CL = c.FS.GetFlowFunction(qL, StaticPressure), c.FS.GetFlowFunction(qL, SoundSpeed)
-		qR := c.GetQQ(kR, iR, qfD)
+		qR := c.GetQQ(kR, KmaxR, iR, qfDR)
 		rhoR, uR, vR = qR[0], qR[1]/qR[0], qR[2]/qR[0]
 		pR, CR = c.FS.GetFlowFunction(qR, StaticPressure), c.FS.GetFlowFunction(qR, SoundSpeed)
-		FxL, FyL := c.CalculateFlux(kL, iL, qfD)
-		FxR, FyR := c.CalculateFlux(kR, iR, qfD) // Reverse the right edge to match
+		FxL, FyL := c.CalculateFlux(kL, KmaxL, iL, qfDL)
+		FxR, FyR := c.CalculateFlux(kR, KmaxR, iR, qfDR) // Reverse the right edge to match
 		maxV := math.Max(maxVF(uL, vL, pL, rhoL, CL), maxVF(uR, vR, pR, rhoR, CR))
-		indL, indR := kL+iL*Kmax, kR+iR*Kmax
+		indL, indR := kL+iL*KmaxL, kR+iR*KmaxR
 		for n := 0; n < 4; n++ {
 			normalFlux[i][n] = 0.5 * (normal[0]*(FxL[n]+FxR[n]) + normal[1]*(FyL[n]+FyR[n]))
-			normalFlux[i][n] += 0.5 * maxV * (qfD[n][indL] - qfD[n][indR])
+			normalFlux[i][n] += 0.5 * maxV * (qfDL[n][indL] - qfDR[n][indR])
 			normalFluxReversed[Nedge-1-i][n] = -normalFlux[i][n]
 		}
 	}
 }
 
-func (c *Euler) RoeFlux(kL, kR, shiftL, shiftR int, normal [2]float64, normalFlux, normalFluxReversed [][4]float64) {
+func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
+	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux, normalFluxReversed [][4]float64) {
 	var (
 		Nedge            = c.dfr.FluxElement.Nedge
-		Kmax             = c.dfr.K
 		rhoL, uL, vL, pL float64
 		rhoR, uR, vR, pR float64
 		hL, hR           float64
 		Gamma            = c.FS.Gamma
 		GM1              = Gamma - 1
-		qfD              = Get4DP(c.Q_Face)
+		qfDL, qfDR       = Get4DP(Q_FaceL), Get4DP(Q_FaceR)
 	)
-	rotateMomentum := func(k, i int) {
+	rotateMomentum := func(k, Kmax, i int, qfD [4][]float64) {
 		ind := k + i*Kmax
 		um, vm := qfD[1][ind], qfD[2][ind]
 		qfD[1][ind] = um*normal[0] + vm*normal[1]
@@ -164,16 +166,16 @@ func (c *Euler) RoeFlux(kL, kR, shiftL, shiftR int, normal [2]float64, normalFlu
 		iL := i + shiftL
 		iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
 		// Rotate the momentum into face normal coordinates before calculating fluxes
-		rotateMomentum(kL, iL)
-		rotateMomentum(kR, iR)
-		qL := c.GetQQ(kL, iL, qfD)
+		rotateMomentum(kL, KmaxL, iL, qfDL)
+		rotateMomentum(kR, KmaxR, iR, qfDR)
+		qL := c.GetQQ(kL, KmaxL, iL, qfDL)
 		rhoL, uL, vL = qL[0], qL[1]/qL[0], qL[2]/qL[0]
 		pL = c.FS.GetFlowFunction(qL, StaticPressure)
-		qR := c.GetQQ(kR, iR, qfD)
+		qR := c.GetQQ(kR, KmaxR, iR, qfDR)
 		rhoR, uR, vR = qR[0], qR[1]/qR[0], qR[2]/qR[0]
 		pR = c.FS.GetFlowFunction(qR, StaticPressure)
-		FxL, _ := c.CalculateFlux(kL, iL, qfD)
-		FxR, _ := c.CalculateFlux(kR, iR, qfD) // Reverse the right edge to match
+		FxL, _ := c.CalculateFlux(kL, KmaxL, iL, qfDL)
+		FxR, _ := c.CalculateFlux(kR, KmaxR, iR, qfDR) // Reverse the right edge to match
 		/*
 		   HM = (EnerM+pM).dd(rhoM);  HP = (EnerP+pP).dd(rhoP);
 		*/

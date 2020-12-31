@@ -3,14 +3,15 @@ package Euler2D
 import (
 	"math"
 
+	"github.com/notargets/gocfd/utils"
+
 	"github.com/notargets/gocfd/model_problems/Euler2D/isentropic_vortex"
 )
 
-func (c *Euler) WallBC(k, ishift int, normal [2]float64, normalFlux [][4]float64) {
+func (c *Euler) WallBC(k, Kmax int, Q_Face [4]utils.Matrix, ishift int, normal [2]float64, normalFlux [][4]float64) {
 	var (
 		Nedge = c.dfr.FluxElement.Nedge
-		Kmax  = c.dfr.K
-		qfD   = Get4DP(c.Q_Face)
+		qfD   = Get4DP(Q_Face)
 	)
 	for i := 0; i < Nedge; i++ {
 		ie := i + ishift
@@ -24,12 +25,11 @@ func (c *Euler) WallBC(k, ishift int, normal [2]float64, normalFlux [][4]float64
 	}
 }
 
-func (c *Euler) IVortexBC(Time float64, k, ishift int, normal [2]float64) {
+func (c *Euler) IVortexBC(Time float64, k, Kmax, ishift int, Q_Face [4]utils.Matrix, normal [2]float64) {
 	var (
 		Nedge   = c.dfr.FluxElement.Nedge
 		Nint    = c.dfr.FluxElement.Nint
-		Kmax    = c.dfr.K
-		qfD     = Get4DP(c.Q_Face)
+		qfD     = Get4DP(Q_Face)
 		riemann = true
 	)
 	// Set the flow variables to the exact solution
@@ -43,7 +43,7 @@ func (c *Euler) IVortexBC(Time float64, k, ishift int, normal [2]float64) {
 		ind := k + iL*Kmax
 		var QBC [4]float64
 		if riemann {
-			QBC = c.RiemannBC(k, iL, qfD, [4]float64{rho, rhoU, rhoV, E}, normal)
+			QBC = c.RiemannBC(k, Kmax, iL, qfD, [4]float64{rho, rhoU, rhoV, E}, normal)
 		} else {
 			QBC = [4]float64{rho, rhoU, rhoV, E}
 		}
@@ -54,16 +54,15 @@ func (c *Euler) IVortexBC(Time float64, k, ishift int, normal [2]float64) {
 	}
 }
 
-func (c *Euler) FarBC(k, ishift int, normal [2]float64) {
+func (c *Euler) FarBC(k, Kmax, ishift int, Q_Face [4]utils.Matrix, normal [2]float64) {
 	var (
 		Nedge = c.dfr.FluxElement.Nedge
-		Kmax  = c.dfr.K
-		qfD   = Get4DP(c.Q_Face)
+		qfD   = Get4DP(Q_Face)
 	)
 	for i := 0; i < Nedge; i++ {
 		iL := i + ishift
 		ind := k + iL*Kmax
-		QBC := c.RiemannBC(k, iL, qfD, c.FS.Qinf, normal)
+		QBC := c.RiemannBC(k, Kmax, iL, qfD, c.FS.Qinf, normal)
 		qfD[0][ind] = QBC[0]
 		qfD[1][ind] = QBC[1]
 		qfD[2][ind] = QBC[2]
@@ -71,7 +70,7 @@ func (c *Euler) FarBC(k, ishift int, normal [2]float64) {
 	}
 }
 
-func (c *Euler) RiemannBC(k, i int, QQ [4][]float64, QInf [4]float64, normal [2]float64) (Q [4]float64) {
+func (c *Euler) RiemannBC(k, Kmax, i int, QQ [4][]float64, QInf [4]float64, normal [2]float64) (Q [4]float64) {
 	/*
 			Use Riemann invariants along characteristic lines to calculate 1D flow properties normal to boundary
 		Rinf = VnormInf - 2 * Cinf / (Gamma -1)
@@ -82,7 +81,7 @@ func (c *Euler) RiemannBC(k, i int, QQ [4][]float64, QInf [4]float64, normal [2]
 		P/(rho^Gamma) = constant
 	*/
 	var (
-		qq                 = c.GetQQ(k, i, QQ)
+		qq                 = c.GetQQ(k, Kmax, i, QQ)
 		rhoInt, uInt, vInt = qq[0], qq[1] / qq[0], qq[2] / qq[0]
 		pInt               = c.FS.GetFlowFunction(qq, StaticPressure)
 		CInt               = c.FS.GetFlowFunction(qq, SoundSpeed)
