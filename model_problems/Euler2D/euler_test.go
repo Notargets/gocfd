@@ -66,12 +66,12 @@ func TestEuler(t *testing.T) {
 				Nint := c.dfr.FluxElement.Nint
 				Nedge := c.dfr.FluxElement.Nedge
 				NpFlux := c.dfr.FluxElement.Np // Np = 2*Nint+3*Nedge
-				var Q, Q_Face, F_RT_DOF [4]utils.Matrix
+				var Q_Face, F_RT_DOF [4]utils.Matrix
 				for n := 0; n < 4; n++ {
-					Q[n] = utils.NewMatrix(Nint, Kmax)
 					Q_Face[n] = utils.NewMatrix(3*Nedge, Kmax)
 					F_RT_DOF[n] = utils.NewMatrix(NpFlux, Kmax)
 				}
+				Q := c.Q[0]
 				// Mark the initial state with the element number
 				qD := Get4DP(Q)
 				for i := 0; i < Nint; i++ {
@@ -141,11 +141,11 @@ func TestEuler(t *testing.T) {
 				Nint := c.dfr.FluxElement.Nint
 				NpFlux := c.dfr.FluxElement.Np // Np = 2*Nint+3*Nedge
 				// Mark the initial state with the element number
-				var Q, F_RT_DOF [4]utils.Matrix
+				var F_RT_DOF [4]utils.Matrix
 				for n := 0; n < 4; n++ {
-					Q[n] = utils.NewMatrix(Nint, Kmax)
 					F_RT_DOF[n] = utils.NewMatrix(NpFlux, Kmax)
 				}
+				Q := c.Q[0]
 				c.SetNormalFluxInternal(Kmax, c.dfr.Jdet, c.dfr.Jinv, F_RT_DOF, Q)
 				Q_Face := c.InterpolateSolutionToEdges(Q)
 				c.SetNormalFluxOnEdges(0, [][4]utils.Matrix{F_RT_DOF}, [][4]utils.Matrix{Q_Face}, c.SortedEdgeKeys)
@@ -184,7 +184,7 @@ func TestEuler(t *testing.T) {
 			}
 		}
 	}
-	if false {
+	if true {
 		{ // Test divergence of Isentropic Vortex initial condition against analytic values - density equation only
 			N := 1
 			plotMesh := false
@@ -198,11 +198,11 @@ func TestEuler(t *testing.T) {
 			Nint := c.dfr.FluxElement.Nint
 			NpFlux := c.dfr.FluxElement.Np // Np = 2*Nint+3*Nedge
 			// Mark the initial state with the element number
-			var Q, F_RT_DOF [4]utils.Matrix
+			var F_RT_DOF [4]utils.Matrix
 			for n := 0; n < 4; n++ {
-				Q[n] = utils.NewMatrix(Nint, Kmax)
 				F_RT_DOF[n] = utils.NewMatrix(NpFlux, Kmax)
 			}
+			Q := c.Q[0]
 			X, Y := c.dfr.FluxX, c.dfr.FluxY
 			c.SetNormalFluxInternal(Kmax, c.dfr.Jdet, c.dfr.Jinv, F_RT_DOF, Q)
 			Q_Face := c.InterpolateSolutionToEdges(Q)
