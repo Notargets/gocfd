@@ -199,7 +199,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Kmax []int, Jdet, Jinv []utils.Matr
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {
-			Q_Face[np] = c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q0[np], Time)
+			Q_Face[np] = c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q0[np])
 			wg.Done()
 		}(np)
 	}
@@ -222,7 +222,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Kmax []int, Jdet, Jinv []utils.Matr
 					q1D[n][i] = qD[n][i] + 0.5*rhsD[n][i]*dT
 				}
 			}
-			Q_Face[np] = c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q1[np], Time)
+			Q_Face[np] = c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q1[np])
 			wg.Done()
 		}(np)
 	}
@@ -242,7 +242,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Kmax []int, Jdet, Jinv []utils.Matr
 					q2D[n][i] = q1D[n][i] + 0.25*rhsD[n][i]*dT
 				}
 			}
-			Q_Face[np] = c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q2[np], Time)
+			Q_Face[np] = c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q2[np])
 			wg.Done()
 		}(np)
 	}
@@ -262,7 +262,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Kmax []int, Jdet, Jinv []utils.Matr
 					q3D[n][i] = (1. / 3.) * (2*qD[n][i] + q2D[n][i] + rhsD[n][i]*dT)
 				}
 			}
-			Q_Face[np] = c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q3[np], Time)
+			Q_Face[np] = c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q3[np])
 			wg.Done()
 		}(np)
 	}
@@ -324,7 +324,7 @@ func (c *Euler) DivideByJacobian(Kmax, Imax int, Jdet utils.Matrix, data []float
 	}
 }
 
-func (c *Euler) PrepareEdgeFlux(Kmax int, Jdet, Jinv utils.Matrix, F_RT_DOF, Q [4]utils.Matrix, Time float64) (Q_Face [4]utils.Matrix) {
+func (c *Euler) PrepareEdgeFlux(Kmax int, Jdet, Jinv utils.Matrix, F_RT_DOF, Q [4]utils.Matrix) (Q_Face [4]utils.Matrix) {
 	var (
 		Np    = c.dfr.FluxElement.Np
 		fdofD = Get4DP(F_RT_DOF)
