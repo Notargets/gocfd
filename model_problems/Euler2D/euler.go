@@ -30,8 +30,8 @@ type Euler struct {
 	Case              InitType
 	AnalyticSolution  ExactState
 	FluxCalcMock      func(Q [4]float64) (Fx, Fy [4]float64) // For testing
-	SortedEdgeKeys    EdgeKeySlice
-	ParallelDegree    int // Number of go routines to use for parallel execution
+	SortedEdgeKeys    []EdgeKeySlice                         // Buckets, one for each parallel partition
+	ParallelDegree    int                                    // Number of go routines to use for parallel execution
 	Partitions        *PartitionMap
 	LocalTimeStepping bool
 	MaxIterations     int
@@ -65,15 +65,7 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
 	c.SetParallelDegree(ProcLimit, c.dfr.K) // Must occur after determining the number of elements
 
 	// Setup the key for edge calculations, useful for parallelizing the process
-	c.SortedEdgeKeys = make(EdgeKeySlice, len(c.dfr.Tris.Edges))
-	// TODO: Create three buckets of keys, one for two connections (flux), one for one conn (BCs) and third for zero conns (face partners)
-	// The problem with the current approach is that an imbalance of edges can occur where one CPU gets too much flux work compared to others
-	var i int
-	for en := range c.dfr.Tris.Edges {
-		c.SortedEdgeKeys[i] = en
-		i++
-	}
-	c.SortedEdgeKeys.Sort()
+	c.PartitionEdges()
 
 	c.InitializeSolution(verbose)
 
@@ -88,6 +80,61 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
 		fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, c.dfr.K)
 	}
 	return
+}
+
+func (c *Euler) PartitionEdges() {
+	var (
+		NPar                               = c.Partitions.ParallelDegree
+		SharedEdges, BCEdges, PhantomEdges EdgeKeySlice
+	)
+	// First, separate edges into 3 groups
+	for en, e := range c.dfr.Tris.Edges {
+		switch e.NumConnectedTris {
+		case 0:
+			PhantomEdges = append(PhantomEdges, en)
+		case 1:
+			BCEdges = append(BCEdges, en)
+		case 2:
+			SharedEdges = append(SharedEdges, en)
+		}
+	}
+	if len(SharedEdges) == 0 && len(BCEdges) == 0 {
+		err := fmt.Errorf("Number of edges should be > 0, have Shared[%d], BC[%d], Phantom[%d]\n",
+			len(SharedEdges), len(BCEdges), len(PhantomEdges))
+		panic(err)
+	}
+	c.SortedEdgeKeys = make([]EdgeKeySlice, NPar)
+	pmS := NewPartitionMap(NPar, len(SharedEdges))
+	pmB := NewPartitionMap(NPar, len(BCEdges))
+	pmP := NewPartitionMap(NPar, len(PhantomEdges))
+	for np := 0; np < NPar; np++ {
+		SSize := pmS.GetBucketDimension(np)
+		BSize := pmB.GetBucketDimension(np)
+		PSize := pmP.GetBucketDimension(np)
+		c.SortedEdgeKeys[np] = make(EdgeKeySlice, SSize+BSize+PSize)
+		SMin, SMax := pmS.GetBucketRange(np)
+		var ii int
+		if len(SharedEdges) != 0 {
+			for i := SMin; i < SMax; i++ {
+				c.SortedEdgeKeys[np][ii] = SharedEdges[i]
+				ii++
+			}
+		}
+		if len(BCEdges) != 0 {
+			BMin, BMax := pmB.GetBucketRange(np)
+			for i := BMin; i < BMax; i++ {
+				c.SortedEdgeKeys[np][ii] = BCEdges[i]
+				ii++
+			}
+		}
+		if len(PhantomEdges) != 0 {
+			PMin, PMax := pmP.GetBucketRange(np)
+			for i := PMin; i < PMax; i++ {
+				c.SortedEdgeKeys[np][ii] = PhantomEdges[i]
+				ii++
+			}
+		}
+	}
 }
 
 func (c *Euler) Solve(pm *PlotMeta) {

@@ -22,7 +22,6 @@ func (p EdgeKeySlice) Sort() { sort.Sort(p) }
 func (c *Euler) ParallelEdgeUpdate(Time float64, CalculateDT bool,
 	Jdet, DT []utils.Matrix, F_RT_DOF, Q_Face [][4]utils.Matrix) (dt float64) {
 	var (
-		Ntot = len(c.SortedEdgeKeys)
 		wg   = sync.WaitGroup{}
 		pm   = c.Partitions
 		NPar = pm.ParallelDegree
@@ -39,15 +38,14 @@ func (c *Euler) ParallelEdgeUpdate(Time float64, CalculateDT bool,
 	}
 	maxWaveSpeed := make([]float64, NPar)
 	for np := 0; np < NPar; np++ {
-		ind, end := c.split1D(Ntot, np)
 		wg.Add(1)
-		go func(np, ind, end int) {
-			c.SetNormalFluxOnEdges(Time, F_RT_DOF, Q_Face, c.SortedEdgeKeys[ind:end])
+		go func(np int) {
+			c.SetNormalFluxOnEdges(Time, F_RT_DOF, Q_Face, c.SortedEdgeKeys[np])
 			if CalculateDT {
-				maxWaveSpeed[np] = c.CalculateMaxWaveSpeed(Jdet, DT, Q_Face, c.SortedEdgeKeys[ind:end])
+				maxWaveSpeed[np] = c.CalculateMaxWaveSpeed(Jdet, DT, Q_Face, c.SortedEdgeKeys[np])
 			}
 			wg.Done()
-		}(np, ind, end)
+		}(np)
 	}
 	wg.Wait()
 	if CalculateDT {
