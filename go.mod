@@ -14,6 +14,7 @@ require (
 	github.com/mitchellh/mapstructure v1.3.2 // indirect
 	github.com/notargets/avs v0.0.7-0.20201217183319-0f9c8f3d02f3
 	github.com/pelletier/go-toml v1.8.0 // indirect
+	github.com/pkg/profile v1.5.0
 	github.com/spf13/afero v1.2.2 // indirect
 	github.com/spf13/cast v1.3.1 // indirect
 	github.com/spf13/cobra v1.0.0

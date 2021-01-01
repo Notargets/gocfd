@@ -11,6 +11,8 @@ import (
 	"github.com/notargets/gocfd/DG2D"
 
 	"github.com/notargets/gocfd/utils"
+
+	"github.com/pkg/profile"
 )
 
 /*
@@ -26,6 +28,7 @@ type Euler struct {
 	FS                *FreeStream
 	dfr               *DG2D.DFR2D
 	chart             ChartState
+	profile           bool // Generate a CPU profile of the solver
 	FluxCalcAlgo      FluxType
 	Case              InitType
 	AnalyticSolution  ExactState
@@ -40,9 +43,9 @@ type Euler struct {
 	SolutionX, SolutionY []utils.Matrix
 }
 
-func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
-	fluxType FluxType, Case InitType, ProcLimit int,
-	Minf, Gamma, Alpha float64, LocalTime bool, MaxIterations int, plotMesh, verbose bool) (c *Euler) {
+func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType FluxType, Case InitType,
+	ProcLimit int, Minf, Gamma, Alpha float64, LocalTime bool,
+	MaxIterations int, plotMesh, verbose, profile bool) (c *Euler) {
 	c = &Euler{
 		MeshFile:          meshFile,
 		CFL:               CFL,
@@ -52,6 +55,7 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64,
 		LocalTimeStepping: LocalTime,
 		MaxIterations:     MaxIterations,
 		FS:                NewFreeStream(Minf, Gamma, Alpha),
+		profile:           profile,
 	}
 	c.FluxCalcMock = c.FluxCalc
 
@@ -146,6 +150,11 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		plotQ     = pm.Plot
 		Residual  [][4]utils.Matrix
 	)
+	if c.profile {
+		//defer profile.Start(profile.CPUProfile).Stop()
+		defer profile.Start().Stop()
+	}
+
 	c.PrintInitialization(FinalTime)
 
 	rk := c.NewRungeKuttaSSP()

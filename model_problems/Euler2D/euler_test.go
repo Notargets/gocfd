@@ -18,7 +18,7 @@ func TestEuler(t *testing.T) {
 		{ // Test interpolation of solution to edges for all supported orders
 			Nmax := 7
 			for N := 1; N <= Nmax; N++ {
-				c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, false, false)
+				c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, false, false, false)
 				Kmax := c.dfr.K
 				Nint := c.dfr.FluxElement.Nint
 				Nedge := c.dfr.FluxElement.Nedge
@@ -61,7 +61,7 @@ func TestEuler(t *testing.T) {
 			*/
 			Nmax := 7
 			for N := 1; N <= Nmax; N++ {
-				c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, false, false)
+				c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, false, false, false)
 				Kmax := c.dfr.K
 				Nint := c.dfr.FluxElement.Nint
 				Nedge := c.dfr.FluxElement.Nedge
@@ -136,7 +136,7 @@ func TestEuler(t *testing.T) {
 		{ // Test solution process part 2 - Freestream divergence should be zero
 			Nmax := 7
 			for N := 1; N <= Nmax; N++ {
-				c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, false, false)
+				c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, false, false, false)
 				Kmax := c.dfr.K
 				Nint := c.dfr.FluxElement.Nint
 				Nedge := c.dfr.FluxElement.Nedge
@@ -171,17 +171,17 @@ func TestEuler(t *testing.T) {
 				plotMesh := false
 				// Single triangle test case
 				var c *Euler
-				c = NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, plotMesh, false)
+				c = NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, plotMesh, false, false)
 				CheckFlux0(c, t)
 				// Two widely separated triangles - no shared faces
-				c = NewEuler(1, N, "../../DG2D/test_tris_two.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, plotMesh, false)
+				c = NewEuler(1, N, "../../DG2D/test_tris_two.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, plotMesh, false, false)
 				CheckFlux0(c, t)
 				// Two widely separated triangles - no shared faces - one tri listed in reverse order
-				c = NewEuler(1, N, "../../DG2D/test_tris_twoR.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, plotMesh, false)
+				c = NewEuler(1, N, "../../DG2D/test_tris_twoR.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, plotMesh, false, false)
 				CheckFlux0(c, t)
 				// Connected tris, sharing one edge
 				// plotMesh = true
-				c = NewEuler(1, N, "../../DG2D/test_tris_6_nowall.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, plotMesh, false)
+				c = NewEuler(1, N, "../../DG2D/test_tris_6_nowall.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, plotMesh, false, false)
 				CheckFlux0(c, t)
 			}
 		}
@@ -190,7 +190,7 @@ func TestEuler(t *testing.T) {
 		{ // Test divergence of Isentropic Vortex initial condition against analytic values - density equation only
 			N := 1
 			plotMesh := false
-			c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, IVORTEX, 1, 0, 1.4, 0, false, 5000, plotMesh, false)
+			c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, IVORTEX, 1, 0, 1.4, 0, false, 5000, plotMesh, false, false)
 			for _, e := range c.dfr.Tris.Edges {
 				if e.BCType == types.BC_IVortex {
 					e.BCType = types.BC_None
