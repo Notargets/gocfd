@@ -139,15 +139,17 @@ func TestEuler(t *testing.T) {
 				c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, false, false)
 				Kmax := c.dfr.K
 				Nint := c.dfr.FluxElement.Nint
+				Nedge := c.dfr.FluxElement.Nedge
 				NpFlux := c.dfr.FluxElement.Np // Np = 2*Nint+3*Nedge
 				// Mark the initial state with the element number
-				var F_RT_DOF [4]utils.Matrix
+				var Q_Face, F_RT_DOF [4]utils.Matrix
 				for n := 0; n < 4; n++ {
 					F_RT_DOF[n] = utils.NewMatrix(NpFlux, Kmax)
+					Q_Face[n] = utils.NewMatrix(3*Nedge, Kmax)
 				}
 				Q := c.Q[0]
 				c.SetNormalFluxInternal(Kmax, c.dfr.Jdet, c.dfr.Jinv, F_RT_DOF, Q)
-				Q_Face := c.InterpolateSolutionToEdges(Q)
+				c.InterpolateSolutionToEdges(Q, Q_Face)
 				c.SetNormalFluxOnEdges(0, [][4]utils.Matrix{F_RT_DOF}, [][4]utils.Matrix{Q_Face}, c.SortedEdgeKeys[0])
 				// Check that freestream divergence on this mesh is zero
 				for n := 0; n < 4; n++ {
@@ -196,16 +198,18 @@ func TestEuler(t *testing.T) {
 			}
 			Kmax := c.dfr.K
 			Nint := c.dfr.FluxElement.Nint
+			Nedge := c.dfr.FluxElement.Nedge
 			NpFlux := c.dfr.FluxElement.Np // Np = 2*Nint+3*Nedge
 			// Mark the initial state with the element number
-			var F_RT_DOF [4]utils.Matrix
+			var Q_Face, F_RT_DOF [4]utils.Matrix
 			for n := 0; n < 4; n++ {
 				F_RT_DOF[n] = utils.NewMatrix(NpFlux, Kmax)
+				Q_Face[n] = utils.NewMatrix(3*Nedge, Kmax)
 			}
 			Q := c.Q[0]
 			X, Y := c.dfr.FluxX, c.dfr.FluxY
 			c.SetNormalFluxInternal(Kmax, c.dfr.Jdet, c.dfr.Jinv, F_RT_DOF, Q)
-			Q_Face := c.InterpolateSolutionToEdges(Q)
+			c.InterpolateSolutionToEdges(Q, Q_Face)
 			c.SetNormalFluxOnEdges(0, [][4]utils.Matrix{F_RT_DOF}, [][4]utils.Matrix{Q_Face}, c.SortedEdgeKeys[0])
 			var div utils.Matrix
 			// Density is the easiest equation to match with a polynomial

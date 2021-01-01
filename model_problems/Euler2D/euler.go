@@ -139,42 +139,22 @@ func (c *Euler) PartitionEdges() {
 
 func (c *Euler) Solve(pm *PlotMeta) {
 	var (
-		FinalTime            = c.FinalTime
-		Time, dt             float64
-		steps                int
-		finished             bool
-		Np                   = c.dfr.SolutionElement.Np
-		NpFlux               = c.dfr.FluxElement.Np
-		plotQ                = pm.Plot
-		pts                  = c.Partitions
-		NPar                 = pts.ParallelDegree
-		Q1, Q2, Q3, Residual [][4]utils.Matrix
-		F_RT_DOF             [][4]utils.Matrix
-		DT                   []utils.Matrix
-		Kmax                 = make([]int, NPar)
+		FinalTime = c.FinalTime
+		Time, dt  float64
+		steps     int
+		finished  bool
+		plotQ     = pm.Plot
+		Residual  [][4]utils.Matrix
 	)
 	c.PrintInitialization(FinalTime)
-	// Initialize memory for RHS
-	Q1, Q2, Q3, Residual, F_RT_DOF = make([][4]utils.Matrix, NPar), make([][4]utils.Matrix, NPar),
-		make([][4]utils.Matrix, NPar), make([][4]utils.Matrix, NPar), make([][4]utils.Matrix, NPar)
-	DT = make([]utils.Matrix, NPar)
-	Jdet, Jinv := c.ShardByKTranspose(c.dfr.Jdet), c.ShardByKTranspose(c.dfr.Jinv)
 
-	for np := 0; np < NPar; np++ {
-		Kmax[np] = pts.GetBucketDimension(np)
-		for n := 0; n < 4; n++ {
-			Q1[np][n] = utils.NewMatrix(Np, Kmax[np])
-			Q2[np][n] = utils.NewMatrix(Np, Kmax[np])
-			Q3[np][n] = utils.NewMatrix(Np, Kmax[np])
-			F_RT_DOF[np][n] = utils.NewMatrix(NpFlux, Kmax[np])
-		}
-		DT[np] = utils.NewMatrix(Np, Kmax[np])
-	}
+	rk := c.NewRungeKuttaSSP()
+
 	elapsed := time.Duration(0)
 	var start time.Time
 	for !finished {
 		start = time.Now()
-		Residual, dt = c.RungeKutta4SSP(Time, Kmax, Jdet, Jinv, DT, F_RT_DOF, c.Q, Q1, Q2, Q3)
+		Residual, dt = rk.Step(c, Time, c.Q)
 		elapsed += time.Now().Sub(start)
 		steps++
 		Time += dt
@@ -186,20 +166,68 @@ func (c *Euler) Solve(pm *PlotMeta) {
 	c.PrintFinal(elapsed, steps)
 }
 
-func (c *Euler) RungeKutta4SSP(Time float64, Kmax []int, Jdet, Jinv []utils.Matrix,
-	DT []utils.Matrix, F_RT_DOF, Q0, Q1, Q2, Q3 [][4]utils.Matrix) (Residual [][4]utils.Matrix, dt float64) {
+type RungeKutta4SSP struct {
+	Jdet, Jinv        []utils.Matrix    // Sharded mesh Jacobian and inverse transform
+	RHSQ, Q_Face      [][4]utils.Matrix // State used for matrix multiplies within the time step algorithm
+	Q1, Q2, Q3        [][4]utils.Matrix // Intermediate solution state
+	Residual          [][4]utils.Matrix // Used for reporting, aliased to Q1
+	F_RT_DOF          [][4]utils.Matrix // Normal flux used for divergence
+	DT                []utils.Matrix    // Local time step storage
+	Kmax              []int             // Local element count (dimension: Kmax[ParallelDegree])
+	Np, Nedge, NpFlux int               // Number of points in solution, edge and flux total
+}
+
+func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 	var (
-		Np     = c.dfr.SolutionElement.Np
-		pm     = c.Partitions
-		NP     = pm.ParallelDegree
-		wg     = sync.WaitGroup{}
-		Q_Face [][4]utils.Matrix
+		pm   = c.Partitions
+		NPar = pm.ParallelDegree
 	)
-	Q_Face, Residual = make([][4]utils.Matrix, NP), make([][4]utils.Matrix, NP)
+	rk = &RungeKutta4SSP{
+		Jdet:     c.ShardByKTranspose(c.dfr.Jdet),
+		Jinv:     c.ShardByKTranspose(c.dfr.Jinv),
+		RHSQ:     make([][4]utils.Matrix, NPar),
+		Q_Face:   make([][4]utils.Matrix, NPar),
+		Q1:       make([][4]utils.Matrix, NPar),
+		Q2:       make([][4]utils.Matrix, NPar),
+		Q3:       make([][4]utils.Matrix, NPar),
+		Residual: make([][4]utils.Matrix, NPar),
+		F_RT_DOF: make([][4]utils.Matrix, NPar),
+		DT:       make([]utils.Matrix, NPar),
+		Kmax:     make([]int, NPar),
+		Np:       c.dfr.SolutionElement.Np,
+		Nedge:    c.dfr.FluxElement.Nedge,
+		NpFlux:   c.dfr.FluxElement.Np,
+	}
+	// Initialize memory for RHS
+	for np := 0; np < NPar; np++ {
+		rk.Kmax[np] = pm.GetBucketDimension(np)
+		for n := 0; n < 4; n++ {
+			rk.Q1[np][n] = utils.NewMatrix(rk.Np, rk.Kmax[np])
+			rk.Q2[np][n] = utils.NewMatrix(rk.Np, rk.Kmax[np])
+			rk.Q3[np][n] = utils.NewMatrix(rk.Np, rk.Kmax[np])
+			rk.RHSQ[np][n] = utils.NewMatrix(rk.Np, rk.Kmax[np])
+			rk.F_RT_DOF[np][n] = utils.NewMatrix(rk.NpFlux, rk.Kmax[np])
+			rk.Q_Face[np][n] = utils.NewMatrix(rk.Nedge*3, rk.Kmax[np])
+		}
+		rk.DT[np] = utils.NewMatrix(rk.Np, rk.Kmax[np])
+	}
+	return
+}
+
+func (rk *RungeKutta4SSP) Step(c *Euler, Time float64, Q0 [][4]utils.Matrix) (Residual [][4]utils.Matrix, dt float64) {
+	var (
+		Np                           = rk.Np
+		Kmax, Jdet, Jinv, F_RT_DOF   = rk.Kmax, rk.Jdet, rk.Jinv, rk.F_RT_DOF
+		DT, Q_Face, Q1, Q2, Q3, RHSQ = rk.DT, rk.Q_Face, rk.Q1, rk.Q2, rk.Q3, rk.RHSQ
+		pm                           = c.Partitions
+		NP                           = pm.ParallelDegree
+		wg                           = sync.WaitGroup{}
+	)
+	Residual = make([][4]utils.Matrix, NP)
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {
-			Q_Face[np] = c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q0[np])
+			c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q0[np], Q_Face[np])
 			wg.Done()
 		}(np)
 	}
@@ -211,8 +239,8 @@ func (c *Euler) RungeKutta4SSP(Time float64, Kmax []int, Jdet, Jinv []utils.Matr
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {
-			rhsQ := c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], Time)
-			qD, q1D, dtD, rhsD := Get4DP(Q0[np]), Get4DP(Q1[np]), DT[np].Data(), Get4DP(rhsQ) // Pointers to underlying slice data
+			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
+			qD, q1D, dtD, rhsD := Get4DP(Q0[np]), Get4DP(Q1[np]), DT[np].Data(), Get4DP(RHSQ[np]) // Pointers to underlying slice data
 			var dT float64
 			for n := 0; n < 4; n++ {
 				for i := 0; i < Kmax[np]*Np; i++ {
@@ -222,7 +250,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Kmax []int, Jdet, Jinv []utils.Matr
 					q1D[n][i] = qD[n][i] + 0.5*rhsD[n][i]*dT
 				}
 			}
-			Q_Face[np] = c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q1[np])
+			c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q1[np], Q_Face[np])
 			wg.Done()
 		}(np)
 	}
@@ -231,8 +259,8 @@ func (c *Euler) RungeKutta4SSP(Time float64, Kmax []int, Jdet, Jinv []utils.Matr
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {
-			rhsQ := c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], Time)
-			q1D, q2D, dtD, rhsD := Get4DP(Q1[np]), Get4DP(Q2[np]), DT[np].Data(), Get4DP(rhsQ) // Pointers to underlying slice data
+			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
+			q1D, q2D, dtD, rhsD := Get4DP(Q1[np]), Get4DP(Q2[np]), DT[np].Data(), Get4DP(RHSQ[np]) // Pointers to underlying slice data
 			var dT float64
 			for n := 0; n < 4; n++ {
 				for i := 0; i < Kmax[np]*Np; i++ {
@@ -242,7 +270,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Kmax []int, Jdet, Jinv []utils.Matr
 					q2D[n][i] = q1D[n][i] + 0.25*rhsD[n][i]*dT
 				}
 			}
-			Q_Face[np] = c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q2[np])
+			c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q2[np], Q_Face[np])
 			wg.Done()
 		}(np)
 	}
@@ -251,8 +279,8 @@ func (c *Euler) RungeKutta4SSP(Time float64, Kmax []int, Jdet, Jinv []utils.Matr
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {
-			rhsQ := c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], Time)
-			qD, q2D, q3D, dtD, rhsD := Get4DP(Q0[np]), Get4DP(Q2[np]), Get4DP(Q3[np]), DT[np].Data(), Get4DP(rhsQ) // Pointers to underlying slice data
+			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
+			qD, q2D, q3D, dtD, rhsD := Get4DP(Q0[np]), Get4DP(Q2[np]), Get4DP(Q3[np]), DT[np].Data(), Get4DP(RHSQ[np]) // Pointers to underlying slice data
 			var dT float64
 			for n := 0; n < 4; n++ {
 				for i := 0; i < Kmax[np]*Np; i++ {
@@ -262,7 +290,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Kmax []int, Jdet, Jinv []utils.Matr
 					q3D[n][i] = (1. / 3.) * (2*qD[n][i] + q2D[n][i] + rhsD[n][i]*dT)
 				}
 			}
-			Q_Face[np] = c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q3[np])
+			c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q3[np], Q_Face[np])
 			wg.Done()
 		}(np)
 	}
@@ -271,9 +299,9 @@ func (c *Euler) RungeKutta4SSP(Time float64, Kmax []int, Jdet, Jinv []utils.Matr
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {
-			rhsQ := c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], Time)
+			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
 			// Note, we are re-using Q1 as storage for Residual here
-			qD, q3D, resD, dtD, rhsD := Get4DP(Q0[np]), Get4DP(Q3[np]), Get4DP(Q1[np]), DT[np].Data(), Get4DP(rhsQ) // Pointers to underlying slice data
+			qD, q3D, resD, dtD, rhsD := Get4DP(Q0[np]), Get4DP(Q3[np]), Get4DP(Q1[np]), DT[np].Data(), Get4DP(RHSQ[np]) // Pointers to underlying slice data
 			var dT float64
 			for n := 0; n < 4; n++ {
 				for i := 0; i < Kmax[np]*Np; i++ {
@@ -292,7 +320,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Kmax []int, Jdet, Jinv []utils.Matr
 	return
 }
 
-func (c *Euler) RHS(Kmax int, Jdet utils.Matrix, F_RT_DOF [4]utils.Matrix, Time float64) (RHSCalc [4]utils.Matrix) {
+func (c *Euler) RHS(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4]utils.Matrix) {
 	/*
 				Calculate the RHS of the equation:
 				dQ/dt = -div(F,G)
@@ -306,8 +334,9 @@ func (c *Euler) RHS(Kmax int, Jdet utils.Matrix, F_RT_DOF [4]utils.Matrix, Time 
 				of the element taken directly from the solution values (Q).
 	*/
 	for n := 0; n < 4; n++ {
-		RHSCalc[n] = c.dfr.FluxElement.DivInt.Mul(F_RT_DOF[n]) // Calculate divergence for the internal node points
-		c.DivideByJacobian(Kmax, c.dfr.FluxElement.Nint, Jdet, RHSCalc[n].Data(), -1)
+		// Calculate divergence for the internal node points
+		RHSQ[n] = c.dfr.FluxElement.DivInt.Mul(F_RT_DOF[n], RHSQ[n].Data()) // Re-use memory from RHSQ in the multiply
+		c.DivideByJacobian(Kmax, c.dfr.FluxElement.Nint, Jdet, RHSQ[n].Data(), -1)
 	}
 	return
 }
@@ -324,7 +353,7 @@ func (c *Euler) DivideByJacobian(Kmax, Imax int, Jdet utils.Matrix, data []float
 	}
 }
 
-func (c *Euler) PrepareEdgeFlux(Kmax int, Jdet, Jinv utils.Matrix, F_RT_DOF, Q [4]utils.Matrix) (Q_Face [4]utils.Matrix) {
+func (c *Euler) PrepareEdgeFlux(Kmax int, Jdet, Jinv utils.Matrix, F_RT_DOF, Q, Q_Face [4]utils.Matrix) {
 	var (
 		Np    = c.dfr.FluxElement.Np
 		fdofD = Get4DP(F_RT_DOF)
@@ -345,7 +374,7 @@ func (c *Euler) PrepareEdgeFlux(Kmax int, Jdet, Jinv utils.Matrix, F_RT_DOF, Q [
 		}
 	}
 	c.SetNormalFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q) // Updates F_RT_DOF with values from Q
-	Q_Face = c.InterpolateSolutionToEdges(Q)               // Interpolates Q_Face values from Q
+	c.InterpolateSolutionToEdges(Q, Q_Face)                // Interpolates Q_Face values from Q
 	return
 }
 
