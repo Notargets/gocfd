@@ -17,11 +17,13 @@ Density | X Momentum | Density
 
 ### Updates (Dec 31, 2020):
 
-New Year's Day progress!
+I added a command line option to generate a runtime profile for only the solver portion of the code, for example, this command:
+``` gocfd 2D -I input-bench.yaml -F mesh/naca12_2d-medium-lal.su2 -s 100 -p 1 --profile```
 
-I partitioned the 2D solver by elements for enhanced parallelism. The solver now computes the RHS and time stepping fully parallel, but must still synchronize between each time sub-step (within the Runge-Kutta solver) to exchange data at edges, which is also done in parallel. So there are now two discrete stages/types of parallelism, one for the full domain of elements, and one for the edge exchanges and flux computation.
+The above command will run a 2D case with the residual progress printed every 100 steps using one processor, and will output a runtime profile that can be used to generate a PDF like this:
+![](images/profile-1cpu.PNG)
 
-As a result of the partitioning, the parallelism is far better and we can get much faster solution times. The level of parallelism is well suited to machines with less than 100 processors. For more parallelism, we will need to use a mesh partitioning algorithm that selects the element partitions so as to minimize the surface area shared between partitions, such as the commonly used tool "metis". When the elements are partitioned in that way, we can isolate the time spent in synchronization to exactly the minimum necessary. By comparison, now we're doing all edge flux computation during the synchronization period.
+At this point, the runtime profile is pretty flat and clean of excess memory allocation. One helper function sticks out - GetQQ() - which reshapes various solution vectors into a more convenient shape. It's always a bad idea to mutate and copy data around in the performance pipeline - this is an example at 0.8% of the runtime. Another bad helper function is Get4DP, which gets pointers to the underlying data slices in various matrices - it's using over 1% of the overall time. Most of the usage of Get4DP applies to matrices that will never actually be used as matrices anyway, which is annoying and could be easily fixed by just not using matrices at all for those. One more: PartitionMap.GetBucket is using 1.4% of runtime, and all it's doing is retrieving which parallel bucket we need from the map using an iterative algorithm guaranteed to use at most 1 iteration. This is a consequence of the load balancing algorithm I've implemented that is not directly invertable - could improve that somehow. Overall, there's a handful of overhead totalling maybe 5% immediately apparent.
 
 ### Objectives
 
@@ -68,6 +70,14 @@ me@home:bash# gocfd 1D -g
 ### Run without graphics:
 me@home:bash# gocfd 1D
 ```
+### Updates (Dec 31, 2020):
+
+New Year's Day progress!
+
+I partitioned the 2D solver by elements for enhanced parallelism. The solver now computes the RHS and time stepping fully parallel, but must still synchronize between each time sub-step (within the Runge-Kutta solver) to exchange data at edges, which is also done in parallel. So there are now two discrete stages/types of parallelism, one for the full domain of elements, and one for the edge exchanges and flux computation.
+
+As a result of the partitioning, the parallelism is far better and we can get much faster solution times. The level of parallelism is well suited to machines with less than 100 processors. For more parallelism, we will need to use a mesh partitioning algorithm that selects the element partitions so as to minimize the surface area shared between partitions, such as the commonly used tool "metis". When the elements are partitioned in that way, we can isolate the time spent in synchronization to exactly the minimum necessary. By comparison, now we're doing all edge flux computation during the synchronization period.
+
 ### Updates (Dec 22, 2020):
 ![](images/convergence-study-naca0012.PNG)
 
