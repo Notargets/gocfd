@@ -211,7 +211,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Kmax []int, Jdet, Jinv []utils.Matr
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {
-			rhsQ := c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], Q0[np], Time)
+			rhsQ := c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], Time)
 			qD, q1D, dtD, rhsD := Get4DP(Q0[np]), Get4DP(Q1[np]), DT[np].Data(), Get4DP(rhsQ) // Pointers to underlying slice data
 			var dT float64
 			for n := 0; n < 4; n++ {
@@ -231,7 +231,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Kmax []int, Jdet, Jinv []utils.Matr
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {
-			rhsQ := c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], Q1[np], Time)
+			rhsQ := c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], Time)
 			q1D, q2D, dtD, rhsD := Get4DP(Q1[np]), Get4DP(Q2[np]), DT[np].Data(), Get4DP(rhsQ) // Pointers to underlying slice data
 			var dT float64
 			for n := 0; n < 4; n++ {
@@ -251,7 +251,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Kmax []int, Jdet, Jinv []utils.Matr
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {
-			rhsQ := c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], Q2[np], Time)
+			rhsQ := c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], Time)
 			qD, q2D, q3D, dtD, rhsD := Get4DP(Q0[np]), Get4DP(Q2[np]), Get4DP(Q3[np]), DT[np].Data(), Get4DP(rhsQ) // Pointers to underlying slice data
 			var dT float64
 			for n := 0; n < 4; n++ {
@@ -271,7 +271,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Kmax []int, Jdet, Jinv []utils.Matr
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {
-			rhsQ := c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], Q3[np], Time)
+			rhsQ := c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], Time)
 			// Note, we are re-using Q1 as storage for Residual here
 			qD, q3D, resD, dtD, rhsD := Get4DP(Q0[np]), Get4DP(Q3[np]), Get4DP(Q1[np]), DT[np].Data(), Get4DP(rhsQ) // Pointers to underlying slice data
 			var dT float64
@@ -292,7 +292,7 @@ func (c *Euler) RungeKutta4SSP(Time float64, Kmax []int, Jdet, Jinv []utils.Matr
 	return
 }
 
-func (c *Euler) RHS(Kmax int, Jdet utils.Matrix, F_RT_DOF, Q [4]utils.Matrix, Time float64) (RHSCalc [4]utils.Matrix) {
+func (c *Euler) RHS(Kmax int, Jdet utils.Matrix, F_RT_DOF [4]utils.Matrix, Time float64) (RHSCalc [4]utils.Matrix) {
 	/*
 				Calculate the RHS of the equation:
 				dQ/dt = -div(F,G)
