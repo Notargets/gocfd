@@ -39,6 +39,7 @@ type Model2D struct {
 	PlotSteps                    int
 	Delay                        time.Duration
 	ParallelProcLimit            int
+	Profile                      bool
 	Zoom, TranslateX, TranslateY float64
 	fminP, fmaxP                 *float64
 }
@@ -111,6 +112,7 @@ var TwoDCmd = &cobra.Command{
 		m2d.TranslateY, _ = cmd.Flags().GetFloat64("translateY")
 		fmin, _ := cmd.Flags().GetFloat64("plotMin")
 		fmax, _ := cmd.Flags().GetFloat64("plotMax")
+		m2d.Profile, _ = cmd.Flags().GetBool("profile")
 		if fmin != -1000 {
 			m2d.fminP = &fmin
 		}
@@ -180,13 +182,13 @@ func init() {
 	TwoDCmd.Flags().IntP("parallelProcs", "p", 0, "limits the parallelism to the number of specified processes")
 	TwoDCmd.Flags().Float64P("plotMin", "k", -1000, "field min for plotting")
 	TwoDCmd.Flags().Float64P("plotMax", "l", -1000, "field max for plotting")
+	TwoDCmd.Flags().Bool("profile", false, "generate a runtime profile of the solver, can be converted to PDF using 'go tool pprof -pdf filename'")
 }
 
 func Run2D(m2d *Model2D, ip *InputParameters) {
 	c := Euler2D.NewEuler(ip.FinalTime, ip.PolynomialOrder, m2d.GridFile, ip.CFL,
-		Euler2D.NewFluxType(ip.FluxType), Euler2D.NewInitType(ip.InitType),
-		m2d.ParallelProcLimit,
-		ip.Minf, ip.Gamma, ip.Alpha, ip.LocalTimeStepping, ip.MaxIterations, false, true)
+		Euler2D.NewFluxType(ip.FluxType), Euler2D.NewInitType(ip.InitType), m2d.ParallelProcLimit,
+		ip.Minf, ip.Gamma, ip.Alpha, ip.LocalTimeStepping, ip.MaxIterations, false, true, m2d.Profile)
 	pm := &Euler2D.PlotMeta{
 		Plot:            m2d.Graph,
 		Field:           Euler2D.FlowFunction(m2d.GraphField),
