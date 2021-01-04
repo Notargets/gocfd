@@ -193,7 +193,7 @@ func (rk *RungeKutta4SSP) Step(c *Euler, Time float64, Q0 [][4]utils.Matrix) (Re
 		go func(np int) {
 			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
 			qD, q1D, dtD, rhsD := Get4DP(Q0[np]), Get4DP(Q1[np]), DT[np].Data(), Get4DP(RHSQ[np]) // Pointers to underlying slice data
-			var dT float64
+			dT := dt
 			for n := 0; n < 4; n++ {
 				for i := 0; i < Kmax[np]*Np; i++ {
 					if c.LocalTimeStepping {
@@ -213,7 +213,7 @@ func (rk *RungeKutta4SSP) Step(c *Euler, Time float64, Q0 [][4]utils.Matrix) (Re
 		go func(np int) {
 			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
 			q1D, q2D, dtD, rhsD := Get4DP(Q1[np]), Get4DP(Q2[np]), DT[np].Data(), Get4DP(RHSQ[np]) // Pointers to underlying slice data
-			var dT float64
+			dT := dt
 			for n := 0; n < 4; n++ {
 				for i := 0; i < Kmax[np]*Np; i++ {
 					if c.LocalTimeStepping {
@@ -233,7 +233,7 @@ func (rk *RungeKutta4SSP) Step(c *Euler, Time float64, Q0 [][4]utils.Matrix) (Re
 		go func(np int) {
 			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
 			qD, q2D, q3D, dtD, rhsD := Get4DP(Q0[np]), Get4DP(Q2[np]), Get4DP(Q3[np]), DT[np].Data(), Get4DP(RHSQ[np]) // Pointers to underlying slice data
-			var dT float64
+			dT := dt
 			for n := 0; n < 4; n++ {
 				for i := 0; i < Kmax[np]*Np; i++ {
 					if c.LocalTimeStepping {
@@ -254,7 +254,7 @@ func (rk *RungeKutta4SSP) Step(c *Euler, Time float64, Q0 [][4]utils.Matrix) (Re
 			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
 			// Note, we are re-using Q1 as storage for Residual here
 			qD, q3D, resD, dtD, rhsD := Get4DP(Q0[np]), Get4DP(Q3[np]), Get4DP(Q1[np]), DT[np].Data(), Get4DP(RHSQ[np]) // Pointers to underlying slice data
-			var dT float64
+			dT := dt
 			for n := 0; n < 4; n++ {
 				for i := 0; i < Kmax[np]*Np; i++ {
 					if c.LocalTimeStepping {
