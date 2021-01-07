@@ -33,7 +33,7 @@ func (c *Euler) IVortexBC(Time float64, k, Kmax, ishift int, Q_Face [4]utils.Mat
 		riemann = true
 	)
 	// Set the flow variables to the exact solution
-	X, Y := c.dfr.FluxX.Data(), c.dfr.FluxY.Data()
+	X, Y := c.dfr.FluxX.DataP, c.dfr.FluxY.DataP
 	for i := 0; i < Nedge; i++ {
 		iL := i + ishift
 		indFlux := k + (2*Nint+iL)*Kmax

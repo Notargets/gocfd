@@ -111,7 +111,7 @@ func PlotMesh(VX, VY utils.Vector, EToV, X, Y utils.Matrix, plotPoints bool) (ch
 	var (
 		points   []graphics2D.Point
 		trimesh  graphics2D.TriMesh
-		vxD, vyD = VX.Data(), VY.Data()
+		vxD, vyD = VX.DataP, VY.DataP
 		K, _     = EToV.Dims()
 	)
 	points = make([]graphics2D.Point, VX.Len())
@@ -149,7 +149,7 @@ func PlotMesh(VX, VY utils.Vector, EToV, X, Y utils.Matrix, plotPoints bool) (ch
 	if plotPoints {
 		ptsGlyph = chart2d.CircleGlyph
 	}
-	if err := chart.AddSeries("Elements", X.Transpose().Data(), Y.Transpose().Data(),
+	if err := chart.AddSeries("Elements", X.Transpose().DataP, Y.Transpose().DataP,
 		ptsGlyph, chart2d.NoLine, white); err != nil {
 		panic(err)
 	}
@@ -224,7 +224,7 @@ func ReadMaterialGroup(reader *bufio.Reader, elementCount int, matval float64, e
 	var (
 		n       int
 		nn      = make([]int, 10)
-		epsData = epsilon.Data()
+		epsData = epsilon.DataP
 		err     error
 		added   int
 	)
@@ -307,7 +307,7 @@ func Read2DVertices(Nv int, reader *bufio.Reader) (VX, VY utils.Vector) {
 	)
 	nargs := 3
 	VX, VY = utils.NewVector(Nv), utils.NewVector(Nv)
-	vx, vy := VX.Data(), VY.Data()
+	vx, vy := VX.DataP, VY.DataP
 	for i := 0; i < Nv; i++ {
 		line = getLine(reader)
 		if n, err = fmt.Sscanf(line, "%d", &ind); err != nil || n < 1 {
@@ -335,7 +335,7 @@ func Read3DVertices(Nv int, reader *bufio.Reader) (VX, VY, VZ utils.Vector) {
 	)
 	nargs := 4
 	VX, VY, VZ = utils.NewVector(Nv), utils.NewVector(Nv), utils.NewVector(Nv)
-	vx, vy, vz := VX.Data(), VY.Data(), VZ.Data()
+	vx, vy, vz := VX.DataP, VY.DataP, VZ.DataP
 	for i := 0; i < Nv; i++ {
 		line = getLine(reader)
 		if n, err = fmt.Sscanf(line, "%d", &ind); err != nil || n < 1 {

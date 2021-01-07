@@ -22,7 +22,7 @@ func NewTriangulation(VX, VY utils.Vector, EToV utils.Matrix, BCEdges types.BCMA
 	K, _ := EToV.Dims()
 	// Create edges map
 	for k := 0; k < K; k++ {
-		tri := EToV.Row(k).Data()
+		tri := EToV.Row(k).DataP
 		verts := [3]int{int(tri[0]), int(tri[1]), int(tri[2])}
 		// Create / store the edges for this triangle
 		tmesh.NewEdge(VX, VY, [2]int{verts[0], verts[1]}, k, First)
@@ -86,7 +86,7 @@ func NewTriangulation(VX, VY utils.Vector, EToV utils.Matrix, BCEdges types.BCMA
 }
 
 func (tmesh *Triangulation) GetTriVerts(k uint32) (verts [3]int) {
-	tri := tmesh.EToV.Row(int(k)).Data()
+	tri := tmesh.EToV.Row(int(k)).DataP
 	verts = [3]int{int(tri[0]), int(tri[1]), int(tri[2])}
 	return
 }

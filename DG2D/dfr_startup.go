@@ -109,8 +109,8 @@ func getFileTypeFromExtension(fileName string) (t MeshFileType) {
 }
 
 func (dfr *DFR2D) GetJacobian(k int) (J, Jinv []float64, Jdet float64) {
-	J = dfr.J.Data()[k*4 : (k+1)*4]
-	Jinv = dfr.Jinv.Data()[k*4 : (k+1)*4]
+	J = dfr.J.DataP[k*4 : (k+1)*4]
+	Jinv = dfr.Jinv.DataP[k*4 : (k+1)*4]
 	Jdet = dfr.Jdet.At(k, 0)
 	return
 }
@@ -120,7 +120,7 @@ func (dfr *DFR2D) CalculateJacobian() {
 	Jdetd := make([]float64, dfr.K)
 	JdInv := make([]float64, 4*dfr.K)
 	for k := 0; k < dfr.K; k++ {
-		tri := dfr.Tris.EToV.Row(k).Data()
+		tri := dfr.Tris.EToV.Row(k).DataP
 		v := [3]int{int(tri[0]), int(tri[1]), int(tri[2])}
 		v1x, v2x, v3x := dfr.VX.AtVec(v[0]), dfr.VX.AtVec(v[1]), dfr.VX.AtVec(v[2])
 		v1y, v2y, v3y := dfr.VY.AtVec(v[0]), dfr.VY.AtVec(v[1]), dfr.VY.AtVec(v[2])
@@ -153,7 +153,7 @@ func (dfr *DFR2D) CalculateFaceNorms() {
 	for en, e := range dfr.Tris.Edges {
 		for connNum, triNum := range e.ConnectedTris {
 			k := int(triNum)
-			fnD1, fnD2 := dfr.FaceNorm[0].Data(), dfr.FaceNorm[1].Data()
+			fnD1, fnD2 := dfr.FaceNorm[0].DataP, dfr.FaceNorm[1].DataP
 			x1, x2 := GetEdgeCoordinates(en, bool(e.ConnectedTriDirection[connNum]), dfr.VX, dfr.VY)
 			dx, dy := x2[0]-x1[0], x2[1]-x1[1]
 			nx, ny := -dy, dx
@@ -170,12 +170,12 @@ func (dfr *DFR2D) ProjectFluxOntoRTSpace(Fx, Fy utils.Matrix) (Fp utils.Matrix) 
 		Np       = dfr.FluxElement.Np
 		K        = dfr.K
 		rt       = dfr.FluxElement
-		JdetD    = dfr.Jdet.Data()
-		JinvD    = dfr.Jinv.Data()
-		fxD, fyD = Fx.Data(), Fy.Data()
+		JdetD    = dfr.Jdet.DataP
+		JinvD    = dfr.Jinv.DataP
+		fxD, fyD = Fx.DataP, Fy.DataP
 	)
 	Fp = utils.NewMatrix(K, Np)
-	fpD := Fp.Data()
+	fpD := Fp.DataP
 	for k := 0; k < K; k++ {
 		var (
 			Jdet = JdetD[k]
@@ -218,7 +218,7 @@ func (dfr *DFR2D) ConvertScalarToOutputMesh(f utils.Matrix) (fI []float32) {
 		    	The corners of each element are formed by averaging the nearest two edge values
 	*/
 	var (
-		fD     = f.Data()
+		fD     = f.DataP
 		Kmax   = dfr.K
 		Nint   = dfr.FluxElement.Nint
 		Nedge  = dfr.FluxElement.Nedge
@@ -290,8 +290,8 @@ func (dfr *DFR2D) OutputMesh() (gm *graphics2D.TriMesh) {
 	tm.AddBoundingTriangle(tri)
 	// Now we add points to incrementally define the triangulation
 	for i := Nint; i < NpFlux; i++ {
-		r := dfr.FluxElement.R.Data()[i]
-		s := dfr.FluxElement.S.Data()[i]
+		r := dfr.FluxElement.R.DataP[i]
+		s := dfr.FluxElement.S.DataP[i]
 		tm.AddPoint(r, s)
 	}
 	gmB := tm.ToGraphMesh()
@@ -300,17 +300,17 @@ func (dfr *DFR2D) OutputMesh() (gm *graphics2D.TriMesh) {
 	// Build the X,Y coordinates to support the triangulation index
 	Np := NpFlux - Nint + 3 // Subtract Nint to remove the dup pts and add 3 for the verts
 	VX, VY := utils.NewMatrix(Np, Kmax), utils.NewMatrix(Np, Kmax)
-	vxd, vyd := VX.Data(), VY.Data()
+	vxd, vyd := VX.DataP, VY.DataP
 	for k := 0; k < Kmax; k++ {
 		verts := dfr.Tris.GetTriVerts(uint32(k))
 		for ii := 0; ii < Np; ii++ {
 			ind := Ind(k, ii, Kmax)
 			switch {
 			case ii < 3:
-				vxd[ind], vyd[ind] = dfr.VX.Data()[verts[ii]], dfr.VY.Data()[verts[ii]]
+				vxd[ind], vyd[ind] = dfr.VX.DataP[verts[ii]], dfr.VY.DataP[verts[ii]]
 			case ii >= 3:
 				indFlux := Ind(k, ii-3+Nint, Kmax) // Refers to the nodes, skipping the first Nint repeated points
-				vxd[ind], vyd[ind] = dfr.FluxX.Data()[indFlux], dfr.FluxY.Data()[indFlux]
+				vxd[ind], vyd[ind] = dfr.FluxX.DataP[indFlux], dfr.FluxY.DataP[indFlux]
 			}
 		}
 	}

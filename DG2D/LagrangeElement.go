@@ -83,8 +83,8 @@ func (el *LagrangeElement2D) Simplex2DInterpolatingPolyMatrix(R, S utils.Vector)
 	// First compute polynomial terms, used by all polynomials
 	polyTerms := make([]float64, R.Len()*Np)
 	var sk int
-	for ii, r := range R.Data() {
-		s := S.Data()[ii]
+	for ii, r := range R.DataP {
+		s := S.DataP[ii]
 		for i := 0; i <= N; i++ {
 			for j := 0; j <= (N - i); j++ {
 				polyTerms[sk] = Simplex2DPTerm(r, s, i, j)

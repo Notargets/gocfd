@@ -35,8 +35,8 @@ func TestDFR2D(t *testing.T) {
 		interpM := el.Simplex2DInterpolatingPolyMatrix(fluxEl.R, fluxEl.S)
 		values := interpM.Mul(sM)
 		// Verify the interpolated vals match the input solution values from the same [R,S]
-		assert.True(t, nearVec(s, values.Data()[0:3], 0.0000001))
-		assert.True(t, nearVec(s, values.Data()[3:6], 0.0000001))
+		assert.True(t, nearVec(s, values.DataP[0:3], 0.0000001))
+		assert.True(t, nearVec(s, values.DataP[3:6], 0.0000001))
 		// After 2*Nint points, the values have unknown expected interpolated values
 	}
 	{ // Test accuracy of interpolation
@@ -48,7 +48,7 @@ func TestDFR2D(t *testing.T) {
 			// Construct a 2D polynomial at the flux element geo locations, the first Nint of which match the interior
 			sFlux := make([]float64, fluxEl.Np)
 			for i := 0; i < fluxEl.Np; i++ {
-				sFlux[i] = utils.POW(fluxEl.R.Data()[i], N) + utils.POW(fluxEl.S.Data()[i], N)
+				sFlux[i] = utils.POW(fluxEl.R.DataP[i], N) + utils.POW(fluxEl.S.DataP[i], N)
 			}
 			// Copy the polynomial values from the first Nint positions in the flux solution
 			s := make([]float64, el.Np)
@@ -60,7 +60,7 @@ func TestDFR2D(t *testing.T) {
 			interpM := el.Simplex2DInterpolatingPolyMatrix(fluxEl.R, fluxEl.S)
 			values := interpM.Mul(sM)
 			// Verify the interpolated values match the input polynomial
-			assert.True(t, nearVec(sFlux, values.Data(), 0.00001))
+			assert.True(t, nearVec(sFlux, values.DataP, 0.00001))
 		}
 	}
 	{ // Test point distribution
@@ -68,8 +68,8 @@ func TestDFR2D(t *testing.T) {
 		dfr := NewDFR2D(N, false)
 		el := dfr.SolutionElement
 		rt := dfr.FluxElement
-		assert.True(t, nearVec(rt.GetInternalLocations(rt.R), el.R.Data(), 0.000001))
-		assert.True(t, nearVec(rt.GetInternalLocations(rt.S), el.S.Data(), 0.000001))
+		assert.True(t, nearVec(rt.GetInternalLocations(rt.R), el.R.DataP, 0.000001))
+		assert.True(t, nearVec(rt.GetInternalLocations(rt.S), el.S.DataP, 0.000001))
 		//fmt.Printf("Edge R = %v\n", rt.GetEdgeLocations(rt.R))
 		//fmt.Printf("Edge S = %v\n", rt.GetEdgeLocations(rt.S))
 	}
@@ -209,9 +209,9 @@ func TestDFR2D(t *testing.T) {
 			Fx, Fy = utils.NewMatrix(K, Np), utils.NewMatrix(K, Np)
 			for k := 0; k < K; k++ {
 				var (
-					xD, yD   = dfr.FluxX.Col(k).Data()[0:Np], dfr.FluxY.Col(k).Data()[0:Np]
-					fxD, fyD = Fx.Data(), Fy.Data()
-					dcD      = divCheck.Data()
+					xD, yD   = dfr.FluxX.Col(k).DataP[0:Np], dfr.FluxY.Col(k).DataP[0:Np]
+					fxD, fyD = Fx.DataP, Fy.DataP
+					dcD      = divCheck.DataP
 				)
 				for n := 0; n < Np; n++ {
 					ind := n + k*Np
@@ -233,20 +233,20 @@ func TestDFR2D(t *testing.T) {
 				for k := 0; k < dfr.K; k++ {
 					var (
 						Fpk  = Fp.Row(k).ToMatrix()
-						Jdet = dfr.Jdet.Row(k).Data()[0]
+						Jdet = dfr.Jdet.Row(k).DataP[0]
 					)
 					divM := rt.Div.Mul(Fpk).Scale(1. / Jdet)
-					assert.True(t, nearVec(divCheck.Row(k).Data(), divM.Data(), 0.00001))
+					assert.True(t, nearVec(divCheck.Row(k).DataP, divM.DataP, 0.00001))
 				}
 				// Now project flux onto untransformed normals using ||n|| scaling factor, divergence should be the same
 				SetNormalFluxOnEdges(dfr, Fx, Fy, &Fp)
 				for k := 0; k < dfr.K; k++ {
 					var (
 						Fpk  = Fp.Row(k).ToMatrix()
-						Jdet = dfr.Jdet.Row(k).Data()[0]
+						Jdet = dfr.Jdet.Row(k).DataP[0]
 					)
 					divM := rt.Div.Mul(Fpk).Scale(1. / Jdet)
-					assert.True(t, nearVec(divCheck.Row(k).Data(), divM.Data(), 0.00001))
+					assert.True(t, nearVec(divCheck.Row(k).DataP, divM.DataP, 0.00001))
 				}
 			}
 		}
@@ -267,11 +267,11 @@ func TestDFR2D(t *testing.T) {
 		NpFlux := dfr.FluxElement.Np
 		Kmax := dfr.K
 		f := utils.NewMatrix(NpFlux, Kmax)
-		fD := f.Data()
+		fD := f.DataP
 		xmin, xmax := dfr.FluxX.Min(), dfr.FluxX.Max()
 		norm := 1. / (xmax - xmin)
 		for i := 0; i < NpFlux*Kmax; i++ {
-			x := (dfr.FluxX.Data()[i] - xmin) * norm
+			x := (dfr.FluxX.DataP[i] - xmin) * norm
 			fD[i] = math.Sin(0.5 * x * math.Pi)
 		}
 		fI := dfr.ConvertScalarToOutputMesh(f)
@@ -329,8 +329,8 @@ func PlotTriMesh(trimesh graphics2D.TriMesh) {
 func SetNormalFluxOnEdges(dfr *DFR2D, Fx, Fy utils.Matrix, Fp *utils.Matrix) {
 	var (
 		Np       = dfr.FluxElement.Np
-		fxD, fyD = Fx.Data(), Fy.Data()
-		fpD      = Fp.Data()
+		fxD, fyD = Fx.DataP, Fy.DataP
+		fpD      = Fp.DataP
 		Nint     = dfr.FluxElement.Nint
 		Nedge    = dfr.FluxElement.Nedge
 	)

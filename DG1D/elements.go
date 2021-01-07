@@ -255,7 +255,7 @@ func (el *Elements1D) LagrangeInterpolant(r float64) (Li utils.Matrix) {
 	Li = utils.NewMatrix(1, el.R.Len()).AddScalar(1)
 	LiData := Li.RawMatrix().Data
 	for j := range el.R.RawVector().Data {
-		LiData[j] *= LagrangePolyAtJ(r, el.R.Data(), j)
+		LiData[j] *= LagrangePolyAtJ(r, el.R.DataP, j)
 	}
 	return
 }

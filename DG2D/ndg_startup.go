@@ -58,17 +58,17 @@ func (ndg *NDG2D) Startup2D() {
 	fmask3 := R.Copy().AddScalar(1).Find(utils.Less, ndg.NODETOL, true)
 	if fmask1.Len() != 0 {
 		ndg.FMask = utils.NewMatrix(ndg.Element.Nfp, 3)
-		ndg.FMask.SetCol(0, fmask1.Data())
-		ndg.FMask.SetCol(1, fmask2.Data())
-		ndg.FMask.SetCol(2, fmask3.Data())
-		ndg.FMaskI = utils.NewIndex(len(ndg.FMask.Data()), ndg.FMask.Data())
+		ndg.FMask.SetCol(0, fmask1.DataP)
+		ndg.FMask.SetCol(1, fmask2.DataP)
+		ndg.FMask.SetCol(2, fmask3.DataP)
+		ndg.FMaskI = utils.NewIndex(len(ndg.FMask.DataP), ndg.FMask.DataP)
 		ndg.Fx = utils.NewMatrix(3*ndg.Element.Nfp, ndg.K)
-		for fp, val := range ndg.FMask.Data() {
+		for fp, val := range ndg.FMask.DataP {
 			ind := int(val)
 			ndg.Fx.M.SetRow(fp, ndg.X.M.RawRowView(ind))
 		}
 		ndg.Fy = utils.NewMatrix(3*ndg.Element.Nfp, ndg.K)
-		for fp, val := range ndg.FMask.Data() {
+		for fp, val := range ndg.FMask.DataP {
 			ind := int(val)
 			ndg.Fy.M.SetRow(fp, ndg.Y.M.RawRowView(ind))
 		}

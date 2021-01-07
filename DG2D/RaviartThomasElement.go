@@ -187,8 +187,8 @@ func (rt *RTElement) CalculateBasis() {
 
 	// Evaluate at geometric locations
 	var p0, p1 []float64
-	for ii, rr := range rt.R.Data() {
-		ss := rt.S.Data()[ii]
+	for ii, rr := range rt.R.DataP {
+		ss := rt.S.DataP[ii]
 		/*
 			First, evaluate the polynomial at the (r,s) coordinates
 			This is the same set that will be used for all dot products to form the basis matrix
@@ -229,8 +229,8 @@ func (rt *RTElement) CalculateBasis() {
 	// Evaluate 2D polynomial basis at geometric locations, also evaluate derivatives Dr and Ds for R and S
 	P0, P1 := utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
 	Pdr0, Pds1 := utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
-	for ii, rr := range rt.R.Data() {
-		ss := rt.S.Data()[ii]
+	for ii, rr := range rt.R.DataP {
+		ss := rt.S.DataP[ii]
 		p0, p1 = rt.EvaluateRTBasis(rr, ss) // each of p1,p2 stores the polynomial terms for the R and S directions
 		P0.M.SetRow(ii, p0)
 		P1.M.SetRow(ii, p1)
@@ -245,7 +245,7 @@ func (rt *RTElement) CalculateBasis() {
 	rt.Div = Pdr0.Mul(rt.A).Add(Pds1.Mul(rt.A))
 	rt.DivInt = utils.NewMatrix(Nint, Np)
 	for i := 0; i < Nint; i++ {
-		rt.DivInt.M.SetRow(i, rt.Div.Row(i).Data())
+		rt.DivInt.M.SetRow(i, rt.Div.Row(i).DataP)
 	}
 	rt.Np = Np
 	return
@@ -325,7 +325,7 @@ func (rt *RTElement) EvaluateRTBasis(r, s float64, derivO ...DerivativeDirection
 func ExtendGeomToRT(N int, rInt, sInt utils.Vector) (r, s utils.Vector) {
 	var (
 		NpEdge       = N + 1
-		rData, sData = rInt.Data(), sInt.Data()
+		rData, sData = rInt.DataP, sInt.DataP
 	)
 	/*
 		Determine geometric locations of edge points, located at Gauss locations in 1D, projected onto the edges
@@ -353,7 +353,7 @@ func ExtendGeomToRT(N int, rInt, sInt utils.Vector) (r, s utils.Vector) {
 	}
 
 	// Calculate the triangle edges
-	GQRData := GQR.Data()
+	GQRData := GQR.DataP
 	rEdgeData := make([]float64, NpEdge*3)
 	sEdgeData := make([]float64, NpEdge*3)
 	for i := 0; i < NpEdge; i++ {
@@ -462,7 +462,7 @@ func (rt *RTElement) GetInternalLocations(F utils.Vector) (Finternal []float64) 
 	)
 	Finternal = make([]float64, Nint)
 	for i := 0; i < Nint; i++ {
-		Finternal[i] = F.Data()[i]
+		Finternal[i] = F.DataP[i]
 	}
 	return
 }
@@ -474,7 +474,7 @@ func (rt *RTElement) GetEdgeLocations(F utils.Vector) (Fedge []float64) {
 	)
 	Fedge = make([]float64, NedgeTot)
 	for i := 0; i < NedgeTot; i++ {
-		Fedge[i] = F.Data()[i+2*Nint]
+		Fedge[i] = F.DataP[i+2*Nint]
 	}
 	return
 }

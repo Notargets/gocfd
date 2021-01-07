@@ -26,8 +26,8 @@ func TestRTElement(t *testing.T) {
 		ddr, dds := GradSimplex2DP(a, b, ii, jj)
 		Np := R.Len()
 		pCheck, ddrCheck, ddsCheck := make([]float64, Np), make([]float64, Np), make([]float64, Np)
-		for i, rVal := range R.Data() {
-			sVal := S.Data()[i]
+		for i, rVal := range R.DataP {
+			sVal := S.DataP[i]
 			ddrCheck[i], ddsCheck[i] = GradSimplex2DPTerm(rVal, sVal, ii, jj)
 			pCheck[i] = Simplex2DPTerm(rVal, sVal, ii, jj)
 		}
@@ -77,8 +77,8 @@ func TestRTElement(t *testing.T) {
 		divCheck = make([]float64, Np)
 		var ss1, ss2 float64
 		for i := 0; i < Np; i++ {
-			r := rt.R.Data()[i]
-			s := rt.S.Data()[i]
+			r := rt.R.DataP[i]
+			s := rt.S.DataP[i]
 			ccf := float64(Order)
 			s1[i] = utils.POW(r, Order)
 			s2[i] = utils.POW(s, Order)
@@ -107,7 +107,7 @@ func TestRTElement(t *testing.T) {
 				sm := utils.NewMatrix(rt.Np, 1, sp)
 				divM := rt.Div.Mul(sm)
 				//fmt.Println(divM.Print("divM"))
-				minerrInt, maxerrInt, minerrEdge, maxerrEdge := errorCheck(N, divM.Data(), divCheck)
+				minerrInt, maxerrInt, minerrEdge, maxerrEdge := errorCheck(N, divM.DataP, divCheck)
 				assert.True(t, near(minerrInt, 0.0, 0.00001))
 				assert.True(t, near(maxerrInt, 0.0, 0.00001))
 				assert.True(t, near(minerrEdge, 0.0, 0.00001))
@@ -122,18 +122,14 @@ func TestRTElement(t *testing.T) {
 		R, S := NodesEpsilon(N)
 		//Nint := R.Len()
 		rt := NewRTElement(NRT, R, S)
-		//RR := rt.R.Subset(Nint, rt.R.Len()-1)
-		//SS := rt.S.Subset(Nint, rt.S.Len()-1)
-		//fmt.Println(RR.Transpose().Print("RR"))
-		//fmt.Println(SS.Transpose().Print("SS"))
 		s1, s2 := make([]float64, rt.R.Len()), make([]float64, rt.R.Len())
-		for i := range rt.R.Data() {
+		for i := range rt.R.DataP {
 			s1[i] = 1
 			s2[i] = 1
 		}
 		if plot {
 			chart := PlotTestTri(true)
-			points := utils.ArraysToPoints(rt.R.Data(), rt.S.Data())
+			points := utils.ArraysToPoints(rt.R.DataP, rt.S.DataP)
 			f := utils.ArraysTo2Vector(s1, s2, 0.1)
 			_ = chart.AddVectors("test function", points, f, chart2d.Solid, utils.GetColor(utils.Green))
 			utils.SleepFor(500000)
@@ -182,8 +178,8 @@ func PlotTestTri(plotGeom bool) (chart *chart2d.Chart2D) {
 		divCheck = make([]float64, Npm)
 		var ss1, ss2 float64
 		for i := 0; i < Npm; i++ {
-			r := rt.Rm.Data()[i]
-			s := rt.Sm.Data()[i]
+			r := rt.Rm.DataP[i]
+			s := rt.Sm.DataP[i]
 			ccf := float64(Order)
 			s1[i] = utils.POW(r, Order)
 			s2[i] = utils.POW(s, Order)
@@ -209,7 +205,7 @@ func PlotTestTri(plotGeom bool) (chart *chart2d.Chart2D) {
 				s1, s2, divCheck := checkSolutionM(rt, cOrder)
 				s1p, s2p := rt.ProjectFunctionOntoBasis2(s1, s2)
 				s1m, s2m := utils.NewMatrix(rt.Npm, 1, s1p), utils.NewMatrix(rt.Npm, 1, s2p)
-				div := Dr.Mul(s1m).Add(Ds.Mul(s2m)).Data()
+				div := Dr.Mul(s1m).Add(Ds.Mul(s2m)).DataP
 				minerrInt, maxerrInt, minerrEdge, maxerrEdge := errorCheck(N, div, divCheck)
 				assert.True(t, near(minerrInt, 0.0, 0.00001))
 				assert.True(t, near(maxerrInt, 0.0, 0.00001))

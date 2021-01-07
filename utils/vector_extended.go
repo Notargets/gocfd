@@ -9,7 +9,8 @@ import (
 )
 
 type Vector struct {
-	V *mat.VecDense
+	V     *mat.VecDense
+	DataP []float64
 }
 
 func NewVector(n int, dataO ...[]float64) Vector {
@@ -19,8 +20,10 @@ func NewVector(n int, dataO ...[]float64) Vector {
 	if len(dataO) != 0 {
 		data = dataO[0]
 	}
+	v := mat.NewVecDense(n, data)
 	return Vector{
-		mat.NewVecDense(n, data),
+		V:     v,
+		DataP: v.RawVector().Data,
 	}
 }
 
@@ -46,7 +49,7 @@ func (v Vector) Len() int {
 	}
 }
 func (v Vector) Data() []float64 {
-	return v.RawVector().Data
+	return v.DataP
 }
 
 // Chainable (extended) methods
@@ -212,7 +215,7 @@ func (v Vector) Subset(i1, i2 int) Vector {
 		}
 	}
 	r = mat.NewVecDense(len(dataR), dataR)
-	return Vector{r}
+	return Vector{V: r, DataP: r.RawVector().Data}
 }
 
 func (v Vector) SubsetIndex(I Index) Vector {
@@ -225,7 +228,7 @@ func (v Vector) SubsetIndex(I Index) Vector {
 		dataR[i] = data[ind]
 	}
 	r = mat.NewVecDense(len(dataR), dataR)
-	return Vector{r}
+	return Vector{V: r, DataP: r.RawVector().Data}
 }
 
 func (v Vector) Scale(a float64) Vector {
@@ -279,8 +282,10 @@ func (v Vector) POW(p int) Vector {
 }
 
 func (v Vector) Copy() Vector {
+	vv := mat.VecDenseCopyOf(v.V)
 	return Vector{
-		mat.VecDenseCopyOf(v.V),
+		V:     vv,
+		DataP: vv.RawVector().Data,
 	}
 }
 

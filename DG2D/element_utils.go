@@ -30,7 +30,7 @@ func Simplex2DPTerm(r, s float64, i, j int) (P float64) {
 func Simplex2DP(a, b utils.Vector, i, j int) (P []float64) {
 	var (
 		Np = a.Len()
-		bd = b.Data()
+		bd = b.DataP
 	)
 	h1 := DG1D.JacobiP(a, 0, 0, i)
 	h2 := DG1D.JacobiP(b, float64(2*i+1), 0, j)
@@ -55,7 +55,7 @@ func Nodes2D(N int) (x, y utils.Vector) {
 	)
 	L1, L2, L3, x, y =
 		utils.NewVector(Np), utils.NewVector(Np), utils.NewVector(Np), utils.NewVector(Np), utils.NewVector(Np)
-	l1d, l2d, l3d, xd, yd := L1.Data(), L2.Data(), L3.Data(), x.Data(), y.Data()
+	l1d, l2d, l3d, xd, yd := L1.DataP, L2.DataP, L3.DataP, x.DataP, y.DataP
 	blend1, blend2, blend3, warp1, warp2, warp3 =
 		make([]float64, Np), make([]float64, Np), make([]float64, Np), make([]float64, Np), make([]float64, Np), make([]float64, Np)
 
@@ -135,7 +135,7 @@ func Warpfactor(N int, rout utils.Vector) (warpF []float64) {
 	})
 	w2 := warp.Copy()
 	warp.ElDiv(sf.ToMatrix()).Add(w2.ElMul(zerof.AddScalar(-1).ToMatrix()))
-	warpF = warp.Data()
+	warpF = warp.DataP
 	return
 }
 
@@ -169,7 +169,7 @@ func GradSimplex2DPTerm(r, s float64, i, j int) (ddr, dds float64) {
 
 func GradSimplex2DP(a, b utils.Vector, id, jd int) (ddr, dds []float64) {
 	var (
-		ad, bd = a.Data(), b.Data()
+		ad, bd = a.DataP, b.DataP
 	)
 	_ = ad
 	fa := DG1D.JacobiP(a, 0, 0, id)
@@ -209,7 +209,7 @@ func GradSimplex2DP(a, b utils.Vector, id, jd int) (ddr, dds []float64) {
 func RStoAB(r, s utils.Vector) (a, b utils.Vector) {
 	var (
 		Np     = r.Len()
-		rd, sd = r.Data(), s.Data()
+		rd, sd = r.DataP, s.DataP
 	)
 	ad, bd := make([]float64, Np), make([]float64, Np)
 	for n, sval := range sd {
@@ -243,8 +243,8 @@ func rsToab(r, s float64) (a, b float64) {
 func XYtoRS(x, y utils.Vector) (r, s utils.Vector) {
 	r, s = utils.NewVector(x.Len()), utils.NewVector(x.Len())
 	var (
-		xd, yd = x.Data(), y.Data()
-		rd, sd = r.Data(), s.Data()
+		xd, yd = x.DataP, y.DataP
+		rd, sd = r.DataP, s.DataP
 	)
 	sr3 := math.Sqrt(3)
 	for i := range xd {

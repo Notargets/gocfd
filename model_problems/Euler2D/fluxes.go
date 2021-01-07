@@ -50,8 +50,8 @@ func NewFluxType(label string) (ft FluxType) {
 
 func (c *Euler) CalculateFluxTransformed(k, Kmax, i int, Jdet, Jinv utils.Matrix, QQ [4][]float64) (Fr, Fs [4]float64) {
 	var (
-		JdetD = Jdet.Data()[k]
-		JinvD = Jinv.Data()[4*k : 4*(k+1)]
+		JdetD = Jdet.DataP[k]
+		JinvD = Jinv.DataP[4*k : 4*(k+1)]
 	)
 	Fx, Fy := c.CalculateFlux(k, Kmax, i, QQ)
 	for n := 0; n < 4; n++ {

@@ -59,7 +59,7 @@ func readVertices(reader *bufio.Reader) (VX, VY utils.Vector) {
 	)
 	Nv := readNumber(reader)
 	VX, VY = utils.NewVector(Nv), utils.NewVector(Nv)
-	vxD, vyD := VX.Data(), VY.Data()
+	vxD, vyD := VX.DataP, VY.DataP
 	for i := 0; i < Nv; i++ {
 		line := getLine(reader)
 		if n, err = fmt.Sscanf(line, "%f %f", &x, &y); err != nil {

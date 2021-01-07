@@ -153,13 +153,13 @@ func (m Matrix) MulParallel(A Matrix, nP int) (R Matrix) { // Does not change re
 		nrM, _   = m.Dims()
 		nrA, ncA = A.M.Dims()
 		wg       = sync.WaitGroup{}
-		aD       = A.Data()
+		aD       = A.DataP
 	)
 	if nP > ncA {
 		nP = ncA
 	}
 	R = NewMatrix(nrM, ncA)
-	rD := R.Data()
+	rD := R.DataP
 	ncAChunk := Split1DMaxChunk(ncA, nP)
 	subAChunkSize := nrA * ncAChunk
 	subRChunkSize := nrM * ncAChunk
@@ -171,7 +171,7 @@ func (m Matrix) MulParallel(A Matrix, nP int) (R Matrix) { // Does not change re
 		wg.Add(1)
 		go func(ind, end, ncSubA, n int) {
 			subA := NewMatrix(nrA, ncSubA, subAstorage[n*subAChunkSize:])
-			sAD := subA.Data()
+			sAD := subA.DataP
 			for j := 0; j < nrA; j++ {
 				var ii int
 				for i := ind; i < end; i++ {
@@ -180,7 +180,7 @@ func (m Matrix) MulParallel(A Matrix, nP int) (R Matrix) { // Does not change re
 				}
 			}
 			subR := m.Mul(subA, subRstorage[n*subRChunkSize:])
-			sRD := subR.Data()
+			sRD := subR.DataP
 			for j := 0; j < nrM; j++ {
 				var ii int
 				for i := ind; i < end; i++ {
@@ -966,7 +966,7 @@ func IndexedAssign(mI interface{}, I Index, ValI interface{}) (err error) { // C
 	case []float64:
 		temp = Val
 	case Matrix:
-		temp = Val.Data()
+		temp = Val.DataP
 	case Index:
 		temp = make([]float64, len(I))
 		for i, val := range Val {

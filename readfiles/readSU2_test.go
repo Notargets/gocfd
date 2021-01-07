@@ -43,8 +43,8 @@ func TestReadSU2(t *testing.T) {
 		assert.Equal(t, 18, Nv)
 		Nv, _ = VY.Dims()
 		assert.Equal(t, 18, Nv)
-		assert.Equal(t, -7.100939331382065, VX.Data()[Nv-1])
-		assert.Equal(t, 2.889910324036197, VY.Data()[Nv-1])
+		assert.Equal(t, -7.100939331382065, VX.DataP[Nv-1])
+		assert.Equal(t, 2.889910324036197, VY.DataP[Nv-1])
 	}
 	{ // Test read BCs
 		reader := bufio.NewReader(bytes.NewReader(inputFile))
