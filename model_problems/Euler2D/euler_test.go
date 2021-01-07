@@ -31,7 +31,7 @@ func TestEuler(t *testing.T) {
 					for i := 0; i < Nint; i++ {
 						for k := 0; k < Kmax; k++ {
 							ind := k + i*Kmax
-							Q[n].Data()[ind] = float64(k + 1)
+							Q[n].DataP[ind] = float64(k + 1)
 						}
 					}
 				}
@@ -43,7 +43,7 @@ func TestEuler(t *testing.T) {
 					for i := 0; i < 3*Nedge; i++ {
 						for k := 0; k < Kmax; k++ {
 							ind := k + i*Kmax
-							assert.True(t, near(float64(k+1), Q_Face[n].Data()[ind], 0.000001))
+							assert.True(t, near(float64(k+1), Q_Face[n].DataP[ind], 0.000001))
 						}
 					}
 				}
@@ -73,7 +73,7 @@ func TestEuler(t *testing.T) {
 				}
 				Q := c.Q[0]
 				// Mark the initial state with the element number
-				qD := Get4DP(Q)
+				qD := [4][]float64{Q[0].DataP, Q[1].DataP, Q[2].DataP, Q[3].DataP}
 				for i := 0; i < Nint; i++ {
 					for k := 0; k < Kmax; k++ {
 						ind := k + i*Kmax
@@ -93,8 +93,8 @@ func TestEuler(t *testing.T) {
 					Q_Face[n] = c.dfr.FluxEdgeInterpMatrix.Mul(Q[n])
 				}
 				// Calculate flux and project into R and S (transformed) directions
-				rtD := Get4DP(F_RT_DOF)
-				qfD := Get4DP(Q_Face)
+				qfD := [4][]float64{Q_Face[0].DataP, Q_Face[1].DataP, Q_Face[2].DataP, Q_Face[3].DataP}
+				rtD := [4][]float64{F_RT_DOF[0].DataP, F_RT_DOF[1].DataP, F_RT_DOF[2].DataP, F_RT_DOF[3].DataP}
 				for n := 0; n < 4; n++ {
 					for i := 0; i < Nint; i++ {
 						for k := 0; k < Kmax; k++ {
@@ -104,7 +104,7 @@ func TestEuler(t *testing.T) {
 						}
 					}
 					// Check to see that the expected values are in the right place (the internal locations)
-					rtTD := F_RT_DOF[n].Transpose().Data()
+					rtTD := F_RT_DOF[n].Transpose().DataP
 					for k := 0; k < Kmax; k++ {
 						val0, val1 := Fr_check[k][n], Fs_check[k][n]
 						is := k * NpFlux
@@ -121,7 +121,7 @@ func TestEuler(t *testing.T) {
 						}
 					}
 					// Check to see that the expected values are in the right place (the edge locations)
-					rtTD = F_RT_DOF[n].Transpose().Data()
+					rtTD = F_RT_DOF[n].Transpose().DataP
 					for k := 0; k < Kmax; k++ {
 						val := Fr_check[k][n] + Fs_check[k][n]
 						is := k * NpFlux
@@ -155,9 +155,9 @@ func TestEuler(t *testing.T) {
 				for n := 0; n < 4; n++ {
 					var div utils.Matrix
 					div = c.dfr.FluxElement.DivInt.Mul(F_RT_DOF[n])
-					//c.DivideByJacobian(Kmax, c.dfr.FluxElement.Nint, div.Data(), 1)
-					c.DivideByJacobian(Kmax, Nint, c.dfr.Jdet, div.Data(), 1)
-					assert.True(t, nearVecScalar(div.Data(), 0., 0.000001))
+					//c.DivideByJacobian(Kmax, c.dfr.FluxElement.Nint, div.DataP, 1)
+					c.DivideByJacobian(Kmax, Nint, c.dfr.Jdet, div.DataP, 1)
+					assert.True(t, nearVecScalar(div.DataP, 0., 0.000001))
 				}
 			}
 		}
@@ -216,17 +216,17 @@ func TestEuler(t *testing.T) {
 			n := 0
 			fmt.Printf("component[%d]\n", n)
 			div = c.dfr.FluxElement.DivInt.Mul(F_RT_DOF[n])
-			c.DivideByJacobian(Kmax, Nint, c.dfr.Jdet, div.Data(), 1)
+			c.DivideByJacobian(Kmax, Nint, c.dfr.Jdet, div.DataP, 1)
 			// Get the analytic values of divergence for comparison
 			for k := 0; k < Kmax; k++ {
 				for i := 0; i < Nint; i++ {
 					ind := k + i*Kmax
-					x, y := X.Data()[ind], Y.Data()[ind]
+					x, y := X.DataP[ind], Y.DataP[ind]
 					qc1, qc2, qc3, qc4 := c.AnalyticSolution.GetStateC(0, x, y)
-					q1, q2, q3, q4 := Q[0].Data()[ind], Q[1].Data()[ind], Q[2].Data()[ind], Q[3].Data()[ind]
+					q1, q2, q3, q4 := Q[0].DataP[ind], Q[1].DataP[ind], Q[2].DataP[ind], Q[3].DataP[ind]
 					assert.True(t, nearVec([]float64{q1, q2, q3, q4}, []float64{qc1, qc2, qc3, qc4}, 0.000001))
 					divC := c.AnalyticSolution.GetDivergence(0, x, y)
-					divCalc := div.Data()[ind]
+					divCalc := div.DataP[ind]
 					// fmt.Printf("div[%d][%d,%d] = %8.5f\n", n, k, i, divCalc)
 					assert.True(t, near(divCalc/qc1, divC[n]/qc1, 0.001)) // 0.1 percent match
 				}
@@ -307,12 +307,12 @@ func InitializePolynomial(X, Y utils.Matrix) (Q [4]utils.Matrix) {
 		Q[n] = utils.NewMatrix(Np, Kmax)
 	}
 	for ii := 0; ii < Np*Kmax; ii++ {
-		x, y := X.Data()[ii], Y.Data()[ii]
+		x, y := X.DataP[ii], Y.DataP[ii]
 		rho, rhoU, rhoV, E := GetStatePoly(x, y)
-		Q[0].Data()[ii] = rho
-		Q[1].Data()[ii] = rhoU
-		Q[2].Data()[ii] = rhoV
-		Q[3].Data()[ii] = E
+		Q[0].DataP[ii] = rho
+		Q[1].DataP[ii] = rhoU
+		Q[2].DataP[ii] = rhoV
+		Q[3].DataP[ii] = E
 	}
 	return
 }
@@ -400,12 +400,12 @@ func CheckFlux0(c *Euler, t *testing.T) {
 		for k := 0; k < Kmax; k++ {
 			for i := 0; i < Nint; i++ {
 				ind := k + i*Kmax
-				Q[n].Data()[ind] = QFlux[n].Data()[ind]
+				Q[n].DataP[ind] = QFlux[n].DataP[ind]
 			}
 			for i := 0; i < 3*Nedge; i++ {
 				ind := k + i*Kmax
 				ind2 := k + (i+2*Nint)*Kmax
-				Q_Face[n].Data()[ind] = QFlux[n].Data()[ind2]
+				Q_Face[n].DataP[ind] = QFlux[n].DataP[ind2]
 			}
 		}
 	}
@@ -423,7 +423,7 @@ func CheckFlux0(c *Euler, t *testing.T) {
 			Jdet := c.dfr.Jdet.At(k, 0)
 			for i := 0; i < Nint; i++ {
 				ind := k + i*Kmax
-				div.Data()[ind] /= Jdet
+				div.DataP[ind] /= Jdet
 			}
 		}
 		// Get the analytic values of divergence for comparison
@@ -431,10 +431,10 @@ func CheckFlux0(c *Euler, t *testing.T) {
 		for k := 0; k < Kmax; k++ {
 			for i := 0; i < Nint; i++ {
 				ind := k + i*Kmax
-				x, y := X.Data()[ind], Y.Data()[ind]
+				x, y := X.DataP[ind], Y.DataP[ind]
 				divC := GetDivergencePoly(0, x, y)
-				divCalc := div.Data()[ind]
-				normalizer := Q[nn].Data()[ind]
+				divCalc := div.DataP[ind]
+				normalizer := Q[nn].DataP[ind]
 				test := near(divCalc/normalizer, divC[nn]/normalizer, 0.0001) // 1% of field value
 				if !test {
 					fmt.Printf("div[%d][%d,%d] = %8.5f\n", n, k, i, divCalc)

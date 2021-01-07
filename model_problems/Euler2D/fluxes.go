@@ -88,8 +88,9 @@ func (c *Euler) FluxCalc(q [4]float64) (Fx, Fy [4]float64) {
 func (c *Euler) AvgFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux, normalFluxReversed [][4]float64) {
 	var (
-		Nedge      = c.dfr.FluxElement.Nedge
-		qfDL, qfDR = Get4DP(Q_FaceL), Get4DP(Q_FaceR)
+		Nedge = c.dfr.FluxElement.Nedge
+		qfDL  = [4][]float64{Q_FaceL[0].DataP, Q_FaceL[1].DataP, Q_FaceL[2].DataP, Q_FaceL[3].DataP}
+		qfDR  = [4][]float64{Q_FaceR[0].DataP, Q_FaceR[1].DataP, Q_FaceR[2].DataP, Q_FaceR[3].DataP}
 	)
 	averageFluxN := func(fx1, fy1, fx2, fy2 [4]float64, normal [2]float64) (fnorm [4]float64, fnormR [4]float64) {
 		var (
@@ -118,7 +119,8 @@ func (c *Euler) LaxFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		Nedge                = c.dfr.FluxElement.Nedge
 		rhoL, uL, vL, pL, CL float64
 		rhoR, uR, vR, pR, CR float64
-		qfDL, qfDR           = Get4DP(Q_FaceL), Get4DP(Q_FaceR)
+		qfDL                 = [4][]float64{Q_FaceL[0].DataP, Q_FaceL[1].DataP, Q_FaceL[2].DataP, Q_FaceL[3].DataP}
+		qfDR                 = [4][]float64{Q_FaceR[0].DataP, Q_FaceR[1].DataP, Q_FaceR[2].DataP, Q_FaceR[3].DataP}
 	)
 	maxVF := func(u, v, p, rho, C float64) (vmax float64) {
 		vmax = math.Sqrt(u*u+v*v) + C
@@ -154,7 +156,8 @@ func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		hL, hR           float64
 		Gamma            = c.FS.Gamma
 		GM1              = Gamma - 1
-		qfDL, qfDR       = Get4DP(Q_FaceL), Get4DP(Q_FaceR)
+		qfDL             = [4][]float64{Q_FaceL[0].DataP, Q_FaceL[1].DataP, Q_FaceL[2].DataP, Q_FaceL[3].DataP}
+		qfDR             = [4][]float64{Q_FaceR[0].DataP, Q_FaceR[1].DataP, Q_FaceR[2].DataP, Q_FaceR[3].DataP}
 	)
 	rotateMomentum := func(k, Kmax, i int, qfD [4][]float64) {
 		ind := k + i*Kmax

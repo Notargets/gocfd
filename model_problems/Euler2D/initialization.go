@@ -67,7 +67,7 @@ func (c *Euler) InitializeIVortex(X, Y utils.Matrix) (iv *isentropic_vortex.IVor
 		Q[n] = utils.NewMatrix(Np, Kmax)
 	}
 	iv = isentropic_vortex.NewIVortex(Beta, X0, Y0, Gamma)
-	qD := Get4DP(Q)
+	qD := [4][]float64{Q[0].DataP, Q[1].DataP, Q[2].DataP, Q[3].DataP}
 	xD, yD := X.Data(), Y.Data()
 	for ii := 0; ii < Np*Kmax; ii++ {
 		x, y := xD[ii], yD[ii]

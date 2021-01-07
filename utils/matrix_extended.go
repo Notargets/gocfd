@@ -16,6 +16,7 @@ type Matrix struct {
 	M        *mat.Dense
 	readOnly bool
 	name     string
+	DataP    []float64
 }
 
 func NewMatrix(nr, nc int, dataO ...[]float64) (R Matrix) {
@@ -31,9 +32,10 @@ func NewMatrix(nr, nc int, dataO ...[]float64) (R Matrix) {
 		m = mat.NewDense(nr, nc, make([]float64, nr*nc))
 	}
 	R = Matrix{
-		m,
-		false,
-		"unnamed - hint: pass a variable name to SetReadOnly()",
+		M:        m,
+		readOnly: false,
+		name:     "unnamed - hint: pass a variable name to SetReadOnly()",
+		DataP:    m.RawMatrix().Data,
 	}
 	return
 }

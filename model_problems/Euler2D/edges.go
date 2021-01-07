@@ -29,7 +29,7 @@ func (c *Euler) ParallelEdgeUpdate(Time float64, CalculateDT bool,
 	if CalculateDT {
 		// Reset per-element wavespeed max
 		for np := 0; np < NPar; np++ {
-			dtD := DT[np].Data()
+			dtD := DT[np].DataP
 			Kmax := pm.GetBucketDimension(np)
 			for k := 0; k < Kmax; k++ {
 				dtD[k] = -100
@@ -58,7 +58,7 @@ func (c *Euler) ParallelEdgeUpdate(Time float64, CalculateDT bool,
 		if c.LocalTimeStepping {
 			// Replicate local time step to the other solution points for each k
 			for np := 0; np < NPar; np++ {
-				dtD := DT[np].Data()
+				dtD := DT[np].DataP
 				Kmax := pm.GetBucketDimension(np)
 				for k := 0; k < Kmax; k++ {
 					dtD[k] = c.CFL / dtD[k]
@@ -90,9 +90,9 @@ func (c *Euler) CalculateMaxWaveSpeed(Jdet, DT []utils.Matrix, Q_Face [][4]utils
 			shift       = edgeNum * Nedge
 			edgeLen     = e.GetEdgeLength()
 			k, Kmax, bn = pm.GetLocalK(int(e.ConnectedTris[conn]))
-			JdetD       = Jdet[bn].Data()
-			qfD         = Get4DP(Q_Face[bn])
-			dtD         = DT[bn].Data()
+			JdetD       = Jdet[bn].DataP
+			qfD         = [4][]float64{Q_Face[bn][0].DataP, Q_Face[bn][1].DataP, Q_Face[bn][2].DataP, Q_Face[bn][3].DataP}
+			dtD         = DT[bn].DataP
 		)
 		// fmt.Printf("N, Np12, edgelen, Jdet = %d,%8.5f,%8.5f,%8.5f\n", c.dfr.N, Np12, edgeLen, Jdet)
 		fs := 0.5 * Np12 * edgeLen / JdetD[k]
@@ -112,7 +112,7 @@ func (c *Euler) CalculateMaxWaveSpeed(Jdet, DT []utils.Matrix, Q_Face [][4]utils
 		}
 		if e.NumConnectedTris == 2 { // Add the wavespeed to the other tri connected to this edge if needed
 			k, Kmax, bn = pm.GetLocalK(int(e.ConnectedTris[1]))
-			dtD = DT[bn].Data()
+			dtD = DT[bn].DataP
 			if edgeMax > dtD[k] {
 				dtD[k] = edgeMax
 			}
@@ -135,7 +135,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, F_RT_DOF, Q_Face [][4]utils.M
 		case 1: // Handle edges with only one triangle - default is edge flux, which will be replaced by a BC flux
 			var (
 				k, Kmax, bn         = pm.GetLocalK(int(e.ConnectedTris[0]))
-				qfD                 = Get4DP(Q_Face[bn])
+				qfD                 = [4][]float64{Q_Face[bn][0].DataP, Q_Face[bn][1].DataP, Q_Face[bn][2].DataP, Q_Face[bn][3].DataP}
 				edgeNumber          = int(e.ConnectedTriEdgeNumber[0])
 				shift               = edgeNumber * Nedge
 				calculateNormalFlux bool
@@ -231,7 +231,7 @@ func (c *Euler) SetNormalFluxOnRTEdge(k, Kmax int, F_RT_DOF [4]utils.Matrix, edg
 	)
 	// Get scaling factor ||n|| for each edge, multiplied by untransformed normals
 	for n := 0; n < 4; n++ {
-		rtD := F_RT_DOF[n].Data()
+		rtD := F_RT_DOF[n].DataP
 		for i := 0; i < Nedge; i++ {
 			// Place normed/scaled flux into the RT element space
 			ind := k + (2*Nint+i+shift)*Kmax
@@ -243,7 +243,7 @@ func (c *Euler) SetNormalFluxOnRTEdge(k, Kmax int, F_RT_DOF [4]utils.Matrix, edg
 func (c *Euler) InterpolateSolutionToEdges(Q, Q_Face [4]utils.Matrix) {
 	// Interpolate from solution points to edges using precomputed interpolation matrix
 	for n := 0; n < 4; n++ {
-		Q_Face[n] = c.dfr.FluxEdgeInterpMatrix.Mul(Q[n], Q_Face[n].Data()) // Re-use the memory allocation from Q_Face
+		Q_Face[n] = c.dfr.FluxEdgeInterpMatrix.Mul(Q[n], Q_Face[n].DataP) // Re-use the memory allocation from Q_Face
 	}
 	return
 }

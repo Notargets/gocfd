@@ -11,7 +11,7 @@ import (
 func (c *Euler) WallBC(k, Kmax int, Q_Face [4]utils.Matrix, ishift int, normal [2]float64, normalFlux [][4]float64) {
 	var (
 		Nedge = c.dfr.FluxElement.Nedge
-		qfD   = Get4DP(Q_Face)
+		qfD   = [4][]float64{Q_Face[0].DataP, Q_Face[1].DataP, Q_Face[2].DataP, Q_Face[3].DataP}
 	)
 	for i := 0; i < Nedge; i++ {
 		ie := i + ishift
@@ -29,7 +29,7 @@ func (c *Euler) IVortexBC(Time float64, k, Kmax, ishift int, Q_Face [4]utils.Mat
 	var (
 		Nedge   = c.dfr.FluxElement.Nedge
 		Nint    = c.dfr.FluxElement.Nint
-		qfD     = Get4DP(Q_Face)
+		qfD     = [4][]float64{Q_Face[0].DataP, Q_Face[1].DataP, Q_Face[2].DataP, Q_Face[3].DataP}
 		riemann = true
 	)
 	// Set the flow variables to the exact solution
@@ -57,7 +57,7 @@ func (c *Euler) IVortexBC(Time float64, k, Kmax, ishift int, Q_Face [4]utils.Mat
 func (c *Euler) FarBC(k, Kmax, ishift int, Q_Face [4]utils.Matrix, normal [2]float64) {
 	var (
 		Nedge = c.dfr.FluxElement.Nedge
-		qfD   = Get4DP(Q_Face)
+		qfD   = [4][]float64{Q_Face[0].DataP, Q_Face[1].DataP, Q_Face[2].DataP, Q_Face[3].DataP}
 	)
 	for i := 0; i < Nedge; i++ {
 		iL := i + ishift

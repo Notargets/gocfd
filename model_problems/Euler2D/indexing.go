@@ -1,7 +1,5 @@
 package Euler2D
 
-import "github.com/notargets/gocfd/utils"
-
 type PartitionMap struct {
 	MaxIndex       int // MaxIndex is partitioned into ParallelDegree partitions
 	ParallelDegree int
@@ -99,10 +97,5 @@ func (c *Euler) GetQQ(k, Kmax, i int, Q [4][]float64) (qq [4]float64) {
 		ind = k + Kmax*i
 	)
 	qq = [4]float64{Q[0][ind], Q[1][ind], Q[2][ind], Q[3][ind]}
-	return
-}
-
-func Get4DP(Q [4]utils.Matrix) (qD [4][]float64) {
-	qD = [4][]float64{Q[0].Data(), Q[1].Data(), Q[2].Data(), Q[3].Data()}
 	return
 }
