@@ -32,9 +32,9 @@ type Euler struct {
 	FluxCalcAlgo      FluxType
 	Case              InitType
 	AnalyticSolution  ExactState
-	FluxCalcMock      func(Q [4]float64) (Fx, Fy [4]float64) // For testing
-	SortedEdgeKeys    []EdgeKeySlice                         // Buckets, one for each parallel partition
-	Partitions        *PartitionMap                          // mapping of elements into bins for parallelism
+	FluxCalcMock      func(rho, rhoU, rhoV, E float64) (Fx, Fy [4]float64) // For testing
+	SortedEdgeKeys    []EdgeKeySlice                                       // Buckets, one for each parallel partition
+	Partitions        *PartitionMap                                        // mapping of elements into bins for parallelism
 	LocalTimeStepping bool
 	MaxIterations     int
 	// Below are partitioned by K (elements) in the first slice
@@ -56,7 +56,7 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 		FS:                NewFreeStream(Minf, Gamma, Alpha),
 		profile:           profile,
 	}
-	c.FluxCalcMock = c.FluxCalc
+	c.FluxCalcMock = c.FluxCalcBase
 
 	if len(meshFile) == 0 {
 		return
@@ -328,7 +328,6 @@ func (c *Euler) PrepareEdgeFlux(Kmax int, Jdet, Jinv utils.Matrix, F_RT_DOF, Q, 
 func (c *Euler) SetNormalFluxInternal(Kmax int, Jdet, Jinv utils.Matrix, F_RT_DOF, Q [4]utils.Matrix) {
 	var (
 		Nint  = c.dfr.FluxElement.Nint
-		qD    = [4][]float64{Q[0].DataP, Q[1].DataP, Q[2].DataP, Q[3].DataP}
 		fdofD = [4][]float64{F_RT_DOF[0].DataP, F_RT_DOF[1].DataP, F_RT_DOF[2].DataP, F_RT_DOF[3].DataP}
 	)
 	// Calculate flux and project into R and S (transformed) directions for the internal points
@@ -336,7 +335,7 @@ func (c *Euler) SetNormalFluxInternal(Kmax int, Jdet, Jinv utils.Matrix, F_RT_DO
 		for i := 0; i < Nint; i++ {
 			ind := k + i*Kmax
 			ind2 := k + (i+Nint)*Kmax
-			Fr, Fs := c.CalculateFluxTransformed(k, Kmax, i, Jdet, Jinv, qD)
+			Fr, Fs := c.CalculateFluxTransformed(k, Kmax, i, Jdet, Jinv, Q)
 			for n := 0; n < 4; n++ {
 				fdofD[n][ind], fdofD[n][ind2] = Fr[n], Fs[n]
 			}

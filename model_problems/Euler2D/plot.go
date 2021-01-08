@@ -33,7 +33,6 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 	var (
 		Kmax = c.dfr.K
 		Np   = c.dfr.SolutionElement.Np
-		qD   = [4][]float64{Q[0].DataP, Q[1].DataP, Q[2].DataP, Q[3].DataP}
 	)
 	if plotField <= Energy {
 		field = c.dfr.FluxInterpMatrix.Mul(Q[int(plotField)])
@@ -41,7 +40,7 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 		fld := utils.NewMatrix(Np, Kmax)
 		fldD := fld.DataP
 		for ik := 0; ik < Kmax*Np; ik++ {
-			fldD[ik] = c.FS.GetFlowFunctionAtIndex(ik, qD, plotField)
+			fldD[ik] = c.FS.GetFlowFunctionInd(Q, ik, plotField)
 		}
 		field = c.dfr.FluxInterpMatrix.Mul(fld)
 	}

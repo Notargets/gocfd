@@ -86,20 +86,19 @@ func TestEuler(t *testing.T) {
 				// Flux values for later checks are invariant with i (i=0)
 				Fr_check, Fs_check := make([][4]float64, Kmax), make([][4]float64, Kmax)
 				for k := 0; k < Kmax; k++ {
-					Fr_check[k], Fs_check[k] = c.CalculateFluxTransformed(k, Kmax, 0, c.dfr.Jdet, c.dfr.Jinv, qD)
+					Fr_check[k], Fs_check[k] = c.CalculateFluxTransformed(k, Kmax, 0, c.dfr.Jdet, c.dfr.Jinv, Q)
 				}
 				// Interpolate from solution points to edges using precomputed interpolation matrix
 				for n := 0; n < 4; n++ {
 					Q_Face[n] = c.dfr.FluxEdgeInterpMatrix.Mul(Q[n])
 				}
 				// Calculate flux and project into R and S (transformed) directions
-				qfD := [4][]float64{Q_Face[0].DataP, Q_Face[1].DataP, Q_Face[2].DataP, Q_Face[3].DataP}
 				rtD := [4][]float64{F_RT_DOF[0].DataP, F_RT_DOF[1].DataP, F_RT_DOF[2].DataP, F_RT_DOF[3].DataP}
 				for n := 0; n < 4; n++ {
 					for i := 0; i < Nint; i++ {
 						for k := 0; k < Kmax; k++ {
 							ind := k + i*Kmax
-							Fr, Fs := c.CalculateFluxTransformed(k, Kmax, i, c.dfr.Jdet, c.dfr.Jinv, qD)
+							Fr, Fs := c.CalculateFluxTransformed(k, Kmax, i, c.dfr.Jdet, c.dfr.Jinv, Q)
 							rtD[n][ind], rtD[n][ind+Nint*Kmax] = Fr[n], Fs[n]
 						}
 					}
@@ -116,7 +115,7 @@ func TestEuler(t *testing.T) {
 					for k := 0; k < Kmax; k++ {
 						for i := 0; i < 3*Nedge; i++ {
 							ind := k + (2*Nint+i)*Kmax
-							Fr, Fs := c.CalculateFluxTransformed(k, Kmax, i, c.dfr.Jdet, c.dfr.Jinv, qfD)
+							Fr, Fs := c.CalculateFluxTransformed(k, Kmax, i, c.dfr.Jdet, c.dfr.Jinv, Q_Face)
 							rtD[n][ind] = Fr[n] + Fs[n]
 						}
 					}
@@ -361,10 +360,10 @@ func GetDivergencePoly(t, x, y float64) (div [4]float64) {
 	return
 }
 
-func FluxCalcMomentumOnly(q [4]float64) (Fx, Fy [4]float64) {
+func FluxCalcMomentumOnly(rho, rhoU, rhoV, E float64) (Fx, Fy [4]float64) {
 	Fx, Fy =
-		[4]float64{q[1], q[1], q[1], q[1]},
-		[4]float64{q[2], q[2], q[2], q[2]}
+		[4]float64{rhoU, rhoU, rhoU, rhoU},
+		[4]float64{rhoV, rhoV, rhoV, rhoV}
 	return
 }
 

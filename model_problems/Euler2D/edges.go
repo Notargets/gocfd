@@ -91,16 +91,15 @@ func (c *Euler) CalculateMaxWaveSpeed(Jdet, DT []utils.Matrix, Q_Face [][4]utils
 			edgeLen     = e.GetEdgeLength()
 			k, Kmax, bn = pm.GetLocalK(int(e.ConnectedTris[conn]))
 			JdetD       = Jdet[bn].DataP
-			qfD         = [4][]float64{Q_Face[bn][0].DataP, Q_Face[bn][1].DataP, Q_Face[bn][2].DataP, Q_Face[bn][3].DataP}
 			dtD         = DT[bn].DataP
 		)
 		// fmt.Printf("N, Np12, edgelen, Jdet = %d,%8.5f,%8.5f,%8.5f\n", c.dfr.N, Np12, edgeLen, Jdet)
 		fs := 0.5 * Np12 * edgeLen / JdetD[k]
 		edgeMax := -100.
 		for i := shift; i < shift+Nedge; i++ {
-			qq := c.GetQQ(k, Kmax, i, qfD)
-			C := c.FS.GetFlowFunction(qq, SoundSpeed)
-			U := c.FS.GetFlowFunction(qq, Velocity)
+			ind := k + i*Kmax
+			C := c.FS.GetFlowFunctionInd(Q_Face[bn], ind, SoundSpeed)
+			U := c.FS.GetFlowFunctionInd(Q_Face[bn], ind, Velocity)
 			waveSpeed := fs * (U + C)
 			waveSpeedMax = math.Max(waveSpeed, waveSpeedMax)
 			if waveSpeed > edgeMax {
@@ -135,7 +134,6 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, F_RT_DOF, Q_Face [][4]utils.M
 		case 1: // Handle edges with only one triangle - default is edge flux, which will be replaced by a BC flux
 			var (
 				k, Kmax, bn         = pm.GetLocalK(int(e.ConnectedTris[0]))
-				qfD                 = [4][]float64{Q_Face[bn][0].DataP, Q_Face[bn][1].DataP, Q_Face[bn][2].DataP, Q_Face[bn][3].DataP}
 				edgeNumber          = int(e.ConnectedTriEdgeNumber[0])
 				shift               = edgeNumber * Nedge
 				calculateNormalFlux bool
@@ -158,7 +156,8 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, F_RT_DOF, Q_Face [][4]utils.M
 				var Fx, Fy [4]float64
 				for i := 0; i < Nedge; i++ {
 					ie := i + shift
-					Fx, Fy = c.CalculateFlux(k, Kmax, ie, qfD)
+					ind := k + ie*Kmax
+					Fx, Fy = c.CalculateFluxInd(Q_Face[bn], ind)
 					for n := 0; n < 4; n++ {
 						normalFlux[i][n] = normal[0]*Fx[n] + normal[1]*Fy[n]
 					}

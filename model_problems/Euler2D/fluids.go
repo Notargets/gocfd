@@ -1,6 +1,10 @@
 package Euler2D
 
-import "math"
+import (
+	"math"
+
+	"github.com/notargets/gocfd/utils"
+)
 
 type FlowFunction uint8
 
@@ -63,18 +67,25 @@ func NewFreeStream(Minf, Gamma, Alpha float64) (fs *FreeStream) {
 	return
 }
 
+func (fs *FreeStream) GetFlowFunctionInd(Q [4]utils.Matrix, ind int, pf FlowFunction) (f float64) {
+	return fs.GetFlowFunctionBase(Q[0].DataP[ind], Q[1].DataP[ind], Q[2].DataP[ind], Q[3].DataP[ind], pf)
+}
+
 func (fs *FreeStream) GetFlowFunction(Q [4]float64, pf FlowFunction) (f float64) {
+	return fs.GetFlowFunctionBase(Q[0], Q[1], Q[2], Q[3], pf)
+}
+
+func (fs *FreeStream) GetFlowFunctionBase(rho, rhoU, rhoV, E float64, pf FlowFunction) (f float64) {
 	var (
-		Gamma              = fs.Gamma
-		GM1                = Gamma - 1.
-		rho, rhou, rhov, E = Q[0], Q[1], Q[2], Q[3]
-		oorho              = 1. / rho
-		q, p               float64
+		Gamma = fs.Gamma
+		GM1   = Gamma - 1.
+		oorho = 1. / rho
+		q, p  float64
 	)
 	// Calculate q if needed
 	switch pf {
 	case StaticPressure, PressureCoefficient, SoundSpeed:
-		q = 0.5 * (rhou*rhou + rhov*rhov) * oorho
+		q = 0.5 * (rhoU*rhoU + rhoV*rhoV) * oorho
 	}
 	// Calculate p if needed
 	switch pf {
@@ -86,39 +97,31 @@ func (fs *FreeStream) GetFlowFunction(Q [4]float64, pf FlowFunction) (f float64)
 	case Density:
 		f = rho
 	case XMomentum:
-		f = rhou
+		f = rhoU
 	case YMomentum:
-		f = rhov
+		f = rhoV
 	case Energy:
 		f = E
 	case StaticPressure:
 		f = GM1 * (E - q)
 	case DynamicPressure:
-		f = 0.5 * (rhou*rhou + rhov*rhov) * oorho
+		f = 0.5 * (rhoU*rhoU + rhoV*rhoV) * oorho
 	case PressureCoefficient:
 		f = (p - fs.Pinf) / fs.QQinf
 	case SoundSpeed:
 		f = math.Sqrt(math.Abs(Gamma * p * oorho))
 	case Velocity:
-		f = math.Sqrt((rhou*rhou + rhov*rhov) * oorho)
+		f = math.Sqrt((rhoU*rhoU + rhoV*rhoV) * oorho)
 	case XVelocity:
-		f = rhou * oorho
+		f = rhoU * oorho
 	case YVelocity:
-		f = rhov * oorho
+		f = rhoV * oorho
 	case Mach:
 		C := math.Sqrt(math.Abs(Gamma * p * oorho))
-		U := math.Sqrt((rhou*rhou + rhov*rhov)) * oorho
+		U := math.Sqrt((rhoU*rhoU + rhoV*rhoV)) * oorho
 		f = U / C
 	case Enthalpy:
 		f = (E + p) / rho
 	}
-	return
-}
-
-func (fs *FreeStream) GetFlowFunctionAtIndex(ind int, QQ [4][]float64, pf FlowFunction) (f float64) {
-	var (
-		QI = [4]float64{QQ[0][ind], QQ[1][ind], QQ[2][ind], QQ[3][ind]}
-	)
-	f = fs.GetFlowFunction(QI, pf)
 	return
 }
