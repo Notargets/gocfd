@@ -110,9 +110,9 @@ func (c *Euler) AvgFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 func (c *Euler) LaxFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux, normalFluxReversed [][4]float64) {
 	var (
-		Nedge      = c.dfr.FluxElement.Nedge
-		uL, vL, CL float64
-		uR, vR, CR float64
+		Nedge          = c.dfr.FluxElement.Nedge
+		uL, vL, pL, CL float64
+		uR, vR, pR, CR float64
 	)
 	for i := 0; i < Nedge; i++ {
 		iL := i + shiftL
@@ -120,12 +120,18 @@ func (c *Euler) LaxFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		indL, indR := kL+iL*KmaxL, kR+iR*KmaxR
 		uL, vL = Q_FaceL[1].DataP[indL]/Q_FaceL[0].DataP[indL], Q_FaceL[2].DataP[indL]/Q_FaceL[0].DataP[indL]
 		uR, vR = Q_FaceR[1].DataP[indR]/Q_FaceR[0].DataP[indR], Q_FaceR[2].DataP[indR]/Q_FaceR[0].DataP[indR]
+		pL, pR = c.FS.GetFlowFunction(Q_FaceL, indL, StaticPressure), c.FS.GetFlowFunction(Q_FaceR, indR, StaticPressure)
 		CL, CR = c.FS.GetFlowFunction(Q_FaceL, indL, SoundSpeed), c.FS.GetFlowFunction(Q_FaceR, indR, SoundSpeed)
-		FxL, FyL := c.CalculateFlux(Q_FaceL, indL)
-		FxR, FyR := c.CalculateFlux(Q_FaceR, indR) // Reverse the right edge to match
 		maxV := math.Max(math.Sqrt(uL*uL+vL*vL)+CL, math.Sqrt(uR*uR+vR*vR)+CR)
+		normalFlux[i][0] = 0.5 * (normal[0]*(Q_FaceL[1].DataP[indL]+Q_FaceR[1].DataP[indR]) +
+			normal[1]*(Q_FaceL[2].DataP[indL]+Q_FaceR[2].DataP[indR]))
+		normalFlux[i][1] = 0.5 * (normal[0]*(Q_FaceL[1].DataP[indL]*uL+Q_FaceR[1].DataP[indR]*uR+pL+pR) +
+			normal[1]*(Q_FaceL[1].DataP[indL]*vL+Q_FaceR[1].DataP[indR]*vR))
+		normalFlux[i][2] = 0.5 * (normal[0]*(Q_FaceL[2].DataP[indL]*uL+Q_FaceR[2].DataP[indR]*uR) +
+			normal[1]*(Q_FaceL[2].DataP[indL]*vL+Q_FaceR[2].DataP[indR]*vR+pL+pR))
+		normalFlux[i][3] = 0.5 * (normal[0]*((pL+Q_FaceL[3].DataP[indL])*uL+(pR+Q_FaceR[3].DataP[indR])*uR) +
+			normal[1]*((pL+Q_FaceL[3].DataP[indL])*vL+(pR+Q_FaceR[3].DataP[indR])*vR))
 		for n := 0; n < 4; n++ {
-			normalFlux[i][n] = 0.5 * (normal[0]*(FxL[n]+FxR[n]) + normal[1]*(FyL[n]+FyR[n]))
 			normalFlux[i][n] += 0.5 * maxV * (Q_FaceL[n].DataP[indL] - Q_FaceR[n].DataP[indR])
 			normalFluxReversed[Nedge-1-i][n] = -normalFlux[i][n]
 		}
@@ -211,7 +217,7 @@ func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		// Ave of normal component of flux
 		normalFlux[i][0] = 0.5 * (Q_FaceL[1].DataP[indL] + Q_FaceR[1].DataP[indR])
 		normalFlux[i][1] = 0.5 * (Q_FaceL[1].DataP[indL]*uL + Q_FaceR[1].DataP[indR]*uR + +pL + pR)
-		normalFlux[i][2] = 0.5 * (Q_FaceL[1].DataP[indL]*vL + Q_FaceR[1].DataP[indR]*vR)
+		normalFlux[i][2] = 0.5 * (Q_FaceL[2].DataP[indL]*uL + Q_FaceR[2].DataP[indR]*uR)
 		normalFlux[i][3] = 0.5 * ((pL+Q_FaceL[3].DataP[indL])*uL + (pR+Q_FaceR[3].DataP[indR])*uR)
 
 		normalFlux[i][0] -= 0.5 * (dW1 + dW2 + dW4)
