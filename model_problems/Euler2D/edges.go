@@ -157,7 +157,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, F_RT_DOF, Q_Face [][4]utils.M
 				for i := 0; i < Nedge; i++ {
 					ie := i + shift
 					ind := k + ie*Kmax
-					Fx, Fy = c.CalculateFluxInd(Q_Face[bn], ind)
+					Fx, Fy = c.CalculateFlux(Q_Face[bn], ind)
 					for n := 0; n < 4; n++ {
 						normalFlux[i][n] = normal[0]*Fx[n] + normal[1]*Fy[n]
 					}
