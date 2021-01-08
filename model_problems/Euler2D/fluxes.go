@@ -142,29 +142,23 @@ func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		Gamma            = c.FS.Gamma
 		GM1              = Gamma - 1
 	)
-	rotateMomentum := func(k, Kmax, i int, Q_Face [4]utils.Matrix) {
-		ind := k + i*Kmax
-		um, vm := Q_Face[1].DataP[ind], Q_Face[2].DataP[ind]
-		Q_Face[1].DataP[ind] = um*normal[0] + vm*normal[1]
-		Q_Face[2].DataP[ind] = -um*normal[1] + vm*normal[0]
-	}
 	for i := 0; i < Nedge; i++ {
 		iL := i + shiftL
 		iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
-		// Rotate the momentum into face normal coordinates before calculating fluxes
-		rotateMomentum(kL, KmaxL, iL, Q_FaceL)
-		rotateMomentum(kR, KmaxR, iR, Q_FaceR)
 		indL, indR := kL+iL*KmaxL, kR+iR*KmaxR
+		// Rotate the momentum into face normal coordinates before calculating fluxes
+		Q_FaceL[1].DataP[indL], Q_FaceL[2].DataP[indL] = Q_FaceL[1].DataP[indL]*normal[0]+Q_FaceL[2].DataP[indL]*normal[1],
+			-Q_FaceL[1].DataP[indL]*normal[1]+Q_FaceL[2].DataP[indL]*normal[0]
+		Q_FaceR[1].DataP[indR], Q_FaceR[2].DataP[indR] = Q_FaceR[1].DataP[indR]*normal[0]+Q_FaceR[2].DataP[indR]*normal[1],
+			-Q_FaceR[1].DataP[indR]*normal[1]+Q_FaceR[2].DataP[indR]*normal[0]
 		rhoL, uL, vL = Q_FaceL[0].DataP[indL], Q_FaceL[1].DataP[indL]/Q_FaceL[0].DataP[indL], Q_FaceL[2].DataP[indL]/Q_FaceL[0].DataP[indL]
 		rhoR, uR, vR = Q_FaceR[0].DataP[indR], Q_FaceR[1].DataP[indR]/Q_FaceR[0].DataP[indR], Q_FaceR[2].DataP[indR]/Q_FaceR[0].DataP[indR]
 		pL, pR = c.FS.GetFlowFunction(Q_FaceL, indL, StaticPressure), c.FS.GetFlowFunction(Q_FaceR, indR, StaticPressure)
-		FxL, _ := c.CalculateFlux(Q_FaceL, indL)
-		FxR, _ := c.CalculateFlux(Q_FaceR, indR) // Reverse the right edge to match
 		/*
 		   HM = (EnerM+pM).dd(rhoM);  HP = (EnerP+pP).dd(rhoP);
 		*/
 		// Enthalpy
-		hL, hR = c.FS.GetFlowFunction(Q_FaceL, indL, Enthalpy), c.FS.GetFlowFunction(Q_FaceR, indR, Enthalpy)
+		hL, hR = (Q_FaceL[3].DataP[indL]+pL)/rhoL, (Q_FaceR[3].DataP[indR]+pR)/rhoR
 		/*
 			rhoMs = sqrt(rhoM); rhoPs = sqrt(rhoP);
 			rhoMsPs = rhoMs + rhoPs;
@@ -214,9 +208,12 @@ func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		   fx(All,4) -= (dW1.dm(H-u.dm(c)) + dW2.dm(sqr(u)+sqr(v))/2.0 + dW3.dm(v) + dW4.dm(H+u.dm(c)))/2.0;
 		*/
 		// Form Roe Fluxes
-		for n := 0; n < 4; n++ {
-			normalFlux[i][n] = 0.5 * (FxL[n] + FxR[n]) // Ave of normal component of flux
-		}
+		// Ave of normal component of flux
+		normalFlux[i][0] = 0.5 * (Q_FaceL[1].DataP[indL] + Q_FaceR[1].DataP[indR])
+		normalFlux[i][1] = 0.5 * (Q_FaceL[1].DataP[indL]*uL + Q_FaceR[1].DataP[indR]*uR + +pL + pR)
+		normalFlux[i][2] = 0.5 * (Q_FaceL[1].DataP[indL]*vL + Q_FaceR[1].DataP[indR]*vR)
+		normalFlux[i][3] = 0.5 * ((pL+Q_FaceL[3].DataP[indL])*uL + (pR+Q_FaceR[3].DataP[indR])*uR)
+
 		normalFlux[i][0] -= 0.5 * (dW1 + dW2 + dW4)
 		normalFlux[i][1] -= 0.5 * (dW1*(u-c) + dW2*u + dW4*(u+c))
 		normalFlux[i][2] -= 0.5 * (dW1*v + dW2*v + dW3 + dW4*v)
@@ -227,7 +224,8 @@ func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		   flux(All,3) = lny.dm(fx2) + lnx.dm(fx3);
 		*/
 		// rotate back to Cartesian
-		normalFlux[i][1], normalFlux[i][2] = normal[0]*normalFlux[i][1]-normal[1]*normalFlux[i][2], normal[1]*normalFlux[i][1]+normal[0]*normalFlux[i][2]
+		normalFlux[i][1], normalFlux[i][2] = normal[0]*normalFlux[i][1]-normal[1]*normalFlux[i][2],
+			normal[1]*normalFlux[i][1]+normal[0]*normalFlux[i][2]
 		for n := 0; n < 4; n++ {
 			normalFluxReversed[Nedge-1-i][n] = -normalFlux[i][n]
 		}
