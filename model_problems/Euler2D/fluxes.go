@@ -62,19 +62,6 @@ func (c *Euler) CalculateFluxTransformed(k, Kmax, i int, Jdet, Jinv utils.Matrix
 	return
 }
 
-func (c *Euler) CalculateFluxTransformedOld(k, Kmax, i int, Jdet, Jinv utils.Matrix, QQ [4][]float64) (Fr, Fs [4]float64) {
-	var (
-		JdetD = Jdet.DataP[k]
-		JinvD = Jinv.DataP[4*k : 4*(k+1)]
-	)
-	Fx, Fy := c.CalculateFlux(k, Kmax, i, QQ)
-	for n := 0; n < 4; n++ {
-		Fr[n] = JdetD * (JinvD[0]*Fx[n] + JinvD[1]*Fy[n])
-		Fs[n] = JdetD * (JinvD[2]*Fx[n] + JinvD[3]*Fy[n])
-	}
-	return
-}
-
 func (c *Euler) CalculateFluxInd(QQ [4]utils.Matrix, ind int) (Fx, Fy [4]float64) {
 	Fx, Fy = c.FluxCalcMock(QQ[0].DataP[ind], QQ[1].DataP[ind], QQ[2].DataP[ind], QQ[3].DataP[ind])
 	return
@@ -108,8 +95,6 @@ func (c *Euler) AvgFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux, normalFluxReversed [][4]float64) {
 	var (
 		Nedge = c.dfr.FluxElement.Nedge
-		qfDL  = [4][]float64{Q_FaceL[0].DataP, Q_FaceL[1].DataP, Q_FaceL[2].DataP, Q_FaceL[3].DataP}
-		qfDR  = [4][]float64{Q_FaceR[0].DataP, Q_FaceR[1].DataP, Q_FaceR[2].DataP, Q_FaceR[3].DataP}
 	)
 	averageFluxN := func(fx1, fy1, fx2, fy2 [4]float64, normal [2]float64) (fnorm [4]float64, fnormR [4]float64) {
 		var (
@@ -126,8 +111,9 @@ func (c *Euler) AvgFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 	for i := 0; i < Nedge; i++ {
 		iL := i + shiftL
 		iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
-		FxL, FyL := c.CalculateFlux(kL, KmaxL, iL, qfDL)
-		FxR, FyR := c.CalculateFlux(kR, KmaxR, iR, qfDR) // Reverse the right edge to match
+		indL, indR := kL+iL*KmaxL, kR+iR*KmaxR
+		FxL, FyL := c.CalculateFluxInd(Q_FaceL, indL)
+		FxR, FyR := c.CalculateFluxInd(Q_FaceR, indR) // Reverse the right edge to match
 		normalFlux[i], normalFluxReversed[Nedge-1-i] = averageFluxN(FxL, FyL, FxR, FyR, normal)
 	}
 }
@@ -138,8 +124,6 @@ func (c *Euler) LaxFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		Nedge      = c.dfr.FluxElement.Nedge
 		uL, vL, CL float64
 		uR, vR, CR float64
-		qfDL       = [4][]float64{Q_FaceL[0].DataP, Q_FaceL[1].DataP, Q_FaceL[2].DataP, Q_FaceL[3].DataP}
-		qfDR       = [4][]float64{Q_FaceR[0].DataP, Q_FaceR[1].DataP, Q_FaceR[2].DataP, Q_FaceR[3].DataP}
 	)
 	for i := 0; i < Nedge; i++ {
 		iL := i + shiftL
@@ -148,8 +132,8 @@ func (c *Euler) LaxFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		uL, vL = Q_FaceL[1].DataP[indL]/Q_FaceL[0].DataP[indL], Q_FaceL[2].DataP[indL]/Q_FaceL[0].DataP[indL]
 		uR, vR = Q_FaceR[1].DataP[indR]/Q_FaceR[0].DataP[indR], Q_FaceR[2].DataP[indR]/Q_FaceR[0].DataP[indR]
 		CL, CR = c.FS.GetFlowFunctionInd(Q_FaceL, indL, SoundSpeed), c.FS.GetFlowFunctionInd(Q_FaceR, indR, SoundSpeed)
-		FxL, FyL := c.CalculateFlux(kL, KmaxL, iL, qfDL)
-		FxR, FyR := c.CalculateFlux(kR, KmaxR, iR, qfDR) // Reverse the right edge to match
+		FxL, FyL := c.CalculateFluxInd(Q_FaceL, indL)
+		FxR, FyR := c.CalculateFluxInd(Q_FaceR, indR) // Reverse the right edge to match
 		maxV := math.Max(math.Sqrt(uL*uL+vL*vL)+CL, math.Sqrt(uR*uR+vR*vR)+CR)
 		for n := 0; n < 4; n++ {
 			normalFlux[i][n] = 0.5 * (normal[0]*(FxL[n]+FxR[n]) + normal[1]*(FyL[n]+FyR[n]))
@@ -168,34 +152,30 @@ func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		hL, hR           float64
 		Gamma            = c.FS.Gamma
 		GM1              = Gamma - 1
-		qfDL             = [4][]float64{Q_FaceL[0].DataP, Q_FaceL[1].DataP, Q_FaceL[2].DataP, Q_FaceL[3].DataP}
-		qfDR             = [4][]float64{Q_FaceR[0].DataP, Q_FaceR[1].DataP, Q_FaceR[2].DataP, Q_FaceR[3].DataP}
 	)
-	rotateMomentum := func(k, Kmax, i int, qfD [4][]float64) {
+	rotateMomentum := func(k, Kmax, i int, Q_Face [4]utils.Matrix) {
 		ind := k + i*Kmax
-		um, vm := qfD[1][ind], qfD[2][ind]
-		qfD[1][ind] = um*normal[0] + vm*normal[1]
-		qfD[2][ind] = -um*normal[1] + vm*normal[0]
+		um, vm := Q_Face[1].DataP[ind], Q_Face[2].DataP[ind]
+		Q_Face[1].DataP[ind] = um*normal[0] + vm*normal[1]
+		Q_Face[2].DataP[ind] = -um*normal[1] + vm*normal[0]
 	}
 	for i := 0; i < Nedge; i++ {
 		iL := i + shiftL
 		iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
 		// Rotate the momentum into face normal coordinates before calculating fluxes
-		rotateMomentum(kL, KmaxL, iL, qfDL)
-		rotateMomentum(kR, KmaxR, iR, qfDR)
-		qL := c.GetQQ(kL, KmaxL, iL, qfDL)
-		rhoL, uL, vL = qL[0], qL[1]/qL[0], qL[2]/qL[0]
-		pL = c.FS.GetFlowFunction(qL, StaticPressure)
-		qR := c.GetQQ(kR, KmaxR, iR, qfDR)
-		rhoR, uR, vR = qR[0], qR[1]/qR[0], qR[2]/qR[0]
-		pR = c.FS.GetFlowFunction(qR, StaticPressure)
-		FxL, _ := c.CalculateFlux(kL, KmaxL, iL, qfDL)
-		FxR, _ := c.CalculateFlux(kR, KmaxR, iR, qfDR) // Reverse the right edge to match
+		rotateMomentum(kL, KmaxL, iL, Q_FaceL)
+		rotateMomentum(kR, KmaxR, iR, Q_FaceR)
+		indL, indR := kL+iL*KmaxL, kR+iR*KmaxR
+		rhoL, uL, vL = Q_FaceL[0].DataP[indL], Q_FaceL[1].DataP[indL]/Q_FaceL[0].DataP[indL], Q_FaceL[2].DataP[indL]/Q_FaceL[0].DataP[indL]
+		rhoR, uR, vR = Q_FaceR[0].DataP[indR], Q_FaceR[1].DataP[indR]/Q_FaceR[0].DataP[indR], Q_FaceR[2].DataP[indR]/Q_FaceR[0].DataP[indR]
+		pL, pR = c.FS.GetFlowFunctionInd(Q_FaceL, indL, StaticPressure), c.FS.GetFlowFunctionInd(Q_FaceR, indR, StaticPressure)
+		FxL, _ := c.CalculateFluxInd(Q_FaceL, indL)
+		FxR, _ := c.CalculateFluxInd(Q_FaceR, indR) // Reverse the right edge to match
 		/*
 		   HM = (EnerM+pM).dd(rhoM);  HP = (EnerP+pP).dd(rhoP);
 		*/
 		// Enthalpy
-		hL, hR = c.FS.GetFlowFunction(qL, Enthalpy), c.FS.GetFlowFunction(qR, Enthalpy)
+		hL, hR = c.FS.GetFlowFunctionInd(Q_FaceL, indL, Enthalpy), c.FS.GetFlowFunctionInd(Q_FaceR, indR, Enthalpy)
 		/*
 			rhoMs = sqrt(rhoM); rhoPs = sqrt(rhoP);
 			rhoMsPs = rhoMs + rhoPs;
