@@ -61,17 +61,17 @@ func NewFreeStream(Minf, Gamma, Alpha float64) (fs *FreeStream) {
 		Qinf:  [4]float64{1, uinf, vinf, ooggm1 + 0.5*Minf*Minf},
 		Alpha: Alpha,
 	}
-	fs.Pinf = fs.GetFlowFunction(fs.Qinf, StaticPressure)
-	fs.QQinf = fs.GetFlowFunction(fs.Qinf, DynamicPressure)
-	fs.Cinf = fs.GetFlowFunction(fs.Qinf, SoundSpeed)
+	fs.Pinf = fs.GetFlowFunctionQQ(fs.Qinf, StaticPressure)
+	fs.QQinf = fs.GetFlowFunctionQQ(fs.Qinf, DynamicPressure)
+	fs.Cinf = fs.GetFlowFunctionQQ(fs.Qinf, SoundSpeed)
 	return
 }
 
-func (fs *FreeStream) GetFlowFunctionInd(Q [4]utils.Matrix, ind int, pf FlowFunction) (f float64) {
+func (fs *FreeStream) GetFlowFunction(Q [4]utils.Matrix, ind int, pf FlowFunction) (f float64) {
 	return fs.GetFlowFunctionBase(Q[0].DataP[ind], Q[1].DataP[ind], Q[2].DataP[ind], Q[3].DataP[ind], pf)
 }
 
-func (fs *FreeStream) GetFlowFunction(Q [4]float64, pf FlowFunction) (f float64) {
+func (fs *FreeStream) GetFlowFunctionQQ(Q [4]float64, pf FlowFunction) (f float64) {
 	return fs.GetFlowFunctionBase(Q[0], Q[1], Q[2], Q[3], pf)
 }
 

@@ -14,9 +14,8 @@ func (c *Euler) WallBC(k, Kmax int, Q_Face [4]utils.Matrix, ishift int, normal [
 	)
 	for i := 0; i < Nedge; i++ {
 		ie := i + ishift
-		//p := c.FS.GetFlowFunctionAtIndex(k+ie*Kmax, qfD, StaticPressure)
 		ind := k + ie*Kmax
-		p := c.FS.GetFlowFunctionInd(Q_Face, ind, StaticPressure)
+		p := c.FS.GetFlowFunction(Q_Face, ind, StaticPressure)
 		for n := 0; n < 4; n++ {
 			normalFlux[i][0] = 0
 			normalFlux[i][1] = normal[0] * p

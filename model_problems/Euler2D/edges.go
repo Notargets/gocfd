@@ -98,8 +98,8 @@ func (c *Euler) CalculateMaxWaveSpeed(Jdet, DT []utils.Matrix, Q_Face [][4]utils
 		edgeMax := -100.
 		for i := shift; i < shift+Nedge; i++ {
 			ind := k + i*Kmax
-			C := c.FS.GetFlowFunctionInd(Q_Face[bn], ind, SoundSpeed)
-			U := c.FS.GetFlowFunctionInd(Q_Face[bn], ind, Velocity)
+			C := c.FS.GetFlowFunction(Q_Face[bn], ind, SoundSpeed)
+			U := c.FS.GetFlowFunction(Q_Face[bn], ind, Velocity)
 			waveSpeed := fs * (U + C)
 			waveSpeedMax = math.Max(waveSpeed, waveSpeedMax)
 			if waveSpeed > edgeMax {

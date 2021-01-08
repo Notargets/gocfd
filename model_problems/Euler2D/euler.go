@@ -355,9 +355,9 @@ func (c *Euler) InitializeSolution(verbose bool) {
 		}
 	case IVORTEX:
 		c.FS.Qinf = [4]float64{1, 1, 0, 3}
-		c.FS.Pinf = c.FS.GetFlowFunction(c.FS.Qinf, StaticPressure)
-		c.FS.QQinf = c.FS.GetFlowFunction(c.FS.Qinf, DynamicPressure)
-		c.FS.Cinf = c.FS.GetFlowFunction(c.FS.Qinf, SoundSpeed)
+		c.FS.Pinf = c.FS.GetFlowFunctionQQ(c.FS.Qinf, StaticPressure)
+		c.FS.QQinf = c.FS.GetFlowFunctionQQ(c.FS.Qinf, DynamicPressure)
+		c.FS.Cinf = c.FS.GetFlowFunctionQQ(c.FS.Qinf, SoundSpeed)
 		c.SolutionX = c.ShardByK(c.dfr.SolutionX)
 		c.SolutionY = c.ShardByK(c.dfr.SolutionY)
 		NP := c.Partitions.ParallelDegree

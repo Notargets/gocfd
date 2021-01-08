@@ -120,7 +120,7 @@ func (c *Euler) LaxFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		indL, indR := kL+iL*KmaxL, kR+iR*KmaxR
 		uL, vL = Q_FaceL[1].DataP[indL]/Q_FaceL[0].DataP[indL], Q_FaceL[2].DataP[indL]/Q_FaceL[0].DataP[indL]
 		uR, vR = Q_FaceR[1].DataP[indR]/Q_FaceR[0].DataP[indR], Q_FaceR[2].DataP[indR]/Q_FaceR[0].DataP[indR]
-		CL, CR = c.FS.GetFlowFunctionInd(Q_FaceL, indL, SoundSpeed), c.FS.GetFlowFunctionInd(Q_FaceR, indR, SoundSpeed)
+		CL, CR = c.FS.GetFlowFunction(Q_FaceL, indL, SoundSpeed), c.FS.GetFlowFunction(Q_FaceR, indR, SoundSpeed)
 		FxL, FyL := c.CalculateFlux(Q_FaceL, indL)
 		FxR, FyR := c.CalculateFlux(Q_FaceR, indR) // Reverse the right edge to match
 		maxV := math.Max(math.Sqrt(uL*uL+vL*vL)+CL, math.Sqrt(uR*uR+vR*vR)+CR)
@@ -157,14 +157,14 @@ func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		indL, indR := kL+iL*KmaxL, kR+iR*KmaxR
 		rhoL, uL, vL = Q_FaceL[0].DataP[indL], Q_FaceL[1].DataP[indL]/Q_FaceL[0].DataP[indL], Q_FaceL[2].DataP[indL]/Q_FaceL[0].DataP[indL]
 		rhoR, uR, vR = Q_FaceR[0].DataP[indR], Q_FaceR[1].DataP[indR]/Q_FaceR[0].DataP[indR], Q_FaceR[2].DataP[indR]/Q_FaceR[0].DataP[indR]
-		pL, pR = c.FS.GetFlowFunctionInd(Q_FaceL, indL, StaticPressure), c.FS.GetFlowFunctionInd(Q_FaceR, indR, StaticPressure)
+		pL, pR = c.FS.GetFlowFunction(Q_FaceL, indL, StaticPressure), c.FS.GetFlowFunction(Q_FaceR, indR, StaticPressure)
 		FxL, _ := c.CalculateFlux(Q_FaceL, indL)
 		FxR, _ := c.CalculateFlux(Q_FaceR, indR) // Reverse the right edge to match
 		/*
 		   HM = (EnerM+pM).dd(rhoM);  HP = (EnerP+pP).dd(rhoP);
 		*/
 		// Enthalpy
-		hL, hR = c.FS.GetFlowFunctionInd(Q_FaceL, indL, Enthalpy), c.FS.GetFlowFunctionInd(Q_FaceR, indR, Enthalpy)
+		hL, hR = c.FS.GetFlowFunction(Q_FaceL, indL, Enthalpy), c.FS.GetFlowFunction(Q_FaceR, indR, Enthalpy)
 		/*
 			rhoMs = sqrt(rhoM); rhoPs = sqrt(rhoP);
 			rhoMsPs = rhoMs + rhoPs;

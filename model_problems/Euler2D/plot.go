@@ -40,7 +40,7 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 		fld := utils.NewMatrix(Np, Kmax)
 		fldD := fld.DataP
 		for ik := 0; ik < Kmax*Np; ik++ {
-			fldD[ik] = c.FS.GetFlowFunctionInd(Q, ik, plotField)
+			fldD[ik] = c.FS.GetFlowFunction(Q, ik, plotField)
 		}
 		field = c.dfr.FluxInterpMatrix.Mul(fld)
 	}

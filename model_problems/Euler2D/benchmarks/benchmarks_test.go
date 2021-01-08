@@ -45,7 +45,7 @@ func BenchmarkEulerGetFlowFunction(b *testing.B) {
 	b.Run("Optimized function call", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			p = c.FS.GetFlowFunction(q, Euler2D.StaticPressure)
+			p = c.FS.GetFlowFunctionQQ(q, Euler2D.StaticPressure)
 		}
 	})
 	pressFunc := func(q [4]float64) (p float64) {
