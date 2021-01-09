@@ -40,6 +40,7 @@ type Euler struct {
 	// Below are partitioned by K (elements) in the first slice
 	Q                    [][4]utils.Matrix // Solution variables, stored at solution point locations, Np_solution x K
 	SolutionX, SolutionY []utils.Matrix
+	//cpuSet               [1024]unix.CPUSet
 }
 
 func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType FluxType, Case InitType,
@@ -191,6 +192,7 @@ func (rk *RungeKutta4SSP) Step(c *Euler, Time float64, Q0 [][4]utils.Matrix) (Re
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {
+			//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
 			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
 			dT := dt
 			for n := 0; n < 4; n++ {
@@ -210,6 +212,7 @@ func (rk *RungeKutta4SSP) Step(c *Euler, Time float64, Q0 [][4]utils.Matrix) (Re
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {
+			//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
 			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
 			dT := dt
 			for n := 0; n < 4; n++ {
@@ -229,6 +232,7 @@ func (rk *RungeKutta4SSP) Step(c *Euler, Time float64, Q0 [][4]utils.Matrix) (Re
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {
+			//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
 			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
 			dT := dt
 			for n := 0; n < 4; n++ {
@@ -248,6 +252,7 @@ func (rk *RungeKutta4SSP) Step(c *Euler, Time float64, Q0 [][4]utils.Matrix) (Re
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {
+			//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
 			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
 			// Note, we are re-using Q1 as storage for Residual here
 			dT := dt

@@ -119,6 +119,11 @@ func (c *Euler) SetParallelDegree(ProcLimit, Kmax int) {
 		ParallelDegree = 1
 	}
 	c.Partitions = NewPartitionMap(ParallelDegree, Kmax)
+	/*
+		for np := 0; np < ParallelDegree; np++ {
+			c.cpuSet[np].Set(np)
+		}
+	*/
 }
 
 func (c *Euler) PartitionEdges() {

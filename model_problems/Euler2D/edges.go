@@ -29,10 +29,9 @@ func (c *Euler) ParallelEdgeUpdate(Time float64, CalculateDT bool,
 	if CalculateDT {
 		// Reset per-element wavespeed max
 		for np := 0; np < NPar; np++ {
-			dtD := DT[np].DataP
 			Kmax := pm.GetBucketDimension(np)
 			for k := 0; k < Kmax; k++ {
-				dtD[k] = -100
+				DT[np].DataP[k] = -100
 			}
 		}
 	}
@@ -40,6 +39,7 @@ func (c *Euler) ParallelEdgeUpdate(Time float64, CalculateDT bool,
 	for np := 0; np < NPar; np++ {
 		wg.Add(1)
 		go func(np int) {
+			//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
 			c.SetNormalFluxOnEdges(Time, F_RT_DOF, Q_Face, c.SortedEdgeKeys[np])
 			if CalculateDT {
 				maxWaveSpeed[np] = c.CalculateMaxWaveSpeed(Jdet, DT, Q_Face, c.SortedEdgeKeys[np])
@@ -58,18 +58,23 @@ func (c *Euler) ParallelEdgeUpdate(Time float64, CalculateDT bool,
 		if c.LocalTimeStepping {
 			// Replicate local time step to the other solution points for each k
 			for np := 0; np < NPar; np++ {
-				dtD := DT[np].DataP
-				Kmax := pm.GetBucketDimension(np)
-				for k := 0; k < Kmax; k++ {
-					dtD[k] = c.CFL / dtD[k]
-				}
-				for i := 1; i < c.dfr.SolutionElement.Np; i++ {
+				wg.Add(1)
+				go func(np int) {
+					//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
+					Kmax := pm.GetBucketDimension(np)
 					for k := 0; k < Kmax; k++ {
-						ind := k + Kmax*i
-						dtD[ind] = dtD[k]
+						DT[np].DataP[k] = c.CFL / DT[np].DataP[k]
 					}
-				}
+					for i := 1; i < c.dfr.SolutionElement.Np; i++ {
+						for k := 0; k < Kmax; k++ {
+							ind := k + Kmax*i
+							DT[np].DataP[ind] = DT[np].DataP[k]
+						}
+					}
+					wg.Done()
+				}(np)
 			}
+			wg.Wait()
 		}
 	}
 	return
@@ -90,11 +95,9 @@ func (c *Euler) CalculateMaxWaveSpeed(Jdet, DT []utils.Matrix, Q_Face [][4]utils
 			shift       = edgeNum * Nedge
 			edgeLen     = e.GetEdgeLength()
 			k, Kmax, bn = pm.GetLocalK(int(e.ConnectedTris[conn]))
-			JdetD       = Jdet[bn].DataP
-			dtD         = DT[bn].DataP
 		)
 		// fmt.Printf("N, Np12, edgelen, Jdet = %d,%8.5f,%8.5f,%8.5f\n", c.dfr.N, Np12, edgeLen, Jdet)
-		fs := 0.5 * Np12 * edgeLen / JdetD[k]
+		fs := 0.5 * Np12 * edgeLen / Jdet[bn].DataP[k]
 		edgeMax := -100.
 		for i := shift; i < shift+Nedge; i++ {
 			ind := k + i*Kmax
@@ -106,14 +109,13 @@ func (c *Euler) CalculateMaxWaveSpeed(Jdet, DT []utils.Matrix, Q_Face [][4]utils
 				edgeMax = waveSpeed
 			}
 		}
-		if edgeMax > dtD[k] {
-			dtD[k] = edgeMax
+		if edgeMax > DT[bn].DataP[k] {
+			DT[bn].DataP[k] = edgeMax
 		}
 		if e.NumConnectedTris == 2 { // Add the wavespeed to the other tri connected to this edge if needed
 			k, Kmax, bn = pm.GetLocalK(int(e.ConnectedTris[1]))
-			dtD = DT[bn].DataP
-			if edgeMax > dtD[k] {
-				dtD[k] = edgeMax
+			if edgeMax > DT[bn].DataP[k] {
+				DT[bn].DataP[k] = edgeMax
 			}
 		}
 	}
