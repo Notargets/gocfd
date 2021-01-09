@@ -167,6 +167,113 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 	return
 }
 
+/*
+func (rk *RungeKutta4SSP) Worker(c *Euler, np int, fromMaestro, toMaestro chan interface{}, Time float64, Q0 [][4]utils.Matrix) {
+	var (
+		Np                           = rk.Np
+		Kmax, Jdet, Jinv, F_RT_DOF   = rk.Kmax, rk.Jdet, rk.Jinv, rk.F_RT_DOF
+		DT, Q_Face, Q1, Q2, Q3, RHSQ = rk.DT, rk.Q_Face, rk.Q1, rk.Q2, rk.Q3, rk.RHSQ
+		pm                           = c.Partitions
+		NP                           = pm.ParallelDegree
+		wg                           = sync.WaitGroup{}
+	)
+	Residual = Q1
+	for np := 0; np < NP; np++ {
+		wg.Add(1)
+		go func(np int) {
+			c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q0[np], Q_Face[np])
+			wg.Done()
+		}(np)
+	}
+	wg.Wait()
+	dt = c.ParallelEdgeUpdate(Time, true, Jdet, DT, F_RT_DOF, Q_Face) // Must sync parallel before calling
+	if Time+dt > c.FinalTime {
+		dt = c.FinalTime - Time
+	}
+	for np := 0; np < NP; np++ {
+		wg.Add(1)
+		go func(np int) {
+			//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
+			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
+			dT := dt
+			for n := 0; n < 4; n++ {
+				for i := 0; i < Kmax[np]*Np; i++ {
+					if c.LocalTimeStepping {
+						dT = DT[np].DataP[i]
+					}
+					Q1[np][n].DataP[i] = Q0[np][n].DataP[i] + 0.5*RHSQ[np][n].DataP[i]*dT
+				}
+			}
+			c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q1[np], Q_Face[np])
+			wg.Done()
+		}(np)
+	}
+	wg.Wait()
+	_ = c.ParallelEdgeUpdate(Time, false, Jdet, DT, F_RT_DOF, Q_Face) // Must sync parallel before calling
+	for np := 0; np < NP; np++ {
+		wg.Add(1)
+		go func(np int) {
+			//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
+			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
+			dT := dt
+			for n := 0; n < 4; n++ {
+				for i := 0; i < Kmax[np]*Np; i++ {
+					if c.LocalTimeStepping {
+						dT = DT[np].DataP[i]
+					}
+					Q2[np][n].DataP[i] = Q1[np][n].DataP[i] + 0.25*RHSQ[np][n].DataP[i]*dT
+				}
+			}
+			c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q2[np], Q_Face[np])
+			wg.Done()
+		}(np)
+	}
+	wg.Wait()
+	_ = c.ParallelEdgeUpdate(Time, false, Jdet, DT, F_RT_DOF, Q_Face) // Must sync parallel before calling
+	for np := 0; np < NP; np++ {
+		wg.Add(1)
+		go func(np int) {
+			//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
+			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
+			dT := dt
+			for n := 0; n < 4; n++ {
+				for i := 0; i < Kmax[np]*Np; i++ {
+					if c.LocalTimeStepping {
+						dT = DT[np].DataP[i]
+					}
+					Q3[np][n].DataP[i] = (1. / 3.) * (2*Q0[np][n].DataP[i] + Q2[np][n].DataP[i] + RHSQ[np][n].DataP[i]*dT)
+				}
+			}
+			c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q3[np], Q_Face[np])
+			wg.Done()
+		}(np)
+	}
+	wg.Wait()
+	_ = c.ParallelEdgeUpdate(Time, false, Jdet, DT, F_RT_DOF, Q_Face) // Must sync parallel before calling
+	for np := 0; np < NP; np++ {
+		wg.Add(1)
+		go func(np int) {
+			//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
+			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
+			// Note, we are re-using Q1 as storage for Residual here
+			dT := dt
+			for n := 0; n < 4; n++ {
+				for i := 0; i < Kmax[np]*Np; i++ {
+					if c.LocalTimeStepping {
+						dT = DT[np].DataP[i]
+					}
+					Residual[np][n].DataP[i] = Q3[np][n].DataP[i] + 0.25*RHSQ[np][n].DataP[i]*dT - Q0[np][n].DataP[i]
+					Q0[np][n].DataP[i] += Residual[np][n].DataP[i]
+				}
+			}
+			wg.Done()
+		}(np)
+	}
+	wg.Wait()
+	return
+}
+*/
+
 func (rk *RungeKutta4SSP) Step(c *Euler, Time float64, Q0 [][4]utils.Matrix) (Residual [][4]utils.Matrix, dt float64) {
 	var (
 		Np                           = rk.Np
