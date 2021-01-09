@@ -152,7 +152,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, F_RT_DOF, Q_Face [][4]utils.M
 				c.WallBC(k, Kmax, Q_Face[bn], shift, normal, normalFlux) // Calculates normal flux directly
 			case types.BC_PeriodicReversed, types.BC_Periodic:
 				// One edge of the Periodic BC leads to calculation of both sides within the connected tris section, so noop here
-				calculateNormalFlux = false
+				continue
 			}
 			if calculateNormalFlux {
 				var Fx, Fy [4]float64

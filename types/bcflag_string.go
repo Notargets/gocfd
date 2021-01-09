@@ -19,11 +19,12 @@ func _() {
 	_ = x[BC_Out-8]
 	_ = x[BC_IVortex-9]
 	_ = x[BC_Periodic-10]
+	_ = x[BC_PeriodicReversed-11]
 }
 
-const _BCFLAG_name = "BC_NoneBC_InBC_DirichletBC_SlipBC_FarBC_WallBC_CylBC_NeumanBC_OutBC_IVortexBC_Periodic"
+const _BCFLAG_name = "BC_NoneBC_InBC_DirichletBC_SlipBC_FarBC_WallBC_CylBC_NeumanBC_OutBC_IVortexBC_PeriodicBC_PeriodicReversed"
 
-var _BCFLAG_index = [...]uint8{0, 7, 12, 24, 31, 37, 44, 50, 59, 65, 75, 86}
+var _BCFLAG_index = [...]uint8{0, 7, 12, 24, 31, 37, 44, 50, 59, 65, 75, 86, 105}
 
 func (i BCFLAG) String() string {
 	if i >= BCFLAG(len(_BCFLAG_index)-1) {

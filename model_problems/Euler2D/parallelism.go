@@ -156,11 +156,13 @@ func (c *Euler) PartitionEdges() {
 		BSize := pmB.GetBucketDimension(np)
 		PSize := pmP.GetBucketDimension(np)
 		c.SortedEdgeKeys[np] = make(EdgeKeySlice, SSize+BSize+PSize)
-		SMin, SMax := pmS.GetBucketRange(np)
+	}
+	for np := 0; np < NPar; np++ {
 		var ii int
-		if len(SharedEdges) != 0 {
-			for i := SMin; i < SMax; i++ {
-				c.SortedEdgeKeys[np][ii] = SharedEdges[i]
+		if len(PhantomEdges) != 0 {
+			PMin, PMax := pmP.GetBucketRange(np)
+			for i := PMin; i < PMax; i++ {
+				c.SortedEdgeKeys[np][ii] = PhantomEdges[i]
 				ii++
 			}
 		}
@@ -171,10 +173,10 @@ func (c *Euler) PartitionEdges() {
 				ii++
 			}
 		}
-		if len(PhantomEdges) != 0 {
-			PMin, PMax := pmP.GetBucketRange(np)
-			for i := PMin; i < PMax; i++ {
-				c.SortedEdgeKeys[np][ii] = PhantomEdges[i]
+		if len(SharedEdges) != 0 {
+			SMin, SMax := pmS.GetBucketRange(np)
+			for i := SMin; i < SMax; i++ {
+				c.SortedEdgeKeys[np][ii] = SharedEdges[i]
 				ii++
 			}
 		}
