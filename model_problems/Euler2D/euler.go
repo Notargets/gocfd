@@ -301,29 +301,31 @@ func (rk *RungeKutta4SSP) Step(c *Euler, Time float64, Q0 [][4]utils.Matrix) (Re
 	wg.Wait()
 	if !c.LocalTimeStepping {
 		maxWaveSpeed = make([]float64, NP)
-	}
-	for np := 0; np < NP; np++ {
-		wg.Add(1)
-		go func(np int) {
-			if !c.LocalTimeStepping {
+		for np := 0; np < NP; np++ {
+			wg.Add(1)
+			go func(np int) {
 				maxWaveSpeed[np] = c.SetNormalFluxOnEdges(Time, true, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[np]) // Global
-			} else {
-				c.SetNormalFluxOnEdges(Time, true, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[np]) // Global
-			}
-			wg.Done()
-		}(np)
-	}
-	wg.Wait()
-	if !c.LocalTimeStepping {
+				wg.Done()
+			}(np)
+		}
+		wg.Wait()
 		var wsMaxAll float64
 		for np := 0; np < NP; np++ {
 			wsMaxAll = math.Max(wsMaxAll, maxWaveSpeed[np])
 		}
 		dt = c.CFL / wsMaxAll
-	}
-
-	if Time+dt > c.FinalTime {
-		dt = c.FinalTime - Time
+		if Time+dt > c.FinalTime {
+			dt = c.FinalTime - Time
+		}
+	} else {
+		for np := 0; np < NP; np++ {
+			wg.Add(1)
+			go func(np int) {
+				c.SetNormalFluxOnEdges(Time, true, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[np]) // Global
+				wg.Done()
+			}(np)
+		}
+		wg.Wait()
 	}
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
