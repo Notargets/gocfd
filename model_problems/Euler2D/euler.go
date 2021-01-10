@@ -169,6 +169,7 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		}
 		rk.DT[np] = utils.NewMatrix(rk.Np, rk.Kmax[np])
 	}
+	rk.Residual = rk.Q1
 	return
 }
 
@@ -200,8 +201,6 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int) {
 		dT                           float64
 	)
 	//_ = unix.SchedSetaffinity(0, &rk.cpuSet[myThread]) // bind this worker's thread to the myThread'th core
-
-	rk.Residual = Q1
 
 	for myThread = 0; myThread < c.Partitions.ParallelDegree; myThread++ {
 		if c.LocalTimeStepping {
@@ -316,175 +315,6 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int) {
 		}
 	}
 	wg.Wait()
-}
-
-func (rk *RungeKutta4SSP) Step(c *Euler, Time float64, Q0 [][4]utils.Matrix) (Residual [][4]utils.Matrix, dt float64) {
-	var (
-		Np                           = rk.Np
-		Kmax, Jdet, Jinv, F_RT_DOF   = rk.Kmax, rk.Jdet, rk.Jinv, rk.F_RT_DOF
-		DT, Q_Face, Q1, Q2, Q3, RHSQ = rk.DT, rk.Q_Face, rk.Q1, rk.Q2, rk.Q3, rk.RHSQ
-		pm                           = c.Partitions
-		NP                           = pm.ParallelDegree
-		wg                           = sync.WaitGroup{}
-		maxWaveSpeed                 []float64
-	)
-	Residual = Q1
-	for np := 0; np < NP; np++ {
-		wg.Add(1)
-		go func(np int) {
-			if c.LocalTimeStepping {
-				// Setup local time stepping
-				for k := 0; k < Kmax[np]; k++ {
-					DT[np].DataP[k] = -100 // Global
-				}
-			}
-			c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q0[np], Q_Face[np])
-			wg.Done()
-		}(np)
-	}
-	wg.Wait()
-	if !c.LocalTimeStepping {
-		maxWaveSpeed = make([]float64, NP)
-		for np := 0; np < NP; np++ {
-			wg.Add(1)
-			go func(np int) {
-				maxWaveSpeed[np] = c.SetNormalFluxOnEdges(Time, true, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[np]) // Global
-				wg.Done()
-			}(np)
-		}
-		wg.Wait()
-		var wsMaxAll float64
-		for np := 0; np < NP; np++ {
-			wsMaxAll = math.Max(wsMaxAll, maxWaveSpeed[np])
-		}
-		dt = c.CFL / wsMaxAll
-		if Time+dt > c.FinalTime {
-			dt = c.FinalTime - Time
-		}
-	} else {
-		for np := 0; np < NP; np++ {
-			wg.Add(1)
-			go func(np int) {
-				c.SetNormalFluxOnEdges(Time, true, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[np]) // Global
-				wg.Done()
-			}(np)
-		}
-		wg.Wait()
-	}
-	for np := 0; np < NP; np++ {
-		wg.Add(1)
-		go func(np int) {
-			if c.LocalTimeStepping {
-				// Replicate local time step to the other solution points for each k
-				for k := 0; k < Kmax[np]; k++ {
-					DT[np].DataP[k] = c.CFL / DT[np].DataP[k]
-				}
-				for i := 1; i < c.dfr.SolutionElement.Np; i++ {
-					for k := 0; k < Kmax[np]; k++ {
-						ind := k + Kmax[np]*i
-						DT[np].DataP[ind] = DT[np].DataP[k]
-					}
-				}
-			}
-			//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
-			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
-			dT := dt
-			for n := 0; n < 4; n++ {
-				for i := 0; i < Kmax[np]*Np; i++ {
-					if c.LocalTimeStepping {
-						dT = DT[np].DataP[i]
-					}
-					Q1[np][n].DataP[i] = Q0[np][n].DataP[i] + 0.5*RHSQ[np][n].DataP[i]*dT
-				}
-			}
-			c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q1[np], Q_Face[np])
-			wg.Done()
-		}(np)
-	}
-	wg.Wait()
-	for np := 0; np < NP; np++ {
-		wg.Add(1)
-		go func(np int) {
-			c.SetNormalFluxOnEdges(Time, false, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[np]) // Global
-			wg.Done()
-		}(np)
-	}
-	wg.Wait()
-	for np := 0; np < NP; np++ {
-		wg.Add(1)
-		go func(np int) {
-			//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
-			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
-			dT := dt
-			for n := 0; n < 4; n++ {
-				for i := 0; i < Kmax[np]*Np; i++ {
-					if c.LocalTimeStepping {
-						dT = DT[np].DataP[i]
-					}
-					Q2[np][n].DataP[i] = Q1[np][n].DataP[i] + 0.25*RHSQ[np][n].DataP[i]*dT
-				}
-			}
-			c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q2[np], Q_Face[np])
-			wg.Done()
-		}(np)
-	}
-	wg.Wait()
-	for np := 0; np < NP; np++ {
-		wg.Add(1)
-		go func(np int) {
-			c.SetNormalFluxOnEdges(Time, false, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[np]) // Global
-			wg.Done()
-		}(np)
-	}
-	wg.Wait()
-	for np := 0; np < NP; np++ {
-		wg.Add(1)
-		go func(np int) {
-			//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
-			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
-			dT := dt
-			for n := 0; n < 4; n++ {
-				for i := 0; i < Kmax[np]*Np; i++ {
-					if c.LocalTimeStepping {
-						dT = DT[np].DataP[i]
-					}
-					Q3[np][n].DataP[i] = (1. / 3.) * (2*Q0[np][n].DataP[i] + Q2[np][n].DataP[i] + RHSQ[np][n].DataP[i]*dT)
-				}
-			}
-			c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q3[np], Q_Face[np])
-			wg.Done()
-		}(np)
-	}
-	wg.Wait()
-	for np := 0; np < NP; np++ {
-		wg.Add(1)
-		go func(np int) {
-			c.SetNormalFluxOnEdges(Time, false, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[np]) // Global
-			wg.Done()
-		}(np)
-	}
-	wg.Wait()
-	for np := 0; np < NP; np++ {
-		wg.Add(1)
-		go func(np int) {
-			//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
-			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
-			// Note, we are re-using Q1 as storage for Residual here
-			dT := dt
-			for n := 0; n < 4; n++ {
-				for i := 0; i < Kmax[np]*Np; i++ {
-					if c.LocalTimeStepping {
-						dT = DT[np].DataP[i]
-					}
-					Residual[np][n].DataP[i] = Q3[np][n].DataP[i] + 0.25*RHSQ[np][n].DataP[i]*dT - Q0[np][n].DataP[i]
-					Q0[np][n].DataP[i] += Residual[np][n].DataP[i]
-				}
-			}
-			wg.Done()
-		}(np)
-	}
-	wg.Wait()
-	return
 }
 
 func (c *Euler) RHS(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4]utils.Matrix) {
