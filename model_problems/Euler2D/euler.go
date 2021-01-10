@@ -173,7 +173,36 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 	return
 }
 
-func (rk *RungeKutta4SSP) StepController(c *Euler) {}
+func (rk *RungeKutta4SSP) Step(c *Euler, toWorkerChan chan struct{}, fromWorkerChan chan int8) {
+	var (
+		pm   = c.Partitions
+		NP   = pm.ParallelDegree
+		done bool
+	)
+	for !done {
+		for np := 0; np < NP; np++ {
+			toWorkerChan <- struct{}{}
+		}
+		var replyCount, tally int
+		for {
+			select {
+			case msg := <-fromWorkerChan:
+				replyCount++
+				tally += int(msg)
+			}
+			if replyCount == NP {
+				goto TALLY
+			}
+		}
+	TALLY:
+		switch tally {
+		case -NP: // Received -1 from all workers, indicating finished with full step
+			done = true
+		case NP: // Received 1 from all workers, indicating finished with first step in algo, time to compute global DT
+			rk.calculateGlobalDT(c)
+		}
+	}
+}
 
 func (rk *RungeKutta4SSP) calculateGlobalDT(c *Euler) {
 	var (
