@@ -132,6 +132,8 @@ type RungeKutta4SSP struct {
 	Kmax              []int // Local element count (dimension: Kmax[ParallelDegree])
 	Np, Nedge, NpFlux int   // Number of points in solution, edge and flux total
 	cpuSet            [1024]unix.CPUSet
+	toWorker          chan struct{}
+	fromWorker        chan int8
 }
 
 func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
@@ -155,6 +157,8 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		Np:           c.dfr.SolutionElement.Np,
 		Nedge:        c.dfr.FluxElement.Nedge,
 		NpFlux:       c.dfr.FluxElement.Np,
+		toWorker:     make(chan struct{}, NPar),
+		fromWorker:   make(chan int8, NPar),
 	}
 	// Initialize memory for RHS
 	for np := 0; np < NPar; np++ {
@@ -173,7 +177,7 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 	return
 }
 
-func (rk *RungeKutta4SSP) Step(c *Euler, toWorkerChan chan struct{}, fromWorkerChan chan int8) {
+func (rk *RungeKutta4SSP) Step(c *Euler) {
 	var (
 		pm   = c.Partitions
 		NP   = pm.ParallelDegree
@@ -181,12 +185,12 @@ func (rk *RungeKutta4SSP) Step(c *Euler, toWorkerChan chan struct{}, fromWorkerC
 	)
 	for !done {
 		for np := 0; np < NP; np++ {
-			toWorkerChan <- struct{}{}
+			rk.toWorker <- struct{}{}
 		}
 		var replyCount, tally int
 		for {
 			select {
-			case msg := <-fromWorkerChan:
+			case msg := <-rk.fromWorker:
 				replyCount++
 				tally += int(msg)
 			}
@@ -201,22 +205,6 @@ func (rk *RungeKutta4SSP) Step(c *Euler, toWorkerChan chan struct{}, fromWorkerC
 		case NP: // Received 1 from all workers, indicating finished with first step in algo, time to compute global DT
 			rk.calculateGlobalDT(c)
 		}
-	}
-}
-
-func (rk *RungeKutta4SSP) calculateGlobalDT(c *Euler) {
-	var (
-		pm = c.Partitions
-		NP = pm.ParallelDegree
-	)
-	// Must be done in controller/sync process
-	var wsMaxAll float64
-	for np := 0; np < NP; np++ {
-		wsMaxAll = math.Max(wsMaxAll, rk.MaxWaveSpeed[np])
-	}
-	rk.GlobalDT = c.CFL / wsMaxAll
-	if rk.Time+rk.GlobalDT > c.FinalTime {
-		rk.GlobalDT = c.FinalTime - rk.Time
 	}
 }
 
@@ -516,4 +504,20 @@ func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [][4]utils.
 func (c *Euler) PrintFinal(elapsed time.Duration, steps int) {
 	rate := float64(elapsed.Microseconds()) / (float64(c.dfr.K * steps))
 	fmt.Printf("\nRate of execution = %8.5f us/(element*iteration) over %d iterations\n", rate, steps)
+}
+
+func (rk *RungeKutta4SSP) calculateGlobalDT(c *Euler) {
+	var (
+		pm = c.Partitions
+		NP = pm.ParallelDegree
+	)
+	// Must be done in controller/sync process
+	var wsMaxAll float64
+	for np := 0; np < NP; np++ {
+		wsMaxAll = math.Max(wsMaxAll, rk.MaxWaveSpeed[np])
+	}
+	rk.GlobalDT = c.CFL / wsMaxAll
+	if rk.Time+rk.GlobalDT > c.FinalTime {
+		rk.GlobalDT = c.FinalTime - rk.Time
+	}
 }
