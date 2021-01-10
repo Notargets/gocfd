@@ -282,6 +282,7 @@ func (rk *RungeKutta4SSP) Step(c *Euler, Time float64, Q0 [][4]utils.Matrix) (Re
 		pm                           = c.Partitions
 		NP                           = pm.ParallelDegree
 		wg                           = sync.WaitGroup{}
+		maxWaveSpeed                 []float64
 	)
 	Residual = Q1
 	for np := 0; np < NP; np++ {
@@ -298,7 +299,21 @@ func (rk *RungeKutta4SSP) Step(c *Euler, Time float64, Q0 [][4]utils.Matrix) (Re
 		}(np)
 	}
 	wg.Wait()
-	maxWaveSpeed := c.ParallelEdgeUpdate(Time, Jdet, DT, F_RT_DOF, Q_Face, true) // Must sync parallel before calling
+	if !c.LocalTimeStepping {
+		maxWaveSpeed = make([]float64, NP)
+	}
+	for np := 0; np < NP; np++ {
+		wg.Add(1)
+		go func(np int) {
+			if !c.LocalTimeStepping {
+				maxWaveSpeed[np] = c.SetNormalFluxOnEdges(Time, true, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[np]) // Global
+			} else {
+				c.SetNormalFluxOnEdges(Time, true, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[np]) // Global
+			}
+			wg.Done()
+		}(np)
+	}
+	wg.Wait()
 	if !c.LocalTimeStepping {
 		var wsMaxAll float64
 		for np := 0; np < NP; np++ {
@@ -341,7 +356,14 @@ func (rk *RungeKutta4SSP) Step(c *Euler, Time float64, Q0 [][4]utils.Matrix) (Re
 		}(np)
 	}
 	wg.Wait()
-	c.ParallelEdgeUpdate(Time, Jdet, DT, F_RT_DOF, Q_Face, false) // Must sync parallel before calling
+	for np := 0; np < NP; np++ {
+		wg.Add(1)
+		go func(np int) {
+			c.SetNormalFluxOnEdges(Time, false, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[np]) // Global
+			wg.Done()
+		}(np)
+	}
+	wg.Wait()
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {
@@ -361,7 +383,14 @@ func (rk *RungeKutta4SSP) Step(c *Euler, Time float64, Q0 [][4]utils.Matrix) (Re
 		}(np)
 	}
 	wg.Wait()
-	c.ParallelEdgeUpdate(Time, Jdet, DT, F_RT_DOF, Q_Face, false) // Must sync parallel before calling
+	for np := 0; np < NP; np++ {
+		wg.Add(1)
+		go func(np int) {
+			c.SetNormalFluxOnEdges(Time, false, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[np]) // Global
+			wg.Done()
+		}(np)
+	}
+	wg.Wait()
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {
@@ -381,7 +410,14 @@ func (rk *RungeKutta4SSP) Step(c *Euler, Time float64, Q0 [][4]utils.Matrix) (Re
 		}(np)
 	}
 	wg.Wait()
-	c.ParallelEdgeUpdate(Time, Jdet, DT, F_RT_DOF, Q_Face, false) // Must sync parallel before calling
+	for np := 0; np < NP; np++ {
+		wg.Add(1)
+		go func(np int) {
+			c.SetNormalFluxOnEdges(Time, false, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[np]) // Global
+			wg.Done()
+		}(np)
+	}
+	wg.Wait()
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {

@@ -25,18 +25,13 @@ func (c *Euler) ParallelEdgeUpdate(Time float64, Jdet, DT []utils.Matrix, F_RT_D
 		pm   = c.Partitions
 		NPar = pm.ParallelDegree
 	)
-	if CalculateDT {
-		maxWaveSpeed = make([]float64, NPar)
-	}
+	maxWaveSpeed = make([]float64, NPar)
 	// Execute
 	// Must happen after global sync
 	for np := 0; np < NPar; np++ {
 		wg.Add(1)
 		go func(np int) {
-			c.SetNormalFluxOnEdges(Time, F_RT_DOF, Q_Face, c.SortedEdgeKeys[np]) // Global
-			if CalculateDT {
-				maxWaveSpeed[np] = c.CalculateMaxWaveSpeed(Jdet, DT, Q_Face, c.SortedEdgeKeys[np]) // Global
-			}
+			maxWaveSpeed[np] = c.SetNormalFluxOnEdges(Time, CalculateDT, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[np]) // Global
 			wg.Done()
 		}(np)
 	}
@@ -44,49 +39,7 @@ func (c *Euler) ParallelEdgeUpdate(Time float64, Jdet, DT []utils.Matrix, F_RT_D
 	return
 }
 
-func (c *Euler) CalculateMaxWaveSpeed(Jdet, DT []utils.Matrix, Q_Face [][4]utils.Matrix, edgeKeys EdgeKeySlice) (waveSpeedMax float64) {
-	var (
-		pm    = c.Partitions
-		Nedge = c.dfr.FluxElement.Nedge
-		Np1   = c.dfr.N + 1
-		Np12  = float64(Np1 * Np1)
-	)
-	for _, en := range edgeKeys {
-		e := c.dfr.Tris.Edges[en]
-		var (
-			conn        = 0
-			edgeNum     = int(e.ConnectedTriEdgeNumber[conn])
-			shift       = edgeNum * Nedge
-			edgeLen     = e.GetEdgeLength()
-			k, Kmax, bn = pm.GetLocalK(int(e.ConnectedTris[conn]))
-		)
-		// fmt.Printf("N, Np12, edgelen, Jdet = %d,%8.5f,%8.5f,%8.5f\n", c.dfr.N, Np12, edgeLen, Jdet)
-		fs := 0.5 * Np12 * edgeLen / Jdet[bn].DataP[k]
-		edgeMax := -100.
-		for i := shift; i < shift+Nedge; i++ {
-			ind := k + i*Kmax
-			C := c.FS.GetFlowFunction(Q_Face[bn], ind, SoundSpeed)
-			U := c.FS.GetFlowFunction(Q_Face[bn], ind, Velocity)
-			waveSpeed := fs * (U + C)
-			waveSpeedMax = math.Max(waveSpeed, waveSpeedMax)
-			if waveSpeed > edgeMax {
-				edgeMax = waveSpeed
-			}
-		}
-		if edgeMax > DT[bn].DataP[k] {
-			DT[bn].DataP[k] = edgeMax
-		}
-		if e.NumConnectedTris == 2 { // Add the wavespeed to the other tri connected to this edge if needed
-			k, Kmax, bn = pm.GetLocalK(int(e.ConnectedTris[1]))
-			if edgeMax > DT[bn].DataP[k] {
-				DT[bn].DataP[k] = edgeMax
-			}
-		}
-	}
-	return
-}
-
-func (c *Euler) SetNormalFluxOnEdges(Time float64, F_RT_DOF, Q_Face [][4]utils.Matrix, edgeKeys EdgeKeySlice) {
+func (c *Euler) SetNormalFluxOnEdges(Time float64, CalculateDT bool, Jdet, DT []utils.Matrix, F_RT_DOF, Q_Face [][4]utils.Matrix, edgeKeys EdgeKeySlice) (waveSpeedMax float64) {
 	var (
 		Nedge                          = c.dfr.FluxElement.Nedge
 		normalFlux, normalFluxReversed = make([][4]float64, Nedge), make([][4]float64, Nedge)
@@ -154,6 +107,41 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, F_RT_DOF, Q_Face [][4]utils.M
 			}
 			c.SetNormalFluxOnRTEdge(kL, KmaxL, F_RT_DOF[bnL], edgeNumberL, normalFlux, e.IInII[0])
 			c.SetNormalFluxOnRTEdge(kR, KmaxR, F_RT_DOF[bnR], edgeNumberR, normalFluxReversed, e.IInII[1])
+		}
+		if CalculateDT {
+			var (
+				Np1  = c.dfr.N + 1
+				Np12 = float64(Np1 * Np1)
+			)
+			var (
+				conn        = 0
+				edgeNum     = int(e.ConnectedTriEdgeNumber[conn])
+				shift       = edgeNum * Nedge
+				edgeLen     = e.GetEdgeLength()
+				k, Kmax, bn = pm.GetLocalK(int(e.ConnectedTris[conn]))
+			)
+			// fmt.Printf("N, Np12, edgelen, Jdet = %d,%8.5f,%8.5f,%8.5f\n", c.dfr.N, Np12, edgeLen, Jdet)
+			fs := 0.5 * Np12 * edgeLen / Jdet[bn].DataP[k]
+			edgeMax := -100.
+			for i := shift; i < shift+Nedge; i++ {
+				ind := k + i*Kmax
+				C := c.FS.GetFlowFunction(Q_Face[bn], ind, SoundSpeed)
+				U := c.FS.GetFlowFunction(Q_Face[bn], ind, Velocity)
+				waveSpeed := fs * (U + C)
+				waveSpeedMax = math.Max(waveSpeed, waveSpeedMax)
+				if waveSpeed > edgeMax {
+					edgeMax = waveSpeed
+				}
+			}
+			if edgeMax > DT[bn].DataP[k] {
+				DT[bn].DataP[k] = edgeMax
+			}
+			if e.NumConnectedTris == 2 { // Add the wavespeed to the other tri connected to this edge if needed
+				k, Kmax, bn = pm.GetLocalK(int(e.ConnectedTris[1]))
+				if edgeMax > DT[bn].DataP[k] {
+					DT[bn].DataP[k] = edgeMax
+				}
+			}
 		}
 	}
 	return
