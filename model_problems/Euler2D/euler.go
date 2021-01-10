@@ -287,18 +287,44 @@ func (rk *RungeKutta4SSP) Step(c *Euler, Time float64, Q0 [][4]utils.Matrix) (Re
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {
+			if c.LocalTimeStepping {
+				// Setup local time stepping
+				for k := 0; k < Kmax[np]; k++ {
+					DT[np].DataP[k] = -100 // Global
+				}
+			}
 			c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q0[np], Q_Face[np])
 			wg.Done()
 		}(np)
 	}
 	wg.Wait()
-	dt = c.ParallelEdgeUpdate(Time, true, Jdet, DT, F_RT_DOF, Q_Face) // Must sync parallel before calling
+	maxWaveSpeed := c.ParallelEdgeUpdate(Time, Jdet, DT, F_RT_DOF, Q_Face, true) // Must sync parallel before calling
+	if !c.LocalTimeStepping {
+		var wsMaxAll float64
+		for np := 0; np < NP; np++ {
+			wsMaxAll = math.Max(wsMaxAll, maxWaveSpeed[np])
+		}
+		dt = c.CFL / wsMaxAll
+	}
+
 	if Time+dt > c.FinalTime {
 		dt = c.FinalTime - Time
 	}
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {
+			if c.LocalTimeStepping {
+				// Replicate local time step to the other solution points for each k
+				for k := 0; k < Kmax[np]; k++ {
+					DT[np].DataP[k] = c.CFL / DT[np].DataP[k]
+				}
+				for i := 1; i < c.dfr.SolutionElement.Np; i++ {
+					for k := 0; k < Kmax[np]; k++ {
+						ind := k + Kmax[np]*i
+						DT[np].DataP[ind] = DT[np].DataP[k]
+					}
+				}
+			}
 			//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
 			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
 			dT := dt
@@ -315,7 +341,7 @@ func (rk *RungeKutta4SSP) Step(c *Euler, Time float64, Q0 [][4]utils.Matrix) (Re
 		}(np)
 	}
 	wg.Wait()
-	_ = c.ParallelEdgeUpdate(Time, false, Jdet, DT, F_RT_DOF, Q_Face) // Must sync parallel before calling
+	c.ParallelEdgeUpdate(Time, Jdet, DT, F_RT_DOF, Q_Face, false) // Must sync parallel before calling
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {
@@ -335,7 +361,7 @@ func (rk *RungeKutta4SSP) Step(c *Euler, Time float64, Q0 [][4]utils.Matrix) (Re
 		}(np)
 	}
 	wg.Wait()
-	_ = c.ParallelEdgeUpdate(Time, false, Jdet, DT, F_RT_DOF, Q_Face) // Must sync parallel before calling
+	c.ParallelEdgeUpdate(Time, Jdet, DT, F_RT_DOF, Q_Face, false) // Must sync parallel before calling
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {
@@ -355,7 +381,7 @@ func (rk *RungeKutta4SSP) Step(c *Euler, Time float64, Q0 [][4]utils.Matrix) (Re
 		}(np)
 	}
 	wg.Wait()
-	_ = c.ParallelEdgeUpdate(Time, false, Jdet, DT, F_RT_DOF, Q_Face) // Must sync parallel before calling
+	c.ParallelEdgeUpdate(Time, Jdet, DT, F_RT_DOF, Q_Face, false) // Must sync parallel before calling
 	for np := 0; np < NP; np++ {
 		wg.Add(1)
 		go func(np int) {

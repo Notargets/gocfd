@@ -19,25 +19,15 @@ func (p EdgeKeySlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 // Sort is a convenience method.
 func (p EdgeKeySlice) Sort() { sort.Sort(p) }
 
-func (c *Euler) ParallelEdgeUpdate(Time float64, CalculateDT bool,
-	Jdet, DT []utils.Matrix, F_RT_DOF, Q_Face [][4]utils.Matrix) (dt float64) {
+func (c *Euler) ParallelEdgeUpdate(Time float64, Jdet, DT []utils.Matrix, F_RT_DOF, Q_Face [][4]utils.Matrix, CalculateDT bool) (maxWaveSpeed []float64) {
 	var (
-		wg           = sync.WaitGroup{}
-		pm           = c.Partitions
-		NPar         = pm.ParallelDegree
-		maxWaveSpeed []float64
+		wg   = sync.WaitGroup{}
+		pm   = c.Partitions
+		NPar = pm.ParallelDegree
 	)
-	// Setup
 	if CalculateDT {
-		// Must happen after global sync
 		maxWaveSpeed = make([]float64, NPar)
-		for np := 0; np < NPar; np++ {
-			for k := 0; k < pm.GetBucketDimension(np); k++ {
-				DT[np].DataP[k] = -100 // Global
-			}
-		}
 	}
-
 	// Execute
 	// Must happen after global sync
 	for np := 0; np < NPar; np++ {
@@ -51,114 +41,6 @@ func (c *Euler) ParallelEdgeUpdate(Time float64, CalculateDT bool,
 		}(np)
 	}
 	wg.Wait()
-
-	// Cleanup
-	if CalculateDT {
-		// Must happen after global sync
-		dt = c.DTAfterEdgeUpdate(maxWaveSpeed, DT) // Global
-	}
-	return
-}
-
-func (c *Euler) DTAfterEdgeUpdate(maxWaveSpeed []float64, DT []utils.Matrix) (dt float64) {
-	var (
-		pm   = c.Partitions
-		NPar = pm.ParallelDegree
-		wg   = sync.WaitGroup{}
-	)
-	// Calculate global maximum time step
-	// ******************************************************************************
-	// Must happen after sync
-	// ******************************************************************************
-	var wsMaxAll float64
-	for np := 0; np < NPar; np++ {
-		wsMaxAll = math.Max(wsMaxAll, maxWaveSpeed[np])
-	}
-	dt = c.CFL / wsMaxAll
-	// ******************************************************************************
-
-	if c.LocalTimeStepping {
-		// Replicate local time step to the other solution points for each k
-		for np := 0; np < NPar; np++ {
-			wg.Add(1)
-			go func(np int) {
-				//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
-				Kmax := pm.GetBucketDimension(np)
-				for k := 0; k < Kmax; k++ {
-					DT[np].DataP[k] = c.CFL / DT[np].DataP[k]
-				}
-				for i := 1; i < c.dfr.SolutionElement.Np; i++ {
-					for k := 0; k < Kmax; k++ {
-						ind := k + Kmax*i
-						DT[np].DataP[ind] = DT[np].DataP[k]
-					}
-				}
-				wg.Done()
-			}(np)
-		}
-		wg.Wait()
-	}
-	return
-}
-
-func (c *Euler) ParallelEdgeUpdateOld(Time float64, CalculateDT bool,
-	Jdet, DT []utils.Matrix, F_RT_DOF, Q_Face [][4]utils.Matrix) (dt float64) {
-	var (
-		wg   = sync.WaitGroup{}
-		pm   = c.Partitions
-		NPar = pm.ParallelDegree
-	)
-	if CalculateDT {
-		// Reset per-element wavespeed max
-		for np := 0; np < NPar; np++ {
-			Kmax := pm.GetBucketDimension(np)
-			for k := 0; k < Kmax; k++ {
-				DT[np].DataP[k] = -100
-			}
-		}
-	}
-	maxWaveSpeed := make([]float64, NPar)
-	for np := 0; np < NPar; np++ {
-		wg.Add(1)
-		go func(np int) {
-			//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
-			c.SetNormalFluxOnEdges(Time, F_RT_DOF, Q_Face, c.SortedEdgeKeys[np])
-			if CalculateDT {
-				maxWaveSpeed[np] = c.CalculateMaxWaveSpeed(Jdet, DT, Q_Face, c.SortedEdgeKeys[np])
-			}
-			wg.Done()
-		}(np)
-	}
-	wg.Wait()
-	if CalculateDT {
-		// Calculate global maximum time step
-		var wsMaxAll float64
-		for np := 0; np < NPar; np++ {
-			wsMaxAll = math.Max(wsMaxAll, maxWaveSpeed[np])
-		}
-		dt = c.CFL / wsMaxAll
-		if c.LocalTimeStepping {
-			// Replicate local time step to the other solution points for each k
-			for np := 0; np < NPar; np++ {
-				wg.Add(1)
-				go func(np int) {
-					//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
-					Kmax := pm.GetBucketDimension(np)
-					for k := 0; k < Kmax; k++ {
-						DT[np].DataP[k] = c.CFL / DT[np].DataP[k]
-					}
-					for i := 1; i < c.dfr.SolutionElement.Np; i++ {
-						for k := 0; k < Kmax; k++ {
-							ind := k + Kmax*i
-							DT[np].DataP[ind] = DT[np].DataP[k]
-						}
-					}
-					wg.Done()
-				}(np)
-			}
-			wg.Wait()
-		}
-	}
 	return
 }
 
