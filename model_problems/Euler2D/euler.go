@@ -212,11 +212,12 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, np int, Q0 [][4]utils.Matrix) {
 
 	if !c.LocalTimeStepping {
 		rk.MaxWaveSpeed[np] = c.SetNormalFluxOnEdges(rk.Time, true, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[np]) // Global
-		wg.Wait()
 	} else {
 		c.SetNormalFluxOnEdges(rk.Time, true, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[np]) // Global
-		wg.Wait()
 	}
+
+	wg.Wait()
+
 	if c.LocalTimeStepping {
 		// Replicate local time step to the other solution points for each k
 		for k := 0; k < Kmax[np]; k++ {
@@ -247,7 +248,6 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, np int, Q0 [][4]utils.Matrix) {
 
 	wg.Wait()
 
-	//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
 	c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
 	dT = rk.GlobalDT
 	for n := 0; n < 4; n++ {
@@ -266,7 +266,6 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, np int, Q0 [][4]utils.Matrix) {
 
 	wg.Wait()
 
-	//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
 	c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
 	dT = rk.GlobalDT
 	for n := 0; n < 4; n++ {
@@ -285,7 +284,6 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, np int, Q0 [][4]utils.Matrix) {
 
 	wg.Wait()
 
-	//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
 	c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
 	// Note, we are re-using Q1 as storage for Residual here
 	dT = rk.GlobalDT
