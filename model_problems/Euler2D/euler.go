@@ -203,7 +203,9 @@ func (rk *RungeKutta4SSP) Step(c *Euler) {
 		case -NP: // Received -1 from all workers, indicating finished with full step
 			done = true
 		case NP: // Received 1 from all workers, indicating finished with first step in algo, time to compute global DT
-			rk.calculateGlobalDT(c)
+			if !c.LocalTimeStepping {
+				rk.calculateGlobalDT(c)
+			}
 		}
 	}
 }
@@ -235,9 +237,9 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int) {
 		subStep                      = &subStepStorage
 	)
 	_ = unix.SchedSetaffinity(0, &rk.cpuSet[myThread]) // bind this worker's thread to the myThread'th core
-	*subStep = 0
 
 	for {
+		*subStep = 0
 		if c.LocalTimeStepping {
 			// Setup local time stepping
 			for k := 0; k < Kmax[myThread]; k++ {
