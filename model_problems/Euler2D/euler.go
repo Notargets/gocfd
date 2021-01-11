@@ -516,6 +516,10 @@ func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [][4]utils.
 func (c *Euler) PrintFinal(elapsed time.Duration, steps int) {
 	rate := float64(elapsed.Microseconds()) / (float64(c.dfr.K * steps))
 	fmt.Printf("\nRate of execution = %8.5f us/(element*iteration) over %d iterations\n", rate, steps)
+	instructionRate := 1344.282 // measured instructions per element per iteration
+	iRate := instructionRate * float64(c.dfr.K*steps) / elapsed.Seconds()
+	fmt.Printf("Estimated op rate = %8.5f Giga-ops / second, based on measure op rate of %8.5f per element per iteration\n",
+		iRate/1000000000., instructionRate)
 }
 
 func (rk *RungeKutta4SSP) calculateGlobalDT(c *Euler) {
