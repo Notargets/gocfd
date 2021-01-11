@@ -184,3 +184,16 @@ func (c *Euler) PartitionEdges() {
 		}
 	}
 }
+
+func (c *Euler) PartitionEdgesByK() {
+	var (
+		pm   = c.Partitions
+		NPar = pm.ParallelDegree
+	)
+	c.SortedEdgeKeys = make([]EdgeKeySlice, NPar)
+	// First, separate edges into 3 groups
+	for en, e := range c.dfr.Tris.Edges {
+		bn, _, _ := pm.GetBucket(int(e.ConnectedTris[0]))
+		c.SortedEdgeKeys[bn] = append(c.SortedEdgeKeys[bn], en)
+	}
+}

@@ -3,7 +3,6 @@ package Euler2D
 import (
 	"fmt"
 	"math"
-	"sync"
 	"time"
 
 	"github.com/notargets/gocfd/types"
@@ -68,7 +67,7 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 
 	c.SetParallelDegree(ProcLimit, c.dfr.K) // Must occur after determining the number of elements
 
-	c.PartitionEdges() // Setup the key for edge calculations, useful for parallelizing the process
+	c.PartitionEdgesByK() // Setup the key for edge calculations, useful for parallelizing the process
 
 	c.InitializeSolution(verbose)
 
@@ -131,7 +130,6 @@ type RungeKutta4SSP struct {
 	Np, Nedge, NpFlux int   // Number of points in solution, edge and flux total
 	toWorker          []chan struct{}
 	fromWorkers       chan int8
-	wg                sync.WaitGroup
 }
 
 func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
@@ -157,7 +155,6 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		NpFlux:       c.dfr.FluxElement.Np,
 		fromWorkers:  make(chan int8, NPar),
 		toWorker:     make([]chan struct{}, NPar),
-		wg:           sync.WaitGroup{},
 	}
 	for np := 0; np < NPar; np++ {
 		rk.toWorker[np] = make(chan struct{}, 1)
