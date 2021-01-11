@@ -131,7 +131,7 @@ type RungeKutta4SSP struct {
 	GlobalDT, Time    float64
 	Kmax              []int // Local element count (dimension: Kmax[ParallelDegree])
 	Np, Nedge, NpFlux int   // Number of points in solution, edge and flux total
-	cpuSet            [1024]unix.CPUSet
+	cpuSet            []unix.CPUSet
 	toWorker          chan struct{}
 	fromWorker        chan int8
 }
@@ -174,6 +174,10 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		rk.DT[np] = utils.NewMatrix(rk.Np, rk.Kmax[np])
 	}
 	rk.Residual = rk.Q1
+	rk.cpuSet = make([]unix.CPUSet, NPar)
+	for np := 0; np < NPar; np++ {
+		rk.cpuSet[np].Set(np)
+	}
 	return
 }
 
@@ -186,31 +190,29 @@ func (rk *RungeKutta4SSP) Step(c *Euler) {
 	)
 	for !done {
 		var replyCount, tally int
-		for {
+		for np := 0; np < NP; np++ {
 			msg = <-rk.fromWorker
 			replyCount++
 			tally += int(msg)
-			//fmt.Printf("got one, replyCount = %d, tally = %d\n", replyCount, tally)
-			if replyCount == NP {
-				break
-			}
 		}
-		//fmt.Printf("hit TALLY, tally = %d\n", tally)
 		switch tally {
 		case NP: // Received 1 from all workers, indicating finished with first step in algo, time to compute global DT
-			//fmt.Printf("hit NP\n")
 			if !c.LocalTimeStepping {
 				rk.calculateGlobalDT(c)
 			}
 		case -NP: // Received -1 from all workers, indicating finished with full step
-			//fmt.Printf("hit DONE\n")
 			done = true
 		}
 		for np := 0; np < NP; np++ {
 			rk.toWorker <- struct{}{}
 		}
 	}
-	//fmt.Printf("finished step\n")
+}
+
+func (rk *RungeKutta4SSP) SyncWorker(subStep *int8) {
+	rk.fromWorker <- *subStep
+	*subStep++
+	_ = <-rk.toWorker // Block until parent sends "go"
 }
 
 func (rk *RungeKutta4SSP) StartWorkers(c *Euler) {
@@ -223,12 +225,6 @@ func (rk *RungeKutta4SSP) StartWorkers(c *Euler) {
 	}
 }
 
-func (rk *RungeKutta4SSP) SyncWorker(subStep *int8) {
-	rk.fromWorker <- *subStep
-	_ = <-rk.toWorker // Block until parent sends "go"
-	*subStep++
-}
-
 func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int) {
 	var (
 		Q0                           = c.Q
@@ -239,7 +235,11 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int) {
 		subStepStorage               = int8(0)
 		subStep                      = &subStepStorage
 	)
-	_ = unix.SchedSetaffinity(0, &rk.cpuSet[myThread]) // bind this worker's thread to the myThread'th core
+	/*
+		if err := unix.SchedSetaffinity(0, &rk.cpuSet[myThread]); err != nil {
+			panic(err)
+		} // bind this worker's thread to the myThread'th core
+	*/
 
 	for {
 		*subStep = 0
