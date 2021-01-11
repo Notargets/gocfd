@@ -157,8 +157,8 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		Np:           c.dfr.SolutionElement.Np,
 		Nedge:        c.dfr.FluxElement.Nedge,
 		NpFlux:       c.dfr.FluxElement.Np,
-		toWorker:     make(chan struct{}, NPar),
 		fromWorker:   make(chan int8, NPar),
+		toWorker:     make(chan struct{}, NPar),
 	}
 	// Initialize memory for RHS
 	for np := 0; np < NPar; np++ {
@@ -181,33 +181,36 @@ func (rk *RungeKutta4SSP) Step(c *Euler) {
 	var (
 		pm   = c.Partitions
 		NP   = pm.ParallelDegree
+		msg  int8
 		done bool
 	)
 	for !done {
-		for np := 0; np < NP; np++ {
-			rk.toWorker <- struct{}{}
-		}
 		var replyCount, tally int
 		for {
-			select {
-			case msg := <-rk.fromWorker:
-				replyCount++
-				tally += int(msg)
-			}
+			msg = <-rk.fromWorker
+			replyCount++
+			tally += int(msg)
+			//fmt.Printf("got one, replyCount = %d, tally = %d\n", replyCount, tally)
 			if replyCount == NP {
-				goto TALLY
+				break
 			}
 		}
-	TALLY:
+		//fmt.Printf("hit TALLY, tally = %d\n", tally)
 		switch tally {
-		case -NP: // Received -1 from all workers, indicating finished with full step
-			done = true
 		case NP: // Received 1 from all workers, indicating finished with first step in algo, time to compute global DT
+			//fmt.Printf("hit NP\n")
 			if !c.LocalTimeStepping {
 				rk.calculateGlobalDT(c)
 			}
+		case -NP: // Received -1 from all workers, indicating finished with full step
+			//fmt.Printf("hit DONE\n")
+			done = true
+		}
+		for np := 0; np < NP; np++ {
+			rk.toWorker <- struct{}{}
 		}
 	}
+	//fmt.Printf("finished step\n")
 }
 
 func (rk *RungeKutta4SSP) StartWorkers(c *Euler) {
