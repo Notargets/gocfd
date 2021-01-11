@@ -106,7 +106,6 @@ func (c *Euler) Solve(pm *PlotMeta) {
 	var start time.Time
 	for !finished {
 		start = time.Now()
-		//rk.StepWorker(c, 0)
 		rk.Step(c)
 		elapsed += time.Now().Sub(start)
 		steps++
@@ -191,49 +190,55 @@ func (rk *RungeKutta4SSP) StartWorkers(c *Euler) {
 }
 
 func (rk *RungeKutta4SSP) Step(c *Euler) {
+	/*
+		This is the controller thread - it manages and synchronizes the workers
+		NOTE: Any CPU work done in this thread makes the workers wait - be careful!
+	*/
 	var (
 		pm = c.Partitions
 		NP = pm.ParallelDegree
 	)
 	for {
+		// Advance the workers one step by sending the "go" message. They are blocked until they receive this.
 		for np := 0; np < NP; np++ {
 			rk.toWorker[np] <- struct{}{}
 		}
-		subStep := int8(-1)
+		currentStep := int8(-1)
 		var ts int8
 		for np := 0; np < NP; np++ {
+			// Each worker sends it's completed step number, we check to make sure they are all the same
 			ts = <-rk.fromWorkers
-			//fmt.Printf("[%d] ts = %d\n", np, ts)
-			if subStep == -1 {
-				subStep = ts
+			if currentStep == -1 {
+				currentStep = ts
 			}
-			if ts != subStep {
-				err := fmt.Errorf("[%d]incorrect state, ts = %d, subStep = %d\n", np, ts, subStep)
+			if ts != currentStep {
+				err := fmt.Errorf("[%d]incorrect state, ts = %d, currentStep = %d\n", np, ts, currentStep)
 				panic(err)
 			}
 		}
+		// Workers are blocked below here - make sure no significant CPU work is done here unless abs necessary!
 		switch {
-		case subStep == int8(2):
+		case currentStep == 2:
+			// After step 2, we need to consolidate the local max wavespeeds to calculate global dt
 			if !c.LocalTimeStepping {
 				rk.calculateGlobalDT(c)
 			}
-		case subStep < 0:
+		case currentStep < 0:
 			return
 		}
 	}
 }
 
-func (rk *RungeKutta4SSP) WorkerWait(toWorker chan struct{}) {
-	_ = <-toWorker // Block until parent sends "go"
+func (rk *RungeKutta4SSP) WorkerDone(subStepP *int8, fromWorker chan int8, isDone bool) {
+	if isDone {
+		*subStepP = -1
+	} else {
+		*subStepP++
+	}
+	fromWorker <- *subStepP // Inform controller what step we've just completed
 }
 
-func (rk *RungeKutta4SSP) WorkerDone(subStepP *int8, fromWorker chan int8) {
-	//rk.wg.Done() // Step 1
-	*subStepP++
-	fromWorker <- *subStepP
-}
-
-func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, toWorker chan struct{}, fromWorker chan int8) {
+func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan struct{}, toController chan int8) {
 	var (
 		Q0                           = c.Q
 		Np                           = rk.Np
@@ -242,21 +247,8 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, toWorker chan struc
 		dT                           float64
 		subStep                      int8
 	)
-	/*
-		var cpuSet unix.CPUSet
-		cpuSet.Set(myThread + 1)
-		if err := unix.SchedSetaffinity(0, &cpuSet); err != nil {
-			panic(err)
-		} // bind this worker's thread to the myThread'th core
-		if err := unix.SchedGetaffinity(0, &cpuSet); err != nil {
-			panic(err)
-		}
-		fmt.Printf("thread[%d] launched with affinity = %d\n", myThread, cpuSet.Count())
-	*/
-	//fmt.Printf("thread[%d] launched\n", myThread)
-
 	for {
-		rk.WorkerWait(toWorker)
+		_ = <-fromController // Block until parent sends "go"
 		if c.LocalTimeStepping {
 			// Setup local time stepping
 			for k := 0; k < Kmax[myThread]; k++ {
@@ -264,17 +256,17 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, toWorker chan struc
 			}
 		}
 		c.PrepareEdgeFlux(Kmax[myThread], Jdet[myThread], Jinv[myThread], F_RT_DOF[myThread], Q0[myThread], Q_Face[myThread])
-		rk.WorkerDone(&subStep, fromWorker)
+		rk.WorkerDone(&subStep, toController, false)
 
-		rk.WorkerWait(toWorker)
+		_ = <-fromController // Block until parent sends "go"
 		if !c.LocalTimeStepping {
 			rk.MaxWaveSpeed[myThread] = c.SetNormalFluxOnEdges(rk.Time, true, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread]) // Global
 		} else {
 			c.SetNormalFluxOnEdges(rk.Time, true, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread]) // Global
 		}
-		rk.WorkerDone(&subStep, fromWorker)
+		rk.WorkerDone(&subStep, toController, false)
 
-		rk.WorkerWait(toWorker)
+		_ = <-fromController // Block until parent sends "go"
 		if c.LocalTimeStepping {
 			// Replicate local time step to the other solution points for each k
 			for k := 0; k < Kmax[myThread]; k++ {
@@ -298,13 +290,13 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, toWorker chan struc
 			}
 		}
 		c.PrepareEdgeFlux(Kmax[myThread], Jdet[myThread], Jinv[myThread], F_RT_DOF[myThread], Q1[myThread], Q_Face[myThread])
-		rk.WorkerDone(&subStep, fromWorker)
+		rk.WorkerDone(&subStep, toController, false)
 
-		rk.WorkerWait(toWorker)
+		_ = <-fromController                                                                           // Block until parent sends "go"
 		c.SetNormalFluxOnEdges(rk.Time, false, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread]) // Global
-		rk.WorkerDone(&subStep, fromWorker)
+		rk.WorkerDone(&subStep, toController, false)
 
-		rk.WorkerWait(toWorker)
+		_ = <-fromController // Block until parent sends "go"
 		c.RHS(Kmax[myThread], Jdet[myThread], F_RT_DOF[myThread], RHSQ[myThread])
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
@@ -316,13 +308,13 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, toWorker chan struc
 			}
 		}
 		c.PrepareEdgeFlux(Kmax[myThread], Jdet[myThread], Jinv[myThread], F_RT_DOF[myThread], Q2[myThread], Q_Face[myThread])
-		rk.WorkerDone(&subStep, fromWorker)
+		rk.WorkerDone(&subStep, toController, false)
 
-		rk.WorkerWait(toWorker)
+		_ = <-fromController                                                                           // Block until parent sends "go"
 		c.SetNormalFluxOnEdges(rk.Time, false, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread]) // Global
-		rk.WorkerDone(&subStep, fromWorker)
+		rk.WorkerDone(&subStep, toController, false)
 
-		rk.WorkerWait(toWorker)
+		_ = <-fromController // Block until parent sends "go"
 		c.RHS(Kmax[myThread], Jdet[myThread], F_RT_DOF[myThread], RHSQ[myThread])
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
@@ -334,13 +326,13 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, toWorker chan struc
 			}
 		}
 		c.PrepareEdgeFlux(Kmax[myThread], Jdet[myThread], Jinv[myThread], F_RT_DOF[myThread], Q3[myThread], Q_Face[myThread])
-		rk.WorkerDone(&subStep, fromWorker)
+		rk.WorkerDone(&subStep, toController, false)
 
-		rk.WorkerWait(toWorker)
+		_ = <-fromController                                                                           // Block until parent sends "go"
 		c.SetNormalFluxOnEdges(rk.Time, false, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread]) // Global
-		rk.WorkerDone(&subStep, fromWorker)
+		rk.WorkerDone(&subStep, toController, false)
 
-		rk.WorkerWait(toWorker)
+		_ = <-fromController // Block until parent sends "go"
 		c.RHS(Kmax[myThread], Jdet[myThread], F_RT_DOF[myThread], RHSQ[myThread])
 		// Note, we are re-using Q1 as storage for Residual here
 		dT = rk.GlobalDT
@@ -353,8 +345,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, toWorker chan struc
 				Q0[myThread][n].DataP[i] += rk.Residual[myThread][n].DataP[i]
 			}
 		}
-		subStep = -2
-		rk.WorkerDone(&subStep, fromWorker)
+		rk.WorkerDone(&subStep, toController, true)
 	}
 }
 

@@ -2,6 +2,7 @@ package Euler2D
 
 import (
 	"fmt"
+	"math"
 	"runtime"
 
 	"github.com/notargets/gocfd/utils"
@@ -106,13 +107,19 @@ func (c *Euler) RecombineShardsKBy4(pA [][4]utils.Matrix) (A [4]utils.Matrix) {
 }
 
 func (c *Euler) SetParallelDegree(ProcLimit, Kmax int) {
+	/*
+		Here we set the number of partitions we'll use for parallelism.
+		Numerical experiments suggest that there should be a maximum of 185 elements per partition,
+		so we'll use that as our baseline
+	*/
 	var (
 		ParallelDegree int
 	)
 	if ProcLimit != 0 {
 		ParallelDegree = ProcLimit
 	} else {
-		ParallelDegree = runtime.NumCPU()
+		ParallelDegree = Kmax / 185
+		ParallelDegree = int(math.Max(float64(runtime.NumCPU()), float64(ParallelDegree)))
 	}
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	if ParallelDegree > Kmax {
