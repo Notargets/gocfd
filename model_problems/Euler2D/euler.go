@@ -88,11 +88,9 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 func (c *Euler) Solve(pm *PlotMeta) {
 	var (
 		FinalTime = c.FinalTime
-		Time, dt  float64
 		steps     int
 		finished  bool
 		plotQ     = pm.Plot
-		Residual  [][4]utils.Matrix
 	)
 	if c.profile {
 		//defer profile.Start(profile.CPUProfile).Stop()
@@ -104,16 +102,17 @@ func (c *Euler) Solve(pm *PlotMeta) {
 	rk := c.NewRungeKuttaSSP()
 
 	elapsed := time.Duration(0)
+	rk.StartWorkers(c)
 	var start time.Time
 	for !finished {
 		start = time.Now()
-		Residual, dt = rk.Step(c, Time, c.Q)
+		rk.Step(c)
 		elapsed += time.Now().Sub(start)
 		steps++
-		Time += dt
-		finished = c.CheckIfFinished(Time, FinalTime, steps)
+		rk.Time += rk.GlobalDT
+		finished = c.CheckIfFinished(rk.Time, FinalTime, steps)
 		if finished || steps%pm.StepsBeforePlot == 0 || steps == 1 {
-			c.PrintUpdate(Time, dt, steps, c.Q, Residual, plotQ, pm)
+			c.PrintUpdate(rk.Time, rk.GlobalDT, steps, c.Q, rk.Residual, plotQ, pm)
 		}
 	}
 	c.PrintFinal(elapsed, steps)
@@ -126,8 +125,13 @@ type RungeKutta4SSP struct {
 	Residual          [][4]utils.Matrix // Used for reporting, aliased to Q1
 	F_RT_DOF          [][4]utils.Matrix // Normal flux used for divergence
 	DT                []utils.Matrix    // Local time step storage
-	Kmax              []int             // Local element count (dimension: Kmax[ParallelDegree])
-	Np, Nedge, NpFlux int               // Number of points in solution, edge and flux total
+	MaxWaveSpeed      []float64         // Shard max wavespeed
+	GlobalDT, Time    float64
+	Kmax              []int // Local element count (dimension: Kmax[ParallelDegree])
+	Np, Nedge, NpFlux int   // Number of points in solution, edge and flux total
+	toWorker          []chan struct{}
+	fromWorkers       chan int8
+	wg                sync.WaitGroup
 }
 
 func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
@@ -136,20 +140,27 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		NPar = pm.ParallelDegree
 	)
 	rk = &RungeKutta4SSP{
-		Jdet:     c.ShardByKTranspose(c.dfr.Jdet),
-		Jinv:     c.ShardByKTranspose(c.dfr.Jinv),
-		RHSQ:     make([][4]utils.Matrix, NPar),
-		Q_Face:   make([][4]utils.Matrix, NPar),
-		Q1:       make([][4]utils.Matrix, NPar),
-		Q2:       make([][4]utils.Matrix, NPar),
-		Q3:       make([][4]utils.Matrix, NPar),
-		Residual: make([][4]utils.Matrix, NPar),
-		F_RT_DOF: make([][4]utils.Matrix, NPar),
-		DT:       make([]utils.Matrix, NPar),
-		Kmax:     make([]int, NPar),
-		Np:       c.dfr.SolutionElement.Np,
-		Nedge:    c.dfr.FluxElement.Nedge,
-		NpFlux:   c.dfr.FluxElement.Np,
+		Jdet:         c.ShardByKTranspose(c.dfr.Jdet),
+		Jinv:         c.ShardByKTranspose(c.dfr.Jinv),
+		RHSQ:         make([][4]utils.Matrix, NPar),
+		Q_Face:       make([][4]utils.Matrix, NPar),
+		Q1:           make([][4]utils.Matrix, NPar),
+		Q2:           make([][4]utils.Matrix, NPar),
+		Q3:           make([][4]utils.Matrix, NPar),
+		Residual:     make([][4]utils.Matrix, NPar),
+		F_RT_DOF:     make([][4]utils.Matrix, NPar),
+		DT:           make([]utils.Matrix, NPar),
+		MaxWaveSpeed: make([]float64, NPar),
+		Kmax:         make([]int, NPar),
+		Np:           c.dfr.SolutionElement.Np,
+		Nedge:        c.dfr.FluxElement.Nedge,
+		NpFlux:       c.dfr.FluxElement.Np,
+		fromWorkers:  make(chan int8, NPar),
+		toWorker:     make([]chan struct{}, NPar),
+		wg:           sync.WaitGroup{},
+	}
+	for np := 0; np < NPar; np++ {
+		rk.toWorker[np] = make(chan struct{}, 1)
 	}
 	// Initialize memory for RHS
 	for np := 0; np < NPar; np++ {
@@ -164,112 +175,178 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		}
 		rk.DT[np] = utils.NewMatrix(rk.Np, rk.Kmax[np])
 	}
+	rk.Residual = rk.Q1
 	return
 }
 
-func (rk *RungeKutta4SSP) Step(c *Euler, Time float64, Q0 [][4]utils.Matrix) (Residual [][4]utils.Matrix, dt float64) {
+func (rk *RungeKutta4SSP) StartWorkers(c *Euler) {
 	var (
+		pm = c.Partitions
+		NP = pm.ParallelDegree
+	)
+	for np := 0; np < NP; np++ {
+		go rk.StepWorker(c, np, rk.toWorker[np], rk.fromWorkers)
+	}
+}
+
+func (rk *RungeKutta4SSP) Step(c *Euler) {
+	/*
+		This is the controller thread - it manages and synchronizes the workers
+		NOTE: Any CPU work done in this thread makes the workers wait - be careful!
+	*/
+	var (
+		pm = c.Partitions
+		NP = pm.ParallelDegree
+	)
+	for {
+		// Advance the workers one step by sending the "go" message. They are blocked until they receive this.
+		for np := 0; np < NP; np++ {
+			rk.toWorker[np] <- struct{}{}
+		}
+		currentStep := int8(-1)
+		var ts int8
+		for np := 0; np < NP; np++ {
+			// Each worker sends it's completed step number, we check to make sure they are all the same
+			ts = <-rk.fromWorkers
+			if currentStep == -1 {
+				currentStep = ts
+			}
+			if ts != currentStep {
+				err := fmt.Errorf("[%d]incorrect state, ts = %d, currentStep = %d\n", np, ts, currentStep)
+				panic(err)
+			}
+		}
+		// Workers are blocked below here - make sure no significant CPU work is done here unless abs necessary!
+		switch {
+		case currentStep == 2:
+			// After step 2, we need to consolidate the local max wavespeeds to calculate global dt
+			if !c.LocalTimeStepping {
+				rk.calculateGlobalDT(c)
+			}
+		case currentStep < 0:
+			return
+		}
+	}
+}
+
+func (rk *RungeKutta4SSP) WorkerDone(subStepP *int8, fromWorker chan int8, isDone bool) {
+	if isDone {
+		*subStepP = -1
+	} else {
+		*subStepP++
+	}
+	fromWorker <- *subStepP // Inform controller what step we've just completed
+}
+
+func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan struct{}, toController chan int8) {
+	var (
+		Q0                           = c.Q
 		Np                           = rk.Np
 		Kmax, Jdet, Jinv, F_RT_DOF   = rk.Kmax, rk.Jdet, rk.Jinv, rk.F_RT_DOF
 		DT, Q_Face, Q1, Q2, Q3, RHSQ = rk.DT, rk.Q_Face, rk.Q1, rk.Q2, rk.Q3, rk.RHSQ
-		pm                           = c.Partitions
-		NP                           = pm.ParallelDegree
-		wg                           = sync.WaitGroup{}
+		dT                           float64
+		subStep                      int8
 	)
-	Residual = Q1
-	for np := 0; np < NP; np++ {
-		wg.Add(1)
-		go func(np int) {
-			c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q0[np], Q_Face[np])
-			wg.Done()
-		}(np)
-	}
-	wg.Wait()
-	dt = c.ParallelEdgeUpdate(Time, true, Jdet, DT, F_RT_DOF, Q_Face) // Must sync parallel before calling
-	if Time+dt > c.FinalTime {
-		dt = c.FinalTime - Time
-	}
-	for np := 0; np < NP; np++ {
-		wg.Add(1)
-		go func(np int) {
-			//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
-			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
-			dT := dt
-			for n := 0; n < 4; n++ {
-				for i := 0; i < Kmax[np]*Np; i++ {
-					if c.LocalTimeStepping {
-						dT = DT[np].DataP[i]
-					}
-					Q1[np][n].DataP[i] = Q0[np][n].DataP[i] + 0.5*RHSQ[np][n].DataP[i]*dT
+	for {
+		_ = <-fromController // Block until parent sends "go"
+		if c.LocalTimeStepping {
+			// Setup local time stepping
+			for k := 0; k < Kmax[myThread]; k++ {
+				DT[myThread].DataP[k] = -100 // Global
+			}
+		}
+		c.PrepareEdgeFlux(Kmax[myThread], Jdet[myThread], Jinv[myThread], F_RT_DOF[myThread], Q0[myThread], Q_Face[myThread])
+		rk.WorkerDone(&subStep, toController, false)
+
+		_ = <-fromController // Block until parent sends "go"
+		if !c.LocalTimeStepping {
+			rk.MaxWaveSpeed[myThread] = c.SetNormalFluxOnEdges(rk.Time, true, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread]) // Global
+		} else {
+			c.SetNormalFluxOnEdges(rk.Time, true, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread]) // Global
+		}
+		rk.WorkerDone(&subStep, toController, false)
+
+		_ = <-fromController // Block until parent sends "go"
+		if c.LocalTimeStepping {
+			// Replicate local time step to the other solution points for each k
+			for k := 0; k < Kmax[myThread]; k++ {
+				DT[myThread].DataP[k] = c.CFL / DT[myThread].DataP[k]
+			}
+			for i := 1; i < c.dfr.SolutionElement.Np; i++ {
+				for k := 0; k < Kmax[myThread]; k++ {
+					ind := k + Kmax[myThread]*i
+					DT[myThread].DataP[ind] = DT[myThread].DataP[k]
 				}
 			}
-			c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q1[np], Q_Face[np])
-			wg.Done()
-		}(np)
-	}
-	wg.Wait()
-	_ = c.ParallelEdgeUpdate(Time, false, Jdet, DT, F_RT_DOF, Q_Face) // Must sync parallel before calling
-	for np := 0; np < NP; np++ {
-		wg.Add(1)
-		go func(np int) {
-			//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
-			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
-			dT := dt
-			for n := 0; n < 4; n++ {
-				for i := 0; i < Kmax[np]*Np; i++ {
-					if c.LocalTimeStepping {
-						dT = DT[np].DataP[i]
-					}
-					Q2[np][n].DataP[i] = Q1[np][n].DataP[i] + 0.25*RHSQ[np][n].DataP[i]*dT
+		}
+		c.RHS(Kmax[myThread], Jdet[myThread], F_RT_DOF[myThread], RHSQ[myThread])
+		dT = rk.GlobalDT
+		for n := 0; n < 4; n++ {
+			for i := 0; i < Kmax[myThread]*Np; i++ {
+				if c.LocalTimeStepping {
+					dT = DT[myThread].DataP[i]
 				}
+				Q1[myThread][n].DataP[i] = Q0[myThread][n].DataP[i] + 0.5*RHSQ[myThread][n].DataP[i]*dT
 			}
-			c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q2[np], Q_Face[np])
-			wg.Done()
-		}(np)
-	}
-	wg.Wait()
-	_ = c.ParallelEdgeUpdate(Time, false, Jdet, DT, F_RT_DOF, Q_Face) // Must sync parallel before calling
-	for np := 0; np < NP; np++ {
-		wg.Add(1)
-		go func(np int) {
-			//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
-			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
-			dT := dt
-			for n := 0; n < 4; n++ {
-				for i := 0; i < Kmax[np]*Np; i++ {
-					if c.LocalTimeStepping {
-						dT = DT[np].DataP[i]
-					}
-					Q3[np][n].DataP[i] = (1. / 3.) * (2*Q0[np][n].DataP[i] + Q2[np][n].DataP[i] + RHSQ[np][n].DataP[i]*dT)
+		}
+		c.PrepareEdgeFlux(Kmax[myThread], Jdet[myThread], Jinv[myThread], F_RT_DOF[myThread], Q1[myThread], Q_Face[myThread])
+		rk.WorkerDone(&subStep, toController, false)
+
+		_ = <-fromController                                                                           // Block until parent sends "go"
+		c.SetNormalFluxOnEdges(rk.Time, false, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread]) // Global
+		rk.WorkerDone(&subStep, toController, false)
+
+		_ = <-fromController // Block until parent sends "go"
+		c.RHS(Kmax[myThread], Jdet[myThread], F_RT_DOF[myThread], RHSQ[myThread])
+		dT = rk.GlobalDT
+		for n := 0; n < 4; n++ {
+			for i := 0; i < Kmax[myThread]*Np; i++ {
+				if c.LocalTimeStepping {
+					dT = DT[myThread].DataP[i]
 				}
+				Q2[myThread][n].DataP[i] = Q1[myThread][n].DataP[i] + 0.25*RHSQ[myThread][n].DataP[i]*dT
 			}
-			c.PrepareEdgeFlux(Kmax[np], Jdet[np], Jinv[np], F_RT_DOF[np], Q3[np], Q_Face[np])
-			wg.Done()
-		}(np)
-	}
-	wg.Wait()
-	_ = c.ParallelEdgeUpdate(Time, false, Jdet, DT, F_RT_DOF, Q_Face) // Must sync parallel before calling
-	for np := 0; np < NP; np++ {
-		wg.Add(1)
-		go func(np int) {
-			//_ = unix.SchedSetaffinity(0, &c.cpuSet[np])
-			c.RHS(Kmax[np], Jdet[np], F_RT_DOF[np], RHSQ[np])
-			// Note, we are re-using Q1 as storage for Residual here
-			dT := dt
-			for n := 0; n < 4; n++ {
-				for i := 0; i < Kmax[np]*Np; i++ {
-					if c.LocalTimeStepping {
-						dT = DT[np].DataP[i]
-					}
-					Residual[np][n].DataP[i] = Q3[np][n].DataP[i] + 0.25*RHSQ[np][n].DataP[i]*dT - Q0[np][n].DataP[i]
-					Q0[np][n].DataP[i] += Residual[np][n].DataP[i]
+		}
+		c.PrepareEdgeFlux(Kmax[myThread], Jdet[myThread], Jinv[myThread], F_RT_DOF[myThread], Q2[myThread], Q_Face[myThread])
+		rk.WorkerDone(&subStep, toController, false)
+
+		_ = <-fromController                                                                           // Block until parent sends "go"
+		c.SetNormalFluxOnEdges(rk.Time, false, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread]) // Global
+		rk.WorkerDone(&subStep, toController, false)
+
+		_ = <-fromController // Block until parent sends "go"
+		c.RHS(Kmax[myThread], Jdet[myThread], F_RT_DOF[myThread], RHSQ[myThread])
+		dT = rk.GlobalDT
+		for n := 0; n < 4; n++ {
+			for i := 0; i < Kmax[myThread]*Np; i++ {
+				if c.LocalTimeStepping {
+					dT = DT[myThread].DataP[i]
 				}
+				Q3[myThread][n].DataP[i] = (1. / 3.) * (2*Q0[myThread][n].DataP[i] + Q2[myThread][n].DataP[i] + RHSQ[myThread][n].DataP[i]*dT)
 			}
-			wg.Done()
-		}(np)
+		}
+		c.PrepareEdgeFlux(Kmax[myThread], Jdet[myThread], Jinv[myThread], F_RT_DOF[myThread], Q3[myThread], Q_Face[myThread])
+		rk.WorkerDone(&subStep, toController, false)
+
+		_ = <-fromController                                                                           // Block until parent sends "go"
+		c.SetNormalFluxOnEdges(rk.Time, false, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread]) // Global
+		rk.WorkerDone(&subStep, toController, false)
+
+		_ = <-fromController // Block until parent sends "go"
+		c.RHS(Kmax[myThread], Jdet[myThread], F_RT_DOF[myThread], RHSQ[myThread])
+		// Note, we are re-using Q1 as storage for Residual here
+		dT = rk.GlobalDT
+		for n := 0; n < 4; n++ {
+			for i := 0; i < Kmax[myThread]*Np; i++ {
+				if c.LocalTimeStepping {
+					dT = DT[myThread].DataP[i]
+				}
+				rk.Residual[myThread][n].DataP[i] = Q3[myThread][n].DataP[i] + 0.25*RHSQ[myThread][n].DataP[i]*dT - Q0[myThread][n].DataP[i]
+				Q0[myThread][n].DataP[i] += rk.Residual[myThread][n].DataP[i]
+			}
+		}
+		rk.WorkerDone(&subStep, toController, true)
 	}
-	wg.Wait()
-	return
 }
 
 func (c *Euler) RHS(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4]utils.Matrix) {
@@ -442,4 +519,20 @@ func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [][4]utils.
 func (c *Euler) PrintFinal(elapsed time.Duration, steps int) {
 	rate := float64(elapsed.Microseconds()) / (float64(c.dfr.K * steps))
 	fmt.Printf("\nRate of execution = %8.5f us/(element*iteration) over %d iterations\n", rate, steps)
+}
+
+func (rk *RungeKutta4SSP) calculateGlobalDT(c *Euler) {
+	var (
+		pm = c.Partitions
+		NP = pm.ParallelDegree
+	)
+	// Must be done in controller/sync process
+	var wsMaxAll float64
+	for np := 0; np < NP; np++ {
+		wsMaxAll = math.Max(wsMaxAll, rk.MaxWaveSpeed[np])
+	}
+	rk.GlobalDT = c.CFL / wsMaxAll
+	if rk.Time+rk.GlobalDT > c.FinalTime {
+		rk.GlobalDT = c.FinalTime - rk.Time
+	}
 }
