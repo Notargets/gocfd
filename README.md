@@ -17,6 +17,14 @@ Density | X Momentum | Density
 
 ### Updates (Jan 11, 2021):
 
+Time Accurate Abrupt Start Transients
+
+| 1st Order | 4th Order | 5th Order | 
+:-------------------------:|:-------------------------:|:-------------------------:|
+![](images/naca-transient-time-accurate-O1.PNG) | ![](images/naca-transient-time-accurate.PNG) | ![](images/naca-transient-time-accurate-O5.PNG) |
+
+The above is just for fun - the wave interactions are all subsonic with Minf = 0.5 and AOA = 2. It's interesting to compare the resolution of the fine wave interactions between the different polynomial orders.
+
 Improved parallelism - Time step and edge flux computations are now computed within a worker pool, which minimizes the thread start/stop overhead. I improved the cache locality by grouping edges with a given primary element number into the same group. Finally, I measured the optimal number of elements per core for best cache locality, and used that to automatically set the number of goroutines used for a given problem. The resulting parallelism is shown in the below graph 
 
 ![](images/cpu-scaling-2.PNG)
