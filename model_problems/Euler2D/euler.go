@@ -3,6 +3,7 @@ package Euler2D
 import (
 	"fmt"
 	"math"
+	"syscall"
 	"time"
 
 	"github.com/notargets/gocfd/types"
@@ -518,6 +519,10 @@ func (c *Euler) PrintFinal(elapsed time.Duration, steps int) {
 	fmt.Printf("\nRate of execution = %8.5f us/(element*iteration) over %d iterations\n", rate, steps)
 	instructionRate := 1344.282 // measured instructions per element per iteration
 	iRate := instructionRate * float64(c.dfr.K*steps) / elapsed.Seconds()
+	var mem syscall.Rusage
+	_ = syscall.Getrusage(syscall.RUSAGE_SELF, &mem)
+	usec, ssec := float64(mem.Utime.Nano())/1.e9, float64(mem.Stime.Nano())/1.e9
+	fmt.Printf("OS Stats: Utime=%6.2f(s), Stime=%6.2f(s), RSS Memory=%6.2f(MB)\n", usec, ssec, float64(mem.Maxrss)/1024.)
 	fmt.Printf("Estimated op rate = %8.5f Giga-ops / second, based on measure op rate of %8.5f per element per iteration\n",
 		iRate/1000000000., instructionRate)
 }
