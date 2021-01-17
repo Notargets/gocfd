@@ -19,13 +19,15 @@
 %
 % Check the jacobian function to ensure it's delivering proper answers for
 % substitution variables
+syms rho rhoU rhoV E gamma;
 U = [ rho, rhoU, rhoV, E];
 u = rhoU/rho;
 v = rhoV/rho;
+p=(gamma-1.)*(E-(rhoU^2+rhoV^2)/(2.*rho));
 F = [ rhoU, rho*u^2+p, rho*u*v, u*(E+p) ];
 G = [ rhoV, rho*u*v, rho*v^2+p, v*(E+p) ];
-p=(gamma-1.)*(E-(rhoU^2+rhoV^2)/(2.*rho));
 
+syms w0 w1 w2 w3;
 W = [ w0, w1, w2, w3 ];
 pw=(gamma-1)*(w3-0.5*(w1^2+w2^2)/w0);
 FW = [ w1, w1^2/w0+pw, w1*w2/w0, (w1/w0)*(w3+pw)];
@@ -51,4 +53,5 @@ DivFG = -(dFdU*dUdX+dGdU*dUdY);
 P = jacobian(DivFG,U);
 % Output the code to manifest the jacobian: DResidual/DU = P(U,Ux,Uy)
 disp(ccode(simplify(P)));
-
+% Output Pinverse (fails)
+%inv(P)
