@@ -40,7 +40,6 @@ type Euler struct {
 	// Below are partitioned by K (elements) in the first slice
 	Q                    [][4]utils.Matrix // Solution variables, stored at solution point locations, Np_solution x K
 	SolutionX, SolutionY []utils.Matrix
-	//cpuSet               [1024]unix.CPUSet
 }
 
 func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType FluxType, Case InitType,
@@ -93,7 +92,6 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		plotQ     = pm.Plot
 	)
 	if c.profile {
-		//defer profile.Start(profile.CPUProfile).Stop()
 		defer profile.Start().Stop()
 	}
 
@@ -541,4 +539,33 @@ func (rk *RungeKutta4SSP) calculateGlobalDT(c *Euler) {
 	if rk.Time+rk.GlobalDT > c.FinalTime {
 		rk.GlobalDT = c.FinalTime - rk.Time
 	}
+}
+
+func (rk *RungeKutta4SSP) GetPreconditioner(c *Euler, rho, rhoU, rhoV, E, nx, ny float64) (Pinv [4][4]float64) {
+	/*
+		[nx,ny] is the direction vector of the flux at the evaluated point:
+			Flux = [F,G] = |[F,G]| * [nx,ny]
+	*/
+	var (
+		gamma = c.FS.Gamma
+	)
+	sigma := 1.0 / ((nx*nx)*(rhoU*rhoU)*2.0 + (ny*ny)*(rhoV*rhoV)*2.0 - gamma*(nx*nx)*(rhoU*rhoU) - gamma*(nx*nx)*(rhoV*rhoV) - gamma*(ny*ny)*(rhoU*rhoU) - gamma*(ny*ny)*(rhoV*rhoV) + (gamma*gamma)*(nx*nx)*(rhoU*rhoU) + (gamma*gamma)*(nx*nx)*(rhoV*rhoV) + (gamma*gamma)*(ny*ny)*(rhoU*rhoU) + (gamma*gamma)*(ny*ny)*(rhoV*rhoV) + nx*ny*rhoU*rhoV*4.0 + E*gamma*(nx*nx)*rho*2.0 + E*gamma*(ny*ny)*rho*2.0 - E*(gamma*gamma)*(nx*nx)*rho*2.0 - E*(gamma*gamma)*(ny*ny)*rho*2.0)
+	sigma2 := 1.0 / (nx*rhoU + ny*rhoV)
+	Pinv[0][0] = rho * sigma * sigma2 * ((nx*nx)*(rhoU*rhoU)*3.0 - (nx*nx)*(rhoV*rhoV) - (ny*ny)*(rhoU*rhoU) + (ny*ny)*(rhoV*rhoV)*3.0 + (gamma*gamma)*(nx*nx)*(rhoU*rhoU) + (gamma*gamma)*(nx*nx)*(rhoV*rhoV) + (gamma*gamma)*(ny*ny)*(rhoU*rhoU) + (gamma*gamma)*(ny*ny)*(rhoV*rhoV) + nx*ny*rhoU*rhoV*8.0 + E*gamma*(nx*nx)*rho*2.0 + E*gamma*(ny*ny)*rho*2.0 - E*(gamma*gamma)*(nx*nx)*rho*2.0 - E*(gamma*gamma)*(ny*ny)*rho*2.0)
+	Pinv[0][1] = (rho * rho) * sigma * sigma2 * (-(ny*ny)*rhoU + gamma*(nx*nx)*rhoU + gamma*(ny*ny)*rhoU + nx*ny*rhoV) * -2.0
+	Pinv[0][2] = (rho * rho) * sigma * sigma2 * (-(nx*nx)*rhoV + gamma*(nx*nx)*rhoV + gamma*(ny*ny)*rhoV + nx*ny*rhoU) * -2.0
+	Pinv[0][3] = (rho * rho * rho) * sigma * sigma2 * (gamma - 1.0) * (nx*nx + ny*ny) * 2.0
+	Pinv[1][0] = sigma * sigma2 * ((nx*nx)*(rhoU*rhoU*rhoU)*2.0 - (ny*ny)*(rhoU*rhoU*rhoU) + nx*ny*(rhoV*rhoV*rhoV) - gamma*(nx*nx)*(rhoU*rhoU*rhoU) + gamma*(ny*ny)*(rhoU*rhoU*rhoU) + (ny*ny)*rhoU*(rhoV*rhoV) + (gamma*gamma)*(nx*nx)*(rhoU*rhoU*rhoU) + (gamma*gamma)*(nx*nx)*rhoU*(rhoV*rhoV) - gamma*nx*ny*(rhoV*rhoV*rhoV)*2.0 + nx*ny*(rhoU*rhoU)*rhoV*5.0 + (gamma*gamma)*nx*ny*(rhoV*rhoV*rhoV) - gamma*(nx*nx)*rhoU*(rhoV*rhoV) + gamma*(ny*ny)*rhoU*(rhoV*rhoV) - E*(gamma*gamma)*(nx*nx)*rho*rhoU*2.0 + (gamma*gamma)*nx*ny*(rhoU*rhoU)*rhoV + E*gamma*(nx*nx)*rho*rhoU*2.0 - gamma*nx*ny*(rhoU*rhoU)*rhoV*2.0 - E*(gamma*gamma)*nx*ny*rho*rhoV*2.0 + E*gamma*nx*ny*rho*rhoV*2.0)
+	Pinv[1][1] = ny * rho * sigma * sigma2 * (ny*(rhoU*rhoU)*2.0 + ny*(rhoV*rhoV)*2.0 - gamma*ny*(rhoU*rhoU)*3.0 - gamma*ny*(rhoV*rhoV) + (gamma*gamma)*ny*(rhoU*rhoU) + (gamma*gamma)*ny*(rhoV*rhoV) + gamma*nx*rhoU*rhoV*2.0 - E*(gamma*gamma)*ny*rho*2.0 + E*gamma*ny*rho*2.0)
+	Pinv[1][2] = -ny * rho * sigma * sigma2 * (nx*(rhoU*rhoU)*2.0 + nx*(rhoV*rhoV)*2.0 - gamma*nx*(rhoU*rhoU) - gamma*nx*(rhoV*rhoV)*3.0 + (gamma*gamma)*nx*(rhoU*rhoU) + (gamma*gamma)*nx*(rhoV*rhoV) + gamma*ny*rhoU*rhoV*2.0 - E*(gamma*gamma)*nx*rho*2.0 + E*gamma*nx*rho*2.0)
+	Pinv[1][3] = ny * (rho * rho) * sigma * sigma2 * (gamma - 1.0) * (nx*rhoV - ny*rhoU) * -2.0
+	Pinv[2][0] = sigma * sigma2 * (-(nx*nx)*(rhoV*rhoV*rhoV) + (ny*ny)*(rhoV*rhoV*rhoV)*2.0 + nx*ny*(rhoU*rhoU*rhoU) + gamma*(nx*nx)*(rhoV*rhoV*rhoV) - gamma*(ny*ny)*(rhoV*rhoV*rhoV) + (nx*nx)*(rhoU*rhoU)*rhoV + (gamma*gamma)*(ny*ny)*(rhoV*rhoV*rhoV) + (gamma*gamma)*(ny*ny)*(rhoU*rhoU)*rhoV - gamma*nx*ny*(rhoU*rhoU*rhoU)*2.0 + nx*ny*rhoU*(rhoV*rhoV)*5.0 + (gamma*gamma)*nx*ny*(rhoU*rhoU*rhoU) + gamma*(nx*nx)*(rhoU*rhoU)*rhoV - gamma*(ny*ny)*(rhoU*rhoU)*rhoV - E*(gamma*gamma)*(ny*ny)*rho*rhoV*2.0 + (gamma*gamma)*nx*ny*rhoU*(rhoV*rhoV) + E*gamma*(ny*ny)*rho*rhoV*2.0 - gamma*nx*ny*rhoU*(rhoV*rhoV)*2.0 - E*(gamma*gamma)*nx*ny*rho*rhoU*2.0 + E*gamma*nx*ny*rho*rhoU*2.0)
+	Pinv[2][1] = -nx * rho * sigma * sigma2 * (ny*(rhoU*rhoU)*2.0 + ny*(rhoV*rhoV)*2.0 - gamma*ny*(rhoU*rhoU)*3.0 - gamma*ny*(rhoV*rhoV) + (gamma*gamma)*ny*(rhoU*rhoU) + (gamma*gamma)*ny*(rhoV*rhoV) + gamma*nx*rhoU*rhoV*2.0 - E*(gamma*gamma)*ny*rho*2.0 + E*gamma*ny*rho*2.0)
+	Pinv[2][2] = nx * rho * sigma * sigma2 * (nx*(rhoU*rhoU)*2.0 + nx*(rhoV*rhoV)*2.0 - gamma*nx*(rhoU*rhoU) - gamma*nx*(rhoV*rhoV)*3.0 + (gamma*gamma)*nx*(rhoU*rhoU) + (gamma*gamma)*nx*(rhoV*rhoV) + gamma*ny*rhoU*rhoV*2.0 - E*(gamma*gamma)*nx*rho*2.0 + E*gamma*nx*rho*2.0)
+	Pinv[2][3] = nx * (rho * rho) * sigma * sigma2 * (gamma - 1.0) * (nx*rhoV - ny*rhoU) * 2.0
+	Pinv[3][0] = (sigma * sigma2 * (-gamma*(rhoU*rhoU) - gamma*(rhoV*rhoV) + rhoU*rhoU + rhoV*rhoV + E*gamma*rho*2.0) * ((nx*nx)*(rhoU*rhoU)*3.0 - (nx*nx)*(rhoV*rhoV) - (ny*ny)*(rhoU*rhoU) + (ny*ny)*(rhoV*rhoV)*3.0 - gamma*(nx*nx)*(rhoU*rhoU) + gamma*(nx*nx)*(rhoV*rhoV) + gamma*(ny*ny)*(rhoU*rhoU) - gamma*(ny*ny)*(rhoV*rhoV) + nx*ny*rhoU*rhoV*8.0 - gamma*nx*ny*rhoU*rhoV*4.0)) / (rho * 2.0)
+	Pinv[3][1] = -sigma * sigma2 * ((nx*nx)*(rhoU*rhoU*rhoU)*2.0 - (ny*ny)*(rhoU*rhoU*rhoU) + nx*ny*(rhoV*rhoV*rhoV) - gamma*(nx*nx)*(rhoU*rhoU*rhoU)*2.0 + gamma*(ny*ny)*(rhoU*rhoU*rhoU)*2.0 + (ny*ny)*rhoU*(rhoV*rhoV) - (gamma*gamma)*(ny*ny)*(rhoU*rhoU*rhoU) - (gamma*gamma)*(ny*ny)*rhoU*(rhoV*rhoV) - gamma*nx*ny*(rhoV*rhoV*rhoV)*2.0 + nx*ny*(rhoU*rhoU)*rhoV*5.0 + (gamma*gamma)*nx*ny*(rhoV*rhoV*rhoV) + E*(gamma*gamma)*(ny*ny)*rho*rhoU*2.0 + (gamma*gamma)*nx*ny*(rhoU*rhoU)*rhoV + E*gamma*(nx*nx)*rho*rhoU*2.0 - E*gamma*(ny*ny)*rho*rhoU*2.0 - gamma*nx*ny*(rhoU*rhoU)*rhoV*6.0 - E*(gamma*gamma)*nx*ny*rho*rhoV*2.0 + E*gamma*nx*ny*rho*rhoV*4.0)
+	Pinv[3][2] = -sigma * sigma2 * (-(nx*nx)*(rhoV*rhoV*rhoV) + (ny*ny)*(rhoV*rhoV*rhoV)*2.0 + nx*ny*(rhoU*rhoU*rhoU) + gamma*(nx*nx)*(rhoV*rhoV*rhoV)*2.0 - gamma*(ny*ny)*(rhoV*rhoV*rhoV)*2.0 + (nx*nx)*(rhoU*rhoU)*rhoV - (gamma*gamma)*(nx*nx)*(rhoV*rhoV*rhoV) - (gamma*gamma)*(nx*nx)*(rhoU*rhoU)*rhoV - gamma*nx*ny*(rhoU*rhoU*rhoU)*2.0 + nx*ny*rhoU*(rhoV*rhoV)*5.0 + (gamma*gamma)*nx*ny*(rhoU*rhoU*rhoU) + E*(gamma*gamma)*(nx*nx)*rho*rhoV*2.0 + (gamma*gamma)*nx*ny*rhoU*(rhoV*rhoV) - E*gamma*(nx*nx)*rho*rhoV*2.0 + E*gamma*(ny*ny)*rho*rhoV*2.0 - gamma*nx*ny*rhoU*(rhoV*rhoV)*6.0 - E*(gamma*gamma)*nx*ny*rho*rhoU*2.0 + E*gamma*nx*ny*rho*rhoU*4.0)
+	Pinv[3][3] = rho * sigma * sigma2 * ((nx*nx)*(rhoU*rhoU)*3.0 - (nx*nx)*(rhoV*rhoV) - (ny*ny)*(rhoU*rhoU) + (ny*ny)*(rhoV*rhoV)*3.0 - gamma*(nx*nx)*(rhoU*rhoU) + gamma*(nx*nx)*(rhoV*rhoV) + gamma*(ny*ny)*(rhoU*rhoU) - gamma*(ny*ny)*(rhoV*rhoV) + nx*ny*rhoU*rhoV*8.0 - gamma*nx*ny*rhoU*rhoV*4.0)
+	return
 }
