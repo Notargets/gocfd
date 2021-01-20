@@ -79,3 +79,19 @@ dGdU = simplify(jacobian(G,U));
 %       dFlux/dU(X_i) = [dF/dU,dG/dU] dot [nx,ny]
 % The dot product of [dF/dU,dG/dU] with [nx,ny} produces a single matrix
 % containing the directional flux jacobian.
+% We then need the inverse of the directional flux jacobian which we can
+% then use as a preconditioner for the RHS as shown above.
+
+syms nx ny;
+Flux = dFdU*nx+dGdU*ny;
+disp 'Inverse of directional flux: ';
+[invFlux,sigma] = subexpr(simplify(inv(Flux)));
+syms sigma2;
+[invFlux2,sigma2] = subexpr(simplify(invFlux),sigma2);
+%Output simplified preconditioner with subexpressions sigma and sigma2
+disp 'preconditioner, ~= [dRHS/dU]^-1'
+ccode(invFlux2)
+disp 'sigma subexpression'
+ccode(sigma)
+disp 'sigma2 subexpression'
+ccode(sigma2)
