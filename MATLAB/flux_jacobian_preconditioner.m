@@ -44,14 +44,38 @@ dGdU = simplify(jacobian(G,U));
 %ccode(dFdU)
 %ccode(dGdU)
 
-syms ux1 ux2 ux3 ux4 uy1 uy2 uy3 uy4;
-dUdX = [ux1,ux2,ux3,ux4].';
-dUdY = [uy1,uy2,uy3,uy4].';
-
-DivFG = -(dFdU*dUdX+dGdU*dUdY);
-
-P = jacobian(DivFG,U);
-% Output the code to manifest the jacobian: DResidual/DU = P(U,Ux,Uy)
-disp(ccode(simplify(P)));
-% Output Pinverse (fails)
-%inv(P)
+% We need to calculate dRHS/dU, making the approximation that we can use
+% the singular nodal values of U to compose dF/dU and dG/dU rather than sum
+% all of the nodal calculations. The original system is this:
+%       dU/dt(X_i) = - sum_over_I(Flux(X_i) * divergence(Psi(X_i))
+% Flux in the above is a scalar DOF in an RT element, which for the
+% solution points is a projection of the vector flux [F,G] onto X or Y
+% directions, depening on the node, i.
+%
+% We are calculating a Jacobian of the RHS, dRHS/dU. Psi is a polynomial in
+% X, and so doesn't depend on U, leaving the Flux, which is dependent on U.
+% We want a value for dRHS/dU at location X_i, which would require we do
+% this:
+%       dRHS/dU = - sum_over_I(dFlux/dU(X_i) * divergence(Psi(X_i))
+% But that would require Imax matrix summations per point within I, so
+% instead we'll calculate this:
+%       dRHS/dU ~= - dFlux/dU(X_i) * sum_over_I(divergence(Psi(X_i))
+% The right most term is a scalar for each node i, so we'll be multiplying
+% the local jacobian matrix by the local divergence, then calculating the
+% inverse to compose:
+%       dU ~= dt * [dRHS/dU]^-1 * RHS
+%
+% Note that the Flux_i term is a scalar projection of [F,G], so we need to
+% compose d[F,G]/dU then project it onto the local flux directional vector
+% for each internal point. For that, we need to calculate the directional
+% vector, or obtain it from the calculations leading to the inital
+% projection. We can calculate the flux direction using the projected flux
+% from the two equations:
+%       Flux_i = nx*F+ny*G, sqrt(nx^2+ny^2) = 1
+%       ny = sqrt(1-nx^2) -> allows for ny +/-
+% Note that we can't easily distinguish which direction of ny to use!
+% Instead, we can obtain net individual flux directional values from the RT
+% element interpolations, then we have:
+%       dFlux/dU(X_i) = [dF/dU,dG/dU] dot [nx,ny]
+% The dot product of [dF/dU,dG/dU] with [nx,ny} produces a single matrix
+% containing the directional flux jacobian.
