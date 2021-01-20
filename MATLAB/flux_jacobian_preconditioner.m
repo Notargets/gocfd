@@ -82,8 +82,9 @@ dGdU = simplify(jacobian(G,U));
 % We then need the inverse of the directional flux jacobian which we can
 % then use as a preconditioner for the RHS as shown above.
 
-syms nx ny;
-Flux = dFdU*nx+dGdU*ny;
+syms nx ny div1 div2 div3 div4;
+Flux = (dFdU*nx+dGdU*ny)*[div1,div2,div3,div4]';
+% // TODO: fix the above - it's not a correct propagation of the flux x div
 disp 'Inverse of directional flux: ';
 [invFlux,sigma] = subexpr(simplify(inv(Flux)));
 syms sigma2;
