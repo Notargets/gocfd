@@ -49,8 +49,7 @@ dGdU = simplify(jacobian(G,U));
 % all of the nodal calculations. The original system is this:
 %       dU/dt(X_i) = - sum_over_I(Flux(X_i) * divergence(Psi(X_i))
 % Flux in the above is a scalar DOF in an RT element, which for the
-% solution points is a projection of the vector flux [F,G] onto X or Y
-% directions, depening on the node, i.
+% interior solution points is the magnitude of the vector flux [F,G].
 %
 % We are calculating a Jacobian of the RHS, dRHS/dU. Psi is a polynomial in
 % X, and so doesn't depend on U, leaving the Flux, which is dependent on U.
@@ -65,34 +64,29 @@ dGdU = simplify(jacobian(G,U));
 % inverse to compose:
 %       dU ~= dt * [dRHS/dU]^-1 * RHS
 %
-% Note that the Flux_i term is a scalar projection of [F,G], so we need to
-% compose d[F,G]/dU then project it onto the local flux directional vector
-% for each internal point. For that, we need to calculate the directional
-% vector, or obtain it from the calculations leading to the inital
-% projection. We can calculate the flux direction using the projected flux
-% from the two equations:
-%       Flux_i = nx*F+ny*G, sqrt(nx^2+ny^2) = 1
-%       ny = sqrt(1-nx^2) -> allows for ny +/-
-% Note that we can't easily distinguish which direction of ny to use!
-% Instead, we can obtain net individual flux directional values from the RT
-% element interpolations, then we have:
-%       dFlux/dU(X_i) = [dF/dU,dG/dU] dot [nx,ny]
-% The dot product of [dF/dU,dG/dU] with [nx,ny} produces a single matrix
-% containing the directional flux jacobian.
 % We then need the inverse of the directional flux jacobian which we can
 % then use as a preconditioner for the RHS as shown above.
-
-syms nx ny div1 div2 div3 div4;
-Flux = (dFdU*nx+dGdU*ny)*[div1,div2,div3,div4]';
-% // TODO: fix the above - it's not a correct propagation of the flux x div
-disp 'Inverse of directional flux: ';
-[invFlux,sigma] = subexpr(simplify(inv(Flux)));
-syms sigma2;
-[invFlux2,sigma2] = subexpr(simplify(invFlux),sigma2);
-%Output simplified preconditioner with subexpressions sigma and sigma2
-disp 'preconditioner, ~= [dRHS/dU]^-1'
-ccode(invFlux2)
-disp 'sigma subexpression'
-ccode(sigma)
-disp 'sigma2 subexpression'
-ccode(sigma2)
+Flux = sqrt(F.^2+G.^2);
+dFluxdU = jacobian(simplify(Flux),U);
+% Reduce and simplify the result, output code
+precon = dFluxdU;
+for m = 1:19
+    name = ['sig' num2str(m,'%d')];
+    name2 = name;
+    sym name;
+    [precon,name] = subexpr(simplify(precon),name);
+    fprintf ("%s = %s\n", char(name2), ccode(name));
+end
+ccode(precon)
+% Instead of below, we'll do a numerical inverse - it will be cheaper
+% disp 'Inverse of directional flux: ';
+% [invFlux,sigma] = subexpr(simplify(inv(dFluxdU)));
+% syms sigma2;
+% [invFlux2,sigma2] = subexpr(simplify(invFlux),sigma2);
+% %Output simplified preconditioner with subexpressions sigma and sigma2
+% disp 'preconditioner, ~= [dRHS/dU]^-1'
+% ccode(invFlux2)
+% disp 'sigma subexpression'
+% ccode(sigma)
+% disp 'sigma2 subexpression'
+% ccode(sigma2)
