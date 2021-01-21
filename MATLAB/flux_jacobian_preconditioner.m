@@ -68,8 +68,13 @@ dGdU = simplify(jacobian(G,U));
 % then use as a preconditioner for the RHS as shown above.
 Flux = sqrt(F.^2+G.^2);
 dFluxdU = jacobian(simplify(Flux),U);
+% To ease the use of the preconditioner, we'll divide by the Flux so that
+% we can compose the dRHS/dU as:
+%    dRHS/dU ~= (dFluxdU/Flux)*(sum(Flux*divergence(Psi))
+% Which is approximately equal to:
+%    dRHS/dU ~= dFluxdU*sum(divergence(Psi))
+precon = simplify(dFluxdU);
 % Reduce and simplify the result, output code
-precon = dFluxdU;
 for m = 1:19
     name = ['sig' num2str(m,'%d')];
     name2 = name;
@@ -77,7 +82,7 @@ for m = 1:19
     [precon,name] = subexpr(simplify(precon),name);
     fprintf ("%s = %s\n", char(name2), ccode(name));
 end
-ccode(precon)
+fprintf("%s\n",ccode(precon));
 % Instead of below, we'll do a numerical inverse - it will be cheaper
 % disp 'Inverse of directional flux: ';
 % [invFlux,sigma] = subexpr(simplify(inv(dFluxdU)));
