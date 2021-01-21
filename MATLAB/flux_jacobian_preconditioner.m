@@ -76,7 +76,7 @@ dFluxdU = jacobian(simplify(Flux),U);
 precon = simplify(dFluxdU);
 % Reduce and simplify the result, output code
 for m = 1:19
-    name = ['sig' num2str(m,'%d')];
+    name = ['Ssig' num2str(m,'%d')];
     name2 = name;
     sym name;
     [precon,name] = subexpr(simplify(precon),name);
