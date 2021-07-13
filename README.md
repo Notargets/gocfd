@@ -66,7 +66,7 @@ Using Ubuntu Linux, do the following:
 ```
 ### Build
 me@home:bash# sudo apt update
-me@home:bash# sudo apt install libx11-dev libxi-dev libxcursor-dev libxrandr-dev libxinerama-dev mesa-common-dev libgl1-mesa-dev
+me@home:bash# sudo apt install libx11-dev libxi-dev libxcursor-dev libxrandr-dev libxinerama-dev mesa-common-dev libgl1-mesa-dev libxxf86vm-dev
 me@home:bash# make
 ```
 ```
