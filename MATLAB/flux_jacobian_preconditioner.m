@@ -1,4 +1,4 @@
-% 2D Euler Equations - Preconditioner developement
+% 2D Euler Equations - Preconditioner development
 %
 % Theory: In short, we're taking a known RHS in our 2D Flux Reconstructed
 % Galerkin Euler Solver and getting an algebraic expression for the
@@ -19,13 +19,11 @@
 %
 % Check the jacobian function to ensure it's delivering proper answers for
 % substitution variables
-syms rho rhoU rhoV E gamma;
-U = [ rho, rhoU, rhoV, E];
-u = rhoU/rho;
-v = rhoV/rho;
+syms rho u v rhoU rhoV E gamma p;
 p=(gamma-1.)*(E-(rhoU^2+rhoV^2)/(2.*rho));
-F = [ rhoU, rho*u^2+p, rho*u*v, u*(E+p) ];
-G = [ rhoV, rho*u*v, rho*v^2+p, v*(E+p) ];
+U = [ rho, rhoU, rhoV, E];
+F = [ rhoU, rhoU^2/rho+p, rhoU*rhoV/rho, (rhoU/rho)*(E+p) ];
+G = [ rhoV, rhoV*rhoU/rho, rhoV^2/rho+p, (rhoV/rho)*(E+p) ];
 
 syms w0 w1 w2 w3;
 W = [ w0, w1, w2, w3 ];
@@ -39,6 +37,8 @@ if simplify(dFdU2-dFdU) == 0
     disp('correct answer')
 end
 dGdU = simplify(jacobian(G,U));
+disp(dFdU);
+error("exit on purpose");
 
 % Output the code to manifest each jacobian
 %ccode(dFdU)
