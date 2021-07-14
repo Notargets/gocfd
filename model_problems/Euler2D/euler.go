@@ -547,44 +547,34 @@ func (rk *RungeKutta4SSP) GetPreconditioner(c *Euler, rho, rhoU, rhoV, E float64
 			Flux = [F,G] = |[F,G]| * [nx,ny]
 	*/
 	var (
-		gamma     = c.FS.Gamma
-		sqrt, pow = math.Sqrt, utils.POW
-		GM1       = gamma - 1.0
+		gamma          = c.FS.Gamma
+		sqrt           = math.Sqrt
+		GM1            = gamma - 1.0
+		u, v           = rhoU / rho, rhoV / rho
+		rhoU_2, rhoV_2 = rhoU * rhoU, rhoV * rhoV
+		pressure       = GM1 * (E - (rhoU_2+rhoV_2)/(rho*2.0))
+		a              = sqrt(gamma * pressure / rho)
+		uave           = sqrt(u*u + v*v)
+		mach           = uave / a
+		m2             = mach * mach
+		a2             = a * a
+		BMr2Oa2        = m2 * a2 / (1 - m2)
+		alpha          = 1 + BMr2Oa2/a2
+		delta          = 1.
 	)
-	rhoU_2, rhoV_2 := rhoU*rhoU, rhoV*rhoV
-	pressure := GM1 * (E - (rhoU_2+rhoV_2)/(rho*2.0))
-	sig2 := -gamma*(rhoU_2) - gamma*(rhoV_2) + rhoU_2 + rhoV_2 + E*gamma*rho*2.0
-	sig3 := 1.0 / rho
-	sig3_2 := sig3 * sig3
-	sig4 := 1.0 / sqrt(pow(pressure+rhoV_2*sig3, 2.0)+rhoU_2*rhoV_2*sig3_2)
-	sig5 := 1.0 / sqrt(pow(pressure+rhoU_2*sig3, 2.0)+rhoU_2*rhoV_2*sig3_2)
-	sig6 := rhoU_2 + rhoV_2
-	sig7 := 1.0 / sqrt((sig2*sig2)*(sig3_2*sig3_2)*sig6)
-	sig9 := pressure + rhoV_2*sig3
-	sig10 := pressure + rhoU_2*sig3
-	sig11 := rhoU_2 * rhoV_2 * (sig3 * sig3_2) * 2.0
-	sig12 := sig2 + sig6*2.0 - gamma*sig6*2.0
-	sig13 := rhoV_2 * sig3
-	sig14 := rhoU_2 * sig3
-	sig15 := 1.0 / sqrt(sig6)
-	sig16 := ((sig3 * sig3) * sig6 * GM1) / 2.0
-	sig17 := -GM1 * sig10
-	sig18 := -GM1 * sig9
-	sig19 := sig3 * sig3 * sig3 * sig3
-	sig20 := sig2 * sig7 * sig12 * sig19
-	P[0][1] = rhoU * sig15
-	P[0][2] = rhoV * sig15
-	P[1][0] = sig5 * (sig11 - sig10*(sig16-sig3*sig14)*2.0) * (-1.0 / 2.0)
-	P[1][1] = rhoU * sig3 * sig5 * (sig10*2.0 + sig13 + sig17)
-	P[1][2] = rhoV * sig3 * sig5 * (sig14 + sig17)
-	P[1][3] = sig5 * GM1 * sig10
-	P[2][0] = sig4 * (sig11 - sig9*(sig16-sig3*sig13)*2.0) * (-1.0 / 2.0)
-	P[2][1] = rhoU * sig3 * sig4 * (sig13 + sig18)
-	P[2][2] = rhoV * sig3 * sig4 * (sig9*2.0 + sig14 + sig18)
-	P[2][3] = sig4 * GM1 * sig9
-	P[3][0] = -sig2 * (sig3 * sig3 * sig3 * sig3 * sig3) * sig6 * sig7 * (sig2 - E*gamma*rho)
-	P[3][1] = (rhoU * sig20) / 2.0
-	P[3][2] = (rhoV * sig20) / 2.0
-	P[3][3] = gamma * sig2 * (sig3 * sig3 * sig3) * sig6 * sig7
+	P[0][0] = (1.0 / (a * a) * 1.0 / (rho * rho) * (gamma - 1.0) * (BMr2Oa2*(a*a)*(rhoU*rhoU) + BMr2Oa2*(a*a)*(rhoV*rhoV) + alpha*rhoU*u*2.0 + alpha*rhoV*v*2.0)) / 2.0
+	P[0][1] = -(rhoU * (gamma - 1.0)) / rho
+	P[0][2] = -(rhoV * (gamma - 1.0)) / rho
+	P[0][3] = 1.0 / (a * a) * 1.0 / (rho * rho) * (gamma - 1.0) * ((a*a)*(rho*rho)*-2.0 + alpha*delta*rhoU*u*2.0 + alpha*delta*rhoV*v*2.0 + BMr2Oa2*(a*a)*delta*(rhoU*rhoU) + BMr2Oa2*(a*a)*delta*(rhoV*rhoV)) * (-1.0 / 2.0)
+	P[1][0] = -1.0 / (a * a) * 1.0 / (rho * rho) * (alpha*u + BMr2Oa2*(a*a)*rhoU)
+	P[1][1] = 1.0 / rho
+	P[1][3] = 1.0 / (a * a) * delta * 1.0 / (rho * rho) * (alpha*u + BMr2Oa2*(a*a)*rhoU)
+	P[2][0] = -1.0 / (a * a) * 1.0 / (rho * rho) * (alpha*v + BMr2Oa2*(a*a)*rhoV)
+	P[2][2] = 1.0 / rho
+	P[2][3] = 1.0 / (a * a) * delta * 1.0 / (rho * rho) * (alpha*v + BMr2Oa2*(a*a)*rhoV)
+	P[3][0] = -BMr2Oa2*(a*a-(1.0/(rho*rho)*(rhoU*rhoU+rhoV*rhoV)*(gamma-1.0))/2.0) + 1.0/(a*a)*alpha*1.0/(rho*rho)*rhoU*u*(gamma-1.0) + 1.0/(a*a)*alpha*1.0/(rho*rho)*rhoV*v*(gamma-1.0)
+	P[3][1] = -(rhoU * (gamma - 1.0)) / rho
+	P[3][2] = -(rhoV * (gamma - 1.0)) / rho
+	P[3][3] = gamma + BMr2Oa2*delta*(a*a-(1.0/(rho*rho)*(rhoU*rhoU+rhoV*rhoV)*(gamma-1.0))/2.0) - 1.0/(a*a)*alpha*delta*1.0/(rho*rho)*rhoU*u*(gamma-1.0) - 1.0/(a*a)*alpha*delta*1.0/(rho*rho)*rhoV*v*(gamma-1.0) - 1.0
 	return
 }

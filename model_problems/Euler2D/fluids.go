@@ -107,7 +107,7 @@ func (fs *FreeStream) GetFlowFunctionBase(rho, rhoU, rhoV, E float64, pf FlowFun
 	case DynamicPressure:
 		f = 0.5 * (rhoU*rhoU + rhoV*rhoV) * oorho
 	case PressureCoefficient:
-		f = (p - fs.Pinf) / fs.QQinf
+		f = -(p - fs.Pinf) / fs.QQinf
 	case SoundSpeed:
 		f = math.Sqrt(math.Abs(Gamma * p * oorho))
 	case Velocity:
