@@ -2,14 +2,25 @@ syms gamma rho rhoU rhoV E;
 U = [ rho, rhoU, rhoV, E];
 q = (1/(2*rho))*(rhoU^2+rhoV^2);
 p = (gamma-1)*(E-q);
-%S = log(p / (rho^gamma));
-S = log(p/(rho^gamma));
-%S = log(p) - gamma*log(rho);
+s = log(p) - gamma*log(rho);
+%s = log(p/(rho^gamma));
+%S = -rho*s/(gamma-1);
+S = -rho*s/(gamma-1);
 W = [p,rhoU/rho,rhoV/rho,S];
 dWdU = jacobian(W,U);
 disp("dWdU Jacobian");
 disp(dWdU);
 
+%back substitute P
+u=rhoU/rho;
+v=rhoV/rho;
+dWdUout=subs(dWdU,str2sym('E - (rhoU^2 + rhoV^2)/(2*rho)'),str2sym('P/(gamma-1)'));
+syms u v gmg;
+dWdUout=subs(dWdUout,rhoU/rho,u);
+dWdUout=subs(dWdUout,rhoV/rho,v);
+%dWdUout=subs(dWdUout,gamma/(gamma-1),gmg);
+
+disp(dWdUout);
 error("planned");
 
 dUdW = inv(dWdU);
