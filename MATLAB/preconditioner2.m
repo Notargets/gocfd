@@ -8,8 +8,8 @@ s = log(p) - gamma*log(rho);
 S = s;
 W = [p,rhoU/rho,rhoV/rho,S];
 dWdU = jacobian(W,U);
-disp("dWdU Jacobian");
-disp(dWdU);
+%disp("dWdU Jacobian");
+%disp(dWdU);
 
 %back substitute P
 syms u v gmg P;
@@ -20,12 +20,10 @@ dWdUout=subs(dWdUout,rhoU/rho,u);
 dWdUout=subs(dWdUout,rhoV/rho,v);
 %dWdUout=subs(dWdUout,gamma/(gamma-1),gmg);
 dWdU = dWdUout;
-
-disp(dWdU);
-
+%disp(dWdU);
 dUdW = inv(dWdUout);
-disp("dUdW Jacobian");
-disp(dUdW);
+%disp("dUdW Jacobian");
+%disp(dUdW);
 
 syms alpha a BMr2Oa2 delta;
 a = sqrt(gamma*p/rho);
@@ -58,28 +56,34 @@ dWdU = simplify(dWdU,'Steps',100);
 dUdW = subs(dUdW,str2sym('u^2+v^2'),str2sym('qq'));
 dWdU = subs(dWdU,str2sym('u^2+v^2'),str2sym('qq'));
 %qqq = qq*(gamma-1)/2
+syms c2 qqq;
 dUdW = subs(dUdW,str2sym('(qq*(gamma-1))/2'),qqq);
 dWdU = subs(dWdU,str2sym('(qq*(gamma-1))/2'),qqq);
 dUdW = subs(dUdW,str2sym('rho/(P*gamma)'),str2sym('1/c2'));
 dUdW = subs(dUdW,str2sym('rho/(gamma)'),str2sym('1/(c2*P)'));
 dUdW = subs(dUdW,str2sym('qq/c2'),str2sym('m2'));
+%dUdW(4,1) verified by hand to be equal to h/c2 where h=c2/(gamma-1)+qq/2
+syms h;
+dUdW(4,1) = h/c2;
+%dWdU(4,1) verified by hand to be equal to (qqq-c2)/P
+dWdU(4,1) = (qqq-c2)/P;
+disp('dUdW');
 disp(dUdW);
+disp('dWdU');
 disp(dWdU);
 %error('planned');
 P0t = simplify(dUdW*P0*dWdU,'Steps',100);
 P0t = subs(P0t,str2sym('rho/(P*gamma)'),str2sym('1/c2'));
 P0t = subs(P0t,str2sym('rho/(gamma)'),str2sym('1/(c2*P)'));
 P0t = subs(P0t,str2sym('qq/c2'),str2sym('m2'));
-P0t
-error('planned');
 syms q;
 P0t = subs(P0t,str2sym('(rho*u^2)/2 + (rho*v^2)/2'),q);
-q=(rho*u^2)/2 + (rho*v^2)/2;
+%q=(rho*u^2)/2 + (rho*v^2)/2;
 P0t = simplify(P0t,'Steps',100);
-syms qq;
-P0t = subs(P0t,str2sym('(u^2 + v^2)'),qq);
-qq = (u^2 + v^2);
-P0t = simplify(P0t,'Steps',100);
+%syms qq;
+%P0t = subs(P0t,str2sym('(u^2 + v^2)'),qq);
+%qq = (u^2 + v^2);
+%P0t = simplify(P0t,'Steps',100);
 disp("transformed preconditioner in conservative variables");
 disp(P0t);
 
