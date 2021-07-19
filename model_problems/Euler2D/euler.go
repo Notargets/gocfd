@@ -242,6 +242,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		DT, Q_Face, Q1, Q2, Q3, RHSQ = rk.DT, rk.Q_Face, rk.Q1, rk.Q2, rk.Q3, rk.RHSQ
 		dT                           float64
 		subStep                      int8
+		preCon                       = false
 	)
 	for {
 		_ = <-fromController // Block until parent sends "go"
@@ -276,6 +277,9 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 			}
 		}
 		c.RHS(Kmax[myThread], Jdet[myThread], F_RT_DOF[myThread], RHSQ[myThread])
+		if preCon {
+			c.PreconditionRHS(Q0[myThread], RHSQ[myThread])
+		}
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
 			for i := 0; i < Kmax[myThread]*Np; i++ {
@@ -294,6 +298,9 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 
 		_ = <-fromController // Block until parent sends "go"
 		c.RHS(Kmax[myThread], Jdet[myThread], F_RT_DOF[myThread], RHSQ[myThread])
+		if preCon {
+			c.PreconditionRHS(Q1[myThread], RHSQ[myThread])
+		}
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
 			for i := 0; i < Kmax[myThread]*Np; i++ {
@@ -312,6 +319,9 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 
 		_ = <-fromController // Block until parent sends "go"
 		c.RHS(Kmax[myThread], Jdet[myThread], F_RT_DOF[myThread], RHSQ[myThread])
+		if preCon {
+			c.PreconditionRHS(Q2[myThread], RHSQ[myThread])
+		}
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
 			for i := 0; i < Kmax[myThread]*Np; i++ {
@@ -330,6 +340,9 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 
 		_ = <-fromController // Block until parent sends "go"
 		c.RHS(Kmax[myThread], Jdet[myThread], F_RT_DOF[myThread], RHSQ[myThread])
+		if preCon {
+			c.PreconditionRHS(Q3[myThread], RHSQ[myThread])
+		}
 		// Note, we are re-using Q1 as storage for Residual here
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
@@ -364,6 +377,26 @@ func (c *Euler) RHS(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4]utils.Matrix)
 		c.DivideByJacobian(Kmax, c.dfr.FluxElement.Nint, Jdet, RHSQ[n].DataP, -1)
 	}
 	return
+}
+
+func (c *Euler) PreconditionRHS(Q, RHSQ [4]utils.Matrix) {
+	var (
+		newRHS [4]float64
+	)
+	for i, rho := range Q[0].DataP {
+		rhoU, rhoV, E := Q[1].DataP[i], Q[2].DataP[i], Q[3].DataP[i]
+		P0 := c.GetPreconditioner(rho, rhoU, rhoV, E)
+		for rNum := 0; rNum < 4; rNum++ {
+			newRHS[rNum] =
+				P0[rNum][0]*RHSQ[0].DataP[i] +
+					P0[rNum][1]*RHSQ[1].DataP[i] +
+					P0[rNum][2]*RHSQ[2].DataP[i] +
+					P0[rNum][3]*RHSQ[3].DataP[i]
+		}
+		for rNum := 0; rNum < 4; rNum++ {
+			RHSQ[rNum].DataP[i] = newRHS[rNum]
+		}
+	}
 }
 
 func (c *Euler) DivideByJacobian(Kmax, Imax int, Jdet utils.Matrix, data []float64, scale float64) {
@@ -541,7 +574,7 @@ func (rk *RungeKutta4SSP) calculateGlobalDT(c *Euler) {
 	}
 }
 
-func (rk *RungeKutta4SSP) GetPreconditioner(c *Euler, rho, rhoU, rhoV, E float64) (P [4][4]float64) {
+func (c *Euler) GetPreconditioner(rho, rhoU, rhoV, E float64) (P0 [4][4]float64) {
 	/*
 		[nx,ny] is the direction vector of the flux at the evaluated point:
 			Flux = [F,G] = |[F,G]| * [nx,ny]
@@ -551,30 +584,38 @@ func (rk *RungeKutta4SSP) GetPreconditioner(c *Euler, rho, rhoU, rhoV, E float64
 		sqrt           = math.Sqrt
 		GM1            = gamma - 1.0
 		u, v           = rhoU / rho, rhoV / rho
+		u2, v2         = u * u, v * v
+		qq             = u2 + v2
+		qqq            = GM1 * qq / 2
 		rhoU_2, rhoV_2 = rhoU * rhoU, rhoV * rhoV
-		pressure       = GM1 * (E - (rhoU_2+rhoV_2)/(rho*2.0))
-		a              = sqrt(gamma * pressure / rho)
-		uave           = sqrt(u*u + v*v)
-		mach           = uave / a
+		P              = GM1 * (E - (rhoU_2+rhoV_2)/(rho*2.0))
+		P2             = P * P
+		C              = sqrt(gamma * P / rho)
+		uave           = sqrt(qq)
+		mach           = uave / C
 		m2             = mach * mach
-		a2             = a * a
-		BMr2Oa2        = m2 * a2 / (1 - m2)
-		alpha          = 1 + BMr2Oa2/a2
+		c2             = C * C
+		BMr2Oa2        = m2 * c2 / (1 - m2)
 		delta          = 1.
+		h              = c2/GM1 + qq/2
 	)
-	P[0][0] = (1.0 / (a * a) * 1.0 / (rho * rho) * (gamma - 1.0) * (BMr2Oa2*(a*a)*(rhoU*rhoU) + BMr2Oa2*(a*a)*(rhoV*rhoV) + alpha*rhoU*u*2.0 + alpha*rhoV*v*2.0)) / 2.0
-	P[0][1] = -(rhoU * (gamma - 1.0)) / rho
-	P[0][2] = -(rhoV * (gamma - 1.0)) / rho
-	P[0][3] = 1.0 / (a * a) * 1.0 / (rho * rho) * (gamma - 1.0) * ((a*a)*(rho*rho)*-2.0 + alpha*delta*rhoU*u*2.0 + alpha*delta*rhoV*v*2.0 + BMr2Oa2*(a*a)*delta*(rhoU*rhoU) + BMr2Oa2*(a*a)*delta*(rhoV*rhoV)) * (-1.0 / 2.0)
-	P[1][0] = -1.0 / (a * a) * 1.0 / (rho * rho) * (alpha*u + BMr2Oa2*(a*a)*rhoU)
-	P[1][1] = 1.0 / rho
-	P[1][3] = 1.0 / (a * a) * delta * 1.0 / (rho * rho) * (alpha*u + BMr2Oa2*(a*a)*rhoU)
-	P[2][0] = -1.0 / (a * a) * 1.0 / (rho * rho) * (alpha*v + BMr2Oa2*(a*a)*rhoV)
-	P[2][2] = 1.0 / rho
-	P[2][3] = 1.0 / (a * a) * delta * 1.0 / (rho * rho) * (alpha*v + BMr2Oa2*(a*a)*rhoV)
-	P[3][0] = -BMr2Oa2*(a*a-(1.0/(rho*rho)*(rhoU*rhoU+rhoV*rhoV)*(gamma-1.0))/2.0) + 1.0/(a*a)*alpha*1.0/(rho*rho)*rhoU*u*(gamma-1.0) + 1.0/(a*a)*alpha*1.0/(rho*rho)*rhoV*v*(gamma-1.0)
-	P[3][1] = -(rhoU * (gamma - 1.0)) / rho
-	P[3][2] = -(rhoV * (gamma - 1.0)) / rho
-	P[3][3] = gamma + BMr2Oa2*delta*(a*a-(1.0/(rho*rho)*(rhoU*rhoU+rhoV*rhoV)*(gamma-1.0))/2.0) - 1.0/(a*a)*alpha*delta*1.0/(rho*rho)*rhoU*u*(gamma-1.0) - 1.0/(a*a)*alpha*delta*1.0/(rho*rho)*rhoV*v*(gamma-1.0) - 1.0
+	BMr2Oa2 = math.Max(BMr2Oa2, 0.05*c.FS.Cinf)
+	alpha := 1 + BMr2Oa2/c2
+	P0[0][0] = ((c2-qqq)*(1.0/(P*c2)+(BMr2Oa2*delta)/c2))/P + (BMr2Oa2*qqq)/c2
+	P0[0][1] = (1.0 / P2 * u * GM1 * (-BMr2Oa2*P2 + BMr2Oa2*P*delta + 1.0)) / c2
+	P0[0][2] = (1.0 / P2 * v * GM1 * (-BMr2Oa2*P2 + BMr2Oa2*P*delta + 1.0)) / c2
+	P0[0][3] = -(1.0 / P2 * GM1 * (-BMr2Oa2*P2 + BMr2Oa2*P*delta + 1.0)) / c2
+	P0[1][0] = -u + (1.0/P2*u*(c2-qqq)*(gamma+BMr2Oa2*P*delta*gamma-alpha*c2*delta*rho))/(c2*gamma) + (qqq*u*(BMr2Oa2*P*gamma-alpha*c2*rho))/(P*c2*gamma)
+	P0[1][1] = -(u2*(BMr2Oa2*P*gamma-alpha*c2*rho)*GM1)/(P*c2*gamma) + (1.0/P2*u2*GM1*(gamma+BMr2Oa2*P*delta*gamma-alpha*c2*delta*rho))/(c2*gamma) + 1.0
+	P0[1][2] = (1.0 / P2 * u * v * GM1 * (-BMr2Oa2*P2 + P2*alpha + BMr2Oa2*P*delta - P*alpha*delta + 1.0)) / c2
+	P0[1][3] = -(1.0/P2*(u*GM1+P*u*(BMr2Oa2*delta-alpha*delta)*GM1))/c2 + (u*(BMr2Oa2-alpha)*GM1)/c2
+	P0[2][0] = -v + (1.0/P2*v*(c2-qqq)*(gamma+BMr2Oa2*P*delta*gamma-alpha*c2*delta*rho))/(c2*gamma) + (qqq*v*(BMr2Oa2*P*gamma-alpha*c2*rho))/(P*c2*gamma)
+	P0[2][1] = (1.0 / P2 * u * v * GM1 * (-BMr2Oa2*P2 + P2*alpha + BMr2Oa2*P*delta - P*alpha*delta + 1.0)) / c2
+	P0[2][2] = -(v2*(BMr2Oa2*P*gamma-alpha*c2*rho)*GM1)/(P*c2*gamma) + (1.0/P2*v2*GM1*(gamma+BMr2Oa2*P*delta*gamma-alpha*c2*delta*rho))/(c2*gamma) + 1.0
+	P0[2][3] = -(1.0/P2*(v*GM1+P*v*(BMr2Oa2*delta-alpha*delta)*GM1))/c2 + (v*(BMr2Oa2-alpha)*GM1)/c2
+	P0[3][0] = -u2 - v2 - (qqq*(alpha*c2*rho*u2+alpha*c2*rho*v2-BMr2Oa2*P*gamma*h))/(P*c2*gamma) + (1.0/P2*(c2-qqq)*(c2*gamma*m2+BMr2Oa2*P*delta*gamma*h*2.0-alpha*c2*delta*rho*u2*2.0-alpha*c2*delta*rho*v2*2.0))/(c2*gamma*2.0)
+	P0[3][1] = u + (1.0/P2*u*GM1*(c2*gamma*m2+BMr2Oa2*P*delta*gamma*h*2.0-alpha*c2*delta*rho*u2*2.0-alpha*c2*delta*rho*v2*2.0))/(c2*gamma*2.0) + (u*GM1*(alpha*c2*rho*u2+alpha*c2*rho*v2-BMr2Oa2*P*gamma*h))/(P*c2*gamma)
+	P0[3][2] = v + (1.0/P2*v*GM1*(c2*gamma*m2+BMr2Oa2*P*delta*gamma*h*2.0-alpha*c2*delta*rho*u2*2.0-alpha*c2*delta*rho*v2*2.0))/(c2*gamma*2.0) + (v*GM1*(alpha*c2*rho*u2+alpha*c2*rho*v2-BMr2Oa2*P*gamma*h))/(P*c2*gamma)
+	P0[3][3] = (1.0/P2*((GM1*(-gamma*m2+alpha*delta*rho*u2*2.0+alpha*delta*rho*v2*2.0))/2.0-(P*(alpha*rho*u2*2.0+alpha*rho*v2*2.0)*GM1)/2.0))/gamma + (BMr2Oa2*h*(P-delta)*GM1)/(P*c2)
 	return
 }
