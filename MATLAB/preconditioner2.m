@@ -52,11 +52,26 @@ dWdU = subs(dWdU,str2sym('rhoU'),rho*u);
 dWdU = subs(dWdU,str2sym('rhoV'),rho*v);
 dUdW = subs(dUdW,str2sym('rhoU'),rho*u);
 dUdW = subs(dUdW,str2sym('rhoV'),rho*v);
-dUdW = simplify(expand(dUdW),'Steps',100);
-dWdU = simplify(expand(dWdU),'Steps',100);
+%q = (1/2)*rho*qq;
+dUdW = simplify(dUdW,'Steps',100);
+dWdU = simplify(dWdU,'Steps',100);
+dUdW = subs(dUdW,str2sym('u^2+v^2'),str2sym('qq'));
+dWdU = subs(dWdU,str2sym('u^2+v^2'),str2sym('qq'));
+%qqq = qq*(gamma-1)/2
+dUdW = subs(dUdW,str2sym('(qq*(gamma-1))/2'),qqq);
+dWdU = subs(dWdU,str2sym('(qq*(gamma-1))/2'),qqq);
+dUdW = subs(dUdW,str2sym('rho/(P*gamma)'),str2sym('1/c2'));
+dUdW = subs(dUdW,str2sym('rho/(gamma)'),str2sym('1/(c2*P)'));
+dUdW = subs(dUdW,str2sym('qq/c2'),str2sym('m2'));
 disp(dUdW);
 disp(dWdU);
+%error('planned');
 P0t = simplify(dUdW*P0*dWdU,'Steps',100);
+P0t = subs(P0t,str2sym('rho/(P*gamma)'),str2sym('1/c2'));
+P0t = subs(P0t,str2sym('rho/(gamma)'),str2sym('1/(c2*P)'));
+P0t = subs(P0t,str2sym('qq/c2'),str2sym('m2'));
+P0t
+error('planned');
 syms q;
 P0t = subs(P0t,str2sym('(rho*u^2)/2 + (rho*v^2)/2'),q);
 q=(rho*u^2)/2 + (rho*v^2)/2;
