@@ -80,7 +80,8 @@ func (c *Euler) PlotFS(fminP, fmaxP *float64, fmin, fmax float64, scale float64,
 		box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
 		box = box.Scale(float32(scale))
 		box = box.Translate(translate)
-		c.chart.chart = chart2d.NewChart2D(1900, 1080, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
+		//c.chart.chart = chart2d.NewChart2D(1900, 1080, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
+		c.chart.chart = chart2d.NewChart2D(3840, 2160, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
 		go c.chart.chart.Plot()
 		if specifiedScale {
 			// Scale field min/max to preset values

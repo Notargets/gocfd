@@ -48,6 +48,7 @@ type FreeStream struct {
 	Qinf              [4]float64
 	Pinf, QQinf, Cinf float64
 	Alpha             float64
+	Minf              float64
 }
 
 func NewFreeStream(Minf, Gamma, Alpha float64) (fs *FreeStream) {
@@ -60,6 +61,7 @@ func NewFreeStream(Minf, Gamma, Alpha float64) (fs *FreeStream) {
 		Gamma: Gamma,
 		Qinf:  [4]float64{1, uinf, vinf, ooggm1 + 0.5*Minf*Minf},
 		Alpha: Alpha,
+		Minf:  Minf,
 	}
 	fs.Pinf = fs.GetFlowFunctionQQ(fs.Qinf, StaticPressure)
 	fs.QQinf = fs.GetFlowFunctionQQ(fs.Qinf, DynamicPressure)
@@ -107,7 +109,7 @@ func (fs *FreeStream) GetFlowFunctionBase(rho, rhoU, rhoV, E float64, pf FlowFun
 	case DynamicPressure:
 		f = 0.5 * (rhoU*rhoU + rhoV*rhoV) * oorho
 	case PressureCoefficient:
-		f = -(p - fs.Pinf) / fs.QQinf
+		f = (p - fs.Pinf) / fs.QQinf
 	case SoundSpeed:
 		f = math.Sqrt(math.Abs(Gamma * p * oorho))
 	case Velocity:

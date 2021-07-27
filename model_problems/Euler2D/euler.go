@@ -255,12 +255,8 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		c.PrepareEdgeFlux(Kmax[myThread], Jdet[myThread], Jinv[myThread], F_RT_DOF[myThread], Q0[myThread], Q_Face[myThread])
 		rk.WorkerDone(&subStep, toController, false)
 
-		_ = <-fromController // Block until parent sends "go"
-		if !c.LocalTimeStepping {
-			rk.MaxWaveSpeed[myThread] = c.SetNormalFluxOnEdges(rk.Time, true, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread]) // Global
-		} else {
-			c.SetNormalFluxOnEdges(rk.Time, true, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread]) // Global
-		}
+		_ = <-fromController                                                                                                      // Block until parent sends "go"
+		rk.MaxWaveSpeed[myThread] = c.SetNormalFluxOnEdges(rk.Time, true, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread]) // Global
 		rk.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController // Block until parent sends "go"
@@ -595,8 +591,56 @@ func (c *Euler) GetPreconditioner(rho, rhoU, rhoV, E float64) (P0 [4][4]float64)
 		mach           = uave / C
 		m2             = mach * mach
 		c2             = C * C
+		h              = c2/GM1 + qq/2
+		K1             = 1. // should be between 1 and 1.1
+		Minf           = c.FS.Minf
+		Minf2          = Minf * Minf
+		Minf4          = Minf2 * Minf2
+		B2             = K1 * m2 * (1 + (1-K1*Minf2)*m2/(K1*Minf4))
+	)
+	B2 = math.Max(1, B2)
+	P0[0][0] = 1.0/P2 + (1.0/(P2)*qqq*(B2*P2-1.0))/c2
+	P0[0][1] = -(1.0 / P2 * u * (B2*P2 - 1.0) * GM1) / c2
+	P0[0][2] = -(1.0 / P2 * v * (B2*P2 - 1.0) * GM1) / c2
+	P0[0][3] = (1.0 / P2 * (B2*P2 - 1.0) * GM1) / c2
+	P0[1][0] = -1.0/P2*u*(P2-1.0) + (1.0/P2*qqq*u*(B2*P2-1.0))/c2
+	P0[1][1] = -(1.0/P2*(u*u)*(B2*P2-1.0)*GM1)/c2 + 1.0
+	P0[1][2] = -(1.0 / P2 * u * v * (B2*P2 - 1.0) * GM1) / c2
+	P0[1][3] = (1.0 / P2 * u * (B2*P2 - 1.0) * GM1) / c2
+	P0[2][0] = -1.0/P2*v*(P2-1.0) + (1.0/P2*qqq*v*(B2*P2-1.0))/c2
+	P0[2][1] = -(1.0 / P2 * u * v * (B2*P2 - 1.0) * GM1) / c2
+	P0[2][2] = -(1.0/P2*(v*v)*(B2*P2-1.0)*GM1)/c2 + 1.0
+	P0[2][3] = (1.0 / P2 * v * (B2*P2 - 1.0) * GM1) / c2
+	P0[3][0] = -(c2*(u*u)+c2*(v*v)-B2*h*qqq)/c2 + (1.0/P2*m2*(c2-qqq))/2.0
+	P0[3][1] = (1.0/P2*u*(-m2+gamma*m2+P2*2.0))/2.0 - (B2*h*u*GM1)/c2
+	P0[3][2] = (1.0/P2*v*(-m2+gamma*m2+P2*2.0))/2.0 - (B2*h*v*GM1)/c2
+	P0[3][3] = 1.0/P2*m2*GM1*(-1.0/2.0) + (B2*h*GM1)/c2
+	return
+}
+
+func (c *Euler) GetPreconditioner2(rho, rhoU, rhoV, E float64) (P0 [4][4]float64) {
+	/*
+		[nx,ny] is the direction vector of the flux at the evaluated point:
+			Flux = [F,G] = |[F,G]| * [nx,ny]
+	*/
+	var (
+		gamma          = c.FS.Gamma
+		sqrt           = math.Sqrt
+		GM1            = gamma - 1.0
+		u, v           = rhoU / rho, rhoV / rho
+		u2, v2         = u * u, v * v
+		qq             = u2 + v2
+		qqq            = GM1 * qq / 2
+		rhoU_2, rhoV_2 = rhoU * rhoU, rhoV * rhoV
+		P              = GM1 * (E - (rhoU_2+rhoV_2)/(rho*2.0))
+		P2             = P * P
+		C              = sqrt(gamma * P / rho)
+		uave           = sqrt(qq)
+		mach           = uave / C
+		m2             = mach * mach
+		c2             = C * C
 		BMr2Oa2        = m2 * c2 / (1 - m2)
-		delta          = 1.
+		delta          = 0.
 		h              = c2/GM1 + qq/2
 	)
 	BMr2Oa2 = math.Max(BMr2Oa2, 0.05*c.FS.Cinf)
