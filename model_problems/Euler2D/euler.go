@@ -263,8 +263,9 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		if c.LocalTimeStepping {
 			// Replicate local time step to the other solution points for each k
 			for k := 0; k < Kmax[myThread]; k++ {
-				DT[myThread].DataP[k] = c.CFL / DT[myThread].DataP[k]
+				DT[myThread].DataP[k] = c.CFL / DT[myThread].DataP[k] // Set each element's DT to CFL/(max_wave_speed)
 			}
+			// Set the DT of all interior points of each element to the element DT
 			for i := 1; i < c.dfr.SolutionElement.Np; i++ {
 				for k := 0; k < Kmax[myThread]; k++ {
 					ind := k + Kmax[myThread]*i
@@ -274,7 +275,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		}
 		c.RHS(Kmax[myThread], Jdet[myThread], F_RT_DOF[myThread], RHSQ[myThread])
 		if preCon {
-			c.PreconditionRHS(Q0[myThread], RHSQ[myThread])
+			c.PreconditionRHS(Q0[myThread], RHSQ[myThread], DT[myThread], true)
 		}
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
@@ -295,7 +296,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		_ = <-fromController // Block until parent sends "go"
 		c.RHS(Kmax[myThread], Jdet[myThread], F_RT_DOF[myThread], RHSQ[myThread])
 		if preCon {
-			c.PreconditionRHS(Q1[myThread], RHSQ[myThread])
+			c.PreconditionRHS(Q1[myThread], RHSQ[myThread], DT[myThread], false)
 		}
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
@@ -316,7 +317,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		_ = <-fromController // Block until parent sends "go"
 		c.RHS(Kmax[myThread], Jdet[myThread], F_RT_DOF[myThread], RHSQ[myThread])
 		if preCon {
-			c.PreconditionRHS(Q2[myThread], RHSQ[myThread])
+			c.PreconditionRHS(Q2[myThread], RHSQ[myThread], DT[myThread], false)
 		}
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
@@ -337,7 +338,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		_ = <-fromController // Block until parent sends "go"
 		c.RHS(Kmax[myThread], Jdet[myThread], F_RT_DOF[myThread], RHSQ[myThread])
 		if preCon {
-			c.PreconditionRHS(Q3[myThread], RHSQ[myThread])
+			c.PreconditionRHS(Q3[myThread], RHSQ[myThread], DT[myThread], false)
 		}
 		// Note, we are re-using Q1 as storage for Residual here
 		dT = rk.GlobalDT
@@ -375,13 +376,15 @@ func (c *Euler) RHS(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4]utils.Matrix)
 	return
 }
 
-func (c *Euler) PreconditionRHS(Q, RHSQ [4]utils.Matrix) {
+func (c *Euler) PreconditionRHS(Q, RHSQ [4]utils.Matrix, DT utils.Matrix, calcDT bool) {
 	var (
-		newRHS [4]float64
+		newRHS       [4]float64
+		P0           [4][4]float64
+		maxWave, UPC float64
 	)
 	for i, rho := range Q[0].DataP {
 		rhoU, rhoV, E := Q[1].DataP[i], Q[2].DataP[i], Q[3].DataP[i]
-		P0 := c.GetPreconditioner(rho, rhoU, rhoV, E)
+		P0, maxWave, UPC = c.GetPreconditioner(rho, rhoU, rhoV, E)
 		for rNum := 0; rNum < 4; rNum++ {
 			newRHS[rNum] =
 				P0[rNum][0]*RHSQ[0].DataP[i] +
@@ -391,6 +394,11 @@ func (c *Euler) PreconditionRHS(Q, RHSQ [4]utils.Matrix) {
 		}
 		for rNum := 0; rNum < 4; rNum++ {
 			RHSQ[rNum].DataP[i] = newRHS[rNum]
+		}
+		if calcDT {
+			// Unpack base local time step to obtain jacobian and order metric
+			met := c.CFL / DT.DataP[i] / UPC
+			DT.DataP[i] = c.CFL / (met * maxWave)
 		}
 	}
 }
@@ -570,35 +578,36 @@ func (rk *RungeKutta4SSP) calculateGlobalDT(c *Euler) {
 	}
 }
 
-func (c *Euler) GetPreconditioner(rho, rhoU, rhoV, E float64) (P0 [4][4]float64) {
+func (c *Euler) GetPreconditioner(rho, rhoU, rhoV, E float64) (P0 [4][4]float64, maxWave, UPC float64) {
 	/*
 		[nx,ny] is the direction vector of the flux at the evaluated point:
 			Flux = [F,G] = |[F,G]| * [nx,ny]
 	*/
 	var (
-		gamma          = c.FS.Gamma
-		sqrt           = math.Sqrt
-		GM1            = gamma - 1.0
-		u, v           = rhoU / rho, rhoV / rho
-		u2, v2         = u * u, v * v
-		qq             = u2 + v2
-		qqq            = GM1 * qq / 2
-		rhoU_2, rhoV_2 = rhoU * rhoU, rhoV * rhoV
-		P              = GM1 * (E - (rhoU_2+rhoV_2)/(rho*2.0))
-		P2             = P * P
-		C              = sqrt(gamma * P / rho)
-		uave           = sqrt(qq)
-		mach           = uave / C
-		m2             = mach * mach
-		c2             = C * C
-		h              = c2/GM1 + qq/2
-		K1             = 1. // should be between 1 and 1.1
-		Minf           = c.FS.Minf
-		Minf2          = Minf * Minf
-		Minf4          = Minf2 * Minf2
-		B2             = K1 * m2 * (1 + (1-K1*Minf2)*m2/(K1*Minf4))
+		gamma  = c.FS.Gamma
+		sqrt   = math.Sqrt
+		GM1    = gamma - 1.0
+		u, v   = rhoU / rho, rhoV / rho
+		u2, v2 = u * u, v * v
+		qq     = u2 + v2
+		uave   = sqrt(qq)
+		qqq    = GM1 * qq / 2
+		P      = GM1 * (E - 0.5*qq*rho)
+		P2     = P * P
+		c2     = gamma * P / rho
+		C      = sqrt(c2)
+		mach   = uave / C
+		m2     = mach * mach
+		h      = c2/GM1 + qq/2
+		K1     = 1.0 // should be between 1 and 1.1
+		Minf   = c.FS.Minf
+		Minf2  = Minf * Minf
+		Minf4  = Minf2 * Minf2
+		B2     = K1 * m2 * (1 + (1-K1*Minf2)*m2/(K1*Minf4))
 	)
 	B2 = math.Max(1, B2)
+	maxWave = 0.5 * ((B2+1)*uave + sqrt((B2-1)*(B2-1)*qq+4*B2*c2))
+	UPC = uave + C
 	P0[0][0] = 1.0/P2 + (1.0/(P2)*qqq*(B2*P2-1.0))/c2
 	P0[0][1] = -(1.0 / P2 * u * (B2*P2 - 1.0) * GM1) / c2
 	P0[0][2] = -(1.0 / P2 * v * (B2*P2 - 1.0) * GM1) / c2
