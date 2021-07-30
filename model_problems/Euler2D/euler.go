@@ -242,8 +242,11 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		DT, Q_Face, Q1, Q2, Q3, RHSQ = rk.DT, rk.Q_Face, rk.Q1, rk.Q2, rk.Q3, rk.RHSQ
 		dT                           float64
 		subStep                      int8
-		preCon                       = false
+		preCon                       = true
 	)
+	if c.LocalTimeStepping {
+		preCon = false
+	}
 	for {
 		_ = <-fromController // Block until parent sends "go"
 		if c.LocalTimeStepping {
@@ -384,7 +387,8 @@ func (c *Euler) PreconditionRHS(Q, RHSQ [4]utils.Matrix, DT utils.Matrix, calcDT
 	)
 	for i, rho := range Q[0].DataP {
 		rhoU, rhoV, E := Q[1].DataP[i], Q[2].DataP[i], Q[3].DataP[i]
-		P0, maxWave, UPC = c.GetPreconditioner(rho, rhoU, rhoV, E)
+		//P0, maxWave, UPC = c.GetPreconditioner(rho, rhoU, rhoV, E)
+		P0, maxWave, UPC = c.GetPreconditionerWithError(rho, rhoU, rhoV, E)
 		for rNum := 0; rNum < 4; rNum++ {
 			newRHS[rNum] =
 				P0[rNum][0]*RHSQ[0].DataP[i] +
@@ -627,48 +631,53 @@ func (c *Euler) GetPreconditioner(rho, rhoU, rhoV, E float64) (P0 [4][4]float64,
 	return
 }
 
-func (c *Euler) GetPreconditioner2(rho, rhoU, rhoV, E float64) (P0 [4][4]float64) {
+func (c *Euler) GetPreconditionerWithError(rho, rhoU, rhoV, E float64) (P0 [4][4]float64, maxWave, UPC float64) {
 	/*
-		[nx,ny] is the direction vector of the flux at the evaluated point:
-			Flux = [F,G] = |[F,G]| * [nx,ny]
+			[nx,ny] is the direction vector of the flux at the evaluated point:
+				Flux = [F,G] = |[F,G]| * [nx,ny]
+
+		This version includes an error in the Turkel paper where the last row in the variable transform Jacobian
+		from Entropy variables to Conservative variables is divided by P
 	*/
 	var (
-		gamma          = c.FS.Gamma
-		sqrt           = math.Sqrt
-		GM1            = gamma - 1.0
-		u, v           = rhoU / rho, rhoV / rho
-		u2, v2         = u * u, v * v
-		qq             = u2 + v2
-		qqq            = GM1 * qq / 2
-		rhoU_2, rhoV_2 = rhoU * rhoU, rhoV * rhoV
-		P              = GM1 * (E - (rhoU_2+rhoV_2)/(rho*2.0))
-		P2             = P * P
-		C              = sqrt(gamma * P / rho)
-		uave           = sqrt(qq)
-		mach           = uave / C
-		m2             = mach * mach
-		c2             = C * C
-		BMr2Oa2        = m2 * c2 / (1 - m2)
-		delta          = 0.
-		h              = c2/GM1 + qq/2
+		gamma  = c.FS.Gamma
+		sqrt   = math.Sqrt
+		GM1    = gamma - 1.0
+		u, v   = rhoU / rho, rhoV / rho
+		u2, v2 = u * u, v * v
+		qq     = u2 + v2
+		uave   = sqrt(qq)
+		qqq    = GM1 * qq / 2
+		P      = GM1 * (E - 0.5*qq*rho)
+		c2     = gamma * P / rho
+		C      = sqrt(c2)
+		mach   = uave / C
+		m2     = mach * mach
+		h      = c2/GM1 + qq/2
+		K1     = 1.0 // should be between 1 and 1.1
+		Minf   = c.FS.Minf
+		Minf2  = Minf * Minf
+		Minf4  = Minf2 * Minf2
+		B2     = K1 * m2 * (1 + (1-K1*Minf2)*m2/(K1*Minf4))
 	)
-	BMr2Oa2 = math.Max(BMr2Oa2, 0.05*c.FS.Cinf)
-	alpha := 1 + BMr2Oa2/c2
-	P0[0][0] = ((c2-qqq)*(1.0/(P*c2)+(BMr2Oa2*delta)/c2))/P + (BMr2Oa2*qqq)/c2
-	P0[0][1] = (1.0 / P2 * u * GM1 * (-BMr2Oa2*P2 + BMr2Oa2*P*delta + 1.0)) / c2
-	P0[0][2] = (1.0 / P2 * v * GM1 * (-BMr2Oa2*P2 + BMr2Oa2*P*delta + 1.0)) / c2
-	P0[0][3] = -(1.0 / P2 * GM1 * (-BMr2Oa2*P2 + BMr2Oa2*P*delta + 1.0)) / c2
-	P0[1][0] = -u + (1.0/P2*u*(c2-qqq)*(gamma+BMr2Oa2*P*delta*gamma-alpha*c2*delta*rho))/(c2*gamma) + (qqq*u*(BMr2Oa2*P*gamma-alpha*c2*rho))/(P*c2*gamma)
-	P0[1][1] = -(u2*(BMr2Oa2*P*gamma-alpha*c2*rho)*GM1)/(P*c2*gamma) + (1.0/P2*u2*GM1*(gamma+BMr2Oa2*P*delta*gamma-alpha*c2*delta*rho))/(c2*gamma) + 1.0
-	P0[1][2] = (1.0 / P2 * u * v * GM1 * (-BMr2Oa2*P2 + P2*alpha + BMr2Oa2*P*delta - P*alpha*delta + 1.0)) / c2
-	P0[1][3] = -(1.0/P2*(u*GM1+P*u*(BMr2Oa2*delta-alpha*delta)*GM1))/c2 + (u*(BMr2Oa2-alpha)*GM1)/c2
-	P0[2][0] = -v + (1.0/P2*v*(c2-qqq)*(gamma+BMr2Oa2*P*delta*gamma-alpha*c2*delta*rho))/(c2*gamma) + (qqq*v*(BMr2Oa2*P*gamma-alpha*c2*rho))/(P*c2*gamma)
-	P0[2][1] = (1.0 / P2 * u * v * GM1 * (-BMr2Oa2*P2 + P2*alpha + BMr2Oa2*P*delta - P*alpha*delta + 1.0)) / c2
-	P0[2][2] = -(v2*(BMr2Oa2*P*gamma-alpha*c2*rho)*GM1)/(P*c2*gamma) + (1.0/P2*v2*GM1*(gamma+BMr2Oa2*P*delta*gamma-alpha*c2*delta*rho))/(c2*gamma) + 1.0
-	P0[2][3] = -(1.0/P2*(v*GM1+P*v*(BMr2Oa2*delta-alpha*delta)*GM1))/c2 + (v*(BMr2Oa2-alpha)*GM1)/c2
-	P0[3][0] = -u2 - v2 - (qqq*(alpha*c2*rho*u2+alpha*c2*rho*v2-BMr2Oa2*P*gamma*h))/(P*c2*gamma) + (1.0/P2*(c2-qqq)*(c2*gamma*m2+BMr2Oa2*P*delta*gamma*h*2.0-alpha*c2*delta*rho*u2*2.0-alpha*c2*delta*rho*v2*2.0))/(c2*gamma*2.0)
-	P0[3][1] = u + (1.0/P2*u*GM1*(c2*gamma*m2+BMr2Oa2*P*delta*gamma*h*2.0-alpha*c2*delta*rho*u2*2.0-alpha*c2*delta*rho*v2*2.0))/(c2*gamma*2.0) + (u*GM1*(alpha*c2*rho*u2+alpha*c2*rho*v2-BMr2Oa2*P*gamma*h))/(P*c2*gamma)
-	P0[3][2] = v + (1.0/P2*v*GM1*(c2*gamma*m2+BMr2Oa2*P*delta*gamma*h*2.0-alpha*c2*delta*rho*u2*2.0-alpha*c2*delta*rho*v2*2.0))/(c2*gamma*2.0) + (v*GM1*(alpha*c2*rho*u2+alpha*c2*rho*v2-BMr2Oa2*P*gamma*h))/(P*c2*gamma)
-	P0[3][3] = (1.0/P2*((GM1*(-gamma*m2+alpha*delta*rho*u2*2.0+alpha*delta*rho*v2*2.0))/2.0-(P*(alpha*rho*u2*2.0+alpha*rho*v2*2.0)*GM1)/2.0))/gamma + (BMr2Oa2*h*(P-delta)*GM1)/(P*c2)
+	B2 = math.Max(1, B2)
+	maxWave = 0.5 * ((B2+1)*uave + sqrt((B2-1)*(B2-1)*qq+4*B2*c2))
+	UPC = uave + C
+	P0[0][0] = 1.0/P + (qqq*(B2*P-1.0))/(P*c2)
+	P0[0][1] = -(u * (B2*P - 1.0) * (gamma - 1.0)) / (P * c2)
+	P0[0][2] = -(v * (B2*P - 1.0) * (gamma - 1.0)) / (P * c2)
+	P0[0][3] = ((B2*P - 1.0) * (gamma - 1.0)) / (P * c2)
+	P0[1][0] = -(u*(P-1.0))/P + (qqq*u*(B2*P-1.0))/(P*c2)
+	P0[1][1] = -((u*u)*(B2*P-1.0)*(gamma-1.0))/(P*c2) + 1.0
+	P0[1][2] = -(u * v * (B2*P - 1.0) * (gamma - 1.0)) / (P * c2)
+	P0[1][3] = (u * (B2*P - 1.0) * (gamma - 1.0)) / (P * c2)
+	P0[2][0] = -(v*(P-1.0))/P + (qqq*v*(B2*P-1.0))/(P*c2)
+	P0[2][1] = -(u * v * (B2*P - 1.0) * (gamma - 1.0)) / (P * c2)
+	P0[2][2] = -((v*v)*(B2*P-1.0)*(gamma-1.0))/(P*c2) + 1.0
+	P0[2][3] = (v * (B2*P - 1.0) * (gamma - 1.0)) / (P * c2)
+	P0[3][0] = -u*u - v*v + (m2*(c2-qqq))/(P*2.0) + (B2*h*qqq)/c2
+	P0[3][1] = (u*(P*2.0-m2+gamma*m2))/(P*2.0) - (B2*h*u*(gamma-1.0))/c2
+	P0[3][2] = (v*(P*2.0-m2+gamma*m2))/(P*2.0) - (B2*h*v*(gamma-1.0))/c2
+	P0[3][3] = (m2*(gamma-1.0)*(-1.0/2.0))/P + (B2*h*(gamma-1.0))/c2
 	return
 }
