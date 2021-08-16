@@ -37,12 +37,14 @@ if simplify(dFdU2-dFdU) == 0
     disp('correct answer')
 end
 dGdU = simplify(jacobian(G,U));
-disp(dFdU);
-error("exit on purpose");
+dFluxDU = dFdU+dGdU;
+%disp(dFdU);
+%error("exit on purpose");
 
 % Output the code to manifest each jacobian
-%ccode(dFdU)
-%ccode(dGdU)
+fprintf("dFdU - F component of flux jacobian\n%s\n",ccode(simplify(dFdU)));
+fprintf("dGdU - G component of flux jacobian\n%s\n",ccode(simplify(dGdU)));
+fprintf("dFluxdU - dFdU+dGdU sum of flux jacobians\n%s\n",ccode(simplify(dFluxdU)));
 
 % We need to calculate dRHS/dU, making the approximation that we can use
 % the singular nodal values of U to compose dF/dU and dG/dU rather than sum
@@ -66,8 +68,8 @@ error("exit on purpose");
 %
 % We then need the inverse of the directional flux jacobian which we can
 % then use as a preconditioner for the RHS as shown above.
-Flux = sqrt(F.^2+G.^2);
-dFluxdU = jacobian(simplify(Flux),U);
+%Flux = sqrt(F.^2+G.^2);
+%dFluxdU = jacobian(simplify(Flux),U);
 % To ease the use of the preconditioner, we'll divide by the Flux so that
 % we can compose the dRHS/dU as:
 %    dRHS/dU ~= (dFluxdU/Flux)*(sum(Flux*divergence(Psi))
@@ -75,14 +77,16 @@ dFluxdU = jacobian(simplify(Flux),U);
 %    dRHS/dU ~= dFluxdU*sum(divergence(Psi))
 precon = simplify(dFluxdU);
 % Reduce and simplify the result, output code
-for m = 1:19
-    name = ['Ssig' num2str(m,'%d')];
-    name2 = name;
-    sym name;
-    [precon,name] = subexpr(simplify(precon),name);
-    fprintf ("%s = %s\n", char(name2), ccode(name));
-end
-fprintf("%s\n",ccode(precon));
+%for m = 1:19
+%    name = ['Ssig' num2str(m,'%d')];
+%    name2 = name;
+%    sym name;
+%    [precon,name] = subexpr(simplify(precon),name);
+%    fprintf ("%s = %s\n", char(name2), ccode(name));
+%end
+%fprintf("%s\n",ccode(precon));
+
+
 % Instead of below, we'll do a numerical inverse - it will be cheaper
 % disp 'Inverse of directional flux: ';
 % [invFlux,sigma] = subexpr(simplify(inv(dFluxdU)));
