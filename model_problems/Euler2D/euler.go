@@ -242,7 +242,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		DT, Q_Face, Q1, Q2, Q3, RHSQ = rk.DT, rk.Q_Face, rk.Q1, rk.Q2, rk.Q3, rk.RHSQ
 		dT                           float64
 		subStep                      int8
-		preCon                       = true
+		preCon                       = false
 	)
 	if c.LocalTimeStepping {
 		preCon = false
