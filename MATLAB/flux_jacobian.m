@@ -37,14 +37,22 @@ if simplify(dFdU2-dFdU) == 0
     disp('correct answer')
 end
 dGdU = simplify(jacobian(G,U));
-dFluxDU = dFdU+dGdU;
+syms w1 w2;
+dFluxDU = w1*dFdU+w2*dGdU;
 %disp(dFdU);
 %error("exit on purpose");
 
 % Output the code to manifest each jacobian
 fprintf("dFdU - F component of flux jacobian\n%s\n",ccode(simplify(dFdU)));
 fprintf("dGdU - G component of flux jacobian\n%s\n",ccode(simplify(dGdU)));
-fprintf("dFluxdU - dFdU+dGdU sum of flux jacobians\n%s\n",ccode(simplify(dFluxdU)));
+fprintf("dFluxdU - dFdU+dGdU sum of flux jacobians\n%s\n",ccode(simplify(dFluxDU)));
+
+syms u v;
+
+D = eig(simplify(dFluxDU));
+D = subs(D,rhoU,u*rho);
+D = subs(D,rhoV,v*rho);
+fprintf("Eigenvalues of dFluxdU - w1 and w2 are the nodal basis unit vector values\n%s\n",ccode(simplify(D)));
 
 % We need to calculate dRHS/dU, making the approximation that we can use
 % the singular nodal values of U to compose dF/dU and dG/dU rather than sum
@@ -75,7 +83,7 @@ fprintf("dFluxdU - dFdU+dGdU sum of flux jacobians\n%s\n",ccode(simplify(dFluxdU
 %    dRHS/dU ~= (dFluxdU/Flux)*(sum(Flux*divergence(Psi))
 % Which is approximately equal to:
 %    dRHS/dU ~= dFluxdU*sum(divergence(Psi))
-precon = simplify(dFluxdU);
+%precon = simplify(dFluxDU);
 % Reduce and simplify the result, output code
 %for m = 1:19
 %    name = ['Ssig' num2str(m,'%d')];
