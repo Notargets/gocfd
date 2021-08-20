@@ -39,6 +39,9 @@ end
 dGdU = simplify(jacobian(G,U));
 syms w1 w2;
 dFluxDU = w1*dFdU+w2*dGdU;
+dFluxDU = subs(dFluxDU,rhoU,u*rho);
+dFluxDU = subs(dFluxDU,rhoV,v*rho);
+dFluxDU = simplify(dFluxDU);
 %disp(dFdU);
 %error("exit on purpose");
 
