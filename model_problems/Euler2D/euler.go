@@ -116,6 +116,184 @@ func (c *Euler) Solve(pm *PlotMeta) {
 	c.PrintFinal(elapsed, steps)
 }
 
+type NewtonMethod struct {
+	Jdet, Jinv        []utils.Matrix    // Sharded mesh Jacobian and inverse transform
+	Q_Face            [][4]utils.Matrix // Solution values stored at edge points of RT element
+	RHSQ, Residual    [][4]utils.Matrix // Solution Residual storage
+	F_RT_DOF          [][4]utils.Matrix // Scalar (projected) flux used for divergence, on all RT element points
+	FluxJacInv        [][]utils.Matrix  // Flux Jacobian inverse, one 4x4 matrix (2D) per int point of RT element
+	GlobalDT, Time    float64
+	Kmax              []int // Local element count (dimension: Kmax[ParallelDegree])
+	Np, Nedge, NpFlux int   // Number of points in solution, edge and flux total
+	toWorker          []chan struct{}
+	fromWorkers       chan int8
+}
+
+func (c *Euler) NewNewtonMethod() (nm *NewtonMethod) {
+	var (
+		pm   = c.Partitions
+		NPar = pm.ParallelDegree
+	)
+	nm = &NewtonMethod{
+		Jdet:        c.ShardByKTranspose(c.dfr.Jdet),
+		Jinv:        c.ShardByKTranspose(c.dfr.Jinv),
+		Q_Face:      make([][4]utils.Matrix, NPar),
+		RHSQ:        make([][4]utils.Matrix, NPar),
+		Residual:    make([][4]utils.Matrix, NPar),
+		F_RT_DOF:    make([][4]utils.Matrix, NPar),
+		FluxJacInv:  make([][]utils.Matrix, NPar),
+		Kmax:        make([]int, NPar),
+		Np:          c.dfr.SolutionElement.Np,
+		Nedge:       c.dfr.FluxElement.Nedge,
+		NpFlux:      c.dfr.FluxElement.Np,
+		fromWorkers: make(chan int8, NPar),
+		toWorker:    make([]chan struct{}, NPar),
+	}
+	for np := 0; np < NPar; np++ {
+		nm.toWorker[np] = make(chan struct{}, 1)
+	}
+	for np := 0; np < NPar; np++ {
+		// One flux inverse matrix stored per solution point
+		nm.FluxJacInv[np] = make([]utils.Matrix, nm.Np*nm.Kmax[np])
+	}
+	// Initialize memory
+	for np := 0; np < NPar; np++ {
+		nm.Kmax[np] = pm.GetBucketDimension(np)
+		for n := 0; n < 4; n++ {
+			nm.Residual[np][n] = utils.NewMatrix(nm.Np, nm.Kmax[np])
+			nm.RHSQ[np][n] = utils.NewMatrix(nm.Np, nm.Kmax[np])
+			nm.F_RT_DOF[np][n] = utils.NewMatrix(nm.NpFlux, nm.Kmax[np])
+			nm.Q_Face[np][n] = utils.NewMatrix(nm.Nedge*3, nm.Kmax[np])
+		}
+		for i := 0; i < nm.Np*nm.Kmax[np]; i++ { // One 4x4 (2D) flux inverse matrix stored per solution point
+			nm.FluxJacInv[np][i] = utils.NewMatrix(4, 4)
+		}
+	}
+	return
+}
+
+func (nm *NewtonMethod) StartWorkers(c *Euler) {
+	var (
+		pm = c.Partitions
+		NP = pm.ParallelDegree
+	)
+	for np := 0; np < NP; np++ {
+		go nm.StepWorker(c, np, nm.toWorker[np], nm.fromWorkers)
+	}
+}
+
+func (nm *NewtonMethod) Step(c *Euler) {
+	/*
+		This is the controller thread - it manages and synchronizes the workers
+		NOTE: Any CPU work done in this thread makes the workers wait - be careful!
+	*/
+	var (
+		pm = c.Partitions
+		NP = pm.ParallelDegree
+	)
+	for {
+		// Advance the workers one step by sending the "go" message. They are blocked until they receive this.
+		for np := 0; np < NP; np++ {
+			nm.toWorker[np] <- struct{}{}
+		}
+		currentStep := int8(-1)
+		var ts int8
+		for np := 0; np < NP; np++ {
+			// Each worker sends it's completed step number, we check to make sure they are all the same
+			ts = <-nm.fromWorkers
+			if currentStep == -1 {
+				currentStep = ts
+			}
+			if ts != currentStep {
+				err := fmt.Errorf("[%d]incorrect state, ts = %d, currentStep = %d\n", np, ts, currentStep)
+				panic(err)
+			}
+		}
+		// Workers are blocked below here - make sure no significant CPU work is done here unless abs necessary!
+		switch {
+		case currentStep < 0:
+			return
+		}
+	}
+}
+
+func (nm *NewtonMethod) WorkerDone(subStepP *int8, fromWorker chan int8, isDone bool) {
+	if isDone {
+		*subStepP = -1
+	} else {
+		*subStepP++
+	}
+	fromWorker <- *subStepP // Inform controller what step we've just completed
+}
+
+func (nm *NewtonMethod) StepWorker(c *Euler, myThread int, fromController chan struct{}, toController chan int8) {
+	// Implements an Element Jacobi time advancement for steady state problems
+	var (
+		Q0                         = c.Q
+		Np                         = nm.Np
+		Kmax, Jdet, Jinv, F_RT_DOF = nm.Kmax, nm.Jdet, nm.Jinv, nm.F_RT_DOF
+		Q_Face, RHSQ               = nm.Q_Face, nm.RHSQ
+		dT                         float64
+		subStep                    int8
+	)
+	for {
+		_ = <-fromController // Block until parent sends "go"
+		c.PrepareEdgeFlux(Kmax[myThread], Jdet[myThread], Jinv[myThread], F_RT_DOF[myThread], Q0[myThread], Q_Face[myThread])
+		nm.WorkerDone(&subStep, toController, false)
+
+		_ = <-fromController                                                                            // Block until parent sends "go"
+		c.SetNormalFluxOnEdges(nm.Time, false, Jdet, nil, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread]) // Global
+		nm.WorkerDone(&subStep, toController, false)
+
+		_ = <-fromController // Block until parent sends "go"
+		c.RHS(Kmax[myThread], Jdet[myThread], F_RT_DOF[myThread], RHSQ[myThread])
+		dT = nm.GlobalDT
+		for n := 0; n < 4; n++ {
+			for i := 0; i < Kmax[myThread]*Np; i++ {
+				_ = dT
+				//Q1[myThread][n].DataP[i] = Q0[myThread][n].DataP[i] + 0.5*RHSQ[myThread][n].DataP[i]*dT
+			}
+		}
+		nm.WorkerDone(&subStep, toController, true)
+	}
+}
+
+func (nm *NewtonMethod) SetFluxJacobian(c *Euler, Kmax int, Jdet, Jinv utils.Matrix, F_RT_DOF, Q, Q_Face [4]utils.Matrix) {
+	// Calculates the flux jacobian for all interior points within the RT element
+	var (
+		Nint  = c.dfr.FluxElement.Nint
+		fdofD = [4][]float64{F_RT_DOF[0].DataP, F_RT_DOF[1].DataP, F_RT_DOF[2].DataP, F_RT_DOF[3].DataP}
+	)
+	// Calculate flux and project into R and S (transformed) directions for the internal points
+	for k := 0; k < Kmax; k++ {
+		for i := 0; i < Nint; i++ {
+			ind := k + i*Kmax
+			ind2 := k + (i+Nint)*Kmax
+			Fr, Fs := c.CalculateFluxTransformed(k, Kmax, i, Jdet, Jinv, Q)
+			for n := 0; n < 4; n++ {
+				fdofD[n][ind], fdofD[n][ind2] = Fr[n], Fs[n]
+			}
+		}
+	}
+	//dFluxdU - dFdU+dGdU sum of flux jacobians
+	// w1 and w2 are the basis function normal vectors: [w1,w2]
+	// 0-Nint: [1,0], Nint-2Nint: [0,1], 2Nint-2Nint+Nedge: [w1edge,w2edge]
+	//T[0][1] = w1
+	//T[0][2] = w2
+	//T[1][0] = -w1*(u*u-(1.0/(rho*rho)*((rho*rho)*(u*u)+(rho*rho)*(v*v))*(gamma-1.0))/2.0) - u*v*w2
+	//T[1][1] = v*w2 - u*w1*(gamma-3.0)
+	//T[1][2] = u*w2 - v*w1*(gamma-1.0)
+	//T[1][3] = w1 * (gamma - 1.0)
+	//T[2][0] = -w2*(v*v-(1.0/(rho*rho)*((rho*rho)*(u*u)+(rho*rho)*(v*v))*(gamma-1.0))/2.0) - u*v*w1
+	//T[2][1] = v*w1 - u*w2*(gamma-1.0)
+	//T[2][2] = u*w1 - v*w2*(gamma-3.0)
+	//T[2][3] = w2 * (gamma - 1.0)
+	//T[3][0] = -((u*w1 + v*w2) * (E*gamma + rho*(u*u) + rho*(v*v) - gamma*rho*(u*u) - gamma*rho*(v*v))) / rho
+	//T[3][1] = w1*((E+(E-((rho*rho)*(u*u)+(rho*rho)*(v*v))/(rho*2.0))*(gamma-1.0))/rho-(u*u)*(gamma-1.0)) - u*v*w2*(gamma-1.0)
+	//T[3][2] = w2*((E+(E-((rho*rho)*(u*u)+(rho*rho)*(v*v))/(rho*2.0))*(gamma-1.0))/rho-(v*v)*(gamma-1.0)) - u*v*w1*(gamma-1.0)
+	//T[3][3] = gamma * (u*w1 + v*w2)
+}
+
 type RungeKutta4SSP struct {
 	Jdet, Jinv        []utils.Matrix    // Sharded mesh Jacobian and inverse transform
 	RHSQ, Q_Face      [][4]utils.Matrix // State used for matrix multiplies within the time step algorithm
