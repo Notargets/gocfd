@@ -149,7 +149,8 @@ func TestEuler(t *testing.T) {
 				Q := c.Q[0]
 				c.SetNormalFluxInternal(Kmax, c.dfr.Jdet, c.dfr.Jinv, F_RT_DOF, Q)
 				c.InterpolateSolutionToEdges(Q, Q_Face)
-				c.SetNormalFluxOnEdges(0, false, nil, nil, [][4]utils.Matrix{F_RT_DOF}, [][4]utils.Matrix{Q_Face}, c.SortedEdgeKeys[0])
+				EdgeQ1, EdgeQ2 := make([][4]float64, Nedge), make([][4]float64, Nedge)
+				c.SetNormalFluxOnEdges(0, false, nil, nil, [][4]utils.Matrix{F_RT_DOF}, [][4]utils.Matrix{Q_Face}, c.SortedEdgeKeys[0], EdgeQ1, EdgeQ2)
 				// Check that freestream divergence on this mesh is zero
 				for n := 0; n < 4; n++ {
 					var div utils.Matrix
@@ -209,7 +210,8 @@ func TestEuler(t *testing.T) {
 			X, Y := c.dfr.FluxX, c.dfr.FluxY
 			c.SetNormalFluxInternal(Kmax, c.dfr.Jdet, c.dfr.Jinv, F_RT_DOF, Q)
 			c.InterpolateSolutionToEdges(Q, Q_Face)
-			c.SetNormalFluxOnEdges(0, false, nil, nil, [][4]utils.Matrix{F_RT_DOF}, [][4]utils.Matrix{Q_Face}, c.SortedEdgeKeys[0])
+			EdgeQ1, EdgeQ2 := make([][4]float64, Nedge), make([][4]float64, Nedge)
+			c.SetNormalFluxOnEdges(0, false, nil, nil, [][4]utils.Matrix{F_RT_DOF}, [][4]utils.Matrix{Q_Face}, c.SortedEdgeKeys[0], EdgeQ1, EdgeQ2)
 			var div utils.Matrix
 			// Density is the easiest equation to match with a polynomial
 			n := 0
@@ -409,8 +411,9 @@ func CheckFlux0(c *Euler, t *testing.T) {
 		}
 	}
 	c.SetNormalFluxInternal(Kmax, c.dfr.Jdet, c.dfr.Jinv, F_RT_DOF, Q)
+	EdgeQ1, EdgeQ2 := make([][4]float64, Nedge), make([][4]float64, Nedge)
 	// No need to interpolate to the edges, they are left at initialized state in Q_Face
-	c.SetNormalFluxOnEdges(0, false, nil, nil, [][4]utils.Matrix{F_RT_DOF}, [][4]utils.Matrix{Q_Face}, c.SortedEdgeKeys[0])
+	c.SetNormalFluxOnEdges(0, false, nil, nil, [][4]utils.Matrix{F_RT_DOF}, [][4]utils.Matrix{Q_Face}, c.SortedEdgeKeys[0], EdgeQ1, EdgeQ2)
 
 	var div utils.Matrix
 	for n := 0; n < 4; n++ {

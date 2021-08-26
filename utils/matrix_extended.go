@@ -20,16 +20,20 @@ type Matrix struct {
 }
 
 func NewMatrix(nr, nc int, dataO ...[]float64) (R Matrix) {
-	var m *mat.Dense
+	var (
+		m        *mat.Dense
+		dataArea []float64
+	)
 	if len(dataO) != 0 {
 		if len(dataO[0]) < nr*nc {
 			err := fmt.Errorf("mismatch in allocation: NewMatrix nr,nc = %v,%v, len(data[0]) = %v\n", nr, nc, len(dataO[0]))
 			panic(err)
 		}
-		dataArea := dataO[0][0 : nr*nc]
+		dataArea = dataO[0][0 : nr*nc]
 		m = mat.NewDense(nr, nc, dataArea)
 	} else {
-		m = mat.NewDense(nr, nc, make([]float64, nr*nc))
+		dataArea = make([]float64, nr*nc)
+		m = mat.NewDense(nr, nc, dataArea)
 	}
 	R = Matrix{
 		M:        m,
@@ -146,6 +150,10 @@ func (m Matrix) Mul(A Matrix, dataO ...[]float64) (R Matrix) { // Does not chang
 	}
 	R.M.Mul(m.M, A.M)
 	return R
+}
+
+func (m Matrix) MulInPlace(A, R Matrix) { // Does not change receiver
+	R.M.Mul(m.M, A.M)
 }
 
 func (m Matrix) MulParallel(A Matrix, nP int) (R Matrix) { // Does not change receiver

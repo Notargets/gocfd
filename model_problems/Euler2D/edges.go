@@ -31,7 +31,7 @@ func (c *Euler) ParallelEdgeUpdate(Time float64, Jdet, DT []utils.Matrix, F_RT_D
 	for np := 0; np < NPar; np++ {
 		wg.Add(1)
 		go func(np int) {
-			maxWaveSpeed[np] = c.SetNormalFluxOnEdges(Time, CalculateDT, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[np]) // Global
+			maxWaveSpeed[np] = c.SetNormalFluxOnEdges(Time, CalculateDT, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[np], nil, nil) // Global
 			wg.Done()
 		}(np)
 	}
@@ -39,10 +39,10 @@ func (c *Euler) ParallelEdgeUpdate(Time float64, Jdet, DT []utils.Matrix, F_RT_D
 	return
 }
 
-func (c *Euler) SetNormalFluxOnEdges(Time float64, CalculateDT bool, Jdet, DT []utils.Matrix, F_RT_DOF, Q_Face [][4]utils.Matrix, edgeKeys EdgeKeySlice) (waveSpeedMax float64) {
+func (c *Euler) SetNormalFluxOnEdges(Time float64, CalculateDT bool, Jdet, DT []utils.Matrix, F_RT_DOF, Q_Face [][4]utils.Matrix, edgeKeys EdgeKeySlice, EdgeQ1, EdgeQ2 [][4]float64) (waveSpeedMax float64) {
 	var (
 		Nedge                          = c.dfr.FluxElement.Nedge
-		normalFlux, normalFluxReversed = make([][4]float64, Nedge), make([][4]float64, Nedge)
+		normalFlux, normalFluxReversed = EdgeQ1, EdgeQ2
 		pm                             = c.Partitions
 	)
 	for _, en := range edgeKeys {
@@ -196,7 +196,7 @@ func (c *Euler) SetNormalFluxOnRTEdge(k, Kmax int, F_RT_DOF [4]utils.Matrix, edg
 func (c *Euler) InterpolateSolutionToEdges(Q, Q_Face [4]utils.Matrix) {
 	// Interpolate from solution points to edges using precomputed interpolation matrix
 	for n := 0; n < 4; n++ {
-		Q_Face[n] = c.dfr.FluxEdgeInterpMatrix.Mul(Q[n], Q_Face[n].DataP) // Re-use the memory allocation from Q_Face
+		c.dfr.FluxEdgeInterpMatrix.MulInPlace(Q[n], Q_Face[n])
 	}
 	return
 }

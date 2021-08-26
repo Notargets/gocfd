@@ -245,8 +245,8 @@ func (ei *ElementImplicit) StepWorker(c *Euler, myThread int, fromController cha
 		c.PrepareEdgeFlux(Kmax[myThread], Jdet[myThread], Jinv[myThread], F_RT_DOF[myThread], Q0[myThread], Q_Face[myThread])
 		ei.WorkerDone(&subStep, toController, false)
 
-		_ = <-fromController                                                                            // Block until parent sends "go"
-		c.SetNormalFluxOnEdges(ei.Time, false, Jdet, nil, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread]) // Global
+		_ = <-fromController                                                                                      // Block until parent sends "go"
+		c.SetNormalFluxOnEdges(ei.Time, false, Jdet, nil, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread], nil, nil) // Global
 		ei.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController // Block until parent sends "go"
@@ -418,13 +418,17 @@ func (rk *RungeKutta4SSP) WorkerDone(subStepP *int8, fromWorker chan int8, isDon
 
 func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan struct{}, toController chan int8) {
 	var (
-		Q0                           = c.Q
+		Q0                           = c.Q[myThread]
 		Np                           = rk.Np
-		Kmax, Jdet, Jinv, F_RT_DOF   = rk.Kmax, rk.Jdet, rk.Jinv, rk.F_RT_DOF
-		DT, Q_Face, Q1, Q2, Q3, RHSQ = rk.DT, rk.Q_Face, rk.Q1, rk.Q2, rk.Q3, rk.RHSQ
+		Kmax, Jdet, Jinv, F_RT_DOF   = rk.Kmax[myThread], rk.Jdet[myThread], rk.Jinv[myThread], rk.F_RT_DOF[myThread]
+		DT, Q_Face, Q1, Q2, Q3, RHSQ = rk.DT[myThread], rk.Q_Face[myThread], rk.Q1[myThread], rk.Q2[myThread], rk.Q3[myThread], rk.RHSQ[myThread]
+		Residual                     = rk.Residual[myThread]
+		SortedEdgeKeys               = c.SortedEdgeKeys[myThread]
 		dT                           float64
 		subStep                      int8
 		preCon                       = false
+		Nedge                        = c.dfr.FluxElement.Nedge
+		EdgeQ1, EdgeQ2               = make([][4]float64, Nedge), make([][4]float64, Nedge) // Local working memory
 	)
 	if c.LocalTimeStepping {
 		preCon = false
@@ -433,107 +437,111 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		_ = <-fromController // Block until parent sends "go"
 		if c.LocalTimeStepping {
 			// Setup local time stepping
-			for k := 0; k < Kmax[myThread]; k++ {
-				DT[myThread].DataP[k] = -100 // Global
+			for k := 0; k < Kmax; k++ {
+				DT.DataP[k] = -100 // Global
 			}
 		}
-		c.PrepareEdgeFlux(Kmax[myThread], Jdet[myThread], Jinv[myThread], F_RT_DOF[myThread], Q0[myThread], Q_Face[myThread])
+		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q0, Q_Face)
 		rk.WorkerDone(&subStep, toController, false)
 
-		_ = <-fromController                                                                                                      // Block until parent sends "go"
-		rk.MaxWaveSpeed[myThread] = c.SetNormalFluxOnEdges(rk.Time, true, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread]) // Global
+		_ = <-fromController // Block until parent sends "go"
+		rk.MaxWaveSpeed[myThread] = c.SetNormalFluxOnEdges(rk.Time, true,
+			rk.Jdet, rk.DT, rk.F_RT_DOF, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
 		rk.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController // Block until parent sends "go"
 		if c.LocalTimeStepping {
 			// Replicate local time step to the other solution points for each k
-			for k := 0; k < Kmax[myThread]; k++ {
-				DT[myThread].DataP[k] = c.CFL / DT[myThread].DataP[k] // Set each element's DT to CFL/(max_wave_speed)
+			for k := 0; k < Kmax; k++ {
+				DT.DataP[k] = c.CFL / DT.DataP[k] // Set each element's DT to CFL/(max_wave_speed)
 			}
 			// Set the DT of all interior points of each element to the element DT
 			for i := 1; i < c.dfr.SolutionElement.Np; i++ {
-				for k := 0; k < Kmax[myThread]; k++ {
-					ind := k + Kmax[myThread]*i
-					DT[myThread].DataP[ind] = DT[myThread].DataP[k]
+				for k := 0; k < Kmax; k++ {
+					ind := k + Kmax*i
+					DT.DataP[ind] = DT.DataP[k]
 				}
 			}
 		}
-		c.RHS(Kmax[myThread], Jdet[myThread], F_RT_DOF[myThread], RHSQ[myThread])
+		c.RHS(Kmax, Jdet, F_RT_DOF, RHSQ)
 		if preCon {
-			c.PreconditionRHS(Q0[myThread], RHSQ[myThread], DT[myThread], true)
+			c.PreconditionRHS(Q0, RHSQ, DT, true)
 		}
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
-			for i := 0; i < Kmax[myThread]*Np; i++ {
+			for i := 0; i < Kmax*Np; i++ {
 				if c.LocalTimeStepping {
-					dT = DT[myThread].DataP[i]
+					dT = DT.DataP[i]
 				}
-				Q1[myThread][n].DataP[i] = Q0[myThread][n].DataP[i] + 0.5*RHSQ[myThread][n].DataP[i]*dT
+				Q1[n].DataP[i] = Q0[n].DataP[i] + 0.5*RHSQ[n].DataP[i]*dT
 			}
 		}
-		c.PrepareEdgeFlux(Kmax[myThread], Jdet[myThread], Jinv[myThread], F_RT_DOF[myThread], Q1[myThread], Q_Face[myThread])
-		rk.WorkerDone(&subStep, toController, false)
-
-		_ = <-fromController                                                                           // Block until parent sends "go"
-		c.SetNormalFluxOnEdges(rk.Time, false, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread]) // Global
+		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q1, Q_Face)
 		rk.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController // Block until parent sends "go"
-		c.RHS(Kmax[myThread], Jdet[myThread], F_RT_DOF[myThread], RHSQ[myThread])
+		c.SetNormalFluxOnEdges(rk.Time, false,
+			rk.Jdet, rk.DT, rk.F_RT_DOF, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
+		rk.WorkerDone(&subStep, toController, false)
+
+		_ = <-fromController // Block until parent sends "go"
+		c.RHS(Kmax, Jdet, F_RT_DOF, RHSQ)
 		if preCon {
-			c.PreconditionRHS(Q1[myThread], RHSQ[myThread], DT[myThread], false)
+			c.PreconditionRHS(Q1, RHSQ, DT, false)
 		}
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
-			for i := 0; i < Kmax[myThread]*Np; i++ {
+			for i := 0; i < Kmax*Np; i++ {
 				if c.LocalTimeStepping {
-					dT = DT[myThread].DataP[i]
+					dT = DT.DataP[i]
 				}
-				Q2[myThread][n].DataP[i] = Q1[myThread][n].DataP[i] + 0.25*RHSQ[myThread][n].DataP[i]*dT
+				Q2[n].DataP[i] = Q1[n].DataP[i] + 0.25*RHSQ[n].DataP[i]*dT
 			}
 		}
-		c.PrepareEdgeFlux(Kmax[myThread], Jdet[myThread], Jinv[myThread], F_RT_DOF[myThread], Q2[myThread], Q_Face[myThread])
-		rk.WorkerDone(&subStep, toController, false)
-
-		_ = <-fromController                                                                           // Block until parent sends "go"
-		c.SetNormalFluxOnEdges(rk.Time, false, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread]) // Global
+		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q2, Q_Face)
 		rk.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController // Block until parent sends "go"
-		c.RHS(Kmax[myThread], Jdet[myThread], F_RT_DOF[myThread], RHSQ[myThread])
+		c.SetNormalFluxOnEdges(rk.Time, false,
+			rk.Jdet, rk.DT, rk.F_RT_DOF, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
+		rk.WorkerDone(&subStep, toController, false)
+
+		_ = <-fromController // Block until parent sends "go"
+		c.RHS(Kmax, Jdet, F_RT_DOF, RHSQ)
 		if preCon {
-			c.PreconditionRHS(Q2[myThread], RHSQ[myThread], DT[myThread], false)
+			c.PreconditionRHS(Q2, RHSQ, DT, false)
 		}
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
-			for i := 0; i < Kmax[myThread]*Np; i++ {
+			for i := 0; i < Kmax*Np; i++ {
 				if c.LocalTimeStepping {
-					dT = DT[myThread].DataP[i]
+					dT = DT.DataP[i]
 				}
-				Q3[myThread][n].DataP[i] = (1. / 3.) * (2*Q0[myThread][n].DataP[i] + Q2[myThread][n].DataP[i] + RHSQ[myThread][n].DataP[i]*dT)
+				Q3[n].DataP[i] = (1. / 3.) * (2*Q0[n].DataP[i] + Q2[n].DataP[i] + RHSQ[n].DataP[i]*dT)
 			}
 		}
-		c.PrepareEdgeFlux(Kmax[myThread], Jdet[myThread], Jinv[myThread], F_RT_DOF[myThread], Q3[myThread], Q_Face[myThread])
-		rk.WorkerDone(&subStep, toController, false)
-
-		_ = <-fromController                                                                           // Block until parent sends "go"
-		c.SetNormalFluxOnEdges(rk.Time, false, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread]) // Global
+		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q3, Q_Face)
 		rk.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController // Block until parent sends "go"
-		c.RHS(Kmax[myThread], Jdet[myThread], F_RT_DOF[myThread], RHSQ[myThread])
+		c.SetNormalFluxOnEdges(rk.Time, false,
+			rk.Jdet, rk.DT, rk.F_RT_DOF, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
+		rk.WorkerDone(&subStep, toController, false)
+
+		_ = <-fromController // Block until parent sends "go"
+		c.RHS(Kmax, Jdet, F_RT_DOF, RHSQ)
 		if preCon {
-			c.PreconditionRHS(Q3[myThread], RHSQ[myThread], DT[myThread], false)
+			c.PreconditionRHS(Q3, RHSQ, DT, false)
 		}
 		// Note, we are re-using Q1 as storage for Residual here
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
-			for i := 0; i < Kmax[myThread]*Np; i++ {
+			for i := 0; i < Kmax*Np; i++ {
 				if c.LocalTimeStepping {
-					dT = DT[myThread].DataP[i]
+					dT = DT.DataP[i]
 				}
-				rk.Residual[myThread][n].DataP[i] = Q3[myThread][n].DataP[i] + 0.25*RHSQ[myThread][n].DataP[i]*dT - Q0[myThread][n].DataP[i]
-				Q0[myThread][n].DataP[i] += rk.Residual[myThread][n].DataP[i]
+				Residual[n].DataP[i] = Q3[n].DataP[i] + 0.25*RHSQ[n].DataP[i]*dT - Q0[n].DataP[i]
+				Q0[n].DataP[i] += Residual[n].DataP[i]
 			}
 		}
 		rk.WorkerDone(&subStep, toController, true)
@@ -555,7 +563,7 @@ func (c *Euler) RHS(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4]utils.Matrix)
 	*/
 	for n := 0; n < 4; n++ {
 		// Calculate divergence for the internal node points
-		RHSQ[n] = c.dfr.FluxElement.DivInt.Mul(F_RT_DOF[n], RHSQ[n].DataP) // Re-use memory from RHSQ in the multiply
+		c.dfr.FluxElement.DivInt.MulInPlace(F_RT_DOF[n], RHSQ[n])
 		c.DivideByJacobian(Kmax, c.dfr.FluxElement.Nint, Jdet, RHSQ[n].DataP, -1)
 	}
 	return
