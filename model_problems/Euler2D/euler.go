@@ -110,13 +110,17 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		rk.Time += rk.GlobalDT
 		finished = c.CheckIfFinished(rk.Time, FinalTime, steps)
 		if finished || steps%pm.StepsBeforePlot == 0 || steps == 1 {
-			c.PrintUpdate(rk.Time, rk.GlobalDT, steps, c.Q, rk.Residual, plotQ, pm)
+			var printMem bool
+			if steps%100 == 0 {
+				printMem = true
+			}
+			c.PrintUpdate(rk.Time, rk.GlobalDT, steps, c.Q, rk.Residual, plotQ, pm, printMem)
 		}
 	}
 	c.PrintFinal(elapsed, steps)
 }
 
-type NewtonMethod struct {
+type ElementImplicit struct {
 	Jdet, Jinv        []utils.Matrix    // Sharded mesh Jacobian and inverse transform
 	Q_Face            [][4]utils.Matrix // Solution values stored at edge points of RT element
 	RHSQ, Residual    [][4]utils.Matrix // Solution Residual storage
@@ -129,12 +133,12 @@ type NewtonMethod struct {
 	fromWorkers       chan int8
 }
 
-func (c *Euler) NewNewtonMethod() (nm *NewtonMethod) {
+func (c *Euler) NewElementImplicit() (ei *ElementImplicit) {
 	var (
 		pm   = c.Partitions
 		NPar = pm.ParallelDegree
 	)
-	nm = &NewtonMethod{
+	ei = &ElementImplicit{
 		Jdet:        c.ShardByKTranspose(c.dfr.Jdet),
 		Jinv:        c.ShardByKTranspose(c.dfr.Jinv),
 		Q_Face:      make([][4]utils.Matrix, NPar),
@@ -150,39 +154,39 @@ func (c *Euler) NewNewtonMethod() (nm *NewtonMethod) {
 		toWorker:    make([]chan struct{}, NPar),
 	}
 	for np := 0; np < NPar; np++ {
-		nm.toWorker[np] = make(chan struct{}, 1)
+		ei.toWorker[np] = make(chan struct{}, 1)
 	}
 	for np := 0; np < NPar; np++ {
 		// One flux inverse matrix stored per solution point
-		nm.FluxJacInv[np] = make([]utils.Matrix, nm.Np*nm.Kmax[np])
+		ei.FluxJacInv[np] = make([]utils.Matrix, ei.Np*ei.Kmax[np])
 	}
 	// Initialize memory
 	for np := 0; np < NPar; np++ {
-		nm.Kmax[np] = pm.GetBucketDimension(np)
+		ei.Kmax[np] = pm.GetBucketDimension(np)
 		for n := 0; n < 4; n++ {
-			nm.Residual[np][n] = utils.NewMatrix(nm.Np, nm.Kmax[np])
-			nm.RHSQ[np][n] = utils.NewMatrix(nm.Np, nm.Kmax[np])
-			nm.F_RT_DOF[np][n] = utils.NewMatrix(nm.NpFlux, nm.Kmax[np])
-			nm.Q_Face[np][n] = utils.NewMatrix(nm.Nedge*3, nm.Kmax[np])
+			ei.Residual[np][n] = utils.NewMatrix(ei.Np, ei.Kmax[np])
+			ei.RHSQ[np][n] = utils.NewMatrix(ei.Np, ei.Kmax[np])
+			ei.F_RT_DOF[np][n] = utils.NewMatrix(ei.NpFlux, ei.Kmax[np])
+			ei.Q_Face[np][n] = utils.NewMatrix(ei.Nedge*3, ei.Kmax[np])
 		}
-		for i := 0; i < nm.Np*nm.Kmax[np]; i++ { // One 4x4 (2D) flux inverse matrix stored per solution point
-			nm.FluxJacInv[np][i] = utils.NewMatrix(4, 4)
+		for i := 0; i < ei.Np*ei.Kmax[np]; i++ { // One 4x4 (2D) flux inverse matrix stored per solution point
+			ei.FluxJacInv[np][i] = utils.NewMatrix(4, 4)
 		}
 	}
 	return
 }
 
-func (nm *NewtonMethod) StartWorkers(c *Euler) {
+func (ei *ElementImplicit) StartWorkers(c *Euler) {
 	var (
 		pm = c.Partitions
 		NP = pm.ParallelDegree
 	)
 	for np := 0; np < NP; np++ {
-		go nm.StepWorker(c, np, nm.toWorker[np], nm.fromWorkers)
+		go ei.StepWorker(c, np, ei.toWorker[np], ei.fromWorkers)
 	}
 }
 
-func (nm *NewtonMethod) Step(c *Euler) {
+func (ei *ElementImplicit) Step(c *Euler) {
 	/*
 		This is the controller thread - it manages and synchronizes the workers
 		NOTE: Any CPU work done in this thread makes the workers wait - be careful!
@@ -194,13 +198,13 @@ func (nm *NewtonMethod) Step(c *Euler) {
 	for {
 		// Advance the workers one step by sending the "go" message. They are blocked until they receive this.
 		for np := 0; np < NP; np++ {
-			nm.toWorker[np] <- struct{}{}
+			ei.toWorker[np] <- struct{}{}
 		}
 		currentStep := int8(-1)
 		var ts int8
 		for np := 0; np < NP; np++ {
 			// Each worker sends it's completed step number, we check to make sure they are all the same
-			ts = <-nm.fromWorkers
+			ts = <-ei.fromWorkers
 			if currentStep == -1 {
 				currentStep = ts
 			}
@@ -217,7 +221,7 @@ func (nm *NewtonMethod) Step(c *Euler) {
 	}
 }
 
-func (nm *NewtonMethod) WorkerDone(subStepP *int8, fromWorker chan int8, isDone bool) {
+func (ei *ElementImplicit) WorkerDone(subStepP *int8, fromWorker chan int8, isDone bool) {
 	if isDone {
 		*subStepP = -1
 	} else {
@@ -226,39 +230,39 @@ func (nm *NewtonMethod) WorkerDone(subStepP *int8, fromWorker chan int8, isDone 
 	fromWorker <- *subStepP // Inform controller what step we've just completed
 }
 
-func (nm *NewtonMethod) StepWorker(c *Euler, myThread int, fromController chan struct{}, toController chan int8) {
+func (ei *ElementImplicit) StepWorker(c *Euler, myThread int, fromController chan struct{}, toController chan int8) {
 	// Implements an Element Jacobi time advancement for steady state problems
 	var (
 		Q0                         = c.Q
-		Np                         = nm.Np
-		Kmax, Jdet, Jinv, F_RT_DOF = nm.Kmax, nm.Jdet, nm.Jinv, nm.F_RT_DOF
-		Q_Face, RHSQ               = nm.Q_Face, nm.RHSQ
+		Np                         = ei.Np
+		Kmax, Jdet, Jinv, F_RT_DOF = ei.Kmax, ei.Jdet, ei.Jinv, ei.F_RT_DOF
+		Q_Face, RHSQ               = ei.Q_Face, ei.RHSQ
 		dT                         float64
 		subStep                    int8
 	)
 	for {
 		_ = <-fromController // Block until parent sends "go"
 		c.PrepareEdgeFlux(Kmax[myThread], Jdet[myThread], Jinv[myThread], F_RT_DOF[myThread], Q0[myThread], Q_Face[myThread])
-		nm.WorkerDone(&subStep, toController, false)
+		ei.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController                                                                            // Block until parent sends "go"
-		c.SetNormalFluxOnEdges(nm.Time, false, Jdet, nil, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread]) // Global
-		nm.WorkerDone(&subStep, toController, false)
+		c.SetNormalFluxOnEdges(ei.Time, false, Jdet, nil, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread]) // Global
+		ei.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController // Block until parent sends "go"
 		c.RHS(Kmax[myThread], Jdet[myThread], F_RT_DOF[myThread], RHSQ[myThread])
-		dT = nm.GlobalDT
+		dT = ei.GlobalDT
 		for n := 0; n < 4; n++ {
 			for i := 0; i < Kmax[myThread]*Np; i++ {
 				_ = dT
 				//Q1[myThread][n].DataP[i] = Q0[myThread][n].DataP[i] + 0.5*RHSQ[myThread][n].DataP[i]*dT
 			}
 		}
-		nm.WorkerDone(&subStep, toController, true)
+		ei.WorkerDone(&subStep, toController, true)
 	}
 }
 
-func (nm *NewtonMethod) SetFluxJacobian(c *Euler, Kmax int, Jdet, Jinv utils.Matrix, F_RT_DOF, Q, Q_Face [4]utils.Matrix) {
+func (ei *ElementImplicit) SetFluxJacobian(c *Euler, Kmax int, Jdet, Jinv utils.Matrix, F_RT_DOF, Q, Q_Face [4]utils.Matrix) {
 	// Calculates the flux jacobian for all interior points within the RT element
 	var (
 		Nint  = c.dfr.FluxElement.Nint
@@ -695,7 +699,8 @@ func (c *Euler) PrintInitialization(FinalTime float64) {
 	fmt.Printf("       Res0       Res1       Res2")
 	fmt.Printf("       Res3         L1         L2\n")
 }
-func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [][4]utils.Matrix, plotQ bool, pm *PlotMeta) {
+func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [][4]utils.Matrix, plotQ bool, pm *PlotMeta,
+	printMem bool) {
 	format := "%11.4e"
 	if plotQ {
 		var QQ [4]utils.Matrix
@@ -729,6 +734,9 @@ func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [][4]utils.
 	}
 	fmt.Printf(format, l1)
 	fmt.Printf(format, math.Sqrt(l2)/4.)
+	if printMem {
+		fmt.Printf(" :: %s", utils.GetMemUsage())
+	}
 	fmt.Printf("\n")
 }
 func (c *Euler) PrintFinal(elapsed time.Duration, steps int) {
