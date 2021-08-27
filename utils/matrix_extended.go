@@ -138,7 +138,17 @@ func (m Matrix) Transpose() (R Matrix) { // Does not change receiver
 	return
 }
 
-func (m Matrix) Mul(A Matrix, dataO ...[]float64) (R Matrix) { // Does not change receiver
+func (m Matrix) Mul(A Matrix) (R Matrix) { // Does not change receiver
+	var (
+		nrM, _ = m.Dims()
+		_, ncA = A.M.Dims()
+	)
+	R = NewMatrix(nrM, ncA)
+	R.M.Mul(m.M, A.M)
+	return R
+}
+
+func (m Matrix) MulExt(A Matrix, dataO ...[]float64) (R Matrix) { // Does not change receiver
 	var (
 		nrM, _ = m.Dims()
 		_, ncA = A.M.Dims()
@@ -187,7 +197,7 @@ func (m Matrix) MulParallel(A Matrix, nP int) (R Matrix) { // Does not change re
 					ii++
 				}
 			}
-			subR := m.Mul(subA, subRstorage[n*subRChunkSize:])
+			subR := m.MulExt(subA, subRstorage[n*subRChunkSize:])
 			sRD := subR.DataP
 			for j := 0; j < nrM; j++ {
 				var ii int
