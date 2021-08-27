@@ -138,32 +138,23 @@ func (m Matrix) Transpose() (R Matrix) { // Does not change receiver
 	return
 }
 
-func (m Matrix) Mul(A Matrix) (R Matrix) { // Does not change receiver
+func (m Matrix) Mul(A Matrix, RO ...Matrix) (R Matrix) { // Does not change receiver
 	var (
 		nrM, _ = m.Dims()
 		_, ncA = A.M.Dims()
 	)
-	R = NewMatrix(nrM, ncA)
-	R.M.Mul(m.M, A.M)
-	return R
-}
-
-func (m Matrix) MulExt(A Matrix, dataO ...[]float64) (R Matrix) { // Does not change receiver
-	var (
-		nrM, _ = m.Dims()
-		_, ncA = A.M.Dims()
-	)
-	if len(dataO) != 0 {
-		R = NewMatrix(nrM, ncA, dataO[0])
+	if len(RO) != 0 {
+		// Optional matrix for result is present
+		R = RO[0]
+		nrR, ncR := R.Dims()
+		if nrR != nrM || ncR != ncA {
+			panic("incorrect dimensions for provided result matrix")
+		}
 	} else {
 		R = NewMatrix(nrM, ncA)
 	}
 	R.M.Mul(m.M, A.M)
 	return R
-}
-
-func (m Matrix) MulInPlace(A, R Matrix) { // Does not change receiver
-	R.M.Mul(m.M, A.M)
 }
 
 func (m Matrix) MulParallel(A Matrix, nP int) (R Matrix) { // Does not change receiver
@@ -173,6 +164,19 @@ func (m Matrix) MulParallel(A Matrix, nP int) (R Matrix) { // Does not change re
 		wg       = sync.WaitGroup{}
 		aD       = A.DataP
 	)
+	MulExt := func(m, A Matrix, dataO ...[]float64) (R Matrix) {
+		var (
+			nrM, _ = m.Dims()
+			_, ncA = A.M.Dims()
+		)
+		if len(dataO) != 0 {
+			R = NewMatrix(nrM, ncA, dataO[0])
+		} else {
+			R = NewMatrix(nrM, ncA)
+		}
+		R.M.Mul(m.M, A.M)
+		return R
+	}
 	if nP > ncA {
 		nP = ncA
 	}
@@ -197,7 +201,7 @@ func (m Matrix) MulParallel(A Matrix, nP int) (R Matrix) { // Does not change re
 					ii++
 				}
 			}
-			subR := m.MulExt(subA, subRstorage[n*subRChunkSize:])
+			subR := MulExt(m, subA, subRstorage[n*subRChunkSize:])
 			sRD := subR.DataP
 			for j := 0; j < nrM; j++ {
 				var ii int
@@ -213,7 +217,6 @@ func (m Matrix) MulParallel(A Matrix, nP int) (R Matrix) { // Does not change re
 	return R
 }
 
-//func (m Matrix) SubsetIndex(I Index, nrNew, ncNew int) (R Matrix) { // Does not change receiver
 func (m Matrix) Subset(I Index, newDims ...int) (R Matrix) { // Does not change receiver
 	/*
 		Index should contain a list of indices into MI

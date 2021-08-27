@@ -563,7 +563,7 @@ func (c *Euler) RHS(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4]utils.Matrix)
 	*/
 	for n := 0; n < 4; n++ {
 		// Calculate divergence for the internal node points
-		c.dfr.FluxElement.DivInt.MulInPlace(F_RT_DOF[n], RHSQ[n])
+		c.dfr.FluxElement.DivInt.Mul(F_RT_DOF[n], RHSQ[n])
 		c.DivideByJacobian(Kmax, c.dfr.FluxElement.Nint, Jdet, RHSQ[n].DataP, -1)
 	}
 	return
