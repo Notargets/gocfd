@@ -30,11 +30,10 @@ func NewMatrix(nr, nc int, dataO ...[]float64) (R Matrix) {
 			panic(err)
 		}
 		dataArea = dataO[0][0 : nr*nc]
-		m = mat.NewDense(nr, nc, dataArea)
 	} else {
 		dataArea = make([]float64, nr*nc)
-		m = mat.NewDense(nr, nc, dataArea)
 	}
+	m = mat.NewDense(nr, nc, dataArea)
 	R = Matrix{
 		M:        m,
 		readOnly: false,
@@ -96,16 +95,12 @@ func (m Matrix) Slice(I, K, J, L int) (R Matrix) { // Does not change receiver
 	return
 }
 
-func (m Matrix) Copy() (R Matrix) { // Does not change receiver
+func (m Matrix) Copy(RO ...Matrix) (R Matrix) { // Does not change receiver
 	var (
-		data   = m.RawMatrix().Data
 		nr, nc = m.Dims()
-		dataR  = make([]float64, nr*nc)
 	)
-	for i, val := range data {
-		dataR[i] = val
-	}
-	R = NewMatrix(nr, nc, dataR)
+	R = getResultMatrix(nr, nc, RO)
+	copy(R.DataP, m.DataP)
 	return
 }
 
@@ -138,25 +133,47 @@ func (m Matrix) Transpose() (R Matrix) { // Does not change receiver
 	return
 }
 
-func (m Matrix) Mul(A Matrix, RO ...Matrix) (R Matrix) { // Does not change receiver
-	var (
-		nrM, _ = m.Dims()
-		_, ncA = A.M.Dims()
-	)
+func getResultMatrix(nr, nc int, RO []Matrix) (R Matrix) { // helper function - parses incoming optional destination argument
 	if len(RO) != 0 {
 		// Optional matrix for result is present
 		R = RO[0]
 		nrR, ncR := R.Dims()
-		if nrR != nrM || ncR != ncA {
+		if nrR != nr || ncR != nc {
 			panic("incorrect dimensions for provided result matrix")
 		}
 	} else {
-		R = NewMatrix(nrM, ncA)
+		R = NewMatrix(nr, nc)
 	}
-	R.M.Mul(m.M, A.M)
-	return R
+	return
 }
 
+func (m Matrix) Mul(A Matrix, RO ...Matrix) (R Matrix) { // Does not change receiver
+	var (
+		nrM, ncM = m.Dims()
+		nrA, ncA = A.M.Dims()
+		nrR, ncR int
+	)
+	switch {
+	case m.IsScalar():
+		nrR, ncR = nrA, ncA
+	case A.IsScalar():
+		nrR, ncR = nrM, ncM
+	default:
+		nrR, ncR = nrM, ncA
+	}
+	R = getResultMatrix(nrR, ncR, RO)
+	switch {
+	case m.IsScalar():
+		A.Copy(R)
+		R.Scale(m.DataP[0])
+	case A.IsScalar():
+		m.Copy(R)
+		R.Scale(A.DataP[0])
+	default:
+		R.M.Mul(m.M, A.M)
+	}
+	return R
+}
 func (m Matrix) MulParallel(A Matrix, nP int) (R Matrix) { // Does not change receiver
 	var (
 		nrM, _   = m.Dims()
@@ -215,6 +232,30 @@ func (m Matrix) MulParallel(A Matrix, nP int) (R Matrix) { // Does not change re
 	}
 	wg.Wait()
 	return R
+}
+
+func (m Matrix) Add(A Matrix, isSubO ...bool) Matrix { // Changes receiver
+	var (
+		dataM = m.RawMatrix().Data
+		dataA = A.RawMatrix().Data
+	)
+	m.checkWritable()
+	switch len(isSubO) {
+	case 0:
+		for i, val := range dataA {
+			dataM[i] += val
+		}
+	default:
+		for i, val := range dataA {
+			dataM[i] -= val
+		}
+	}
+	return m
+}
+
+func (m Matrix) Subtract(a Matrix) Matrix { // Changes receiver
+	m.Add(a, true)
+	return m
 }
 
 func (m Matrix) Subset(I Index, newDims ...int) (R Matrix) { // Does not change receiver
@@ -329,30 +370,6 @@ func (m Matrix) SetColFrom(col, rowFrom int, data []float64) Matrix { // Changes
 	}
 	for i, val := range data {
 		m.M.Set(i+rowFrom, col, val)
-	}
-	return m
-}
-
-func (m Matrix) Add(A Matrix) Matrix { // Changes receiver
-	var (
-		dataM = m.RawMatrix().Data
-		dataA = A.RawMatrix().Data
-	)
-	m.checkWritable()
-	for i, val := range dataA {
-		dataM[i] += val
-	}
-	return m
-}
-
-func (m Matrix) Subtract(a Matrix) Matrix { // Changes receiver
-	var (
-		data  = m.RawMatrix().Data
-		dataA = a.M.RawMatrix().Data
-	)
-	m.checkWritable()
-	for i := range data {
-		data[i] -= dataA[i]
 	}
 	return m
 }
@@ -737,6 +754,12 @@ func (m Matrix) LUSolve(b Matrix) (X Matrix) {
 }
 
 // Non chainable methods
+func (m Matrix) IsScalar() bool {
+	var (
+		nr, nc = m.Dims()
+	)
+	return nr*nc == 1
+}
 
 func (m Matrix) IndexedAssign(I Index, ValI interface{}) (err error) { // Changes receiver
 	return IndexedAssign(m, I, ValI)

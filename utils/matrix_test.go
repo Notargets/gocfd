@@ -245,6 +245,29 @@ func TestMatrix(t *testing.T) {
 		assert.Equal(t, B.Mul(A), B.MulParallel(A, 5))
 		//fmt.Println(B.MulParallel(A, 2).Print("BmulA"))
 	}
+	// Multiply
+	{
+		A := NewMatrix(2, 4, []float64{
+			0., 1., 2., 3.,
+			4., 5., 6., 7.,
+		})
+		B := NewMatrix(3, 2, []float64{
+			10., 20.,
+			30., 40.,
+			50., 60.,
+		})
+		C := NewMatrix(3, 4, []float64{
+			80., 110., 140., 170.,
+			160., 230., 300., 370.,
+			240., 350., 460., 570.,
+		})
+		assert.Equal(t, B.Mul(A), C)
+		D := NewMatrix(1, 1, []float64{100.})
+		Ax100 := A.Copy().Scale(100)
+		assert.Equal(t, D.Mul(A), Ax100)
+		assert.Equal(t, A.Mul(D), Ax100)
+		fmt.Printf(A.Mul(D).Print())
+	}
 }
 
 func nearVec(a, b []float64, tol float64) (l bool) {
