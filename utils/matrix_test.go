@@ -266,7 +266,29 @@ func TestMatrix(t *testing.T) {
 		Ax100 := A.Copy().Scale(100)
 		assert.Equal(t, D.Mul(A), Ax100)
 		assert.Equal(t, A.Mul(D), Ax100)
-		fmt.Printf(A.Mul(D).Print())
+		E := NewMatrix(1, 1, []float64{3.})
+		assert.Equal(t, D.Mul(E), NewMatrix(1, 1, []float64{300}))
+		assert.Equal(t, E.Mul(D), NewMatrix(1, 1, []float64{300}))
+	}
+	// Add, Subtract
+	{
+		A := NewMatrix(2, 4, []float64{
+			0., 1., 2., 3.,
+			4., 5., 6., 7.,
+		})
+		B := NewMatrix(2, 4, []float64{
+			10., 11., 12., 13.,
+			14., 15., 16., 17.,
+		})
+		C := B.Copy()
+		assert.Equal(t, B.Add(A), NewMatrix(2, 4, []float64{
+			10., 12., 14., 16.,
+			18., 20., 22., 24.,
+		}))
+		assert.Equal(t, C.Subtract(A), NewMatrix(2, 4, []float64{
+			10., 10., 10., 10.,
+			10., 10., 10., 10.,
+		}))
 	}
 }
 

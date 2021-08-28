@@ -234,27 +234,40 @@ func (m Matrix) MulParallel(A Matrix, nP int) (R Matrix) { // Does not change re
 	return R
 }
 
-func (m Matrix) Add(A Matrix, isSubO ...bool) Matrix { // Changes receiver
+func (m Matrix) Add(A Matrix) Matrix { // Changes receiver
+	return add(m, A, false)
+}
+
+func (m Matrix) Subtract(A Matrix) Matrix { // Changes receiver
+	return add(m, A, true)
+}
+
+func add(m, A Matrix, subtract bool) Matrix { // Changes receiver
 	var (
 		dataM = m.RawMatrix().Data
 		dataA = A.RawMatrix().Data
 	)
 	m.checkWritable()
-	switch len(isSubO) {
-	case 0:
-		for i, val := range dataA {
-			dataM[i] += val
-		}
-	default:
+	if subtract {
 		for i, val := range dataA {
 			dataM[i] -= val
+		}
+	} else {
+		for i, val := range dataA {
+			dataM[i] += val
 		}
 	}
 	return m
 }
 
-func (m Matrix) Subtract(a Matrix) Matrix { // Changes receiver
-	m.Add(a, true)
+func (m Matrix) AddScalar(a float64) Matrix { // Changes receiver
+	var (
+		data = m.RawMatrix().Data
+	)
+	m.checkWritable()
+	for i := range data {
+		data[i] += a
+	}
 	return m
 }
 
@@ -551,17 +564,6 @@ func (m Matrix) Scale(a float64) Matrix { // Changes receiver
 	m.checkWritable()
 	for i := range data {
 		data[i] *= a
-	}
-	return m
-}
-
-func (m Matrix) AddScalar(a float64) Matrix { // Changes receiver
-	var (
-		data = m.RawMatrix().Data
-	)
-	m.checkWritable()
-	for i := range data {
-		data[i] += a
 	}
 	return m
 }
