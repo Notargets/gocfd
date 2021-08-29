@@ -295,6 +295,10 @@ func TestMatrix(t *testing.T) {
 			110., 10., 10., 10.,
 			10., 110., 10., 10.,
 		})
+		s100minusTens := NewMatrix(2, 4, []float64{
+			90., -10., -10., -10.,
+			-10., 90., -10., -10.,
+		})
 
 		Bs100 := NewMatrix(1, 1, []float64{100.}) // Scalar matrix
 		Cs3 := NewMatrix(1, 1, []float64{3.})     // Scalar matrix
@@ -349,6 +353,7 @@ func TestMatrix(t *testing.T) {
 		}
 		// Add/Subtract Scalar <-> Matrix, tests upscaling of scalar to diagonal matrix
 		{
+			// Matrix -/+ Scalar
 			RR := Tens.Copy()
 			R := NewMatrix(2, 4)
 			assert.Equal(t, Tensminus100, RR.Subtract(s100, R)) // Place output in provided storage
@@ -360,6 +365,15 @@ func TestMatrix(t *testing.T) {
 			assert.Equal(t, Tensplus100, RR.Add(s100, R)) // Place output in provided storage
 			assert.Equal(t, Tensplus100, R)
 			assert.Equal(t, Tensplus100, RR.Add(s100)) // Overwrite argument
+
+			// Scalar -/+ Matrix
+			RR = Tens.Copy()
+			R = NewMatrix(2, 4)
+			assert.Equal(t, s100minusTens, s100.Subtract(RR, R)) // Place output in provided storage
+			assert.Equal(t, s100minusTens, R)
+			R = s100.Subtract(RR)
+			assert.Equal(t, s100minusTens, R)
+			assert.Equal(t, s100minusTens, s100.Subtract(RR)) // Does not overwrite scalar argument
 
 			RR = Tens.Copy()
 			R = NewMatrix(2, 4)
