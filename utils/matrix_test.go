@@ -261,34 +261,88 @@ func TestMatrix(t *testing.T) {
 			160., 230., 300., 370.,
 			240., 350., 460., 570.,
 		})
-		assert.Equal(t, B.Mul(A), C)
-		D := NewMatrix(1, 1, []float64{100.})
-		Ax100 := A.Copy().Scale(100)
-		assert.Equal(t, D.Mul(A), Ax100)
-		assert.Equal(t, A.Mul(D), Ax100)
-		E := NewMatrix(1, 1, []float64{3.})
-		assert.Equal(t, D.Mul(E), NewMatrix(1, 1, []float64{300}))
-		assert.Equal(t, E.Mul(D), NewMatrix(1, 1, []float64{300}))
+		assert.Equal(t, C, B.Mul(A))
+
 	}
-	// Add, Subtract
+	// Scalar Matrices, Add, Subtract, Mult, Divide
 	{
-		A := NewMatrix(2, 4, []float64{
-			0., 1., 2., 3.,
-			4., 5., 6., 7.,
-		})
-		B := NewMatrix(2, 4, []float64{
-			10., 11., 12., 13.,
-			14., 15., 16., 17.,
-		})
-		C := B.Copy()
-		assert.Equal(t, B.Add(A), NewMatrix(2, 4, []float64{
-			10., 12., 14., 16.,
-			18., 20., 22., 24.,
-		}))
-		assert.Equal(t, C.Subtract(A), NewMatrix(2, 4, []float64{
-			10., 10., 10., 10.,
-			10., 10., 10., 10.,
-		}))
+		// Scalar / Scalar
+		{
+			A := NewMatrix(2, 4, []float64{
+				0., 1., 2., 3.,
+				4., 5., 6., 7.,
+			})
+			D := NewMatrix(1, 1, []float64{100.}) // Scalar matrix
+			Ax100 := A.Copy().Scale(100)
+			assert.Equal(t, Ax100, D.Mul(A))
+			assert.Equal(t, Ax100, A.Mul(D))
+			E := NewMatrix(1, 1, []float64{3.})
+			assert.Equal(t, NewMatrix(1, 1, []float64{300}), D.Mul(E))
+			assert.Equal(t, NewMatrix(1, 1, []float64{300}), E.Mul(D))
+			E.Scale(0).AddScalar(1000.)
+			D.Scale(0).AddScalar(2000.)
+			R := NewMatrix(1, 1)
+			R = E.Mul(D, R)
+			assert.Equal(t, NewMatrix(1, 1, []float64{2000000}), R)
+		}
+		// Add, Subtract
+		{
+			A := NewMatrix(2, 4, []float64{
+				0., 1., 2., 3.,
+				4., 5., 6., 7.,
+			})
+			B := NewMatrix(2, 4, []float64{
+				10., 11., 12., 13.,
+				14., 15., 16., 17.,
+			})
+
+			BB := B.Copy()
+			assert.Equal(t, NewMatrix(2, 4, []float64{
+				10., 12., 14., 16.,
+				18., 20., 22., 24.,
+			}), BB.Add(A))
+
+			BB = B.Copy()
+			assert.Equal(t, NewMatrix(2, 4, []float64{
+				10., 10., 10., 10.,
+				10., 10., 10., 10.,
+			}), BB.Subtract(A))
+
+			BB = B.Copy()
+			R := NewMatrix(2, 4)
+			RR := R.Copy()
+			RR = BB.Subtract(A, RR)
+			assert.Equal(t, NewMatrix(2, 4, []float64{
+				10., 10., 10., 10.,
+				10., 10., 10., 10.,
+			}), BB.Subtract(A, B))
+
+			R = RR // Is all 2x4, all equal to ten (10.0)
+
+			RR = R.Copy()
+			C := NewMatrix(1, 1, []float64{100.})
+			CC := C.Copy()
+			assert.Equal(t, NewMatrix(2, 4, []float64{
+				-90., 10., 10., 10.,
+				10., -90., 10., 10.,
+			}), RR.Subtract(CC)) // Place output in new storage
+
+			RR = R.Copy()
+			RRR := R.Copy()
+			CC = C.Copy()
+			assert.Equal(t, NewMatrix(2, 4, []float64{
+				-90., 10., 10., 10.,
+				10., -90., 10., 10.,
+			}), RR.Subtract(CC, RRR)) // Place output in provided storage
+
+			RR = R.Copy()
+			C = NewMatrix(1, 1, []float64{100.})
+			CC = C.Copy()
+			assert.Equal(t, NewMatrix(2, 4, []float64{
+				110., 10., 10., 10.,
+				10., 110., 10., 10.,
+			}), RR.Add(CC, RR))
+		}
 	}
 }
 

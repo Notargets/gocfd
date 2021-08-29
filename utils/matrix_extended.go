@@ -234,30 +234,67 @@ func (m Matrix) MulParallel(A Matrix, nP int) (R Matrix) { // Does not change re
 	return R
 }
 
-func (m Matrix) Add(A Matrix) Matrix { // Changes receiver
-	return add(m, A, false)
-}
-
-func (m Matrix) Subtract(A Matrix) Matrix { // Changes receiver
-	return add(m, A, true)
-}
-
-func add(m, A Matrix, subtract bool) Matrix { // Changes receiver
+func getDimensions(m, A Matrix) (nr, nc int) {
 	var (
-		dataM = m.RawMatrix().Data
-		dataA = A.RawMatrix().Data
+		nrA, ncA = A.Dims()
 	)
-	m.checkWritable()
+	nr, nc = m.Dims()
+	switch {
+	case m.IsScalar():
+		nr, nc = A.Dims() // upscale m (scalar) to A
+	case A.IsScalar():
+		nrA, ncA = m.Dims() // upscale A (scalar) to m
+	}
+	if nrA != nr || ncA != nc {
+		panic("dimensions of matrices do not match")
+	}
+	return
+}
+
+func add(m, A Matrix, subtract bool, RO []Matrix) (R Matrix) { // Changes receiver, optionally does not
+	var (
+		nr, nc = getDimensions(m, A)
+		mult   = 1.
+	)
 	if subtract {
-		for i, val := range dataA {
-			dataM[i] -= val
-		}
+		mult = -1.
+	}
+	if len(RO) != 0 {
+		R = getResultMatrix(nr, nc, RO)
 	} else {
-		for i, val := range dataA {
-			dataM[i] += val
+		m.checkWritable()
+		R = m
+	}
+	switch {
+	case m.IsScalar():
+		mVal := m.DataP[0]
+		for r := 0; r < nr; r++ {
+			R.Set(r, r, mVal+mult*A.At(r, r))
+		}
+	case A.IsScalar():
+		AVal := mult * A.DataP[0]
+		for r := 0; r < nr; r++ {
+			R.Set(r, r, m.At(r, r)+AVal)
+		}
+	default:
+		var (
+			dataM = m.DataP
+			dataA = A.DataP
+			dataR = R.DataP
+		)
+		for i := range dataA {
+			dataR[i] = dataM[i] + mult*dataA[i]
 		}
 	}
-	return m
+	return
+}
+
+func (m Matrix) Add(A Matrix, RO ...Matrix) Matrix { // Changes receiver optionally
+	return add(m, A, false, RO)
+}
+
+func (m Matrix) Subtract(A Matrix, RO ...Matrix) Matrix { // Changes receiver optionally
+	return add(m, A, true, RO)
 }
 
 func (m Matrix) AddScalar(a float64) Matrix { // Changes receiver
