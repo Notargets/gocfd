@@ -251,6 +251,17 @@ func getDimensions(m, A Matrix) (nr, nc int) {
 	return
 }
 
+func (m *Matrix) upscale(nr, nc int) {
+	if m.IsScalar() {
+		val := m.DataP[0]
+		RR := NewMatrix(nr, nc)
+		for i := 0; i < nr; i++ {
+			RR.Set(i, i, val)
+		}
+		m.M, m.DataP = RR.M, RR.DataP
+	}
+}
+
 func add(m, A Matrix, subtract bool, RO []Matrix) (R Matrix) { // Changes receiver, optionally does not
 	var (
 		nr, nc = getDimensions(m, A)
@@ -261,29 +272,30 @@ func add(m, A Matrix, subtract bool, RO []Matrix) (R Matrix) { // Changes receiv
 	}
 	if len(RO) != 0 {
 		R = getResultMatrix(nr, nc, RO)
+		if m.IsScalar() {
+			val := m.DataP[0]
+			for i := 0; i < nr; i++ {
+				R.Set(i, i, val)
+			}
+		} else {
+			for i, val := range m.DataP {
+				R.DataP[i] = val
+			}
+		}
 	} else {
 		m.checkWritable()
+		m.upscale(nr, nc) // Must upscale m to match A
 		R = m
 	}
 	switch {
-	case m.IsScalar():
-		mVal := m.DataP[0]
-		for r := 0; r < nr; r++ {
-			R.Set(r, r, mVal+mult*A.At(r, r))
-		}
 	case A.IsScalar():
 		AVal := mult * A.DataP[0]
-		for r := 0; r < nr; r++ {
-			R.Set(r, r, m.At(r, r)+AVal)
+		for i := 0; i < nr; i++ {
+			R.Set(i, i, R.At(i, i)+AVal)
 		}
 	default:
-		var (
-			dataM = m.DataP
-			dataA = A.DataP
-			dataR = R.DataP
-		)
-		for i := range dataA {
-			dataR[i] = dataM[i] + mult*dataA[i]
+		for i := range A.DataP {
+			R.DataP[i] += mult * A.DataP[i]
 		}
 	}
 	return
