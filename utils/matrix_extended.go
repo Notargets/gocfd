@@ -818,17 +818,26 @@ func (m Matrix) IndexedAssign(I Index, ValI interface{}) (err error) { // Change
 
 func (m Matrix) Inverse() (R Matrix, err error) {
 	var (
-		nr, nc = m.Dims()
+		nr, nc      = m.Dims()
+		errSingular = fmt.Errorf("unable to invert, matrix is singular")
 	)
 	R = m.Copy()
+	if m.IsScalar() {
+		if m.DataP[0] == 0. {
+			err = errSingular
+		} else {
+			R.DataP[0] = 1. / m.DataP[0]
+		}
+		return
+	}
 	iPiv := make([]int, nr)
 	if ok := lapack64.Getrf(R.RawMatrix(), iPiv); !ok {
-		err = fmt.Errorf("unable to invert, matrix is singular")
+		err = errSingular
 		return
 	}
 	work := make([]float64, nr*nc)
 	if ok := lapack64.Getri(R.RawMatrix(), iPiv, work, nr*nc); !ok {
-		err = fmt.Errorf("unable to invert, matrix is singular")
+		err = errSingular
 	}
 	return
 }

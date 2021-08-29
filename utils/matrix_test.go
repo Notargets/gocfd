@@ -267,7 +267,7 @@ func TestMatrix(t *testing.T) {
 		assert.Equal(t, C, B.Mul(A, R))
 		assert.Equal(t, C, R)
 	}
-	// [Matrix,Scalar] <-> [Matrix,Scalar]: Add, Subtract, Mult, Inv
+	// [Matrix,Scalar] <-> [Matrix,Scalar]: Add, Subtract, Mult
 	{
 		A := NewMatrix(2, 4, []float64{
 			0., 1., 2., 3.,
@@ -398,6 +398,38 @@ func TestMatrix(t *testing.T) {
 			assert.Equal(t, -97., Cs3.Subtract(s100).DataP[0])
 			R = Cs3.Subtract(s100)
 			assert.True(t, R.IsScalar())
+		}
+	}
+	// [Matrix,Scalar]: Inverse
+	{
+		A := NewMatrix(4, 4, []float64{
+			1., 2., 3., 4.,
+			4., 1., 2., 3.,
+			3., 4., 1., 2.,
+			2., 3., 4., 1.,
+		})
+		Ainv := NewMatrix(4, 4, []float64{
+			-0.2250, 0.2750, 0.0250, 0.0250,
+			0.0250, -0.2250, 0.2750, 0.0250,
+			0.0250, 0.0250, -0.2250, 0.2750,
+			0.2750, 0.0250, 0.0250, -0.2250,
+		})
+		s0 := NewMatrix(1, 1, []float64{0.})
+		s100 := NewMatrix(1, 1, []float64{100.})
+		// Matrix: Inverse
+		{
+			R, err := A.Inverse()
+			assert.Nil(t, err)
+			assert.InDeltaSlicef(t, Ainv.DataP, R.DataP, 0.00000001, "error msg %s")
+		}
+		// Scalar: Inverse
+		{
+			R, err := s100.Inverse()
+			assert.Nil(t, err)
+			assert.InDeltaf(t, 0.01, R.DataP[0], 0.00000001, "error msg %s")
+
+			_, err = s0.Inverse()
+			assert.NotNil(t, err)
 		}
 	}
 }
