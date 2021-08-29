@@ -383,6 +383,21 @@ func TestMatrix(t *testing.T) {
 			R = s100.Add(RR)
 			assert.Equal(t, Tensplus100, R)
 			assert.Equal(t, Tensplus100, s100.Add(RR)) // Does not overwrite scalar argument
+
+			// Scalar +/- Scalar
+			assert.Equal(t, 103., s100.Add(Cs3).DataP[0])
+			R = s100.Add(Cs3)
+			assert.True(t, R.IsScalar())
+			assert.Equal(t, 103., Cs3.Add(s100).DataP[0])
+			R = Cs3.Add(s100)
+			assert.True(t, R.IsScalar())
+
+			assert.Equal(t, 97., s100.Subtract(Cs3).DataP[0])
+			R = s100.Subtract(Cs3)
+			assert.True(t, R.IsScalar())
+			assert.Equal(t, -97., Cs3.Subtract(s100).DataP[0])
+			R = Cs3.Subtract(s100)
+			assert.True(t, R.IsScalar())
 		}
 	}
 }
