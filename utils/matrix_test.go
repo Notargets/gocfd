@@ -1,8 +1,6 @@
 package utils
 
 import (
-	"fmt"
-	"math"
 	"testing"
 
 	"gonum.org/v1/gonum/mat"
@@ -144,53 +142,50 @@ func TestMatrix(t *testing.T) {
 			3, 4, 5,
 			6, 7, 8,
 		})
-		A.Equate(-1, ":", 0)
-		assert.True(t, nearVec([]float64{
+		msg := "error msg %s"
+		dlt := 0.0001
+		R1 := []float64{
 			-1.0000, 1.0000, 2.0000,
 			-1.0000, 4.0000, 5.0000,
-			-1.0000, 7.0000, 8.0000,
-		}, A.Data(), 0.0001))
-
-		A.Equate(-2, 0, ":")
-		assert.True(t, nearVec([]float64{
+			-1.0000, 7.0000, 8.0000}
+		R2 := []float64{
 			-2.0000, -2.0000, -2.0000,
 			-1.0000, 4.0000, 5.0000,
-			-1.0000, 7.0000, 8.0000,
-		}, A.Data(), 0.0001))
-
-		A.Equate(-3, 1, []float64{1})
-		assert.True(t, nearVec([]float64{
+			-1.0000, 7.0000, 8.0000}
+		R3 := []float64{
 			-2.0000, -2.0000, -2.0000,
 			-1.0000, -3.0000, 5.0000,
-			-1.0000, 7.0000, 8.0000,
-		}, A.Data(), 0.0001))
-
-		B := NewMatrix(1, 1, []float64{2})
-		A.Equate(-4, 2, B)
-		assert.True(t, nearVec([]float64{
+			-1.0000, 7.0000, 8.0000}
+		R4 := []float64{
 			-2.0000, -2.0000, -2.0000,
 			-1.0000, -3.0000, 5.0000,
-			-1.0000, 7.0000, -4.0000,
-		}, A.Data(), 0.0001))
-
-		I := Index{1}
-		A.Equate(-5, 2, I)
-		assert.True(t, nearVec([]float64{
+			-1.0000, 7.0000, -4.0000}
+		R5 := []float64{
 			-2.0000, -2.0000, -2.0000,
 			-1.0000, -3.0000, 5.0000,
-			-1.0000, -5.0000, -4.0000,
-		}, A.Data(), 0.0001))
+			-1.0000, -5.0000, -4.0000}
+		{
+			A.Equate(-1, ":", 0)
+			assert.InDeltaSlicef(t, R1, A.DataP, dlt, msg)
 
-		A.Equate([]float64{
-			0, 1, 2,
-			3, 4, 5,
-			6, 7, 8,
-		}, ":", ":")
-		assert.True(t, nearVec([]float64{
-			0.0000, 1.0000, 2.0000,
-			3.0000, 4.0000, 5.0000,
-			6.0000, 7.0000, 8.0000,
-		}, A.Data(), 0.0001))
+			A.Equate(-2, 0, ":")
+			assert.InDeltaSlicef(t, R2, A.DataP, dlt, msg)
+
+			A.Equate(-3, 1, []float64{1})
+			assert.InDeltaSlicef(t, R3, A.DataP, dlt, msg)
+
+			B := NewMatrix(1, 1, []float64{2})
+			A.Equate(-4, 2, B)
+			assert.InDeltaSlicef(t, R4, A.DataP, dlt, msg)
+
+			I := Index{1}
+			A.Equate(-5, 2, I)
+			assert.InDeltaSlicef(t, R5, A.DataP, dlt, msg)
+
+			R := []float64{0, 1, 2, 3, 4, 5, 6, 7, 8}
+			A.Equate(R, ":", ":")
+			assert.InDeltaSlicef(t, R, A.DataP, dlt, msg)
+		}
 	}
 	// Sparse Equate
 	{
@@ -430,29 +425,4 @@ func TestMatrix(t *testing.T) {
 			assert.NotNil(t, err)
 		}
 	}
-}
-
-func nearVec(a, b []float64, tol float64) (l bool) {
-	for i, val := range a {
-		if !near(b[i], val, tol) {
-			fmt.Printf("Diff = %v, Left[%d] = %v, Right[%d] = %v\n", math.Abs(val-b[i]), i, val, i, b[i])
-			return false
-		}
-	}
-	return true
-}
-
-func near(a, b float64, tolI ...float64) (l bool) {
-	var (
-		tol float64
-	)
-	if len(tolI) == 0 {
-		tol = 1.e-08
-	} else {
-		tol = tolI[0]
-	}
-	if math.Abs(a-b) <= tol*math.Abs(a) {
-		l = true
-	}
-	return
 }
