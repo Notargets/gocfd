@@ -245,7 +245,7 @@ func TestMatrix(t *testing.T) {
 		assert.Equal(t, B.Mul(A), B.MulParallel(A, 5))
 		//fmt.Println(B.MulParallel(A, 2).Print("BmulA"))
 	}
-	// Multiply
+	// Matrix x Matrix
 	{
 		A := NewMatrix(2, 4, []float64{
 			0., 1., 2., 3.,
@@ -267,7 +267,7 @@ func TestMatrix(t *testing.T) {
 		assert.Equal(t, C, B.Mul(A, R))
 		assert.Equal(t, C, R)
 	}
-	// Scalar Matrices, Add, Subtract, Mult, Inv
+	// [Matrix,Scalar] <-> [Matrix,Scalar]: Add, Subtract, Mult, Inv
 	{
 		A := NewMatrix(2, 4, []float64{
 			0., 1., 2., 3.,
@@ -306,7 +306,7 @@ func TestMatrix(t *testing.T) {
 		s300 := NewMatrix(1, 1, []float64{300.})
 		s2000000 := NewMatrix(1, 1, []float64{2000000.})
 
-		// Matrix Add, Subtract
+		// Matrix <-> Matrix: Add, Subtract
 		{
 			BB := B.Copy()
 			assert.Equal(t, ApB, BB.Add(A))
@@ -322,17 +322,18 @@ func TestMatrix(t *testing.T) {
 			assert.Equal(t, BmA, BB.Subtract(A, R))
 			assert.Equal(t, BmA, R)
 		}
-		// Mul Scalar <-> Matrix
+		// Scalar <-> Matrix: Mul
 		{
 			Ax100 := A.Copy().Scale(100)
 
-			// Mul scalar x matrix
+			// [Matrix,Scalar] x [Matrix,Scalar]
 			assert.Equal(t, Ax100, Bs100.Mul(A))
 			assert.Equal(t, Ax100, A.Mul(Bs100))
 			R := NewMatrix(2, 4)
 			assert.Equal(t, Ax100, A.Mul(Bs100, R))
 			assert.Equal(t, Ax100, R)
 
+			// [Scalar] x [Scalar]
 			R = NewMatrix(1, 1)
 			assert.Equal(t, s300, Bs100.Mul(Cs3))
 			assert.Equal(t, s300, Bs100.Mul(Cs3, R))
@@ -351,7 +352,7 @@ func TestMatrix(t *testing.T) {
 			assert.Equal(t, s2000000, Bs2000.Mul(Cs1000, R))
 			assert.Equal(t, s2000000, R)
 		}
-		// Add/Subtract Scalar <-> Matrix, tests upscaling of scalar to diagonal matrix
+		// [Matrix,Scalar] +/- [Matrix,Scalar], tests upscaling of scalar to diagonal matrix
 		{
 			// Matrix -/+ Scalar
 			RR := Tens.Copy()
