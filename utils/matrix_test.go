@@ -84,19 +84,16 @@ func TestMatrix(t *testing.T) {
 			4, 5, 6,
 		})
 		A := M.Copy().SetRange(0, -1, -2, -2, 0)
-		fmt.Printf("Ainv = \n%v\n", mat.Formatted(A, mat.Squeeze()))
 		assert.Equal(t, A, NewMatrix(2, 3, []float64{
 			1, 0, 3,
 			4, 0, 6,
 		}))
 		A = M.Copy().SetRange(0, -1, -3, -3, 0)
-		fmt.Printf("Ainv = \n%v\n", mat.Formatted(A, mat.Squeeze()))
 		assert.Equal(t, A, NewMatrix(2, 3, []float64{
 			0, 2, 3,
 			0, 5, 6,
 		}))
 		A = M.Copy().SetRange(-1, -1, -2, -2, 0)
-		fmt.Printf("Ainv = \n%v\n", mat.Formatted(A, mat.Squeeze()))
 		assert.Equal(t, A, NewMatrix(2, 3, []float64{
 			1, 2, 3,
 			4, 0, 6,
@@ -306,7 +303,7 @@ func TestMatrix(t *testing.T) {
 		s300 := NewMatrix(1, 1, []float64{300.})
 		s2000000 := NewMatrix(1, 1, []float64{2000000.})
 
-		// Matrix <-> Matrix: Add, Subtract
+		// Matrix +/- Matrix
 		{
 			BB := B.Copy()
 			assert.Equal(t, ApB, BB.Add(A))
@@ -322,7 +319,7 @@ func TestMatrix(t *testing.T) {
 			assert.Equal(t, BmA, BB.Subtract(A, R))
 			assert.Equal(t, BmA, R)
 		}
-		// Scalar <-> Matrix: Mul
+		// Scalar x Matrix, Matrix x Scalar
 		{
 			Ax100 := A.Copy().Scale(100)
 
@@ -332,9 +329,10 @@ func TestMatrix(t *testing.T) {
 			R := NewMatrix(2, 4)
 			assert.Equal(t, Ax100, A.Mul(Bs100, R))
 			assert.Equal(t, Ax100, R)
-
-			// [Scalar] x [Scalar]
-			R = NewMatrix(1, 1)
+		}
+		// [Scalar] x [Scalar]
+		{
+			R := NewMatrix(1, 1)
 			assert.Equal(t, s300, Bs100.Mul(Cs3))
 			assert.Equal(t, s300, Bs100.Mul(Cs3, R))
 			assert.Equal(t, s300, R)
