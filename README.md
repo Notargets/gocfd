@@ -1,7 +1,7 @@
 # gocfd
 Awesome CFD solver written in Go
 
-## Currently...
+## [8/28/21] Currently...
 
 Working on adding routines to invert and solve block matrix systems so that I can implement an implicit time advancement scheme.
 
@@ -86,7 +86,7 @@ Improves global implicitness by solving advancing lines(2D) or planes(3D) throug
 #### Multigrid
 Propagates low frequency changes rapidly through the finest mesh using nested coarse meshes.
 #### Preconditioners
-Used to remove stiffness in propagating high frequency changes where the difference in wave speeds is large. Examples include very low speed flows where the acoustic wave speed and sonic wave speeds differe greatly, or viscous problems where the viscous eigenvalues are very small.
+Used to remove stiffness in propagating high frequency changes where the difference in wave speeds is large. Examples include very low speed flows where the acoustic wave speed and sonic wave speeds differ greatly, or viscous problems where the viscous eigenvalues are very small compared to sonic waves.
 
 ### Updates (Jan 11, 2021):
 
