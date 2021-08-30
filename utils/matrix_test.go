@@ -424,5 +424,15 @@ func TestMatrix(t *testing.T) {
 			_, err = s0.Inverse()
 			assert.NotNil(t, err)
 		}
+		// [Matrix,Scalar]: Determinant
+		{
+			assert.InDeltaf(t, -160., mat.Det(A), 0.00001, "err msg %s")
+			assert.InDeltaf(t, -160., mat.Det(A.M), 0.00001, "err msg %s")
+			assert.InDeltaf(t, 0., mat.Det(s0), 0.00001, "err msg %s")
+			assert.InDeltaf(t, 0., mat.Det(s0.M), 0.00001, "err msg %s")
+			assert.InDeltaf(t, 100., mat.Det(s100), 0.00001, "err msg %s")
+			assert.InDeltaf(t, 100., mat.Det(s100.M), 0.00001, "err msg %s")
+		}
 	}
+
 }

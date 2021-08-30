@@ -6,15 +6,14 @@ import (
 )
 
 type BlockMatrix struct {
-	M  [][]Matrix // First slice points to rows of matrices - Note, the Matrix type allows for scalar matrices
-	N  int        // number of rows, columns, square block matrix only
-	NB int        // number of rows, columns in each block, square blocks only
+	M [][]Matrix // First slice points to rows of matrices - Note, the Matrix type allows for scalar matrices
+	N int        // number of rows, columns, square block matrix only
+	P []int      // Permutation "matrix", created during an LUP decomposition, otherwise nil
 }
 
-func NewBlockMatrix(N, NB int) (R BlockMatrix) {
+func NewBlockMatrix(N int) (R BlockMatrix) {
 	R = BlockMatrix{
-		N:  N,
-		NB: NB,
+		N: N,
 	}
 	R.M = make([][]Matrix, N)
 	for n := range R.M {
