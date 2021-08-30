@@ -50,12 +50,16 @@ func (bm BlockMatrix) Print() (out string) {
 	return buf.String()
 }
 
-func (bm BlockMatrix) LUPDecompose() (err error) {
+func (bm *BlockMatrix) LUPDecompose() (err error) {
 	var (
 		imax       int
 		absA, maxA float64
 		Scratch    Matrix
 	)
+	if len(bm.P) != 0 {
+		err = fmt.Errorf("LUPDecompose already called on this matrix, which has overwritten it")
+		return
+	}
 	bm.P = make([]int, bm.N)
 	for i := range bm.P {
 		bm.P[i] = i
@@ -102,6 +106,10 @@ func (bm BlockMatrix) LUPSolve(b []Matrix) (x []Matrix, err error) {
 	var (
 		Scratch Matrix
 	)
+	if len(bm.P) == 0 {
+		err = fmt.Errorf("uninitialized - call LUPDecompose first")
+		return
+	}
 	/*
 		Provided a solution vector B of size N x NB, calculate X for equation:
 		[A] * X = B
@@ -131,6 +139,8 @@ func (bm BlockMatrix) LUPSolve(b []Matrix) (x []Matrix, err error) {
 	// Allocate solution X
 	x = make([]Matrix, bm.N)
 	for i := 0; i < bm.N; i++ {
+		//		fmt.Printf("i = %d, P[i] = %d\n", i, bm.P[i])
+		//		fmt.Printf("b[P[i]] = %s\n", b[bm.P[i]].Print())
 		x[i] = b[bm.P[i]].Copy()
 		for k := 0; k < i; k++ {
 			Scratch = bm.A[i][k].Mul(x[k])
