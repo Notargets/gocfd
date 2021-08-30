@@ -1,6 +1,14 @@
 # gocfd
 Awesome CFD solver written in Go
 
+## [8/28/21] Currently...
+
+Working on adding routines to invert and solve block matrix systems so that I can implement an implicit time advancement scheme.
+
+Implicit fluid dynamics schemes all use the flux jacobian of the underlying equations, which yields a system of equations that has "blocks" consisting of the 4x4 (2D) or 5x5 (3D) matrices representing each nodal point. This requires that we have a way to invert the system matrix, or use a solver approach to get the final update in the time advancement scheme.
+
+The work I'm doing now will add a capability to efficiently store the full block system matrix and use it to solve for the time update.
+
 ## QuickStart
 
 ### Build using Ubuntu Linux
@@ -78,7 +86,7 @@ Improves global implicitness by solving advancing lines(2D) or planes(3D) throug
 #### Multigrid
 Propagates low frequency changes rapidly through the finest mesh using nested coarse meshes.
 #### Preconditioners
-Used to remove stiffness in propagating high frequency changes where the difference in wave speeds is large. Examples include very low speed flows where the acoustic wave speed and sonic wave speeds differe greatly, or viscous problems where the viscous eigenvalues are very small.
+Used to remove stiffness in propagating high frequency changes where the difference in wave speeds is large. Examples include very low speed flows where the acoustic wave speed and sonic wave speeds differ greatly, or viscous problems where the viscous eigenvalues are very small compared to sonic waves.
 
 ### Updates (Jan 11, 2021):
 
