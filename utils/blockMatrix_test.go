@@ -54,6 +54,7 @@ func TestBlockMatrix(t *testing.T) {
 		assert.InDeltaf(t, 0.5, x[1].DataP[0], 0.000001, "error msg %s")
 		assert.InDeltaf(t, 0.5, x[2].DataP[0], 0.000001, "error msg %s")
 		assert.InDeltaf(t, -0.5, x[3].DataP[0], 0.000001, "error msg %s")
+		assert.Equal(t, []int{1, 2, 3, 0}, Bm.P) // Known permutation matrix, one swap per each row
 	}
 	// [Matrix]: Test LU decomposition and solve
 	{
@@ -119,5 +120,6 @@ func TestBlockMatrix(t *testing.T) {
 				one.Copy().Scale(mul*0.5).DataP,
 				x[i].DataP, 0.0000001, "err msg %s")
 		}
+		assert.Equal(t, []int{1, 2, 3, 0}, Bm.P) // Known permutation matrix, one swap per each row
 	}
 }
