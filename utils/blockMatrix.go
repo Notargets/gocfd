@@ -126,13 +126,13 @@ func (bm BlockMatrix) LUPSolve(b []Matrix) (x []Matrix, err error) {
 		var nr, nc int
 		for i := 0; i < bm.N; i++ {
 			nr, nc = b[i].Dims()
-			if nr != bm.NB || nc != 1 {
+			if nr != bm.NB || nc != bm.NB {
 				fail = true
 			}
 		}
 		if fail {
 			err = fmt.Errorf("solution vector must have size %dx%d, provided size is %dx%d",
-				bm.N, bm.NB, len(b), nr*nc)
+				bm.NB, bm.NB, nr, nc)
 			return
 		}
 	}
