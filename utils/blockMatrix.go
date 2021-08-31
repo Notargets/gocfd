@@ -183,3 +183,44 @@ func (bm BlockMatrix) LUPSolve(b []Matrix) (x []Matrix, err error) {
 	}
 	return
 }
+
+func (bm BlockMatrix) Mul(ba BlockMatrix) (R BlockMatrix) {
+	var (
+		err   error
+		N, NB = bm.N, bm.NB
+	)
+	// Validate input
+	if N != ba.N || NB != ba.NB {
+		err = fmt.Errorf("dimensions of input matrix (%d,%d) do not match target (%d,%d)",
+			N, NB, ba.N, ba.NB)
+		panic(err)
+	}
+	R = NewBlockMatrix(N, NB)
+	for i := 0; i < N; i++ {
+		for j := 0; j < N; j++ {
+			R.A[i][j] = NewMatrix(NB, NB)
+			for ii := 0; ii < N; ii++ {
+				R.A[i][j] = R.A[i][j].Add(bm.A[ii][j].Mul(ba.A[j][ii]))
+			}
+		}
+	}
+	return
+}
+func (bm BlockMatrix) Add(ba BlockMatrix) {
+	var (
+		err   error
+		N, NB = bm.N, bm.NB
+	)
+	// Validate input
+	if N != ba.N || NB != ba.NB {
+		err = fmt.Errorf("dimensions of input matrix (%d,%d) do not match target (%d,%d)",
+			N, NB, ba.N, ba.NB)
+		panic(err)
+	}
+	for i := 0; i < N; i++ {
+		for j := 0; j < N; j++ {
+			bm.A[i][j].Add(ba.A[i][j])
+		}
+	}
+	return
+}
