@@ -51,6 +51,21 @@ func (bm BlockMatrix) Print() (out string) {
 }
 
 func (bm *BlockMatrix) LUPDecompose() (err error) {
+	/*
+	   Factors the current matrix into a lower [L] and upper [U] pair of diagonal matrices such that [A] = [L]x[U]
+
+	   Algorithm from: https://en.wikipedia.org/wiki/LU_decomposition#C_code_example
+
+	   The matrix is factored in place, replacing the current matrices within by a new matrix composed of the
+	   [L-E] and [U] matrices, stored in the same original matrix locations. The companion method to LUPD decompose is
+	   LUPSolve(), which can be called repeatedly to efficiently produce solutions to the problem:
+	                                       [A] * X = B
+	   where [A] is this matrix, and B is the known RHS vector and X is the target.
+
+	   Matrix A is changed, it contains a copy of both matrices L-I and U as (L-I)+U such that:
+	                                       P * [A] = L * U
+	*/
+
 	var (
 		imax       int
 		absA, maxA float64
@@ -103,6 +118,15 @@ func (bm *BlockMatrix) LUPDecompose() (err error) {
 }
 
 func (bm BlockMatrix) LUPSolve(b []Matrix) (x []Matrix, err error) {
+	/*
+	   Provided a solution vector B of size N x NB, calculate X for equation:
+	       [A] * X = B
+	   where [A] is the block matrix
+
+	   Each sub-matrix within [A] is of size NBxNB
+	   Each of the X and B vectors are of size NxNB
+	*/
+
 	var (
 		Scratch Matrix
 	)
