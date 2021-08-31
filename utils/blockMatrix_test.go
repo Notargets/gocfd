@@ -104,11 +104,6 @@ func TestBlockMatrix(t *testing.T) {
 
 		x, err = Bm.LUPSolve(b)
 		assert.Nil(t, err)
-		// Known answer x = [0.5,0.5,0.5,-0.5]
-		assert.InDeltaf(t, 0.5, x[0].DataP[0], 0.000001, "error msg %s")
-		assert.InDeltaf(t, 0.5, x[1].DataP[0], 0.000001, "error msg %s")
-		assert.InDeltaf(t, 0.5, x[2].DataP[0], 0.000001, "error msg %s")
-		assert.InDeltaf(t, -0.5, x[3].DataP[0], 0.000001, "error msg %s")
 		mul := 1.
 		for i := 0; i < Bm.N; i++ {
 			//msg := "x[" + strconv.Itoa(i) + "]"
@@ -116,6 +111,7 @@ func TestBlockMatrix(t *testing.T) {
 			if i == 3 {
 				mul = -1.
 			}
+			// Known answer x = [0.5[I],0.5[I],0.5[I],-0.5[I]]
 			assert.InDeltaSlicef(t,
 				one.Copy().Scale(mul*0.5).DataP,
 				x[i].DataP, 0.0000001, "err msg %s")
