@@ -50,10 +50,10 @@ func TestBlockMatrix(t *testing.T) {
 		x, err = Bm.LUPSolve(b)
 		assert.Nil(t, err)
 		// Known answer x = [0.5,0.5,0.5,-0.5]
-		assert.InDeltaf(t, 0.5, x[0].DataP[0], 0.000001, "error msg %s")
-		assert.InDeltaf(t, 0.5, x[1].DataP[0], 0.000001, "error msg %s")
-		assert.InDeltaf(t, 0.5, x[2].DataP[0], 0.000001, "error msg %s")
-		assert.InDeltaf(t, -0.5, x[3].DataP[0], 0.000001, "error msg %s")
+		assert.InDeltaf(t, 0.5, x.A[0][0].DataP[0], 0.000001, "error msg %s")
+		assert.InDeltaf(t, 0.5, x.A[1][0].DataP[0], 0.000001, "error msg %s")
+		assert.InDeltaf(t, 0.5, x.A[2][0].DataP[0], 0.000001, "error msg %s")
+		assert.InDeltaf(t, -0.5, x.A[3][0].DataP[0], 0.000001, "error msg %s")
 		assert.Equal(t, []int{1, 2, 3, 0}, Bm.P) // Known permutation matrix, one swap per each row
 	}
 	// [Matrix]: Test LU decomposition and solve
@@ -114,8 +114,11 @@ func TestBlockMatrix(t *testing.T) {
 			// Known answer x = [0.5[I],0.5[I],0.5[I],-0.5[I]]
 			assert.InDeltaSlicef(t,
 				one.Copy().Scale(mul*0.5).DataP,
-				x[i].DataP, 0.0000001, "err msg %s")
+				x.A[i][0].DataP, 0.0000001, "err msg %s")
 		}
 		assert.Equal(t, []int{1, 2, 3, 0}, Bm.P) // Known permutation matrix, one swap per each row
+
+		//Bs := Bm.Mul(x)
+		//fmt.Printf(Bs.Print())
 	}
 }

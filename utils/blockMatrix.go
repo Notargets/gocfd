@@ -116,7 +116,7 @@ func (bm *BlockMatrix) LUPDecompose() (err error) {
 	return
 }
 
-func (bm BlockMatrix) LUPSolve(b []Matrix) (x []Matrix, err error) {
+func (bm BlockMatrix) LUPSolve(b []Matrix) (Bx BlockMatrix, err error) {
 	/*
 	   Provided a solution vector B of size N x NB, calculate X for equation:
 	       [A] * X = B
@@ -142,25 +142,25 @@ func (bm BlockMatrix) LUPSolve(b []Matrix) (x []Matrix, err error) {
 		Each of the X and B vectors are of size NxNB
 	*/
 	// Allocate solution X
-	x = make([]Matrix, bm.Nr)
+	Bx = NewBlockMatrix(bm.Nr, 1)
 	for i := 0; i < bm.Nr; i++ {
 		//		fmt.Printf("i = %d, P[i] = %d\n", i, bm.P[i])
 		//		fmt.Printf("b[P[i]] = %s\n", b[bm.P[i]].Print())
-		x[i] = b[bm.P[i]].Copy()
+		Bx.A[i][0] = b[bm.P[i]].Copy()
 		for k := 0; k < i; k++ {
-			Scratch = bm.A[i][k].Mul(x[k])
-			x[i] = x[i].Subtract(Scratch)
+			Scratch = bm.A[i][k].Mul(Bx.A[k][0])
+			Bx.A[i][0] = Bx.A[i][0].Subtract(Scratch)
 		}
 	}
 	for i := bm.Nr - 1; i >= 0; i-- {
 		for k := i + 1; k < bm.Nr; k++ {
-			Scratch = bm.A[i][k].Mul(x[k])
-			x[i] = x[i].Subtract(Scratch)
+			Scratch = bm.A[i][k].Mul(Bx.A[k][0])
+			Bx.A[i][0] = Bx.A[i][0].Subtract(Scratch)
 		}
 		if Scratch, err = bm.A[i][i].Inverse(); err != nil {
 			panic(err)
 		}
-		x[i] = x[i].Transpose().Mul(Scratch)
+		Bx.A[i][0] = Bx.A[i][0].Transpose().Mul(Scratch)
 	}
 	return
 }
