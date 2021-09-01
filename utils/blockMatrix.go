@@ -10,22 +10,21 @@ import (
 
 type BlockMatrix struct {
 	A      [][]Matrix // First slice points to rows of matrices - Note, the Matrix type allows for scalar matrices
-	N      int        // number of rows, columns in the square block matrix consisting of a sub-matrix in each cell
-	NB     int        // number of rows, columns in each square sub-matrix
+	Nr, Nc int        // number of rows, columns in the square block matrix consisting of a sub-matrix in each cell
 	P      []int      // Permutation "matrix", created during an LUP decomposition, otherwise nil
 	Pcount int        // count of number of pivots, used in determining sign of determinant
 	tol    float64    // tolerance for reduction operations, like LUP decomposition
 }
 
-func NewBlockMatrix(N, NB int) (R BlockMatrix) {
+func NewBlockMatrix(Nr, Nc int) (R BlockMatrix) {
 	R = BlockMatrix{
-		N:   N,
-		NB:  NB,
+		Nr:  Nr,
+		Nc:  Nc,
 		tol: 0.00000001, // Default value
 	}
-	R.A = make([][]Matrix, N)
+	R.A = make([][]Matrix, Nr)
 	for n := range R.A {
-		R.A[n] = make([]Matrix, N)
+		R.A[n] = make([]Matrix, Nc)
 	}
 	return R
 }
@@ -75,16 +74,16 @@ func (bm *BlockMatrix) LUPDecompose() (err error) {
 		err = fmt.Errorf("LUPDecompose already called on this matrix, which has overwritten it")
 		return
 	}
-	bm.P = make([]int, bm.N)
+	bm.P = make([]int, bm.Nr)
 	for i := range bm.P {
 		bm.P[i] = i
 	}
 	// counting pivots starting from N
-	bm.Pcount = bm.N // initialize Pcount with N
-	for i := 0; i < bm.N; i++ {
+	bm.Pcount = bm.Nr // initialize Pcount with N
+	for i := 0; i < bm.Nr; i++ {
 		maxA = 0.
 		imax = i
-		for k := 0; k < bm.N; k++ {
+		for k := 0; k < bm.Nr; k++ {
 			absA = math.Abs(mat.Det(bm.A[k][i]))
 			if absA > maxA {
 				maxA = absA
@@ -103,12 +102,12 @@ func (bm *BlockMatrix) LUPDecompose() (err error) {
 			// counting pivots starting from N
 			bm.Pcount++
 		}
-		for j := i + 1; j < bm.N; j++ {
+		for j := i + 1; j < bm.Nr; j++ {
 			if Scratch, err = bm.A[i][i].Inverse(); err != nil {
 				return
 			}
 			bm.A[j][i] = bm.A[j][i].Mul(Scratch)
-			for k := i + 1; k < bm.N; k++ {
+			for k := i + 1; k < bm.Nr; k++ {
 				Scratch = bm.A[j][i].Mul(bm.A[i][k])
 				bm.A[j][k] = bm.A[j][k].Subtract(Scratch)
 			}
@@ -142,27 +141,9 @@ func (bm BlockMatrix) LUPSolve(b []Matrix) (x []Matrix, err error) {
 		Each sub-matrix within [A] is of size NBxNB
 		Each of the X and B vectors are of size NxNB
 	*/
-	{ // validate the size of the input vector B
-		var fail bool
-		if len(b) != bm.N {
-			fail = true
-		}
-		var nr, nc int
-		for i := 0; i < bm.N; i++ {
-			nr, nc = b[i].Dims()
-			if nr != bm.NB || nc != bm.NB {
-				fail = true
-			}
-		}
-		if fail {
-			err = fmt.Errorf("solution vector must have size %dx%d, provided size is %dx%d",
-				bm.NB, bm.NB, nr, nc)
-			return
-		}
-	}
 	// Allocate solution X
-	x = make([]Matrix, bm.N)
-	for i := 0; i < bm.N; i++ {
+	x = make([]Matrix, bm.Nr)
+	for i := 0; i < bm.Nr; i++ {
 		//		fmt.Printf("i = %d, P[i] = %d\n", i, bm.P[i])
 		//		fmt.Printf("b[P[i]] = %s\n", b[bm.P[i]].Print())
 		x[i] = b[bm.P[i]].Copy()
@@ -171,8 +152,8 @@ func (bm BlockMatrix) LUPSolve(b []Matrix) (x []Matrix, err error) {
 			x[i] = x[i].Subtract(Scratch)
 		}
 	}
-	for i := bm.N - 1; i >= 0; i-- {
-		for k := i + 1; k < bm.N; k++ {
+	for i := bm.Nr - 1; i >= 0; i-- {
+		for k := i + 1; k < bm.Nr; k++ {
 			Scratch = bm.A[i][k].Mul(x[k])
 			x[i] = x[i].Subtract(Scratch)
 		}
@@ -186,39 +167,30 @@ func (bm BlockMatrix) LUPSolve(b []Matrix) (x []Matrix, err error) {
 
 func (bm BlockMatrix) Mul(ba BlockMatrix) (R BlockMatrix) {
 	var (
-		err   error
-		N, NB = bm.N, bm.NB
+		Nr, Nc   = bm.Nr, bm.Nc
+		Nra, Nca = ba.Nr, ba.Nc
 	)
-	// Validate input
-	if N != ba.N || NB != ba.NB {
-		err = fmt.Errorf("dimensions of input matrix (%d,%d) do not match target (%d,%d)",
-			N, NB, ba.N, ba.NB)
-		panic(err)
-	}
-	R = NewBlockMatrix(N, NB)
-	for i := 0; i < N; i++ {
-		for j := 0; j < N; j++ {
-			R.A[i][j] = NewMatrix(NB, NB)
-			for ii := 0; ii < N; ii++ {
-				R.A[i][j] = R.A[i][j].Add(bm.A[ii][j].Mul(ba.A[j][ii]))
+	R = NewBlockMatrix(Nca, Nr)
+	for i := 0; i < Nca; i++ {
+		for j := 0; j < Nc; j++ {
+			for ii := 0; ii < Nra; ii++ {
+				if ii == 0 {
+					R.A[i][j] = bm.A[ii][j].Mul(ba.A[j][ii])
+				} else {
+					R.A[i][j] = R.A[i][j].Add(bm.A[ii][j].Mul(ba.A[j][ii]))
+				}
 			}
 		}
 	}
 	return
 }
+
 func (bm BlockMatrix) Add(ba BlockMatrix) {
 	var (
-		err   error
-		N, NB = bm.N, bm.NB
+		Nr, Nc = bm.Nr, bm.Nc
 	)
-	// Validate input
-	if N != ba.N || NB != ba.NB {
-		err = fmt.Errorf("dimensions of input matrix (%d,%d) do not match target (%d,%d)",
-			N, NB, ba.N, ba.NB)
-		panic(err)
-	}
-	for i := 0; i < N; i++ {
-		for j := 0; j < N; j++ {
+	for i := 0; i < Nr; i++ {
+		for j := 0; j < Nc; j++ {
 			bm.A[i][j].Add(ba.A[i][j])
 		}
 	}

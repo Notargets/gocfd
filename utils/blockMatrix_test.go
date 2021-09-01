@@ -9,7 +9,7 @@ import (
 func TestBlockMatrix(t *testing.T) {
 	// [Scalar]: Test LU decomposition and solve
 	{
-		Bm := NewBlockMatrix(4, 1)
+		Bm := NewBlockMatrix(4, 4)
 		Bm.A[0][0] = NewMatrix(1, 1, []float64{1.})
 		Bm.A[0][1] = NewMatrix(1, 1, []float64{2.})
 		Bm.A[0][2] = NewMatrix(1, 1, []float64{3.})
@@ -31,8 +31,8 @@ func TestBlockMatrix(t *testing.T) {
 		Bm.A[3][3] = NewMatrix(1, 1, []float64{1.})
 		//fmt.Printf(Bm.Print())
 
-		b := make([]Matrix, Bm.N)
-		for i := 0; i < Bm.N; i++ {
+		b := make([]Matrix, Bm.Nr)
+		for i := 0; i < Bm.Nr; i++ {
 			b[i] = NewMatrix(1, 1, []float64{float64(i + 1)})
 		}
 		// Call LUPSolve without first calling LUPDecompose, expect an error
@@ -86,8 +86,8 @@ func TestBlockMatrix(t *testing.T) {
 		Bm.A[3][3] = one.Copy()
 		//fmt.Printf(Bm.Print())
 
-		b := make([]Matrix, Bm.N)
-		for i := 0; i < Bm.N; i++ {
+		b := make([]Matrix, Bm.Nr)
+		for i := 0; i < Bm.Nr; i++ {
 			b[i] = one.Copy().Scale(float64(i + 1))
 		}
 		// Call LUPSolve without first calling LUPDecompose, expect an error
@@ -105,7 +105,7 @@ func TestBlockMatrix(t *testing.T) {
 		x, err = Bm.LUPSolve(b)
 		assert.Nil(t, err)
 		mul := 1.
-		for i := 0; i < Bm.N; i++ {
+		for i := 0; i < Bm.Nr; i++ {
 			//msg := "x[" + strconv.Itoa(i) + "]"
 			//fmt.Printf(x[i].Print(msg))
 			if i == 3 {
