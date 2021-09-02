@@ -80,6 +80,73 @@ func (c *Euler) FluxCalcBase(rho, rhoU, rhoV, E float64) (Fx, Fy [4]float64) {
 	return
 }
 
+func (c *Euler) FluxJacobianCalcBase(rho, rhoU, rhoV, E float64, F, G utils.Matrix) {
+	var (
+		oorho  = 1. / rho
+		u, v   = rhoU * oorho, rhoV * oorho
+		u2, v2 = u * u, v * v
+		Gamma  = c.FS.Gamma
+		GM1    = Gamma - 1
+	)
+	//T[0][1] = 1.0
+	F.Set(0, 0, 0.)
+	F.Set(0, 1, 1.)
+	F.Set(0, 2, 0.)
+	F.Set(0, 3, 0.)
+	//T[1][0] = -u*u + ((u*u)*(gamma-1.0))/2.0 + ((v*v)*(gamma-1.0))/2.0
+	F.Set(1, 0, 0.5*GM1*(u2+v2)-u2)
+	//T[1][1] = -u * (gamma - 3.0)
+	F.Set(1, 1, u*(3.-Gamma))
+	//T[1][2] = -v * (gamma - 1.0)
+	F.Set(1, 2, v*(1.-Gamma))
+	//T[1][3] = gamma - 1.0
+	F.Set(1, 3, Gamma-1.)
+	//T[2][0] = -u * v
+	F.Set(2, 0, v-u)
+	//T[2][1] = v
+	F.Set(2, 1, v)
+	//T[2][2] = u
+	F.Set(2, 2, u)
+	F.Set(2, 3, 0.)
+	//T[3][0] = u*(u*u+v*v)*(gamma-1.0) - (E*gamma*u)/rho
+	F.Set(3, 0, u*(GM1*(u2+v2)-E*Gamma*oorho))
+	//T[3][1] = ((u*u)*3.0+v*v)*(gamma-1.0)*(-1.0/2.0) + (E*gamma)/rho
+	F.Set(3, 1, E*Gamma*oorho-0.5*GM1*(3.*u2+v2))
+	//T[3][2] = -u * v * (gamma - 1.0)
+	F.Set(3, 2, -u*v*GM1)
+	//T[3][3] = gamma * u
+	F.Set(3, 3, Gamma*u)
+
+	G.Set(0, 0, 0.)
+	G.Set(0, 1, 0.)
+	//T[0][2] = 1.0;
+	G.Set(0, 2, 1.)
+	G.Set(0, 3, 0.)
+	//T[1][0] = -u*v;
+	G.Set(1, 0, -u*v)
+	//T[1][1] = v;
+	G.Set(1, 1, v)
+	//T[1][2] = u;
+	G.Set(1, 2, u)
+	G.Set(1, 3, 0.)
+	//T[2][0] = -v*v+((u*u)*(gamma-1.0))/2.0+((v*v)*(gamma-1.0))/2.0;
+	G.Set(2, 0, 0.5*GM1*(u2+v2)-v2)
+	//T[2][1] = -u*(gamma-1.0);
+	G.Set(2, 1, -u*GM1)
+	//T[2][2] = -v*(gamma-3.0);
+	G.Set(2, 2, v*(3.-Gamma))
+	//T[2][3] = gamma-1.0;
+	G.Set(2, 3, GM1)
+	//T[3][0] = v*(u*u+v*v)*(gamma-1.0)-(E*gamma*v)/rho;
+	G.Set(3, 0, v*(GM1*(u2+v2)-(E*Gamma)*oorho))
+	//T[3][1] = -u*v*(gamma-1.0);
+	G.Set(3, 1, -u*v*GM1)
+	//T[3][2] = (u*u+(v*v)*3.0)*(gamma-1.0)*(-1.0/2.0)+(E*gamma)/rho;
+	G.Set(3, 2, E*Gamma*oorho-0.5*GM1*(u2+3.*v2))
+	//T[3][3] = gamma*v;
+	G.Set(3, 3, Gamma*v)
+}
+
 func (c *Euler) AvgFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux, normalFluxReversed [][4]float64) {
 	var (
