@@ -73,6 +73,8 @@ func (bm *BlockMatrix) LUPDecompose() (err error) {
 		imax       int
 		absA, maxA float64
 		Scratch    Matrix
+		N          = bm.Nr
+		A          = bm.M
 	)
 	if !bm.IsSquare() {
 		err = fmt.Errorf("Matrix must be square")
@@ -82,17 +84,17 @@ func (bm *BlockMatrix) LUPDecompose() (err error) {
 		err = fmt.Errorf("LUPDecompose already called on this matrix, which has overwritten it")
 		return
 	}
-	bm.P = make([]int, bm.Nr)
+	bm.P = make([]int, N)
 	for i := range bm.P {
 		bm.P[i] = i
 	}
 	// counting pivots starting from N
-	bm.Pcount = bm.Nr // initialize Pcount with N
-	for i := 0; i < bm.Nr; i++ {
+	bm.Pcount = N // initialize Pcount with N
+	for i := 0; i < N; i++ {
 		maxA = 0.
 		imax = i
-		for k := 0; k < bm.Nr; k++ {
-			absA = math.Abs(mat.Det(bm.M[k][i]))
+		for k := 0; k < N; k++ {
+			absA = math.Abs(mat.Det(A[k][i]))
 			if absA > maxA {
 				maxA = absA
 				imax = k
@@ -106,18 +108,17 @@ func (bm *BlockMatrix) LUPDecompose() (err error) {
 			// pivot P
 			bm.P[i], bm.P[imax] = bm.P[imax], bm.P[i] // swap
 			// pivot rows of M
-			bm.M[i], bm.M[imax] = bm.M[imax], bm.M[i]
+			A[i], A[imax] = A[imax], A[i]
 			// counting pivots starting from N
 			bm.Pcount++
 		}
-		for j := i + 1; j < bm.Nr; j++ {
-			if Scratch, err = bm.M[i][i].Inverse(); err != nil {
+		for j := i + 1; j < N; j++ {
+			if Scratch, err = A[i][i].Inverse(); err != nil {
 				return
 			}
-			bm.M[j][i] = bm.M[j][i].Mul(Scratch)
-			for k := i + 1; k < bm.Nr; k++ {
-				Scratch = bm.M[j][i].Mul(bm.M[i][k])
-				bm.M[j][k] = bm.M[j][k].Subtract(Scratch)
+			A[j][i] = A[j][i].Mul(Scratch)
+			for k := i + 1; k < N; k++ {
+				A[j][k] = A[j][k].Subtract(A[j][i].Mul(A[i][k]))
 			}
 		}
 	}
@@ -136,8 +137,11 @@ func (bm BlockMatrix) LUPSolve(b []Matrix) (Bx BlockMatrix, err error) {
 
 	var (
 		Scratch Matrix
+		P       = bm.P
+		N       = bm.Nr
+		A       = bm.M
 	)
-	if len(bm.P) == 0 {
+	if len(P) == 0 {
 		err = fmt.Errorf("uninitialized - call LUPDecompose first")
 		return
 	}
@@ -150,25 +154,82 @@ func (bm BlockMatrix) LUPSolve(b []Matrix) (Bx BlockMatrix, err error) {
 		Each of the X and B vectors are of size NxNB
 	*/
 	// Allocate solution X
-	Bx = NewBlockMatrix(bm.Nr, 1)
-	for i := 0; i < bm.Nr; i++ {
-		//		fmt.Printf("i = %d, P[i] = %d\n", i, bm.P[i])
-		//		fmt.Printf("b[P[i]] = %s\n", b[bm.P[i]].Print())
-		Bx.M[i][0] = b[bm.P[i]].Copy()
+	Bx = NewBlockMatrix(N, 1)
+	X := Bx.M
+	for i := 0; i < N; i++ {
+		X[i][0] = b[P[i]].Copy()
 		for k := 0; k < i; k++ {
-			Scratch = bm.M[i][k].Mul(Bx.M[k][0])
-			Bx.M[i][0] = Bx.M[i][0].Subtract(Scratch)
+			X[i][0] = X[i][0].Subtract(A[i][k].Mul(X[k][0]))
 		}
 	}
-	for i := bm.Nr - 1; i >= 0; i-- {
-		for k := i + 1; k < bm.Nr; k++ {
-			Scratch = bm.M[i][k].Mul(Bx.M[k][0])
-			Bx.M[i][0] = Bx.M[i][0].Subtract(Scratch)
+	for i := N - 1; i >= 0; i-- {
+		for k := i + 1; k < N; k++ {
+			X[i][0] = X[i][0].Subtract(A[i][k].Mul(X[k][0]))
 		}
-		if Scratch, err = bm.M[i][i].Inverse(); err != nil {
+		if Scratch, err = A[i][i].Inverse(); err != nil {
 			panic(err)
 		}
-		Bx.M[i][0] = Bx.M[i][0].Transpose().Mul(Scratch)
+		X[i][0] = X[i][0].Transpose().Mul(Scratch)
+	}
+	return
+}
+
+func (bm BlockMatrix) LUPInvert() (R BlockMatrix, err error) {
+	var (
+		N       = bm.Nr
+		P       = bm.P
+		A       = bm.M
+		Scratch Matrix
+	)
+	if len(bm.P) == 0 {
+		err = fmt.Errorf("uninitialized - call LUPDecompose first")
+		return
+	}
+	zero := NewMatrix(1, 1, []float64{0.})
+	one := NewMatrix(1, 1, []float64{1.})
+	R = NewBlockMatrix(N, N)
+	IA := R.M
+	for j := 0; j < N; j++ {
+		for i := 0; i < N; i++ {
+			if P[i] == j {
+				IA[i][j] = one.Copy()
+			} else {
+				IA[i][j] = zero.Copy()
+			}
+			for k := 0; k < i; k++ {
+				IA[i][j] = IA[i][j].Subtract(A[i][k].Mul(IA[k][j]))
+			}
+		}
+		for i := N - 1; i >= 0; i-- {
+			for k := i + 1; k < N; k++ {
+				IA[i][j] = IA[i][j].Subtract(A[i][k].Mul(IA[k][j]))
+			}
+			if Scratch, err = A[i][i].Inverse(); err != nil {
+				panic(err)
+			}
+			IA[i][j] = IA[i][j].Mul(Scratch)
+		}
+	}
+	return
+}
+
+func (bm BlockMatrix) LUPDeterminant() (det float64, err error) {
+	var (
+		N      = bm.Nr
+		Pcount = bm.Pcount
+		A      = bm.M
+		P      = bm.P
+	)
+	if len(P) == 0 {
+		err = fmt.Errorf("uninitialized - call LUPDecompose first")
+		return
+	}
+	det = mat.Det(A[0][0])
+	for i := 1; i < N; i++ {
+		det *= mat.Det(A[i][i])
+	}
+	if (Pcount-N)%2 != 0 {
+		det = -det
 	}
 	return
 }
@@ -181,11 +242,6 @@ func (bm BlockMatrix) Mul(ba BlockMatrix) (R BlockMatrix) {
 		NrTarget, NcTarget = NcRight, NrLeft
 		Scratch            Matrix
 	)
-	/*
-		fmt.Printf("Left dimensions: [%d,%d]\n", NrLeft, NcLeft)
-		fmt.Printf("Right dimensions: [%d,%d]\n", NrRight, NcRight)
-		fmt.Printf("Result dimensions: [%d,%d]\n", NcRight, NrLeft)
-	*/
 	if NrRight != NcLeft {
 		panic(fmt.Errorf("number of rows in right Matrix should be %d, is %d", NcLeft, NrRight))
 	}
@@ -194,20 +250,12 @@ func (bm BlockMatrix) Mul(ba BlockMatrix) (R BlockMatrix) {
 		for i := 0; i < NrLeft; i++ {
 			// Iterate across columns of left and rows of right (NcLeft == NrRight) for sum at column j:0-NrLeft
 			for ii := 0; ii < NcLeft; ii++ { // For each column in left, or row in right
-				/*
-					fmt.Printf("NrLeft,NcLeft,NrRight,NcRight - i,j,ii = [%d,%d],[%d,%d] %d,%d,%d\n",
-						NrLeft, NcLeft, NrRight, NcRight, i, j, ii)
-					fmt.Printf(Left[i][ii].Print("Left[i][ii]"))
-					fmt.Printf(Right[ii][j].Print("Right[ii][j]"))
-				*/
 				Scratch = Left[i][ii].Mul(Right[ii][j])
 				if ii == 0 {
 					R.M[j][i] = Scratch
 				} else {
 					R.M[j][i] = R.M[j][i].Add(Scratch)
 				}
-				//fmt.Printf(R.M[i][j].Print("R[i][j]"))
-				//os.Exit(1)
 			}
 		}
 	}
@@ -235,6 +283,21 @@ func (bm BlockMatrix) Copy() (R BlockMatrix) {
 		for i := 0; i < Nr; i++ {
 			if !bm.M[i][j].IsEmpty() {
 				R.M[i][j] = bm.M[i][j].Copy()
+			}
+		}
+	}
+	return
+}
+
+func (bm BlockMatrix) Transpose() (R BlockMatrix) {
+	var (
+		Nr, Nc = bm.Nr, bm.Nc
+	)
+	R = NewBlockMatrix(Nc, Nr)
+	for j := 0; j < Nc; j++ {
+		for i := 0; i < Nr; i++ {
+			if !bm.M[i][j].IsEmpty() {
+				R.M[j][i] = bm.M[i][j].Copy()
 			}
 		}
 	}

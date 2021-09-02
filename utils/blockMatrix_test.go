@@ -9,6 +9,19 @@ import (
 func TestBlockMatrix(t *testing.T) {
 	// [Scalar]: Test LU decomposition and solve
 	{
+		/*
+				A = 1 2 3 4
+					4 1 2 3
+					3 4 1 2
+					2 3 4 1
+				Known solutions:
+				    det(A) = -160
+				Ainv =
+			   -0.225  0.275  0.025  0.025
+			    0.025 -0.225  0.275  0.025
+			    0.025  0.025 -0.225  0.275
+			    0.275  0.025  0.025 -0.225
+		*/
 		Bm := NewBlockMatrix(4, 4)
 		Bm.M[0][0] = NewMatrix(1, 1, []float64{1.})
 		Bm.M[0][1] = NewMatrix(1, 1, []float64{2.})
@@ -59,8 +72,36 @@ func TestBlockMatrix(t *testing.T) {
 
 		// Validate solution
 		A := BmOrig.Mul(x) // Multiply original block matrix by solution to get b
+		At := A.Transpose()
 		for i := 0; i < len(b); i++ {
 			assert.InDeltaf(t, b[i].DataP[0], A.M[0][i].DataP[0], 0.0000001, "err msg %s")
+			assert.InDeltaf(t, b[i].DataP[0], At.M[i][0].DataP[0], 0.0000001, "err msg %s")
+		}
+		// Determinant
+		{
+			det, err := Bm.LUPDeterminant()
+			assert.Nil(t, err)
+			assert.InDeltaf(t, -160, det, 0.0000001, "err msg %s")
+		}
+		// Inverse
+		{
+			Ainv, err := Bm.LUPInvert()
+			assert.Nil(t, err)
+			N := Bm.Nr
+			Binv := []float64{
+				-0.225, 0.275, 0.025, 0.025,
+				0.025, -0.225, 0.275, 0.025,
+				0.025, 0.025, -0.225, 0.275,
+				0.275, 0.025, 0.025, -0.225,
+			}
+			var ii int
+			for i := 0; i < N; i++ {
+				for j := 0; j < N; j++ {
+					val := Ainv.M[i][j].DataP[0]
+					assert.InDeltaf(t, Binv[ii], val, 0.0000001, "err msg %s")
+					ii++
+				}
+			}
 		}
 	}
 	// [Matrix]: Test LU decomposition and solve
@@ -131,8 +172,30 @@ func TestBlockMatrix(t *testing.T) {
 
 		// Validate solution
 		A := BmOrig.Mul(x) // Multiply original block matrix by solution to get b
+		At := A.Transpose()
 		for i := 0; i < len(b); i++ {
 			assert.InDeltaf(t, b[i].DataP[0], A.M[0][i].DataP[0], 0.0000001, "err msg %s")
+			assert.InDeltaf(t, b[i].DataP[0], At.M[i][0].DataP[0], 0.0000001, "err msg %s")
+		}
+		// Inverse
+		{
+			Ainv, err := Bm.LUPInvert()
+			assert.Nil(t, err)
+			N := Bm.Nr
+			Binv := []float64{
+				-0.225, 0.275, 0.025, 0.025,
+				0.025, -0.225, 0.275, 0.025,
+				0.025, 0.025, -0.225, 0.275,
+				0.275, 0.025, 0.025, -0.225,
+			}
+			var ii int
+			for i := 0; i < N; i++ {
+				for j := 0; j < N; j++ {
+					val := Ainv.M[i][j].DataP[0]
+					assert.InDeltaf(t, Binv[ii], val, 0.0000001, "err msg %s")
+					ii++
+				}
+			}
 		}
 	}
 }
