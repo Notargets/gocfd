@@ -121,14 +121,15 @@ func (c *Euler) Solve(pm *PlotMeta) {
 }
 
 type ElementImplicit struct {
-	Jdet, Jinv        []utils.Matrix    // Sharded mesh Jacobian and inverse transform
-	Q_Face            [][4]utils.Matrix // Solution values stored at edge points of RT element
-	RHSQ, Residual    [][4]utils.Matrix // Solution Residual storage
-	F_RT_DOF          [][4]utils.Matrix // Scalar (projected) flux used for divergence, on all RT element points
-	FluxJacInv        [][]utils.Matrix  // Flux Jacobian inverse, one 4x4 matrix (2D) per int point of RT element
+	Jdet, Jinv        []utils.Matrix      // Sharded mesh Jacobian and inverse transform
+	Q_Face            [][4]utils.Matrix   // Sharded Solution values stored at edge points of RT element
+	RHSQ, Residual    [][4]utils.Matrix   // Sharded Solution Residual storage
+	F_RT_DOF          [][4]utils.Matrix   // Sharded Scalar (projected) flux used for divergence, on all RT element points
+	FluxJac           [][]utils.Matrix    // Sharded Flux Jacobian, one 4x4 matrix (2D) per int point of RT element
+	SystemMatrix      []utils.BlockMatrix // Sharded "system matrix" for implicit solution - is the left hand side
+	Kmax              []int               // Sharded Local element count (dimension: Kmax[ParallelDegree])
 	GlobalDT, Time    float64
-	Kmax              []int // Local element count (dimension: Kmax[ParallelDegree])
-	Np, Nedge, NpFlux int   // Number of points in solution, edge and flux total
+	Np, Nedge, NpFlux int // Number of points in solution, edge and flux total
 	toWorker          []chan struct{}
 	fromWorkers       chan int8
 }
@@ -145,7 +146,7 @@ func (c *Euler) NewElementImplicit() (ei *ElementImplicit) {
 		RHSQ:        make([][4]utils.Matrix, NPar),
 		Residual:    make([][4]utils.Matrix, NPar),
 		F_RT_DOF:    make([][4]utils.Matrix, NPar),
-		FluxJacInv:  make([][]utils.Matrix, NPar),
+		FluxJac:     make([][]utils.Matrix, NPar),
 		Kmax:        make([]int, NPar),
 		Np:          c.dfr.SolutionElement.Np,
 		Nedge:       c.dfr.FluxElement.Nedge,
@@ -158,7 +159,7 @@ func (c *Euler) NewElementImplicit() (ei *ElementImplicit) {
 	}
 	for np := 0; np < NPar; np++ {
 		// One flux inverse matrix stored per solution point
-		ei.FluxJacInv[np] = make([]utils.Matrix, ei.Np*ei.Kmax[np])
+		ei.FluxJac[np] = make([]utils.Matrix, ei.Np*ei.Kmax[np])
 	}
 	// Initialize memory
 	for np := 0; np < NPar; np++ {
@@ -170,7 +171,7 @@ func (c *Euler) NewElementImplicit() (ei *ElementImplicit) {
 			ei.Q_Face[np][n] = utils.NewMatrix(ei.Nedge*3, ei.Kmax[np])
 		}
 		for i := 0; i < ei.Np*ei.Kmax[np]; i++ { // One 4x4 (2D) flux inverse matrix stored per solution point
-			ei.FluxJacInv[np][i] = utils.NewMatrix(4, 4)
+			ei.FluxJac[np][i] = utils.NewMatrix(4, 4)
 		}
 	}
 	return
