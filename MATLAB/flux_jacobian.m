@@ -25,19 +25,14 @@ U = [ rho, rhoU, rhoV, E];
 F = [ rhoU, rhoU^2/rho+p, rhoU*rhoV/rho, (rhoU/rho)*(E+p) ];
 G = [ rhoV, rhoV*rhoU/rho, rhoV^2/rho+p, (rhoV/rho)*(E+p) ];
 
-syms w0 w1 w2 w3;
-W = [ w0, w1, w2, w3 ];
-pw=(gamma-1)*(w3-0.5*(w1^2+w2^2)/w0);
-FW = [ w1, w1^2/w0+pw, w1*w2/w0, (w1/w0)*(w3+pw)];
-dFWdW = simplify(jacobian(FW,W));
-dFdU2 = subs(dFWdW,W,U);
 dFdU = simplify(jacobian(F,U));
-
-if simplify(dFdU2-dFdU) == 0 
-    disp('correct answer')
-end
 dGdU = simplify(jacobian(G,U));
+syms u v;
+dFdU = subs(dFdU,rhoU,str2sym('rho*u'));
+dFdU = subs(dFdU,rhoV,str2sym('rho*v'));
+dGdU = subs(dGdU,rhoU,str2sym('rho*u'));
+dGdU = subs(dGdU,rhoV,str2sym('rho*v'));
 
 % Output the code to manifest each jacobian
-fprintf("dFdU - F component of flux jacobian\n%s\n",ccode(simplify(dFdU)));
-fprintf("dGdU - G component of flux jacobian\n%s\n",ccode(simplify(dGdU)));
+fprintf("dFdU - F component of flux jacobian\n%s\n",ccode(simplify(dFdU,"Steps",100)));
+fprintf("dGdU - G component of flux jacobian\n%s\n",ccode(simplify(dGdU,"Steps",100)));
