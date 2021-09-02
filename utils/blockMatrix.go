@@ -9,7 +9,7 @@ import (
 )
 
 type BlockMatrix struct {
-	A      [][]Matrix // First slice points to rows of matrices - Note, the Matrix type allows for scalar matrices
+	M      [][]Matrix // First slice points to rows of matrices - Note, the Matrix type allows for scalar matrices
 	Nr, Nc int        // number of rows, columns in the square block matrix consisting of a sub-matrix in each cell
 	P      []int      // Permutation "matrix", created during an LUP decomposition, otherwise nil
 	Pcount int        // count of number of pivots, used in determining sign of determinant
@@ -22,9 +22,9 @@ func NewBlockMatrix(Nr, Nc int) (R BlockMatrix) {
 		Nc:  Nc,
 		tol: 0.00000001, // Default value
 	}
-	R.A = make([][]Matrix, Nr)
-	for n := range R.A {
-		R.A[n] = make([]Matrix, Nc)
+	R.M = make([][]Matrix, Nr)
+	for n := range R.M {
+		R.M[n] = make([]Matrix, Nc)
 	}
 	return R
 }
@@ -34,7 +34,7 @@ func (bm BlockMatrix) Print() (out string) {
 		output string
 	)
 	buf := bytes.Buffer{}
-	for n, row := range bm.A {
+	for n, row := range bm.M {
 		for m, Mat := range row {
 			label := fmt.Sprintf("[%d:%d]", n, m)
 			if Mat.IsEmpty() {
@@ -49,20 +49,24 @@ func (bm BlockMatrix) Print() (out string) {
 	return buf.String()
 }
 
+func (bm BlockMatrix) IsSquare() bool {
+	return bm.Nr == bm.Nc
+}
+
 func (bm *BlockMatrix) LUPDecompose() (err error) {
 	/*
-	   Factors the current matrix into a lower [L] and upper [U] pair of diagonal matrices such that [A] = [L]x[U]
+	   Factors the current matrix into a lower [L] and upper [U] pair of diagonal matrices such that [M] = [L]x[U]
 
 	   Algorithm from: https://en.wikipedia.org/wiki/LU_decomposition#C_code_example
 
 	   The matrix is factored in place, replacing the current matrices within by a new matrix composed of the
 	   [L-E] and [U] matrices, stored in the same original matrix locations. The companion method to LUPD decompose is
 	   LUPSolve(), which can be called repeatedly to efficiently produce solutions to the problem:
-	                                       [A] * X = B
-	   where [A] is this matrix, and B is the known RHS vector and X is the target.
+	                                       [M] * X = B
+	   where [M] is this matrix, and B is the known RHS vector and X is the target.
 
-	   Matrix A is changed, it contains a copy of both matrices L-I and U as (L-I)+U such that:
-	                                       P * [A] = L * U
+	   Matrix M is changed, it contains a copy of both matrices L-I and U as (L-I)+U such that:
+	                                       P * [M] = L * U
 	*/
 
 	var (
@@ -70,6 +74,10 @@ func (bm *BlockMatrix) LUPDecompose() (err error) {
 		absA, maxA float64
 		Scratch    Matrix
 	)
+	if !bm.IsSquare() {
+		err = fmt.Errorf("Matrix must be square")
+		return
+	}
 	if len(bm.P) != 0 {
 		err = fmt.Errorf("LUPDecompose already called on this matrix, which has overwritten it")
 		return
@@ -84,7 +92,7 @@ func (bm *BlockMatrix) LUPDecompose() (err error) {
 		maxA = 0.
 		imax = i
 		for k := 0; k < bm.Nr; k++ {
-			absA = math.Abs(mat.Det(bm.A[k][i]))
+			absA = math.Abs(mat.Det(bm.M[k][i]))
 			if absA > maxA {
 				maxA = absA
 				imax = k
@@ -97,19 +105,19 @@ func (bm *BlockMatrix) LUPDecompose() (err error) {
 		if imax != i {
 			// pivot P
 			bm.P[i], bm.P[imax] = bm.P[imax], bm.P[i] // swap
-			// pivot rows of A
-			bm.A[i], bm.A[imax] = bm.A[imax], bm.A[i]
+			// pivot rows of M
+			bm.M[i], bm.M[imax] = bm.M[imax], bm.M[i]
 			// counting pivots starting from N
 			bm.Pcount++
 		}
 		for j := i + 1; j < bm.Nr; j++ {
-			if Scratch, err = bm.A[i][i].Inverse(); err != nil {
+			if Scratch, err = bm.M[i][i].Inverse(); err != nil {
 				return
 			}
-			bm.A[j][i] = bm.A[j][i].Mul(Scratch)
+			bm.M[j][i] = bm.M[j][i].Mul(Scratch)
 			for k := i + 1; k < bm.Nr; k++ {
-				Scratch = bm.A[j][i].Mul(bm.A[i][k])
-				bm.A[j][k] = bm.A[j][k].Subtract(Scratch)
+				Scratch = bm.M[j][i].Mul(bm.M[i][k])
+				bm.M[j][k] = bm.M[j][k].Subtract(Scratch)
 			}
 		}
 	}
@@ -119,10 +127,10 @@ func (bm *BlockMatrix) LUPDecompose() (err error) {
 func (bm BlockMatrix) LUPSolve(b []Matrix) (Bx BlockMatrix, err error) {
 	/*
 	   Provided a solution vector B of size N x NB, calculate X for equation:
-	       [A] * X = B
-	   where [A] is the block matrix
+	       [M] * X = B
+	   where [M] is the block matrix
 
-	   Each sub-matrix within [A] is of size NBxNB
+	   Each sub-matrix within [M] is of size NBxNB
 	   Each of the X and B vectors are of size NxNB
 	*/
 
@@ -135,10 +143,10 @@ func (bm BlockMatrix) LUPSolve(b []Matrix) (Bx BlockMatrix, err error) {
 	}
 	/*
 		Provided a solution vector B of size N x NB, calculate X for equation:
-		[A] * X = B
-		where [A] is the block matrix
+		[M] * X = B
+		where [M] is the block matrix
 
-		Each sub-matrix within [A] is of size NBxNB
+		Each sub-matrix within [M] is of size NBxNB
 		Each of the X and B vectors are of size NxNB
 	*/
 	// Allocate solution X
@@ -146,39 +154,60 @@ func (bm BlockMatrix) LUPSolve(b []Matrix) (Bx BlockMatrix, err error) {
 	for i := 0; i < bm.Nr; i++ {
 		//		fmt.Printf("i = %d, P[i] = %d\n", i, bm.P[i])
 		//		fmt.Printf("b[P[i]] = %s\n", b[bm.P[i]].Print())
-		Bx.A[i][0] = b[bm.P[i]].Copy()
+		Bx.M[i][0] = b[bm.P[i]].Copy()
 		for k := 0; k < i; k++ {
-			Scratch = bm.A[i][k].Mul(Bx.A[k][0])
-			Bx.A[i][0] = Bx.A[i][0].Subtract(Scratch)
+			Scratch = bm.M[i][k].Mul(Bx.M[k][0])
+			Bx.M[i][0] = Bx.M[i][0].Subtract(Scratch)
 		}
 	}
 	for i := bm.Nr - 1; i >= 0; i-- {
 		for k := i + 1; k < bm.Nr; k++ {
-			Scratch = bm.A[i][k].Mul(Bx.A[k][0])
-			Bx.A[i][0] = Bx.A[i][0].Subtract(Scratch)
+			Scratch = bm.M[i][k].Mul(Bx.M[k][0])
+			Bx.M[i][0] = Bx.M[i][0].Subtract(Scratch)
 		}
-		if Scratch, err = bm.A[i][i].Inverse(); err != nil {
+		if Scratch, err = bm.M[i][i].Inverse(); err != nil {
 			panic(err)
 		}
-		Bx.A[i][0] = Bx.A[i][0].Transpose().Mul(Scratch)
+		Bx.M[i][0] = Bx.M[i][0].Transpose().Mul(Scratch)
 	}
 	return
 }
 
 func (bm BlockMatrix) Mul(ba BlockMatrix) (R BlockMatrix) {
 	var (
-		Nr, Nc   = bm.Nr, bm.Nc
-		Nra, Nca = ba.Nr, ba.Nc
+		Left, Right        = bm.M, ba.M
+		NrLeft, NcLeft     = bm.Nr, bm.Nc
+		NrRight, NcRight   = ba.Nr, ba.Nc
+		NrTarget, NcTarget = NcRight, NrLeft
+		Scratch            Matrix
 	)
-	R = NewBlockMatrix(Nca, Nr)
-	for i := 0; i < Nca; i++ {
-		for j := 0; j < Nc; j++ {
-			for ii := 0; ii < Nra; ii++ {
+	/*
+		fmt.Printf("Left dimensions: [%d,%d]\n", NrLeft, NcLeft)
+		fmt.Printf("Right dimensions: [%d,%d]\n", NrRight, NcRight)
+		fmt.Printf("Result dimensions: [%d,%d]\n", NcRight, NrLeft)
+	*/
+	if NrRight != NcLeft {
+		panic(fmt.Errorf("number of rows in right Matrix should be %d, is %d", NcLeft, NrRight))
+	}
+	R = NewBlockMatrix(NrTarget, NcTarget)
+	for j := 0; j < NcRight; j++ {
+		for i := 0; i < NrLeft; i++ {
+			// Iterate across columns of left and rows of right (NcLeft == NrRight) for sum at column j:0-NrLeft
+			for ii := 0; ii < NcLeft; ii++ { // For each column in left, or row in right
+				/*
+					fmt.Printf("NrLeft,NcLeft,NrRight,NcRight - i,j,ii = [%d,%d],[%d,%d] %d,%d,%d\n",
+						NrLeft, NcLeft, NrRight, NcRight, i, j, ii)
+					fmt.Printf(Left[i][ii].Print("Left[i][ii]"))
+					fmt.Printf(Right[ii][j].Print("Right[ii][j]"))
+				*/
+				Scratch = Left[i][ii].Mul(Right[ii][j])
 				if ii == 0 {
-					R.A[i][j] = bm.A[ii][j].Mul(ba.A[j][ii])
+					R.M[j][i] = Scratch
 				} else {
-					R.A[i][j] = R.A[i][j].Add(bm.A[ii][j].Mul(ba.A[j][ii]))
+					R.M[j][i] = R.M[j][i].Add(Scratch)
 				}
+				//fmt.Printf(R.M[i][j].Print("R[i][j]"))
+				//os.Exit(1)
 			}
 		}
 	}
@@ -191,7 +220,22 @@ func (bm BlockMatrix) Add(ba BlockMatrix) {
 	)
 	for i := 0; i < Nr; i++ {
 		for j := 0; j < Nc; j++ {
-			bm.A[i][j].Add(ba.A[i][j])
+			bm.M[i][j].Add(ba.M[i][j])
+		}
+	}
+	return
+}
+
+func (bm BlockMatrix) Copy() (R BlockMatrix) {
+	var (
+		Nr, Nc = bm.Nr, bm.Nc
+	)
+	R = NewBlockMatrix(Nr, Nc)
+	for j := 0; j < Nc; j++ {
+		for i := 0; i < Nr; i++ {
+			if !bm.M[i][j].IsEmpty() {
+				R.M[i][j] = bm.M[i][j].Copy()
+			}
 		}
 	}
 	return
