@@ -32,9 +32,10 @@ func NewBlockMatrix(Nr, Nc int) (R BlockMatrix) {
 func (bm BlockMatrix) Print() (out string) {
 	var (
 		output string
+		A      = bm.M
 	)
 	buf := bytes.Buffer{}
-	for n, row := range bm.M {
+	for n, row := range A {
 		for m, Mat := range row {
 			label := fmt.Sprintf("[%d:%d]", n, m)
 			if Mat.IsEmpty() {
@@ -265,10 +266,11 @@ func (bm BlockMatrix) Mul(ba BlockMatrix) (R BlockMatrix) {
 func (bm BlockMatrix) Add(ba BlockMatrix) {
 	var (
 		Nr, Nc = bm.Nr, bm.Nc
+		A      = bm.M
 	)
 	for i := 0; i < Nr; i++ {
 		for j := 0; j < Nc; j++ {
-			bm.M[i][j].Add(ba.M[i][j])
+			A[i][j].Add(A[i][j])
 		}
 	}
 	return
@@ -277,12 +279,13 @@ func (bm BlockMatrix) Add(ba BlockMatrix) {
 func (bm BlockMatrix) Copy() (R BlockMatrix) {
 	var (
 		Nr, Nc = bm.Nr, bm.Nc
+		A      = bm.M
 	)
 	R = NewBlockMatrix(Nr, Nc)
 	for j := 0; j < Nc; j++ {
 		for i := 0; i < Nr; i++ {
-			if !bm.M[i][j].IsEmpty() {
-				R.M[i][j] = bm.M[i][j].Copy()
+			if !A[i][j].IsEmpty() {
+				R.M[i][j] = A[i][j].Copy()
 			}
 		}
 	}
@@ -292,12 +295,13 @@ func (bm BlockMatrix) Copy() (R BlockMatrix) {
 func (bm BlockMatrix) Transpose() (R BlockMatrix) {
 	var (
 		Nr, Nc = bm.Nr, bm.Nc
+		A      = bm.M
 	)
 	R = NewBlockMatrix(Nc, Nr)
 	for j := 0; j < Nc; j++ {
 		for i := 0; i < Nr; i++ {
-			if !bm.M[i][j].IsEmpty() {
-				R.M[j][i] = bm.M[i][j].Copy()
+			if !A[i][j].IsEmpty() {
+				R.M[j][i] = A[i][j].Copy()
 			}
 		}
 	}
