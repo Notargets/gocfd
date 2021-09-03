@@ -121,17 +121,17 @@ func (c *Euler) Solve(pm *PlotMeta) {
 }
 
 type ElementImplicit struct {
-	Jdet, Jinv        []utils.Matrix      // Sharded mesh Jacobian and inverse transform
-	Q_Face            [][4]utils.Matrix   // Sharded Solution values stored at edge points of RT element
-	RHSQ, Residual    [][4]utils.Matrix   // Sharded Solution Residual storage
-	F_RT_DOF          [][4]utils.Matrix   // Sharded Scalar (projected) flux used for divergence, on all RT element points
-	FluxJac           [][]utils.Matrix    // Sharded Flux Jacobian, one 4x4 matrix (2D) per int point of RT element
-	SystemMatrix      []utils.BlockMatrix // Sharded "system matrix" for implicit solution - is the left hand side
-	Kmax              []int               // Sharded Local element count (dimension: Kmax[ParallelDegree])
-	GlobalDT, Time    float64
-	Np, Nedge, NpFlux int // Number of points in solution, edge and flux total
-	toWorker          []chan struct{}
-	fromWorkers       chan int8
+	Jdet, Jinv         []utils.Matrix    // Sharded mesh Jacobian and inverse transform
+	Q_Face             [][4]utils.Matrix // Sharded Solution values stored at edge points of RT element
+	RHSQ, Residual     [][4]utils.Matrix // Sharded Solution Residual storage
+	F_RT_DOF           [][4]utils.Matrix // Sharded Scalar (projected) flux used for divergence, on all RT element points
+	FluxJac            [][]utils.Matrix  // Sharded Flux Jacobian (projected), one 4x4 matrix (2D) per int point of RT element
+	Fscratch, Gscratch []utils.Matrix    // Sharded Flux Jacobian scratch space
+	Kmax               []int             // Sharded Local element count (dimension: Kmax[ParallelDegree])
+	GlobalDT, Time     float64
+	Np, Nedge, NpFlux  int // Number of points in solution, edge and flux total
+	toWorker           []chan struct{}
+	fromWorkers        chan int8
 }
 
 func (c *Euler) NewElementImplicit() (ei *ElementImplicit) {
@@ -158,7 +158,7 @@ func (c *Euler) NewElementImplicit() (ei *ElementImplicit) {
 		ei.toWorker[np] = make(chan struct{}, 1)
 	}
 	for np := 0; np < NPar; np++ {
-		// One flux inverse matrix stored per solution point
+		// One flux jacobian matrix stored per solution point
 		ei.FluxJac[np] = make([]utils.Matrix, ei.Np*ei.Kmax[np])
 	}
 	// Initialize memory
@@ -243,10 +243,16 @@ func (ei *ElementImplicit) StepWorker(c *Euler, myThread int, fromController cha
 	)
 	for {
 		_ = <-fromController // Block until parent sends "go"
+		/*
+			PrepareEdgeFlux:
+			1) Calculates flux for the interior (Nint) points and projects it onto the RT DOF
+			2) Extrapolates solution values onto the face points of the RT element
+		*/
 		c.PrepareEdgeFlux(Kmax[myThread], Jdet[myThread], Jinv[myThread], F_RT_DOF[myThread], Q0[myThread], Q_Face[myThread])
 		ei.WorkerDone(&subStep, toController, false)
 
-		_ = <-fromController                                                                                      // Block until parent sends "go"
+		_ = <-fromController // Block until parent sends "go"
+		// SetNormalFluxOnEdges calculates the flux on element edges, using connected element's data
 		c.SetNormalFluxOnEdges(ei.Time, false, Jdet, nil, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread], nil, nil) // Global
 		ei.WorkerDone(&subStep, toController, false)
 
