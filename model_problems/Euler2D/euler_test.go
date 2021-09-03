@@ -239,6 +239,33 @@ func TestEuler(t *testing.T) {
 	}
 }
 
+func TestFluxJacobian(t *testing.T) {
+	var (
+		tol = 0.000001
+		msg = "err msg %s"
+	)
+	//N := 1
+	//c := NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, false, false, false)
+	c := Euler{}
+	c.FS = NewFreeStream(0.1, 1.4, 0)
+	Qinf := c.FS.Qinf
+	F, G := utils.NewMatrix(4, 4), utils.NewMatrix(4, 4)
+	c.FluxJacobianCalcBase(Qinf[0], Qinf[1], Qinf[2], Qinf[3], F, G)
+	// Matlab: using the FS Q = [1,.1,0,1.79071]
+	assert.InDeltaSlicef(t, []float64{
+		0, 1.0000, 0, 0,
+		-0.0080, 0.1600, 0, 0.4000,
+		0, 0, 0.1000, 0,
+		-0.2503, 2.5010, 0, 0.1400,
+	}, F.DataP, tol, msg)
+	assert.InDeltaSlicef(t, []float64{
+		0, 0, 1.0000, 0,
+		0, 0, 0.1000, 0,
+		0.0020, -0.0400, 0, 0.4000,
+		0, 0, 2.5050, 0,
+	}, G.DataP, tol, msg)
+}
+
 func PrintQ(Q [4]utils.Matrix, l string) {
 	var (
 		label string

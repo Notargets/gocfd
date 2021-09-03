@@ -1,6 +1,7 @@
 package Euler2D
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/notargets/gocfd/utils"
@@ -67,6 +68,12 @@ func NewFreeStream(Minf, Gamma, Alpha float64) (fs *FreeStream) {
 	fs.QQinf = fs.GetFlowFunctionQQ(fs.Qinf, DynamicPressure)
 	fs.Cinf = fs.GetFlowFunctionQQ(fs.Qinf, SoundSpeed)
 	return
+}
+
+func (fs *FreeStream) Print() string {
+	return fmt.Sprintf("Minf[%5.2f] Gamma[%5.2f] Alpha[%5.2f] Q[%8.5f,%8.5f,%8.5f,%8.5f]\n",
+		fs.Minf, fs.Gamma, fs.Alpha,
+		fs.Qinf[0], fs.Qinf[1], fs.Qinf[2], fs.Qinf[3])
 }
 
 func (fs *FreeStream) GetFlowFunction(Q [4]utils.Matrix, ind int, pf FlowFunction) (f float64) {
