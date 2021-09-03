@@ -87,18 +87,24 @@ func (c *Euler) FluxJacobianCalcBase(rho, rhoU, rhoV, E float64, F, G utils.Matr
 		u2, v2 = u * u, v * v
 		Gamma  = c.FS.Gamma
 		GM1    = Gamma - 1
+		e0     = E * Gamma * oorho
+		h0     = (u2 + v2) * GM1
+		h1     = h0 - e0
+		h2a    = e0 - 0.5*h0
+		h2     = h2a - GM1*u2
+		h3     = h2a - GM1*v2
 	)
 	F.Equate([]float64{
 		0, 1, 0, 0,
-		0.5*GM1*(u2+v2) - u2, u * (3. - Gamma), -v * GM1, GM1,
+		0.5*h0 - u2, u * (3. - Gamma), -v * GM1, GM1,
 		-u * v, v, u, 0,
-		u * ((u2+v2)*GM1 - E*Gamma*oorho), E*Gamma*oorho - 0.5*GM1*(3.*u2+v2), -u * v * GM1, Gamma * u,
+		u * h1, h2, -u * v * GM1, Gamma * u,
 	}, ":", ":")
 	G.Equate([]float64{
 		0, 0, 1, 0,
 		-u * v, v, u, 0,
-		0.5*GM1*(u2+v2) - v2, -u * GM1, v * (3. - Gamma), GM1,
-		v * ((u2+v2)*GM1 - E*Gamma*oorho), -u * v * GM1, E*Gamma*oorho - 0.5*GM1*(3.*v2+u2), Gamma * v,
+		0.5*h0 - v2, -u * GM1, v * (3. - Gamma), GM1,
+		v * h1, -u * v * GM1, h3, Gamma * v,
 	}, ":", ":")
 
 }
