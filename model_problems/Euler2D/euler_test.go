@@ -14,6 +14,10 @@ import (
 )
 
 func TestEuler(t *testing.T) {
+	var (
+		msg = "err msg %s"
+		tol = 0.000001
+	)
 	if true {
 		{ // Test interpolation of solution to edges for all supported orders
 			Nmax := 7
@@ -43,7 +47,7 @@ func TestEuler(t *testing.T) {
 					for i := 0; i < 3*Nedge; i++ {
 						for k := 0; k < Kmax; k++ {
 							ind := k + i*Kmax
-							assert.True(t, near(float64(k+1), Q_Face[n].DataP[ind], 0.000001))
+							assert.InDeltaf(t, float64(k+1), Q_Face[n].DataP[ind], tol, msg)
 						}
 					}
 				}
@@ -225,11 +229,10 @@ func TestEuler(t *testing.T) {
 					x, y := X.DataP[ind], Y.DataP[ind]
 					qc1, qc2, qc3, qc4 := c.AnalyticSolution.GetStateC(0, x, y)
 					q1, q2, q3, q4 := Q[0].DataP[ind], Q[1].DataP[ind], Q[2].DataP[ind], Q[3].DataP[ind]
-					assert.True(t, nearVec([]float64{q1, q2, q3, q4}, []float64{qc1, qc2, qc3, qc4}, 0.000001))
+					assert.InDeltaSlicef(t, []float64{q1, q2, q3, q4}, []float64{qc1, qc2, qc3, qc4}, tol, msg)
 					divC := c.AnalyticSolution.GetDivergence(0, x, y)
 					divCalc := div.DataP[ind]
-					// fmt.Printf("div[%d][%d,%d] = %8.5f\n", n, k, i, divCalc)
-					assert.True(t, near(divCalc/qc1, divC[n]/qc1, 0.001)) // 0.1 percent match
+					assert.InDeltaf(t, divCalc/qc1, divC[n]/qc1, 0.001, msg) // 0.1 percent match
 				}
 			}
 		}
@@ -261,17 +264,25 @@ func PrintFlux(F []utils.Matrix) {
 	}
 }
 
-func nearVec(a, b []float64, tol float64) (l bool) {
-	for i, val := range a {
-		if !near(b[i], val, tol) {
-			fmt.Printf("Diff = %v, Left[%d] = %v, Right[%d] = %v\n", math.Abs(val-b[i]), i, val, i, b[i])
-			return false
-		}
-	}
-	return true
-}
-
 func nearVecScalar(a []float64, b float64, tol float64) (l bool) {
+	near := func(a, b float64, tolI ...float64) (l bool) {
+		var (
+			tol float64
+		)
+		if len(tolI) == 0 {
+			tol = 1.e-08
+		} else {
+			tol = tolI[0]
+		}
+		bound := math.Max(tol, tol*math.Abs(a))
+		val := math.Abs(a - b)
+		if val <= bound {
+			l = true
+		} else {
+			fmt.Printf("Diff = %v, Left = %v, Right = %v\n", val, a, b)
+		}
+		return
+	}
 	for i, val := range a {
 		if !near(b, val, tol) {
 			fmt.Printf("Diff = %v, Left[%d] = %v, Right[%d] = %v\n", math.Abs(val-b), i, val, i, b)
@@ -279,25 +290,6 @@ func nearVecScalar(a []float64, b float64, tol float64) (l bool) {
 		}
 	}
 	return true
-}
-
-func near(a, b float64, tolI ...float64) (l bool) {
-	var (
-		tol float64
-	)
-	if len(tolI) == 0 {
-		tol = 1.e-08
-	} else {
-		tol = tolI[0]
-	}
-	bound := math.Max(tol, tol*math.Abs(a))
-	val := math.Abs(a - b)
-	if val <= bound {
-		l = true
-	} else {
-		fmt.Printf("Diff = %v, Left = %v, Right = %v\n", val, a, b)
-	}
-	return
 }
 
 func InitializePolynomial(X, Y utils.Matrix) (Q [4]utils.Matrix) {
@@ -437,11 +429,8 @@ func CheckFlux0(c *Euler, t *testing.T) {
 				divC := GetDivergencePoly(0, x, y)
 				divCalc := div.DataP[ind]
 				normalizer := Q[nn].DataP[ind]
-				test := near(divCalc/normalizer, divC[nn]/normalizer, 0.0001) // 1% of field value
-				if !test {
-					fmt.Printf("div[%d][%d,%d] = %8.5f\n", n, k, i, divCalc)
-				}
-				assert.True(t, test) // 1% of field value
+				//test := near(divCalc/normalizer, divC[nn]/normalizer, 0.0001) // 1% of field value
+				assert.InDeltaf(t, divCalc/normalizer, divC[nn]/normalizer, 0.0001, "err msg %s") // 1% of field value
 			}
 		}
 	}
