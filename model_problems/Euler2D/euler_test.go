@@ -250,7 +250,7 @@ func TestFluxJacobian(t *testing.T) {
 	c.FS = NewFreeStream(0.1, 1.4, 0)
 	Qinf := c.FS.Qinf
 	F, G := utils.NewMatrix(4, 4), utils.NewMatrix(4, 4)
-	c.FluxJacobianCalcBase(Qinf[0], Qinf[1], Qinf[2], Qinf[3], F, G)
+	c.FluxJacobianCalc(Qinf[0], Qinf[1], Qinf[2], Qinf[3], F, G)
 	// Matlab: using the FS Q = [1,.1,0,1.79071]
 	assert.InDeltaSlicef(t, []float64{
 		0, 1.0000, 0, 0,

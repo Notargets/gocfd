@@ -263,42 +263,6 @@ func (ei *ElementImplicit) StepWorker(c *Euler, myThread int, fromController cha
 	}
 }
 
-func (ei *ElementImplicit) SetFluxJacobian(c *Euler, Kmax int, Jdet, Jinv utils.Matrix, F_RT_DOF, Q, Q_Face [4]utils.Matrix) {
-	// Calculates the flux jacobian for all interior points within the RT element
-	var (
-		Nint  = c.dfr.FluxElement.Nint
-		fdofD = [4][]float64{F_RT_DOF[0].DataP, F_RT_DOF[1].DataP, F_RT_DOF[2].DataP, F_RT_DOF[3].DataP}
-	)
-	// Calculate flux and project into R and S (transformed) directions for the internal points
-	for k := 0; k < Kmax; k++ {
-		for i := 0; i < Nint; i++ {
-			ind := k + i*Kmax
-			ind2 := k + (i+Nint)*Kmax
-			Fr, Fs := c.CalculateFluxTransformed(k, Kmax, i, Jdet, Jinv, Q)
-			for n := 0; n < 4; n++ {
-				fdofD[n][ind], fdofD[n][ind2] = Fr[n], Fs[n]
-			}
-		}
-	}
-	//dFluxdU - dFdU+dGdU sum of flux jacobians
-	// w1 and w2 are the basis function normal vectors: [w1,w2]
-	// 0-Nint: [1,0], Nint-2Nint: [0,1], 2Nint-2Nint+Nedge: [w1edge,w2edge]
-	//T[0][1] = w1
-	//T[0][2] = w2
-	//T[1][0] = -w1*(u*u-(1.0/(rho*rho)*((rho*rho)*(u*u)+(rho*rho)*(v*v))*(gamma-1.0))/2.0) - u*v*w2
-	//T[1][1] = v*w2 - u*w1*(gamma-3.0)
-	//T[1][2] = u*w2 - v*w1*(gamma-1.0)
-	//T[1][3] = w1 * (gamma - 1.0)
-	//T[2][0] = -w2*(v*v-(1.0/(rho*rho)*((rho*rho)*(u*u)+(rho*rho)*(v*v))*(gamma-1.0))/2.0) - u*v*w1
-	//T[2][1] = v*w1 - u*w2*(gamma-1.0)
-	//T[2][2] = u*w1 - v*w2*(gamma-3.0)
-	//T[2][3] = w2 * (gamma - 1.0)
-	//T[3][0] = -((u*w1 + v*w2) * (E*gamma + rho*(u*u) + rho*(v*v) - gamma*rho*(u*u) - gamma*rho*(v*v))) / rho
-	//T[3][1] = w1*((E+(E-((rho*rho)*(u*u)+(rho*rho)*(v*v))/(rho*2.0))*(gamma-1.0))/rho-(u*u)*(gamma-1.0)) - u*v*w2*(gamma-1.0)
-	//T[3][2] = w2*((E+(E-((rho*rho)*(u*u)+(rho*rho)*(v*v))/(rho*2.0))*(gamma-1.0))/rho-(v*v)*(gamma-1.0)) - u*v*w1*(gamma-1.0)
-	//T[3][3] = gamma * (u*w1 + v*w2)
-}
-
 type RungeKutta4SSP struct {
 	Jdet, Jinv        []utils.Matrix    // Sharded mesh Jacobian and inverse transform
 	RHSQ, Q_Face      [][4]utils.Matrix // State used for matrix multiplies within the time step algorithm

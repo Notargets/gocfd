@@ -80,7 +80,24 @@ func (c *Euler) FluxCalcBase(rho, rhoU, rhoV, E float64) (Fx, Fy [4]float64) {
 	return
 }
 
-func (c *Euler) FluxJacobianCalcBase(rho, rhoU, rhoV, E float64, F, G utils.Matrix) {
+func (c *Euler) FluxJacobianTransformed(k, Kmax, i int, Jdet, Jinv utils.Matrix, Q [4]utils.Matrix,
+	Fscratch, Gscratch, Fr, Gs utils.Matrix) {
+	var (
+		JdetD          = Jdet.DataP[k]
+		JinvD          = Jinv.DataP[4*k : 4*(k+1)]
+		ind            = k + i*Kmax
+		q0, q1, q2, q3 = Q[0].DataP[ind], Q[1].DataP[ind], Q[2].DataP[ind], Q[3].DataP[ind]
+	)
+	c.FluxJacobianCalc(q0, q1, q2, q3, Fscratch, Gscratch)
+	for i := range Fscratch.DataP {
+		fx, gy := Fscratch.DataP[i], Gscratch.DataP[i]
+		Fr.DataP[i] = JdetD * (JinvD[0]*fx + JinvD[1]*gy)
+		Gs.DataP[i] = JdetD * (JinvD[2]*fx + JinvD[3]*gy)
+	}
+	return
+}
+
+func (c *Euler) FluxJacobianCalc(rho, rhoU, rhoV, E float64, F, G utils.Matrix) {
 	var (
 		oorho  = 1. / rho
 		u, v   = rhoU * oorho, rhoV * oorho
