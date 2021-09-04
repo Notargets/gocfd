@@ -38,7 +38,7 @@ type Euler struct {
 	LocalTimeStepping bool
 	MaxIterations     int
 	// Below are partitioned by K (elements) in the first slice
-	Q                    [][4]utils.Matrix // Solution variables, stored at solution point locations, Np_solution x K
+	Q                    [][4]utils.Matrix // Sharded solution variables, stored at solution point locations, Np_solution x K
 	SolutionX, SolutionY []utils.Matrix
 }
 
@@ -121,17 +121,16 @@ func (c *Euler) Solve(pm *PlotMeta) {
 }
 
 type ElementImplicit struct {
-	Jdet, Jinv         []utils.Matrix    // Sharded mesh Jacobian and inverse transform
-	Q_Face             [][4]utils.Matrix // Sharded Solution values stored at edge points of RT element
-	RHSQ, Residual     [][4]utils.Matrix // Sharded Solution Residual storage
-	F_RT_DOF           [][4]utils.Matrix // Sharded Scalar (projected) flux used for divergence, on all RT element points
-	FluxJac            [][]utils.Matrix  // Sharded Flux Jacobian (projected), one 4x4 matrix (2D) per int point of RT element
-	Fscratch, Gscratch []utils.Matrix    // Sharded Flux Jacobian scratch space
-	Kmax               []int             // Sharded Local element count (dimension: Kmax[ParallelDegree])
-	GlobalDT, Time     float64
-	Np, Nedge, NpFlux  int // Number of points in solution, edge and flux total
-	toWorker           []chan struct{}
-	fromWorkers        chan int8
+	Jdet, Jinv        []utils.Matrix    // Sharded mesh Jacobian and inverse transform
+	Q_Face            [][4]utils.Matrix // Sharded Solution values stored at edge points of RT element
+	RHSQ, Residual    [][4]utils.Matrix // Sharded Solution Residual storage
+	F_RT_DOF          [][4]utils.Matrix // Sharded Scalar (projected) flux used for divergence, on all RT element points
+	FluxJac           [][][16]float64   // Sharded Flux Jacobian (projected), one 4x4 matrix (2D) per int point of RT element
+	Kmax              []int             // Sharded Local element count (dimension: Kmax[ParallelDegree])
+	GlobalDT, Time    float64
+	Np, Nedge, NpFlux int // Number of points in solution, edge and flux total
+	toWorker          []chan struct{}
+	fromWorkers       chan int8
 }
 
 func (c *Euler) NewElementImplicit() (ei *ElementImplicit) {
@@ -146,7 +145,7 @@ func (c *Euler) NewElementImplicit() (ei *ElementImplicit) {
 		RHSQ:        make([][4]utils.Matrix, NPar),
 		Residual:    make([][4]utils.Matrix, NPar),
 		F_RT_DOF:    make([][4]utils.Matrix, NPar),
-		FluxJac:     make([][]utils.Matrix, NPar),
+		FluxJac:     make([][][16]float64, NPar),
 		Kmax:        make([]int, NPar),
 		Np:          c.dfr.SolutionElement.Np,
 		Nedge:       c.dfr.FluxElement.Nedge,
@@ -159,7 +158,7 @@ func (c *Euler) NewElementImplicit() (ei *ElementImplicit) {
 	}
 	for np := 0; np < NPar; np++ {
 		// One flux jacobian matrix stored per solution point
-		ei.FluxJac[np] = make([]utils.Matrix, ei.Np*ei.Kmax[np])
+		ei.FluxJac[np] = make([][16]float64, ei.Np*ei.Kmax[np])
 	}
 	// Initialize memory
 	for np := 0; np < NPar; np++ {
@@ -169,9 +168,6 @@ func (c *Euler) NewElementImplicit() (ei *ElementImplicit) {
 			ei.RHSQ[np][n] = utils.NewMatrix(ei.Np, ei.Kmax[np])
 			ei.F_RT_DOF[np][n] = utils.NewMatrix(ei.NpFlux, ei.Kmax[np])
 			ei.Q_Face[np][n] = utils.NewMatrix(ei.Nedge*3, ei.Kmax[np])
-		}
-		for i := 0; i < ei.Np*ei.Kmax[np]; i++ { // One 4x4 (2D) flux inverse matrix stored per solution point
-			ei.FluxJac[np][i] = utils.NewMatrix(4, 4)
 		}
 	}
 	return
@@ -234,10 +230,11 @@ func (ei *ElementImplicit) WorkerDone(subStepP *int8, fromWorker chan int8, isDo
 func (ei *ElementImplicit) StepWorker(c *Euler, myThread int, fromController chan struct{}, toController chan int8) {
 	// Implements an Element Jacobi time advancement for steady state problems
 	var (
-		Q0                         = c.Q
 		Np                         = ei.Np
-		Kmax, Jdet, Jinv, F_RT_DOF = ei.Kmax, ei.Jdet, ei.Jinv, ei.F_RT_DOF
-		Q_Face, RHSQ               = ei.Q_Face, ei.RHSQ
+		Q0                         = c.Q[myThread]
+		Kmax, Jdet, Jinv, F_RT_DOF = ei.Kmax[myThread], ei.Jdet[myThread], ei.Jinv[myThread], ei.F_RT_DOF[myThread]
+		Q_Face, RHSQ               = ei.Q_Face[myThread], ei.RHSQ[myThread]
+		FluxJac                    = ei.FluxJac[myThread]
 		dT                         float64
 		subStep                    int8
 	)
@@ -248,19 +245,21 @@ func (ei *ElementImplicit) StepWorker(c *Euler, myThread int, fromController cha
 			1) Calculates flux for the interior (Nint) points and projects it onto the RT DOF
 			2) Extrapolates solution values onto the face points of the RT element
 		*/
-		c.PrepareEdgeFlux(Kmax[myThread], Jdet[myThread], Jinv[myThread], F_RT_DOF[myThread], Q0[myThread], Q_Face[myThread])
+		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q0, Q_Face)
+		// Calculate and store the projected flux jacobian matrix, one matrix per RT node point
+		c.SetFluxJacobian(Kmax, Jdet, Jinv, Q0, Q_Face, FluxJac)
 		ei.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController // Block until parent sends "go"
 		// SetNormalFluxOnEdges calculates the flux on element edges, using connected element's data
-		c.SetNormalFluxOnEdges(ei.Time, false, Jdet, nil, F_RT_DOF, Q_Face, c.SortedEdgeKeys[myThread], nil, nil) // Global
+		c.SetNormalFluxOnEdges(ei.Time, false, ei.Jdet, nil, ei.F_RT_DOF, ei.Q_Face, c.SortedEdgeKeys[myThread], nil, nil) // Global
 		ei.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController // Block until parent sends "go"
-		c.RHS(Kmax[myThread], Jdet[myThread], F_RT_DOF[myThread], RHSQ[myThread])
+		c.RHS(Kmax, Jdet, F_RT_DOF, RHSQ)
 		dT = ei.GlobalDT
 		for n := 0; n < 4; n++ {
-			for i := 0; i < Kmax[myThread]*Np; i++ {
+			for i := 0; i < Kmax*Np; i++ {
 				_ = dT
 				//Q1[myThread][n].DataP[i] = Q0[myThread][n].DataP[i] + 0.5*RHSQ[myThread][n].DataP[i]*dT
 			}
@@ -576,6 +575,42 @@ func (c *Euler) DivideByJacobian(Kmax, Imax int, Jdet utils.Matrix, data []float
 		for i := 0; i < Imax; i++ {
 			ind := k + i*Kmax
 			data[ind] /= JdetD[k] * scale // Multiply divergence by -1 to produce the RHS
+		}
+	}
+}
+
+func (c *Euler) SetFluxJacobian(Kmax int, Jdet, Jinv utils.Matrix, Q, Q_Face [4]utils.Matrix, FluxJac [][16]float64) {
+	var (
+		Nint     = c.dfr.FluxElement.Nint
+		Nedge    = c.dfr.FluxElement.Nedge
+		Fr, Gs   [16]float64
+		edgeSize = Nedge / 3
+		sr2      = math.Sqrt(2.)
+	)
+	for k := 0; k < Kmax; k++ {
+		for i := 0; i < Nint; i++ {
+			ind := k + i*Kmax
+			ind2 := k + (i+Nint)*Kmax // Second half of interior points
+			Fr, Gs = c.FluxJacobianTransformed(k, Kmax, i, Jdet, Jinv, Q)
+			FluxJac[ind], FluxJac[ind2] = Fr, Gs
+		}
+		for i := 0; i < Nedge; i++ {
+			Fr, Gs = c.FluxJacobianTransformed(k, Kmax, i, Jdet, Jinv, Q_Face)
+			ind := k + i*Kmax
+			switch {
+			case i < edgeSize: // Unit face vector is [0, -1]
+				for ii := range Gs {
+					FluxJac[ind][ii] = -Gs[ii]
+				}
+			case i >= edgeSize && i < 2*edgeSize: // Unit face vector is [sqrt(2), sqrt(2)]
+				for ii := range Fr {
+					FluxJac[ind][ii] = sr2 * (Fr[ii] + Gs[ii])
+				}
+			case i >= 2*edgeSize: // Unit face vector is [-1, 0]
+				for ii := range Fr {
+					FluxJac[ind][ii] = -Fr[ii]
+				}
+			}
 		}
 	}
 }

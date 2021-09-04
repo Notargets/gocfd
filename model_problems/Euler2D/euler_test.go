@@ -249,21 +249,20 @@ func TestFluxJacobian(t *testing.T) {
 	c := Euler{}
 	c.FS = NewFreeStream(0.1, 1.4, 0)
 	Qinf := c.FS.Qinf
-	F, G := utils.NewMatrix(4, 4), utils.NewMatrix(4, 4)
-	c.FluxJacobianCalc(Qinf[0], Qinf[1], Qinf[2], Qinf[3], F, G)
+	Fx, Gy := c.FluxJacobianCalc(Qinf[0], Qinf[1], Qinf[2], Qinf[3])
 	// Matlab: using the FS Q = [1,.1,0,1.79071]
 	assert.InDeltaSlicef(t, []float64{
 		0, 1.0000, 0, 0,
 		-0.0080, 0.1600, 0, 0.4000,
 		0, 0, 0.1000, 0,
 		-0.2503, 2.5010, 0, 0.1400,
-	}, F.DataP, tol, msg)
+	}, Fx[:], tol, msg)
 	assert.InDeltaSlicef(t, []float64{
 		0, 0, 1.0000, 0,
 		0, 0, 0.1000, 0,
 		0.0020, -0.0400, 0, 0.4000,
 		0, 0, 2.5050, 0,
-	}, G.DataP, tol, msg)
+	}, Gy[:], tol, msg)
 }
 
 func PrintQ(Q [4]utils.Matrix, l string) {
