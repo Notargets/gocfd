@@ -89,6 +89,7 @@ func (c *Euler) FluxJacobianTransformed(k, Kmax, i int, Jdet, Jinv utils.Matrix,
 		Fx, Gy         [16]float64
 	)
 	Fx, Gy = c.FluxJacobianCalc(q0, q1, q2, q3)
+	//fmt.Printf("Fx,Gy[%d] = %v,%v\n", i, Fx, Gy)
 	for ii := range Fx { // Transform individual element Flux Jacobian
 		Fr[ii] = JdetD * (JinvD[0]*Fx[ii] + JinvD[1]*Gy[ii])
 		Gs[ii] = JdetD * (JinvD[2]*Fx[ii] + JinvD[3]*Gy[ii])

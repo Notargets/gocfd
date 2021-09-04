@@ -153,16 +153,12 @@ func (c *Euler) NewElementImplicit() (ei *ElementImplicit) {
 		fromWorkers: make(chan int8, NPar),
 		toWorker:    make([]chan struct{}, NPar),
 	}
-	for np := 0; np < NPar; np++ {
-		ei.toWorker[np] = make(chan struct{}, 1)
-	}
-	for np := 0; np < NPar; np++ {
-		// One flux jacobian matrix stored per solution point
-		ei.FluxJac[np] = make([][16]float64, ei.Np*ei.Kmax[np])
-	}
 	// Initialize memory
 	for np := 0; np < NPar; np++ {
+		ei.toWorker[np] = make(chan struct{}, 1)
 		ei.Kmax[np] = pm.GetBucketDimension(np)
+		// One flux jacobian matrix stored per solution point
+		ei.FluxJac[np] = make([][16]float64, ei.NpFlux*ei.Kmax[np])
 		for n := 0; n < 4; n++ {
 			ei.Residual[np][n] = utils.NewMatrix(ei.Np, ei.Kmax[np])
 			ei.RHSQ[np][n] = utils.NewMatrix(ei.Np, ei.Kmax[np])
@@ -581,11 +577,10 @@ func (c *Euler) DivideByJacobian(Kmax, Imax int, Jdet utils.Matrix, data []float
 
 func (c *Euler) SetFluxJacobian(Kmax int, Jdet, Jinv utils.Matrix, Q, Q_Face [4]utils.Matrix, FluxJac [][16]float64) {
 	var (
-		Nint     = c.dfr.FluxElement.Nint
-		Nedge    = c.dfr.FluxElement.Nedge
-		Fr, Gs   [16]float64
-		edgeSize = Nedge / 3
-		sr2      = math.Sqrt(2.)
+		Nint   = c.dfr.FluxElement.Nint
+		Nedge  = c.dfr.FluxElement.Nedge
+		Fr, Gs [16]float64
+		sr2    = math.Sqrt(2.)
 	)
 	for k := 0; k < Kmax; k++ {
 		for i := 0; i < Nint; i++ {
@@ -594,21 +589,22 @@ func (c *Euler) SetFluxJacobian(Kmax int, Jdet, Jinv utils.Matrix, Q, Q_Face [4]
 			Fr, Gs = c.FluxJacobianTransformed(k, Kmax, i, Jdet, Jinv, Q)
 			FluxJac[ind], FluxJac[ind2] = Fr, Gs
 		}
-		for i := 0; i < Nedge; i++ {
+		for i := 0; i < 3*Nedge; i++ {
 			Fr, Gs = c.FluxJacobianTransformed(k, Kmax, i, Jdet, Jinv, Q_Face)
-			ind := k + i*Kmax
+			//fmt.Printf("Fr,Gs[%d] = %v,%v\n", i, Fr, Gs)
+			iind := k + (i+2*Nint)*Kmax
 			switch {
-			case i < edgeSize: // Unit face vector is [0, -1]
+			case i < Nedge: // Unit face vector is [0, -1]
 				for ii := range Gs {
-					FluxJac[ind][ii] = -Gs[ii]
+					FluxJac[iind][ii] = -Gs[ii]
 				}
-			case i >= edgeSize && i < 2*edgeSize: // Unit face vector is [sqrt(2), sqrt(2)]
+			case i >= Nedge && i < 2*Nedge: // Unit face vector is [sqrt(2), sqrt(2)]
 				for ii := range Fr {
-					FluxJac[ind][ii] = sr2 * (Fr[ii] + Gs[ii])
+					FluxJac[iind][ii] = sr2 * (Fr[ii] + Gs[ii])
 				}
-			case i >= 2*edgeSize: // Unit face vector is [-1, 0]
+			case i >= 2*Nedge: // Unit face vector is [-1, 0]
 				for ii := range Fr {
-					FluxJac[ind][ii] = -Fr[ii]
+					FluxJac[iind][ii] = -Fr[ii]
 				}
 			}
 		}

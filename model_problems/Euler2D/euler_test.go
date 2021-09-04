@@ -244,25 +244,50 @@ func TestFluxJacobian(t *testing.T) {
 		tol = 0.000001
 		msg = "err msg %s"
 	)
-	//N := 1
-	//c := NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, false, false, false)
-	c := Euler{}
-	c.FS = NewFreeStream(0.1, 1.4, 0)
-	Qinf := c.FS.Qinf
-	Fx, Gy := c.FluxJacobianCalc(Qinf[0], Qinf[1], Qinf[2], Qinf[3])
-	// Matlab: using the FS Q = [1,.1,0,1.79071]
-	assert.InDeltaSlicef(t, []float64{
-		0, 1.0000, 0, 0,
-		-0.0080, 0.1600, 0, 0.4000,
-		0, 0, 0.1000, 0,
-		-0.2503, 2.5010, 0, 0.1400,
-	}, Fx[:], tol, msg)
-	assert.InDeltaSlicef(t, []float64{
-		0, 0, 1.0000, 0,
-		0, 0, 0.1000, 0,
-		0.0020, -0.0400, 0, 0.4000,
-		0, 0, 2.5050, 0,
-	}, Gy[:], tol, msg)
+	{ // Flux Jacobian calculation
+		c := Euler{}
+		c.FS = NewFreeStream(0.1, 1.4, 0)
+		Qinf := c.FS.Qinf
+		Fx, Gy := c.FluxJacobianCalc(Qinf[0], Qinf[1], Qinf[2], Qinf[3])
+		// Matlab: using the FS Q = [1,.1,0,1.79071]
+		assert.InDeltaSlicef(t, []float64{
+			0, 1.0000, 0, 0,
+			-0.0080, 0.1600, 0, 0.4000,
+			0, 0, 0.1000, 0,
+			-0.2503, 2.5010, 0, 0.1400,
+		}, Fx[:], tol, msg)
+		assert.InDeltaSlicef(t, []float64{
+			0, 0, 1.0000, 0,
+			0, 0, 0.1000, 0,
+			0.0020, -0.0400, 0, 0.4000,
+			0, 0, 2.5050, 0,
+		}, Gy[:], tol, msg)
+	}
+	{
+		N := 1
+		c := NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, false, false, false)
+		ei := c.NewElementImplicit()
+		var (
+			myThread         = 0
+			Q0               = c.Q[myThread]
+			Kmax, Jdet, Jinv = ei.Kmax[myThread], ei.Jdet[myThread], ei.Jinv[myThread]
+			Q_Face, F_RT_DOF = ei.Q_Face[myThread], ei.F_RT_DOF[myThread]
+			FluxJac          = ei.FluxJac[myThread]
+		)
+		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q0, Q_Face)
+		c.SetFluxJacobian(Kmax, Jdet, Jinv, Q0, Q_Face, FluxJac)
+		/*
+			for i := 0; i < ei.NpFlux; i++ {
+				fmt.Printf("FJ[%d] = %v\n", i, FluxJac[i])
+			}
+			for i := 0; i < ei.NpFlux; i++ {
+				for ii := range FluxJac[i] {
+					FluxJac[i][ii] /= Jdet.DataP[0]
+				}
+				fmt.Printf("FJ/J[%d] = %v\n", i, FluxJac[i])
+			}
+		*/
+	}
 }
 
 func PrintQ(Q [4]utils.Matrix, l string) {
