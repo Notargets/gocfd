@@ -515,6 +515,11 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 }
 
 func (c *Euler) RHS(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4]utils.Matrix) {
+	var (
+		JdetD = Jdet.DataP
+		Nint  = c.dfr.FluxElement.Nint
+		data  []float64
+	)
 	/*
 				Calculate the RHS of the equation:
 				dQ/dt = -div(F,G)
@@ -527,12 +532,18 @@ func (c *Euler) RHS(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4]utils.Matrix)
 				of the element "injected" via calculation of a physical flux on those faces, and the (F,G) values in the interior
 				of the element taken directly from the solution values (Q).
 	*/
-	for n := 0; n < 4; n++ {
-		// Calculate divergence for the internal node points
+	for n := 0; n < 4; n++ { // For each of the 4 equations in [rho, rhoU, rhoV, E]
+		// Unit triangle divergence matrix times the flux projected onto the RT elements: F_RT_DOF => Div(Flux) in (r,s)
 		c.dfr.FluxElement.DivInt.Mul(F_RT_DOF[n], RHSQ[n])
-		c.DivideByJacobian(Kmax, c.dfr.FluxElement.Nint, Jdet, RHSQ[n].DataP, -1)
+		// Multiply each element's divergence by 1/||J|| to go (r,s)->(x,y), and -1 for the RHS
+		data = RHSQ[n].DataP
+		for k := 0; k < Kmax; k++ {
+			for i := 0; i < Nint; i++ {
+				ind := k + i*Kmax
+				data[ind] /= -JdetD[k]
+			}
+		}
 	}
-	return
 }
 
 func (c *Euler) PreconditionRHS(Q, RHSQ [4]utils.Matrix, DT utils.Matrix, calcDT bool) {
