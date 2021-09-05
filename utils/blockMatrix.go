@@ -251,7 +251,13 @@ func (bm BlockMatrix) Mul(ba BlockMatrix) (R BlockMatrix) {
 		for i := 0; i < NrLeft; i++ {
 			// Iterate across columns of left and rows of right (NcLeft == NrRight) for sum at column j:0-NrLeft
 			for ii := 0; ii < NcLeft; ii++ { // For each column in left, or row in right
-				Scratch = Left[i][ii].Mul(Right[ii][j])
+				if (Left[i][ii].IsEmpty() || Right[ii][j].IsEmpty()) ||
+					(Left[i][ii].IsScalar() && Left[i][ii].DataP[0] == 0.) ||
+					(Right[ii][j].IsScalar() && Right[ii][j].DataP[0] == 0.) {
+					Scratch = NewMatrix(1, 1, []float64{0.})
+				} else {
+					Scratch = Left[i][ii].Mul(Right[ii][j])
+				}
 				if ii == 0 {
 					R.M[j][i] = Scratch
 				} else {
