@@ -287,6 +287,35 @@ func TestFluxJacobian(t *testing.T) {
 			_ = SMinv
 		}
 	}
+	// Test implicit solver
+	{
+		N := 1
+		c := NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, false, false, false)
+		ei := c.NewElementImplicit()
+		var (
+			myThread         = 0
+			Q0               = c.Q[myThread]
+			Kmax, Jdet, Jinv = ei.Kmax[myThread], ei.Jdet[myThread], ei.Jinv[myThread]
+			Q_Face, F_RT_DOF = ei.Q_Face[myThread], ei.F_RT_DOF[myThread]
+			FluxJac          = ei.FluxJac[myThread]
+		)
+		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q0, Q_Face)
+		c.SetFluxJacobian(Kmax, Jdet, Jinv, Q0, Q_Face, FluxJac)
+		// Compose system matrix, one for each element
+		for n := 0; n < 4; n++ {
+			fmt.Printf(F_RT_DOF[n].Print("F_RT_DOF[" + strconv.Itoa(n) + "]"))
+		}
+		for k := 0; k < Kmax; k++ {
+			SM := ei.BuildSystemMatrix(k, Kmax, 0.001, Jdet, FluxJac)
+			err := SM.LUPDecompose()
+			assert.Nil(t, err)
+			SMinv, err := SM.LUPInvert()
+			assert.Nil(t, err) // System matrix should be invert-able
+			_ = SMinv
+			//ind := k * SM.Nr
+			//fmt.Printf("F_RT_DOF[%d] = %v\n", k, F_RT_DOF[3].DataP[ind:ind+SM.Nr])
+		}
+	}
 }
 
 func PrintQ(Q [4]utils.Matrix, l string) {
