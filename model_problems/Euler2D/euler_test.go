@@ -298,13 +298,18 @@ func TestFluxJacobian(t *testing.T) {
 			Kmax, Jdet, Jinv = ei.Kmax[myThread], ei.Jdet[myThread], ei.Jinv[myThread]
 			Q_Face, F_RT_DOF = ei.Q_Face[myThread], ei.F_RT_DOF[myThread]
 			FluxJac          = ei.FluxJac[myThread]
+			RHSQ             = ei.RHSQ[myThread]
+			Nedge            = c.dfr.FluxElement.Nedge
+			EdgeQ1, EdgeQ2   = make([][4]float64, Nedge), make([][4]float64, Nedge) // Local working memory
 		)
 		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q0, Q_Face)
 		c.SetFluxJacobian(Kmax, Jdet, Jinv, Q0, Q_Face, FluxJac)
+		c.SetNormalFluxOnEdges(ei.Time, false, ei.Jdet, nil, ei.F_RT_DOF, ei.Q_Face, c.SortedEdgeKeys[myThread], EdgeQ1, EdgeQ2) // Global
 		// Compose system matrix, one for each element
-		for n := 0; n < 4; n++ {
-			fmt.Printf(F_RT_DOF[n].Print("F_RT_DOF[" + strconv.Itoa(n) + "]"))
-		}
+		// TODO: Change RHSQ to feature a state vector at each point, or alternately, copy the current form into an element local state vector version
+		// so that the LUPSolve function can be used efficiently
+		c.RHSFluxElementPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
+		//fmt.Printf(RHSQ[0].Print("RHSQ[0]"))
 		for k := 0; k < Kmax; k++ {
 			SM := ei.BuildSystemMatrix(k, Kmax, 0.001, Jdet, FluxJac)
 			err := SM.LUPDecompose()

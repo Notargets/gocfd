@@ -166,7 +166,7 @@ func (c *Euler) NewElementImplicit() (ei *ElementImplicit) {
 		ei.FluxJac[np] = make([][16]float64, ei.NpFlux*ei.Kmax[np])
 		for n := 0; n < 4; n++ {
 			ei.Residual[np][n] = utils.NewMatrix(ei.Np, ei.Kmax[np])
-			ei.RHSQ[np][n] = utils.NewMatrix(ei.Np, ei.Kmax[np])
+			ei.RHSQ[np][n] = utils.NewMatrix(ei.NpFlux, ei.Kmax[np])
 			ei.F_RT_DOF[np][n] = utils.NewMatrix(ei.NpFlux, ei.Kmax[np])
 			ei.Q_Face[np][n] = utils.NewMatrix(ei.Nedge*3, ei.Kmax[np])
 		}
@@ -260,7 +260,7 @@ func (ei *ElementImplicit) StepWorker(c *Euler, myThread int, fromController cha
 		ei.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController // Block until parent sends "go"
-		c.RHS(Kmax, Jdet, F_RT_DOF, RHSQ)
+		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		dT = ei.GlobalDT
 		for n := 0; n < 4; n++ {
 			for i := 0; i < Kmax*Np; i++ {
@@ -437,7 +437,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 				}
 			}
 		}
-		c.RHS(Kmax, Jdet, F_RT_DOF, RHSQ)
+		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		if preCon {
 			c.PreconditionRHS(Q0, RHSQ, DT, true)
 		}
@@ -459,7 +459,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		rk.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController // Block until parent sends "go"
-		c.RHS(Kmax, Jdet, F_RT_DOF, RHSQ)
+		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		if preCon {
 			c.PreconditionRHS(Q1, RHSQ, DT, false)
 		}
@@ -481,7 +481,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		rk.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController // Block until parent sends "go"
-		c.RHS(Kmax, Jdet, F_RT_DOF, RHSQ)
+		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		if preCon {
 			c.PreconditionRHS(Q2, RHSQ, DT, false)
 		}
@@ -503,7 +503,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		rk.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController // Block until parent sends "go"
-		c.RHS(Kmax, Jdet, F_RT_DOF, RHSQ)
+		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		if preCon {
 			c.PreconditionRHS(Q3, RHSQ, DT, false)
 		}
@@ -522,7 +522,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 	}
 }
 
-func (c *Euler) RHS(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4]utils.Matrix) {
+func (c *Euler) RHSInternalPoints(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4]utils.Matrix) {
 	var (
 		JdetD = Jdet.DataP
 		Nint  = c.dfr.FluxElement.Nint
@@ -547,6 +547,39 @@ func (c *Euler) RHS(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4]utils.Matrix)
 		data = RHSQ[n].DataP
 		for k := 0; k < Kmax; k++ {
 			for i := 0; i < Nint; i++ {
+				ind := k + i*Kmax
+				data[ind] /= -JdetD[k]
+			}
+		}
+	}
+}
+
+func (c *Euler) RHSFluxElementPoints(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4]utils.Matrix) {
+	var (
+		JdetD = Jdet.DataP
+		Np    = c.dfr.FluxElement.Np
+		data  []float64
+	)
+	// In this version, RHSQ must have size Kmax x Np, where Np is the total number of points in the Flux element
+	/*
+				Calculate the RHS of the equation:
+				dQ/dt = -div(F,G)
+				Where:
+					Q = [rho, rhoU, rhoV, E]
+					F = [rhoU, rhoU*u+p, rhoV*u, u*(E+p)]
+					G = [rhoV, rhoU*v, rhoV*v+p, v*(E+p)]
+
+		    	The divergence div(F,G) is calculated using a Raviart Thomas finite element with flux (F,G) values on the faces
+				of the element "injected" via calculation of a physical flux on those faces, and the (F,G) values in the interior
+				of the element taken directly from the solution values (Q).
+	*/
+	for n := 0; n < 4; n++ { // For each of the 4 equations in [rho, rhoU, rhoV, E]
+		// Unit triangle divergence matrix times the flux projected onto the RT elements: F_RT_DOF => Div(Flux) in (r,s)
+		c.dfr.FluxElement.Div.Mul(F_RT_DOF[n], RHSQ[n])
+		// Multiply each element's divergence by 1/||J|| to go (r,s)->(x,y), and -1 for the RHS
+		data = RHSQ[n].DataP
+		for k := 0; k < Kmax; k++ {
+			for i := 0; i < Np; i++ {
 				ind := k + i*Kmax
 				data[ind] /= -JdetD[k]
 			}
@@ -631,7 +664,7 @@ func (c *Euler) SetFluxJacobian(Kmax int, Jdet, Jinv utils.Matrix, Q, Q_Face [4]
 }
 func (ei *ElementImplicit) BuildSystemMatrix(k, Kmax int, deltaT float64, Jdet utils.Matrix, FluxJac [][16]float64) (R utils.BlockMatrix) {
 	var (
-		NpFlux = ei.BFJ.Nr
+		NpFlux = ei.NpFlux
 		one    = utils.I
 	)
 	// Compose system matrix
