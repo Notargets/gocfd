@@ -274,35 +274,18 @@ func TestFluxJacobian(t *testing.T) {
 			Kmax, Jdet, Jinv = ei.Kmax[myThread], ei.Jdet[myThread], ei.Jinv[myThread]
 			Q_Face, F_RT_DOF = ei.Q_Face[myThread], ei.F_RT_DOF[myThread]
 			FluxJac          = ei.FluxJac[myThread]
-			NpFlux           = c.dfr.FluxElement.Np
-			Div              = c.dfr.FluxElement.Div
 		)
 		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q0, Q_Face)
 		c.SetFluxJacobian(Kmax, Jdet, Jinv, Q0, Q_Face, FluxJac)
-		// Compose system matrix
-		bFJ := utils.NewBlockMatrix(NpFlux, NpFlux)
-		bDiv := utils.NewBlockMatrix(NpFlux, NpFlux)
-		deltaT := 0.01 / 2.
-		k := 0
-		for j := 0; j < NpFlux; j++ {
-			for i := 0; i < NpFlux; i++ {
-				indFJ := k + i*Kmax // Flux Jacobian, one per flux point per element
-				if i == j {
-					bFJ.M[i][i] = utils.NewMatrix(4, 4, FluxJac[indFJ][:]).Scale(deltaT)
-				}
-				bDiv.M[i][j] = utils.NewMatrix(1, 1, []float64{Div.At(i, j) / Jdet.DataP[k]})
-			}
+		// Compose system matrix, one for each element
+		for k := 0; k < Kmax; k++ {
+			SM := ei.BuildSystemMatrix(k, Kmax, 0.001, Jdet, FluxJac)
+			err := SM.LUPDecompose()
+			assert.Nil(t, err)
+			SMinv, err := SM.LUPInvert()
+			assert.Nil(t, err) // System matrix should be invert-able
+			_ = SMinv
 		}
-		SM := bDiv.Mul(bFJ)
-		one := utils.NewMatrix(1, 1, []float64{1.})
-		for i := 0; i < NpFlux; i++ {
-			SM.M[i][i].Add(one)
-		}
-		err := SM.LUPDecompose()
-		assert.Nil(t, err)
-		SMinv, err := SM.LUPInvert()
-		assert.Nil(t, err) // System matrix should be invert-able
-		_ = SMinv
 	}
 }
 

@@ -19,6 +19,15 @@ type Matrix struct {
 	DataP    []float64
 }
 
+var (
+	I, Zero Matrix
+)
+
+func init() {
+	I = NewMatrix(1, 1, []float64{1.})
+	Zero = NewMatrix(1, 1, []float64{0.})
+}
+
 func NewMatrix(nr, nc int, dataO ...[]float64) (R Matrix) {
 	var (
 		m        *mat.Dense

@@ -29,6 +29,27 @@ func NewBlockMatrix(Nr, Nc int) (R BlockMatrix) {
 	return R
 }
 
+func NewBlockMatrixFromScalar(A Matrix) (R BlockMatrix) {
+	var (
+		Nr, Nc = A.Dims()
+	)
+	R = BlockMatrix{
+		Nr:  Nr,
+		Nc:  Nc,
+		tol: 0.00000001, // Default value
+	}
+	R.M = make([][]Matrix, Nr)
+	for n := range R.M {
+		R.M[n] = make([]Matrix, Nc)
+	}
+	for j := 0; j < Nr; j++ {
+		for i := 0; i < Nc; i++ {
+			R.M[i][j] = NewMatrix(1, 1, []float64{A.At(i, j)})
+		}
+	}
+	return R
+}
+
 func (bm BlockMatrix) Print() (out string) {
 	var (
 		output string
@@ -102,7 +123,7 @@ func (bm *BlockMatrix) LUPDecompose() (err error) {
 			}
 		}
 		if maxA < bm.tol {
-			err = fmt.Errorf("matrix is degenerate with tolerance %8.5f", bm.tol)
+			err = fmt.Errorf("matrix is degenerate with tolerance %8.5e", bm.tol)
 			return
 		}
 		if imax != i {
@@ -235,6 +256,10 @@ func (bm BlockMatrix) LUPDeterminant() (det float64, err error) {
 	return
 }
 
+func (bm BlockMatrix) GetTol() (tol float64) {
+	return bm.tol
+}
+
 func (bm BlockMatrix) Mul(ba BlockMatrix) (R BlockMatrix) {
 	var (
 		Left, Right        = bm.M, ba.M
@@ -247,6 +272,7 @@ func (bm BlockMatrix) Mul(ba BlockMatrix) (R BlockMatrix) {
 		panic(fmt.Errorf("number of rows in right Matrix should be %d, is %d", NcLeft, NrRight))
 	}
 	R = NewBlockMatrix(NrTarget, NcTarget)
+	R.tol = bm.tol
 	for j := 0; j < NcRight; j++ {
 		for i := 0; i < NrLeft; i++ {
 			// Iterate across columns of left and rows of right (NcLeft == NrRight) for sum at column j:0-NrLeft
@@ -312,4 +338,17 @@ func (bm BlockMatrix) Transpose() (R BlockMatrix) {
 		}
 	}
 	return
+}
+
+func (bm BlockMatrix) Scale(val float64) (R BlockMatrix) {
+	var (
+		Nr, Nc = bm.Nr, bm.Nc
+		A      = bm.M
+	)
+	for j := 0; j < Nc; j++ {
+		for i := 0; i < Nr; i++ {
+			A[i][j].Scale(val)
+		}
+	}
+	return bm
 }

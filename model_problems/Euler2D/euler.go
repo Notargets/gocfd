@@ -126,6 +126,8 @@ type ElementImplicit struct {
 	RHSQ, Residual    [][4]utils.Matrix // Sharded Solution Residual storage
 	F_RT_DOF          [][4]utils.Matrix // Sharded Scalar (projected) flux used for divergence, on all RT element points
 	FluxJac           [][][16]float64   // Sharded Flux Jacobian (projected), one 4x4 matrix (2D) per int point of RT element
+	BFJ, SM           utils.BlockMatrix // Re-usable block matrices for system matrix build
+	BDiv              utils.BlockMatrix // Element Divergence Matrix in BlockMatrix form
 	Kmax              []int             // Sharded Local element count (dimension: Kmax[ParallelDegree])
 	GlobalDT, Time    float64
 	Np, Nedge, NpFlux int // Number of points in solution, edge and flux total
@@ -152,6 +154,9 @@ func (c *Euler) NewElementImplicit() (ei *ElementImplicit) {
 		NpFlux:      c.dfr.FluxElement.Np,
 		fromWorkers: make(chan int8, NPar),
 		toWorker:    make([]chan struct{}, NPar),
+		// Create Block Matrices for use in building the system matrix
+		BDiv: utils.NewBlockMatrixFromScalar(c.dfr.FluxElement.Div),
+		BFJ:  utils.NewBlockMatrix(c.dfr.FluxElement.Np, c.dfr.FluxElement.Np),
 	}
 	// Initialize memory
 	for np := 0; np < NPar; np++ {
@@ -165,6 +170,9 @@ func (c *Euler) NewElementImplicit() (ei *ElementImplicit) {
 			ei.F_RT_DOF[np][n] = utils.NewMatrix(ei.NpFlux, ei.Kmax[np])
 			ei.Q_Face[np][n] = utils.NewMatrix(ei.Nedge*3, ei.Kmax[np])
 		}
+	}
+	for i := 0; i < c.dfr.FluxElement.Np; i++ {
+		ei.BFJ.M[i][i] = utils.NewMatrix(4, 4) // diagonal entries for flux matrix
 	}
 	return
 }
@@ -620,6 +628,22 @@ func (c *Euler) SetFluxJacobian(Kmax int, Jdet, Jinv utils.Matrix, Q, Q_Face [4]
 			}
 		}
 	}
+}
+func (ei *ElementImplicit) BuildSystemMatrix(k, Kmax int, deltaT float64, Jdet utils.Matrix, FluxJac [][16]float64) (R utils.BlockMatrix) {
+	var (
+		NpFlux = ei.BFJ.Nr
+		one    = utils.I
+	)
+	// Compose system matrix
+	for i := 0; i < NpFlux; i++ {
+		indFJ := k + i*Kmax // Flux Jacobian, one per flux point per element
+		copy(ei.BFJ.M[i][i].DataP, FluxJac[indFJ][:])
+	}
+	R = ei.BDiv.Mul(ei.BFJ).Scale(0.5 * deltaT / Jdet.DataP[k])
+	for i := 0; i < NpFlux; i++ {
+		R.M[i][i].Add(one)
+	}
+	return
 }
 
 func (c *Euler) PrepareEdgeFlux(Kmax int, Jdet, Jinv utils.Matrix, F_RT_DOF, Q, Q_Face [4]utils.Matrix) {
