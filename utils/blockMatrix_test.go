@@ -137,7 +137,10 @@ func TestBlockMatrix(t *testing.T) {
 
 		b := make([]Matrix, Bm.Nr)
 		for i := 0; i < Bm.Nr; i++ {
-			b[i] = one.Copy().Scale(float64(i + 1))
+			//b[i] = one.Copy().Scale(float64(i + 1))
+			val := float64(i + 1.)
+			b[i] = NewMatrix(4, 1, []float64{val, val, val, val})
+			//fmt.Printf(b[i].Print("b[" + strconv.Itoa(i) + "]"))
 		}
 		// Call LUPSolve without first calling LUPDecompose, expect an error
 		x, err := Bm.LUPSolve(b)
@@ -156,14 +159,16 @@ func TestBlockMatrix(t *testing.T) {
 		mul := 1.
 		for i := 0; i < Bm.Nr; i++ {
 			//msg := "x[" + strconv.Itoa(i) + "]"
-			//fmt.Printf(x[i].Print(msg))
+			//fmt.Printf(x.M[i][0].Print(msg))
 			if i == 3 {
 				mul = -1.
 			}
 			// Known answer x = [0.5[I],0.5[I],0.5[I],-0.5[I]]
-			assert.InDeltaSlicef(t,
-				one.Copy().Scale(mul*0.5).DataP,
-				x.M[i][0].DataP, 0.0000001, "err msg %s")
+			val := mul * 0.5
+			assert.InDeltaSlicef(t, []float64{val, val, val, val}, x.M[i][0].DataP, 0.0000001, "err msg %s")
+			//assert.InDeltaSlicef(t,
+			//one.Copy().Scale(mul*0.5).DataP,
+			//x.M[i][0].DataP, 0.0000001, "err msg %s")
 		}
 		assert.Equal(t, []int{1, 2, 3, 0}, Bm.P) // Known permutation matrix, one swap per each row
 

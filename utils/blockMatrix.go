@@ -204,6 +204,9 @@ func (bm BlockMatrix) LUPSolve(b []Matrix) (Bx BlockMatrix, err error) {
 		}
 		X[i][0] = X[i][0].Transpose().Mul(Scratch)
 	}
+	for i := 0; i < N; i++ {
+		X[i][0] = X[i][0].Transpose()
+	}
 	return
 }
 

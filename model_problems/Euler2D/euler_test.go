@@ -306,31 +306,27 @@ func TestFluxJacobian(t *testing.T) {
 		c.SetFluxJacobian(Kmax, Jdet, Jinv, Q0, Q_Face, FluxJac)
 		c.SetNormalFluxOnEdges(ei.Time, false, ei.Jdet, nil, ei.F_RT_DOF, ei.Q_Face, c.SortedEdgeKeys[myThread], EdgeQ1, EdgeQ2) // Global
 		// Compose system matrix, one for each element
-		// TODO: Change RHSQ to feature a state vector at each point, or alternately, copy the current form into an element local state vector version
-		// so that the LUPSolve function can be used efficiently
 		c.RHSFluxElementPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
-		//fmt.Printf(RHSQ[0].Print("RHSQ[0]"))
 		RHS := make([]utils.Matrix, NpFlux)
 		for i := 0; i < NpFlux; i++ {
-			//RHS[i] = utils.NewMatrix(4, 4)
 			RHS[i] = utils.NewMatrix(4, 1)
 		}
 		for k := 0; k < Kmax; k++ {
 			for i := 0; i < NpFlux; i++ {
 				ind := k + i*Kmax
 				for n := 0; n < 4; n++ {
-					//RHS[i].Set(n, n, RHSQ[n].DataP[ind])
 					RHS[i].DataP[n] = RHSQ[n].DataP[ind]
 				}
-				//fmt.Printf(RHS[i].Print("RHS"))
 			}
 			SM := ei.BuildSystemMatrix(k, Kmax, 0.001, Jdet, FluxJac)
 			err := SM.LUPDecompose()
 			assert.Nil(t, err)
 			Sol, err := SM.LUPSolve(RHS)
 			assert.Nil(t, err)
-			_ = Sol
-			fmt.Printf(Sol.Print())
+			//fmt.Printf(Sol.Print())
+			for i := 0; i < NpFlux; i++ {
+				assert.InDeltaSlicef(t, []float64{0., 0., 0., 0.}, Sol.M[i][0].DataP, tol, msg)
+			}
 		}
 	}
 }
