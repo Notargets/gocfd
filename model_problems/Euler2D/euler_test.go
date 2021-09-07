@@ -306,10 +306,11 @@ func TestFluxJacobian(t *testing.T) {
 			RHS              = ei.RHSElement[myThread]
 		)
 		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q0, Q_Face)
-		c.SetFluxJacobian(Kmax, Jdet, Jinv, Q0, Q_Face, FluxJac)
 		c.SetNormalFluxOnEdges(ei.Time, false, ei.Jdet, nil, ei.F_RT_DOF, ei.Q_Face, c.SortedEdgeKeys[myThread], EdgeQ1, EdgeQ2) // Global
-		// Compose system matrix, one for each element
+		// Create the RHS for all flux points in every element
 		c.RHSFluxElementPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
+		c.SetFluxJacobian(Kmax, Jdet, Jinv, Q0, Q_Face, FluxJac)
+		// For each element k, build a system matrix and solve for the element update
 		deltaT := 0.001
 		for k := 0; k < Kmax; k++ {
 			for i := 0; i < NpFlux; i++ {
