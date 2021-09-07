@@ -311,14 +311,15 @@ func TestFluxJacobian(t *testing.T) {
 		for i := 0; i < NpFlux; i++ {
 			RHS[i] = utils.NewMatrix(4, 1)
 		}
+		deltaT := 0.001
 		for k := 0; k < Kmax; k++ {
 			for i := 0; i < NpFlux; i++ {
 				ind := k + i*Kmax
 				for n := 0; n < 4; n++ {
-					RHS[i].DataP[n] = RHSQ[n].DataP[ind]
+					RHS[i].DataP[n] = RHSQ[n].DataP[ind] * deltaT
 				}
 			}
-			SM := ei.BuildSystemMatrix(k, Kmax, 0.001, Jdet, FluxJac)
+			SM := ei.BuildSystemMatrix(k, Kmax, deltaT, Jdet, FluxJac)
 			err := SM.LUPDecompose()
 			assert.Nil(t, err)
 			Sol, err := SM.LUPSolve(RHS)
