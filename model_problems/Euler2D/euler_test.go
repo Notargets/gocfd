@@ -274,12 +274,13 @@ func TestFluxJacobian(t *testing.T) {
 			Kmax, Jdet, Jinv = ei.Kmax[myThread], ei.Jdet[myThread], ei.Jinv[myThread]
 			Q_Face, F_RT_DOF = ei.Q_Face[myThread], ei.F_RT_DOF[myThread]
 			FluxJac          = ei.FluxJac[myThread]
+			BFJ              = ei.BFJ[myThread]
 		)
 		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q0, Q_Face)
 		c.SetFluxJacobian(Kmax, Jdet, Jinv, Q0, Q_Face, FluxJac)
 		// Compose system matrix, one for each element
 		for k := 0; k < Kmax; k++ {
-			SM := ei.BuildSystemMatrix(k, Kmax, 0.001, Jdet, FluxJac)
+			SM := ei.BuildSystemMatrix(k, Kmax, 0.001, Jdet, BFJ, FluxJac)
 			err := SM.LUPDecompose()
 			assert.Nil(t, err)
 			SMinv, err := SM.LUPInvert()
@@ -301,16 +302,14 @@ func TestFluxJacobian(t *testing.T) {
 			RHSQ             = ei.RHSQ[myThread]
 			Nedge, NpFlux    = ei.Nedge, ei.NpFlux
 			EdgeQ1, EdgeQ2   = make([][4]float64, Nedge), make([][4]float64, Nedge) // Local working memory
+			BFJ              = ei.BFJ[myThread]
+			RHS              = ei.RHSElement[myThread]
 		)
 		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q0, Q_Face)
 		c.SetFluxJacobian(Kmax, Jdet, Jinv, Q0, Q_Face, FluxJac)
 		c.SetNormalFluxOnEdges(ei.Time, false, ei.Jdet, nil, ei.F_RT_DOF, ei.Q_Face, c.SortedEdgeKeys[myThread], EdgeQ1, EdgeQ2) // Global
 		// Compose system matrix, one for each element
 		c.RHSFluxElementPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
-		RHS := make([]utils.Matrix, NpFlux)
-		for i := 0; i < NpFlux; i++ {
-			RHS[i] = utils.NewMatrix(4, 1)
-		}
 		deltaT := 0.001
 		for k := 0; k < Kmax; k++ {
 			for i := 0; i < NpFlux; i++ {
@@ -319,7 +318,7 @@ func TestFluxJacobian(t *testing.T) {
 					RHS[i].DataP[n] = RHSQ[n].DataP[ind] * deltaT
 				}
 			}
-			SM := ei.BuildSystemMatrix(k, Kmax, deltaT, Jdet, FluxJac)
+			SM := ei.BuildSystemMatrix(k, Kmax, deltaT, Jdet, BFJ, FluxJac)
 			err := SM.LUPDecompose()
 			assert.Nil(t, err)
 			Sol, err := SM.LUPSolve(RHS)
