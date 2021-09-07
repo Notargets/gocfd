@@ -184,9 +184,20 @@ func (bm BlockMatrix) LUPSolve(b []Matrix) (Bx BlockMatrix, err error) {
 			X[i][0] = X[i][0].Subtract(A[i][k].Mul(X[k][0]))
 		}
 	}
+	cDims := func(i, k int, a, x Matrix) {
+		var (
+			NrA, NcA = a.Dims()
+			NrX, NcX = x.Dims()
+		)
+		fmt.Printf("[i,k] = [%d,%d], [NrA,NcA] = [%d,%d], [NrX,NcX] = [%d,%d]\n",
+			i, k, NrA, NcA, NrX, NcX)
+	}
+	_ = cDims
 	for i := N - 1; i >= 0; i-- {
 		for k := i + 1; k < N; k++ {
-			X[i][0] = X[i][0].Subtract(A[i][k].Mul(X[k][0]))
+			//cDims(i, k, A[i][k], X[k][0])
+			//X[i][0] = X[i][0].Subtract(A[i][k].Mul(X[k][0]))
+			X[i][0] = X[i][0].Subtract(A[i][k].Mul(X[k][0].Transpose()))
 		}
 		if Scratch, err = A[i][i].Inverse(); err != nil {
 			panic(err)

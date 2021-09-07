@@ -299,7 +299,7 @@ func TestFluxJacobian(t *testing.T) {
 			Q_Face, F_RT_DOF = ei.Q_Face[myThread], ei.F_RT_DOF[myThread]
 			FluxJac          = ei.FluxJac[myThread]
 			RHSQ             = ei.RHSQ[myThread]
-			Nedge            = c.dfr.FluxElement.Nedge
+			Nedge, NpFlux    = ei.Nedge, ei.NpFlux
 			EdgeQ1, EdgeQ2   = make([][4]float64, Nedge), make([][4]float64, Nedge) // Local working memory
 		)
 		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q0, Q_Face)
@@ -310,15 +310,27 @@ func TestFluxJacobian(t *testing.T) {
 		// so that the LUPSolve function can be used efficiently
 		c.RHSFluxElementPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		//fmt.Printf(RHSQ[0].Print("RHSQ[0]"))
+		RHS := make([]utils.Matrix, NpFlux)
+		for i := 0; i < NpFlux; i++ {
+			//RHS[i] = utils.NewMatrix(4, 4)
+			RHS[i] = utils.NewMatrix(4, 1)
+		}
 		for k := 0; k < Kmax; k++ {
+			for i := 0; i < NpFlux; i++ {
+				ind := k + i*Kmax
+				for n := 0; n < 4; n++ {
+					//RHS[i].Set(n, n, RHSQ[n].DataP[ind])
+					RHS[i].DataP[n] = RHSQ[n].DataP[ind]
+				}
+				//fmt.Printf(RHS[i].Print("RHS"))
+			}
 			SM := ei.BuildSystemMatrix(k, Kmax, 0.001, Jdet, FluxJac)
 			err := SM.LUPDecompose()
 			assert.Nil(t, err)
-			SMinv, err := SM.LUPInvert()
-			assert.Nil(t, err) // System matrix should be invert-able
-			_ = SMinv
-			//ind := k * SM.Nr
-			//fmt.Printf("F_RT_DOF[%d] = %v\n", k, F_RT_DOF[3].DataP[ind:ind+SM.Nr])
+			Sol, err := SM.LUPSolve(RHS)
+			assert.Nil(t, err)
+			_ = Sol
+			fmt.Printf(Sol.Print())
 		}
 	}
 }
