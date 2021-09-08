@@ -280,7 +280,7 @@ func TestFluxJacobian(t *testing.T) {
 		c.SetFluxJacobian(Kmax, Jdet, Jinv, Q0, Q_Face, FluxJac)
 		// Compose system matrix, one for each element
 		for k := 0; k < Kmax; k++ {
-			SM := ei.BuildSystemMatrix(k, Kmax, 0.001, Jdet, BFJ, FluxJac)
+			SM := ei.BuildSystemMatrix(k, Kmax, false, 0.001, utils.Matrix{}, Jdet, BFJ, FluxJac)
 			err := SM.LUPDecompose()
 			assert.Nil(t, err)
 			SMinv, err := SM.LUPInvert()
@@ -319,7 +319,7 @@ func TestFluxJacobian(t *testing.T) {
 					RHS[i].DataP[n] = RHSQ[n].DataP[ind] * deltaT
 				}
 			}
-			SM := ei.BuildSystemMatrix(k, Kmax, deltaT, Jdet, BFJ, FluxJac)
+			SM := ei.BuildSystemMatrix(k, Kmax, false, 0.001, utils.Matrix{}, Jdet, BFJ, FluxJac)
 			err := SM.LUPDecompose()
 			assert.Nil(t, err)
 			Sol, err := SM.LUPSolve(RHS)

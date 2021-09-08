@@ -58,6 +58,7 @@ type InputParameters struct {
 	BCs               map[string]map[int]map[string]float64 `yaml:"BCs"` // First key is BC name/type, second is parameter name
 	LocalTimeStepping bool                                  `yaml:"LocalTimeStep"`
 	MaxIterations     int                                   `yaml:"MaxIterations"`
+	ImplicitSolver    bool                                  `yaml:"ImplicitSolver"`
 }
 
 func (ip *InputParameters) Parse(data []byte) error {
@@ -201,5 +202,9 @@ func Run2D(m2d *Model2D, ip *InputParameters) {
 		TranslateX:      m2d.TranslateX,
 		TranslateY:      m2d.TranslateY,
 	}
-	c.Solve(pm)
+	if ip.ImplicitSolver {
+		c.SolveImplicit(pm)
+	} else {
+		c.Solve(pm)
+	}
 }

@@ -3,7 +3,6 @@ package Euler2D
 import (
 	"math"
 	"sort"
-	"sync"
 
 	"github.com/notargets/gocfd/DG2D"
 	"github.com/notargets/gocfd/types"
@@ -18,26 +17,6 @@ func (p EdgeKeySlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 // Sort is a convenience method.
 func (p EdgeKeySlice) Sort() { sort.Sort(p) }
-
-func (c *Euler) ParallelEdgeUpdate(Time float64, Jdet, DT []utils.Matrix, F_RT_DOF, Q_Face [][4]utils.Matrix, CalculateDT bool) (maxWaveSpeed []float64) {
-	var (
-		wg   = sync.WaitGroup{}
-		pm   = c.Partitions
-		NPar = pm.ParallelDegree
-	)
-	maxWaveSpeed = make([]float64, NPar)
-	// Execute
-	// Must happen after global sync
-	for np := 0; np < NPar; np++ {
-		wg.Add(1)
-		go func(np int) {
-			maxWaveSpeed[np] = c.SetNormalFluxOnEdges(Time, CalculateDT, Jdet, DT, F_RT_DOF, Q_Face, c.SortedEdgeKeys[np], nil, nil) // Global
-			wg.Done()
-		}(np)
-	}
-	wg.Wait()
-	return
-}
 
 func (c *Euler) SetNormalFluxOnEdges(Time float64, CalculateDT bool, Jdet, DT []utils.Matrix, F_RT_DOF, Q_Face [][4]utils.Matrix, edgeKeys EdgeKeySlice, EdgeQ1, EdgeQ2 [][4]float64) (waveSpeedMax float64) {
 	var (
