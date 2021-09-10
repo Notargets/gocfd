@@ -159,8 +159,12 @@ func TestEuler(t *testing.T) {
 				for n := 0; n < 4; n++ {
 					var div utils.Matrix
 					div = c.dfr.FluxElement.DivInt.Mul(F_RT_DOF[n])
-					//c.DivideByJacobian(Kmax, c.dfr.FluxElement.Nint, div.DataP, 1)
-					c.DivideByJacobian(Kmax, Nint, c.dfr.Jdet, div.DataP, 1)
+					for k := 0; k < Kmax; k++ {
+						for i := 0; i < Nint; i++ {
+							ind := k + i*Kmax
+							div.DataP[ind] /= c.dfr.Jdet.DataP[k]
+						}
+					}
 					assert.True(t, nearVecScalar(div.DataP, 0., 0.000001))
 				}
 			}
@@ -221,7 +225,13 @@ func TestEuler(t *testing.T) {
 			n := 0
 			fmt.Printf("component[%d]\n", n)
 			div = c.dfr.FluxElement.DivInt.Mul(F_RT_DOF[n])
-			c.DivideByJacobian(Kmax, Nint, c.dfr.Jdet, div.DataP, 1)
+			//c.DivideByJacobian(Kmax, Nint, c.dfr.Jdet, div.DataP, 1)
+			for k := 0; k < Kmax; k++ {
+				for i := 0; i < Nint; i++ {
+					ind := k + i*Kmax
+					div.DataP[ind] /= -c.dfr.Jdet.DataP[k]
+				}
+			}
 			// Get the analytic values of divergence for comparison
 			for k := 0; k < Kmax; k++ {
 				for i := 0; i < Nint; i++ {
@@ -274,19 +284,10 @@ func TestFluxJacobian(t *testing.T) {
 			Kmax, Jdet, Jinv = ei.Kmax[myThread], ei.Jdet[myThread], ei.Jinv[myThread]
 			Q_Face, F_RT_DOF = ei.Q_Face[myThread], ei.F_RT_DOF[myThread]
 			FluxJac          = ei.FluxJac[myThread]
-			BFJ              = ei.BFJ[myThread]
 		)
 		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q0, Q_Face)
 		c.SetFluxJacobian(Kmax, Jdet, Jinv, Q0, Q_Face, FluxJac)
 		// Compose system matrix, one for each element
-		for k := 0; k < Kmax; k++ {
-			SM := ei.BuildSystemMatrix(k, Kmax, false, 0.001, utils.Matrix{}, Jdet, BFJ, FluxJac)
-			err := SM.LUPDecompose()
-			assert.Nil(t, err)
-			SMinv, err := SM.LUPInvert()
-			assert.Nil(t, err) // System matrix should be invert-able
-			_ = SMinv
-		}
 	}
 	// Test implicit solver
 	{
@@ -299,36 +300,18 @@ func TestFluxJacobian(t *testing.T) {
 			Kmax, Jdet, Jinv = ei.Kmax[myThread], ei.Jdet[myThread], ei.Jinv[myThread]
 			Q_Face, F_RT_DOF = ei.Q_Face[myThread], ei.F_RT_DOF[myThread]
 			FluxJac          = ei.FluxJac[myThread]
-			RHSQ             = ei.RHSQ[myThread]
-			Nedge, NpFlux    = ei.Nedge, ei.NpFlux
+			RHSQ, Residual   = ei.RHSQ[myThread], ei.Residual[myThread]
+			Nedge            = ei.Nedge
+			DT               = ei.DT[myThread]
+			SM               = ei.SM[myThread]
 			EdgeQ1, EdgeQ2   = make([][4]float64, Nedge), make([][4]float64, Nedge) // Local working memory
-			BFJ              = ei.BFJ[myThread]
-			RHS              = ei.RHSElement[myThread]
 		)
 		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q0, Q_Face)
-		c.SetNormalFluxOnEdges(ei.Time, false, ei.Jdet, nil, ei.F_RT_DOF, ei.Q_Face, c.SortedEdgeKeys[myThread], EdgeQ1, EdgeQ2) // Global
+		c.SetNormalFluxOnEdges(ei.Time, true, ei.Jdet, ei.DT, ei.F_RT_DOF, ei.Q_Face, c.SortedEdgeKeys[myThread], EdgeQ1, EdgeQ2) // Global
 		// Create the RHS for all flux points in every element
-		c.RHSFluxElementPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
+		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		c.SetFluxJacobian(Kmax, Jdet, Jinv, Q0, Q_Face, FluxJac)
-		// For each element k, build a system matrix and solve for the element update
-		deltaT := 0.001
-		for k := 0; k < Kmax; k++ {
-			for i := 0; i < NpFlux; i++ {
-				ind := k + i*Kmax
-				for n := 0; n < 4; n++ {
-					RHS[i].DataP[n] = RHSQ[n].DataP[ind] * deltaT
-				}
-			}
-			SM := ei.BuildSystemMatrix(k, Kmax, false, 0.001, utils.Matrix{}, Jdet, BFJ, FluxJac)
-			err := SM.LUPDecompose()
-			assert.Nil(t, err)
-			Sol, err := SM.LUPSolve(RHS)
-			assert.Nil(t, err)
-			//fmt.Printf(Sol.Print())
-			for i := 0; i < NpFlux; i++ {
-				assert.InDeltaSlicef(t, []float64{0., 0., 0., 0.}, Sol.M[i][0].DataP, tol, msg)
-			}
-		}
+		ei.SolveForResidual(Kmax, c.LocalTimeStepping, DT, Jdet, c.dfr.FluxElement.DivInt, SM, RHSQ, Residual, FluxJac)
 	}
 }
 
