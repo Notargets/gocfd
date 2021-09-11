@@ -422,7 +422,7 @@ func (ei *ElementImplicit) SolveForResidual(Kmax int, LocalTimeStepping bool, DT
 				ind := k + ii*Kmax
 				for iii, fj := range FluxJac[ind] {
 					//fmt.Printf("i, ii, iii = %d,%d,%d\n", i, ii, iii)
-					SM[i].DataP[iii] = SM[i].DataP[iii] + fj*DivInt.At(i, ii)
+					SM[i].DataP[iii] += fj * DivInt.At(i, ii)
 				}
 			}
 			ind := k + i*Kmax
@@ -451,7 +451,7 @@ func (ei *ElementImplicit) SolveForResidual(Kmax int, LocalTimeStepping bool, DT
 				deltaT = dT
 			}
 			for n := 0; n < 4; n++ {
-				B.DataP[n] = RHS[n].DataP[ind] * deltaT
+				B.DataP[n] = RHS[n].DataP[ind] * deltaT * 0.5
 			}
 			//lusolve(SM[i], B, X)
 			lusolve2(SM[i], B, X)
