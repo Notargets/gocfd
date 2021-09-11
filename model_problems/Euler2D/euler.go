@@ -312,10 +312,13 @@ func (ei *ElementImplicit) StepWorker(c *Euler, myThread int, fromController cha
 		SM                         = ei.SM[myThread]
 		SortedEdgeKeys             = c.SortedEdgeKeys[myThread]
 		subStep                    int8
-		EdgeQ1, EdgeQ2             = make([][4]float64, Nedge), make([][4]float64, Nedge) // Local working memory
+		// Working storage, local to this thread
+		EdgeQ1, EdgeQ2    = make([][4]float64, Nedge), make([][4]float64, Nedge) // Local working memory
+		B, X              = utils.NewMatrix(4, 1), utils.NewMatrix(4, 1)
+		SCRATCH, SCRATCH2 = utils.NewMatrix(4, 4), utils.NewMatrix(4, 4)
+		iPiv              = make([]int, 4)
+		LU                = &mat.LU{}
 	)
-	// Create the RHS for all flux points in every element
-
 	for {
 		_ = <-fromController // Block until parent sends "go"
 		if c.LocalTimeStepping {
@@ -358,7 +361,10 @@ func (ei *ElementImplicit) StepWorker(c *Euler, myThread int, fromController cha
 		}
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		// For each element k, build a system matrix and solve for the element update
-		ei.SolveForResidual(Kmax, c.LocalTimeStepping, DT, Jdet, c.dfr.FluxElement.DivInt, SM, RHSQ, Residual, FluxJac)
+
+		ei.SolveForResidual(Kmax, c.LocalTimeStepping, DT, Jdet, c.dfr.FluxElement.DivInt, SM, RHSQ, Residual, FluxJac,
+			B, X, LU, SCRATCH, SCRATCH2, iPiv)
+
 		for k := 0; k < Kmax; k++ {
 			// Apply solution delta for the element
 			for i := 0; i < Np; i++ {
@@ -374,27 +380,37 @@ func (ei *ElementImplicit) StepWorker(c *Euler, myThread int, fromController cha
 }
 
 func (ei *ElementImplicit) SolveForResidual(Kmax int, LocalTimeStepping bool, DT, Jdet, DivInt utils.Matrix,
-	SM []utils.Matrix, RHS, Residual [4]utils.Matrix, FluxJac [][16]float64) {
+	SM []utils.Matrix, RHS, Residual [4]utils.Matrix, FluxJac [][16]float64, B, X utils.Matrix, LU *mat.LU,
+	SCRATCH, SCRATCH2 utils.Matrix, iPiv []int) {
 	var (
 		Np, NpFlux     = ei.Np, ei.NpFlux
 		deltaT, oojdet float64
-		B, X           = utils.NewMatrix(4, 1), utils.NewMatrix(4, 1)
-		LU             *mat.LU
 		dT             = ei.GlobalDT
+		mInv, WORK     = SCRATCH, SCRATCH2
 	)
-	lusolve := func(m, b, x utils.Matrix) {
+	lusolve := func(m utils.Matrix, b, x utils.Vector) {
 		var (
 			err error
 		)
-		if LU == nil {
-			LU = &mat.LU{}
-		} else {
-			LU.Reset()
-		}
 		LU.Factorize(m)
-		if err = LU.SolveTo(x.M, false, b.M); err != nil {
+		//if err = LU.SolveTo(x.M, false, b.M); err != nil {
+		//if err = LU.SolveVecTo(x.V, false, b.V); err != nil {
+		if err = LU.SolveVecTo(x.V, false, b); err != nil {
 			panic(err)
 		}
+	}
+	_ = lusolve
+	lusolve2 := func(m utils.Matrix, b, x utils.Matrix) {
+		// Improve memory allocation using context: scratch and working mem
+		var (
+			err error
+		)
+		if mInv, err = m.Inverse2(iPiv, mInv, WORK); err != nil {
+			panic(err)
+		}
+		mInv.Mul(b, x)
+		//if err = LU.SolveTo(x.M, false, b.M); err != nil {
+		//if err = LU.SolveVecTo(x.V, false, b.V); err != nil {
 	}
 	for k := 0; k < Kmax; k++ { // For each element
 		// Compose system matrix
@@ -437,7 +453,8 @@ func (ei *ElementImplicit) SolveForResidual(Kmax int, LocalTimeStepping bool, DT
 			for n := 0; n < 4; n++ {
 				B.DataP[n] = RHS[n].DataP[ind] * deltaT
 			}
-			lusolve(SM[i], B, X)
+			//lusolve(SM[i], B, X)
+			lusolve2(SM[i], B, X)
 			for n := 0; n < 4; n++ {
 				Residual[n].DataP[ind] = X.DataP[n]
 			}

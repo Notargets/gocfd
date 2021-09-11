@@ -825,12 +825,57 @@ func (m Matrix) IndexedAssign(I Index, ValI interface{}) (err error) { // Change
 	return IndexedAssign(m, I, ValI)
 }
 
-func (m Matrix) Inverse() (R Matrix, err error) {
+func (m Matrix) Inverse2(iPiv []int, RO ...Matrix) (R Matrix, err error) {
 	var (
 		nr, nc      = m.Dims()
 		errSingular = fmt.Errorf("unable to invert, matrix is singular")
+		WORK        Matrix
 	)
-	R = m.Copy()
+	R = RO[0]
+	WORK = RO[1]
+	nrR, ncR := R.Dims()
+	if nrR != nr || ncR != nc {
+		err := fmt.Errorf("incorrect dimensions for provided result matrix, should be [%d,%d] is [%d,%d]",
+			nr, nc, nrR, ncR)
+		panic(err)
+	}
+	copy(R.DataP, m.DataP)
+
+	if ok := lapack64.Getrf(R.RawMatrix(), iPiv); !ok {
+		err = errSingular
+		return
+	}
+	//work := make([]float64, nr*nc)
+	work := WORK.DataP
+	if ok := lapack64.Getri(R.RawMatrix(), iPiv, work, nr*nc); !ok {
+		err = errSingular
+	}
+	return
+}
+
+func (m Matrix) Inverse(RO ...Matrix) (R Matrix, err error) {
+	var (
+		nr, nc      = m.Dims()
+		errSingular = fmt.Errorf("unable to invert, matrix is singular")
+		WORK        Matrix
+		iPiv        []int // of size nr
+	)
+	if len(RO) != 0 {
+		// Optional matrix for result is present
+		R = RO[0]
+		WORK = RO[1]
+		nrR, ncR := R.Dims()
+		if nrR != nr || ncR != nc {
+			err := fmt.Errorf("incorrect dimensions for provided result matrix, should be [%d,%d] is [%d,%d]",
+				nr, nc, nrR, ncR)
+			panic(err)
+		}
+		copy(R.DataP, m.DataP)
+	} else {
+		R = m.Copy()
+		WORK = NewMatrix(nr, nc)
+	}
+
 	if m.IsScalar() {
 		if m.DataP[0] == 0. {
 			err = errSingular
@@ -839,12 +884,13 @@ func (m Matrix) Inverse() (R Matrix, err error) {
 		}
 		return
 	}
-	iPiv := make([]int, nr)
+	iPiv = make([]int, nr)
 	if ok := lapack64.Getrf(R.RawMatrix(), iPiv); !ok {
 		err = errSingular
 		return
 	}
-	work := make([]float64, nr*nc)
+	//work := make([]float64, nr*nc)
+	work := WORK.DataP
 	if ok := lapack64.Getri(R.RawMatrix(), iPiv, work, nr*nc); !ok {
 		err = errSingular
 	}
