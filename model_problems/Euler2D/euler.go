@@ -400,7 +400,7 @@ func (ei *ElementImplicit) SolveForResidual(Kmax int, LocalTimeStepping bool, DT
 		}
 	}
 	_ = lusolve
-	lusolve2 := func(m utils.Matrix, b, x utils.Matrix) {
+	inverseSolve := func(m utils.Matrix, b, x utils.Matrix) {
 		// Improve memory allocation using context: scratch and working mem
 		var (
 			err error
@@ -433,6 +433,7 @@ func (ei *ElementImplicit) SolveForResidual(Kmax int, LocalTimeStepping bool, DT
 				deltaT = dT
 			}
 			for iii := range SM[i].DataP {
+				//SM[i].DataP[iii] *= 0.5 * deltaT * oojdet
 				SM[i].DataP[iii] *= 0.5 * deltaT * oojdet
 			}
 			// Add one to complete the system matrix
@@ -455,7 +456,7 @@ func (ei *ElementImplicit) SolveForResidual(Kmax int, LocalTimeStepping bool, DT
 				B.DataP[n] = RHS[n].DataP[ind] * deltaT * 0.5
 			}
 			//lusolve(SM[i], B, X)
-			lusolve2(SM[i], B, X)
+			inverseSolve(SM[i], B, X)
 			for n := 0; n < 4; n++ {
 				Residual[n].DataP[ind] = X.DataP[n]
 			}
