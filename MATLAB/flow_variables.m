@@ -9,7 +9,7 @@ P = rho*R*T;
 e = e0 - u^2/2;
 e = Cv*T;
 % Pressure
-q = (1/2)*rho*u^2
+q = (1/2)*rho*u^2;
 P = (Gamma-1)*(rho*e0-q);
 % Stagnation Enthalpy
 h0 = e0 + P/rho;
@@ -31,3 +31,4 @@ E = rho*e;
 E0 = rho*e0;
 % Note that the symbol "E" is commonly used to refer to Total Energy when
 % seen in conservative variables
+disp("loaded flow variables");
