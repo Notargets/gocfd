@@ -1,13 +1,13 @@
 # gocfd
 Awesome CFD solver written in Go
 
-## [8/28/21] Currently...
+## Currently [9/18/21]
 
-Working on adding routines to invert and solve block matrix systems so that I can implement an implicit time advancement scheme.
+Working on an enhanced flux transfer scheme that promises to protect against odd-even decoupling ("wiggles") while minimizing artificial dissipation that can destroy turbulence fields, etc.
 
-Implicit fluid dynamics schemes all use the flux jacobian of the underlying equations, which yields a system of equations that has "blocks" consisting of the 4x4 (2D) or 5x5 (3D) matrices representing each nodal point. This requires that we have a way to invert the system matrix, or use a solver approach to get the final update in the time advancement scheme.
+The scheme I've located is by Li from an AIAA paper in 2020, et al who called it "Roe-ER", which combines features of the Harten entropy fix and the "rotated Roe" scheme. It looks very efficient and in the papers it seems to do a very good job at the wiggle issue while delivering excellent accuracy.
 
-The work I'm doing now will add a capability to efficiently store the full block system matrix and use it to solve for the time update.
+My remaining concern / question is about whether the use of a flux limiter for transfer of flux at the element faces is sufficient to damp oscillations, or whether I'll have to couple elements more deeply, thus removing a principal advantage of Nodal Galerkin methods - that of "compact support". We'll soon see!  
 
 ## QuickStart
 
@@ -73,6 +73,14 @@ For example, the following line implements:
 ```
 	RHSE = el.Dr.Mul(FluxH).ElMul(el.Rx).ElDiv(c.Epsilon).Scale(-1)
 ```
+
+### Updates [8/28/21]
+
+Working on adding routines to invert and solve block matrix systems so that I can implement an implicit time advancement scheme.
+
+Implicit fluid dynamics schemes all use the flux jacobian of the underlying equations, which yields a system of equations that has "blocks" consisting of the 4x4 (2D) or 5x5 (3D) matrices representing each nodal point. This requires that we have a way to invert the system matrix, or use a solver approach to get the final update in the time advancement scheme.
+
+The work I'm doing now will add a capability to efficiently store the full block system matrix and use it to solve for the time update.
 
 ### Updates (Aug 18, 2021):
 
