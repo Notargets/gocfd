@@ -9,28 +9,6 @@ The scheme I've located is by Li from an AIAA paper in 2020, et al who called it
 
 My remaining concern / question is about whether the use of a flux limiter for transfer of flux at the element faces is sufficient to damp oscillations, or whether I'll have to couple elements more deeply, thus removing a principal advantage of Nodal Galerkin methods - that of "compact support". We'll soon see!  
 
-## QuickStart
-
-### Build using Ubuntu Linux
-Ensure you have the go language installed and in your path, then install prerequisites:
-```
-me@home:bash# sudo apt update
-me@home:bash# sudo apt install libx11-dev libxi-dev libxcursor-dev libxrandr-dev libxinerama-dev mesa-common-dev libgl1-mesa-dev libxxf86vm-dev
-me@home:bash# make
-```
-### Run Test Cases
-```
-#### 1D shock tube test case
-### without graphics:
-me@home:bash# gocfd 1D
-
-### with graphics:
-me@home:bash# export DISPLAY=:0
-me@home:bash# gocfd 1D -g
-
-#### 2D airfoil test case
-me@home:bash# gocfd 2D -F test_cases/Euler2D/naca_12/mesh/nacaAirfoil-base.su2 -I test_cases/Euler2D/naca_12/input-wall.yaml -g -z 0.08
-```
 
 NACA 0012 Airfoil at M=0.3, Alpha=6, Roe flux, Local Time Stepping| M=0.5, Alpha=0, Roe Flux, 1482 O(2) Elements, Converged
 :----------------------------------------------------------------:|----------------------------------------------------------------:|
@@ -61,6 +39,29 @@ It is important to me that the code implementing the solver be as simple as poss
 I studied CFD in graduate school in 1987 and worked for Northrop for 10 years building and using CFD methods to design and debug airplanes and propulsion systems. During my time applying CFD, I had some great success and some notable failures in getting useful results from the CFD analysis. The most common theme in the failures: flows with thermal gradients, shear flows and vortices were handled very poorly by all known usable Finite Volume methods.
 
 Then, last year (2019), I noticed there were some amazing looking results appearing on Youtube and elsewhere showing well resolved turbulent eddies and shear flows using this new "Discontinuous Galerkin Finite Elements" method...
+
+## QuickStart
+
+### Build using Ubuntu Linux
+Ensure you have the go language installed and in your path, then install prerequisites:
+```
+me@home:bash# sudo apt update
+me@home:bash# sudo apt install libx11-dev libxi-dev libxcursor-dev libxrandr-dev libxinerama-dev mesa-common-dev libgl1-mesa-dev libxxf86vm-dev
+me@home:bash# make
+```
+### Run Test Cases
+```
+#### 1D shock tube test case
+### without graphics:
+me@home:bash# gocfd 1D
+
+### with graphics:
+me@home:bash# export DISPLAY=:0
+me@home:bash# gocfd 1D -g
+
+#### 2D airfoil test case
+me@home:bash# gocfd 2D -F test_cases/Euler2D/naca_12/mesh/nacaAirfoil-base.su2 -I test_cases/Euler2D/naca_12/input-wall.yaml -g -z 0.08
+```
 
 ### Guide to code review
 
