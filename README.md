@@ -9,6 +9,8 @@ The scheme I've located is by Li from an AIAA paper in 2020, et al who called it
 
 My remaining concern / question is about whether the use of a flux limiter for transfer of flux at the element faces is sufficient to damp oscillations, or whether I'll have to couple elements more deeply, thus removing a principal advantage of Nodal Galerkin methods - that of "compact support". We'll soon see!  
 
+Update: The data are in - the new flux calculation suffers from the same odd-even instability with shocks as before. I'm thinking that we need to stabilize the interface using a TVD limiter method explicitly. The new flux *is* faster to compute and has good characteristics, so it's a good thing anyway and will be useful for turbulence capturing and hypersonics later!
+
 
 NACA 0012 Airfoil at M=0.3, Alpha=6, Roe flux, Local Time Stepping| M=0.5, Alpha=0, Roe Flux, 1482 O(2) Elements, Converged
 :----------------------------------------------------------------:|----------------------------------------------------------------:|
