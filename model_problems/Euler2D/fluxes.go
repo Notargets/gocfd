@@ -283,3 +283,96 @@ func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		}
 	}
 }
+func (c *Euler) RoeERFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
+	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux, normalFluxReversed [][4]float64) {
+	var (
+		Nedge                          = c.dfr.FluxElement.Nedge
+		rhoL, uL, vL, pL, EL, HL, UL   float64
+		rhoR, uR, vR, pR, ER, HR, UR   float64
+		dU, dP, dRho, dRhoU, dRhoV, dE float64
+		Gamma                          = c.FS.Gamma
+		GM1                            = Gamma - 1
+		nx, ny                         = normal[0], normal[1]
+		rho, u, v, h, H, U, C          float64
+		sqrt, abs, min, max, sign      = math.Sqrt, math.Abs, math.Min, math.Max, math.Copysign
+	)
+	/*
+		Need:
+		- QL and QR using Enthalpy for the:
+			- Fbar average
+			- Upwind term with delta Q
+		- UL, PL and UR, PR for the Fbar average - U is the face normal velocity
+		- QRoe for deltaUu term in Fd
+		- URoe, CRoe for deltaPu and deltaPp terms and coefficients
+	*/
+	for i := 0; i < Nedge; i++ {
+		iL := i + shiftL
+		iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
+		indL, indR := kL+iL*KmaxL, kR+iR*KmaxR
+		rhoL, rhoR = Q_FaceL[0].DataP[indL], Q_FaceR[0].DataP[indR]
+		ooRhoL, ooRhoR := 1./rhoL, 1./rhoR
+		rhoLs, rhoRs := sqrt(rhoL), sqrt(rhoR)
+		ooRs := 1. / (rhoLs + rhoRs)
+		uL, vL = Q_FaceL[1].DataP[indL]*ooRhoL, Q_FaceL[2].DataP[indL]*ooRhoL
+		uR, vR = Q_FaceR[1].DataP[indR]*ooRhoR, Q_FaceR[2].DataP[indR]*ooRhoR
+		EL, ER = Q_FaceL[3].DataP[indL], Q_FaceR[3].DataP[indR]
+		UL, UR = nx*uL+ny*vL, nx*uR+ny*vR // Calculate face normal velocity left and right
+		pL, pR = c.FS.GetFlowFunction(Q_FaceL, indL, StaticPressure), c.FS.GetFlowFunction(Q_FaceR, indR, StaticPressure)
+		HL, HR = EL+pL, ER+pR
+		// Roe averaged variables
+		u, v, h = (rhoLs*uL+rhoRs*uR)*ooRs, (rhoLs*vL+rhoRs*vR)*ooRs, (HL+HR)*ooRs
+		rho = rhoLs * rhoRs
+		H = h * rho
+		U = nx*u + ny*v
+		C2 := GM1 * (h - 0.5*(u*u+v*v))
+		C = sqrt(C2)
+		ooC := 1. / C
+		Uabs := abs(U)
+		/*
+			Calculate Fbar
+		*/
+		normalFlux[i] = [4]float64{
+			0.5 * (UL*rhoL + UR*rhoR),
+			0.5 * (UL*rhoL*uL + pL*nx + UR*rhoR*uR + pR*nx),
+			0.5 * (UL*rhoL*vL + pL*ny + UR*rhoR*vR + pR*ny),
+			0.5 * (UL*HL + UR*HR)}
+
+		/*
+			Calculate Fd
+		*/
+		Uef := 0.05 * C // 0.05 is "epsilon", a constant in Roe-ER
+		du, dv := (uR - uL), (vR - vL)
+		deltaV2 := du*du + dv*dv
+		ooVmag := 1. / sqrt(u*u+v*v)
+		var n1x, n1y, n2x, n2y float64
+		if deltaV2 < 0.01*C2 { // the number "0.01" is (delta=0.1)^2, the constant "delta" in Roe-ER
+			n1x, n1y = nx, ny
+		} else {
+			n1x, n1y = ooVmag*du, ooVmag*dv
+		}
+		// Sigma parameter: calculate n2 = (n1 x n) x n1
+		n2x, n2y = n1y*(nx*n1y-n1x*ny), -n1x*(nx*n1y-n1x*ny)
+		alp1, alp2 := nx*n1x+ny*n1y, nx*n2x+ny*n2y
+		// Get rotated velocities
+		U1x, U1y := n1x*u, n1y*v
+		U2x, U2y := n2x*u, n2y*v
+		Urot := sqrt(alp1*alp1*(U1x*U1x+U1y*U1y)) + sqrt(alp2*alp2*(U2x*U2x+U2y*U2y))
+		sigma := max(Uabs, min(Uef, Urot))
+
+		UabsPrime := Uabs - 0.25*max(0, UR-UL)*(sign(U+C, 1)-sign(U-C, 1))
+		dU, dP, dRho, dRhoU, dRhoV, dE = UR-UL, pR-pL, rhoR-rhoL, rhoR*uR-rhoL*uL, rhoR*vR-rhoL*vL, ER-EL
+		dPu := rho * dU * max(0, C-UabsPrime)
+		swt := sign(U, 1) * min(UabsPrime, C)
+		dPp := swt * dP * ooC
+		dUu := swt * dU * ooC
+
+		normalFlux[i][0] -= 0.5 * (sigma*dRho + (dPu+dPp)*0 + dUu*rho)
+		normalFlux[i][1] -= 0.5 * (sigma*dRhoU + (dPu+dPp)*nx + dUu*rho*u)
+		normalFlux[i][2] -= 0.5 * (sigma*dRhoV + (dPu+dPp)*ny + dUu*rho*v)
+		normalFlux[i][3] -= 0.5 * (sigma*dE + (dPu+dPp)*ny + dUu*H)
+
+		for n := 0; n < 4; n++ {
+			normalFluxReversed[Nedge-1-i][n] = -normalFlux[i][n]
+		}
+	}
+}
