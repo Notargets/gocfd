@@ -1,36 +1,14 @@
 # gocfd
 Awesome CFD solver written in Go
 
-## [8/28/21] Currently...
+## Currently [9/18/21]
 
-Working on adding routines to invert and solve block matrix systems so that I can implement an implicit time advancement scheme.
+Working on an enhanced flux transfer scheme that promises to protect against odd-even decoupling ("wiggles") while minimizing artificial dissipation that can destroy turbulence fields, etc.
 
-Implicit fluid dynamics schemes all use the flux jacobian of the underlying equations, which yields a system of equations that has "blocks" consisting of the 4x4 (2D) or 5x5 (3D) matrices representing each nodal point. This requires that we have a way to invert the system matrix, or use a solver approach to get the final update in the time advancement scheme.
+The scheme I've located is by Li from an AIAA paper in 2020, et al who called it "Roe-ER", which combines features of the Harten entropy fix and the "rotated Roe" scheme. It looks very efficient and in the papers it seems to do a very good job at the wiggle issue while delivering excellent accuracy.
 
-The work I'm doing now will add a capability to efficiently store the full block system matrix and use it to solve for the time update.
+My remaining concern / question is about whether the use of a flux limiter for transfer of flux at the element faces is sufficient to damp oscillations, or whether I'll have to couple elements more deeply, thus removing a principal advantage of Nodal Galerkin methods - that of "compact support". We'll soon see!  
 
-## QuickStart
-
-### Build using Ubuntu Linux
-Ensure you have the go language installed and in your path, then install prerequisites:
-```
-me@home:bash# sudo apt update
-me@home:bash# sudo apt install libx11-dev libxi-dev libxcursor-dev libxrandr-dev libxinerama-dev mesa-common-dev libgl1-mesa-dev libxxf86vm-dev
-me@home:bash# make
-```
-### Run Test Cases
-```
-#### 1D shock tube test case
-### without graphics:
-me@home:bash# gocfd 1D
-
-### with graphics:
-me@home:bash# export DISPLAY=:0
-me@home:bash# gocfd 1D -g
-
-#### 2D airfoil test case
-me@home:bash# gocfd 2D -F test_cases/Euler2D/naca_12/mesh/nacaAirfoil-base.su2 -I test_cases/Euler2D/naca_12/input-wall.yaml -g -z 0.08
-```
 
 NACA 0012 Airfoil at M=0.3, Alpha=6, Roe flux, Local Time Stepping| M=0.5, Alpha=0, Roe Flux, 1482 O(2) Elements, Converged
 :----------------------------------------------------------------:|----------------------------------------------------------------:|
@@ -62,6 +40,29 @@ I studied CFD in graduate school in 1987 and worked for Northrop for 10 years bu
 
 Then, last year (2019), I noticed there were some amazing looking results appearing on Youtube and elsewhere showing well resolved turbulent eddies and shear flows using this new "Discontinuous Galerkin Finite Elements" method...
 
+## QuickStart
+
+### Build using Ubuntu Linux
+Ensure you have the go language installed and in your path, then install prerequisites:
+```
+me@home:bash# sudo apt update
+me@home:bash# sudo apt install libx11-dev libxi-dev libxcursor-dev libxrandr-dev libxinerama-dev mesa-common-dev libgl1-mesa-dev libxxf86vm-dev
+me@home:bash# make
+```
+### Run Test Cases
+```
+#### 1D shock tube test case
+### without graphics:
+me@home:bash# gocfd 1D
+
+### with graphics:
+me@home:bash# export DISPLAY=:0
+me@home:bash# gocfd 1D -g
+
+#### 2D airfoil test case
+me@home:bash# gocfd 2D -F test_cases/Euler2D/naca_12/mesh/nacaAirfoil-base.su2 -I test_cases/Euler2D/naca_12/input-wall.yaml -g -z 0.08
+```
+
 ### Guide to code review
 
 If you are interested in reviewing the physics and how it is implemented, look through the code in "model_problems". Each file there implements one physics model or an additional numerical method for a model.
@@ -73,6 +74,14 @@ For example, the following line implements:
 ```
 	RHSE = el.Dr.Mul(FluxH).ElMul(el.Rx).ElDiv(c.Epsilon).Scale(-1)
 ```
+
+### Updates [8/28/21]
+
+Working on adding routines to invert and solve block matrix systems so that I can implement an implicit time advancement scheme.
+
+Implicit fluid dynamics schemes all use the flux jacobian of the underlying equations, which yields a system of equations that has "blocks" consisting of the 4x4 (2D) or 5x5 (3D) matrices representing each nodal point. This requires that we have a way to invert the system matrix, or use a solver approach to get the final update in the time advancement scheme.
+
+The work I'm doing now will add a capability to efficiently store the full block system matrix and use it to solve for the time update.
 
 ### Updates (Aug 18, 2021):
 
