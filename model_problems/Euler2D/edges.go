@@ -70,18 +70,19 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, CalculateDT bool, Jdet, DT []
 				edgeNumberL, edgeNumberR = int(e.ConnectedTriEdgeNumber[0]), int(e.ConnectedTriEdgeNumber[1])
 				shiftL, shiftR           = edgeNumberL * Nedge, edgeNumberR * Nedge
 			)
+			normal, _ := c.getEdgeNormal(0, e, en)
 			switch c.FluxCalcAlgo {
 			case FLUX_Average:
-				normal, _ := c.getEdgeNormal(0, e, en)
 				c.AvgFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR,
 					Q_Face[bnL], Q_Face[bnR], normal, normalFlux, normalFluxReversed)
 			case FLUX_LaxFriedrichs:
-				normal, _ := c.getEdgeNormal(0, e, en)
 				c.LaxFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR,
 					Q_Face[bnL], Q_Face[bnR], normal, normalFlux, normalFluxReversed)
 			case FLUX_Roe:
-				normal, _ := c.getEdgeNormal(0, e, en)
 				c.RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR,
+					Q_Face[bnL], Q_Face[bnR], normal, normalFlux, normalFluxReversed)
+			case FLUX_RoeER:
+				c.RoeERFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR,
 					Q_Face[bnL], Q_Face[bnR], normal, normalFlux, normalFluxReversed)
 			}
 			c.SetNormalFluxOnRTEdge(kL, KmaxL, F_RT_DOF[bnL], edgeNumberL, normalFlux, e.IInII[0])

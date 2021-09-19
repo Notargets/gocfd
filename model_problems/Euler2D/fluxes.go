@@ -19,6 +19,7 @@ const (
 	FLUX_Average FluxType = iota
 	FLUX_LaxFriedrichs
 	FLUX_Roe
+	FLUX_RoeER
 )
 
 var (
@@ -26,8 +27,9 @@ var (
 		"average": FLUX_Average,
 		"lax":     FLUX_LaxFriedrichs,
 		"roe":     FLUX_Roe,
+		"roe-er":  FLUX_RoeER,
 	}
-	FluxPrintNames = []string{"Average", "Lax Friedrichs", "Roe"}
+	FluxPrintNames = []string{"Average", "Lax Friedrichs", "Roe", "Roe-ER"}
 )
 
 func (ft FluxType) Print() (txt string) {
@@ -312,7 +314,6 @@ func (c *Euler) RoeERFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		rhoL, rhoR = Q_FaceL[0].DataP[indL], Q_FaceR[0].DataP[indR]
 		ooRhoL, ooRhoR := 1./rhoL, 1./rhoR
 		rhoLs, rhoRs := sqrt(rhoL), sqrt(rhoR)
-		ooRs := 1. / (rhoLs + rhoRs)
 		uL, vL = Q_FaceL[1].DataP[indL]*ooRhoL, Q_FaceL[2].DataP[indL]*ooRhoL
 		uR, vR = Q_FaceR[1].DataP[indR]*ooRhoR, Q_FaceR[2].DataP[indR]*ooRhoR
 		EL, ER = Q_FaceL[3].DataP[indL], Q_FaceR[3].DataP[indR]
@@ -320,6 +321,7 @@ func (c *Euler) RoeERFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		pL, pR = c.FS.GetFlowFunction(Q_FaceL, indL, StaticPressure), c.FS.GetFlowFunction(Q_FaceR, indR, StaticPressure)
 		HL, HR = EL+pL, ER+pR
 		// Roe averaged variables
+		ooRs := 1. / (rhoLs + rhoRs)
 		u, v, h = (rhoLs*uL+rhoRs*uR)*ooRs, (rhoLs*vL+rhoRs*vR)*ooRs, (HL+HR)*ooRs
 		rho = rhoLs * rhoRs
 		H = h * rho
