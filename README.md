@@ -2,6 +2,8 @@
 Awesome CFD solver written in Go
 
 ## Currently [9/19/21]
+Update: The data are in - the new Roe-ER flux *is* faster to compute and has good characteristics, so it's a good thing  and will be useful for turbulence capturing and strong shock applications later. However, tests showed that using either *Roe* or *Roe-ER* flux calculations crashed due to odd-even instability with shocks past maybe Mach 0.6 on the airfoil test. I'm thinking that we need to stabilize the flux at the border of the element using higher order approximations and clipping them using MUSCL/TVD approach. This is similar to a typical J->J+1 structured approach but using "wiggle simulation" for the flux derivatives at the boundary. I wonder also if I'll need to increase the derivative degree at the boundary along with the overall order of the element? It's very do-able, though I think I'd want to do a more analytic derivation for sampling higher order fields within elements.
+
 Removing the "wiggles", part X: There are still odd-even instability modes being triggered by shocks, which for now I'm assuming are being introduced by the flux transfers between elements. It's possible that the discontinuities from shocks are landing in the polynomial basis and amplifying there, but first I'm going to eliminate the flux transfer amplifications before doing anything inside the element.
 
 I'm planning now to implement a TVD scheme at 2nd order for the flux transfer as follows:
@@ -9,7 +11,7 @@ I'm planning now to implement a TVD scheme at 2nd order for the flux transfer as
 2) Interpolate an additional value close to the edge, say 0.01 of the edge length close
 3) Use the two values on either side of each edge to construct a MUSCL with TVD to obtain the edge flux
 
-This approach should introduce damping to oscillatory modes crossing the boundary, which slightly improving the accuracy of the interpolated flux.
+This approach should introduce damping to oscillatory modes crossing the boundary, while slightly improving the accuracy of the interpolated flux.
 
 NACA 0012 Airfoil at M=0.3, Alpha=6, Roe flux, Local Time Stepping| M=0.5, Alpha=0, Roe Flux, 1482 O(2) Elements, Converged
 :----------------------------------------------------------------:|----------------------------------------------------------------:|
@@ -78,13 +80,15 @@ For example, the following line implements:
 
 ### Updates[9/18/21]
 
+
+
 Working on an enhanced flux transfer scheme that promises to protect against odd-even decoupling ("wiggles") while minimizing artificial dissipation that can destroy turbulence fields, etc.
 
 The scheme I've located is by [Xue-Song Li, et al](https://github.com/Notargets/gocfd/blob/master/research/filters_and_flux_limiters/roe-er-li.pdf) from an AIAA paper in 2020, who described the "Roe-ER" flux, which combines features of the Harten entropy fix and the rotated Roe flux schemes. It looks very efficient and in the papers it seems to do a very good job at the wiggle issue while delivering excellent accuracy.
 
 My remaining concern / question is about whether the use of a flux limiter for transfer of flux at the element faces is sufficient to damp oscillations, or whether I'll have to couple elements more deeply, thus removing a principal advantage of Nodal Galerkin methods - that of "compact support". We'll soon see!  
 
-Update: The data are in - the new flux calculation suffers from the same odd-even instability with shocks as before. I'm thinking that we need to stabilize the interface using a TVD limiter method explicitly. The new flux *is* faster to compute and has good characteristics, so it's a good thing anyway and will be useful for turbulence capturing and hypersonics later!
+
 
 ### Updates [8/28/21]
 
