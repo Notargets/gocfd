@@ -19,8 +19,8 @@ type DFR2D struct {
 	N                    int
 	SolutionElement      *LagrangeElement2D
 	FluxElement          *RTElement
-	FluxInterpMatrix     utils.Matrix
-	FluxEdgeInterpMatrix utils.Matrix // A pre-calculated interpolation matrix covering all Flux (edge) points in K elements
+	FluxInterpMatrix     utils.Matrix // Interpolates from the interior (solution) points to all of the flux points
+	FluxEdgeInterpMatrix utils.Matrix // Interpolates only from interior to the edge points in the flux element
 	// Mesh Parameters
 	K                    int          // Number of elements (triangles) in mesh
 	VX, VY               utils.Vector // X,Y vertex points in mesh (vertices)
