@@ -1,6 +1,8 @@
 package Euler2D
 
 import (
+	"math"
+
 	"github.com/notargets/gocfd/DG2D"
 	"github.com/notargets/gocfd/utils"
 )
@@ -41,7 +43,32 @@ func NewAliasShockFinder(dfr *DG2D.LagrangeElement2D) (sf *ModeAliasShockFinder)
 	return
 }
 
-func (sf *ModeAliasShockFinder) Moment(q []float64) (m float64) {
+func (sf *ModeAliasShockFinder) ShockIndicator(q []float64) (sigma float64) {
+	/*
+		Original method by Perrson, constants chosen to match Zhiqiang, et. al.
+		Zhiqiang uses a threshold of sigma<0.99 to indicate "troubled cell"
+	*/
+	var (
+		Se          = math.Log10(sf.moment(q))
+		k           = float64(sf.Element.N)
+		kappa       = 4.
+		C0          = 3.
+		S0          = -C0 * math.Log(k)
+		left, right = S0 - kappa, S0 + kappa
+		ookappa     = 1. / kappa
+	)
+	switch {
+	case Se < left:
+		sigma = 1.
+	case Se >= left && Se < right:
+		sigma = 0.5 * (1. - math.Sin(0.5*math.Pi*ookappa*(Se-S0)))
+	case Se >= right:
+		sigma = 0.
+	}
+	return
+}
+
+func (sf *ModeAliasShockFinder) moment(q []float64) (m float64) {
 	var (
 		qd, qaltd = sf.q.DataP, sf.qalt.DataP
 	)

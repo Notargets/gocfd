@@ -53,7 +53,7 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 		//for ik := 0; ik < Kmax*Np; ik++ {
 		for k := 0; k < Kmax; k++ {
 			qElement := Q[3].Col(k)
-			m := c.ShockFinder.Moment(qElement.DataP)
+			m := c.ShockFinder.ShockIndicator(qElement.DataP)
 			for i := 0; i < Np; i++ {
 				ik := k + i*Kmax
 				fldD[ik] = math.Max(-100, math.Log10(m))
