@@ -147,6 +147,8 @@ func TestDFR2D(t *testing.T) {
 				e = trn.Edges[en]
 				assert.Equal(t, types.BC_In, e.BCType)
 			}
+			assert.Equal(t, dfr.Tris.EtoE[0], [3]int{-1, -1, 1})
+			assert.Equal(t, dfr.Tris.EtoE[1], [3]int{0, -1, -1})
 		}
 		// Test Piola transform and jacobian
 		for en, e := range dfr.Tris.Edges {
