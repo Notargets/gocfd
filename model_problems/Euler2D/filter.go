@@ -1,11 +1,15 @@
 package Euler2D
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/notargets/gocfd/DG2D"
 	"github.com/notargets/gocfd/utils"
 )
+
+type BarthJespersonLimiter struct {
+}
 
 type ModeAliasShockFinder struct {
 	Element *DG2D.LagrangeElement2D
@@ -43,17 +47,24 @@ func NewAliasShockFinder(dfr *DG2D.LagrangeElement2D) (sf *ModeAliasShockFinder)
 	return
 }
 
+func (sf *ModeAliasShockFinder) ElementHasShock(q []float64) (i bool) {
+	// Zhiqiang uses a threshold of sigma<0.99 to indicate "troubled cell"
+	if sf.ShockIndicator(q) < 0.99 {
+		i = true
+	}
+	return
+}
+
 func (sf *ModeAliasShockFinder) ShockIndicator(q []float64) (sigma float64) {
 	/*
-		Original method by Perrson, constants chosen to match Zhiqiang, et. al.
-		Zhiqiang uses a threshold of sigma<0.99 to indicate "troubled cell"
+		Original method by Persson, constants chosen to match Zhiqiang, et. al.
 	*/
 	var (
 		Se          = math.Log10(sf.moment(q))
 		k           = float64(sf.Element.N)
 		kappa       = 4.
 		C0          = 3.
-		S0          = -C0 * math.Log(k)
+		S0          = -C0 * math.Log10(k)
 		left, right = S0 - kappa, S0 + kappa
 		ookappa     = 1. / kappa
 	)
@@ -72,6 +83,11 @@ func (sf *ModeAliasShockFinder) moment(q []float64) (m float64) {
 	var (
 		qd, qaltd = sf.q.DataP, sf.qalt.DataP
 	)
+	if len(q) != sf.Np {
+		err := fmt.Errorf("incorrect dimension of solution vector, should be %d is %d",
+			sf.Np, len(q))
+		panic(err)
+	}
 	/*
 		Evaluate the L2 moment of (q - qalt) over the element, where qalt is the truncated version of q
 		Here we don't bother using quadrature, we do a simple sum

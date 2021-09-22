@@ -3,7 +3,6 @@ package Euler2D
 import (
 	"fmt"
 	"image/color"
-	"math"
 	"time"
 
 	"github.com/notargets/avs/chart2d"
@@ -56,7 +55,7 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 			m := c.ShockFinder.ShockIndicator(qElement.DataP)
 			for i := 0; i < Np; i++ {
 				ik := k + i*Kmax
-				fldD[ik] = math.Max(-100, math.Log10(m))
+				fldD[ik] = m
 			}
 		}
 	}
