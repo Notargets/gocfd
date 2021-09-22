@@ -42,6 +42,7 @@ type Euler struct {
 	// Below are partitioned by K (elements) in the first slice
 	Q                    [][4]utils.Matrix // Sharded solution variables, stored at solution point locations, Np_solution x K
 	SolutionX, SolutionY []utils.Matrix
+	ShockFinder          *ModeAliasShockFinder
 }
 
 func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType FluxType, Case InitType,
@@ -66,6 +67,9 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 
 	// Read mesh file, initialize geometry and finite elements
 	c.dfr = DG2D.NewDFR2D(N, plotMesh, meshFile)
+
+	// Allocate a shockfinder
+	c.ShockFinder = NewAliasShockFinder(c.dfr.SolutionElement)
 
 	c.SetParallelDegree(ProcLimit, c.dfr.K) // Must occur after determining the number of elements
 

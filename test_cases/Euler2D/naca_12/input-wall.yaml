@@ -1,6 +1,6 @@
 Title: "Test Case"
 CFL: 4.00
-FluxType: Roe
+FluxType: Roe-ER
 #FluxType: Lax
 InitType: Freestream # Can be "Freestream" or "IVortex"
 PolynomialOrder: 2

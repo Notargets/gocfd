@@ -52,6 +52,18 @@ func NewMatrix(nr, nc int, dataO ...[]float64) (R Matrix) {
 	return
 }
 
+func NewDiagMatrix(nr int, data []float64) (R Matrix) {
+	if len(data) != nr {
+		err := fmt.Errorf("wrong length vector, is %d, should be $d", len(data), nr)
+		panic(err)
+	}
+	R = NewMatrix(nr, nr)
+	for i := 0; i < nr; i++ {
+		R.Set(i, i, data[i])
+	}
+	return
+}
+
 // Dims, At and T minimally satisfy the mat.Matrix interface.
 func (m Matrix) Dims() (r, c int)          { return m.M.Dims() }
 func (m Matrix) At(i, j int) float64       { return m.M.At(i, j) }
