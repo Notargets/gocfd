@@ -25,7 +25,13 @@ func (pm FlowFunction) String() string {
 		"YVelocity",
 		"Enthalpy",
 	}
-	return strings[int(pm)]
+	if int(pm) < len(strings) {
+		return strings[int(pm)]
+	} else if pm == 100 {
+		return "ShockFunction"
+	} else {
+		return "Unknown"
+	}
 }
 
 const (
@@ -42,6 +48,7 @@ const (
 	XVelocity           // 10
 	YVelocity           // 11
 	Enthalpy            // 12
+	ShockFunction       = 100
 )
 
 type FreeStream struct {

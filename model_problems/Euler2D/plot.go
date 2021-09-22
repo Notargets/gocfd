@@ -3,6 +3,7 @@ package Euler2D
 import (
 	"fmt"
 	"image/color"
+	"math"
 	"time"
 
 	"github.com/notargets/avs/chart2d"
@@ -33,17 +34,33 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 	var (
 		Kmax = c.dfr.K
 		Np   = c.dfr.SolutionElement.Np
+		fld  utils.Matrix
 	)
-	if plotField <= Energy {
-		field = c.dfr.FluxInterpMatrix.Mul(Q[int(plotField)])
-	} else {
-		fld := utils.NewMatrix(Np, Kmax)
+	switch {
+	case plotField <= Energy:
+		//field = c.dfr.FluxInterpMatrix.Mul(Q[int(plotField)])
+		fld = Q[int(plotField)]
+	case plotField < ShockFunction:
+		fld = utils.NewMatrix(Np, Kmax)
 		fldD := fld.DataP
 		for ik := 0; ik < Kmax*Np; ik++ {
 			fldD[ik] = c.FS.GetFlowFunction(Q, ik, plotField)
 		}
-		field = c.dfr.FluxInterpMatrix.Mul(fld)
+		//field = c.dfr.FluxInterpMatrix.Mul(fld)
+	case plotField == ShockFunction:
+		fld = utils.NewMatrix(Np, Kmax)
+		fldD := fld.DataP
+		//for ik := 0; ik < Kmax*Np; ik++ {
+		for k := 0; k < Kmax; k++ {
+			qElement := Q[3].Col(k)
+			m := c.ShockFinder.Moment(qElement.DataP)
+			for i := 0; i < Np; i++ {
+				ik := k + i*Kmax
+				fldD[ik] = math.Max(-100, math.Log10(m))
+			}
+		}
 	}
+	field = c.dfr.FluxInterpMatrix.Mul(fld)
 	return
 }
 
