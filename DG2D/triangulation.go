@@ -12,14 +12,18 @@ import (
 type Triangulation struct {
 	EToV  utils.Matrix            // K x 3 matrix mapping vertices to triangles
 	Edges map[types.EdgeKey]*Edge // map of edges, key is the edge number, an int packed with the two vertices of each edge
+	EtoE  [][3]int                // For each element in [k], the connected element for each of the three edges [0,1,2]
 }
 
 func NewTriangulation(VX, VY utils.Vector, EToV utils.Matrix, BCEdges types.BCMAP) (tmesh *Triangulation) {
+	var (
+		K, _ = EToV.Dims()
+	)
 	tmesh = &Triangulation{
 		EToV:  EToV,
 		Edges: make(map[types.EdgeKey]*Edge),
+		EtoE:  make([][3]int, K),
 	}
-	K, _ := EToV.Dims()
 	// Create edges map
 	for k := 0; k < K; k++ {
 		tri := EToV.Row(k).DataP
@@ -28,6 +32,19 @@ func NewTriangulation(VX, VY utils.Vector, EToV utils.Matrix, BCEdges types.BCMA
 		tmesh.NewEdge(VX, VY, [2]int{verts[0], verts[1]}, k, First)
 		tmesh.NewEdge(VX, VY, [2]int{verts[1], verts[2]}, k, Second)
 		tmesh.NewEdge(VX, VY, [2]int{verts[2], verts[0]}, k, Third)
+	}
+	// Initialize EtoE with -1
+	for k := 0; k < K; k++ {
+		tmesh.EtoE[k] = [3]int{-1, -1, -1}
+	}
+	// Traverse edge map, filling in EtoE connections
+	for _, edges := range tmesh.Edges {
+		if edges.NumConnectedTris == 2 {
+			en1, en2 := edges.ConnectedTriEdgeNumber[0], edges.ConnectedTriEdgeNumber[1]
+			k1, k2 := edges.ConnectedTris[0], edges.ConnectedTris[1]
+			tmesh.EtoE[k1][en1] = int(k2)
+			tmesh.EtoE[k2][en2] = int(k1)
+		}
 	}
 	// Insert BCs into edges map
 	var err error

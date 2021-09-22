@@ -54,7 +54,7 @@ func NewMatrix(nr, nc int, dataO ...[]float64) (R Matrix) {
 
 func NewDiagMatrix(nr int, data []float64) (R Matrix) {
 	if len(data) != nr {
-		err := fmt.Errorf("wrong length vector, is %d, should be $d", len(data), nr)
+		err := fmt.Errorf("wrong length vector, is %d, should be %d", len(data), nr)
 		panic(err)
 	}
 	R = NewMatrix(nr, nr)
