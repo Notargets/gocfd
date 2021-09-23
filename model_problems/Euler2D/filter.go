@@ -9,6 +9,57 @@ import (
 )
 
 type BarthJespersonLimiter struct {
+	Element     *DG2D.LagrangeElement2D
+	Tris        *DG2D.Triangulation
+	ShockFinder *ModeAliasShockFinder
+	UElement    []float64 // Scratch area for assembly and testing of solution values
+}
+
+func NewBarthJespersonLimiter(dfr DG2D.DFR2D, sf *ModeAliasShockFinder) (bjl *BarthJespersonLimiter) {
+	bjl = &BarthJespersonLimiter{
+		Element:     dfr.SolutionElement,
+		Tris:        dfr.Tris,
+		ShockFinder: sf,
+		UElement:    make([]float64, dfr.SolutionElement.Np),
+	}
+	return
+}
+
+func (bjl *BarthJespersonLimiter) LimitSolution(Q [4]utils.Matrix) {
+	var (
+		Np, Kmax         = Q[0].Dims()
+		Uave, Umin, Umax float64
+	)
+	getElAvg := func(f utils.Matrix, k int) (ave float64) {
+		for i := 0; i < Np; i++ {
+			ind := k + Kmax*i
+			ave += f.DataP[ind]
+		}
+		ave /= float64(Np)
+		return
+	}
+	for k := 0; k < Kmax; k++ {
+		for i := 0; i < Np; i++ {
+			ind := k + Kmax*i
+			bjl.UElement[i] = Q[3].DataP[ind] // Use Energy as the indicator basis
+		}
+		if bjl.ShockFinder.ElementHasShock(bjl.UElement) { // Element has a shock
+			// Apply limiting procedure
+			// Get average solution value for element and neighbors
+			Uave = getElAvg(Q[3], k)
+			Umin, Umax = Uave, Uave
+			// Loop over connected tris to get Umin, Umax
+			for ii := 0; ii < 3; ii++ {
+				kk := bjl.Tris.EtoE[k][ii]
+				if kk != -1 {
+					U := getElAvg(Q[3], kk)
+					Umax = math.Max(U, Umax)
+					Umin = math.Min(U, Umin)
+				}
+			}
+			// Obtain average gradient of this cell
+		}
+	}
 }
 
 type ModeAliasShockFinder struct {
