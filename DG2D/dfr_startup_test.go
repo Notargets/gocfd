@@ -20,7 +20,8 @@ import (
 )
 
 func TestDFR2D(t *testing.T) {
-	{ // Basic test of interpolation matrix
+	// Basic test of interpolation matrix
+	{
 		N := 1
 		dfr := NewDFR2D(N, false)
 		el := dfr.SolutionElement
@@ -39,7 +40,8 @@ func TestDFR2D(t *testing.T) {
 		assert.True(t, nearVec(s, values.DataP[3:6], 0.0000001))
 		// After 2*Nint points, the values have unknown expected interpolated values
 	}
-	{ // Test accuracy of interpolation
+	// Test accuracy of interpolation
+	{
 		Nmax := 7
 		for N := 1; N <= Nmax; N++ {
 			dfr := NewDFR2D(N, false)
@@ -63,7 +65,8 @@ func TestDFR2D(t *testing.T) {
 			assert.True(t, nearVec(sFlux, values.DataP, 0.00001))
 		}
 	}
-	{ // Test point distribution
+	// Test point distribution
+	{
 		N := 1
 		dfr := NewDFR2D(N, false)
 		el := dfr.SolutionElement
@@ -73,7 +76,8 @@ func TestDFR2D(t *testing.T) {
 		//fmt.Printf("Edge R = %v\n", rt.GetEdgeLocations(rt.R))
 		//fmt.Printf("Edge S = %v\n", rt.GetEdgeLocations(rt.S))
 	}
-	{ // Test interpolation from solution points to flux points
+	// Test interpolation from solution points to flux points
+	{
 		N := 1
 		dfr := NewDFR2D(N, false)
 		el := dfr.SolutionElement
@@ -90,7 +94,8 @@ func TestDFR2D(t *testing.T) {
 		//fmt.Printf("%s\n", fluxInterp.Print("fluxInterp"))
 		//fmt.Printf("%s\n", sV.Print("sV"))
 	}
-	{ // Test triangulation
+	// Test triangulation
+	{
 		transpose := func(J []float64) (JT []float64) {
 			JT = []float64{J[0], J[2], J[1], J[3]}
 			return
@@ -199,7 +204,8 @@ func TestDFR2D(t *testing.T) {
 			}
 		}
 	}
-	{ // Test divergence
+	// Test divergence
+	{
 		checkSolution := func(dfr *DFR2D, Order int) (Fx, Fy, divCheck utils.Matrix) {
 			var (
 				rt  = dfr.FluxElement
@@ -253,7 +259,8 @@ func TestDFR2D(t *testing.T) {
 			}
 		}
 	}
-	{ // Test output of triangulated mesh for plotting
+	// Test output of triangulated mesh for plotting
+	{
 		N := 1
 		plotMesh := false
 		plotFunc := false
