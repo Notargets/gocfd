@@ -120,12 +120,14 @@ func PlotMesh(VX, VY utils.Vector, EToV, X, Y utils.Matrix, plotPoints bool) (ch
 		points[i].X[1] = float32(vyD[i])
 	}
 	trimesh.Triangles = make([]graphics2D.Triangle, K)
-	colorMap := utils2.NewColorMap(0, float32(types.BC_Out), 1)
+	colorMap := utils2.NewColorMap(0, float32(types.BC_PeriodicReversed), 1)
 	trimesh.Attributes = make([][]float32, K) // One BC attribute per face
 	for k := 0; k < K; k++ {
-		trimesh.Triangles[k].Nodes[0] = int32(EToV.At(k, 0))
-		trimesh.Triangles[k].Nodes[1] = int32(EToV.At(k, 1))
-		trimesh.Triangles[k].Nodes[2] = int32(EToV.At(k, 2))
+		trimesh.Attributes[k] = make([]float32, 3)
+		for i := 0; i < 3; i++ {
+			trimesh.Triangles[k].Nodes[i] = int32(EToV.At(k, i))
+			trimesh.Attributes[k][i] = float32(types.BC_None)
+		}
 	}
 	trimesh.Geometry = points
 	box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
