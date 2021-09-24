@@ -937,7 +937,7 @@ func (m Matrix) Row(i int) Vector {
 
 func (m Matrix) Min() (min float64) {
 	var (
-		data = m.RawMatrix().Data
+		data = m.DataP
 	)
 	min = data[0]
 	for _, val := range data {
@@ -950,7 +950,7 @@ func (m Matrix) Min() (min float64) {
 
 func (m Matrix) Max() (max float64) {
 	var (
-		data = m.RawMatrix().Data
+		data = m.DataP
 	)
 	max = data[0]
 	for _, val := range data {
@@ -958,6 +958,19 @@ func (m Matrix) Max() (max float64) {
 			max = val
 		}
 	}
+	return
+}
+
+func (m Matrix) Avg() (avg float64) {
+	var (
+		data   = m.DataP
+		nr, nc = m.Dims()
+		ntot   = nr * nc
+	)
+	for _, val := range data {
+		avg += val
+	}
+	avg /= float64(ntot)
 	return
 }
 

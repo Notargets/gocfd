@@ -43,6 +43,7 @@ type Euler struct {
 	Q                    [][4]utils.Matrix // Sharded solution variables, stored at solution point locations, Np_solution x K
 	SolutionX, SolutionY []utils.Matrix
 	ShockFinder          *ModeAliasShockFinder
+	Limiter              *BarthJespersonLimiter
 }
 
 func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType FluxType, Case InitType,
@@ -70,6 +71,8 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 
 	// Allocate a shockfinder
 	c.ShockFinder = NewAliasShockFinder(c.dfr.SolutionElement)
+	// Allocate a solution limiter
+	c.Limiter = NewBarthJespersonLimiter(c.dfr, c.ShockFinder)
 
 	c.SetParallelDegree(ProcLimit, c.dfr.K) // Must occur after determining the number of elements
 
@@ -610,6 +613,8 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 	}
 	for {
 		_ = <-fromController // Block until parent sends "go"
+		// TODO: Need to map element index "K" for remote sharded elements
+		// c.Limiter.LimitSolution(Q0)
 		if c.LocalTimeStepping {
 			// Setup local time stepping
 			for k := 0; k < Kmax; k++ {

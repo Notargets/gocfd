@@ -12,24 +12,54 @@ type BarthJespersonLimiter struct {
 	Element     *DG2D.LagrangeElement2D
 	Tris        *DG2D.Triangulation
 	ShockFinder *ModeAliasShockFinder
-	UElement    []float64 // Scratch area for assembly and testing of solution values
+	UElement    utils.Matrix // Scratch area for assembly and testing of solution values
+	dUdr, dUds  utils.Matrix
 }
 
-func NewBarthJespersonLimiter(dfr DG2D.DFR2D, sf *ModeAliasShockFinder) (bjl *BarthJespersonLimiter) {
+func NewBarthJespersonLimiter(dfr *DG2D.DFR2D, sf *ModeAliasShockFinder) (bjl *BarthJespersonLimiter) {
+	var (
+		Np = dfr.SolutionElement.Np
+	)
 	bjl = &BarthJespersonLimiter{
 		Element:     dfr.SolutionElement,
 		Tris:        dfr.Tris,
 		ShockFinder: sf,
-		UElement:    make([]float64, dfr.SolutionElement.Np),
+		UElement:    utils.NewMatrix(Np, 1),
+		dUdr:        utils.NewMatrix(Np, 1),
+		dUds:        utils.NewMatrix(Np, 1),
 	}
 	return
 }
 
 func (bjl *BarthJespersonLimiter) LimitSolution(Q [4]utils.Matrix) {
 	var (
-		Np, Kmax         = Q[0].Dims()
-		Uave, Umin, Umax float64
+		Np, Kmax = Q[0].Dims()
+		UE       = bjl.UElement
 	)
+	for k := 0; k < Kmax; k++ {
+		for i := 0; i < Np; i++ {
+			ind := k + Kmax*i
+			UE.DataP[i] = Q[3].DataP[ind] // Use Energy as the indicator basis
+		}
+		if bjl.ShockFinder.ElementHasShock(UE.DataP) { // Element has a shock
+			for n := 0; n < 4; n++ {
+				bjl.limitScalarField(k, Q[n])
+			}
+		}
+	}
+}
+
+func (bjl *BarthJespersonLimiter) limitScalarField(k int, U utils.Matrix) {
+	var (
+		Np, Kmax         = U.Dims()
+		Uave, Umin, Umax float64
+		Dr, Ds           = bjl.Element.Dr, bjl.Element.Ds
+		UE               = bjl.UElement
+		dUdr, dUds       = bjl.dUdr, bjl.dUds
+		min              = math.Min
+	)
+	fmt.Printf("Np, Kmax = %d, %d\n", Np, Kmax)
+	//os.Exit(1)
 	getElAvg := func(f utils.Matrix, k int) (ave float64) {
 		for i := 0; i < Np; i++ {
 			ind := k + Kmax*i
@@ -38,27 +68,45 @@ func (bjl *BarthJespersonLimiter) LimitSolution(Q [4]utils.Matrix) {
 		ave /= float64(Np)
 		return
 	}
-	for k := 0; k < Kmax; k++ {
-		for i := 0; i < Np; i++ {
-			ind := k + Kmax*i
-			bjl.UElement[i] = Q[3].DataP[ind] // Use Energy as the indicator basis
+	// Apply limiting procedure
+	// Get average and min/max solution value for element and neighbors
+	Uave = getElAvg(U, k)
+	Umin, Umax = Uave, Uave
+	// Loop over connected tris to get Umin, Umax
+	for ii := 0; ii < 3; ii++ {
+		kk := bjl.Tris.EtoE[k][ii]
+		if kk != -1 {
+			// TODO: Remote sharded element kk needs to have kk mapped to element local coordinates
+			UU := getElAvg(U, kk)
+			Umax = math.Max(UU, Umax)
+			Umin = math.Min(UU, Umin)
 		}
-		if bjl.ShockFinder.ElementHasShock(bjl.UElement) { // Element has a shock
-			// Apply limiting procedure
-			// Get average solution value for element and neighbors
-			Uave = getElAvg(Q[3], k)
-			Umin, Umax = Uave, Uave
-			// Loop over connected tris to get Umin, Umax
-			for ii := 0; ii < 3; ii++ {
-				kk := bjl.Tris.EtoE[k][ii]
-				if kk != -1 {
-					U := getElAvg(Q[3], kk)
-					Umax = math.Max(U, Umax)
-					Umin = math.Min(U, Umin)
-				}
-			}
-			// Obtain average gradient of this cell
-		}
+	}
+	for i := 0; i < Np; i++ {
+		ind := k + Kmax*i
+		UE.DataP[i] = U.DataP[ind]
+	}
+	// Obtain average gradient of this cell
+	dUdrAve, dUdsAve := Dr.Mul(UE, dUdr).Avg(), Ds.Mul(UE, dUds).Avg()
+	// Calculate change from cell center to cell corner (dR = -.5, dS = -.5)
+	del2 := -0.5 * (dUdrAve + dUdsAve)
+	oodel2 := 1. / del2
+	// Calculate limiter function Psi
+	var psi float64
+	switch {
+	case del2 > 0:
+		psi = min(1, oodel2*(Umax-Uave))
+	case del2 == 0:
+		psi = 1
+	case del2 < 0:
+		psi = min(1, oodel2*(Umin-Uave))
+	}
+	// Limit the solution using psi and the average gradient
+	for i := 0; i < Np; i++ {
+		ind := k + Kmax*i
+		R, S := bjl.Element.R.DataP[i], bjl.Element.S.DataP[i]
+		dR, dS := R-0.5, S-0.5
+		U.DataP[ind] = Uave + psi*(dR*dUdrAve+dS*dUdsAve)
 	}
 }
 
