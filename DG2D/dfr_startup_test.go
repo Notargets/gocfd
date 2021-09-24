@@ -293,6 +293,61 @@ func TestDFR2D(t *testing.T) {
 		}
 	}
 }
+func TestGradient(t *testing.T) {
+	// Test gradient
+	{
+		dfr := NewDFR2D(1, false, "test_tris_6.neu")
+		if false {
+			PlotTriMesh(*dfr.OutputMesh())
+			utils.SleepFor(50000)
+		}
+		Dr := dfr.SolutionElement.Dr
+		Ds := dfr.SolutionElement.Ds
+		Nint := dfr.SolutionElement.Np
+		Kmax := dfr.K
+		assert.Equal(t, 2, Kmax)
+		QRS := utils.NewMatrix(Nint, Kmax)
+		QRS2 := utils.NewMatrix(Nint, Kmax)
+		for k := 0; k < Kmax; k++ {
+			for i := 0; i < Nint; i++ {
+				ind := k + i*Kmax
+				R := dfr.SolutionElement.R.DataP[i]
+				S := dfr.SolutionElement.S.DataP[i]
+				QRS.DataP[ind] = R + S      // Linear solution
+				QRS2.DataP[ind] = R*R + S*S // Quadratic solution
+			}
+		}
+		// Test linear gradient
+		Qr, Qs := Dr.Mul(QRS), Ds.Mul(QRS)
+		Qr2, Qs2 := Dr.Mul(QRS2), Ds.Mul(QRS2)
+		for k := 0; k < Kmax; k++ {
+			for i := 0; i < Nint-1; i++ {
+				ind := k + i*Kmax
+				R := dfr.SolutionElement.R.DataP[i]
+				S := dfr.SolutionElement.S.DataP[i]
+				Rn := dfr.SolutionElement.R.DataP[i+1]
+				Sn := dfr.SolutionElement.S.DataP[i+1]
+				dr, ds := Rn-R, Sn-S
+				// Linear solution
+				dQdr, dQds := Qr.DataP[ind], Qs.DataP[ind]
+				dQ := dQdr*dr + dQds*ds
+				indp1 := k + (i+1)*Kmax
+				q := QRS.DataP[ind]
+				qp1est := q + dQ
+				qp1 := QRS.DataP[indp1]
+				assert.InDelta(t, qp1, qp1est, 0.00001, "err msg %s")
+				// Quadratic solution
+				dQdr, dQds = Qr2.DataP[ind], Qs2.DataP[ind]
+				dQ = dQdr*dr + dQds*ds
+				indp1 = k + (i+1)*Kmax
+				q = QRS2.DataP[ind]
+				qp1est = q + dQ
+				qp1 = QRS2.DataP[indp1]
+				assert.InDelta(t, qp1, qp1est, 0.00001, "err msg %s")
+			}
+		}
+	}
+}
 
 func PlotFS(fs *functions.FSurface, fmin, fmax float64, ltO ...chart2d.LineType) {
 	var (
@@ -329,8 +384,15 @@ func PlotTriMesh(trimesh graphics2D.TriMesh) {
 		B: 255,
 		A: 0,
 	}
+	black := color.RGBA{
+		R: 0,
+		G: 0,
+		B: 0,
+		A: 0,
+	}
+	_ = white
 	if err := chart.AddTriMesh("TriMesh", trimesh,
-		chart2d.CrossGlyph, chart2d.Solid, white); err != nil {
+		chart2d.CrossGlyph, chart2d.Solid, black); err != nil {
 		panic("unable to add graph series")
 	}
 }
