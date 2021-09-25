@@ -14,9 +14,10 @@ type SolutionLimiter struct {
 	Partitions           *PartitionMap
 	ShockFinder          []*ModeAliasShockFinder // Sharded
 	UElement, dUdr, dUds []utils.Matrix          // Sharded scratch areas for assembly and testing of solution values
+	FS                   *FreeStream
 }
 
-func NewSolutionLimiter(dfr *DG2D.DFR2D, pm *PartitionMap) (bjl *SolutionLimiter) {
+func NewSolutionLimiter(dfr *DG2D.DFR2D, pm *PartitionMap, fs *FreeStream) (bjl *SolutionLimiter) {
 	var (
 		Np       = dfr.SolutionElement.Np
 		Nthreads = pm.ParallelDegree
@@ -25,6 +26,7 @@ func NewSolutionLimiter(dfr *DG2D.DFR2D, pm *PartitionMap) (bjl *SolutionLimiter
 		Element:     dfr.SolutionElement,
 		Tris:        dfr.Tris,
 		ShockFinder: make([]*ModeAliasShockFinder, Nthreads),
+		FS:          fs,
 		Partitions:  pm,
 		// Sharded working matrices
 		UElement: make([]utils.Matrix, Nthreads),
@@ -45,11 +47,12 @@ func (bjl *SolutionLimiter) LimitSolution(myThread int, Qall, Residual [][4]util
 		Q        = Qall[myThread]
 		Np, Kmax = Q[0].Dims()
 		UE       = bjl.UElement[myThread]
+		FS       = bjl.FS
 	)
 	for k := 0; k < Kmax; k++ {
 		for i := 0; i < Np; i++ {
 			ind := k + Kmax*i
-			UE.DataP[i] = Q[3].DataP[ind] // Use Energy as the indicator basis
+			UE.DataP[i] = FS.GetFlowFunction(Q, ind, Entropy)
 		}
 		if bjl.ShockFinder[myThread].ElementHasShock(UE.DataP) { // Element has a shock
 			/*

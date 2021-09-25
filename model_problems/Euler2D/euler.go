@@ -76,7 +76,7 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 	c.InitializeSolution(verbose)
 
 	// Allocate a solution limiter
-	c.Limiter = NewSolutionLimiter(c.dfr, c.Partitions)
+	c.Limiter = NewSolutionLimiter(c.dfr, c.Partitions, c.FS)
 
 	if verbose {
 		fmt.Printf("Euler Equations in 2 Dimensions\n")
