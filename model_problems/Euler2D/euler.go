@@ -43,7 +43,7 @@ type Euler struct {
 	Q                    [][4]utils.Matrix // Sharded solution variables, stored at solution point locations, Np_solution x K
 	SolutionX, SolutionY []utils.Matrix
 	ShockFinder          *ModeAliasShockFinder
-	Limiter              *BarthJespersonLimiter
+	Limiter              *SolutionLimiter
 }
 
 func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType FluxType, Case InitType,
@@ -69,16 +69,14 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 	// Read mesh file, initialize geometry and finite elements
 	c.dfr = DG2D.NewDFR2D(N, plotMesh, meshFile)
 
-	// Allocate a shockfinder
-	c.ShockFinder = NewAliasShockFinder(c.dfr.SolutionElement)
-	// Allocate a solution limiter
-	c.Limiter = NewBarthJespersonLimiter(c.dfr, c.ShockFinder)
-
 	c.SetParallelDegree(ProcLimit, c.dfr.K) // Must occur after determining the number of elements
 
 	c.PartitionEdgesByK() // Setup the key for edge calculations, useful for parallelizing the process
 
 	c.InitializeSolution(verbose)
+
+	// Allocate a solution limiter
+	c.Limiter = NewSolutionLimiter(c.dfr, c.Partitions)
 
 	if verbose {
 		fmt.Printf("Euler Equations in 2 Dimensions\n")
@@ -607,14 +605,13 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		preCon                       = false
 		Nedge                        = c.dfr.FluxElement.Nedge
 		EdgeQ1, EdgeQ2               = make([][4]float64, Nedge), make([][4]float64, Nedge) // Local working memory
+		limit                        = false
 	)
 	if c.LocalTimeStepping {
 		preCon = false
 	}
 	for {
 		_ = <-fromController // Block until parent sends "go"
-		// TODO: Need to map element index "K" for remote sharded elements
-		// c.Limiter.LimitSolution(Q0)
 		if c.LocalTimeStepping {
 			// Setup local time stepping
 			for k := 0; k < Kmax; k++ {
@@ -656,6 +653,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 				Q1[n].DataP[i] = Q0[n].DataP[i] + 0.5*RHSQ[n].DataP[i]*dT
 			}
 		}
+		//c.Limiter.LimitSolution(myThread, rk.Q1)
 		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q1, Q_Face)
 		rk.WorkerDone(&subStep, toController, false)
 
@@ -678,6 +676,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 				Q2[n].DataP[i] = Q1[n].DataP[i] + 0.25*RHSQ[n].DataP[i]*dT
 			}
 		}
+		//c.Limiter.LimitSolution(myThread, rk.Q2)
 		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q2, Q_Face)
 		rk.WorkerDone(&subStep, toController, false)
 
@@ -700,6 +699,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 				Q3[n].DataP[i] = (1. / 3.) * (2*Q0[n].DataP[i] + Q2[n].DataP[i] + RHSQ[n].DataP[i]*dT)
 			}
 		}
+		//c.Limiter.LimitSolution(myThread, rk.Q3)
 		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q3, Q_Face)
 		rk.WorkerDone(&subStep, toController, false)
 
@@ -723,6 +723,9 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 				Residual[n].DataP[i] = Q3[n].DataP[i] + 0.25*RHSQ[n].DataP[i]*dT - Q0[n].DataP[i]
 				Q0[n].DataP[i] += Residual[n].DataP[i]
 			}
+		}
+		if limit {
+			c.Limiter.LimitSolution(myThread, c.Q, rk.Residual)
 		}
 		rk.WorkerDone(&subStep, toController, true)
 	}

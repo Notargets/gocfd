@@ -24,6 +24,7 @@ func (pm FlowFunction) String() string {
 		"XVelocity",
 		"YVelocity",
 		"Enthalpy",
+		"Entropy",
 	}
 	if int(pm) < len(strings) {
 		return strings[int(pm)]
@@ -48,6 +49,7 @@ const (
 	XVelocity           // 10
 	YVelocity           // 11
 	Enthalpy            // 12
+	Entropy             //13
 	ShockFunction       = 100
 )
 
@@ -100,12 +102,12 @@ func (fs *FreeStream) GetFlowFunctionBase(rho, rhoU, rhoV, E float64, pf FlowFun
 	)
 	// Calculate q if needed
 	switch pf {
-	case StaticPressure, PressureCoefficient, SoundSpeed:
+	case StaticPressure, PressureCoefficient, SoundSpeed, Entropy:
 		q = 0.5 * (rhoU*rhoU + rhoV*rhoV) * oorho
 	}
 	// Calculate p if needed
 	switch pf {
-	case PressureCoefficient, SoundSpeed, Enthalpy, Mach:
+	case PressureCoefficient, SoundSpeed, Enthalpy, Mach, Entropy:
 		p = GM1 * (E - q)
 	}
 
@@ -138,6 +140,8 @@ func (fs *FreeStream) GetFlowFunctionBase(rho, rhoU, rhoV, E float64, pf FlowFun
 		f = U / C
 	case Enthalpy:
 		f = (E + p) / rho
+	case Entropy:
+		f = math.Log(p) - Gamma*math.Log(rho)
 	}
 	return
 }

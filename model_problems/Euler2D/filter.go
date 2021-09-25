@@ -8,105 +8,149 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-type BarthJespersonLimiter struct {
-	Element     *DG2D.LagrangeElement2D
-	Tris        *DG2D.Triangulation
-	ShockFinder *ModeAliasShockFinder
-	UElement    utils.Matrix // Scratch area for assembly and testing of solution values
-	dUdr, dUds  utils.Matrix
+type SolutionLimiter struct {
+	Element              *DG2D.LagrangeElement2D
+	Tris                 *DG2D.Triangulation
+	Partitions           *PartitionMap
+	ShockFinder          []*ModeAliasShockFinder // Sharded
+	UElement, dUdr, dUds []utils.Matrix          // Sharded scratch areas for assembly and testing of solution values
 }
 
-func NewBarthJespersonLimiter(dfr *DG2D.DFR2D, sf *ModeAliasShockFinder) (bjl *BarthJespersonLimiter) {
+func NewSolutionLimiter(dfr *DG2D.DFR2D, pm *PartitionMap) (bjl *SolutionLimiter) {
 	var (
-		Np = dfr.SolutionElement.Np
+		Np       = dfr.SolutionElement.Np
+		Nthreads = pm.ParallelDegree
 	)
-	bjl = &BarthJespersonLimiter{
+	bjl = &SolutionLimiter{
 		Element:     dfr.SolutionElement,
 		Tris:        dfr.Tris,
-		ShockFinder: sf,
-		UElement:    utils.NewMatrix(Np, 1),
-		dUdr:        utils.NewMatrix(Np, 1),
-		dUds:        utils.NewMatrix(Np, 1),
+		ShockFinder: make([]*ModeAliasShockFinder, Nthreads),
+		Partitions:  pm,
+		// Sharded working matrices
+		UElement: make([]utils.Matrix, Nthreads),
+		dUdr:     make([]utils.Matrix, Nthreads),
+		dUds:     make([]utils.Matrix, Nthreads),
+	}
+	for np := 0; np < Nthreads; np++ {
+		bjl.ShockFinder[np] = NewAliasShockFinder(dfr.SolutionElement)
+		bjl.UElement[np] = utils.NewMatrix(Np, 1)
+		bjl.dUdr[np] = utils.NewMatrix(Np, 1)
+		bjl.dUds[np] = utils.NewMatrix(Np, 1)
 	}
 	return
 }
 
-func (bjl *BarthJespersonLimiter) LimitSolution(Q [4]utils.Matrix) {
+func (bjl *SolutionLimiter) LimitSolution(myThread int, Qall, Residual [][4]utils.Matrix) {
 	var (
+		Q        = Qall[myThread]
 		Np, Kmax = Q[0].Dims()
-		UE       = bjl.UElement
+		UE       = bjl.UElement[myThread]
 	)
 	for k := 0; k < Kmax; k++ {
 		for i := 0; i < Np; i++ {
 			ind := k + Kmax*i
 			UE.DataP[i] = Q[3].DataP[ind] // Use Energy as the indicator basis
 		}
-		if bjl.ShockFinder.ElementHasShock(UE.DataP) { // Element has a shock
+		if bjl.ShockFinder[myThread].ElementHasShock(UE.DataP) { // Element has a shock
+			/*
+				kkk, _, _ := bjl.Partitions.GetLocalK(k)
+				fmt.Printf("limiting element %d\n", kkk)
+			*/
+			bjl.limitScalarField(k, myThread, Qall)
 			for n := 0; n < 4; n++ {
-				bjl.limitScalarField(k, Q[n])
+				for i := 0; i < Np; i++ {
+					ind := k + Kmax*i
+					Residual[myThread][n].DataP[ind] = 0.
+				}
 			}
 		}
 	}
 }
 
-func (bjl *BarthJespersonLimiter) limitScalarField(k int, U utils.Matrix) {
+func (bjl *SolutionLimiter) limitScalarField(k, myThread int, Qall [][4]utils.Matrix) {
 	var (
-		Np, Kmax         = U.Dims()
-		Uave, Umin, Umax float64
-		Dr, Ds           = bjl.Element.Dr, bjl.Element.Ds
-		UE               = bjl.UElement
-		dUdr, dUds       = bjl.dUdr, bjl.dUds
-		min              = math.Min
+		Np, Kmax   = Qall[myThread][0].Dims()
+		Dr, Ds     = bjl.Element.Dr, bjl.Element.Ds
+		UE         = bjl.UElement[myThread]
+		dUdr, dUds = bjl.dUdr[myThread], bjl.dUds[myThread]
+		min, max   = math.Min, math.Max
 	)
-	fmt.Printf("Np, Kmax = %d, %d\n", Np, Kmax)
-	//os.Exit(1)
-	getElAvg := func(f utils.Matrix, k int) (ave float64) {
+	getElAvg := func(f utils.Matrix, kkk, kMx int) (ave float64) {
 		for i := 0; i < Np; i++ {
-			ind := k + Kmax*i
+			ind := kkk + kMx*i
 			ave += f.DataP[ind]
 		}
 		ave /= float64(Np)
 		return
 	}
-	// Apply limiting procedure
-	// Get average and min/max solution value for element and neighbors
-	Uave = getElAvg(U, k)
-	Umin, Umax = Uave, Uave
-	// Loop over connected tris to get Umin, Umax
-	for ii := 0; ii < 3; ii++ {
-		kk := bjl.Tris.EtoE[k][ii]
-		if kk != -1 {
-			// TODO: Remote sharded element kk needs to have kk mapped to element local coordinates
-			UU := getElAvg(U, kk)
-			Umax = math.Max(UU, Umax)
-			Umin = math.Min(UU, Umin)
+	psiCalc := func(corner int, Umin, Umax, Uave, dUdrAve, dUdsAve float64) (psi float64) {
+		var (
+			del2 float64
+		)
+		/*
+			For each corner of the unit triangle, the vector from center to corner is:
+				ri[0] = [ -2/3, -2/3 ]
+				ri[1] = [ 4/3, -2/3 ]
+				ri[2] = [ -2/3, 4/3 ]
+		*/
+		switch corner {
+		case 0:
+			del2 = -2. / 3. * (dUdrAve + dUdsAve)
+		case 1:
+			del2 = (4./3.)*dUdrAve - (2./3.)*dUdsAve
+		case 2:
+			del2 = -(2./3.)*dUdrAve + (4./3.)*dUdsAve
 		}
+		oodel2 := 1. / del2
+		// Calculate limiter function Psi
+		switch {
+		case del2 > 0:
+			psi = min(1, oodel2*(Umax-Uave))
+		case del2 == 0:
+			psi = 1
+		case del2 < 0:
+			psi = min(1, oodel2*(Umin-Uave))
+		}
+		return
 	}
-	for i := 0; i < Np; i++ {
-		ind := k + Kmax*i
-		UE.DataP[i] = U.DataP[ind]
-	}
-	// Obtain average gradient of this cell
-	dUdrAve, dUdsAve := Dr.Mul(UE, dUdr).Avg(), Ds.Mul(UE, dUds).Avg()
-	// Calculate change from cell center to cell corner (dR = -.5, dS = -.5)
-	del2 := -0.5 * (dUdrAve + dUdsAve)
-	oodel2 := 1. / del2
-	// Calculate limiter function Psi
-	var psi float64
-	switch {
-	case del2 > 0:
-		psi = min(1, oodel2*(Umax-Uave))
-	case del2 == 0:
-		psi = 1
-	case del2 < 0:
-		psi = min(1, oodel2*(Umin-Uave))
-	}
-	// Limit the solution using psi and the average gradient
-	for i := 0; i < Np; i++ {
-		ind := k + Kmax*i
-		R, S := bjl.Element.R.DataP[i], bjl.Element.S.DataP[i]
-		dR, dS := R-0.5, S-0.5
-		U.DataP[ind] = Uave + psi*(dR*dUdrAve+dS*dUdsAve)
+	for n := 0; n < 4; n++ {
+		var (
+			U                = Qall[myThread][n]
+			Uave, Umin, Umax float64
+		)
+		// Apply limiting procedure
+		// Get average and min/max solution value for element and neighbors
+		Uave = getElAvg(U, k, Kmax)
+		Umin, Umax = Uave, Uave
+		// Loop over connected tris to get Umin, Umax
+		for ii := 0; ii < 3; ii++ {
+			kk := bjl.Tris.EtoE[k][ii]
+			if kk != -1 {
+				remoteK, remoteKmax, rThread := bjl.Partitions.GetLocalK(kk)
+				UU := getElAvg(Qall[rThread][n], remoteK, remoteKmax)
+				Umax = max(UU, Umax)
+				Umin = min(UU, Umin)
+			}
+		}
+		for i := 0; i < Np; i++ {
+			ind := k + Kmax*i
+			UE.DataP[i] = U.DataP[ind]
+		}
+		// Obtain average gradient of this cell
+		dUdrAve, dUdsAve := Dr.Mul(UE, dUdr).Avg(), Ds.Mul(UE, dUds).Avg()
+		// Form psi as the minimum of all three corners
+		var psi float64
+		psi = 10000.
+		for nn := 0; nn < 3; nn++ {
+			psi = min(psi, psiCalc(nn, Umin, Umax, Uave, dUdrAve, dUdsAve))
+		}
+		// Limit the solution using psi and the average gradient
+		for i := 0; i < Np; i++ {
+			// Vector from node points to center of element
+			dR, dS := bjl.Element.R.DataP[i]-(-1./3), bjl.Element.S.DataP[i]-(-1./3.)
+			ind := k + Kmax*i
+			U.DataP[ind] = Uave + psi*(dR*dUdrAve+dS*dUdsAve)
+		}
 	}
 }
 
@@ -117,12 +161,12 @@ type ModeAliasShockFinder struct {
 	q, qalt utils.Matrix // scratch storage for evaluating the moment
 }
 
-func NewAliasShockFinder(dfr *DG2D.LagrangeElement2D) (sf *ModeAliasShockFinder) {
+func NewAliasShockFinder(element *DG2D.LagrangeElement2D) (sf *ModeAliasShockFinder) {
 	var (
-		Np = dfr.Np
+		Np = element.Np
 	)
 	sf = &ModeAliasShockFinder{
-		Element: dfr,
+		Element: element,
 		Np:      Np,
 		q:       utils.NewMatrix(Np, 1),
 		qalt:    utils.NewMatrix(Np, 1),
@@ -142,7 +186,7 @@ func NewAliasShockFinder(dfr *DG2D.LagrangeElement2D) (sf *ModeAliasShockFinder)
 		as values at Np node points, multiplying the Node point values vector by Clipper produces an alternative version
 		of the node values based on truncating the last polynomial mode.
 	*/
-	sf.Clipper = dfr.V.Mul(diag).Mul(dfr.Vinv)
+	sf.Clipper = element.V.Mul(diag).Mul(element.Vinv)
 	return
 }
 
@@ -163,7 +207,7 @@ func (sf *ModeAliasShockFinder) ShockIndicator(q []float64) (sigma float64) {
 		k           = float64(sf.Element.N)
 		kappa       = 4.
 		C0          = 3.
-		S0          = -C0 * math.Log10(k)
+		S0          = -C0 * math.Log(k)
 		left, right = S0 - kappa, S0 + kappa
 		ookappa     = 1. / kappa
 	)
