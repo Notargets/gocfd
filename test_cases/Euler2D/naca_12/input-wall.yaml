@@ -1,17 +1,18 @@
 Title: "Test Case"
 CFL: 3.00
 #FluxType: Roe-ER
-FluxType: Roe
-#FluxType: Lax
+#FluxType: Roe
+FluxType: Lax
 InitType: Freestream # Can be "Freestream" or "IVortex"
 PolynomialOrder: 2
 FinalTime: 20
 #Minf: 2.0
-#Minf: 0.8
-Minf: 0.5
+Minf: 0.8
+#Minf: 0.5
 #Minf: 0.3
 #Minf: 0.01
 Gamma: 1.4
 Alpha: 2.
 LocalTimeStepping: true
 MaxIterations: 80000
+Limiter: Barth Jesperson

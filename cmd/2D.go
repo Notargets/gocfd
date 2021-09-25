@@ -59,6 +59,7 @@ type InputParameters struct {
 	LocalTimeStepping bool                                  `yaml:"LocalTimeStep"`
 	MaxIterations     int                                   `yaml:"MaxIterations"`
 	ImplicitSolver    bool                                  `yaml:"ImplicitSolver"`
+	Limiter           string                                `yaml:"Limiter"`
 }
 
 func (ip *InputParameters) Parse(data []byte) error {
@@ -189,7 +190,8 @@ func init() {
 func Run2D(m2d *Model2D, ip *InputParameters) {
 	c := Euler2D.NewEuler(ip.FinalTime, ip.PolynomialOrder, m2d.GridFile, ip.CFL,
 		Euler2D.NewFluxType(ip.FluxType), Euler2D.NewInitType(ip.InitType), m2d.ParallelProcLimit,
-		ip.Minf, ip.Gamma, ip.Alpha, ip.LocalTimeStepping, ip.MaxIterations, false, true, m2d.Profile)
+		ip.Minf, ip.Gamma, ip.Alpha, ip.LocalTimeStepping, ip.MaxIterations, Euler2D.NewLimiterType(ip.Limiter),
+		false, true, m2d.Profile)
 	pm := &Euler2D.PlotMeta{
 		Plot:            m2d.Graph,
 		Field:           Euler2D.FlowFunction(m2d.GraphField),

@@ -48,7 +48,8 @@ type Euler struct {
 
 func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType FluxType, Case InitType,
 	ProcLimit int, Minf, Gamma, Alpha float64, LocalTime bool,
-	MaxIterations int, plotMesh, verbose, profile bool) (c *Euler) {
+	MaxIterations int, LT LimiterType,
+	plotMesh, verbose, profile bool) (c *Euler) {
 	c = &Euler{
 		MeshFile:          meshFile,
 		CFL:               CFL,
@@ -76,7 +77,7 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 	c.InitializeSolution(verbose)
 
 	// Allocate a solution limiter
-	c.Limiter = NewSolutionLimiter(c.dfr, c.Partitions, c.FS)
+	c.Limiter = NewSolutionLimiter(LT, c.dfr, c.Partitions, c.FS)
 
 	if verbose {
 		fmt.Printf("Euler Equations in 2 Dimensions\n")
@@ -85,7 +86,7 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 		if c.Case == FREESTREAM {
 			fmt.Printf("Mach Infinity = %8.5f, Angle of Attack = %8.5f\n", Minf, Alpha)
 		}
-		fmt.Printf("Algorithm: %s\n", c.FluxCalcAlgo.Print())
+		fmt.Printf("Flux Algorithm: [%s] using Limiter: [%s]\n", c.FluxCalcAlgo.Print(), c.Limiter.limiterType.Print())
 		fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, c.dfr.K)
 	}
 	return
@@ -605,7 +606,6 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		preCon                       = false
 		Nedge                        = c.dfr.FluxElement.Nedge
 		EdgeQ1, EdgeQ2               = make([][4]float64, Nedge), make([][4]float64, Nedge) // Local working memory
-		limit                        = false
 	)
 	if c.LocalTimeStepping {
 		preCon = false
@@ -724,9 +724,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 				Q0[n].DataP[i] += Residual[n].DataP[i]
 			}
 		}
-		if limit {
-			c.Limiter.LimitSolution(myThread, c.Q, rk.Residual)
-		}
+		c.Limiter.LimitSolution(myThread, c.Q, rk.Residual)
 		rk.WorkerDone(&subStep, toController, true)
 	}
 }

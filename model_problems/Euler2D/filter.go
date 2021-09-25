@@ -3,12 +3,14 @@ package Euler2D
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/notargets/gocfd/DG2D"
 	"github.com/notargets/gocfd/utils"
 )
 
 type SolutionLimiter struct {
+	limiterType          LimiterType
 	Element              *DG2D.LagrangeElement2D
 	Tris                 *DG2D.Triangulation
 	Partitions           *PartitionMap
@@ -17,12 +19,55 @@ type SolutionLimiter struct {
 	FS                   *FreeStream
 }
 
-func NewSolutionLimiter(dfr *DG2D.DFR2D, pm *PartitionMap, fs *FreeStream) (bjl *SolutionLimiter) {
+type LimiterType uint8
+
+const (
+	None LimiterType = iota
+	BarthJesperson
+)
+
+var (
+	LimiterNames = map[string]LimiterType{
+		"barthjesperson":  BarthJesperson,
+		"barth jesperson": BarthJesperson,
+	}
+	LimiterNamesRev = map[LimiterType]string{
+		BarthJesperson: "BarthJesperson",
+	}
+)
+
+func (lt LimiterType) Print() (txt string) {
+	if val, ok := LimiterNamesRev[lt]; !ok {
+		txt = "None"
+	} else {
+		txt = val
+	}
+	return
+}
+
+func NewLimiterType(label string) (lt LimiterType) {
+	var (
+		ok  bool
+		err error
+	)
+	if len(label) == 0 {
+		return None
+	}
+	label = strings.ToLower(strings.TrimSpace(label))
+	if lt, ok = LimiterNames[label]; !ok {
+		err = fmt.Errorf("unable to use limiter named [%s]", label)
+		panic(err)
+	}
+	return
+}
+
+func NewSolutionLimiter(t LimiterType, dfr *DG2D.DFR2D, pm *PartitionMap, fs *FreeStream) (bjl *SolutionLimiter) {
 	var (
 		Np       = dfr.SolutionElement.Np
 		Nthreads = pm.ParallelDegree
 	)
 	bjl = &SolutionLimiter{
+		limiterType: t,
 		Element:     dfr.SolutionElement,
 		Tris:        dfr.Tris,
 		ShockFinder: make([]*ModeAliasShockFinder, Nthreads),
@@ -47,19 +92,29 @@ func (bjl *SolutionLimiter) LimitSolution(myThread int, Qall, Residual [][4]util
 		Q        = Qall[myThread]
 		Np, Kmax = Q[0].Dims()
 		UE       = bjl.UElement[myThread]
-		FS       = bjl.FS
+		//FS       = bjl.FS
 	)
+	if bjl.limiterType == None {
+		return
+	}
 	for k := 0; k < Kmax; k++ {
 		for i := 0; i < Np; i++ {
 			ind := k + Kmax*i
-			UE.DataP[i] = FS.GetFlowFunction(Q, ind, Entropy)
+			UE.DataP[i] = Q[3].DataP[ind]
+			//UE.DataP[i] = Q[0].DataP[ind] + Q[1].DataP[ind] + Q[2].DataP[ind] + Q[3].DataP[ind]
+			//UE.DataP[i] = FS.GetFlowFunction(Q, ind, DynamicPressure)
+			//UE.DataP[i] = FS.GetFlowFunction(Q, ind, Entropy)
+			//UE.DataP[i] = Q[0].DataP[ind] * FS.GetFlowFunction(Q, ind, Entropy)
 		}
 		if bjl.ShockFinder[myThread].ElementHasShock(UE.DataP) { // Element has a shock
 			/*
 				kkk, _, _ := bjl.Partitions.GetLocalK(k)
 				fmt.Printf("limiting element %d\n", kkk)
 			*/
-			bjl.limitScalarField(k, myThread, Qall)
+			switch bjl.limiterType {
+			case BarthJesperson:
+				bjl.limitScalarFieldBarthJesperson(k, myThread, Qall)
+			}
 			for n := 0; n < 4; n++ {
 				for i := 0; i < Np; i++ {
 					ind := k + Kmax*i
@@ -70,7 +125,7 @@ func (bjl *SolutionLimiter) LimitSolution(myThread int, Qall, Residual [][4]util
 	}
 }
 
-func (bjl *SolutionLimiter) limitScalarField(k, myThread int, Qall [][4]utils.Matrix) {
+func (bjl *SolutionLimiter) limitScalarFieldBarthJesperson(k, myThread int, Qall [][4]utils.Matrix) {
 	var (
 		Np, Kmax   = Qall[myThread][0].Dims()
 		Dr, Ds     = bjl.Element.Dr, bjl.Element.Ds
