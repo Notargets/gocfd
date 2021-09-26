@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/notargets/gocfd/DG2D"
+
 	"github.com/notargets/gocfd/types"
 
 	"github.com/stretchr/testify/assert"
@@ -317,6 +319,27 @@ func TestFluxJacobian(t *testing.T) {
 				B, X, &mat.LU{})
 		*/
 		_, _, _, _, _ = Residual, DT, SM, B, X
+	}
+}
+
+func TestEdges(t *testing.T) {
+	dfr := DG2D.NewDFR2D(1, false, "../../DG2D/test_tris_9.neu")
+	edges := make(EdgeKeySlice, len(dfr.Tris.Edges))
+	var i int
+	for key := range dfr.Tris.Edges {
+		edges[i] = key
+		i++
+	}
+	edges.Sort()
+	fmt.Printf("len(Edges) = %d, Edges = %v\n", len(edges), edges)
+	for i, e := range edges {
+		fmt.Printf("vertex[edge[%d]]=%d\n", i, e.GetVertices(false)[1])
+	}
+	edges2 := EdgeKeySliceSortLeft(edges)
+	edges2.Sort()
+	for i, e := range edges2 {
+		v := e.GetVertices(false)
+		fmt.Printf("vertex2[edge[%d]]=[%d,%d]\n", i, v[0], v[1])
 	}
 }
 

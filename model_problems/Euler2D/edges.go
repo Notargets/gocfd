@@ -13,15 +13,31 @@ type EdgeKeySlice []types.EdgeKey
 
 func (p EdgeKeySlice) Len() int { return len(p) }
 func (p EdgeKeySlice) Less(i, j int) bool {
-	// Sorted to produce groups of vertex centered edges
+	// Sorted to produce groups of vertex centered edges on the right edge vertex
 	vnode1, vnode2 := int(p[i]>>32), int(p[j]>>32)
 	return vnode1 < vnode2
-	//return p[i] < p[j]
 }
 func (p EdgeKeySlice) Swap(i, j int) { p[i], p[j] = p[j], p[i] }
 
 // Sort is a convenience method.
 func (p EdgeKeySlice) Sort() { sort.Sort(p) }
+
+type EdgeKeySliceSortLeft EdgeKeySlice
+
+func (p EdgeKeySliceSortLeft) Sort() { sort.Sort(p) }
+
+func (p EdgeKeySliceSortLeft) Len() int      { return len(p) }
+func (p EdgeKeySliceSortLeft) Swap(i, j int) { p[i], p[j] = p[j], p[i] }
+func (p EdgeKeySliceSortLeft) Less(i, j int) bool {
+	getLeftVert := func(ek types.EdgeKey) (left int) {
+		enTmp := ek >> 32
+		left = int(ek - enTmp*(1<<32))
+		return
+	}
+	// Sorted to produce groups of vertex centered edges on the left edge vertex
+	vnode1, vnode2 := getLeftVert(p[i]), getLeftVert(p[j])
+	return vnode1 < vnode2
+}
 
 func (c *Euler) SetNormalFluxOnEdges(Time float64, CalculateDT bool, Jdet, DT []utils.Matrix, F_RT_DOF, Q_Face [][4]utils.Matrix, edgeKeys EdgeKeySlice, EdgeQ1, EdgeQ2 [][4]float64) (waveSpeedMax float64) {
 	var (
