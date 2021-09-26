@@ -11,9 +11,14 @@ import (
 
 type EdgeKeySlice []types.EdgeKey
 
-func (p EdgeKeySlice) Len() int           { return len(p) }
-func (p EdgeKeySlice) Less(i, j int) bool { return p[i] < p[j] }
-func (p EdgeKeySlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+func (p EdgeKeySlice) Len() int { return len(p) }
+func (p EdgeKeySlice) Less(i, j int) bool {
+	// Sorted to produce groups of vertex centered edges
+	vnode1, vnode2 := int(p[i]>>32), int(p[j]>>32)
+	return vnode1 < vnode2
+	//return p[i] < p[j]
+}
+func (p EdgeKeySlice) Swap(i, j int) { p[i], p[j] = p[j], p[i] }
 
 // Sort is a convenience method.
 func (p EdgeKeySlice) Sort() { sort.Sort(p) }
