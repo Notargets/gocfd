@@ -141,7 +141,13 @@ func PlotMesh(VX, VY utils.Vector, EToV, X, Y utils.Matrix, plotPoints bool) (ch
 		B: 255,
 		A: 0,
 	}
-	_ = colorMap
+	black := color.RGBA{
+		R: 0,
+		G: 0,
+		B: 0,
+		A: 0,
+	}
+	_, _ = colorMap, white
 	if err := chart.AddTriMesh("TriMesh", trimesh,
 		chart2d.CrossGlyph, chart2d.Solid, white); err != nil {
 		panic("unable to add graph series")
@@ -152,7 +158,7 @@ func PlotMesh(VX, VY utils.Vector, EToV, X, Y utils.Matrix, plotPoints bool) (ch
 		ptsGlyph = chart2d.CircleGlyph
 	}
 	if err := chart.AddSeries("Elements", X.Transpose().DataP, Y.Transpose().DataP,
-		ptsGlyph, chart2d.NoLine, white); err != nil {
+		ptsGlyph, chart2d.NoLine, black); err != nil {
 		panic(err)
 	}
 

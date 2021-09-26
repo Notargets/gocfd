@@ -349,6 +349,11 @@ func TestGradient(t *testing.T) {
 	}
 }
 
+func TestEdges(t *testing.T) {
+	dfr := NewDFR2D(1, false, "../DG2D/test_tris_9.neu")
+	_ = dfr
+}
+
 func PlotFS(fs *functions.FSurface, fmin, fmax float64, ltO ...chart2d.LineType) {
 	var (
 		trimesh = fs.Tris
