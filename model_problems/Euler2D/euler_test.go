@@ -356,6 +356,18 @@ func TestDissipation(t *testing.T) {
 		VtoE)
 	NvertsTotal, _ := dfr.VX.Dims()
 	assert.Equal(t, 10, NvertsTotal)
+	vepFinal := [2]int32{9, 9}
+	for NPar := 1; NPar < 10; NPar += 2 {
+		pm := NewPartitionMap(NPar, dfr.K)
+		sd := NewScalarDissipation(NvertsTotal, dfr.Tris.EToV, pm, dfr.SolutionElement)
+		var vep [2]int32
+		for np := 0; np < NPar; np++ {
+			for _, val := range sd.VtoE[np] {
+				vep = val
+			}
+		}
+		assert.Equal(t, vepFinal, vep)
+	}
 }
 
 func PrintQ(Q [4]utils.Matrix, l string) {

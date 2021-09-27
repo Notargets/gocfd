@@ -3,7 +3,7 @@ package Euler2D
 type PartitionMap struct {
 	MaxIndex       int // MaxIndex is partitioned into ParallelDegree partitions
 	ParallelDegree int
-	Partitions     [][2]int
+	Partitions     [][2]int // Beginning and end index of partitions
 }
 
 func NewPartitionMap(ParallelDegree, maxIndex int) (pm *PartitionMap) {
