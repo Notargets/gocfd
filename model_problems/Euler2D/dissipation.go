@@ -2,6 +2,7 @@ package Euler2D
 
 import (
 	"fmt"
+	"math"
 	"sort"
 
 	"github.com/notargets/gocfd/DG2D"
@@ -53,21 +54,14 @@ func (ve VertexToElement) Shard(pm *PartitionMap) (veSharded []VertexToElement) 
 	}
 	for np := 0; np < NPar; np++ {
 		for i := 0; i < approxBucketSize; i++ {
-			//veSharded[np][i] = ve[ib]
-			//nodeIDSharded, _, _ := pm.GetLocalK(int(ve[ib][1]))
-			//veSharded[np] = append(veSharded[np], [2]int32{ve[ib][0], int32(nodeIDSharded)})
 			veSharded[np] = append(veSharded[np], getShardedPair(ve[ib], pm))
 			ib++
-			//fmt.Printf("i,ib,np = %d,%d,%d\n", i, ib, np)
 			if ib == lve {
 				return
 			}
 		}
 		vNum = ve[ib][0]
 		for ib < lve && ve[ib][0] == vNum {
-			//fmt.Printf("ib,np,vNum,ve[ib][0] = %d,%d,%d,%d\n", ib, np, vNum, ve[ib][0])
-			// Continue the shard until the group is done
-			//veSharded[np] = append(veSharded[np], ve[ib])
 			veSharded[np] = append(veSharded[np], getShardedPair(ve[ib], pm))
 			ib++
 			if ib == lve {
@@ -79,13 +73,16 @@ func (ve VertexToElement) Shard(pm *PartitionMap) (veSharded []VertexToElement) 
 }
 
 type ScalarDissipation struct {
-	VtoE          []VertexToElement // Sharded vertex to element map, [2] is [vertID, ElementID_Sharded]
-	Epsilon       []utils.Matrix    // Sharded Np x Kmax, Interpolated from element vertices
-	EpsilonScalar [][]float64       // Sharded scalar value of dissipation, one per element
-	DissX, DissY  [][4]utils.Matrix // Sharded Np x Kmax, Dissipation Flux
-	RDiss         [][4]utils.Matrix // Sharded Np x Kmax, Dissipation Added to Residual
-	EpsVertex     []float64         // NVerts x 1, Aggregated (Max) of epsilon surrounding each vertex, Not sharded
-	PMap          *PartitionMap     // Partition map for the solution shards in K
+	VtoE                  []VertexToElement // Sharded vertex to element map, [2] is [vertID, ElementID_Sharded]
+	Epsilon               []utils.Matrix    // Sharded Np x Kmax, Interpolated from element vertices
+	EpsilonScalar         [][]float64       // Sharded scalar value of dissipation, one per element
+	DissX, DissY          [][4]utils.Matrix // Sharded Np x Kmax, Dissipation Flux
+	RDiss                 [][4]utils.Matrix // Sharded Np x Kmax, Dissipation Added to Residual
+	EpsVertex             []float64         // NVerts x 1, Aggregated (Max) of epsilon surrounding each vertex, Not sharded
+	PMap                  *PartitionMap     // Partition map for the solution shards in K
+	UElement, U, UClipped []utils.Matrix    // Sharded scratch areas for assembly and testing of solution values
+	Clipper               utils.Matrix      // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder
+	Element               *DG2D.LagrangeElement2D
 }
 
 func NewScalarDissipation(NVerts int, EToV utils.Matrix, pm *PartitionMap, el *DG2D.LagrangeElement2D) (sd *ScalarDissipation) {
@@ -102,8 +99,16 @@ func NewScalarDissipation(NVerts int, EToV utils.Matrix, pm *PartitionMap, el *D
 		RDiss:         make([][4]utils.Matrix, NPar),
 		VtoE:          NewVertexToElement(EToV).Shard(pm),
 		PMap:          pm,
+		Element:       el,
+		// Sharded working matrices
+		UElement: make([]utils.Matrix, NPar),
+		U:        make([]utils.Matrix, NPar),
+		UClipped: make([]utils.Matrix, NPar),
 	}
 	for np := 0; np < NPar; np++ {
+		sd.UElement[np] = utils.NewMatrix(Np, 1)
+		sd.U[np] = utils.NewMatrix(Np, 1)
+		sd.UClipped[np] = utils.NewMatrix(Np, 1)
 		Kmax := pm.GetBucketDimension(np)
 		sd.Epsilon[np] = utils.NewMatrix(Np, Kmax)
 		sd.EpsilonScalar[np] = make([]float64, Kmax)
@@ -112,6 +117,80 @@ func NewScalarDissipation(NVerts int, EToV utils.Matrix, pm *PartitionMap, el *D
 			sd.DissY[np][n] = utils.NewMatrix(Np, Kmax)
 			sd.RDiss[np][n] = utils.NewMatrix(Np, Kmax)
 		}
+	}
+	/*
+		The "Clipper" matrix drops the last mode from the polynomial and forms an alternative field of values at the node
+		points based on a polynomial with one less term. In other words, if we have a polynomial of degree "p", expressed
+		as values at Np node points, multiplying the Node point values vector by Clipper produces an alternative version
+		of the node values based on truncating the last polynomial mode.
+	*/
+	{
+		data := make([]float64, Np)
+		for i := 0; i < Np; i++ {
+			if i != Np-1 {
+				data[i] = 1.
+			} else {
+				data[i] = 0.
+			}
+		}
+		diag := utils.NewDiagMatrix(Np, data)
+		sd.Clipper = sd.Element.V.Mul(diag).Mul(sd.Element.Vinv)
+	}
+	return
+}
+
+func (sd *ScalarDissipation) CalculateElementViscosity(myThread int, Qall [][4]utils.Matrix) {
+	var (
+		Rho      = Qall[myThread][0]
+		Eps      = sd.EpsilonScalar[myThread]
+		Kmax     = sd.PMap.GetBucketDimension(myThread)
+		U        = sd.U[myThread]
+		UClipped = sd.UClipped[myThread]
+	)
+	visc := func(k int) (sigma float64) {
+		/*
+			Original method by Persson, constants chosen to match Zhiqiang, et. al.
+		*/
+		var (
+			Se          = math.Log10(sd.moment(k, Kmax, U, UClipped, Rho))
+			kappa       = 4.
+			C0          = 3.
+			S0          = -C0 * math.Log(float64(sd.Element.N))
+			left, right = S0 - kappa, S0 + kappa
+			ookappa     = 1. / kappa
+		)
+		switch {
+		case Se < left:
+			sigma = 1.
+		case Se >= left && Se < right:
+			sigma = 0.5 * (1. - math.Sin(0.5*math.Pi*ookappa*(Se-S0)))
+		case Se >= right:
+			sigma = 0.
+		}
+		return
+	}
+	for k := 0; k < Kmax; k++ {
+		Eps[k] = visc(k)
+	}
+}
+
+func (sd *ScalarDissipation) moment(k, Kmax int, U, UClipped, Rho utils.Matrix) (m float64) {
+	var (
+		Np            = sd.Element.Np
+		UD, UClippedD = U.DataP, UClipped.DataP
+	)
+	for i := 0; i < Np; i++ {
+		ind := k + i*Kmax
+		U.DataP[i] = Rho.DataP[ind]
+	}
+	/*
+		Evaluate the L2 moment of (q - qalt) over the element, where qalt is the truncated version of q
+		Here we don't bother using quadrature, we do a simple sum
+	*/
+	UClipped = sd.Clipper.Mul(U, UClipped)
+	for i := 0; i < Np; i++ {
+		t1 := UD[i] - UClippedD[i]
+		m += t1 * t1 / (UD[i] * UD[i])
 	}
 	return
 }
