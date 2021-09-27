@@ -36,8 +36,9 @@ func NewVertexToElement(EtoV utils.Matrix) (VtoE VertexToElement) {
 	return
 }
 
-func (ve VertexToElement) Shard(NPar int) (veSharded []VertexToElement) {
+func (ve VertexToElement) Shard(pm *PartitionMap) (veSharded []VertexToElement) {
 	var (
+		NPar             = pm.ParallelDegree
 		lve              = len(ve)
 		VertexPartitions = NewPartitionMap(NPar, lve) // This has to be re-done to honor vertex grouping
 		ib               int
@@ -45,10 +46,17 @@ func (ve VertexToElement) Shard(NPar int) (veSharded []VertexToElement) {
 	)
 	veSharded = make([]VertexToElement, NPar)
 	approxBucketSize := VertexPartitions.GetBucketDimension(0)
+	getShardedPair := func(vve [2]int32, pm *PartitionMap) (vves [2]int32) {
+		nodeIDSharded, _, _ := pm.GetLocalK(int(vve[1]))
+		vves = [2]int32{vve[0], int32(nodeIDSharded)}
+		return
+	}
 	for np := 0; np < NPar; np++ {
 		for i := 0; i < approxBucketSize; i++ {
 			//veSharded[np][i] = ve[ib]
-			veSharded[np] = append(veSharded[np], ve[ib])
+			//nodeIDSharded, _, _ := pm.GetLocalK(int(ve[ib][1]))
+			//veSharded[np] = append(veSharded[np], [2]int32{ve[ib][0], int32(nodeIDSharded)})
+			veSharded[np] = append(veSharded[np], getShardedPair(ve[ib], pm))
 			ib++
 			//fmt.Printf("i,ib,np = %d,%d,%d\n", i, ib, np)
 			if ib == lve {
@@ -59,7 +67,8 @@ func (ve VertexToElement) Shard(NPar int) (veSharded []VertexToElement) {
 		for ib < lve && ve[ib][0] == vNum {
 			//fmt.Printf("ib,np,vNum,ve[ib][0] = %d,%d,%d,%d\n", ib, np, vNum, ve[ib][0])
 			// Continue the shard until the group is done
-			veSharded[np] = append(veSharded[np], ve[ib])
+			//veSharded[np] = append(veSharded[np], ve[ib])
+			veSharded[np] = append(veSharded[np], getShardedPair(ve[ib], pm))
 			ib++
 			if ib == lve {
 				return
@@ -70,12 +79,13 @@ func (ve VertexToElement) Shard(NPar int) (veSharded []VertexToElement) {
 }
 
 type ScalarDissipation struct {
-	VtoE             []VertexToElement // Sharded vertex to element map, [2] is [vertID, ElementID]
-	Epsilon          []utils.Matrix    // Sharded Np x Kmax, Interpolated from element vertices
-	DissX, DissY     [][4]utils.Matrix // Sharded Np x Kmax, Dissipation Flux
-	RDiss            [][4]utils.Matrix // Sharded Np x Kmax, Dissipation Added to Residual
-	EpsVertex        [][]float64       // Sharded Nverts, Aggregated (Max) of epsilon surrounding each vertex
-	VertexPartitions *PartitionMap
+	VtoE          []VertexToElement // Sharded vertex to element map, [2] is [vertID, ElementID_Sharded]
+	Epsilon       []utils.Matrix    // Sharded Np x Kmax, Interpolated from element vertices
+	EpsilonScalar [][]float64       // Sharded scalar value of dissipation, one per element
+	DissX, DissY  [][4]utils.Matrix // Sharded Np x Kmax, Dissipation Flux
+	RDiss         [][4]utils.Matrix // Sharded Np x Kmax, Dissipation Added to Residual
+	EpsVertex     []float64         // NVerts x 1, Aggregated (Max) of epsilon surrounding each vertex, Not sharded
+	PMap          *PartitionMap     // Partition map for the solution shards in K
 }
 
 func NewScalarDissipation(NVerts int, EToV utils.Matrix, pm *PartitionMap, el *DG2D.LagrangeElement2D) (sd *ScalarDissipation) {
@@ -84,17 +94,19 @@ func NewScalarDissipation(NVerts int, EToV utils.Matrix, pm *PartitionMap, el *D
 		Np   = el.Np
 	)
 	sd = &ScalarDissipation{
-		EpsVertex: make([][]float64, NPar),
-		Epsilon:   make([]utils.Matrix, NPar),
-		DissX:     make([][4]utils.Matrix, NPar),
-		DissY:     make([][4]utils.Matrix, NPar),
-		RDiss:     make([][4]utils.Matrix, NPar),
-		VtoE:      NewVertexToElement(EToV).Shard(NPar),
+		EpsVertex:     make([]float64, NVerts),
+		Epsilon:       make([]utils.Matrix, NPar),
+		EpsilonScalar: make([][]float64, NPar),
+		DissX:         make([][4]utils.Matrix, NPar),
+		DissY:         make([][4]utils.Matrix, NPar),
+		RDiss:         make([][4]utils.Matrix, NPar),
+		VtoE:          NewVertexToElement(EToV).Shard(pm),
+		PMap:          pm,
 	}
 	for np := 0; np < NPar; np++ {
-		sd.EpsVertex[np] = make([]float64, NVerts)
 		Kmax := pm.GetBucketDimension(np)
 		sd.Epsilon[np] = utils.NewMatrix(Np, Kmax)
+		sd.EpsilonScalar[np] = make([]float64, Kmax)
 		for n := 0; n < 4; n++ {
 			sd.DissX[np][n] = utils.NewMatrix(Np, Kmax)
 			sd.DissY[np][n] = utils.NewMatrix(Np, Kmax)

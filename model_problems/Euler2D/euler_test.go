@@ -366,7 +366,10 @@ func TestDissipation(t *testing.T) {
 				vep = val
 			}
 		}
-		assert.Equal(t, vepFinal, vep)
+		vNode, _, _ := pm.GetLocalK(int(vepFinal[1]))
+		vepFinalSharded := [2]int32{vepFinal[0], int32(vNode)}
+		//assert.Equal(t, vepFinal, vep)
+		assert.Equal(t, vepFinalSharded, vep)
 	}
 }
 
