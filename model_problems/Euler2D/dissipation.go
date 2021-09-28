@@ -76,17 +76,17 @@ func (ve VertexToElement) Shard(pm *PartitionMap) (veSharded []VertexToElement) 
 }
 
 type ScalarDissipation struct {
-	VtoE                  []VertexToElement // Sharded vertex to element map, [2] is [vertID, ElementID_Sharded]
-	Epsilon               []utils.Matrix    // Sharded Np x Kmax, Interpolated from element vertices
-	EpsilonScalar         [][]float64       // Sharded scalar value of dissipation, one per element
-	DissX, DissY          [][4]utils.Matrix // Sharded Np x Kmax, Dissipation Flux
-	RDiss                 [][4]utils.Matrix // Sharded Np x Kmax, Dissipation Added to Residual
-	EpsVertex             []float64         // NVerts x 1, Aggregated (Max) of epsilon surrounding each vertex, Not sharded
-	PMap                  *PartitionMap     // Partition map for the solution shards in K
-	UElement, U, UClipped []utils.Matrix    // Sharded scratch areas for assembly and testing of solution values
-	Clipper               utils.Matrix      // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder
-	Element               *DG2D.LagrangeElement2D
-	S0, Kappa             float64
+	VtoE          []VertexToElement // Sharded vertex to element map, [2] is [vertID, ElementID_Sharded]
+	Epsilon       []utils.Matrix    // Sharded Np x Kmax, Interpolated from element vertices
+	EpsilonScalar [][]float64       // Sharded scalar value of dissipation, one per element
+	DissX, DissY  [][4]utils.Matrix // Sharded Np x Kmax, Dissipation Flux
+	RDiss         [][4]utils.Matrix // Sharded Np x Kmax, Dissipation Added to Residual
+	EpsVertex     []float64         // NVerts x 1, Aggregated (Max) of epsilon surrounding each vertex, Not sharded
+	PMap          *PartitionMap     // Partition map for the solution shards in K
+	U, UClipped   []utils.Matrix    // Sharded scratch areas for assembly and testing of solution values
+	Clipper       utils.Matrix      // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder
+	Element       *DG2D.LagrangeElement2D
+	S0, Kappa     float64
 }
 
 func NewScalarDissipation(NVerts int, EToV utils.Matrix, pm *PartitionMap, el *DG2D.LagrangeElement2D) (sd *ScalarDissipation) {
@@ -106,14 +106,12 @@ func NewScalarDissipation(NVerts int, EToV utils.Matrix, pm *PartitionMap, el *D
 		PMap:          pm,
 		Element:       el,
 		// Sharded working matrices
-		UElement: make([]utils.Matrix, NPar),
 		U:        make([]utils.Matrix, NPar),
 		UClipped: make([]utils.Matrix, NPar),
 		S0:       1. / math.Pow(order, 4.),
 		Kappa:    4.,
 	}
 	for np := 0; np < NPar; np++ {
-		sd.UElement[np] = utils.NewMatrix(Np, 1)
 		sd.U[np] = utils.NewMatrix(Np, 1)
 		sd.UClipped[np] = utils.NewMatrix(Np, 1)
 		Kmax := pm.GetBucketDimension(np)

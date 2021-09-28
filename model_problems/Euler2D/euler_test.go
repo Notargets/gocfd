@@ -350,29 +350,62 @@ func TestEdges(t *testing.T) {
 }
 
 func TestDissipation(t *testing.T) {
-	dfr := DG2D.NewDFR2D(1, false, "../../DG2D/test_tris_9.neu")
-	VtoE := NewVertexToElement(dfr.Tris.EToV)
-	assert.Equal(t, VertexToElement{{0, 0}, {0, 1}, {1, 3}, {1, 1}, {1, 2}, {2, 4}, {2, 3}, {3, 5}, {3, 0}, {4, 2}, {4, 5}, {4, 6}, {4, 1}, {4, 0}, {4, 7}, {5, 4}, {5, 3}, {5, 9}, {5, 8}, {5, 2}, {5, 7}, {6, 4}, {6, 9}, {7, 5}, {7, 6}, {8, 8}, {8, 6}, {8, 7}, {9, 8}, {9, 9}},
-		VtoE)
-	NvertsTotal, _ := dfr.VX.Dims()
-	assert.Equal(t, 10, NvertsTotal)
-	vepFinal := [2]int32{9, 9}
-	for NPar := 1; NPar < 10; NPar += 2 {
-		pm := NewPartitionMap(NPar, dfr.K)
-		sd := NewScalarDissipation(NvertsTotal, dfr.Tris.EToV, pm, dfr.SolutionElement)
-		var vep [2]int32
-		for np := 0; np < NPar; np++ {
-			for _, val := range sd.VtoE[np] {
-				vep = val
+	{
+		dfr := DG2D.NewDFR2D(1, false, "../../DG2D/test_tris_9.neu")
+		VtoE := NewVertexToElement(dfr.Tris.EToV)
+		assert.Equal(t, VertexToElement{{0, 0}, {0, 1}, {1, 3}, {1, 1}, {1, 2}, {2, 4}, {2, 3}, {3, 5}, {3, 0}, {4, 2}, {4, 5}, {4, 6}, {4, 1}, {4, 0}, {4, 7}, {5, 4}, {5, 3}, {5, 9}, {5, 8}, {5, 2}, {5, 7}, {6, 4}, {6, 9}, {7, 5}, {7, 6}, {8, 8}, {8, 6}, {8, 7}, {9, 8}, {9, 9}},
+			VtoE)
+		NvertsTotal, _ := dfr.VX.Dims()
+		assert.Equal(t, 10, NvertsTotal)
+		vepFinal := [2]int32{9, 9}
+		for NPar := 1; NPar < 10; NPar += 2 {
+			pm := NewPartitionMap(NPar, dfr.K)
+			sd := NewScalarDissipation(NvertsTotal, dfr.Tris.EToV, pm, dfr.SolutionElement)
+			var vep [2]int32
+			for np := 0; np < NPar; np++ {
+				for _, val := range sd.VtoE[np] {
+					vep = val
+				}
+			}
+			assert.Equal(t, vepFinal, vep)
+		}
+		KMax := dfr.K
+		assert.Equal(t, len(dfr.Jdet.DataP), KMax)
+		for k := 0; k < KMax; k++ {
+			area := 2. * dfr.Jdet.DataP[k] // Area of element is 2x Determinant, because the unit triangle is area=2
+			assert.InDeltaf(t, area, 0.25, 0.000001, "err msg %s")
+		}
+	}
+	{
+		dfr := DG2D.NewDFR2D(2, false, "../../DG2D/test_tris_9.neu")
+		Np, KMax := dfr.SolutionElement.Np, dfr.K
+		pm := NewPartitionMap(1, KMax)
+		Q := make([][4]utils.Matrix, 1)
+		n := 0
+		Q[0][n] = utils.NewMatrix(dfr.SolutionElement.Np, KMax)
+		var val float64
+		for k := 0; k < KMax; k++ {
+			for i := 0; i < Np; i++ {
+				if i < Np/2 {
+					val = 2
+				} else {
+					val = 1
+				}
+				ind := k + KMax*i
+				Q[0][n].DataP[ind] = val
 			}
 		}
-		assert.Equal(t, vepFinal, vep)
-	}
-	KMax := dfr.K
-	assert.Equal(t, len(dfr.Jdet.DataP), KMax)
-	for k := 0; k < KMax; k++ {
-		area := 2. * dfr.Jdet.DataP[k] // Area of element is 2x Determinant, because the unit triangle is area=2
-		assert.InDeltaf(t, area, 0.25, 0.000001, "err msg %s")
+		NvertsTotal, _ := dfr.VX.Dims()
+		sd := NewScalarDissipation(NvertsTotal, dfr.Tris.EToV, pm, dfr.SolutionElement)
+		c := &Euler{Partitions: pm}
+		Jdet := c.ShardByKTranspose(dfr.Jdet)
+		sd.CalculateElementViscosity(0, Jdet, Q)
+		assert.InDeltaSlicef(t, []float64{0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903},
+			sd.EpsilonScalar[0], 0.00001, "err msg %s")
+		sd.Kappa = 0.75
+		sd.CalculateElementViscosity(0, Jdet, Q)
+		assert.InDeltaSlicef(t, []float64{0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270},
+			sd.EpsilonScalar[0], 0.00001, "err msg %s")
 	}
 }
 
