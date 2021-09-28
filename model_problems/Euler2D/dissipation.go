@@ -52,9 +52,11 @@ func (ve VertexToElement) Shard(pm *PartitionMap) (veSharded []VertexToElement) 
 		vves = [2]int32{vve[0], int32(nodeIDSharded)}
 		return
 	}
+	_ = getShardedPair
 	for np := 0; np < NPar; np++ {
 		for i := 0; i < approxBucketSize; i++ {
-			veSharded[np] = append(veSharded[np], getShardedPair(ve[ib], pm))
+			//veSharded[np] = append(veSharded[np], getShardedPair(ve[ib], pm))
+			veSharded[np] = append(veSharded[np], ve[ib])
 			ib++
 			if ib == lve {
 				return
@@ -62,7 +64,8 @@ func (ve VertexToElement) Shard(pm *PartitionMap) (veSharded []VertexToElement) 
 		}
 		vNum = ve[ib][0]
 		for ib < lve && ve[ib][0] == vNum {
-			veSharded[np] = append(veSharded[np], getShardedPair(ve[ib], pm))
+			//veSharded[np] = append(veSharded[np], getShardedPair(ve[ib], pm))
+			veSharded[np] = append(veSharded[np], ve[ib])
 			ib++
 			if ib == lve {
 				return
@@ -83,12 +86,14 @@ type ScalarDissipation struct {
 	UElement, U, UClipped []utils.Matrix    // Sharded scratch areas for assembly and testing of solution values
 	Clipper               utils.Matrix      // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder
 	Element               *DG2D.LagrangeElement2D
+	S0, Kappa             float64
 }
 
 func NewScalarDissipation(NVerts int, EToV utils.Matrix, pm *PartitionMap, el *DG2D.LagrangeElement2D) (sd *ScalarDissipation) {
 	var (
-		NPar = pm.ParallelDegree
-		Np   = el.Np
+		NPar  = pm.ParallelDegree
+		Np    = el.Np
+		order = float64(el.N)
 	)
 	sd = &ScalarDissipation{
 		EpsVertex:     make([]float64, NVerts),
@@ -104,6 +109,8 @@ func NewScalarDissipation(NVerts int, EToV utils.Matrix, pm *PartitionMap, el *D
 		UElement: make([]utils.Matrix, NPar),
 		U:        make([]utils.Matrix, NPar),
 		UClipped: make([]utils.Matrix, NPar),
+		S0:       1. / math.Pow(order, 4.),
+		Kappa:    4.,
 	}
 	for np := 0; np < NPar; np++ {
 		sd.UElement[np] = utils.NewMatrix(Np, 1)
@@ -139,33 +146,32 @@ func NewScalarDissipation(NVerts int, EToV utils.Matrix, pm *PartitionMap, el *D
 	return
 }
 
-func (sd *ScalarDissipation) CalculateElementViscosity(myThread int, Qall [][4]utils.Matrix) {
+func (sd *ScalarDissipation) CalculateElementViscosity(myThread int, JdetAll []utils.Matrix, Qall [][4]utils.Matrix) {
 	var (
 		Rho      = Qall[myThread][0]
+		Jdet     = JdetAll[myThread]
 		Eps      = sd.EpsilonScalar[myThread]
 		Kmax     = sd.PMap.GetBucketDimension(myThread)
 		U        = sd.U[myThread]
 		UClipped = sd.UClipped[myThread]
 	)
-	visc := func(k int) (sigma float64) {
+	visc := func(k int) (eps float64) {
 		/*
 			Original method by Persson, constants chosen to match Zhiqiang, et. al.
 		*/
 		var (
+			eps0        = math.Sqrt(2.*Jdet.DataP[k]) / float64(sd.Element.N)
 			Se          = math.Log10(sd.moment(k, Kmax, U, UClipped, Rho))
-			kappa       = 4.
-			C0          = 3.
-			S0          = -C0 * math.Log(float64(sd.Element.N))
-			left, right = S0 - kappa, S0 + kappa
-			ookappa     = 1. / kappa
+			left, right = sd.S0 - sd.Kappa, sd.S0 + sd.Kappa
+			oo2kappa    = 0.5 / sd.Kappa
 		)
 		switch {
 		case Se < left:
-			sigma = 1.
+			eps = 0.
 		case Se >= left && Se < right:
-			sigma = 0.5 * (1. - math.Sin(0.5*math.Pi*ookappa*(Se-S0)))
+			eps = 0.5 * eps0 * (1. + math.Sin(math.Pi*oo2kappa*(Se-sd.S0)))
 		case Se >= right:
-			sigma = 0.
+			eps = eps0
 		}
 		return
 	}

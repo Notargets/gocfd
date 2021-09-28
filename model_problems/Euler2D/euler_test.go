@@ -352,7 +352,7 @@ func TestEdges(t *testing.T) {
 func TestDissipation(t *testing.T) {
 	dfr := DG2D.NewDFR2D(1, false, "../../DG2D/test_tris_9.neu")
 	VtoE := NewVertexToElement(dfr.Tris.EToV)
-	assert.Equal(t, VertexToElement{{0, 0}, {0, 1}, {1, 2}, {1, 3}, {1, 1}, {2, 4}, {2, 3}, {3, 0}, {3, 5}, {4, 7}, {4, 1}, {4, 6}, {4, 0}, {4, 2}, {4, 5}, {5, 2}, {5, 4}, {5, 9}, {5, 3}, {5, 8}, {5, 7}, {6, 9}, {6, 4}, {7, 6}, {7, 5}, {8, 7}, {8, 6}, {8, 8}, {9, 8}, {9, 9}},
+	assert.Equal(t, VertexToElement{{0, 0}, {0, 1}, {1, 3}, {1, 1}, {1, 2}, {2, 4}, {2, 3}, {3, 5}, {3, 0}, {4, 2}, {4, 5}, {4, 6}, {4, 1}, {4, 0}, {4, 7}, {5, 4}, {5, 3}, {5, 9}, {5, 8}, {5, 2}, {5, 7}, {6, 4}, {6, 9}, {7, 5}, {7, 6}, {8, 8}, {8, 6}, {8, 7}, {9, 8}, {9, 9}},
 		VtoE)
 	NvertsTotal, _ := dfr.VX.Dims()
 	assert.Equal(t, 10, NvertsTotal)
@@ -366,10 +366,13 @@ func TestDissipation(t *testing.T) {
 				vep = val
 			}
 		}
-		vNode, _, _ := pm.GetLocalK(int(vepFinal[1]))
-		vepFinalSharded := [2]int32{vepFinal[0], int32(vNode)}
-		//assert.Equal(t, vepFinal, vep)
-		assert.Equal(t, vepFinalSharded, vep)
+		assert.Equal(t, vepFinal, vep)
+	}
+	KMax := dfr.K
+	assert.Equal(t, len(dfr.Jdet.DataP), KMax)
+	for k := 0; k < KMax; k++ {
+		area := 2. * dfr.Jdet.DataP[k] // Area of element is 2x Determinant, because the unit triangle is area=2
+		assert.InDeltaf(t, area, 0.25, 0.000001, "err msg %s")
 	}
 }
 

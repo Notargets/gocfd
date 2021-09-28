@@ -92,42 +92,6 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 	return
 }
 
-func (c *Euler) SolveImplicit(pm *PlotMeta) {
-	var (
-		FinalTime = c.FinalTime
-		steps     int
-		finished  bool
-		plotQ     = pm.Plot
-	)
-	if c.profile {
-		defer profile.Start().Stop()
-	}
-
-	c.PrintInitialization(FinalTime)
-
-	ei := c.NewElementImplicit()
-
-	elapsed := time.Duration(0)
-	ei.StartWorkers(c)
-	var start time.Time
-	for !finished {
-		start = time.Now()
-		ei.Step(c)
-		elapsed += time.Now().Sub(start)
-		steps++
-		ei.Time += ei.GlobalDT
-		finished = c.CheckIfFinished(ei.Time, FinalTime, steps)
-		if finished || steps%pm.StepsBeforePlot == 0 || steps == 1 {
-			var printMem bool
-			if steps%100 == 0 {
-				printMem = true
-			}
-			c.PrintUpdate(ei.Time, ei.GlobalDT, steps, c.Q, ei.Residual, plotQ, pm, printMem)
-		}
-	}
-	c.PrintFinal(elapsed, steps)
-}
-
 func (c *Euler) Solve(pm *PlotMeta) {
 	var (
 		FinalTime = c.FinalTime
@@ -162,313 +126,6 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		}
 	}
 	c.PrintFinal(elapsed, steps)
-}
-
-type ElementImplicit struct {
-	Jdet, Jinv        []utils.Matrix    // Sharded mesh Jacobian and inverse transform
-	Q_Face            [][4]utils.Matrix // Sharded Solution values stored at edge points of RT element
-	RHSQ, Residual    [][4]utils.Matrix // Sharded Solution Residual storage
-	F_RT_DOF          [][4]utils.Matrix // Sharded Scalar (projected) flux used for divergence, on all RT element points
-	FluxJac           [][][16]float64   // Sharded Flux Jacobian (projected), one 4x4 matrix (2D) per int point of RT element
-	DT                []utils.Matrix    // Local time step storage
-	SM                [][]utils.Matrix  // Sharded system matrix, one for each interior point, dimensions 4x4
-	MaxWaveSpeed      []float64         // Shard max wavespeed
-	Kmax              []int             // Sharded Local element count (dimension: Kmax[ParallelDegree])
-	GlobalDT, Time    float64
-	Np, Nedge, NpFlux int // Number of points in solution, edge and flux total
-	toWorker          []chan struct{}
-	fromWorkers       chan int8
-	step              int
-}
-
-func (c *Euler) NewElementImplicit() (ei *ElementImplicit) {
-	var (
-		pm   = c.Partitions
-		NPar = pm.ParallelDegree
-	)
-	ei = &ElementImplicit{
-		Jdet:         c.ShardByKTranspose(c.dfr.Jdet),
-		Jinv:         c.ShardByKTranspose(c.dfr.Jinv),
-		Q_Face:       make([][4]utils.Matrix, NPar),
-		RHSQ:         make([][4]utils.Matrix, NPar),
-		Residual:     make([][4]utils.Matrix, NPar),
-		F_RT_DOF:     make([][4]utils.Matrix, NPar),
-		FluxJac:      make([][][16]float64, NPar),
-		DT:           make([]utils.Matrix, NPar),
-		MaxWaveSpeed: make([]float64, NPar),
-		Kmax:         make([]int, NPar),
-		Np:           c.dfr.SolutionElement.Np,
-		Nedge:        c.dfr.FluxElement.Nedge,
-		NpFlux:       c.dfr.FluxElement.Np,
-		fromWorkers:  make(chan int8, NPar),
-		toWorker:     make([]chan struct{}, NPar),
-		SM:           make([][]utils.Matrix, NPar),
-	}
-	// Initialize memory
-	for np := 0; np < NPar; np++ {
-		ei.toWorker[np] = make(chan struct{}, 1)
-		ei.Kmax[np] = pm.GetBucketDimension(np)
-		ei.SM[np] = make([]utils.Matrix, ei.Np)
-		// One flux jacobian matrix stored per solution point
-		ei.FluxJac[np] = make([][16]float64, ei.NpFlux*ei.Kmax[np])
-		for n := 0; n < 4; n++ {
-			ei.Residual[np][n] = utils.NewMatrix(ei.Np, ei.Kmax[np])
-			ei.RHSQ[np][n] = utils.NewMatrix(ei.Np, ei.Kmax[np])
-			ei.F_RT_DOF[np][n] = utils.NewMatrix(ei.NpFlux, ei.Kmax[np])
-			ei.Q_Face[np][n] = utils.NewMatrix(ei.Nedge*3, ei.Kmax[np])
-		}
-		ei.DT[np] = utils.NewMatrix(ei.NpFlux, ei.Kmax[np])
-		for i := 0; i < ei.Np; i++ {
-			ei.SM[np][i] = utils.NewMatrix(4, 4)
-		}
-	}
-	return
-}
-
-func (ei *ElementImplicit) StartWorkers(c *Euler) {
-	var (
-		pm = c.Partitions
-		NP = pm.ParallelDegree
-	)
-	for np := 0; np < NP; np++ {
-		go ei.StepWorker(c, np, ei.toWorker[np], ei.fromWorkers)
-	}
-}
-
-func (ei *ElementImplicit) Step(c *Euler) {
-	/*
-		This is the controller thread - it manages and synchronizes the workers
-		NOTE: Any CPU work done in this thread makes the workers wait - be careful!
-	*/
-	var (
-		pm = c.Partitions
-		NP = pm.ParallelDegree
-	)
-	kickOff := func(np int) {
-		ei.toWorker[np] <- struct{}{}
-	}
-	for {
-		// Advance the workers one step by sending the "go" message. They are blocked until they receive this.
-		for np := 0; np < NP; np++ {
-			go kickOff(np)
-			//ei.toWorker[np] <- struct{}{}
-		}
-		currentStep := int8(-1)
-		var ts int8
-		for np := 0; np < NP; np++ {
-			// Each worker sends it's completed step number, we check to make sure they are all the same
-			ts = <-ei.fromWorkers
-			if currentStep == -1 {
-				currentStep = ts
-			}
-			if ts != currentStep {
-				err := fmt.Errorf("[%d]incorrect state, ts = %d, currentStep = %d\n", np, ts, currentStep)
-				panic(err)
-			}
-		}
-		switch {
-		case currentStep == 2:
-			// After step 2, we need to consolidate the local max wavespeeds to calculate global dt
-			if !c.LocalTimeStepping {
-				ei.calculateGlobalDT(c)
-			}
-		case currentStep < 0:
-			return
-		}
-	}
-}
-
-func (ei *ElementImplicit) calculateGlobalDT(c *Euler) {
-	var (
-		pm = c.Partitions
-		NP = pm.ParallelDegree
-	)
-	// Must be done in controller/sync process
-	var wsMaxAll float64
-	for np := 0; np < NP; np++ {
-		wsMaxAll = math.Max(wsMaxAll, ei.MaxWaveSpeed[np])
-		//fmt.Printf("MaxWaveSpeed[%d] = %8.5f\n", np, ei.MaxWaveSpeed[np])
-	}
-	ei.GlobalDT = c.CFL / wsMaxAll
-	//fmt.Printf("CFL, wsMaxAll, GlobalDT = %8.5f,%8.5f,%8.5f\n", c.CFL, wsMaxAll, ei.GlobalDT)
-	if ei.Time+ei.GlobalDT > c.FinalTime {
-		ei.GlobalDT = c.FinalTime - ei.Time
-	}
-}
-
-func (ei *ElementImplicit) WorkerDone(subStepP *int8, fromWorker chan int8, isDone bool) {
-	if isDone {
-		*subStepP = -1
-	} else {
-		*subStepP++
-	}
-	fromWorker <- *subStepP // Inform controller what step we've just completed
-}
-
-func (ei *ElementImplicit) StepWorker(c *Euler, myThread int, fromController chan struct{}, toController chan int8) {
-	// Implements an Element Jacobi time advancement for steady state problems
-	var (
-		Np, Nedge, NpFlux          = ei.Np, ei.Nedge, ei.NpFlux
-		Q0                         = c.Q[myThread]
-		Kmax, Jdet, Jinv, F_RT_DOF = ei.Kmax[myThread], ei.Jdet[myThread], ei.Jinv[myThread], ei.F_RT_DOF[myThread]
-		Q_Face, RHSQ               = ei.Q_Face[myThread], ei.RHSQ[myThread]
-		FluxJac                    = ei.FluxJac[myThread]
-		Residual                   = ei.Residual[myThread]
-		DT                         = ei.DT[myThread]
-		SM                         = ei.SM[myThread]
-		SortedEdgeKeys             = c.SortedEdgeKeys[myThread]
-		subStep                    int8
-		// Working storage, local to this thread
-		EdgeQ1, EdgeQ2    = make([][4]float64, Nedge), make([][4]float64, Nedge) // Local working memory
-		B, X              = utils.NewMatrix(4, 1), utils.NewMatrix(4, 1)
-		SCRATCH, SCRATCH2 = utils.NewMatrix(4, 4), utils.NewMatrix(4, 4)
-		iPiv              = make([]int, 4)
-		LU                = &mat.LU{}
-	)
-	for {
-		_ = <-fromController // Block until parent sends "go"
-		if c.LocalTimeStepping {
-			// Setup local time stepping
-			for k := 0; k < Kmax; k++ {
-				DT.DataP[k] = -100 // Global
-			}
-		}
-		if myThread == 0 {
-			ei.step++
-		}
-		/*
-			PrepareEdgeFlux:
-			1) Calculates flux for the interior (Nint) points and projects it onto the RT DOF
-			2) Extrapolates solution values onto the face points of the RT element
-		*/
-		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q0, Q_Face)
-		// Calculate and store the projected flux jacobian matrix, one matrix per RT node point
-		ei.WorkerDone(&subStep, toController, false)
-
-		_ = <-fromController // Block until parent sends "go"
-		// SetNormalFluxOnEdges calculates the flux on element edges, using connected element's data
-		ei.MaxWaveSpeed[myThread] = c.SetNormalFluxOnEdges(ei.Time, true, ei.Jdet, ei.DT, ei.F_RT_DOF, ei.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
-		ei.WorkerDone(&subStep, toController, false)
-
-		_ = <-fromController // Block until parent sends "go"
-		c.SetFluxJacobian(Kmax, Jdet, Jinv, Q0, Q_Face, FluxJac)
-		if c.LocalTimeStepping {
-			// Replicate local time step to the other solution points for each k
-			for k := 0; k < Kmax; k++ {
-				DT.DataP[k] = c.CFL / DT.DataP[k] // Set each element's DT to CFL/(max_wave_speed)
-			}
-			// Set the DT of all interior points of each element to the element DT
-			for i := 1; i < NpFlux; i++ {
-				for k := 0; k < Kmax; k++ {
-					ind := k + Kmax*i
-					DT.DataP[ind] = DT.DataP[k]
-				}
-			}
-		}
-		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
-		// For each element k, build a system matrix and solve for the element update
-
-		ei.SolveForResidual(Kmax, c.LocalTimeStepping, DT, Jdet, c.dfr.FluxElement.DivInt, SM, RHSQ, Residual, FluxJac,
-			B, X, LU, SCRATCH, SCRATCH2, iPiv)
-
-		for k := 0; k < Kmax; k++ {
-			// Apply solution delta for the element
-			for i := 0; i < Np; i++ {
-				ind := k + i*Kmax
-				for n := 0; n < 4; n++ {
-					//fmt.Printf("Resid[%d],[%d] = %8.5f\n", n, i, val)
-					Q0[n].DataP[ind] += Residual[n].DataP[ind]
-				}
-			}
-		}
-		ei.WorkerDone(&subStep, toController, true)
-	}
-}
-
-func (ei *ElementImplicit) SolveForResidual(Kmax int, LocalTimeStepping bool, DT, Jdet, DivInt utils.Matrix,
-	SM []utils.Matrix, RHS, Residual [4]utils.Matrix, FluxJac [][16]float64, B, X utils.Matrix, LU *mat.LU,
-	SCRATCH, SCRATCH2 utils.Matrix, iPiv []int) {
-	var (
-		Np, NpFlux     = ei.Np, ei.NpFlux
-		deltaT, oojdet float64
-		dT             = ei.GlobalDT
-		mInv, WORK     = SCRATCH, SCRATCH2
-	)
-	lusolve := func(m utils.Matrix, b, x utils.Vector) {
-		var (
-			err error
-		)
-		LU.Factorize(m)
-		//if err = LU.SolveTo(x.M, false, b.M); err != nil {
-		//if err = LU.SolveVecTo(x.V, false, b.V); err != nil {
-		if err = LU.SolveVecTo(x.V, false, b); err != nil {
-			panic(err)
-		}
-	}
-	_ = lusolve
-	inverseSolve := func(m utils.Matrix, b, x utils.Matrix) {
-		// Improve memory allocation using context: scratch and working mem
-		var (
-			err error
-		)
-		if mInv, err = m.Inverse2(iPiv, mInv, WORK); err != nil {
-			panic(err)
-		}
-		mInv.Mul(b, x)
-		//if err = LU.SolveTo(x.M, false, b.M); err != nil {
-		//if err = LU.SolveVecTo(x.V, false, b.V); err != nil {
-	}
-	for k := 0; k < Kmax; k++ { // For each element
-		// Compose system matrix
-		oojdet = 1. / Jdet.DataP[k]
-		// Multiply interior divergence by flux jacobian
-		for i := 0; i < Np; i++ { // For each interior point / row of DivInt
-			SM[i].Scale(0.)                  // Zero out the system matrix
-			for ii := 0; ii < NpFlux; ii++ { // For each flux point / column of DivInt
-				ind := k + ii*Kmax
-				for iii, fj := range FluxJac[ind] {
-					//fmt.Printf("i, ii, iii = %d,%d,%d\n", i, ii, iii)
-					//SM[i].DataP[iii] += fj * DivInt.At(i, ii)
-					SM[i].DataP[iii] += fj * DivInt.DataP[ii+i*NpFlux]
-				}
-			}
-			ind := k + i*Kmax
-			if LocalTimeStepping {
-				deltaT = DT.DataP[ind]
-			} else {
-				deltaT = dT
-			}
-			for iii := range SM[i].DataP {
-				//SM[i].DataP[iii] *= 0.5 * deltaT * oojdet
-				SM[i].DataP[iii] *= 0.5 * deltaT * oojdet
-			}
-			// Add one to complete the system matrix
-			for ii := 0; ii < 4; ii++ {
-				SM[i].Set(ii, ii, SM[i].At(ii, ii)+1.)
-			}
-		}
-		//for i := 0; i < Np; i++ { // For each interior point / row of DivInt
-		//fmt.Printf(SM[i].Print("SM[" + strconv.Itoa(i) + "]"))
-		//}
-		// Now we can solve the local systems for each interior point to get the residual
-		for i := 0; i < Np; i++ { // For each interior point / row of DivInt
-			ind := k + i*Kmax
-			if LocalTimeStepping {
-				deltaT = DT.DataP[ind]
-			} else {
-				deltaT = dT
-			}
-			for n := 0; n < 4; n++ {
-				B.DataP[n] = RHS[n].DataP[ind] * deltaT * 0.5
-			}
-			//lusolve(SM[i], B, X)
-			inverseSolve(SM[i], B, X)
-			for n := 0; n < 4; n++ {
-				Residual[n].DataP[ind] = X.DataP[n]
-			}
-		}
-	}
-	return
 }
 
 type RungeKutta4SSP struct {
@@ -1089,5 +746,349 @@ func (c *Euler) GetPreconditionerWithError(rho, rhoU, rhoV, E float64) (P0 [4][4
 	P0[3][1] = (u*(P*2.0-m2+gamma*m2))/(P*2.0) - (B2*h*u*(gamma-1.0))/c2
 	P0[3][2] = (v*(P*2.0-m2+gamma*m2))/(P*2.0) - (B2*h*v*(gamma-1.0))/c2
 	P0[3][3] = (m2*(gamma-1.0)*(-1.0/2.0))/P + (B2*h*(gamma-1.0))/c2
+	return
+}
+
+// Element Implicit
+func (c *Euler) SolveImplicit(pm *PlotMeta) {
+	var (
+		FinalTime = c.FinalTime
+		steps     int
+		finished  bool
+		plotQ     = pm.Plot
+	)
+	if c.profile {
+		defer profile.Start().Stop()
+	}
+
+	c.PrintInitialization(FinalTime)
+
+	ei := c.NewElementImplicit()
+
+	elapsed := time.Duration(0)
+	ei.StartWorkers(c)
+	var start time.Time
+	for !finished {
+		start = time.Now()
+		ei.Step(c)
+		elapsed += time.Now().Sub(start)
+		steps++
+		ei.Time += ei.GlobalDT
+		finished = c.CheckIfFinished(ei.Time, FinalTime, steps)
+		if finished || steps%pm.StepsBeforePlot == 0 || steps == 1 {
+			var printMem bool
+			if steps%100 == 0 {
+				printMem = true
+			}
+			c.PrintUpdate(ei.Time, ei.GlobalDT, steps, c.Q, ei.Residual, plotQ, pm, printMem)
+		}
+	}
+	c.PrintFinal(elapsed, steps)
+}
+
+type ElementImplicit struct {
+	Jdet, Jinv        []utils.Matrix    // Sharded mesh Jacobian and inverse transform
+	Q_Face            [][4]utils.Matrix // Sharded Solution values stored at edge points of RT element
+	RHSQ, Residual    [][4]utils.Matrix // Sharded Solution Residual storage
+	F_RT_DOF          [][4]utils.Matrix // Sharded Scalar (projected) flux used for divergence, on all RT element points
+	FluxJac           [][][16]float64   // Sharded Flux Jacobian (projected), one 4x4 matrix (2D) per int point of RT element
+	DT                []utils.Matrix    // Local time step storage
+	SM                [][]utils.Matrix  // Sharded system matrix, one for each interior point, dimensions 4x4
+	MaxWaveSpeed      []float64         // Shard max wavespeed
+	Kmax              []int             // Sharded Local element count (dimension: Kmax[ParallelDegree])
+	GlobalDT, Time    float64
+	Np, Nedge, NpFlux int // Number of points in solution, edge and flux total
+	toWorker          []chan struct{}
+	fromWorkers       chan int8
+	step              int
+}
+
+func (c *Euler) NewElementImplicit() (ei *ElementImplicit) {
+	var (
+		pm   = c.Partitions
+		NPar = pm.ParallelDegree
+	)
+	ei = &ElementImplicit{
+		Jdet:         c.ShardByKTranspose(c.dfr.Jdet),
+		Jinv:         c.ShardByKTranspose(c.dfr.Jinv),
+		Q_Face:       make([][4]utils.Matrix, NPar),
+		RHSQ:         make([][4]utils.Matrix, NPar),
+		Residual:     make([][4]utils.Matrix, NPar),
+		F_RT_DOF:     make([][4]utils.Matrix, NPar),
+		FluxJac:      make([][][16]float64, NPar),
+		DT:           make([]utils.Matrix, NPar),
+		MaxWaveSpeed: make([]float64, NPar),
+		Kmax:         make([]int, NPar),
+		Np:           c.dfr.SolutionElement.Np,
+		Nedge:        c.dfr.FluxElement.Nedge,
+		NpFlux:       c.dfr.FluxElement.Np,
+		fromWorkers:  make(chan int8, NPar),
+		toWorker:     make([]chan struct{}, NPar),
+		SM:           make([][]utils.Matrix, NPar),
+	}
+	// Initialize memory
+	for np := 0; np < NPar; np++ {
+		ei.toWorker[np] = make(chan struct{}, 1)
+		ei.Kmax[np] = pm.GetBucketDimension(np)
+		ei.SM[np] = make([]utils.Matrix, ei.Np)
+		// One flux jacobian matrix stored per solution point
+		ei.FluxJac[np] = make([][16]float64, ei.NpFlux*ei.Kmax[np])
+		for n := 0; n < 4; n++ {
+			ei.Residual[np][n] = utils.NewMatrix(ei.Np, ei.Kmax[np])
+			ei.RHSQ[np][n] = utils.NewMatrix(ei.Np, ei.Kmax[np])
+			ei.F_RT_DOF[np][n] = utils.NewMatrix(ei.NpFlux, ei.Kmax[np])
+			ei.Q_Face[np][n] = utils.NewMatrix(ei.Nedge*3, ei.Kmax[np])
+		}
+		ei.DT[np] = utils.NewMatrix(ei.NpFlux, ei.Kmax[np])
+		for i := 0; i < ei.Np; i++ {
+			ei.SM[np][i] = utils.NewMatrix(4, 4)
+		}
+	}
+	return
+}
+
+func (ei *ElementImplicit) StartWorkers(c *Euler) {
+	var (
+		pm = c.Partitions
+		NP = pm.ParallelDegree
+	)
+	for np := 0; np < NP; np++ {
+		go ei.StepWorker(c, np, ei.toWorker[np], ei.fromWorkers)
+	}
+}
+
+func (ei *ElementImplicit) Step(c *Euler) {
+	/*
+		This is the controller thread - it manages and synchronizes the workers
+		NOTE: Any CPU work done in this thread makes the workers wait - be careful!
+	*/
+	var (
+		pm = c.Partitions
+		NP = pm.ParallelDegree
+	)
+	kickOff := func(np int) {
+		ei.toWorker[np] <- struct{}{}
+	}
+	for {
+		// Advance the workers one step by sending the "go" message. They are blocked until they receive this.
+		for np := 0; np < NP; np++ {
+			go kickOff(np)
+			//ei.toWorker[np] <- struct{}{}
+		}
+		currentStep := int8(-1)
+		var ts int8
+		for np := 0; np < NP; np++ {
+			// Each worker sends it's completed step number, we check to make sure they are all the same
+			ts = <-ei.fromWorkers
+			if currentStep == -1 {
+				currentStep = ts
+			}
+			if ts != currentStep {
+				err := fmt.Errorf("[%d]incorrect state, ts = %d, currentStep = %d\n", np, ts, currentStep)
+				panic(err)
+			}
+		}
+		switch {
+		case currentStep == 2:
+			// After step 2, we need to consolidate the local max wavespeeds to calculate global dt
+			if !c.LocalTimeStepping {
+				ei.calculateGlobalDT(c)
+			}
+		case currentStep < 0:
+			return
+		}
+	}
+}
+
+func (ei *ElementImplicit) calculateGlobalDT(c *Euler) {
+	var (
+		pm = c.Partitions
+		NP = pm.ParallelDegree
+	)
+	// Must be done in controller/sync process
+	var wsMaxAll float64
+	for np := 0; np < NP; np++ {
+		wsMaxAll = math.Max(wsMaxAll, ei.MaxWaveSpeed[np])
+		//fmt.Printf("MaxWaveSpeed[%d] = %8.5f\n", np, ei.MaxWaveSpeed[np])
+	}
+	ei.GlobalDT = c.CFL / wsMaxAll
+	//fmt.Printf("CFL, wsMaxAll, GlobalDT = %8.5f,%8.5f,%8.5f\n", c.CFL, wsMaxAll, ei.GlobalDT)
+	if ei.Time+ei.GlobalDT > c.FinalTime {
+		ei.GlobalDT = c.FinalTime - ei.Time
+	}
+}
+
+func (ei *ElementImplicit) WorkerDone(subStepP *int8, fromWorker chan int8, isDone bool) {
+	if isDone {
+		*subStepP = -1
+	} else {
+		*subStepP++
+	}
+	fromWorker <- *subStepP // Inform controller what step we've just completed
+}
+
+func (ei *ElementImplicit) StepWorker(c *Euler, myThread int, fromController chan struct{}, toController chan int8) {
+	// Implements an Element Jacobi time advancement for steady state problems
+	var (
+		Np, Nedge, NpFlux          = ei.Np, ei.Nedge, ei.NpFlux
+		Q0                         = c.Q[myThread]
+		Kmax, Jdet, Jinv, F_RT_DOF = ei.Kmax[myThread], ei.Jdet[myThread], ei.Jinv[myThread], ei.F_RT_DOF[myThread]
+		Q_Face, RHSQ               = ei.Q_Face[myThread], ei.RHSQ[myThread]
+		FluxJac                    = ei.FluxJac[myThread]
+		Residual                   = ei.Residual[myThread]
+		DT                         = ei.DT[myThread]
+		SM                         = ei.SM[myThread]
+		SortedEdgeKeys             = c.SortedEdgeKeys[myThread]
+		subStep                    int8
+		// Working storage, local to this thread
+		EdgeQ1, EdgeQ2    = make([][4]float64, Nedge), make([][4]float64, Nedge) // Local working memory
+		B, X              = utils.NewMatrix(4, 1), utils.NewMatrix(4, 1)
+		SCRATCH, SCRATCH2 = utils.NewMatrix(4, 4), utils.NewMatrix(4, 4)
+		iPiv              = make([]int, 4)
+		LU                = &mat.LU{}
+	)
+	for {
+		_ = <-fromController // Block until parent sends "go"
+		if c.LocalTimeStepping {
+			// Setup local time stepping
+			for k := 0; k < Kmax; k++ {
+				DT.DataP[k] = -100 // Global
+			}
+		}
+		if myThread == 0 {
+			ei.step++
+		}
+		/*
+			PrepareEdgeFlux:
+			1) Calculates flux for the interior (Nint) points and projects it onto the RT DOF
+			2) Extrapolates solution values onto the face points of the RT element
+		*/
+		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q0, Q_Face)
+		// Calculate and store the projected flux jacobian matrix, one matrix per RT node point
+		ei.WorkerDone(&subStep, toController, false)
+
+		_ = <-fromController // Block until parent sends "go"
+		// SetNormalFluxOnEdges calculates the flux on element edges, using connected element's data
+		ei.MaxWaveSpeed[myThread] = c.SetNormalFluxOnEdges(ei.Time, true, ei.Jdet, ei.DT, ei.F_RT_DOF, ei.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
+		ei.WorkerDone(&subStep, toController, false)
+
+		_ = <-fromController // Block until parent sends "go"
+		c.SetFluxJacobian(Kmax, Jdet, Jinv, Q0, Q_Face, FluxJac)
+		if c.LocalTimeStepping {
+			// Replicate local time step to the other solution points for each k
+			for k := 0; k < Kmax; k++ {
+				DT.DataP[k] = c.CFL / DT.DataP[k] // Set each element's DT to CFL/(max_wave_speed)
+			}
+			// Set the DT of all interior points of each element to the element DT
+			for i := 1; i < NpFlux; i++ {
+				for k := 0; k < Kmax; k++ {
+					ind := k + Kmax*i
+					DT.DataP[ind] = DT.DataP[k]
+				}
+			}
+		}
+		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
+		// For each element k, build a system matrix and solve for the element update
+
+		ei.SolveForResidual(Kmax, c.LocalTimeStepping, DT, Jdet, c.dfr.FluxElement.DivInt, SM, RHSQ, Residual, FluxJac,
+			B, X, LU, SCRATCH, SCRATCH2, iPiv)
+
+		for k := 0; k < Kmax; k++ {
+			// Apply solution delta for the element
+			for i := 0; i < Np; i++ {
+				ind := k + i*Kmax
+				for n := 0; n < 4; n++ {
+					//fmt.Printf("Resid[%d],[%d] = %8.5f\n", n, i, val)
+					Q0[n].DataP[ind] += Residual[n].DataP[ind]
+				}
+			}
+		}
+		ei.WorkerDone(&subStep, toController, true)
+	}
+}
+
+func (ei *ElementImplicit) SolveForResidual(Kmax int, LocalTimeStepping bool, DT, Jdet, DivInt utils.Matrix,
+	SM []utils.Matrix, RHS, Residual [4]utils.Matrix, FluxJac [][16]float64, B, X utils.Matrix, LU *mat.LU,
+	SCRATCH, SCRATCH2 utils.Matrix, iPiv []int) {
+	var (
+		Np, NpFlux     = ei.Np, ei.NpFlux
+		deltaT, oojdet float64
+		dT             = ei.GlobalDT
+		mInv, WORK     = SCRATCH, SCRATCH2
+	)
+	lusolve := func(m utils.Matrix, b, x utils.Vector) {
+		var (
+			err error
+		)
+		LU.Factorize(m)
+		//if err = LU.SolveTo(x.M, false, b.M); err != nil {
+		//if err = LU.SolveVecTo(x.V, false, b.V); err != nil {
+		if err = LU.SolveVecTo(x.V, false, b); err != nil {
+			panic(err)
+		}
+	}
+	_ = lusolve
+	inverseSolve := func(m utils.Matrix, b, x utils.Matrix) {
+		// Improve memory allocation using context: scratch and working mem
+		var (
+			err error
+		)
+		if mInv, err = m.Inverse2(iPiv, mInv, WORK); err != nil {
+			panic(err)
+		}
+		mInv.Mul(b, x)
+		//if err = LU.SolveTo(x.M, false, b.M); err != nil {
+		//if err = LU.SolveVecTo(x.V, false, b.V); err != nil {
+	}
+	for k := 0; k < Kmax; k++ { // For each element
+		// Compose system matrix
+		oojdet = 1. / Jdet.DataP[k]
+		// Multiply interior divergence by flux jacobian
+		for i := 0; i < Np; i++ { // For each interior point / row of DivInt
+			SM[i].Scale(0.)                  // Zero out the system matrix
+			for ii := 0; ii < NpFlux; ii++ { // For each flux point / column of DivInt
+				ind := k + ii*Kmax
+				for iii, fj := range FluxJac[ind] {
+					//fmt.Printf("i, ii, iii = %d,%d,%d\n", i, ii, iii)
+					//SM[i].DataP[iii] += fj * DivInt.At(i, ii)
+					SM[i].DataP[iii] += fj * DivInt.DataP[ii+i*NpFlux]
+				}
+			}
+			ind := k + i*Kmax
+			if LocalTimeStepping {
+				deltaT = DT.DataP[ind]
+			} else {
+				deltaT = dT
+			}
+			for iii := range SM[i].DataP {
+				//SM[i].DataP[iii] *= 0.5 * deltaT * oojdet
+				SM[i].DataP[iii] *= 0.5 * deltaT * oojdet
+			}
+			// Add one to complete the system matrix
+			for ii := 0; ii < 4; ii++ {
+				SM[i].Set(ii, ii, SM[i].At(ii, ii)+1.)
+			}
+		}
+		//for i := 0; i < Np; i++ { // For each interior point / row of DivInt
+		//fmt.Printf(SM[i].Print("SM[" + strconv.Itoa(i) + "]"))
+		//}
+		// Now we can solve the local systems for each interior point to get the residual
+		for i := 0; i < Np; i++ { // For each interior point / row of DivInt
+			ind := k + i*Kmax
+			if LocalTimeStepping {
+				deltaT = DT.DataP[ind]
+			} else {
+				deltaT = dT
+			}
+			for n := 0; n < 4; n++ {
+				B.DataP[n] = RHS[n].DataP[ind] * deltaT * 0.5
+			}
+			//lusolve(SM[i], B, X)
+			inverseSolve(SM[i], B, X)
+			for n := 0; n < 4; n++ {
+				Residual[n].DataP[ind] = X.DataP[n]
+			}
+		}
+	}
 	return
 }
