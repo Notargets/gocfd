@@ -44,6 +44,7 @@ type Euler struct {
 	SolutionX, SolutionY []utils.Matrix
 	ShockFinder          *ModeAliasShockFinder
 	Limiter              *SolutionLimiter
+	Dissipation          *ScalarDissipation
 }
 
 func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType FluxType, Case InitType,
@@ -78,6 +79,9 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 
 	// Allocate a solution limiter
 	c.Limiter = NewSolutionLimiter(LT, c.dfr, c.Partitions, c.FS)
+
+	// Initiate Artificial Dissipation
+	c.Dissipation = NewScalarDissipation(c.dfr, c.Partitions)
 
 	if verbose {
 		fmt.Printf("Euler Equations in 2 Dimensions\n")
@@ -298,6 +302,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 			}
 		}
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
+		c.Dissipation.AddDissipationC0(true, myThread, rk.Jdet, c.Q, rk.RHSQ)
 		if preCon {
 			c.PreconditionRHS(Q0, RHSQ, DT, true)
 		}
@@ -321,6 +326,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 
 		_ = <-fromController // Block until parent sends "go"
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
+		c.Dissipation.AddDissipationC0(false, myThread, rk.Jdet, c.Q, rk.RHSQ)
 		if preCon {
 			c.PreconditionRHS(Q1, RHSQ, DT, false)
 		}
@@ -344,6 +350,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 
 		_ = <-fromController // Block until parent sends "go"
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
+		c.Dissipation.AddDissipationC0(false, myThread, rk.Jdet, c.Q, rk.RHSQ)
 		if preCon {
 			c.PreconditionRHS(Q2, RHSQ, DT, false)
 		}
@@ -367,6 +374,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 
 		_ = <-fromController // Block until parent sends "go"
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
+		c.Dissipation.AddDissipationC0(false, myThread, rk.Jdet, c.Q, rk.RHSQ)
 		if preCon {
 			c.PreconditionRHS(Q3, RHSQ, DT, false)
 		}

@@ -24,15 +24,19 @@ type LimiterType uint8
 const (
 	None LimiterType = iota
 	BarthJesperson
+	PerssonC0
 )
 
 var (
 	LimiterNames = map[string]LimiterType{
 		"barthjesperson":  BarthJesperson,
 		"barth jesperson": BarthJesperson,
+		"perssonC0":       PerssonC0,
+		"persson C0":      PerssonC0,
 	}
 	LimiterNamesRev = map[LimiterType]string{
 		BarthJesperson: "BarthJesperson",
+		PerssonC0:      "Persson, C0 viscosity",
 	}
 )
 
