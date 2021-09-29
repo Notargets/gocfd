@@ -76,17 +76,17 @@ func (ve VertexToElement) Shard(pm *PartitionMap) (veSharded []VertexToElement) 
 }
 
 type ScalarDissipation struct {
-	VtoE          []VertexToElement // Sharded vertex to element map, [2] is [vertID, ElementID_Sharded]
-	Epsilon       []utils.Matrix    // Sharded Np x Kmax, Interpolated from element vertices
-	EpsilonScalar [][]float64       // Sharded scalar value of dissipation, one per element
-	DissX, DissY  [][4]utils.Matrix // Sharded Np x Kmax, Dissipation Flux
-	RDiss         [][4]utils.Matrix // Sharded Np x Kmax, Dissipation Added to Residual
-	EpsVertex     []float64         // NVerts x 1, Aggregated (Max) of epsilon surrounding each vertex, Not sharded
-	PMap          *PartitionMap     // Partition map for the solution shards in K
-	U, UClipped   []utils.Matrix    // Sharded scratch areas for assembly and testing of solution values
-	Clipper       utils.Matrix      // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder
-	Element       *DG2D.LagrangeElement2D
-	S0, Kappa     float64
+	VtoE           []VertexToElement // Sharded vertex to element map, [2] is [vertID, ElementID_Sharded]
+	Epsilon        []utils.Matrix    // Sharded Np x Kmax, Interpolated from element vertices
+	EpsilonScalar  [][]float64       // Sharded scalar value of dissipation, one per element
+	DissX, DissY   [][4]utils.Matrix // Sharded Np x Kmax, Dissipation Flux
+	Diss2X, Diss2Y [][4]utils.Matrix // Sharded Np x Kmax, Second order X and Y derivative, add together for Divergence
+	EpsVertex      []float64         // NVerts x 1, Aggregated (Max) of epsilon surrounding each vertex, Not sharded
+	PMap           *PartitionMap     // Partition map for the solution shards in K
+	U, UClipped    []utils.Matrix    // Sharded scratch areas for assembly and testing of solution values
+	Clipper        utils.Matrix      // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder
+	Element        *DG2D.LagrangeElement2D
+	S0, Kappa      float64
 }
 
 func NewScalarDissipation(NVerts int, EToV utils.Matrix, pm *PartitionMap, el *DG2D.LagrangeElement2D) (sd *ScalarDissipation) {
@@ -101,7 +101,8 @@ func NewScalarDissipation(NVerts int, EToV utils.Matrix, pm *PartitionMap, el *D
 		EpsilonScalar: make([][]float64, NPar),
 		DissX:         make([][4]utils.Matrix, NPar),
 		DissY:         make([][4]utils.Matrix, NPar),
-		RDiss:         make([][4]utils.Matrix, NPar),
+		Diss2X:        make([][4]utils.Matrix, NPar),
+		Diss2Y:        make([][4]utils.Matrix, NPar),
 		VtoE:          NewVertexToElement(EToV).Shard(pm),
 		PMap:          pm,
 		Element:       el,
@@ -120,7 +121,8 @@ func NewScalarDissipation(NVerts int, EToV utils.Matrix, pm *PartitionMap, el *D
 		for n := 0; n < 4; n++ {
 			sd.DissX[np][n] = utils.NewMatrix(Np, Kmax)
 			sd.DissY[np][n] = utils.NewMatrix(Np, Kmax)
-			sd.RDiss[np][n] = utils.NewMatrix(Np, Kmax)
+			sd.Diss2X[np][n] = utils.NewMatrix(Np, Kmax)
+			sd.Diss2Y[np][n] = utils.NewMatrix(Np, Kmax)
 		}
 	}
 	/*
@@ -142,6 +144,40 @@ func NewScalarDissipation(NVerts int, EToV utils.Matrix, pm *PartitionMap, el *D
 		sd.Clipper = sd.Element.V.Mul(diag).Mul(sd.Element.Vinv)
 	}
 	return
+}
+
+func (sd *ScalarDissipation) AddDissipationC0(myThread int, JdetAll []utils.Matrix, Qall, RHSQall [][4]utils.Matrix) {
+	var (
+		Jdet           = JdetAll[myThread]
+		Q              = Qall[myThread]
+		DissX, DissY   = sd.DissX[myThread], sd.DissY[myThread]
+		Diss2X, Diss2Y = sd.Diss2X[myThread], sd.Diss2Y[myThread]
+		RHSQ           = RHSQall[myThread]
+		EpsilonScalar  = sd.EpsilonScalar[myThread]
+		Np, KMax       = Q[0].Dims()
+	)
+	for n := 0; n < 4; n++ {
+		sd.Element.Dr.Mul(Q[n], DissX[n])
+		sd.Element.Ds.Mul(Q[n], DissY[n])
+		for k := 0; k < KMax; k++ {
+			eps := EpsilonScalar[k]
+			for i := 0; i < Np; i++ {
+				ind := k + KMax*i
+				DissX[n].DataP[ind] *= eps
+				DissY[n].DataP[ind] *= eps
+			}
+		}
+		sd.Element.Dr.Mul(DissX[n], Diss2X[n])
+		sd.Element.Ds.Mul(DissY[n], Diss2Y[n])
+		Diss2X[n].Add(Diss2Y[n]) // Compose Divergence in R,S coordinates
+		for k := 0; k < KMax; k++ {
+			Jdet2K := Jdet.DataP[k] * Jdet.DataP[k] // Second derivative requires multiply by det^2
+			for i := 0; i < Np; i++ {
+				ind := k + KMax*i
+				RHSQ[n].DataP[ind] += -Jdet2K * Diss2X[n].DataP[ind]
+			}
+		}
+	}
 }
 
 func (sd *ScalarDissipation) CalculateElementViscosity(myThread int, JdetAll []utils.Matrix, Qall [][4]utils.Matrix) {
