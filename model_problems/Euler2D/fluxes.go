@@ -51,6 +51,10 @@ func NewFluxType(label string) (ft FluxType) {
 }
 
 func (c *Euler) CalculateFluxTransformed(k, Kmax, i int, Jdet, Jinv utils.Matrix, Q [4]utils.Matrix) (Fr, Fs [4]float64) {
+	/*
+		Note that the transformation applied here closely follows Romero and Jameson, it isn't what it appears in that
+		what looks like a broken / wrong chain rule application below is considered in the overall method composition
+	*/
 	var (
 		JdetD = Jdet.DataP[k]
 		JinvD = Jinv.DataP[4*k : 4*(k+1)]

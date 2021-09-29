@@ -100,8 +100,8 @@ func NewScalarDissipation(dfr *DG2D.DFR2D, pm *PartitionMap) (sd *ScalarDissipat
 	)
 	sd = &ScalarDissipation{
 		EpsVertex:     make([]float64, NVerts),
-		Epsilon:       make([]utils.Matrix, NPar),
-		EpsilonScalar: make([][]float64, NPar),
+		EpsilonScalar: make([][]float64, NPar),    // Viscosity, constant over the element
+		Epsilon:       make([]utils.Matrix, NPar), // Epsilon field, expressed over solution points
 		DissX:         make([]utils.Matrix, NPar),
 		DissY:         make([]utils.Matrix, NPar),
 		Diss2X:        make([]utils.Matrix, NPar),
@@ -174,7 +174,7 @@ func (sd *ScalarDissipation) AddDissipationC0(calcViscoscity bool, myThread int,
 		sd.Element.Ds.Mul(DissY, Diss2Y)
 		Diss2X.Add(Diss2Y) // Compose Divergence in R,S coordinates
 		for k := 0; k < KMax; k++ {
-			ooJdet2K := 1. / (Jdet.DataP[k] * Jdet.DataP[k]) // Second derivative requires multiply by det^2
+			ooJdet2K := 1. / (Jdet.DataP[k] * Jdet.DataP[k]) // Second derivative requires divide by det^2
 			for i := 0; i < Np; i++ {
 				ind := k + KMax*i
 				RHSQ[n].DataP[ind] -= ooJdet2K * Diss2X.DataP[ind]
@@ -192,10 +192,7 @@ func (sd *ScalarDissipation) calculateElementViscosity(myThread int, JdetAll []u
 		U        = sd.U[myThread]
 		UClipped = sd.UClipped[myThread]
 	)
-	visc := func(k int) (eps float64) {
-		/*
-			Original method by Persson, constants chosen to match Zhiqiang, et. al.
-		*/
+	for k := 0; k < Kmax; k++ {
 		var (
 			eps0        = math.Sqrt(2.*Jdet.DataP[k]) / float64(sd.Element.N)
 			Se          = math.Log10(sd.moment(k, Kmax, U, UClipped, Rho))
@@ -204,16 +201,12 @@ func (sd *ScalarDissipation) calculateElementViscosity(myThread int, JdetAll []u
 		)
 		switch {
 		case Se < left:
-			eps = 0.
+			Eps[k] = 0.
 		case Se >= left && Se < right:
-			eps = 0.5 * eps0 * (1. + math.Sin(math.Pi*oo2kappa*(Se-sd.S0)))
+			Eps[k] = 0.5 * eps0 * (1. + math.Sin(math.Pi*oo2kappa*(Se-sd.S0)))
 		case Se >= right:
-			eps = eps0
+			Eps[k] = eps0
 		}
-		return
-	}
-	for k := 0; k < Kmax; k++ {
-		Eps[k] = visc(k)
 	}
 }
 
