@@ -26,11 +26,14 @@ func (pm FlowFunction) String() string {
 		"Enthalpy",
 		"Entropy",
 	}
-	if int(pm) < len(strings) {
+	switch {
+	case int(pm) < len(strings):
 		return strings[int(pm)]
-	} else if pm == 100 {
+	case pm == ShockFunction:
 		return "ShockFunction"
-	} else {
+	case pm == EpsilonDissipation:
+		return "Artificial Dissipation Epsilon"
+	default:
 		return "Unknown"
 	}
 }
@@ -51,6 +54,7 @@ const (
 	Enthalpy            // 12
 	Entropy             //13
 	ShockFunction       = 100
+	EpsilonDissipation  = 101
 )
 
 type FreeStream struct {

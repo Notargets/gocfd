@@ -47,7 +47,12 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 		}
 		//field = c.dfr.FluxInterpMatrix.Mul(fld)
 	case plotField == ShockFunction:
-		sf := NewAliasShockFinder(c.dfr.SolutionElement)
+		var sf *ModeAliasShockFinder
+		if c.Limiter != nil {
+			sf = c.Limiter.ShockFinder[0]
+		} else {
+			sf = NewAliasShockFinder(c.dfr.SolutionElement)
+		}
 		fld = utils.NewMatrix(Np, Kmax)
 		fldD := fld.DataP
 		//for ik := 0; ik < Kmax*Np; ik++ {
