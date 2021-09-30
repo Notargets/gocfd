@@ -47,19 +47,23 @@ type Euler struct {
 	Dissipation          *ScalarDissipation
 }
 
-func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType FluxType, Case InitType,
-	ProcLimit int, Minf, Gamma, Alpha float64, LocalTime bool,
-	MaxIterations int, LT LimiterType,
-	plotMesh, verbose, profile bool) (c *Euler) {
+func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, verbose, profile bool) (c *Euler) {
+	/*
+		c := Euler2D.NewEuler(ip, ip.FinalTime, ip.PolynomialOrder, m2d.GridFile, ip.CFL,
+			Euler2D.NewFluxType(ip.FluxType), Euler2D.NewInitType(ip.InitType), m2d.ParallelProcLimit,
+			ip.Minf, ip.Gamma, ip.Alpha, ip.LocalTimeStepping, ip.MaxIterations, Euler2D.NewLimiterType(ip.Limiter),
+			false, true, m2d.Profile)
+	*/
+
 	c = &Euler{
 		MeshFile:          meshFile,
-		CFL:               CFL,
-		FinalTime:         FinalTime,
-		FluxCalcAlgo:      fluxType,
-		Case:              Case,
-		LocalTimeStepping: LocalTime,
-		MaxIterations:     MaxIterations,
-		FS:                NewFreeStream(Minf, Gamma, Alpha),
+		CFL:               ip.CFL,
+		FinalTime:         ip.FinalTime,
+		FluxCalcAlgo:      NewFluxType(ip.FluxType),
+		Case:              NewInitType(ip.InitType),
+		LocalTimeStepping: ip.LocalTimeStepping,
+		MaxIterations:     ip.MaxIterations,
+		FS:                NewFreeStream(ip.Minf, ip.Gamma, ip.Alpha),
 		profile:           profile,
 	}
 	c.FluxCalcMock = c.FluxCalcBase
@@ -69,7 +73,7 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 	}
 
 	// Read mesh file, initialize geometry and finite elements
-	c.dfr = DG2D.NewDFR2D(N, plotMesh, meshFile)
+	c.dfr = DG2D.NewDFR2D(ip.PolynomialOrder, plotMesh, meshFile)
 
 	c.SetParallelDegree(ProcLimit, c.dfr.K) // Must occur after determining the number of elements
 
@@ -78,7 +82,7 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 	c.InitializeSolution(verbose)
 
 	// Allocate a solution limiter
-	c.Limiter = NewSolutionLimiter(LT, c.dfr, c.Partitions, c.FS)
+	c.Limiter = NewSolutionLimiter(NewLimiterType(ip.Limiter), c.dfr, c.Partitions, c.FS)
 
 	// Initiate Artificial Dissipation
 	c.Dissipation = NewScalarDissipation(c.dfr, c.Partitions)
@@ -88,10 +92,11 @@ func NewEuler(FinalTime float64, N int, meshFile string, CFL float64, fluxType F
 		fmt.Printf("Using %d go routines in parallel\n", c.Partitions.ParallelDegree)
 		fmt.Printf("Solving %s\n", c.Case.Print())
 		if c.Case == FREESTREAM {
-			fmt.Printf("Mach Infinity = %8.5f, Angle of Attack = %8.5f\n", Minf, Alpha)
+			fmt.Printf("Mach Infinity = %8.5f, Angle of Attack = %8.5f\n", ip.Minf, ip.Alpha)
 		}
 		fmt.Printf("Flux Algorithm: [%s] using Limiter: [%s]\n", c.FluxCalcAlgo.Print(), c.Limiter.limiterType.Print())
-		fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n", CFL, N, c.dfr.K)
+		fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n",
+			ip.CFL, ip.PolynomialOrder, c.dfr.K)
 	}
 	return
 }

@@ -7,6 +7,23 @@ import (
 	"github.com/notargets/gocfd/model_problems/Euler2D"
 )
 
+var ipDefault = &Euler2D.InputParameters{
+	Title:             "",
+	CFL:               1,
+	FluxType:          "Lax",
+	InitType:          "freestream",
+	PolynomialOrder:   0,
+	FinalTime:         0,
+	Minf:              0,
+	Gamma:             1.4,
+	Alpha:             0,
+	BCs:               nil,
+	LocalTimeStepping: false,
+	MaxIterations:     5000,
+	ImplicitSolver:    false,
+	Limiter:           "",
+}
+
 func BenchmarkEulerSolve(b *testing.B) {
 	var (
 		plotMesh  = false
@@ -15,8 +32,13 @@ func BenchmarkEulerSolve(b *testing.B) {
 		FinalTime = 0.1
 		c         = make([]*Euler2D.Euler, Nmax+1)
 	)
+	ip := ipDefault
+	ip.FinalTime = FinalTime
+	ip.InitType = "ivortex"
 	for n := 1; n <= Nmax; n++ {
-		c[n] = Euler2D.NewEuler(FinalTime, n, "../../../DG2D/vortex-new.su2", 1.00, Euler2D.FLUX_LaxFriedrichs, Euler2D.IVORTEX, 0, 0, 1.4, 0, false, 5000, Euler2D.None, plotMesh, false, false)
+		ip.PolynomialOrder = n
+		//c[n] = Euler2D.NewEuler(FinalTime, n, "../../../DG2D/vortex-new.su2", 1.00, Euler2D.FLUX_LaxFriedrichs, Euler2D.IVORTEX, 0, 0, 1.4, 0, false, 5000, Euler2D.None, plotMesh, false, false)
+		c[n] = Euler2D.NewEuler(ip, "../../../DG2D/vortex-new.su2", 0, plotMesh, false, false)
 	}
 	b.ResetTimer()
 	// The benchmark loop
@@ -29,9 +51,12 @@ func BenchmarkEulerSolve(b *testing.B) {
 }
 
 func BenchmarkEulerGetFlowFunction(b *testing.B) {
+	ip := ipDefault
+	ip.Minf = 1.
 	var (
-		q   = [4]float64{1, 1, 1, 1}
-		c   = Euler2D.NewEuler(1, 1, "", 1, Euler2D.FLUX_LaxFriedrichs, Euler2D.FREESTREAM, 1, 1, 1.4, 0, true, 1, Euler2D.None, false, false, false)
+		q = [4]float64{1, 1, 1, 1}
+		//c   = Euler2D.NewEuler(1, 1, "", 1, Euler2D.FLUX_LaxFriedrichs, Euler2D.FREESTREAM, 1, 1, 1.4, 0, true, 1, Euler2D.None, false, false, false)
+		c   = Euler2D.NewEuler(ip, "", 1, false, false, false)
 		GM1 = c.FS.Gamma - 1
 	)
 	var p float64

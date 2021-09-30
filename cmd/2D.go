@@ -19,10 +19,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"sort"
 	"time"
-
-	"github.com/ghodss/yaml"
 
 	"github.com/notargets/avs/chart2d"
 
@@ -42,47 +39,6 @@ type Model2D struct {
 	Profile                      bool
 	Zoom, TranslateX, TranslateY float64
 	fminP, fmaxP                 *float64
-}
-
-// Parameters obtained from the YAML input file
-type InputParameters struct {
-	Title             string                                `yaml:"Title"`
-	CFL               float64                               `yaml:"CFL"`
-	FluxType          string                                `yaml:"FluxType"`
-	InitType          string                                `yaml:"InitType"`
-	PolynomialOrder   int                                   `yaml:"PolynomialOrder"`
-	FinalTime         float64                               `yaml:"FinalTime"`
-	Minf              float64                               `yaml:"Minf"`
-	Gamma             float64                               `yaml:"Gamma"`
-	Alpha             float64                               `yaml:"Alpha"`
-	BCs               map[string]map[int]map[string]float64 `yaml:"BCs"` // First key is BC name/type, second is parameter name
-	LocalTimeStepping bool                                  `yaml:"LocalTimeStep"`
-	MaxIterations     int                                   `yaml:"MaxIterations"`
-	ImplicitSolver    bool                                  `yaml:"ImplicitSolver"`
-	Limiter           string                                `yaml:"Limiter"`
-}
-
-func (ip *InputParameters) Parse(data []byte) error {
-	return yaml.Unmarshal(data, ip)
-}
-
-func (ip *InputParameters) Print() {
-	fmt.Printf("\"%s\"\t\t= Title\n", ip.Title)
-	fmt.Printf("%8.5f\t\t= CFL\n", ip.CFL)
-	fmt.Printf("%8.5f\t\t= FinalTime\n", ip.FinalTime)
-	fmt.Printf("[%s]\t\t\t= Flux Type\n", ip.FluxType)
-	fmt.Printf("[%s]\t= InitType\n", ip.InitType)
-	fmt.Printf("[%d]\t\t\t\t= Polynomial Order\n", ip.PolynomialOrder)
-	keys := make([]string, len(ip.BCs))
-	i := 0
-	for k := range ip.BCs {
-		keys[i] = k
-		i++
-	}
-	sort.Strings(keys)
-	for _, key := range keys {
-		fmt.Printf("BCs[%s] = %v\n", key, ip.BCs[key])
-	}
 }
 
 // TwoDCmd represents the 2D command
@@ -126,7 +82,7 @@ var TwoDCmd = &cobra.Command{
 	},
 }
 
-func processInput(m2d *Model2D) (ip *InputParameters) {
+func processInput(m2d *Model2D) (ip *Euler2D.InputParameters) {
 	var (
 		err      error
 		willExit bool
@@ -160,7 +116,7 @@ FinalTime: 4
 		if data, err = ioutil.ReadFile(m2d.ICFile); err != nil {
 			panic(err)
 		}
-		ip = &InputParameters{}
+		ip = &Euler2D.InputParameters{}
 		ip.Gamma = 1.4 // Default
 		ip.Minf = 0.1  // Default
 		if err = ip.Parse(data); err != nil {
@@ -187,11 +143,8 @@ func init() {
 	TwoDCmd.Flags().Bool("profile", false, "generate a runtime profile of the solver, can be converted to PDF using 'go tool pprof -pdf filename'")
 }
 
-func Run2D(m2d *Model2D, ip *InputParameters) {
-	c := Euler2D.NewEuler(ip.FinalTime, ip.PolynomialOrder, m2d.GridFile, ip.CFL,
-		Euler2D.NewFluxType(ip.FluxType), Euler2D.NewInitType(ip.InitType), m2d.ParallelProcLimit,
-		ip.Minf, ip.Gamma, ip.Alpha, ip.LocalTimeStepping, ip.MaxIterations, Euler2D.NewLimiterType(ip.Limiter),
-		false, true, m2d.Profile)
+func Run2D(m2d *Model2D, ip *Euler2D.InputParameters) {
+	c := Euler2D.NewEuler(ip, m2d.GridFile, m2d.ParallelProcLimit, false, true, m2d.Profile)
 	pm := &Euler2D.PlotMeta{
 		Plot:            m2d.Graph,
 		Field:           Euler2D.FlowFunction(m2d.GraphField),

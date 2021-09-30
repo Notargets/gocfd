@@ -15,16 +15,37 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
+var ipDefault = &InputParameters{
+	Title:             "",
+	CFL:               1,
+	FluxType:          "Lax",
+	InitType:          "freestream",
+	PolynomialOrder:   0,
+	FinalTime:         1,
+	Minf:              0,
+	Gamma:             1.4,
+	Alpha:             0,
+	BCs:               nil,
+	LocalTimeStepping: false,
+	MaxIterations:     5000,
+	ImplicitSolver:    false,
+	Limiter:           "",
+}
+
 func TestEuler(t *testing.T) {
 	var (
 		msg = "err msg %s"
 		tol = 0.000001
 	)
+	ip := ipDefault
+	ip.FluxType = "average"
 	if true {
 		{ // Test interpolation of solution to edges for all supported orders
 			Nmax := 7
 			for N := 1; N <= Nmax; N++ {
-				c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
+				ip.PolynomialOrder = N
+				//c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
+				c := NewEuler(ip, "../../DG2D/test_tris_5.neu", 1, false, false, false)
 				Kmax := c.dfr.K
 				Nint := c.dfr.FluxElement.Nint
 				Nedge := c.dfr.FluxElement.Nedge
@@ -67,7 +88,9 @@ func TestEuler(t *testing.T) {
 			*/
 			Nmax := 7
 			for N := 1; N <= Nmax; N++ {
-				c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
+				//c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
+				ip.PolynomialOrder = N
+				c := NewEuler(ip, "../../DG2D/test_tris_5.neu", 1, false, false, false)
 				Kmax := c.dfr.K
 				Nint := c.dfr.FluxElement.Nint
 				Nedge := c.dfr.FluxElement.Nedge
@@ -141,7 +164,9 @@ func TestEuler(t *testing.T) {
 		{ // Test solution process part 2 - Freestream divergence should be zero
 			Nmax := 7
 			for N := 1; N <= Nmax; N++ {
-				c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
+				//c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
+				ip.PolynomialOrder = N
+				c := NewEuler(ip, "../../DG2D/test_tris_5.neu", 1, false, false, false)
 				Kmax := c.dfr.K
 				Nint := c.dfr.FluxElement.Nint
 				Nedge := c.dfr.FluxElement.Nedge
@@ -181,17 +206,22 @@ func TestEuler(t *testing.T) {
 				plotMesh := false
 				// Single triangle test case
 				var c *Euler
-				c = NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, plotMesh, false, false)
+				//c = NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, plotMesh, false, false)
+				ip.PolynomialOrder = N
+				c = NewEuler(ip, "../../DG2D/test_tris_1tri.neu", 1, plotMesh, false, false)
 				CheckFlux0(c, t)
 				// Two widely separated triangles - no shared faces
-				c = NewEuler(1, N, "../../DG2D/test_tris_two.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, plotMesh, false, false)
+				//c = NewEuler(1, N, "../../DG2D/test_tris_two.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, plotMesh, false, false)
+				c = NewEuler(ip, "../../DG2D/test_tris_two.neu", 1, plotMesh, false, false)
 				CheckFlux0(c, t)
 				// Two widely separated triangles - no shared faces - one tri listed in reverse order
-				c = NewEuler(1, N, "../../DG2D/test_tris_twoR.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, plotMesh, false, false)
+				//c = NewEuler(1, N, "../../DG2D/test_tris_twoR.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, plotMesh, false, false)
+				c = NewEuler(ip, "../../DG2D/test_tris_twoR.neu", 1, plotMesh, false, false)
 				CheckFlux0(c, t)
 				// Connected tris, sharing one edge
 				// plotMesh = true
-				c = NewEuler(1, N, "../../DG2D/test_tris_6_nowall.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, plotMesh, false, false)
+				//c = NewEuler(1, N, "../../DG2D/test_tris_6_nowall.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, plotMesh, false, false)
+				c = NewEuler(ip, "../../DG2D/test_tris_6_nowall.neu", 1, plotMesh, false, false)
 				CheckFlux0(c, t)
 			}
 		}
@@ -200,7 +230,10 @@ func TestEuler(t *testing.T) {
 		{ // Test divergence of Isentropic Vortex initial condition against analytic values - density equation only
 			N := 1
 			plotMesh := false
-			c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, IVORTEX, 1, 0, 1.4, 0, false, 5000, None, plotMesh, false, false)
+			ip.PolynomialOrder = N
+			ip.InitType = "ivortex"
+			//c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, IVORTEX, 1, 0, 1.4, 0, false, 5000, None, plotMesh, false, false)
+			c := NewEuler(ip, "../../DG2D/test_tris_6.neu", 1, plotMesh, false, false)
 			for _, e := range c.dfr.Tris.Edges {
 				if e.BCType == types.BC_IVortex {
 					e.BCType = types.BC_None
@@ -225,7 +258,7 @@ func TestEuler(t *testing.T) {
 			var div utils.Matrix
 			// Density is the easiest equation to match with a polynomial
 			n := 0
-			fmt.Printf("component[%d]\n", n)
+			//fmt.Printf("component[%d]\n", n)
 			div = c.dfr.FluxElement.DivInt.Mul(F_RT_DOF[n])
 			//c.DivideByJacobian(Kmax, Nint, c.dfr.Jdet, div.DataP, 1)
 			for k := 0; k < Kmax; k++ {
@@ -275,10 +308,12 @@ func TestFluxJacobian(t *testing.T) {
 			0, 0, 2.5050, 0,
 		}, Gy[:], tol, msg)
 	}
+	ip := ipDefault
 	// Test build system matrix (for implicit solver)
 	{
-		N := 1
-		c := NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
+		ip.PolynomialOrder = 1
+		//c := NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
+		c := NewEuler(ip, "../../DG2D/test_tris_1tri.neu", 1, false, false, false)
 		ei := c.NewElementImplicit()
 		var (
 			myThread         = 0
@@ -293,8 +328,9 @@ func TestFluxJacobian(t *testing.T) {
 	}
 	// Test implicit solver
 	{
-		N := 1
-		c := NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
+		ip.PolynomialOrder = 1
+		//c := NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
+		c := NewEuler(ip, "../../DG2D/test_tris_1tri.neu", 1, false, false, false)
 		ei := c.NewElementImplicit()
 		var (
 			myThread         = 0
@@ -406,6 +442,36 @@ func TestDissipation(t *testing.T) {
 	}
 }
 
+func TestInputParameters_Parse(t *testing.T) {
+	var (
+		err error
+	)
+	fileInput := []byte(`
+Title: Test Case
+CFL: 1.
+InitType: Freestream # Can be IVortex or Freestream
+FluxType: Roe
+PolynomialOrder: 2
+FinalTime: 4.
+BCs: 
+  Inflow:
+      37:
+         NPR: 4.0
+  Outflow:
+      22:
+         P: 1.5
+`)
+	var input InputParameters
+	if err = input.Parse(fileInput); err != nil {
+		panic(err)
+	}
+	// Check Inflow BC number 37
+	assert.Equal(t, input.BCs["Inflow"][37]["NPR"], 4.)
+	// Check Outflow BC number 22
+	assert.Equal(t, input.BCs["Outflow"][22]["P"], 1.5)
+	input.Print()
+	assert.Equal(t, input.FinalTime, 4.)
+}
 func PrintQ(Q [4]utils.Matrix, l string) {
 	var (
 		label string
