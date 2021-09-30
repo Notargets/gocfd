@@ -16,3 +16,4 @@ Alpha: 2.
 LocalTimeStepping: true
 MaxIterations: 80000
 #Limiter: Barth Jesperson
+Kappa: 4.

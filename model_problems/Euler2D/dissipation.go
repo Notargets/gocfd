@@ -89,7 +89,7 @@ type ScalarDissipation struct {
 	S0, Kappa      float64
 }
 
-func NewScalarDissipation(dfr *DG2D.DFR2D, pm *PartitionMap) (sd *ScalarDissipation) {
+func NewScalarDissipation(kappa float64, dfr *DG2D.DFR2D, pm *PartitionMap) (sd *ScalarDissipation) {
 	var (
 		el     = dfr.SolutionElement
 		NPar   = pm.ParallelDegree
@@ -114,6 +114,9 @@ func NewScalarDissipation(dfr *DG2D.DFR2D, pm *PartitionMap) (sd *ScalarDissipat
 		UClipped: make([]utils.Matrix, NPar),
 		S0:       1. / math.Pow(order, 4.),
 		Kappa:    4.,
+	}
+	if kappa != 0. {
+		sd.Kappa = kappa
 	}
 	for np := 0; np < NPar; np++ {
 		sd.U[np] = utils.NewMatrix(Np, 1)

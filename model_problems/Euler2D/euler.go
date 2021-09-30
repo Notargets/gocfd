@@ -48,13 +48,6 @@ type Euler struct {
 }
 
 func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, verbose, profile bool) (c *Euler) {
-	/*
-		c := Euler2D.NewEuler(ip, ip.FinalTime, ip.PolynomialOrder, m2d.GridFile, ip.CFL,
-			Euler2D.NewFluxType(ip.FluxType), Euler2D.NewInitType(ip.InitType), m2d.ParallelProcLimit,
-			ip.Minf, ip.Gamma, ip.Alpha, ip.LocalTimeStepping, ip.MaxIterations, Euler2D.NewLimiterType(ip.Limiter),
-			false, true, m2d.Profile)
-	*/
-
 	c = &Euler{
 		MeshFile:          meshFile,
 		CFL:               ip.CFL,
@@ -85,7 +78,7 @@ func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, ver
 	c.Limiter = NewSolutionLimiter(NewLimiterType(ip.Limiter), c.dfr, c.Partitions, c.FS)
 
 	// Initiate Artificial Dissipation
-	c.Dissipation = NewScalarDissipation(c.dfr, c.Partitions)
+	c.Dissipation = NewScalarDissipation(ip.Kappa, c.dfr, c.Partitions)
 
 	if verbose {
 		fmt.Printf("Euler Equations in 2 Dimensions\n")
@@ -95,6 +88,7 @@ func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, ver
 			fmt.Printf("Mach Infinity = %8.5f, Angle of Attack = %8.5f\n", ip.Minf, ip.Alpha)
 		}
 		fmt.Printf("Flux Algorithm: [%s] using Limiter: [%s]\n", c.FluxCalcAlgo.Print(), c.Limiter.limiterType.Print())
+		fmt.Printf("Artificial Dissipation: Kappa = [%5.3f]\n", c.Dissipation.Kappa)
 		fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n",
 			ip.CFL, ip.PolynomialOrder, c.dfr.K)
 	}

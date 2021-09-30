@@ -23,6 +23,7 @@ type InputParameters struct {
 	MaxIterations     int                                   `yaml:"MaxIterations"`
 	ImplicitSolver    bool                                  `yaml:"ImplicitSolver"`
 	Limiter           string                                `yaml:"Limiter"`
+	Kappa             float64                               `yaml:"Kappa"`
 }
 
 func (ip *InputParameters) Parse(data []byte) error {

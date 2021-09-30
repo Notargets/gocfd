@@ -394,7 +394,7 @@ func TestDissipation(t *testing.T) {
 		vepFinal := [2]int32{9, 9}
 		for NPar := 1; NPar < 10; NPar += 2 {
 			pm := NewPartitionMap(NPar, dfr.K)
-			sd := NewScalarDissipation(dfr, pm)
+			sd := NewScalarDissipation(0, dfr, pm)
 			var vep [2]int32
 			for np := 0; np < NPar; np++ {
 				for _, val := range sd.VtoE[np] {
@@ -429,7 +429,7 @@ func TestDissipation(t *testing.T) {
 				Q[0][n].DataP[ind] = val
 			}
 		}
-		sd := NewScalarDissipation(dfr, pm)
+		sd := NewScalarDissipation(0, dfr, pm)
 		c := &Euler{Partitions: pm}
 		Jdet := c.ShardByKTranspose(dfr.Jdet)
 		sd.calculateElementViscosity(0, Jdet, Q)
