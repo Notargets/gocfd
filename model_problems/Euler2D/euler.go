@@ -238,6 +238,7 @@ func (rk *RungeKutta4SSP) Step(c *Euler) {
 			if !c.LocalTimeStepping {
 				rk.calculateGlobalDT(c)
 			}
+			c.Dissipation.CalculateElementViscosity(rk.Jdet, c.Q)
 		case currentStep < 0:
 			return
 		}
@@ -301,7 +302,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 			}
 		}
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
-		c.Dissipation.AddDissipationC0(true, myThread, rk.Jdet, c.Q, rk.RHSQ)
+		c.Dissipation.AddDissipationC0(myThread, rk.Jdet, c.Q, rk.RHSQ)
 		if preCon {
 			c.PreconditionRHS(Q0, RHSQ, DT, true)
 		}
@@ -325,7 +326,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 
 		_ = <-fromController // Block until parent sends "go"
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
-		c.Dissipation.AddDissipationC0(false, myThread, rk.Jdet, c.Q, rk.RHSQ)
+		c.Dissipation.AddDissipationC0(myThread, rk.Jdet, c.Q, rk.RHSQ)
 		if preCon {
 			c.PreconditionRHS(Q1, RHSQ, DT, false)
 		}
@@ -349,7 +350,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 
 		_ = <-fromController // Block until parent sends "go"
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
-		c.Dissipation.AddDissipationC0(false, myThread, rk.Jdet, c.Q, rk.RHSQ)
+		c.Dissipation.AddDissipationC0(myThread, rk.Jdet, c.Q, rk.RHSQ)
 		if preCon {
 			c.PreconditionRHS(Q2, RHSQ, DT, false)
 		}
@@ -373,7 +374,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 
 		_ = <-fromController // Block until parent sends "go"
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
-		c.Dissipation.AddDissipationC0(false, myThread, rk.Jdet, c.Q, rk.RHSQ)
+		c.Dissipation.AddDissipationC0(myThread, rk.Jdet, c.Q, rk.RHSQ)
 		if preCon {
 			c.PreconditionRHS(Q3, RHSQ, DT, false)
 		}

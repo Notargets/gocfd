@@ -13,7 +13,8 @@ Minf: 0.8
 #Minf: 0.01
 Gamma: 1.4
 Alpha: 2.
+#Alpha: 10.
 LocalTimeStepping: true
 MaxIterations: 80000
 #Limiter: Barth Jesperson
-Kappa: 4.
+#Kappa: 6.

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"sync"
 
 	"github.com/notargets/gocfd/DG2D"
 
@@ -150,7 +151,26 @@ func NewScalarDissipation(kappa float64, dfr *DG2D.DFR2D, pm *PartitionMap) (sd 
 	return
 }
 
-func (sd *ScalarDissipation) AddDissipationC0(calcViscoscity bool, myThread int, JdetAll []utils.Matrix, Qall, RHSQall [][4]utils.Matrix) {
+func (sd *ScalarDissipation) propagateEpsilonMaxToVertices(myThread int, wg *sync.WaitGroup) {
+	var (
+		VtoE = sd.VtoE[myThread]
+		max  = math.Max
+	)
+	oldVert := -1
+	for _, val := range VtoE {
+		vert, kGlobal := int(val[0]), int(val[1])
+		k, _, bn := sd.PMap.GetLocalK(kGlobal)
+		if oldVert == vert { // we're in the middle of processing this vert, update normally
+			sd.EpsVertex[vert] = max(sd.EpsVertex[vert], sd.EpsilonScalar[bn][k])
+		} else { // we're on a new vertex, reset the vertex value
+			sd.EpsVertex[vert] = sd.EpsilonScalar[bn][k]
+			oldVert = vert
+		}
+	}
+	wg.Done()
+}
+
+func (sd *ScalarDissipation) AddDissipationC0(myThread int, JdetAll []utils.Matrix, Qall, RHSQall [][4]utils.Matrix) {
 	var (
 		Jdet           = JdetAll[myThread]
 		Q              = Qall[myThread]
@@ -160,9 +180,6 @@ func (sd *ScalarDissipation) AddDissipationC0(calcViscoscity bool, myThread int,
 		EpsilonScalar  = sd.EpsilonScalar[myThread]
 		Np, KMax       = Q[0].Dims()
 	)
-	if calcViscoscity {
-		sd.calculateElementViscosity(myThread, JdetAll, Qall)
-	}
 	for n := 0; n < 4; n++ {
 		sd.Element.Dr.Mul(Q[n], DissX) // dQ/dR
 		sd.Element.Ds.Mul(Q[n], DissY) // dQ/dS
@@ -201,31 +218,46 @@ func (sd *ScalarDissipation) GetScalarEpsilonPlotField(c *Euler) (fld utils.Matr
 	return
 }
 
-func (sd *ScalarDissipation) calculateElementViscosity(myThread int, JdetAll []utils.Matrix, Qall [][4]utils.Matrix) {
+func (sd *ScalarDissipation) CalculateElementViscosity(JdetAll []utils.Matrix, Qall [][4]utils.Matrix) {
 	var (
-		Rho      = Qall[myThread][0]
-		Jdet     = JdetAll[myThread]
-		Eps      = sd.EpsilonScalar[myThread]
-		Kmax     = sd.PMap.GetBucketDimension(myThread)
-		U        = sd.U[myThread]
-		UClipped = sd.UClipped[myThread]
+		wg = sync.WaitGroup{}
 	)
-	for k := 0; k < Kmax; k++ {
-		var (
-			eps0        = math.Sqrt(2.*Jdet.DataP[k]) / float64(sd.Element.N)
-			Se          = math.Log10(sd.moment(k, Kmax, U, UClipped, Rho))
-			left, right = sd.S0 - sd.Kappa, sd.S0 + sd.Kappa
-			oo2kappa    = 0.5 / sd.Kappa
-		)
-		switch {
-		case Se < left:
-			Eps[k] = 0.
-		case Se >= left && Se < right:
-			Eps[k] = 0.5 * eps0 * (1. + math.Sin(math.Pi*oo2kappa*(Se-sd.S0)))
-		case Se >= right:
-			Eps[k] = eps0
-		}
+	for np := 0; np < sd.PMap.ParallelDegree; np++ {
+		wg.Add(1)
+		go func(myThread int) {
+			var (
+				Rho      = Qall[myThread][0]
+				Jdet     = JdetAll[myThread]
+				Eps      = sd.EpsilonScalar[myThread]
+				Kmax     = sd.PMap.GetBucketDimension(myThread)
+				U        = sd.U[myThread]
+				UClipped = sd.UClipped[myThread]
+			)
+			for k := 0; k < Kmax; k++ {
+				var (
+					eps0        = math.Sqrt(2.*Jdet.DataP[k]) / float64(sd.Element.N)
+					Se          = math.Log10(sd.moment(k, Kmax, U, UClipped, Rho))
+					left, right = sd.S0 - sd.Kappa, sd.S0 + sd.Kappa
+					oo2kappa    = 0.5 / sd.Kappa
+				)
+				switch {
+				case Se < left:
+					Eps[k] = 0.
+				case Se >= left && Se < right:
+					Eps[k] = 0.5 * eps0 * (1. + math.Sin(math.Pi*oo2kappa*(Se-sd.S0)))
+				case Se >= right:
+					Eps[k] = eps0
+				}
+			}
+			wg.Done()
+		}(np)
 	}
+	wg.Wait()
+	for np := 0; np < sd.PMap.ParallelDegree; np++ {
+		wg.Add(1)
+		go sd.propagateEpsilonMaxToVertices(np, &wg)
+	}
+	wg.Wait()
 }
 
 func (sd *ScalarDissipation) moment(k, Kmax int, U, UClipped, Rho utils.Matrix) (m float64) {
