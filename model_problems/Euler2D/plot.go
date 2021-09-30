@@ -37,7 +37,6 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 	)
 	switch {
 	case plotField <= Energy:
-		//field = c.dfr.FluxInterpMatrix.Mul(Q[int(plotField)])
 		fld = Q[int(plotField)]
 	case plotField < ShockFunction:
 		fld = utils.NewMatrix(Np, Kmax)
@@ -45,7 +44,6 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 		for ik := 0; ik < Kmax*Np; ik++ {
 			fldD[ik] = c.FS.GetFlowFunction(Q, ik, plotField)
 		}
-		//field = c.dfr.FluxInterpMatrix.Mul(fld)
 	case plotField == ShockFunction:
 		var sf *ModeAliasShockFinder
 		if c.Limiter != nil {
@@ -55,15 +53,16 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 		}
 		fld = utils.NewMatrix(Np, Kmax)
 		fldD := fld.DataP
-		//for ik := 0; ik < Kmax*Np; ik++ {
 		for k := 0; k < Kmax; k++ {
-			qElement := Q[3].Col(k)
+			qElement := Q[0].Col(k)
 			m := sf.ShockIndicator(qElement.DataP)
 			for i := 0; i < Np; i++ {
 				ik := k + i*Kmax
 				fldD[ik] = m
 			}
 		}
+	case plotField == EpsilonDissipation:
+		fld = c.Dissipation.GetScalarEpsilonPlotField(c)
 	}
 	field = c.dfr.FluxInterpMatrix.Mul(fld)
 	return

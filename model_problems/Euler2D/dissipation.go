@@ -183,6 +183,21 @@ func (sd *ScalarDissipation) AddDissipationC0(calcViscoscity bool, myThread int,
 	}
 }
 
+func (sd *ScalarDissipation) GetScalarEpsilonPlotField(c *Euler) (fld utils.Matrix) {
+	for np := 0; np < sd.PMap.ParallelDegree; np++ {
+		Np, KMax := sd.Epsilon[np].Dims()
+		for k := 0; k < KMax; k++ {
+			epsK := sd.EpsilonScalar[np][k]
+			for i := 0; i < Np; i++ {
+				ind := k + KMax*i
+				sd.Epsilon[np].DataP[ind] = epsK
+			}
+		}
+	}
+	fld = c.RecombineShardsK(sd.Epsilon)
+	return
+}
+
 func (sd *ScalarDissipation) calculateElementViscosity(myThread int, JdetAll []utils.Matrix, Qall [][4]utils.Matrix) {
 	var (
 		Rho      = Qall[myThread][0]
