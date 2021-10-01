@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/notargets/gocfd/DG2D"
@@ -389,19 +390,19 @@ func TestDissipation(t *testing.T) {
 	{
 		dfr := DG2D.NewDFR2D(1, false, "../../DG2D/test_tris_9.neu")
 		VtoE := NewVertexToElement(dfr.Tris.EToV)
-		assert.Equal(t, VertexToElement{{0, 0}, {0, 1}, {1, 3}, {1, 1}, {1, 2}, {2, 4}, {2, 3}, {3, 5}, {3, 0}, {4, 2}, {4, 5}, {4, 6}, {4, 1}, {4, 0}, {4, 7}, {5, 4}, {5, 3}, {5, 9}, {5, 8}, {5, 2}, {5, 7}, {6, 4}, {6, 9}, {7, 5}, {7, 6}, {8, 8}, {8, 6}, {8, 7}, {9, 8}, {9, 9}},
+		assert.Equal(t, VertexToElement{{0, 0, 0}, {0, 1, 0}, {1, 3, 0}, {1, 1, 0}, {1, 2, 0}, {2, 4, 0}, {2, 3, 0}, {3, 5, 0}, {3, 0, 0}, {4, 2, 0}, {4, 5, 0}, {4, 6, 0}, {4, 1, 0}, {4, 0, 0}, {4, 7, 0}, {5, 4, 0}, {5, 3, 0}, {5, 9, 0}, {5, 8, 0}, {5, 2, 0}, {5, 7, 0}, {6, 4, 0}, {6, 9, 0}, {7, 5, 0}, {7, 6, 0}, {8, 8, 0}, {8, 6, 0}, {8, 7, 0}, {9, 8, 0}, {9, 9, 0}},
 			VtoE)
-		vepFinal := [2]int32{9, 9}
+		vepFinal := [3]int32{9, 9, 0}
 		for NPar := 1; NPar < 10; NPar += 2 {
 			pm := NewPartitionMap(NPar, dfr.K)
 			sd := NewScalarDissipation(0, dfr, pm)
-			var vep [2]int32
+			var vep [3]int32
 			for np := 0; np < NPar; np++ {
 				for _, val := range sd.VtoE[np] {
 					vep = val
 				}
 			}
-			assert.Equal(t, vepFinal, vep)
+			assert.Equal(t, vepFinal[0], vep[0])
 		}
 		KMax := dfr.K
 		assert.Equal(t, len(dfr.Jdet.DataP), KMax)
@@ -439,6 +440,53 @@ func TestDissipation(t *testing.T) {
 		sd.CalculateElementViscosity(Jdet, Q)
 		assert.InDeltaSlicef(t, []float64{0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270},
 			sd.EpsilonScalar[0], 0.00001, "err msg %s")
+	}
+	{
+		dfr := DG2D.NewDFR2D(1, false, "../../DG2D/test_tris_9.neu")
+		_, KMax := dfr.SolutionElement.Np, dfr.K
+		pm := NewPartitionMap(1, KMax)
+		sd := NewScalarDissipation(0, dfr, pm)
+		assert.InDeltaSlicef(t, []float64{0.66667, 0.16667, 0.16667, 0.16667, 0.66667, 0.16667, 0.16667, 0.16667, 0.66667},
+			sd.BaryCentricCoords.DataP, 0.00001, "err msg %s")
+		// Set the epsilon scalar value to the element ID and check the vertex aggregation
+		for k := 0; k < KMax; k++ {
+			sd.EpsilonScalar[0][k] = float64(k)
+		}
+		wg := &sync.WaitGroup{}
+		wg.Add(1)
+		sd.propagateEpsilonMaxToVertices(0, wg)
+		assert.Equal(t, []float64{1, 3, 4, 5, 7, 9, 9, 6, 8, 9}, sd.EpsVertex)
+	}
+}
+func TestDissipation2(t *testing.T) {
+	{
+		dfr := DG2D.NewDFR2D(3, false, "../../DG2D/test_tris_9.neu")
+		NP := 5
+		_, KMax := dfr.SolutionElement.Np, dfr.K
+		pm := NewPartitionMap(NP, KMax)
+		sd := NewScalarDissipation(0, dfr, pm)
+		for np := 0; np < NP; np++ {
+			KMax = sd.PMap.GetBucketDimension(np)
+			for k := 0; k < KMax; k++ {
+				kGlobal := pm.GetGlobalK(k, np)
+				sd.EpsilonScalar[np][k] = float64(kGlobal)
+			}
+		}
+		wg := &sync.WaitGroup{}
+		for np := 0; np < NP; np++ {
+			wg.Add(1)
+			sd.propagateEpsilonMaxToVertices(np, wg)
+		}
+		assert.Equal(t, []float64{1, 3, 4, 5, 7, 9, 9, 6, 8, 9}, sd.EpsVertex)
+		for np := 0; np < NP; np++ {
+			// TODO: Implement straight linear interpolation, Barycentric may be triggering higher order modes
+			sd.linearInterpolateEpsilon(np)
+		}
+		/*
+			fmt.Printf(sd.BaryCentricCoords.Print("BaryCentricCoords"))
+			fmt.Printf("BCC = %v\n", sd.BaryCentricCoords.DataP)
+			fmt.Printf("R = %v\nS = %v\n", sd.Element.R.DataP, sd.Element.S.DataP)
+		*/
 	}
 }
 

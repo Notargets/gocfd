@@ -33,6 +33,8 @@ func (pm FlowFunction) String() string {
 		return "ShockFunction"
 	case pm == EpsilonDissipation:
 		return "Artificial Dissipation Epsilon"
+	case pm == EpsilonDissipationC0:
+		return "Artificial Dissipation Epsilon C0"
 	default:
 		return "Unknown"
 	}
@@ -43,18 +45,19 @@ const (
 	XMomentum
 	YMomentum
 	Energy
-	Mach                // 4
-	StaticPressure      // 5
-	DynamicPressure     // 6
-	PressureCoefficient // 7
-	SoundSpeed          // 8
-	Velocity            // 9
-	XVelocity           // 10
-	YVelocity           // 11
-	Enthalpy            // 12
-	Entropy             //13
-	ShockFunction       = 100
-	EpsilonDissipation  = 101
+	Mach                 // 4
+	StaticPressure       // 5
+	DynamicPressure      // 6
+	PressureCoefficient  // 7
+	SoundSpeed           // 8
+	Velocity             // 9
+	XVelocity            // 10
+	YVelocity            // 11
+	Enthalpy             // 12
+	Entropy              //13
+	ShockFunction        = 100
+	EpsilonDissipation   = 101
+	EpsilonDissipationC0 = 102
 )
 
 type FreeStream struct {

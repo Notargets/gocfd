@@ -63,6 +63,8 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 		}
 	case plotField == EpsilonDissipation:
 		fld = c.Dissipation.GetScalarEpsilonPlotField(c)
+	case plotField == EpsilonDissipationC0:
+		fld = c.Dissipation.GetC0EpsilonPlotField(c)
 	}
 	field = c.dfr.FluxInterpMatrix.Mul(fld)
 	return
