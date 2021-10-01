@@ -256,6 +256,7 @@ func (sd *ScalarDissipation) AddDissipation(cont ContinuityLevel, myThread int, 
 	}
 }
 
+// TODO: Implement straight linear interpolation, Barycentric may be triggering higher order modes
 func (sd *ScalarDissipation) linearInterpolateEpsilon(myThread int) {
 	var (
 		Np, KMax = sd.Element.Np, sd.PMap.GetBucketDimension(myThread)
