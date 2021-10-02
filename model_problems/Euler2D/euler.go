@@ -302,8 +302,8 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 			}
 		}
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
-		//contLevel := C0
-		contLevel := No
+		contLevel := C0
+		//contLevel := No
 		c.Dissipation.AddDissipation(contLevel, myThread, rk.Jdet, c.Q, rk.RHSQ)
 		if preCon {
 			c.PreconditionRHS(Q0, RHSQ, DT, true)

@@ -141,7 +141,7 @@ func NewScalarDissipation(kappa float64, dfr *DG2D.DFR2D, pm *PartitionMap) (sd 
 		U:        make([]utils.Matrix, NPar),
 		UClipped: make([]utils.Matrix, NPar),
 		S0:       1. / math.Pow(order, 4.),
-		Kappa:    4.,
+		Kappa:    0.25,
 	}
 	sd.EtoV = sd.shardEtoV(dfr.Tris.EToV)
 	sd.createInterpolationStencil()
@@ -245,9 +245,6 @@ func (sd *ScalarDissipation) AddDissipation(cont ContinuityLevel, myThread int, 
 		Diss2X.Add(Diss2Y) // Compose Divergence in R,S coordinates
 		for k := 0; k < KMax; k++ {
 			ooJdet2K := 1. / (Jdet.DataP[k] * Jdet.DataP[k]) // Second derivative requires divide by det^2
-			//ooJdet2K := 1. / Jdet.DataP[k]
-			//ooJdet2K := 1.
-			//_ = Jdet
 			for i := 0; i < Np; i++ {
 				ind := k + KMax*i
 				RHSQ[n].DataP[ind] -= ooJdet2K * Diss2X.DataP[ind]
@@ -256,8 +253,35 @@ func (sd *ScalarDissipation) AddDissipation(cont ContinuityLevel, myThread int, 
 	}
 }
 
-// TODO: Implement straight linear interpolation, Barycentric may be triggering higher order modes
 func (sd *ScalarDissipation) linearInterpolateEpsilon(myThread int) {
+	var (
+		Np, KMax = sd.Element.Np, sd.PMap.GetBucketDimension(myThread)
+		Epsilon  = sd.Epsilon[myThread]
+		EtoV     = sd.EtoV[myThread]
+		R, S     = sd.Element.R, sd.Element.S
+	)
+	vertLinear := func(r, s float64, f [3]float64) (fi float64) {
+		var (
+			rLen, sLen     = 2., 2.
+			drFrac, dsFrac = (r - (-1.)) / rLen, (s - (-1.)) / sLen
+			dfr, dfs       = f[1] - f[0], f[2] - f[0]
+		)
+		fi = dfr*drFrac + dfs*dsFrac + f[0]
+		return
+	}
+	// Interpolate epsilon within each element
+	for k := 0; k < KMax; k++ {
+		tri := EtoV.Row(k).DataP
+		v := [3]int{int(tri[0]), int(tri[1]), int(tri[2])}
+		eps := [3]float64{sd.EpsVertex[v[0]], sd.EpsVertex[v[1]], sd.EpsVertex[v[2]]}
+		for i := 0; i < Np; i++ {
+			ind := k + KMax*i
+			Epsilon.DataP[ind] = vertLinear(R.DataP[i], S.DataP[i], eps)
+		}
+	}
+}
+
+func (sd *ScalarDissipation) baryCentricInterpolateEpsilon(myThread int) {
 	var (
 		Np, KMax = sd.Element.Np, sd.PMap.GetBucketDimension(myThread)
 		Epsilon  = sd.Epsilon[myThread]
@@ -268,13 +292,10 @@ func (sd *ScalarDissipation) linearInterpolateEpsilon(myThread int) {
 		tri := EtoV.Row(k).DataP
 		v := [3]int{int(tri[0]), int(tri[1]), int(tri[2])}
 		eps := [3]float64{sd.EpsVertex[v[0]], sd.EpsVertex[v[1]], sd.EpsVertex[v[2]]}
-		//fmt.Printf("EpsVertex[%d] = %v\n", sd.PMap.GetGlobalK(k, myThread), eps)
 		for i := 0; i < Np; i++ {
 			ind := k + KMax*i
 			bcc := sd.BaryCentricCoords.Row(i).DataP
 			Epsilon.DataP[ind] = bcc[0]*eps[0] + bcc[1]*eps[1] + bcc[2]*eps[2]
-			//Epsilon.DataP[ind] = EpsilonScalar[k]
-			//fmt.Printf("v, eps, bcc, eps[%d] = %v,%v,%v,%8.5f\n", v, eps, bcc, i, Epsilon.DataP[ind])
 		}
 	}
 }

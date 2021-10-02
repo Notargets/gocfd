@@ -444,24 +444,32 @@ func TestDissipation(t *testing.T) {
 	{
 		dfr := DG2D.NewDFR2D(1, false, "../../DG2D/test_tris_9.neu")
 		_, KMax := dfr.SolutionElement.Np, dfr.K
-		pm := NewPartitionMap(1, KMax)
-		sd := NewScalarDissipation(0, dfr, pm)
-		assert.InDeltaSlicef(t, []float64{0.66667, 0.16667, 0.16667, 0.16667, 0.66667, 0.16667, 0.16667, 0.16667, 0.66667},
-			sd.BaryCentricCoords.DataP, 0.00001, "err msg %s")
-		// Set the epsilon scalar value to the element ID and check the vertex aggregation
-		for k := 0; k < KMax; k++ {
-			sd.EpsilonScalar[0][k] = float64(k)
+		for NP := 1; NP < 5; NP++ {
+			pm := NewPartitionMap(NP, KMax)
+			sd := NewScalarDissipation(0, dfr, pm)
+			assert.InDeltaSlicef(t, []float64{0.66667, 0.16667, 0.16667, 0.16667, 0.66667, 0.16667, 0.16667, 0.16667, 0.66667},
+				sd.BaryCentricCoords.DataP, 0.00001, "err msg %s")
+			// Set the epsilon scalar value to the element ID and check the vertex aggregation
+			for np := 0; np < NP; np++ {
+				KMaxLocal := pm.GetBucketDimension(np)
+				for k := 0; k < KMaxLocal; k++ {
+					kGlobal := pm.GetGlobalK(k, np)
+					sd.EpsilonScalar[np][k] = float64(kGlobal)
+				}
+			}
+			wg := &sync.WaitGroup{}
+			for np := 0; np < NP; np++ {
+				wg.Add(1)
+				sd.propagateEpsilonMaxToVertices(np, wg)
+			}
+			assert.Equal(t, []float64{1, 3, 4, 5, 7, 9, 9, 6, 8, 9}, sd.EpsVertex)
 		}
-		wg := &sync.WaitGroup{}
-		wg.Add(1)
-		sd.propagateEpsilonMaxToVertices(0, wg)
-		assert.Equal(t, []float64{1, 3, 4, 5, 7, 9, 9, 6, 8, 9}, sd.EpsVertex)
 	}
 }
 func TestDissipation2(t *testing.T) {
 	{
-		dfr := DG2D.NewDFR2D(3, false, "../../DG2D/test_tris_9.neu")
-		NP := 5
+		dfr := DG2D.NewDFR2D(1, false, "../../DG2D/test_tris_9.neu")
+		NP := 1
 		_, KMax := dfr.SolutionElement.Np, dfr.K
 		pm := NewPartitionMap(NP, KMax)
 		sd := NewScalarDissipation(0, dfr, pm)
@@ -479,14 +487,15 @@ func TestDissipation2(t *testing.T) {
 		}
 		assert.Equal(t, []float64{1, 3, 4, 5, 7, 9, 9, 6, 8, 9}, sd.EpsVertex)
 		for np := 0; np < NP; np++ {
-			// TODO: Implement straight linear interpolation, Barycentric may be triggering higher order modes
 			sd.linearInterpolateEpsilon(np)
+			//sd.baryCentricInterpolateEpsilon(np)
 		}
-		/*
-			fmt.Printf(sd.BaryCentricCoords.Print("BaryCentricCoords"))
-			fmt.Printf("BCC = %v\n", sd.BaryCentricCoords.DataP)
-			fmt.Printf("R = %v\nS = %v\n", sd.Element.R.DataP, sd.Element.S.DataP)
-		*/
+		assert.InDeltaSlicef(t, []float64{
+			5.66667, 3.33333, 7.66667, 7.16667, 8.16667, 6.00000, 7.50000, 8.00000, 8.83333, 9.00000,
+			4.66667, 5.33333, 6.66667, 4.16667, 8.16667, 5.50000, 6.50000, 7.50000, 8.33333, 9.00000,
+			2.66667, 2.33333, 4.66667, 4.66667, 5.66667, 6.50000, 7.00000, 8.50000, 8.83333, 9.00000,
+		}, sd.Epsilon[0].DataP, 0.00001, "err msg %s")
+		//fmt.Printf(sd.Epsilon[0].Print("Epsilon"))
 	}
 }
 
