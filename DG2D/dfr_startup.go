@@ -16,11 +16,13 @@ import (
 )
 
 type DFR2D struct {
-	N                    int
-	SolutionElement      *LagrangeElement2D
-	FluxElement          *RTElement
-	FluxInterpMatrix     utils.Matrix // Interpolates from the interior (solution) points to all of the flux points
-	FluxEdgeInterpMatrix utils.Matrix // Interpolates only from interior to the edge points in the flux element
+	N                      int
+	SolutionElement        *LagrangeElement2D
+	FluxElement            *RTElement
+	FluxInterp             utils.Matrix // Interpolates from the interior (solution) points to all of the flux points
+	FluxEdgeInterp         utils.Matrix // Interpolates only from interior to the edge points in the flux element
+	FluxDr, FluxDs         utils.Matrix // Derivatives from the interior (solution) points to all of the flux points
+	FluxEdgeDr, FluxEdgeDs utils.Matrix // Derivatives only from interior to the edge points in the flux element
 	// Mesh Parameters
 	K                    int          // Number of elements (triangles) in mesh
 	VX, VY               utils.Vector // X,Y vertex points in mesh (vertices)
@@ -41,12 +43,14 @@ func NewDFR2D(N int, plotMesh bool, meshFileO ...string) (dfr *DFR2D) {
 	RFlux := utils.NewVector(rt.Nedge*3, rt.GetEdgeLocations(rt.R)) // For the Interpolation matrix across three edges
 	SFlux := utils.NewVector(rt.Nedge*3, rt.GetEdgeLocations(rt.S)) // For the Interpolation matrix across three edges
 	dfr = &DFR2D{
-		N:                    N,
-		SolutionElement:      le,
-		FluxElement:          rt,
-		FluxInterpMatrix:     le.Simplex2DInterpolatingPolyMatrix(rt.R, rt.S),   // Interpolation matrix for flux nodes
-		FluxEdgeInterpMatrix: le.Simplex2DInterpolatingPolyMatrix(RFlux, SFlux), // Interpolation matrix across three edges
+		N:               N,
+		SolutionElement: le,
+		FluxElement:     rt,
+		FluxInterp:      le.Simplex2DInterpolatingPolyMatrix(rt.R, rt.S),   // Interpolation matrix for flux nodes
+		FluxEdgeInterp:  le.Simplex2DInterpolatingPolyMatrix(RFlux, SFlux), // Interpolation matrix across three edges
 	}
+	dfr.FluxDr, dfr.FluxDs = le.GetDerivativeMatrices(rt.R, rt.S)
+	dfr.FluxEdgeDr, dfr.FluxEdgeDs = le.GetDerivativeMatrices(RFlux, SFlux)
 	if len(meshFileO) != 0 {
 		var EToV utils.Matrix
 		t := getFileTypeFromExtension(meshFileO[0])

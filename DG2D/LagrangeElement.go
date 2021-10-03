@@ -58,15 +58,24 @@ func NewLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
 	}
 	el.MassMatrix = el.Vinv.Transpose().Mul(el.Vinv)
 	// Initialize the (r,s) differentiation matrices on the simplex, evaluated at (r,s) at order N
-	Vr, Vs := GradVandermonde2D(el.N, el.R, el.S)
-	el.Dr = Vr.Mul(el.Vinv)
-	el.Ds = Vs.Mul(el.Vinv)
+	/*
+		Vr, Vs := GradVandermonde2D(el.N, el.R, el.S)
+		el.Dr = Vr.Mul(el.Vinv)
+		el.Ds = Vs.Mul(el.Vinv)
+	*/
+	el.Dr, el.Ds = el.GetDerivativeMatrices(el.R, el.S)
 	// Mark fields read only
 	el.V.SetReadOnly("V")
 	el.Vinv.SetReadOnly("Vinv")
 	el.MassMatrix.SetReadOnly("MassMatrix")
 	el.Dr.SetReadOnly("Dr")
 	el.Ds.SetReadOnly("Ds")
+	return
+}
+
+func (el *LagrangeElement2D) GetDerivativeMatrices(R, S utils.Vector) (Dr, Ds utils.Matrix) {
+	Vr, Vs := GradVandermonde2D(el.N, R, S)
+	Dr, Ds = Vr.Mul(el.Vinv), Vs.Mul(el.Vinv)
 	return
 }
 

@@ -197,7 +197,7 @@ func (c *Euler) SetNormalFluxOnRTEdge(k, Kmax int, F_RT_DOF [4]utils.Matrix, edg
 func (c *Euler) InterpolateSolutionToEdges(Q, Q_Face [4]utils.Matrix) {
 	// Interpolate from solution points to edges using precomputed interpolation matrix
 	for n := 0; n < 4; n++ {
-		c.dfr.FluxEdgeInterpMatrix.Mul(Q[n], Q_Face[n])
+		c.dfr.FluxEdgeInterp.Mul(Q[n], Q_Face[n])
 	}
 	return
 }

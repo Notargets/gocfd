@@ -65,7 +65,7 @@ func TestEuler(t *testing.T) {
 				}
 				// Interpolate from solution points to edges using precomputed interpolation matrix
 				for n := 0; n < 4; n++ {
-					Q_Face[n] = c.dfr.FluxEdgeInterpMatrix.Mul(Q[n])
+					Q_Face[n] = c.dfr.FluxEdgeInterp.Mul(Q[n])
 				}
 				for n := 0; n < 4; n++ {
 					for i := 0; i < 3*Nedge; i++ {
@@ -120,7 +120,7 @@ func TestEuler(t *testing.T) {
 				}
 				// Interpolate from solution points to edges using precomputed interpolation matrix
 				for n := 0; n < 4; n++ {
-					Q_Face[n] = c.dfr.FluxEdgeInterpMatrix.Mul(Q[n])
+					Q_Face[n] = c.dfr.FluxEdgeInterp.Mul(Q[n])
 				}
 				// Calculate flux and project into R and S (transformed) directions
 				rtD := [4][]float64{F_RT_DOF[0].DataP, F_RT_DOF[1].DataP, F_RT_DOF[2].DataP, F_RT_DOF[3].DataP}
