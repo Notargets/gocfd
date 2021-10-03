@@ -1,21 +1,6 @@
 # gocfd
 Awesome CFD solver written in Go
 
-## Currently [9/21/21]
-
-Update: I finished the shock finder, below is a plot of the "ShockFunction" (function 100) for the NACA0012 airfoil at M=0.8 on it's way to becoming unstable. We can clearly see the shock function has picked up instability at the forming shock wave on the trailing edge and at the curvature inflection on the top. We can also see the shock indicator tracking the startup transient wave coming from the leading edge. It looks to be very effective, as reported! Next step - implement dissipation for "troubled elements" to remove the instability.
-![](images/shock-finder-naca-m0.8.PNG)
-
-After some research, I found a general pattern and one excellent summary from [Persson, et al](https://github.com/Notargets/gocfd/blob/master/research/filters_and_flux_limiters/PerssonPeraire_ShockCapturing.pdf) describing how to capture shocks within the elements themselves while eliminating the aliasing oscillations.
-
-Persson and Peraire demonstrated the following approach:
-1) Isolate elements that are experiencing shock instability with a "shock finder"
-2) Implement dissipation within only those elements to remove the unstable modes
-
-For (1), they use the fact that in a smooth solution, the energy dissipates rapidly as the expansion order increases. They form a moment, or inner product across each element that evaluates how much energy is present in the last expansion mode as a ratio of total solution energy. Where this ratio exceeds a threshold, it indicates a lack of smoothness that identifies where the "fix" is needed.
-
-I'm currently working on calculating the shock finder from Persson, after which there are a variety of dissipation and/or filtering approaches we can use, for instance the modified Barth / Jesperson filter used by [Zhiqiang He, et al](https://github.com/Notargets/gocfd/blob/master/research/filters_and_flux_limiters/Zhiqiang-He-Barth-Jesperson-limiter.pdf).
-
 NACA 0012 Airfoil at M=0.3, Alpha=6, Roe flux, Local Time Stepping| M=0.5, Alpha=0, Roe Flux, 1482 O(2) Elements, Converged
 :----------------------------------------------------------------:|----------------------------------------------------------------:|
 ![](images/naca12_2d_m0.3_a6_roe.gif)| ![](images/naca12_2d_m0.5_aoa0_Roe.PNG)
@@ -24,6 +9,11 @@ Density | X Momentum | Density
 :-------------------------:|:-------------------------:|:-------------------------:
 ![](images/render-mesh-isentropic-vortex-initial-zoom-7.PNG) | ![](images/render-mesh-isentropic-vortex-initial-zoom-7-rhoU.png) | ![](images/vortex-1-2-4-7-lax-cropped.gif)
 
+## Currently [10/3/21]
+
+I've implemented laplacian artificial dissipation that tracks shock induced instabilities using the Lagrangian solution element to compute the flux derivatives and also for the divergence of the dissipation field. The method works well for 1st order calculations, with sharp shock resolution and fast convergence, though the intra-element shock resolution is marked with a significant discontinuity with the edges of the shock capturing cell. When the shock aligns with the edge, the result is a near perfect shock capture, but when the shock is not on the edge, the intra-cell solution has spurious internal oscillations.
+
+Based on these results, I'm implementing what seems a simpler and more appropriate method: The dissipation flux will be calculated for all points within the Raviart Thomas element used for the calculation of the fluid flux divergence. The resulting dissipation flux [epsR, epsS] is then added to the physical fluid flux [fluxR,fluxS] and then the divergence of the combined flux is calculated using the RT element divergence operator. I'm anticipating that this approach should provide added stability to the flux field, which is an (N+1)th order polynomial field that overlays the (N)th order solution field. In the prior approach, the (N)th order divergence of the artificial dissipation is added to the (N+1)th order derived physical divergence, and I think that is creating aliasing errors that are unstable.
 
 ## Discontinuous Galerkin Method for solving systems of equations - CFD, CEM, ... hydrodynamics-fusion (simulate the Sun), etc! 
 
@@ -80,6 +70,20 @@ For example, the following line implements:
 ```
 	RHSE = el.Dr.Mul(FluxH).ElMul(el.Rx).ElDiv(c.Epsilon).Scale(-1)
 ```
+### Updates [9/21/21]
+
+Update: I finished the shock finder, below is a plot of the "ShockFunction" (function 100) for the NACA0012 airfoil at M=0.8 on it's way to becoming unstable. We can clearly see the shock function has picked up instability at the forming shock wave on the trailing edge and at the curvature inflection on the top. We can also see the shock indicator tracking the startup transient wave coming from the leading edge. It looks to be very effective, as reported! Next step - implement dissipation for "troubled elements" to remove the instability.
+![](images/shock-finder-naca-m0.8.PNG)
+
+After some research, I found a general pattern and one excellent summary from [Persson, et al](https://github.com/Notargets/gocfd/blob/master/research/filters_and_flux_limiters/PerssonPeraire_ShockCapturing.pdf) describing how to capture shocks within the elements themselves while eliminating the aliasing oscillations.
+
+Persson and Peraire demonstrated the following approach:
+1) Isolate elements that are experiencing shock instability with a "shock finder"
+2) Implement dissipation within only those elements to remove the unstable modes
+
+For (1), they use the fact that in a smooth solution, the energy dissipates rapidly as the expansion order increases. They form a moment, or inner product across each element that evaluates how much energy is present in the last expansion mode as a ratio of total solution energy. Where this ratio exceeds a threshold, it indicates a lack of smoothness that identifies where the "fix" is needed.
+
+I'm currently working on calculating the shock finder from Persson, after which there are a variety of dissipation and/or filtering approaches we can use, for instance the modified Barth / Jesperson filter used by [Zhiqiang He, et al](https://github.com/Notargets/gocfd/blob/master/research/filters_and_flux_limiters/Zhiqiang-He-Barth-Jesperson-limiter.pdf).
 
 ### Updates[9/18/21]
 Update: The data are in - the new Roe-ER flux *is* faster to compute and has good characteristics, so it's a good thing  and will be useful for turbulence capturing and strong shock applications later. However, tests showed that using either *Roe* or *Roe-ER* flux calculations crashed due to odd-even instability with shocks past maybe Mach 0.6 on the airfoil test. I'm thinking that we need to stabilize the flux at the border of the element using higher order approximations and clipping them using MUSCL/TVD approach. This is similar to a typical J->J+1 structured approach but using "wiggle simulation" for the flux derivatives at the boundary. I wonder also if I'll need to increase the derivative degree at the boundary along with the overall order of the element? It's very do-able, though I think I'd want to do a more analytic derivation for sampling higher order fields within elements.
