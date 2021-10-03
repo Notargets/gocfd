@@ -433,6 +433,7 @@ func TestDissipation(t *testing.T) {
 		sd := NewScalarDissipation(0, dfr, pm)
 		c := &Euler{Partitions: pm}
 		Jdet := c.ShardByKTranspose(dfr.Jdet)
+		sd.Kappa = 4.
 		sd.CalculateElementViscosity(Jdet, Q)
 		assert.InDeltaSlicef(t, []float64{0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903},
 			sd.EpsilonScalar[0], 0.00001, "err msg %s")
