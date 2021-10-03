@@ -294,56 +294,57 @@ func TestDFR2D(t *testing.T) {
 	}
 }
 func TestGradient(t *testing.T) {
-	// Test gradient
+	// Test gradient on Flux element
 	{
-		dfr := NewDFR2D(1, false, "test_tris_6.neu")
+		dfr := NewDFR2D(3, false, "test_tris_6.neu")
 		if false {
 			PlotTriMesh(*dfr.OutputMesh())
 			utils.SleepFor(50000)
 		}
-		Dr := dfr.SolutionElement.Dr
-		Ds := dfr.SolutionElement.Ds
-		Nint := dfr.SolutionElement.Np
-		Kmax := dfr.K
+		var (
+			Kmax   = dfr.K
+			NpInt  = dfr.SolutionElement.Np
+			NpFlux = dfr.FluxElement.Np
+			R, S   = dfr.FluxElement.R, dfr.FluxElement.S
+			Dr     = dfr.FluxDr
+			Ds     = dfr.FluxDs
+		)
 		assert.Equal(t, 2, Kmax)
-		QRS := utils.NewMatrix(Nint, Kmax)
-		QRS2 := utils.NewMatrix(Nint, Kmax)
+		// Interior (Solution) values, note that the first Nint points are identical between solution and flux element
+		DR1, DR2, DR3 := utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+		DS1, DS2, DS3 := utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+		RS1, RS2, RS3 := utils.NewMatrix(NpInt, Kmax), utils.NewMatrix(NpInt, Kmax), utils.NewMatrix(NpInt, Kmax)
 		for k := 0; k < Kmax; k++ {
-			for i := 0; i < Nint; i++ {
+			for i := 0; i < NpFlux; i++ {
 				ind := k + i*Kmax
-				R := dfr.SolutionElement.R.DataP[i]
-				S := dfr.SolutionElement.S.DataP[i]
-				QRS.DataP[ind] = R + S      // Linear solution
-				QRS2.DataP[ind] = R*R + S*S // Quadratic solution
+				r := R.DataP[i]
+				s := S.DataP[i]
+				DR1.DataP[ind] = 1         // Derivative of Linear field
+				DR2.DataP[ind] = 2 * r     // Derivative of Quadratic field
+				DR3.DataP[ind] = 3 * r * r // Derivative of Cubic field
+				DS1.DataP[ind] = 1         // Derivative of Linear field
+				DS2.DataP[ind] = 2 * s     // Derivative of Quadratic field
+				DS3.DataP[ind] = 3 * s * s // Derivative of Cubic field
+				if i < NpInt {
+					RS1.DataP[ind] = r + s         // Linear field
+					RS2.DataP[ind] = r*r + s*s     // Quadratic field
+					RS3.DataP[ind] = r*r*r + s*s*s // Cubic field
+				}
 			}
 		}
 		// Test linear gradient
-		Qr, Qs := Dr.Mul(QRS), Ds.Mul(QRS)
-		Qr2, Qs2 := Dr.Mul(QRS2), Ds.Mul(QRS2)
+		Qr, Qs := Dr.Mul(RS1), Ds.Mul(RS1)
+		Qr2, Qs2 := Dr.Mul(RS2), Ds.Mul(RS2)
+		Qr3, Qs3 := Dr.Mul(RS3), Ds.Mul(RS3)
 		for k := 0; k < Kmax; k++ {
-			for i := 0; i < Nint-1; i++ {
+			for i := 0; i < NpFlux; i++ {
 				ind := k + i*Kmax
-				R := dfr.SolutionElement.R.DataP[i]
-				S := dfr.SolutionElement.S.DataP[i]
-				Rn := dfr.SolutionElement.R.DataP[i+1]
-				Sn := dfr.SolutionElement.S.DataP[i+1]
-				dr, ds := Rn-R, Sn-S
-				// Linear solution
-				dQdr, dQds := Qr.DataP[ind], Qs.DataP[ind]
-				dQ := dQdr*dr + dQds*ds
-				indp1 := k + (i+1)*Kmax
-				q := QRS.DataP[ind]
-				qp1est := q + dQ
-				qp1 := QRS.DataP[indp1]
-				assert.InDelta(t, qp1, qp1est, 0.00001, "err msg %s")
-				// Quadratic solution
-				dQdr, dQds = Qr2.DataP[ind], Qs2.DataP[ind]
-				dQ = dQdr*dr + dQds*ds
-				indp1 = k + (i+1)*Kmax
-				q = QRS2.DataP[ind]
-				qp1est = q + dQ
-				qp1 = QRS2.DataP[indp1]
-				assert.InDelta(t, qp1, qp1est, 0.00001, "err msg %s")
+				assert.InDeltaf(t, Qr.DataP[ind], DR1.DataP[ind], 0.000001, "err msg %s")
+				assert.InDeltaf(t, Qs.DataP[ind], DS1.DataP[ind], 0.000001, "err msg %s")
+				assert.InDeltaf(t, Qr2.DataP[ind], DR2.DataP[ind], 0.000001, "err msg %s")
+				assert.InDeltaf(t, Qs2.DataP[ind], DS2.DataP[ind], 0.000001, "err msg %s")
+				assert.InDeltaf(t, Qr3.DataP[ind], DR3.DataP[ind], 0.000001, "err msg %s")
+				assert.InDeltaf(t, Qs3.DataP[ind], DS3.DataP[ind], 0.000001, "err msg %s")
 			}
 		}
 	}
