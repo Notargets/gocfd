@@ -1,6 +1,7 @@
 package DG2D
 
 import (
+	"fmt"
 	"image/color"
 	"math"
 	"testing"
@@ -293,6 +294,7 @@ func TestDFR2D(t *testing.T) {
 		}
 	}
 }
+
 func TestGradient(t *testing.T) {
 	// Test gradient on Flux element
 	{
@@ -308,12 +310,13 @@ func TestGradient(t *testing.T) {
 			R, S   = dfr.FluxElement.R, dfr.FluxElement.S
 			Dr     = dfr.FluxDr
 			Ds     = dfr.FluxDs
+			// Scalar fields, linear, quadratic, cubic
+			RS1, RS2, RS3 = utils.NewMatrix(NpInt, Kmax), utils.NewMatrix(NpInt, Kmax), utils.NewMatrix(NpInt, Kmax)
+			// Directional derivatives of scalar fields, linear, quadratic, cubic
+			DR1, DR2, DR3 = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+			DS1, DS2, DS3 = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
 		)
 		assert.Equal(t, 2, Kmax)
-		// Interior (Solution) values, note that the first Nint points are identical between solution and flux element
-		DR1, DR2, DR3 := utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
-		DS1, DS2, DS3 := utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
-		RS1, RS2, RS3 := utils.NewMatrix(NpInt, Kmax), utils.NewMatrix(NpInt, Kmax), utils.NewMatrix(NpInt, Kmax)
 		for k := 0; k < Kmax; k++ {
 			for i := 0; i < NpFlux; i++ {
 				ind := k + i*Kmax
@@ -325,7 +328,7 @@ func TestGradient(t *testing.T) {
 				DS1.DataP[ind] = 1         // Derivative of Linear field
 				DS2.DataP[ind] = 2 * s     // Derivative of Quadratic field
 				DS3.DataP[ind] = 3 * s * s // Derivative of Cubic field
-				if i < NpInt {
+				if i < NpInt {             // Solution points [R,S] coords are identical to RT [R,S] up to Nintx2
 					RS1.DataP[ind] = r + s         // Linear field
 					RS2.DataP[ind] = r*r + s*s     // Quadratic field
 					RS3.DataP[ind] = r*r*r + s*s*s // Cubic field
@@ -347,6 +350,34 @@ func TestGradient(t *testing.T) {
 				assert.InDeltaf(t, Qs3.DataP[ind], DS3.DataP[ind], 0.000001, "err msg %s")
 			}
 		}
+	}
+	// Test Gradient projected onto Raviart Thomas element
+	{
+		dfr := NewDFR2D(1, false, "test_tris_6.neu")
+		var (
+			DrRTDOF, DsRTDOF = dfr.FluxDrRTDOF, dfr.FluxDsRTDOF
+			Kmax             = dfr.K
+			NpInt            = dfr.SolutionElement.Np
+			RS1              = utils.NewMatrix(NpInt, Kmax)
+			R, S             = dfr.SolutionElement.R, dfr.SolutionElement.S
+			Dr               = dfr.FluxDr
+			Ds               = dfr.FluxDs
+		)
+		for k := 0; k < Kmax; k++ {
+			for i := 0; i < NpInt; i++ {
+				ind := k + i*Kmax
+				r := R.DataP[i]
+				s := S.DataP[i]
+				RS1.DataP[ind] = r + s // Linear field
+			}
+		}
+		DrDOF, DsDOF := DrRTDOF.Mul(RS1), DsRTDOF.Mul(RS1)
+		fmt.Printf(RS1.Print("RS1"))
+		fmt.Printf(Dr.Mul(RS1).Print("DrRS1"))
+		fmt.Printf(Ds.Mul(RS1).Print("DsRS1"))
+		fmt.Printf(DrDOF.Print("DrDOF"))
+		fmt.Printf(DsDOF.Print("DsDOF"))
+		fmt.Printf(DsDOF.Add(DrDOF).Print("DrDOF+DsDOF"))
 	}
 }
 

@@ -10,9 +10,10 @@ import (
 )
 
 type Triangulation struct {
-	EToV  utils.Matrix            // K x 3 matrix mapping vertices to triangles
-	Edges map[types.EdgeKey]*Edge // map of edges, key is the edge number, an int packed with the two vertices of each edge
-	EtoE  [][3]int                // For each element in [k], the connected element for each of the three edges [0,1,2]
+	EToV        utils.Matrix            // K x 3 matrix mapping vertices to triangles
+	Edges       map[types.EdgeKey]*Edge // map of edges, key is the edge number, an int packed with the two vertices of each edge
+	EtoE        [][3]int                // For each element in [k], the connected element for each of the three edges [0,1,2]
+	EdgeNormals utils.Matrix            // Edge normals (lengths) for each element, K x 3
 }
 
 func NewTriangulation(VX, VY utils.Vector, EToV utils.Matrix, BCEdges types.BCMAP) (tmesh *Triangulation) {
@@ -20,9 +21,10 @@ func NewTriangulation(VX, VY utils.Vector, EToV utils.Matrix, BCEdges types.BCMA
 		K, _ = EToV.Dims()
 	)
 	tmesh = &Triangulation{
-		EToV:  EToV,
-		Edges: make(map[types.EdgeKey]*Edge),
-		EtoE:  make([][3]int, K),
+		EToV:        EToV,
+		Edges:       make(map[types.EdgeKey]*Edge),
+		EtoE:        make([][3]int, K),
+		EdgeNormals: utils.NewMatrix(K, 3),
 	}
 	// Create edges map
 	for k := 0; k < K; k++ {

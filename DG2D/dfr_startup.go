@@ -16,13 +16,13 @@ import (
 )
 
 type DFR2D struct {
-	N                      int
-	SolutionElement        *LagrangeElement2D
-	FluxElement            *RTElement
-	FluxInterp             utils.Matrix // Interpolates from the interior (solution) points to all of the flux points
-	FluxEdgeInterp         utils.Matrix // Interpolates only from interior to the edge points in the flux element
-	FluxDr, FluxDs         utils.Matrix // Derivatives from the interior (solution) points to all of the flux points
-	FluxEdgeDr, FluxEdgeDs utils.Matrix // Derivatives only from interior to the edge points in the flux element
+	N                        int
+	SolutionElement          *LagrangeElement2D
+	FluxElement              *RTElement
+	FluxInterp               utils.Matrix // Interpolates from the interior (solution) points to all of the flux points
+	FluxEdgeInterp           utils.Matrix // Interpolates only from interior to the edge points in the flux element
+	FluxDr, FluxDs           utils.Matrix // Derivatives from the interior (solution) points to all of the flux points
+	FluxDrRTDOF, FluxDsRTDOF utils.Matrix // Takes [R,S] derivative and projects to [R,S] components of RT element
 	// Mesh Parameters
 	K                    int          // Number of elements (triangles) in mesh
 	VX, VY               utils.Vector // X,Y vertex points in mesh (vertices)
@@ -50,7 +50,7 @@ func NewDFR2D(N int, plotMesh bool, meshFileO ...string) (dfr *DFR2D) {
 		FluxEdgeInterp:  le.Simplex2DInterpolatingPolyMatrix(RFlux, SFlux), // Interpolation matrix across three edges
 	}
 	dfr.FluxDr, dfr.FluxDs = le.GetDerivativeMatrices(rt.R, rt.S)
-	dfr.FluxEdgeDr, dfr.FluxEdgeDs = le.GetDerivativeMatrices(RFlux, SFlux)
+	dfr.FluxDrRTDOF, dfr.FluxDsRTDOF = rt.ProjectRSMatricesOntoBasis(dfr.FluxDr, dfr.FluxDs)
 	if len(meshFileO) != 0 {
 		var EToV utils.Matrix
 		t := getFileTypeFromExtension(meshFileO[0])
