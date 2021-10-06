@@ -190,6 +190,25 @@ func (e *Edge) GetEdgeLength() (len float64) {
 	return
 }
 
+func (e *Edge) GetEdgeNormal(conn int, en types.EdgeKey, dfr *DFR2D) (normal [2]float64) {
+	norm := func(vec [2]float64) (n float64) {
+		n = math.Sqrt(vec[0]*vec[0] + vec[1]*vec[1])
+		return
+	}
+	normalize := func(vec [2]float64) (normed [2]float64) {
+		n := norm(vec)
+		for i := 0; i < 2; i++ {
+			normed[i] = vec[i] / n
+		}
+		return
+	}
+	revDir := bool(e.ConnectedTriDirection[conn])
+	x1, x2 := GetEdgeCoordinates(en, revDir, dfr.VX, dfr.VY)
+	dx := [2]float64{x2[0] - x1[0], x2[1] - x1[1]}
+	normal = normalize([2]float64{-dx[1], dx[0]})
+	return
+}
+
 func (e *Edge) Print() (p string) {
 	//for i, triNum := range e.ConnectedTris {
 	for i := 0; i < int(e.NumConnectedTris); i++ {

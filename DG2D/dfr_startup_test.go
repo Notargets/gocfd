@@ -297,47 +297,49 @@ func TestDFR2D(t *testing.T) {
 
 func TestGradient(t *testing.T) {
 	// Test gradient on Flux element points, derived from a solution field interpolated from solution pts to Flux pts
-	{
-		dfr := NewDFR2D(3, false, "test_tris_6.neu")
-		if false {
-			PlotTriMesh(*dfr.OutputMesh())
-			utils.SleepFor(50000)
-		}
-		var (
-			Kmax   = dfr.K
-			NpInt  = dfr.SolutionElement.Np
-			NpFlux = dfr.FluxElement.Np
-			X, Y   = dfr.FluxX, dfr.FluxY
-			Dr     = dfr.FluxDr
-			Ds     = dfr.FluxDs
-			// Scalar fields, linear, quadratic, cubic
-			XY1, XY2, XY3 = utils.NewMatrix(NpInt, Kmax), utils.NewMatrix(NpInt, Kmax), utils.NewMatrix(NpInt, Kmax)
-			// Directional derivatives of scalar fields, linear, quadratic, cubic
-			DX1, DX2, DX3 = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
-			DY1, DY2, DY3 = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
-		)
-		assert.Equal(t, 2, Kmax)
-		for k := 0; k < Kmax; k++ {
-			for i := 0; i < NpFlux; i++ {
-				ind := k + i*Kmax
-				x, y := X.DataP[ind], Y.DataP[ind]
-				DX1.DataP[ind] = 1         // Derivative of Linear field
-				DX2.DataP[ind] = 2 * x     // Derivative of Quadratic field
-				DX3.DataP[ind] = 3 * x * x // Derivative of Cubic field
-				DY1.DataP[ind] = 1         // Derivative of Linear field
-				DY2.DataP[ind] = 2 * y     // Derivative of Quadratic field
-				DY3.DataP[ind] = 3 * y * y // Derivative of Cubic field
-				if i < NpInt {             // Solution points [R,S] coords are identical to RT [R,S] up to Nintx2
-					XY1.DataP[ind] = x + y         // Linear field
-					XY2.DataP[ind] = x*x + y*y     // Quadratic field
-					XY3.DataP[ind] = x*x*x + y*y*y // Cubic field
-				}
+	dfr := NewDFR2D(3, false, "test_tris_6.neu")
+	if false {
+		PlotTriMesh(*dfr.OutputMesh())
+		utils.SleepFor(50000)
+	}
+	var (
+		Kmax   = dfr.K
+		NpInt  = dfr.SolutionElement.Np
+		NpFlux = dfr.FluxElement.Np
+		X, Y   = dfr.FluxX, dfr.FluxY
+		Dr     = dfr.FluxDr
+		Ds     = dfr.FluxDs
+		Jinv   = dfr.Jinv
+		Jdet   = dfr.Jdet
+		// Scalar fields, linear, quadratic, cubic
+		XY1, XY2, XY3 = utils.NewMatrix(NpInt, Kmax), utils.NewMatrix(NpInt, Kmax), utils.NewMatrix(NpInt, Kmax)
+		// Directional derivatives of scalar fields, linear, quadratic, cubic
+		DX1, DX2, DX3 = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+		DY1, DY2, DY3 = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+	)
+	assert.Equal(t, 2, Kmax)
+	for k := 0; k < Kmax; k++ {
+		for i := 0; i < NpFlux; i++ {
+			ind := k + i*Kmax
+			x, y := X.DataP[ind], Y.DataP[ind]
+			DX1.DataP[ind] = 1         // Derivative of Linear field
+			DX2.DataP[ind] = 2 * x     // Derivative of Quadratic field
+			DX3.DataP[ind] = 3 * x * x // Derivative of Cubic field
+			DY1.DataP[ind] = 1         // Derivative of Linear field
+			DY2.DataP[ind] = 2 * y     // Derivative of Quadratic field
+			DY3.DataP[ind] = 3 * y * y // Derivative of Cubic field
+			if i < NpInt {             // Solution points [R,S] coords are identical to RT [R,S] up to Nintx2
+				XY1.DataP[ind] = x + y         // Linear field
+				XY2.DataP[ind] = x*x + y*y     // Quadratic field
+				XY3.DataP[ind] = x*x*x + y*y*y // Cubic field
 			}
 		}
-		// Test gradient in physical coordinates after interpolating from solution to flux pts and taking derivatives
-		var (
-			Jinv = dfr.Jinv
-		)
+	}
+	/*
+		Test gradient in physical coordinates after interpolating from solution to flux pts and taking derivatives
+		using the Lagrange element derivative operators
+	*/
+	{
 		Qr, Qs := Dr.Mul(XY1), Ds.Mul(XY1) // In a single multiplication, interpolate from solution to flux pts and Dr/Ds
 		Qx, Qy := utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
 
@@ -375,23 +377,47 @@ func TestGradient(t *testing.T) {
 		assert.InDeltaSlicef(t, Qy3.DataP, DY3.DataP, 0.000001, "err msg %s")
 	}
 	// Test Gradient derived from Raviart Thomas element, from solution field interpolated from solution pts
-	if false {
-		dfr := NewDFR2D(1, false, "test_tris_6.neu")
+	{
 		var (
-			Kmax  = dfr.K
-			NpInt = dfr.SolutionElement.Np
-			RS1   = utils.NewMatrix(NpInt, Kmax)
-			X, Y  = dfr.SolutionX, dfr.SolutionY
+			DOFX, DOFY   = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+			DOFXd, DOFYd = DOFX.DataP, DOFY.DataP
+			NpEdge       = dfr.FluxElement.Nedge
 		)
 		for k := 0; k < Kmax; k++ {
+			var (
+				JinvD              = Jinv.DataP[4*k : 4*(k+1)]
+				Jd                 = Jdet.DataP[k]
+				jj1, jj2, jj3, jj4 = Jd * JinvD[0], Jd * JinvD[1], Jd * JinvD[2], Jd * JinvD[3]
+			)
 			for i := 0; i < NpInt; i++ {
 				ind := k + i*Kmax
-				x, y := X.DataP[ind], Y.DataP[ind]
-				RS1.DataP[ind] = x + y // Linear field
+				ind2 := k + (i+NpInt)*Kmax
+				Un := XY1.DataP[ind]
+				DOFXd[ind], DOFXd[ind2] = jj1*Un, jj3*Un
+				DOFYd[ind], DOFYd[ind2] = jj2*Un, jj4*Un
 			}
 		}
-		RT1 := dfr.FluxInterp.Mul(RS1)
-		fmt.Printf(RT1.Print("RT1"))
+		XY1RTEdge := dfr.FluxEdgeInterp.Mul(XY1) // Interpolate internal values to the RT edges
+		for key, edge := range dfr.Tris.Edges {
+			//fmt.Printf("%s\n", edge.Print())
+			fmt.Printf("Edge Number = %d, ", key)
+			for conn := 0; conn < int(edge.NumConnectedTris); conn++ {
+				norm := edge.GetEdgeNormal(conn, key, dfr)
+				fmt.Printf("IInII[%d] = %v, edgeNum=%d, ", conn, edge.IInII[conn], edge.ConnectedTriEdgeNumber[conn])
+				k := int(edge.ConnectedTris[conn])
+				edgeNum := int(edge.ConnectedTriEdgeNumber[conn])
+				for i := 0; i < NpEdge; i++ {
+					shift := edgeNum * NpEdge
+					ind := k + (i+shift)*Kmax
+					indFull := k + (2*NpInt+i+shift)*Kmax
+					Un := XY1RTEdge.DataP[ind]
+					DOFXd[indFull], DOFYd[indFull] = Un*norm[0]*edge.IInII[conn], Un*norm[1]*edge.IInII[conn]
+				}
+			}
+			fmt.Printf("\n")
+		}
+		fmt.Printf(DOFX.Print("DOFX"))
+		fmt.Printf(DOFY.Print("DOFY"))
 	}
 }
 

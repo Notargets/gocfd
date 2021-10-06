@@ -4,7 +4,6 @@ import (
 	"math"
 	"sort"
 
-	"github.com/notargets/gocfd/DG2D"
 	"github.com/notargets/gocfd/types"
 	"github.com/notargets/gocfd/utils"
 )
@@ -58,7 +57,8 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, CalculateDT bool, Jdet, DT []
 				calculateNormalFlux bool
 			)
 			calculateNormalFlux = true
-			normal, _ := c.getEdgeNormal(0, e, en)
+			//normal, _ := c.getEdgeNormal(0, e, en)
+			normal := e.GetEdgeNormal(0, en, c.dfr)
 			switch e.BCType {
 			case types.BC_Far:
 				c.FarBC(k, Kmax, shift, Q_Face[bn], normal)
@@ -91,7 +91,8 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, CalculateDT bool, Jdet, DT []
 				edgeNumberL, edgeNumberR = int(e.ConnectedTriEdgeNumber[0]), int(e.ConnectedTriEdgeNumber[1])
 				shiftL, shiftR           = edgeNumberL * Nedge, edgeNumberR * Nedge
 			)
-			normal, _ := c.getEdgeNormal(0, e, en)
+			//normal, _ := c.getEdgeNormal(0, e, en)
+			normal := e.GetEdgeNormal(0, en, c.dfr)
 			switch c.FluxCalcAlgo {
 			case FLUX_Average:
 				c.AvgFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR,
@@ -145,30 +146,6 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, CalculateDT bool, Jdet, DT []
 			}
 		}
 	}
-	return
-}
-
-func (c *Euler) getEdgeNormal(conn int, e *DG2D.Edge, en types.EdgeKey) (normal, scaledNormal [2]float64) {
-	var (
-		dfr = c.dfr
-	)
-	norm := func(vec [2]float64) (n float64) {
-		n = math.Sqrt(vec[0]*vec[0] + vec[1]*vec[1])
-		return
-	}
-	normalize := func(vec [2]float64) (normed [2]float64) {
-		n := norm(vec)
-		for i := 0; i < 2; i++ {
-			normed[i] = vec[i] / n
-		}
-		return
-	}
-	revDir := bool(e.ConnectedTriDirection[conn])
-	x1, x2 := DG2D.GetEdgeCoordinates(en, revDir, dfr.VX, dfr.VY)
-	dx := [2]float64{x2[0] - x1[0], x2[1] - x1[1]}
-	normal = normalize([2]float64{-dx[1], dx[0]})
-	scaledNormal[0] = normal[0] * e.IInII[conn]
-	scaledNormal[1] = normal[1] * e.IInII[conn]
 	return
 }
 
