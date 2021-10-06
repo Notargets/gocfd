@@ -379,9 +379,9 @@ func TestGradient(t *testing.T) {
 	// Test Gradient derived from Raviart Thomas element, from solution field interpolated from solution pts
 	{
 		var (
-			DOFX, DOFY   = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
-			DOFXd, DOFYd = DOFX.DataP, DOFY.DataP
-			NpEdge       = dfr.FluxElement.Nedge
+			DOFXMetric, DOFYMetric = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+			DOFXmd, DOFYmd         = DOFXMetric.DataP, DOFYMetric.DataP
+			NpEdge                 = dfr.FluxElement.Nedge
 		)
 		for k := 0; k < Kmax; k++ {
 			var (
@@ -392,32 +392,76 @@ func TestGradient(t *testing.T) {
 			for i := 0; i < NpInt; i++ {
 				ind := k + i*Kmax
 				ind2 := k + (i+NpInt)*Kmax
-				Un := XY1.DataP[ind]
-				DOFXd[ind], DOFXd[ind2] = jj1*Un, jj3*Un
-				DOFYd[ind], DOFYd[ind2] = jj2*Un, jj4*Un
+				DOFXmd[ind], DOFXmd[ind2] = jj1, jj3
+				DOFYmd[ind], DOFYmd[ind2] = jj2, jj4
 			}
 		}
-		XY1RTEdge := dfr.FluxEdgeInterp.Mul(XY1) // Interpolate internal values to the RT edges
 		for key, edge := range dfr.Tris.Edges {
-			//fmt.Printf("%s\n", edge.Print())
-			fmt.Printf("Edge Number = %d, ", key)
 			for conn := 0; conn < int(edge.NumConnectedTris); conn++ {
 				norm := edge.GetEdgeNormal(conn, key, dfr)
-				fmt.Printf("IInII[%d] = %v, edgeNum=%d, ", conn, edge.IInII[conn], edge.ConnectedTriEdgeNumber[conn])
 				k := int(edge.ConnectedTris[conn])
 				edgeNum := int(edge.ConnectedTriEdgeNumber[conn])
 				for i := 0; i < NpEdge; i++ {
 					shift := edgeNum * NpEdge
-					ind := k + (i+shift)*Kmax
 					indFull := k + (2*NpInt+i+shift)*Kmax
-					Un := XY1RTEdge.DataP[ind]
-					DOFXd[indFull], DOFYd[indFull] = Un*norm[0]*edge.IInII[conn], Un*norm[1]*edge.IInII[conn]
+					DOFXmd[indFull], DOFYmd[indFull] = norm[0]*edge.IInII[conn], norm[1]*edge.IInII[conn]
 				}
 			}
-			fmt.Printf("\n")
 		}
-		fmt.Printf(DOFX.Print("DOFX"))
-		fmt.Printf(DOFY.Print("DOFY"))
+		// Multiply 1./determinant through the metrics
+		for k := 0; k < Kmax; k++ {
+			ooJd := 1. / Jdet.DataP[k]
+			for i := 0; i < NpFlux; i++ {
+				ind := k + i*Kmax
+				DOFXmd[ind] *= ooJd
+				DOFYmd[ind] *= ooJd
+			}
+		}
+		var (
+			DOFX, DOFY   = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+			DOFXd, DOFYd = DOFX.DataP, DOFY.DataP
+		)
+		// Create DX and DY for each field type in a loop and check against analytic values
+		var Uint, Uedge utils.Matrix
+		var DXCheck, DYCheck utils.Matrix
+		for n := 0; n < 3; n++ {
+			switch n {
+			case 0:
+				Uint = XY1                          // Linear field
+				Uedge = dfr.FluxEdgeInterp.Mul(XY1) // Interpolate internal values to the RT edges
+				DXCheck, DYCheck = DX1, DY1
+			case 1:
+				Uint = XY2                          // Quadratic field
+				Uedge = dfr.FluxEdgeInterp.Mul(XY2) // Interpolate internal values to the RT edges
+				DXCheck, DYCheck = DX2, DY2
+			case 2:
+				Uint = XY3                          // Cubic field
+				Uedge = dfr.FluxEdgeInterp.Mul(XY3) // Interpolate internal values to the RT edges
+				DXCheck, DYCheck = DX3, DY3
+			}
+			var Un float64
+			for k := 0; k < Kmax; k++ {
+				for i := 0; i < NpFlux; i++ {
+					ind := k + i*Kmax
+					switch {
+					case i < NpInt:
+						Un = Uint.DataP[ind]
+					case i >= NpInt && i < 2*NpInt:
+						Un = Uint.DataP[ind-NpInt*Kmax]
+					case i >= 2*NpInt:
+						Un = Uedge.DataP[ind-2*NpInt*Kmax]
+					}
+					DOFXd[ind] = DOFXmd[ind] * Un
+					DOFYd[ind] = DOFYmd[ind] * Un
+				}
+			}
+			DXRT := dfr.FluxElement.Div.Mul(DOFX)
+			DYRT := dfr.FluxElement.Div.Mul(DOFY)
+			fmt.Printf("Order[%d] check ...", n+1)
+			assert.InDeltaSlicef(t, DXRT.DataP, DXCheck.DataP, 0.000001, "err msg %s")
+			assert.InDeltaSlicef(t, DYRT.DataP, DYCheck.DataP, 0.000001, "err msg %s")
+			fmt.Printf("... validates\n")
+		}
 	}
 }
 
