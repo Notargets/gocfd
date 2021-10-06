@@ -334,11 +334,11 @@ func TestGradient(t *testing.T) {
 				}
 			}
 		}
-		// Test gradient in physical coordinates
+		// Test gradient in physical coordinates after interpolating from solution to flux pts and taking derivatives
 		var (
 			Jinv = dfr.Jinv
 		)
-		Qr, Qs := Dr.Mul(XY1), Ds.Mul(XY1)
+		Qr, Qs := Dr.Mul(XY1), Ds.Mul(XY1) // In a single multiplication, interpolate from solution to flux pts and Dr/Ds
 		Qx, Qy := utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
 
 		Qr2, Qs2 := Dr.Mul(XY2), Ds.Mul(XY2)
@@ -366,17 +366,13 @@ func TestGradient(t *testing.T) {
 				Qx3.DataP[ind], Qy3.DataP[ind] = transform(Qr3, Qs3, JinvD, ind)
 			}
 		}
-		for k := 0; k < Kmax; k++ {
-			for i := 0; i < NpFlux; i++ {
-				ind := k + i*Kmax
-				assert.InDeltaf(t, Qx.DataP[ind], DX1.DataP[ind], 0.000001, "err msg %s")
-				assert.InDeltaf(t, Qy.DataP[ind], DY1.DataP[ind], 0.000001, "err msg %s")
-				assert.InDeltaf(t, Qx2.DataP[ind], DX2.DataP[ind], 0.000001, "err msg %s")
-				assert.InDeltaf(t, Qy2.DataP[ind], DY2.DataP[ind], 0.000001, "err msg %s")
-				assert.InDeltaf(t, Qx3.DataP[ind], DX3.DataP[ind], 0.000001, "err msg %s")
-				assert.InDeltaf(t, Qy3.DataP[ind], DY3.DataP[ind], 0.000001, "err msg %s")
-			}
-		}
+		// Compare known analytical gradient to calculation
+		assert.InDeltaSlicef(t, Qx.DataP, DX1.DataP, 0.000001, "err msg %s")
+		assert.InDeltaSlicef(t, Qy.DataP, DY1.DataP, 0.000001, "err msg %s")
+		assert.InDeltaSlicef(t, Qx2.DataP, DX2.DataP, 0.000001, "err msg %s")
+		assert.InDeltaSlicef(t, Qy2.DataP, DY2.DataP, 0.000001, "err msg %s")
+		assert.InDeltaSlicef(t, Qx3.DataP, DX3.DataP, 0.000001, "err msg %s")
+		assert.InDeltaSlicef(t, Qy3.DataP, DY3.DataP, 0.000001, "err msg %s")
 	}
 	// Test Gradient derived from Raviart Thomas element, from solution field interpolated from solution pts
 	if false {
