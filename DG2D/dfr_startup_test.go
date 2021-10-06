@@ -296,7 +296,7 @@ func TestDFR2D(t *testing.T) {
 }
 
 func TestGradient(t *testing.T) {
-	// Test gradient on Flux element
+	// Test gradient on Flux element points, derived from a solution field interpolated from solution pts to Flux pts
 	{
 		dfr := NewDFR2D(3, false, "test_tris_6.neu")
 		if false {
@@ -307,77 +307,95 @@ func TestGradient(t *testing.T) {
 			Kmax   = dfr.K
 			NpInt  = dfr.SolutionElement.Np
 			NpFlux = dfr.FluxElement.Np
-			R, S   = dfr.FluxElement.R, dfr.FluxElement.S
+			X, Y   = dfr.FluxX, dfr.FluxY
 			Dr     = dfr.FluxDr
 			Ds     = dfr.FluxDs
 			// Scalar fields, linear, quadratic, cubic
-			RS1, RS2, RS3 = utils.NewMatrix(NpInt, Kmax), utils.NewMatrix(NpInt, Kmax), utils.NewMatrix(NpInt, Kmax)
+			XY1, XY2, XY3 = utils.NewMatrix(NpInt, Kmax), utils.NewMatrix(NpInt, Kmax), utils.NewMatrix(NpInt, Kmax)
 			// Directional derivatives of scalar fields, linear, quadratic, cubic
-			DR1, DR2, DR3 = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
-			DS1, DS2, DS3 = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+			DX1, DX2, DX3 = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+			DY1, DY2, DY3 = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
 		)
 		assert.Equal(t, 2, Kmax)
 		for k := 0; k < Kmax; k++ {
 			for i := 0; i < NpFlux; i++ {
 				ind := k + i*Kmax
-				r := R.DataP[i]
-				s := S.DataP[i]
-				DR1.DataP[ind] = 1         // Derivative of Linear field
-				DR2.DataP[ind] = 2 * r     // Derivative of Quadratic field
-				DR3.DataP[ind] = 3 * r * r // Derivative of Cubic field
-				DS1.DataP[ind] = 1         // Derivative of Linear field
-				DS2.DataP[ind] = 2 * s     // Derivative of Quadratic field
-				DS3.DataP[ind] = 3 * s * s // Derivative of Cubic field
+				x, y := X.DataP[ind], Y.DataP[ind]
+				DX1.DataP[ind] = 1         // Derivative of Linear field
+				DX2.DataP[ind] = 2 * x     // Derivative of Quadratic field
+				DX3.DataP[ind] = 3 * x * x // Derivative of Cubic field
+				DY1.DataP[ind] = 1         // Derivative of Linear field
+				DY2.DataP[ind] = 2 * y     // Derivative of Quadratic field
+				DY3.DataP[ind] = 3 * y * y // Derivative of Cubic field
 				if i < NpInt {             // Solution points [R,S] coords are identical to RT [R,S] up to Nintx2
-					RS1.DataP[ind] = r + s         // Linear field
-					RS2.DataP[ind] = r*r + s*s     // Quadratic field
-					RS3.DataP[ind] = r*r*r + s*s*s // Cubic field
+					XY1.DataP[ind] = x + y         // Linear field
+					XY2.DataP[ind] = x*x + y*y     // Quadratic field
+					XY3.DataP[ind] = x*x*x + y*y*y // Cubic field
 				}
 			}
 		}
-		// Test linear gradient
-		Qr, Qs := Dr.Mul(RS1), Ds.Mul(RS1)
-		Qr2, Qs2 := Dr.Mul(RS2), Ds.Mul(RS2)
-		Qr3, Qs3 := Dr.Mul(RS3), Ds.Mul(RS3)
+		// Test gradient in physical coordinates
+		var (
+			Jinv = dfr.Jinv
+		)
+		Qr, Qs := Dr.Mul(XY1), Ds.Mul(XY1)
+		Qx, Qy := utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+
+		Qr2, Qs2 := Dr.Mul(XY2), Ds.Mul(XY2)
+		Qx2, Qy2 := utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+
+		Qr3, Qs3 := Dr.Mul(XY3), Ds.Mul(XY3)
+		Qx3, Qy3 := utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+		transform := func(ddr, dds utils.Matrix, JinvD []float64, index int) (ddx, ddy float64) {
+			var (
+				ddrD, ddsD = ddr.DataP, dds.DataP
+			)
+			rx, ry, sx, sy := JinvD[0], JinvD[1], JinvD[2], JinvD[3]
+			ddx = ddrD[index]*rx + ddsD[index]*sx
+			ddy = ddrD[index]*ry + ddsD[index]*sy
+			return
+		}
+		for k := 0; k < Kmax; k++ {
+			var (
+				JinvD = Jinv.DataP[4*k : 4*(k+1)]
+			)
+			for i := 0; i < NpFlux; i++ {
+				ind := k + i*Kmax
+				Qx.DataP[ind], Qy.DataP[ind] = transform(Qr, Qs, JinvD, ind)
+				Qx2.DataP[ind], Qy2.DataP[ind] = transform(Qr2, Qs2, JinvD, ind)
+				Qx3.DataP[ind], Qy3.DataP[ind] = transform(Qr3, Qs3, JinvD, ind)
+			}
+		}
 		for k := 0; k < Kmax; k++ {
 			for i := 0; i < NpFlux; i++ {
 				ind := k + i*Kmax
-				assert.InDeltaf(t, Qr.DataP[ind], DR1.DataP[ind], 0.000001, "err msg %s")
-				assert.InDeltaf(t, Qs.DataP[ind], DS1.DataP[ind], 0.000001, "err msg %s")
-				assert.InDeltaf(t, Qr2.DataP[ind], DR2.DataP[ind], 0.000001, "err msg %s")
-				assert.InDeltaf(t, Qs2.DataP[ind], DS2.DataP[ind], 0.000001, "err msg %s")
-				assert.InDeltaf(t, Qr3.DataP[ind], DR3.DataP[ind], 0.000001, "err msg %s")
-				assert.InDeltaf(t, Qs3.DataP[ind], DS3.DataP[ind], 0.000001, "err msg %s")
+				assert.InDeltaf(t, Qx.DataP[ind], DX1.DataP[ind], 0.000001, "err msg %s")
+				assert.InDeltaf(t, Qy.DataP[ind], DY1.DataP[ind], 0.000001, "err msg %s")
+				assert.InDeltaf(t, Qx2.DataP[ind], DX2.DataP[ind], 0.000001, "err msg %s")
+				assert.InDeltaf(t, Qy2.DataP[ind], DY2.DataP[ind], 0.000001, "err msg %s")
+				assert.InDeltaf(t, Qx3.DataP[ind], DX3.DataP[ind], 0.000001, "err msg %s")
+				assert.InDeltaf(t, Qy3.DataP[ind], DY3.DataP[ind], 0.000001, "err msg %s")
 			}
 		}
 	}
-	// Test Gradient projected onto Raviart Thomas element
-	{
+	// Test Gradient derived from Raviart Thomas element, from solution field interpolated from solution pts
+	if false {
 		dfr := NewDFR2D(1, false, "test_tris_6.neu")
 		var (
-			DrRTDOF, DsRTDOF = dfr.FluxDrRTDOF, dfr.FluxDsRTDOF
-			Kmax             = dfr.K
-			NpInt            = dfr.SolutionElement.Np
-			RS1              = utils.NewMatrix(NpInt, Kmax)
-			R, S             = dfr.SolutionElement.R, dfr.SolutionElement.S
-			Dr               = dfr.FluxDr
-			Ds               = dfr.FluxDs
+			Kmax  = dfr.K
+			NpInt = dfr.SolutionElement.Np
+			RS1   = utils.NewMatrix(NpInt, Kmax)
+			X, Y  = dfr.SolutionX, dfr.SolutionY
 		)
 		for k := 0; k < Kmax; k++ {
 			for i := 0; i < NpInt; i++ {
 				ind := k + i*Kmax
-				r := R.DataP[i]
-				s := S.DataP[i]
-				RS1.DataP[ind] = r + s // Linear field
+				x, y := X.DataP[ind], Y.DataP[ind]
+				RS1.DataP[ind] = x + y // Linear field
 			}
 		}
-		DrDOF, DsDOF := DrRTDOF.Mul(RS1), DsRTDOF.Mul(RS1)
-		fmt.Printf(RS1.Print("RS1"))
-		fmt.Printf(Dr.Mul(RS1).Print("DrRS1"))
-		fmt.Printf(Ds.Mul(RS1).Print("DsRS1"))
-		fmt.Printf(DrDOF.Print("DrDOF"))
-		fmt.Printf(DsDOF.Print("DsDOF"))
-		fmt.Printf(DsDOF.Add(DrDOF).Print("DrDOF+DsDOF"))
+		RT1 := dfr.FluxInterp.Mul(RS1)
+		fmt.Printf(RT1.Print("RT1"))
 	}
 }
 

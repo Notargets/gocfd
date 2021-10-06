@@ -83,40 +83,6 @@ func (rt *RTElement) ProjectFunctionOntoBasis(s1, s2 []float64) (sp []float64) {
 	return
 }
 
-func (rt *RTElement) ProjectRSMatricesOntoBasis(Rmat, Smat utils.Matrix) (RmatProj, SmatProj utils.Matrix) {
-	/*
-		The RT element requires projection of a two dimensional field in [R,S] to each node within
-		This can be combined with other operators for R and S directions (like derivative) into one matrix, which
-		this routine does. The resulting R and S matrices still multiply their targets independently, and the results of
-		that multiplication are added together to produce the DOF value for each RT node:
-				RmatProj.Mul(target) + SmatProj.Mul(target) = RTDOF
-	*/
-	var (
-		Np           = rt.Np
-		Rproj, Sproj = make([]float64, Np), make([]float64, Np)
-		oosr2        = 1. / math.Sqrt(2.)
-	)
-	// Setup filters
-	for i := 0; i < Np; i++ {
-		switch rt.GetTermType(i) {
-		case InteriorR:
-			Rproj[i] = 1
-		case InteriorS:
-			Sproj[i] = 1
-		case Edge1:
-			Sproj[i] = -1
-		case Edge2:
-			Rproj[i] = oosr2
-			Sproj[i] = oosr2
-		case Edge3:
-			Rproj[i] = -1
-		}
-	}
-	RmatProj = utils.NewDiagMatrix(Np, Rproj).Mul(Rmat)
-	SmatProj = utils.NewDiagMatrix(Np, Sproj).Mul(Smat)
-	return
-}
-
 func (rt *RTElement) GetTermType(i int) (rtt RTPointType) {
 	var (
 		N     = rt.N
