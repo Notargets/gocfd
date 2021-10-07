@@ -43,9 +43,16 @@ func (c *Euler) CalculateNormalFlux(Time float64, CalculateDT bool, Jdet, DT []u
 		Nedge      = c.dfr.FluxElement.Nedge
 		normalFlux = EdgeQ1
 		pm         = c.Partitions
+		KmaxGlobal = c.dfr.K
 	)
 	for _, en := range edgeKeys {
 		e := c.dfr.Tris.Edges[en]
+		var (
+			k0Global    = int(e.ConnectedTris[0])
+			edgeNumber0 = int(e.ConnectedTriEdgeNumber[0])
+			faceInd     = k0Global + KmaxGlobal*edgeNumber0
+			normal0     = [2]float64{c.dfr.FaceNorm[0].DataP[faceInd], c.dfr.FaceNorm[1].DataP[faceInd]}
+		)
 		switch e.NumConnectedTris {
 		case 0:
 			panic("unable to handle unconnected edges")
@@ -57,16 +64,14 @@ func (c *Euler) CalculateNormalFlux(Time float64, CalculateDT bool, Jdet, DT []u
 				calculateNormalFlux bool
 			)
 			calculateNormalFlux = true
-			//normal, _ := c.getEdgeNormal(0, e, en)
-			normal := e.GetEdgeNormal(0, en, c.dfr)
 			switch e.BCType {
 			case types.BC_Far:
-				c.FarBC(k, Kmax, shift, Q_Face[bn], normal)
+				c.FarBC(k, Kmax, shift, Q_Face[bn], normal0)
 			case types.BC_IVortex:
-				c.IVortexBC(Time, k, Kmax, shift, Q_Face[bn], normal)
+				c.IVortexBC(Time, k, Kmax, shift, Q_Face[bn], normal0)
 			case types.BC_Wall, types.BC_Cyl:
 				calculateNormalFlux = false
-				c.WallBC(k, Kmax, Q_Face[bn], shift, normal, normalFlux) // Calculates normal flux directly
+				c.WallBC(k, Kmax, Q_Face[bn], shift, normal0, normalFlux) // Calculates normal flux directly
 			case types.BC_PeriodicReversed, types.BC_Periodic:
 				// One edge of the Periodic BC leads to calculation of both sides within the connected tris section, so noop here
 				continue
@@ -78,11 +83,10 @@ func (c *Euler) CalculateNormalFlux(Time float64, CalculateDT bool, Jdet, DT []u
 					ind := k + ie*Kmax
 					Fx, Fy = c.CalculateFlux(Q_Face[bn], ind)
 					for n := 0; n < 4; n++ {
-						normalFlux[i][n] = normal[0]*Fx[n] + normal[1]*Fy[n]
+						normalFlux[i][n] = normal0[0]*Fx[n] + normal0[1]*Fy[n]
 					}
 				}
 			}
-			//c.SetNormalFluxOnRTEdge(k, Kmax, F_RT_DOF[bn], edgeNumber, normalFlux, e.IInII[0])
 		case 2: // Handle edges with two connected tris - shared faces
 			var (
 				//				kL, kR                   = int(e.ConnectedTris[0]), int(e.ConnectedTris[1])
@@ -91,16 +95,15 @@ func (c *Euler) CalculateNormalFlux(Time float64, CalculateDT bool, Jdet, DT []u
 				edgeNumberL, edgeNumberR = int(e.ConnectedTriEdgeNumber[0]), int(e.ConnectedTriEdgeNumber[1])
 				shiftL, shiftR           = edgeNumberL * Nedge, edgeNumberR * Nedge
 			)
-			normal := e.GetEdgeNormal(0, en, c.dfr)
 			switch c.FluxCalcAlgo {
 			case FLUX_Average:
-				c.AvgFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[bnL], Q_Face[bnR], normal, normalFlux)
+				c.AvgFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[bnL], Q_Face[bnR], normal0, normalFlux)
 			case FLUX_LaxFriedrichs:
-				c.LaxFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[bnL], Q_Face[bnR], normal, normalFlux)
+				c.LaxFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[bnL], Q_Face[bnR], normal0, normalFlux)
 			case FLUX_Roe:
-				c.RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[bnL], Q_Face[bnR], normal, normalFlux)
+				c.RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[bnL], Q_Face[bnR], normal0, normalFlux)
 			case FLUX_RoeER:
-				c.RoeERFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[bnL], Q_Face[bnR], normal, normalFlux)
+				c.RoeERFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[bnL], Q_Face[bnR], normal0, normalFlux)
 			}
 		}
 		// Load the normal flux into the global normal flux storage
@@ -150,7 +153,7 @@ func (c *Euler) CalculateNormalFlux(Time float64, CalculateDT bool, Jdet, DT []u
 	return
 }
 
-func (c *Euler) SetNormalFluxOnRTEdges(myThread, Kmax int, F_RT_DOF [4]utils.Matrix) {
+func (c *Euler) SetNormalFluxOnEdges(myThread, Kmax int, F_RT_DOF [4]utils.Matrix) {
 	var (
 		dfr        = c.dfr
 		Nedge      = dfr.FluxElement.Nedge

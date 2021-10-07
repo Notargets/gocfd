@@ -335,7 +335,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 
 		_ = <-fromController                                    // Block until parent sends "go"
 		c.SetNormalFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q0) // Updates F_RT_DOF with values from Q
-		c.SetNormalFluxOnRTEdges(myThread, Kmax, F_RT_DOF)
+		c.SetNormalFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		if c.LocalTimeStepping {
 			// Replicate local time step to the other solution points for each k
 			for k := 0; k < Kmax; k++ {
@@ -372,7 +372,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 
 		_ = <-fromController                                    // Block until parent sends "go"
 		c.SetNormalFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q1) // Updates F_RT_DOF with values from Q
-		c.SetNormalFluxOnRTEdges(myThread, Kmax, F_RT_DOF)
+		c.SetNormalFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		c.Dissipation.AddDissipation(contLevel, myThread, rk.Jdet, rk.Q1, rk.RHSQ)
 		dT = rk.GlobalDT
@@ -394,7 +394,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 
 		_ = <-fromController                                    // Block until parent sends "go"
 		c.SetNormalFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q2) // Updates F_RT_DOF with values from Q
-		c.SetNormalFluxOnRTEdges(myThread, Kmax, F_RT_DOF)
+		c.SetNormalFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		c.Dissipation.AddDissipation(contLevel, myThread, rk.Jdet, rk.Q2, rk.RHSQ)
 		dT = rk.GlobalDT
@@ -416,7 +416,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 
 		_ = <-fromController                                    // Block until parent sends "go"
 		c.SetNormalFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q3) // Updates F_RT_DOF with values from Q
-		c.SetNormalFluxOnRTEdges(myThread, Kmax, F_RT_DOF)
+		c.SetNormalFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		c.Dissipation.AddDissipation(contLevel, myThread, rk.Jdet, rk.Q3, rk.RHSQ)
 		// Note, we are re-using Q1 as storage for Residual here
