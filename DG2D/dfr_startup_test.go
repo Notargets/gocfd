@@ -379,49 +379,38 @@ func TestGradient(t *testing.T) {
 	// Test Gradient derived from Raviart Thomas element, from solution field interpolated from solution pts
 	{
 		var (
-			RTDXmd, RTDYmd = dfr.DXMetric.DataP, dfr.DYMetric.DataP
-			DOFX, DOFY     = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
-			DOFXd, DOFYd   = DOFX.DataP, DOFY.DataP
+			DXmd, DYmd   = dfr.DXMetric.DataP, dfr.DYMetric.DataP
+			DOFX, DOFY   = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+			DOFXd, DOFYd = DOFX.DataP, DOFY.DataP
 		)
 		// Create DX and DY for each field type in a loop and check against analytic values
-		var Uint, Uedge utils.Matrix
-		var DXCheck, DYCheck utils.Matrix
+		//var Uint, Uedge utils.Matrix
+		fI := dfr.FluxEdgeInterp.Mul
+		Uint := []utils.Matrix{XY1, XY2, XY3}
+		Uedge := []utils.Matrix{fI(Uint[0]), fI(Uint[1]), fI(Uint[2])}
+		DXCheck, DYCheck := []utils.Matrix{DX1, DX2, DX3}, []utils.Matrix{DY1, DY2, DY3}
 		for n := 0; n < 3; n++ {
-			switch n {
-			case 0:
-				Uint = XY1                          // Linear field
-				Uedge = dfr.FluxEdgeInterp.Mul(XY1) // Interpolate internal values to the RT edges
-				DXCheck, DYCheck = DX1, DY1
-			case 1:
-				Uint = XY2                          // Quadratic field
-				Uedge = dfr.FluxEdgeInterp.Mul(XY2) // Interpolate internal values to the RT edges
-				DXCheck, DYCheck = DX2, DY2
-			case 2:
-				Uint = XY3                          // Cubic field
-				Uedge = dfr.FluxEdgeInterp.Mul(XY3) // Interpolate internal values to the RT edges
-				DXCheck, DYCheck = DX3, DY3
-			}
 			var Un float64
 			for k := 0; k < Kmax; k++ {
 				for i := 0; i < NpFlux; i++ {
 					ind := k + i*Kmax
 					switch {
-					case i < NpInt:
-						Un = Uint.DataP[ind]
-					case i >= NpInt && i < 2*NpInt:
-						Un = Uint.DataP[ind-NpInt*Kmax]
+					case i < NpInt: // The first NpInt points are the solution element nodes
+						Un = Uint[n].DataP[ind]
+					case i >= NpInt && i < 2*NpInt: // The second NpInt points are duplicates of the first NpInt values
+						Un = Uint[n].DataP[ind-NpInt*Kmax]
 					case i >= 2*NpInt:
-						Un = Uedge.DataP[ind-2*NpInt*Kmax]
+						Un = Uedge[n].DataP[ind-2*NpInt*Kmax] // The last 3*Nedge points are the edges in [0-1,1-2,2-0] order
 					}
-					DOFXd[ind] = RTDXmd[ind] * Un
-					DOFYd[ind] = RTDYmd[ind] * Un
+					DOFXd[ind] = DXmd[ind] * Un
+					DOFYd[ind] = DYmd[ind] * Un
 				}
 			}
-			DXRT := dfr.FluxElement.Div.Mul(DOFX)
-			DYRT := dfr.FluxElement.Div.Mul(DOFY)
+			DX := dfr.FluxElement.Div.Mul(DOFX) // X Derivative, Divergence x RT_DOF is X derivative for this DOF
+			DY := dfr.FluxElement.Div.Mul(DOFY) // Y Derivative, Divergence x RT_DOF is Y derivative for this DOF
 			fmt.Printf("Order[%d] check ...", n+1)
-			assert.InDeltaSlicef(t, DXRT.DataP, DXCheck.DataP, 0.000001, "err msg %s")
-			assert.InDeltaSlicef(t, DYRT.DataP, DYCheck.DataP, 0.000001, "err msg %s")
+			assert.InDeltaSlicef(t, DX.DataP, DXCheck[n].DataP, 0.000001, "err msg %s")
+			assert.InDeltaSlicef(t, DY.DataP, DYCheck[n].DataP, 0.000001, "err msg %s")
 			fmt.Printf("... validates\n")
 		}
 	}
