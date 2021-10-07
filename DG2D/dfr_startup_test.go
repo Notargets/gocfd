@@ -310,7 +310,7 @@ func TestGradient(t *testing.T) {
 		Dr     = dfr.FluxDr
 		Ds     = dfr.FluxDs
 		Jinv   = dfr.Jinv
-		Jdet   = dfr.Jdet
+		//Jdet   = dfr.Jdet
 		// Scalar fields, linear, quadratic, cubic
 		XY1, XY2, XY3 = utils.NewMatrix(NpInt, Kmax), utils.NewMatrix(NpInt, Kmax), utils.NewMatrix(NpInt, Kmax)
 		// Directional derivatives of scalar fields, linear, quadratic, cubic
@@ -379,47 +379,9 @@ func TestGradient(t *testing.T) {
 	// Test Gradient derived from Raviart Thomas element, from solution field interpolated from solution pts
 	{
 		var (
-			DOFXMetric, DOFYMetric = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
-			DOFXmd, DOFYmd         = DOFXMetric.DataP, DOFYMetric.DataP
-			NpEdge                 = dfr.FluxElement.Nedge
-		)
-		for k := 0; k < Kmax; k++ {
-			var (
-				JinvD              = Jinv.DataP[4*k : 4*(k+1)]
-				Jd                 = Jdet.DataP[k]
-				jj1, jj2, jj3, jj4 = Jd * JinvD[0], Jd * JinvD[1], Jd * JinvD[2], Jd * JinvD[3]
-			)
-			for i := 0; i < NpInt; i++ {
-				ind := k + i*Kmax
-				ind2 := k + (i+NpInt)*Kmax
-				DOFXmd[ind], DOFXmd[ind2] = jj1, jj3
-				DOFYmd[ind], DOFYmd[ind2] = jj2, jj4
-			}
-		}
-		for key, edge := range dfr.Tris.Edges {
-			for conn := 0; conn < int(edge.NumConnectedTris); conn++ {
-				norm := edge.GetEdgeNormal(conn, key, dfr)
-				k := int(edge.ConnectedTris[conn])
-				edgeNum := int(edge.ConnectedTriEdgeNumber[conn])
-				for i := 0; i < NpEdge; i++ {
-					shift := edgeNum * NpEdge
-					indFull := k + (2*NpInt+i+shift)*Kmax
-					DOFXmd[indFull], DOFYmd[indFull] = norm[0]*edge.IInII[conn], norm[1]*edge.IInII[conn]
-				}
-			}
-		}
-		// Multiply 1./determinant through the metrics
-		for k := 0; k < Kmax; k++ {
-			ooJd := 1. / Jdet.DataP[k]
-			for i := 0; i < NpFlux; i++ {
-				ind := k + i*Kmax
-				DOFXmd[ind] *= ooJd
-				DOFYmd[ind] *= ooJd
-			}
-		}
-		var (
-			DOFX, DOFY   = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
-			DOFXd, DOFYd = DOFX.DataP, DOFY.DataP
+			RTDXmd, RTDYmd = dfr.DXMetric.DataP, dfr.DYMetric.DataP
+			DOFX, DOFY     = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+			DOFXd, DOFYd   = DOFX.DataP, DOFY.DataP
 		)
 		// Create DX and DY for each field type in a loop and check against analytic values
 		var Uint, Uedge utils.Matrix
@@ -451,8 +413,8 @@ func TestGradient(t *testing.T) {
 					case i >= 2*NpInt:
 						Un = Uedge.DataP[ind-2*NpInt*Kmax]
 					}
-					DOFXd[ind] = DOFXmd[ind] * Un
-					DOFYd[ind] = DOFYmd[ind] * Un
+					DOFXd[ind] = RTDXmd[ind] * Un
+					DOFYd[ind] = RTDYmd[ind] * Un
 				}
 			}
 			DXRT := dfr.FluxElement.Div.Mul(DOFX)

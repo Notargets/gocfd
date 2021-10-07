@@ -16,12 +16,13 @@ import (
 )
 
 type DFR2D struct {
-	N               int
-	SolutionElement *LagrangeElement2D
-	FluxElement     *RTElement
-	FluxInterp      utils.Matrix // Interpolates from the interior (solution) points to all of the flux points
-	FluxEdgeInterp  utils.Matrix // Interpolates only from interior to the edge points in the flux element
-	FluxDr, FluxDs  utils.Matrix // Derivatives from the interior (solution) points to all of the flux points
+	N                  int
+	SolutionElement    *LagrangeElement2D
+	FluxElement        *RTElement
+	FluxInterp         utils.Matrix // Interpolates from the interior (solution) points to all of the flux points
+	FluxEdgeInterp     utils.Matrix // Interpolates only from interior to the edge points in the flux element
+	FluxDr, FluxDs     utils.Matrix // Derivatives from the interior (solution) points to all of the flux points
+	DXMetric, DYMetric utils.Matrix // X and Y derivative metrics, multiply by scalar field values to create DOF for RT
 	// Mesh Parameters
 	K                    int          // Number of elements (triangles) in mesh
 	VX, VY               utils.Vector // X,Y vertex points in mesh (vertices)
@@ -71,12 +72,19 @@ func NewDFR2D(N int, plotMesh bool, meshFileO ...string) (dfr *DFR2D) {
 			readfiles.PlotMesh(dfr.VX, dfr.VY, EToV, dfr.SolutionX, dfr.SolutionY, true)
 			utils.SleepFor(50000)
 		}
+		// Calculate RT based derivative metrics for use in calculating Dx and Dy using the RT element
+		dfr.CalculateJacobian()
+		dfr.CalculateFaceNorms()
+		dfr.CalculateRTBasedDerivativeMetrics()
+		dfr.DXMetric.SetReadOnly("DXMetric")
+		dfr.DYMetric.SetReadOnly("DYMetric")
+		dfr.J.SetReadOnly("GeometricJacobian")
+		dfr.Jdet.SetReadOnly("GeometricJacobianDeterminant")
+		dfr.Jinv.SetReadOnly("GeometricJacobianInverse")
 		dfr.FluxX.SetReadOnly("FluxX")
 		dfr.FluxY.SetReadOnly("FluxY")
 		dfr.SolutionX.SetReadOnly("SolutionX")
 		dfr.SolutionY.SetReadOnly("SolutionY")
-		dfr.CalculateJacobian()
-		dfr.CalculateFaceNorms()
 	}
 	return
 }
@@ -115,6 +123,56 @@ func (dfr *DFR2D) GetJacobian(k int) (J, Jinv []float64, Jdet float64) {
 	Jinv = dfr.Jinv.DataP[k*4 : (k+1)*4]
 	Jdet = dfr.Jdet.At(k, 0)
 	return
+}
+
+func (dfr *DFR2D) CalculateRTBasedDerivativeMetrics() {
+	/*
+		Multiply either of these matrices by a scalar solution value at NpFlux points, then multiply
+		that result by rt.Div to get either the X or Y derivative of that field
+		Note that you can specify arbitrary solution values at the edges to establish continuity and you will
+		still have accuracy of the X or Y derivative equal to the interior element polynomial degree
+	*/
+	var (
+		NpFlux, NpInt, Kmax = dfr.FluxElement.Np, dfr.FluxElement.Nint, dfr.K
+		NpEdge              = dfr.FluxElement.Nedge
+		Jinv, Jdet          = dfr.Jinv, dfr.Jdet
+	)
+	dfr.DXMetric, dfr.DYMetric = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+	RTDXmd, RTDYmd := dfr.DXMetric.DataP, dfr.DYMetric.DataP
+	for k := 0; k < Kmax; k++ {
+		var (
+			JinvD              = Jinv.DataP[4*k : 4*(k+1)]
+			Jd                 = Jdet.DataP[k]
+			jj1, jj2, jj3, jj4 = Jd * JinvD[0], Jd * JinvD[1], Jd * JinvD[2], Jd * JinvD[3]
+		)
+		for i := 0; i < NpInt; i++ {
+			ind := k + i*Kmax
+			ind2 := k + (i+NpInt)*Kmax
+			RTDXmd[ind], RTDXmd[ind2] = jj1, jj3
+			RTDYmd[ind], RTDYmd[ind2] = jj2, jj4
+		}
+	}
+	for key, edge := range dfr.Tris.Edges {
+		for conn := 0; conn < int(edge.NumConnectedTris); conn++ {
+			norm := edge.GetEdgeNormal(conn, key, dfr)
+			k := int(edge.ConnectedTris[conn])
+			edgeNum := int(edge.ConnectedTriEdgeNumber[conn])
+			for i := 0; i < NpEdge; i++ {
+				shift := edgeNum * NpEdge
+				indFull := k + (2*NpInt+i+shift)*Kmax
+				RTDXmd[indFull], RTDYmd[indFull] = norm[0]*edge.IInII[conn], norm[1]*edge.IInII[conn]
+			}
+		}
+	}
+	// Multiply 1./determinant through the metrics
+	for k := 0; k < Kmax; k++ {
+		ooJd := 1. / Jdet.DataP[k]
+		for i := 0; i < NpFlux; i++ {
+			ind := k + i*Kmax
+			RTDXmd[ind] *= ooJd
+			RTDYmd[ind] *= ooJd
+		}
+	}
 }
 
 func (dfr *DFR2D) CalculateJacobian() {
