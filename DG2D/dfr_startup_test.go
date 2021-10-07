@@ -389,6 +389,11 @@ func TestGradient(t *testing.T) {
 		Uint := []utils.Matrix{XY1, XY2, XY3}
 		Uedge := []utils.Matrix{fI(Uint[0]), fI(Uint[1]), fI(Uint[2])}
 		DXCheck, DYCheck := []utils.Matrix{DX1, DX2, DX3}, []utils.Matrix{DY1, DY2, DY3}
+		// TODO: Create functions attached to the RT Element (dfr.FluxElement), one each for Deriv[X,Y],
+		// TODO: Div that provide a load method. In the DerivX and DerivY cases you need (scalar field, &DOF_Matrix)
+		// TODO: and for Div you need (Vector field, Scalar Field, &DOF Matrix) where the scalar field is for the edges
+		// TODO: The return is the loaded DOF_Matrix, which was loaded into the provided input value if exists
+		// TODO: Adds: Also provide a DerivXY
 		for n := 0; n < 3; n++ {
 			var Un float64
 			for k := 0; k < Kmax; k++ {
