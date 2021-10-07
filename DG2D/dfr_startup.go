@@ -31,7 +31,8 @@ type DFR2D struct {
 	SolutionX, SolutionY utils.Matrix    // Solution Element local coordinates
 	Tris                 *Triangulation  // Triangle mesh and edge/face structures
 	J, Jinv, Jdet        utils.Matrix    // Mesh Transform Jacobian, Kx[4], each K element has a 2x2 matrix, det is |J|
-	FaceNorm             [2]utils.Matrix // Magnitude of each face normal, 3xK, used in projection of flux to RT element
+	FaceNorm             [2]utils.Matrix // Face normal (normalized), Kx3
+	IInII                utils.Matrix    // Mag face normal divided by unit triangle face norm mag, Kx3 dimension
 }
 
 func NewDFR2D(N int, plotMesh bool, meshFileO ...string) (dfr *DFR2D) {
@@ -144,33 +145,29 @@ func (dfr *DFR2D) CalculateRTBasedDerivativeMetrics() {
 			JinvD              = Jinv.DataP[4*k : 4*(k+1)]
 			Jd                 = Jdet.DataP[k]
 			jj1, jj2, jj3, jj4 = Jd * JinvD[0], Jd * JinvD[1], Jd * JinvD[2], Jd * JinvD[3]
+			ooJd               = 1. / Jdet.DataP[k]
 		)
 		for i := 0; i < NpInt; i++ {
 			ind := k + i*Kmax
 			ind2 := k + (i+NpInt)*Kmax
-			RTDXmd[ind], RTDXmd[ind2] = jj1, jj3
-			RTDYmd[ind], RTDYmd[ind2] = jj2, jj4
+			RTDXmd[ind], RTDXmd[ind2] = ooJd*(jj1), ooJd*(jj3)
+			RTDYmd[ind], RTDYmd[ind2] = ooJd*(jj2), ooJd*(jj4)
 		}
 	}
-	for key, edge := range dfr.Tris.Edges {
-		for conn := 0; conn < int(edge.NumConnectedTris); conn++ {
-			norm := edge.GetEdgeNormal(conn, key, dfr)
-			k := int(edge.ConnectedTris[conn])
-			edgeNum := int(edge.ConnectedTriEdgeNumber[conn])
-			for i := 0; i < NpEdge; i++ {
-				shift := edgeNum * NpEdge
-				indFull := k + (2*NpInt+i+shift)*Kmax
-				RTDXmd[indFull], RTDYmd[indFull] = norm[0]*edge.IInII[conn], norm[1]*edge.IInII[conn]
-			}
-		}
-	}
-	// Multiply 1./determinant through the metrics
+	var (
+		fnd0, fnd1 = dfr.FaceNorm[0].DataP, dfr.FaceNorm[1].DataP
+	)
 	for k := 0; k < Kmax; k++ {
 		ooJd := 1. / Jdet.DataP[k]
-		for i := 0; i < NpFlux; i++ {
-			ind := k + i*Kmax
-			RTDXmd[ind] *= ooJd
-			RTDYmd[ind] *= ooJd
+		for fn := 0; fn < 3; fn++ {
+			faceInd := k + Kmax*fn
+			norm := [2]float64{fnd0[faceInd], fnd1[faceInd]}
+			IInII := dfr.IInII.DataP[faceInd]
+			for i := 0; i < NpEdge; i++ {
+				shift := fn * NpEdge
+				indFull := k + (2*NpInt+i+shift)*Kmax
+				RTDXmd[indFull], RTDYmd[indFull] = ooJd*norm[0]*IInII, ooJd*norm[1]*IInII
+			}
 		}
 	}
 }
@@ -209,20 +206,29 @@ func (dfr *DFR2D) CalculateJacobian() {
 }
 
 func (dfr *DFR2D) CalculateFaceNorms() {
-	dfr.FaceNorm[0], dfr.FaceNorm[1] = utils.NewMatrix(dfr.K, 3), utils.NewMatrix(dfr.K, 3)
+	dfr.FaceNorm[0], dfr.FaceNorm[1] = utils.NewMatrix(3, dfr.K), utils.NewMatrix(3, dfr.K)
+	dfr.IInII = utils.NewMatrix(3, dfr.K)
+	var (
+		Kmax   = dfr.K
+		IInIId = dfr.IInII.DataP
+	)
 	for en, e := range dfr.Tris.Edges {
-		for connNum, triNum := range e.ConnectedTris {
-			k := int(triNum)
+		for connNum := 0; connNum < int(e.NumConnectedTris); connNum++ {
+			k := int(e.ConnectedTris[connNum])
+			edgeNum := e.ConnectedTriEdgeNumber[connNum].Index() // one of [0,1,2], aka "First", "Second", "Third"
+			ind := k + Kmax*edgeNum
+			IInIId[ind] = e.IInII[connNum]
 			fnD1, fnD2 := dfr.FaceNorm[0].DataP, dfr.FaceNorm[1].DataP
 			x1, x2 := GetEdgeCoordinates(en, bool(e.ConnectedTriDirection[connNum]), dfr.VX, dfr.VY)
 			dx, dy := x2[0]-x1[0], x2[1]-x1[1]
-			nx, ny := -dy, dx
-			edgeNum := e.ConnectedTriEdgeNumber[connNum].Index() // one of [0,1,2], aka "First", "Second", "Third"
-			fnD1[edgeNum+k*3], fnD2[edgeNum+k*3] = nx, ny
+			oonorm := 1. / math.Sqrt(dx*dx+dy*dy)
+			nx, ny := -dy*oonorm, dx*oonorm
+			fnD1[ind], fnD2[ind] = nx, ny
 		}
 	}
 	dfr.FaceNorm[0].SetReadOnly("FaceNorm1")
 	dfr.FaceNorm[1].SetReadOnly("FaceNorm2")
+	dfr.IInII.SetReadOnly("IInII")
 }
 
 func (dfr *DFR2D) ProjectFluxOntoRTSpace(Fx, Fy utils.Matrix) (Fp utils.Matrix) {
