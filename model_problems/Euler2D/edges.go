@@ -201,7 +201,7 @@ func (c *Euler) CalculateNormalFlux(Time float64, CalculateDT bool, Jdet, DT []u
 	return
 }
 
-func (c *Euler) SetNormalFluxOnEdges(myThread, Kmax int, F_RT_DOF [4]utils.Matrix) {
+func (c *Euler) SetRTFluxOnEdges(myThread, Kmax int, F_RT_DOF [4]utils.Matrix) {
 	var (
 		dfr        = c.dfr
 		Nedge      = dfr.FluxElement.Nedge

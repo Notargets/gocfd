@@ -207,6 +207,7 @@ const (
 )
 
 func (sd *ScalarDissipation) AddDissipation(cont ContinuityLevel, myThread int, JdetAll []utils.Matrix, Qall, RHSQall [][4]utils.Matrix) {
+	// TODO: Find/Fix memory allocation leak while re-writing this
 	var (
 		Jdet           = JdetAll[myThread]
 		Q              = Qall[myThread]

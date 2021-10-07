@@ -283,13 +283,14 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		c.InterpolateSolutionToEdges(Q0, Q_Face) // Interpolates Q_Face values from Q
 		rk.WorkerDone(&subStep, toController, false)
 
-		_ = <-fromController                                                                                                        // Block until parent sends "go"
-		rk.MaxWaveSpeed[myThread] = c.CalculateNormalFlux(rk.Time, true, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
+		_ = <-fromController // Block until parent sends "go"
+		rk.MaxWaveSpeed[myThread] =
+			c.CalculateNormalFlux(rk.Time, true, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
 		rk.WorkerDone(&subStep, toController, false)
 
-		_ = <-fromController                                    // Block until parent sends "go"
-		c.SetNormalFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q0) // Updates F_RT_DOF with values from Q
-		c.SetNormalFluxOnEdges(myThread, Kmax, F_RT_DOF)
+		_ = <-fromController                                // Block until parent sends "go"
+		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q0) // Updates F_RT_DOF with values from Q
+		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		if c.LocalTimeStepping {
 			// Replicate local time step to the other solution points for each k
 			for k := 0; k < Kmax; k++ {
@@ -324,9 +325,9 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		c.CalculateNormalFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
 		rk.WorkerDone(&subStep, toController, false)
 
-		_ = <-fromController                                    // Block until parent sends "go"
-		c.SetNormalFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q1) // Updates F_RT_DOF with values from Q
-		c.SetNormalFluxOnEdges(myThread, Kmax, F_RT_DOF)
+		_ = <-fromController                                // Block until parent sends "go"
+		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q1) // Updates F_RT_DOF with values from Q
+		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		c.Dissipation.AddDissipation(contLevel, myThread, rk.Jdet, rk.Q1, rk.RHSQ)
 		dT = rk.GlobalDT
@@ -346,9 +347,9 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		c.CalculateNormalFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
 		rk.WorkerDone(&subStep, toController, false)
 
-		_ = <-fromController                                    // Block until parent sends "go"
-		c.SetNormalFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q2) // Updates F_RT_DOF with values from Q
-		c.SetNormalFluxOnEdges(myThread, Kmax, F_RT_DOF)
+		_ = <-fromController                                // Block until parent sends "go"
+		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q2) // Updates F_RT_DOF with values from Q
+		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		c.Dissipation.AddDissipation(contLevel, myThread, rk.Jdet, rk.Q2, rk.RHSQ)
 		dT = rk.GlobalDT
@@ -368,9 +369,9 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		c.CalculateNormalFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
 		rk.WorkerDone(&subStep, toController, false)
 
-		_ = <-fromController                                    // Block until parent sends "go"
-		c.SetNormalFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q3) // Updates F_RT_DOF with values from Q
-		c.SetNormalFluxOnEdges(myThread, Kmax, F_RT_DOF)
+		_ = <-fromController                                // Block until parent sends "go"
+		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q3) // Updates F_RT_DOF with values from Q
+		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		c.Dissipation.AddDissipation(contLevel, myThread, rk.Jdet, rk.Q3, rk.RHSQ)
 		// Note, we are re-using Q1 as storage for Residual here
@@ -421,7 +422,7 @@ func (c *Euler) RHSInternalPoints(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4
 	}
 }
 
-func (c *Euler) SetNormalFluxInternal(Kmax int, Jdet, Jinv utils.Matrix, F_RT_DOF, Q [4]utils.Matrix) {
+func (c *Euler) SetRTFluxInternal(Kmax int, Jdet, Jinv utils.Matrix, F_RT_DOF, Q [4]utils.Matrix) {
 	var (
 		Nint   = c.dfr.FluxElement.Nint
 		NpFlux = c.dfr.FluxElement.Np
