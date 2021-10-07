@@ -47,52 +47,6 @@ type Euler struct {
 	NormalFlux *NormalFluxType
 }
 
-type NormalFluxType struct {
-	EdgeFluxStorage  [4]utils.Matrix       // Normal flux storage, dimension is NpEdge x Nedges
-	FluxStorageIndex map[types.EdgeKey]int // Index into normal flux storage using edge key
-}
-
-func (c *Euler) NewNormalFlux() (nf *NormalFluxType) {
-	nf = &NormalFluxType{
-		FluxStorageIndex: make(map[types.EdgeKey]int),
-	}
-	// Allocate memory for Normal flux
-	NumEdges := len(c.dfr.Tris.Edges)
-	for n := 0; n < 4; n++ {
-		nf.EdgeFluxStorage[n] = utils.NewMatrix(NumEdges, c.dfr.FluxElement.Nedge)
-	}
-	var index int
-	for en, _ := range c.dfr.Tris.Edges {
-		nf.FluxStorageIndex[en] = index
-		index++
-	}
-	return
-}
-
-func (nf *NormalFluxType) GetEdgeNormalFlux(kGlobal, localEdgeNumber int, dfr *DG2D.DFR2D) (NFlux [4][]float64, sign int) {
-	var (
-		k       = kGlobal
-		Kmax    = dfr.K
-		edgeNum = localEdgeNumber
-		Nedge   = dfr.FluxElement.Nedge
-	)
-	ind := k + Kmax*edgeNum
-	en := dfr.EdgeNumber[ind]
-	edgeIndex := nf.FluxStorageIndex[en]
-	ind = edgeIndex * Nedge
-	for n := 0; n < 4; n++ {
-		NFlux[n] = nf.EdgeFluxStorage[n].DataP[ind : ind+Nedge]
-	}
-	if int(dfr.Tris.Edges[en].ConnectedTris[0]) == kGlobal {
-		// This normal was computed for this element
-		sign = 1
-	} else {
-		// This normal should be reversed in direction and sign
-		sign = -1
-	}
-	return
-}
-
 func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, verbose, profile bool) (c *Euler) {
 	c = &Euler{
 		MeshFile:          meshFile,
@@ -462,42 +416,6 @@ func (c *Euler) RHSInternalPoints(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4
 			for i := 0; i < Nint; i++ {
 				ind := k + i*Kmax
 				data[ind] /= -JdetD[k]
-			}
-		}
-	}
-}
-
-func (c *Euler) SetFluxJacobian(Kmax int, Jdet, Jinv utils.Matrix, Q, Q_Face [4]utils.Matrix, FluxJac [][16]float64) {
-	var (
-		Nint   = c.dfr.FluxElement.Nint
-		Nedge  = c.dfr.FluxElement.Nedge
-		Fr, Gs [16]float64
-		sr2    = math.Sqrt(2.)
-	)
-	for k := 0; k < Kmax; k++ {
-		for i := 0; i < Nint; i++ {
-			ind := k + i*Kmax
-			ind2 := k + (i+Nint)*Kmax // Second half of interior points
-			Fr, Gs = c.FluxJacobianTransformed(k, Kmax, i, Jdet, Jinv, Q)
-			FluxJac[ind], FluxJac[ind2] = Fr, Gs
-		}
-		for i := 0; i < 3*Nedge; i++ {
-			Fr, Gs = c.FluxJacobianTransformed(k, Kmax, i, Jdet, Jinv, Q_Face)
-			//fmt.Printf("Fr,Gs[%d] = %v,%v\n", i, Fr, Gs)
-			iind := k + (i+2*Nint)*Kmax
-			switch {
-			case i < Nedge: // Unit face vector is [0, -1]
-				for ii := range Gs {
-					FluxJac[iind][ii] = -Gs[ii]
-				}
-			case i >= Nedge && i < 2*Nedge: // Unit face vector is [sqrt(2), sqrt(2)]
-				for ii := range Fr {
-					FluxJac[iind][ii] = sr2 * (Fr[ii] + Gs[ii])
-				}
-			case i >= 2*Nedge: // Unit face vector is [-1, 0]
-				for ii := range Fr {
-					FluxJac[iind][ii] = -Fr[ii]
-				}
 			}
 		}
 	}

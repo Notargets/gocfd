@@ -4,6 +4,8 @@ import (
 	"math"
 	"sort"
 
+	"github.com/notargets/gocfd/DG2D"
+
 	"github.com/notargets/gocfd/types"
 	"github.com/notargets/gocfd/utils"
 )
@@ -36,6 +38,52 @@ func (p EdgeKeySliceSortLeft) Less(i, j int) bool {
 	// Sorted to produce groups of vertex centered edges on the left edge vertex
 	vnode1, vnode2 := getLeftVert(p[i]), getLeftVert(p[j])
 	return vnode1 < vnode2
+}
+
+type NormalFluxType struct {
+	EdgeFluxStorage  [4]utils.Matrix       // Normal flux storage, dimension is NpEdge x Nedges
+	FluxStorageIndex map[types.EdgeKey]int // Index into normal flux storage using edge key
+}
+
+func (c *Euler) NewNormalFlux() (nf *NormalFluxType) {
+	nf = &NormalFluxType{
+		FluxStorageIndex: make(map[types.EdgeKey]int),
+	}
+	// Allocate memory for Normal flux
+	NumEdges := len(c.dfr.Tris.Edges)
+	for n := 0; n < 4; n++ {
+		nf.EdgeFluxStorage[n] = utils.NewMatrix(NumEdges, c.dfr.FluxElement.Nedge)
+	}
+	var index int
+	for en, _ := range c.dfr.Tris.Edges {
+		nf.FluxStorageIndex[en] = index
+		index++
+	}
+	return
+}
+
+func (nf *NormalFluxType) GetEdgeNormalFlux(kGlobal, localEdgeNumber int, dfr *DG2D.DFR2D) (NFlux [4][]float64, sign int) {
+	var (
+		k       = kGlobal
+		Kmax    = dfr.K
+		edgeNum = localEdgeNumber
+		Nedge   = dfr.FluxElement.Nedge
+	)
+	ind := k + Kmax*edgeNum
+	en := dfr.EdgeNumber[ind]
+	edgeIndex := nf.FluxStorageIndex[en]
+	ind = edgeIndex * Nedge
+	for n := 0; n < 4; n++ {
+		NFlux[n] = nf.EdgeFluxStorage[n].DataP[ind : ind+Nedge]
+	}
+	if int(dfr.Tris.Edges[en].ConnectedTris[0]) == kGlobal {
+		// This normal was computed for this element
+		sign = 1
+	} else {
+		// This normal should be reversed in direction and sign
+		sign = -1
+	}
+	return
 }
 
 func (c *Euler) CalculateNormalFlux(Time float64, CalculateDT bool, Jdet, DT []utils.Matrix, Q_Face [][4]utils.Matrix, edgeKeys EdgeKeySlice, EdgeQ1, EdgeQ2 [][4]float64) (waveSpeedMax float64) {
@@ -179,28 +227,6 @@ func (c *Euler) SetNormalFluxOnEdges(myThread, Kmax int, F_RT_DOF [4]utils.Matri
 					}
 				}
 			}
-		}
-	}
-}
-
-func (c *Euler) SetNormalFluxOnRTEdge(k, Kmax int, F_RT_DOF [4]utils.Matrix, edgeNumber int, edgeNormalFlux [][4]float64, IInII float64) {
-	/*
-		Takes the normal flux (aka "projected flux") multiplies by the ||n|| ratio of edge normals and sets that value for
-		the F_RT_DOF degree of freedom locations for this [k, edgenumber] group
-	*/
-	var (
-		dfr   = c.dfr
-		Nedge = dfr.FluxElement.Nedge
-		Nint  = dfr.FluxElement.Nint
-		shift = edgeNumber * Nedge
-	)
-	// Get scaling factor ||n|| for each edge, multiplied by untransformed normals
-	for n := 0; n < 4; n++ {
-		rtD := F_RT_DOF[n].DataP
-		for i := 0; i < Nedge; i++ {
-			// Place normed/scaled flux into the RT element space
-			ind := k + (2*Nint+i+shift)*Kmax
-			rtD[ind] = edgeNormalFlux[i][n] * IInII
 		}
 	}
 }
