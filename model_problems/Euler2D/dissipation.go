@@ -208,6 +208,8 @@ const (
 
 func (sd *ScalarDissipation) AddDissipation(cont ContinuityLevel, myThread int, JdetAll []utils.Matrix, Qall, RHSQall [][4]utils.Matrix) {
 	// TODO: Find/Fix memory allocation leak while re-writing this
+	// TODO: Find/Fix performance issue with C0 version - it is caused by the linear interpolation function
+	// TODO: Memory leak *and* performance issue are verified in the linear interpolation function
 	var (
 		Jdet           = JdetAll[myThread]
 		Q              = Qall[myThread]
