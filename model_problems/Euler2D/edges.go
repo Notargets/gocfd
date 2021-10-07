@@ -38,11 +38,11 @@ func (p EdgeKeySliceSortLeft) Less(i, j int) bool {
 	return vnode1 < vnode2
 }
 
-func (c *Euler) SetNormalFluxOnEdges(Time float64, CalculateDT bool, Jdet, DT []utils.Matrix, F_RT_DOF, Q_Face [][4]utils.Matrix, edgeKeys EdgeKeySlice, EdgeQ1, EdgeQ2 [][4]float64) (waveSpeedMax float64) {
+func (c *Euler) CalculateNormalFlux(Time float64, CalculateDT bool, Jdet, DT []utils.Matrix, Q_Face [][4]utils.Matrix, edgeKeys EdgeKeySlice, EdgeQ1, EdgeQ2 [][4]float64) (waveSpeedMax float64) {
 	var (
-		Nedge                          = c.dfr.FluxElement.Nedge
-		normalFlux, normalFluxReversed = EdgeQ1, EdgeQ2
-		pm                             = c.Partitions
+		Nedge      = c.dfr.FluxElement.Nedge
+		normalFlux = EdgeQ1
+		pm         = c.Partitions
 	)
 	for _, en := range edgeKeys {
 		e := c.dfr.Tris.Edges[en]
@@ -82,7 +82,7 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, CalculateDT bool, Jdet, DT []
 					}
 				}
 			}
-			c.SetNormalFluxOnRTEdge(k, Kmax, F_RT_DOF[bn], edgeNumber, normalFlux, e.IInII[0])
+			//c.SetNormalFluxOnRTEdge(k, Kmax, F_RT_DOF[bn], edgeNumber, normalFlux, e.IInII[0])
 		case 2: // Handle edges with two connected tris - shared faces
 			var (
 				//				kL, kR                   = int(e.ConnectedTris[0]), int(e.ConnectedTris[1])
@@ -91,24 +91,25 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, CalculateDT bool, Jdet, DT []
 				edgeNumberL, edgeNumberR = int(e.ConnectedTriEdgeNumber[0]), int(e.ConnectedTriEdgeNumber[1])
 				shiftL, shiftR           = edgeNumberL * Nedge, edgeNumberR * Nedge
 			)
-			//normal, _ := c.getEdgeNormal(0, e, en)
 			normal := e.GetEdgeNormal(0, en, c.dfr)
 			switch c.FluxCalcAlgo {
 			case FLUX_Average:
-				c.AvgFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR,
-					Q_Face[bnL], Q_Face[bnR], normal, normalFlux, normalFluxReversed)
+				c.AvgFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[bnL], Q_Face[bnR], normal, normalFlux)
 			case FLUX_LaxFriedrichs:
-				c.LaxFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR,
-					Q_Face[bnL], Q_Face[bnR], normal, normalFlux, normalFluxReversed)
+				c.LaxFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[bnL], Q_Face[bnR], normal, normalFlux)
 			case FLUX_Roe:
-				c.RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR,
-					Q_Face[bnL], Q_Face[bnR], normal, normalFlux, normalFluxReversed)
+				c.RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[bnL], Q_Face[bnR], normal, normalFlux)
 			case FLUX_RoeER:
-				c.RoeERFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR,
-					Q_Face[bnL], Q_Face[bnR], normal, normalFlux, normalFluxReversed)
+				c.RoeERFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[bnL], Q_Face[bnR], normal, normalFlux)
 			}
-			c.SetNormalFluxOnRTEdge(kL, KmaxL, F_RT_DOF[bnL], edgeNumberL, normalFlux, e.IInII[0])
-			c.SetNormalFluxOnRTEdge(kR, KmaxR, F_RT_DOF[bnR], edgeNumberR, normalFluxReversed, e.IInII[1])
+		}
+		// Load the normal flux into the global normal flux storage
+		edgeIndex := c.NormalFlux.FluxStorageIndex[en]
+		for i := 0; i < Nedge; i++ {
+			ind := i + edgeIndex*Nedge
+			for n := 0; n < 4; n++ {
+				c.NormalFlux.EdgeFluxStorage[n].DataP[ind] = normalFlux[i][n]
+			}
 		}
 		if CalculateDT {
 			var (
@@ -147,6 +148,36 @@ func (c *Euler) SetNormalFluxOnEdges(Time float64, CalculateDT bool, Jdet, DT []
 		}
 	}
 	return
+}
+
+func (c *Euler) SetNormalFluxOnRTEdges(myThread, Kmax int, F_RT_DOF [4]utils.Matrix) {
+	var (
+		dfr        = c.dfr
+		Nedge      = dfr.FluxElement.Nedge
+		Nint       = dfr.FluxElement.Nint
+		KmaxGlobal = c.dfr.K
+	)
+	for k := 0; k < Kmax; k++ {
+		kGlobal := c.Partitions.GetGlobalK(k, myThread)
+		for edgeNum := 0; edgeNum < 3; edgeNum++ {
+			shift := edgeNum * Nedge
+			nFlux, sign := c.NormalFlux.GetEdgeNormalFlux(kGlobal, edgeNum, dfr)
+			ind2 := kGlobal + KmaxGlobal*edgeNum
+			IInII := dfr.IInII.DataP[ind2]
+			for n := 0; n < 4; n++ {
+				rtD := F_RT_DOF[n].DataP
+				for i := 0; i < Nedge; i++ {
+					// Place normed/scaled flux into the RT element space
+					ind := k + (2*Nint+i+shift)*Kmax
+					if sign > 0 {
+						rtD[ind] = nFlux[n][i] * IInII
+					} else {
+						rtD[ind] = -nFlux[n][Nedge-i-1] * IInII
+					}
+				}
+			}
+		}
+	}
 }
 
 func (c *Euler) SetNormalFluxOnRTEdge(k, Kmax int, F_RT_DOF [4]utils.Matrix, edgeNumber int, edgeNormalFlux [][4]float64, IInII float64) {

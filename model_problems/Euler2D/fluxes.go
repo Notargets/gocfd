@@ -133,11 +133,11 @@ func (c *Euler) FluxJacobianCalc(rho, rhoU, rhoV, E float64) (Fx, Gy [16]float64
 }
 
 func (c *Euler) AvgFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
-	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux, normalFluxReversed [][4]float64) {
+	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux [][4]float64) {
 	var (
 		Nedge = c.dfr.FluxElement.Nedge
 	)
-	averageFluxN := func(fx1, fy1, fx2, fy2 [4]float64, normal [2]float64) (fnorm [4]float64, fnormR [4]float64) {
+	averageFluxN := func(fx1, fy1, fx2, fy2 [4]float64, normal [2]float64) (fnorm [4]float64) {
 		var (
 			fave [2][4]float64
 		)
@@ -145,7 +145,6 @@ func (c *Euler) AvgFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 			fave[0][n] = 0.5 * (fx1[n] + fx2[n])
 			fave[1][n] = 0.5 * (fy1[n] + fy2[n])
 			fnorm[n] = normal[0]*fave[0][n] + normal[1]*fave[1][n]
-			fnormR[n] = -fnorm[n]
 		}
 		return
 	}
@@ -155,12 +154,12 @@ func (c *Euler) AvgFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		indL, indR := kL+iL*KmaxL, kR+iR*KmaxR
 		FxL, FyL := c.CalculateFlux(Q_FaceL, indL)
 		FxR, FyR := c.CalculateFlux(Q_FaceR, indR) // Reverse the right edge to match
-		normalFlux[i], normalFluxReversed[Nedge-1-i] = averageFluxN(FxL, FyL, FxR, FyR, normal)
+		normalFlux[i] = averageFluxN(FxL, FyL, FxR, FyR, normal)
 	}
 }
 
 func (c *Euler) LaxFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
-	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux, normalFluxReversed [][4]float64) {
+	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux [][4]float64) {
 	var (
 		Nedge          = c.dfr.FluxElement.Nedge
 		uL, vL, pL, CL float64
@@ -185,13 +184,12 @@ func (c *Euler) LaxFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 			normal[1]*((pL+Q_FaceL[3].DataP[indL])*vL+(pR+Q_FaceR[3].DataP[indR])*vR))
 		for n := 0; n < 4; n++ {
 			normalFlux[i][n] += 0.5 * maxV * (Q_FaceL[n].DataP[indL] - Q_FaceR[n].DataP[indR])
-			normalFluxReversed[Nedge-1-i][n] = -normalFlux[i][n]
 		}
 	}
 }
 
 func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
-	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux, normalFluxReversed [][4]float64) {
+	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux [][4]float64) {
 	var (
 		Nedge            = c.dfr.FluxElement.Nedge
 		rhoL, uL, vL, pL float64
@@ -284,14 +282,11 @@ func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		// rotate back to Cartesian
 		normalFlux[i][1], normalFlux[i][2] = normal[0]*normalFlux[i][1]-normal[1]*normalFlux[i][2],
 			normal[1]*normalFlux[i][1]+normal[0]*normalFlux[i][2]
-		for n := 0; n < 4; n++ {
-			normalFluxReversed[Nedge-1-i][n] = -normalFlux[i][n]
-		}
 	}
 }
 
 func (c *Euler) RoeERFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
-	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux, normalFluxReversed [][4]float64) {
+	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux [][4]float64) {
 	var (
 		Nedge                          = c.dfr.FluxElement.Nedge
 		rhoL, uL, vL, pL, EL, HL, UL   float64
@@ -377,9 +372,5 @@ func (c *Euler) RoeERFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		normalFlux[i][1] -= 0.5 * (sigma*dRhoU + (dPu+dPp)*nx + dUu*rho*u)
 		normalFlux[i][2] -= 0.5 * (sigma*dRhoV + (dPu+dPp)*ny + dUu*rho*v)
 		normalFlux[i][3] -= 0.5 * (sigma*dE + (dPu+dPp)*ny + dUu*H)
-
-		for n := 0; n < 4; n++ {
-			normalFluxReversed[Nedge-1-i][n] = -normalFlux[i][n]
-		}
 	}
 }

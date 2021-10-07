@@ -45,6 +45,54 @@ type Euler struct {
 	ShockFinder          *ModeAliasShockFinder
 	Limiter              *SolutionLimiter
 	Dissipation          *ScalarDissipation
+	// Edge number mapped quantities, i.e. Face Normal Flux
+	NormalFlux *NormalFluxType
+}
+
+type NormalFluxType struct {
+	EdgeFluxStorage  [4]utils.Matrix       // Normal flux storage, dimension is NpEdge x Nedges
+	FluxStorageIndex map[types.EdgeKey]int // Index into normal flux storage using edge key
+}
+
+func (c *Euler) NewNormalFlux() (nf *NormalFluxType) {
+	nf = &NormalFluxType{
+		FluxStorageIndex: make(map[types.EdgeKey]int),
+	}
+	// Allocate memory for Normal flux
+	NumEdges := len(c.dfr.Tris.Edges)
+	for n := 0; n < 4; n++ {
+		nf.EdgeFluxStorage[n] = utils.NewMatrix(NumEdges, c.dfr.FluxElement.Nedge)
+	}
+	var index int
+	for en, _ := range c.dfr.Tris.Edges {
+		nf.FluxStorageIndex[en] = index
+		index++
+	}
+	return
+}
+
+func (nf *NormalFluxType) GetEdgeNormalFlux(kGlobal, localEdgeNumber int, dfr *DG2D.DFR2D) (NFlux [4][]float64, sign int) {
+	var (
+		k       = kGlobal
+		Kmax    = dfr.K
+		edgeNum = localEdgeNumber
+		Nedge   = dfr.FluxElement.Nedge
+	)
+	ind := k + Kmax*edgeNum
+	en := dfr.EdgeNumber[ind]
+	edgeIndex := nf.FluxStorageIndex[en]
+	ind = edgeIndex * Nedge
+	for n := 0; n < 4; n++ {
+		NFlux[n] = nf.EdgeFluxStorage[n].DataP[ind : ind+Nedge]
+	}
+	if int(dfr.Tris.Edges[en].ConnectedTris[0]) == kGlobal {
+		// This normal was computed for this element
+		sign = 1
+	} else {
+		// This normal should be reversed in direction and sign
+		sign = -1
+	}
+	return
 }
 
 func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, verbose, profile bool) (c *Euler) {
@@ -67,6 +115,9 @@ func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, ver
 
 	// Read mesh file, initialize geometry and finite elements
 	c.dfr = DG2D.NewDFR2D(ip.PolynomialOrder, plotMesh, meshFile)
+
+	// Allocate Normal flux storage and indices
+	c.NormalFlux = c.NewNormalFlux()
 
 	c.SetParallelDegree(ProcLimit, c.dfr.K) // Must occur after determining the number of elements
 
@@ -238,6 +289,8 @@ func (rk *RungeKutta4SSP) Step(c *Euler) {
 			if !c.LocalTimeStepping {
 				rk.calculateGlobalDT(c)
 			}
+			//fmt.Printf(c.NormalFluxType[0].Print("0NormalFlux"))
+			//os.Exit(1)
 			c.Dissipation.CalculateElementViscosity(rk.Jdet, c.Q)
 		case currentStep < 0:
 			return
@@ -282,12 +335,12 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q0, Q_Face)
 		rk.WorkerDone(&subStep, toController, false)
 
-		_ = <-fromController // Block until parent sends "go"
-		rk.MaxWaveSpeed[myThread] = c.SetNormalFluxOnEdges(rk.Time, true,
-			rk.Jdet, rk.DT, rk.F_RT_DOF, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
+		_ = <-fromController                                                                                                        // Block until parent sends "go"
+		rk.MaxWaveSpeed[myThread] = c.CalculateNormalFlux(rk.Time, true, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
 		rk.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController // Block until parent sends "go"
+		c.SetNormalFluxOnRTEdges(myThread, Kmax, F_RT_DOF)
 		if c.LocalTimeStepping {
 			// Replicate local time step to the other solution points for each k
 			for k := 0; k < Kmax; k++ {
@@ -321,12 +374,12 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q1, Q_Face)
 		rk.WorkerDone(&subStep, toController, false)
 
-		_ = <-fromController // Block until parent sends "go"
-		c.SetNormalFluxOnEdges(rk.Time, false,
-			rk.Jdet, rk.DT, rk.F_RT_DOF, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
+		_ = <-fromController                                                                             // Block until parent sends "go"
+		c.CalculateNormalFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
 		rk.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController // Block until parent sends "go"
+		c.SetNormalFluxOnRTEdges(myThread, Kmax, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		c.Dissipation.AddDissipation(contLevel, myThread, rk.Jdet, rk.Q1, rk.RHSQ)
 		if preCon {
@@ -345,12 +398,12 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q2, Q_Face)
 		rk.WorkerDone(&subStep, toController, false)
 
-		_ = <-fromController // Block until parent sends "go"
-		c.SetNormalFluxOnEdges(rk.Time, false,
-			rk.Jdet, rk.DT, rk.F_RT_DOF, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
+		_ = <-fromController                                                                             // Block until parent sends "go"
+		c.CalculateNormalFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
 		rk.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController // Block until parent sends "go"
+		c.SetNormalFluxOnRTEdges(myThread, Kmax, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		c.Dissipation.AddDissipation(contLevel, myThread, rk.Jdet, rk.Q2, rk.RHSQ)
 		if preCon {
@@ -369,12 +422,12 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q3, Q_Face)
 		rk.WorkerDone(&subStep, toController, false)
 
-		_ = <-fromController // Block until parent sends "go"
-		c.SetNormalFluxOnEdges(rk.Time, false,
-			rk.Jdet, rk.DT, rk.F_RT_DOF, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
+		_ = <-fromController                                                                             // Block until parent sends "go"
+		c.CalculateNormalFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
 		rk.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController // Block until parent sends "go"
+		c.SetNormalFluxOnRTEdges(myThread, Kmax, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		c.Dissipation.AddDissipation(contLevel, myThread, rk.Jdet, rk.Q3, rk.RHSQ)
 		if preCon {
@@ -978,8 +1031,8 @@ func (ei *ElementImplicit) StepWorker(c *Euler, myThread int, fromController cha
 		ei.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController // Block until parent sends "go"
-		// SetNormalFluxOnEdges calculates the flux on element edges, using connected element's data
-		ei.MaxWaveSpeed[myThread] = c.SetNormalFluxOnEdges(ei.Time, true, ei.Jdet, ei.DT, ei.F_RT_DOF, ei.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
+		// CalculateNormalFlux calculates the flux on element edges, using connected element's data
+		ei.MaxWaveSpeed[myThread] = c.CalculateNormalFlux(ei.Time, true, ei.Jdet, ei.DT, ei.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
 		ei.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController // Block until parent sends "go"

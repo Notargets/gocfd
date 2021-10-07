@@ -33,6 +33,7 @@ type DFR2D struct {
 	J, Jinv, Jdet        utils.Matrix    // Mesh Transform Jacobian, Kx[4], each K element has a 2x2 matrix, det is |J|
 	FaceNorm             [2]utils.Matrix // Face normal (normalized), Kx3
 	IInII                utils.Matrix    // Mag face normal divided by unit triangle face norm mag, Kx3 dimension
+	EdgeNumber           []types.EdgeKey // Edge number for each edge, used to index into edge structures, Kx3 dimension
 }
 
 func NewDFR2D(N int, plotMesh bool, meshFileO ...string) (dfr *DFR2D) {
@@ -206,18 +207,19 @@ func (dfr *DFR2D) CalculateJacobian() {
 }
 
 func (dfr *DFR2D) CalculateFaceNorms() {
-	dfr.FaceNorm[0], dfr.FaceNorm[1] = utils.NewMatrix(3, dfr.K), utils.NewMatrix(3, dfr.K)
-	dfr.IInII = utils.NewMatrix(3, dfr.K)
 	var (
-		Kmax   = dfr.K
-		IInIId = dfr.IInII.DataP
+		Kmax = dfr.K
 	)
+	dfr.FaceNorm[0], dfr.FaceNorm[1] = utils.NewMatrix(3, Kmax), utils.NewMatrix(3, Kmax)
+	dfr.IInII = utils.NewMatrix(3, Kmax)
+	dfr.EdgeNumber = make([]types.EdgeKey, 3*Kmax)
 	for en, e := range dfr.Tris.Edges {
 		for connNum := 0; connNum < int(e.NumConnectedTris); connNum++ {
 			k := int(e.ConnectedTris[connNum])
 			edgeNum := e.ConnectedTriEdgeNumber[connNum].Index() // one of [0,1,2], aka "First", "Second", "Third"
 			ind := k + Kmax*edgeNum
-			IInIId[ind] = e.IInII[connNum]
+			dfr.IInII.DataP[ind] = e.IInII[connNum]
+			dfr.EdgeNumber[ind] = en
 			fnD1, fnD2 := dfr.FaceNorm[0].DataP, dfr.FaceNorm[1].DataP
 			x1, x2 := GetEdgeCoordinates(en, bool(e.ConnectedTriDirection[connNum]), dfr.VX, dfr.VY)
 			dx, dy := x2[0]-x1[0], x2[1]-x1[1]
