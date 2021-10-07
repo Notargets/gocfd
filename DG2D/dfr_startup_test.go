@@ -394,29 +394,32 @@ func TestGradient(t *testing.T) {
 		// TODO: and for Div you need (Vector field, Scalar Field, &DOF Matrix) where the scalar field is for the edges
 		// TODO: The return is the loaded DOF_Matrix, which was loaded into the provided input value if exists
 		// TODO: Adds: Also provide a DerivXY
-		for n := 0; n < 3; n++ {
-			var Un float64
-			for k := 0; k < Kmax; k++ {
-				for i := 0; i < NpFlux; i++ {
-					ind := k + i*Kmax
-					switch {
-					case i < NpInt: // The first NpInt points are the solution element nodes
-						Un = Uint[n].DataP[ind]
-					case i >= NpInt && i < 2*NpInt: // The second NpInt points are duplicates of the first NpInt values
-						Un = Uint[n].DataP[ind-NpInt*Kmax]
-					case i >= 2*NpInt:
-						Un = Uedge[n].DataP[ind-2*NpInt*Kmax] // The last 3*Nedge points are the edges in [0-1,1-2,2-0] order
+		{
+			for n := range Uint {
+				//for n := 0; n < 3; n++ {
+				var Un float64
+				for k := 0; k < Kmax; k++ {
+					for i := 0; i < NpFlux; i++ {
+						ind := k + i*Kmax
+						switch {
+						case i < NpInt: // The first NpInt points are the solution element nodes
+							Un = Uint[n].DataP[ind]
+						case i >= NpInt && i < 2*NpInt: // The second NpInt points are duplicates of the first NpInt values
+							Un = Uint[n].DataP[ind-NpInt*Kmax]
+						case i >= 2*NpInt:
+							Un = Uedge[n].DataP[ind-2*NpInt*Kmax] // The last 3*Nedge points are the edges in [0-1,1-2,2-0] order
+						}
+						DOFXd[ind] = DXmd[ind] * Un
+						DOFYd[ind] = DYmd[ind] * Un
 					}
-					DOFXd[ind] = DXmd[ind] * Un
-					DOFYd[ind] = DYmd[ind] * Un
 				}
+				DX := dfr.FluxElement.Div.Mul(DOFX) // X Derivative, Divergence x RT_DOF is X derivative for this DOF
+				DY := dfr.FluxElement.Div.Mul(DOFY) // Y Derivative, Divergence x RT_DOF is Y derivative for this DOF
+				fmt.Printf("Order[%d] check ...", n+1)
+				assert.InDeltaSlicef(t, DX.DataP, DXCheck[n].DataP, 0.000001, "err msg %s")
+				assert.InDeltaSlicef(t, DY.DataP, DYCheck[n].DataP, 0.000001, "err msg %s")
+				fmt.Printf("... validates\n")
 			}
-			DX := dfr.FluxElement.Div.Mul(DOFX) // X Derivative, Divergence x RT_DOF is X derivative for this DOF
-			DY := dfr.FluxElement.Div.Mul(DOFY) // Y Derivative, Divergence x RT_DOF is Y derivative for this DOF
-			fmt.Printf("Order[%d] check ...", n+1)
-			assert.InDeltaSlicef(t, DX.DataP, DXCheck[n].DataP, 0.000001, "err msg %s")
-			assert.InDeltaSlicef(t, DY.DataP, DYCheck[n].DataP, 0.000001, "err msg %s")
-			fmt.Printf("... validates\n")
 		}
 	}
 }
