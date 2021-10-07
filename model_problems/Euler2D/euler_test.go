@@ -311,54 +311,6 @@ func TestFluxJacobian(t *testing.T) {
 			0, 0, 2.5050, 0,
 		}, Gy[:], tol, msg)
 	}
-	ip := ipDefault
-	// Test build system matrix (for implicit solver)
-	{
-		ip.PolynomialOrder = 1
-		//c := NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
-		c := NewEuler(ip, "../../DG2D/test_tris_1tri.neu", 1, false, false, false)
-		ei := c.NewElementImplicit()
-		var (
-			myThread         = 0
-			Q0               = c.Q[myThread]
-			Kmax, Jdet, Jinv = ei.Kmax[myThread], ei.Jdet[myThread], ei.Jinv[myThread]
-			Q_Face, F_RT_DOF = ei.Q_Face[myThread], ei.F_RT_DOF[myThread]
-			FluxJac          = ei.FluxJac[myThread]
-		)
-		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q0, Q_Face)
-		c.SetFluxJacobian(Kmax, Jdet, Jinv, Q0, Q_Face, FluxJac)
-		// Compose system matrix, one for each element
-	}
-	// Test implicit solver
-	{
-		ip.PolynomialOrder = 1
-		//c := NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
-		c := NewEuler(ip, "../../DG2D/test_tris_1tri.neu", 1, false, false, false)
-		ei := c.NewElementImplicit()
-		var (
-			myThread         = 0
-			Q0               = c.Q[myThread]
-			Kmax, Jdet, Jinv = ei.Kmax[myThread], ei.Jdet[myThread], ei.Jinv[myThread]
-			Q_Face, F_RT_DOF = ei.Q_Face[myThread], ei.F_RT_DOF[myThread]
-			FluxJac          = ei.FluxJac[myThread]
-			RHSQ, Residual   = ei.RHSQ[myThread], ei.Residual[myThread]
-			Nedge            = ei.Nedge
-			DT               = ei.DT[myThread]
-			SM               = ei.SM[myThread]
-			B, X             = utils.NewMatrix(4, 1), utils.NewMatrix(4, 1)
-			EdgeQ1, EdgeQ2   = make([][4]float64, Nedge), make([][4]float64, Nedge) // Local working memory
-		)
-		c.PrepareEdgeFlux(Kmax, Jdet, Jinv, F_RT_DOF, Q0, Q_Face)
-		c.CalculateNormalFlux(ei.Time, true, ei.Jdet, ei.DT, ei.Q_Face, c.SortedEdgeKeys[myThread], EdgeQ1, EdgeQ2) // Global
-		// Create the RHS for all flux points in every element
-		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
-		c.SetFluxJacobian(Kmax, Jdet, Jinv, Q0, Q_Face, FluxJac)
-		/*
-			ei.SolveForResidual(Kmax, c.LocalTimeStepping, DT, Jdet, c.dfr.FluxElement.DivInt, SM, RHSQ, Residual, FluxJac,
-				B, X, &mat.LU{})
-		*/
-		_, _, _, _, _ = Residual, DT, SM, B, X
-	}
 }
 
 func TestEdges(t *testing.T) {

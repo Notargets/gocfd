@@ -157,9 +157,12 @@ func Run2D(m2d *Model2D, ip *Euler2D.InputParameters) {
 		TranslateX:      m2d.TranslateX,
 		TranslateY:      m2d.TranslateY,
 	}
-	if ip.ImplicitSolver {
-		c.SolveImplicit(pm)
-	} else {
-		c.Solve(pm)
-	}
+	/*
+		if ip.ImplicitSolver {
+			c.SolveImplicit(pm)
+		} else {
+			c.Solve(pm)
+		}
+	*/
+	c.Solve(pm)
 }
