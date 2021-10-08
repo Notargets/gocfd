@@ -31,9 +31,10 @@ type ChartState struct {
 
 func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field utils.Matrix) {
 	var (
-		Kmax = c.dfr.K
-		Np   = c.dfr.SolutionElement.Np
-		fld  utils.Matrix
+		Kmax       = c.dfr.K
+		Np         = c.dfr.SolutionElement.Np
+		fld        utils.Matrix
+		skipInterp bool
 	)
 	switch {
 	case plotField <= Energy:
@@ -62,11 +63,15 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 			}
 		}
 	case plotField == EpsilonDissipation:
-		fld = c.Dissipation.GetScalarEpsilonPlotField(c)
+		field = c.Dissipation.GetScalarEpsilonPlotField(c)
+		skipInterp = true
 	case plotField == EpsilonDissipationC0:
-		fld = c.Dissipation.GetC0EpsilonPlotField(c)
+		field = c.Dissipation.GetC0EpsilonPlotField(c)
+		skipInterp = true
 	}
-	field = c.dfr.FluxInterp.Mul(fld)
+	if !skipInterp {
+		field = c.dfr.FluxInterp.Mul(fld)
+	}
 	return
 }
 

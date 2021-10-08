@@ -777,16 +777,28 @@ func (m Matrix) POW(p int) Matrix { // Changes receiver
 	return m
 }
 
-func (m Matrix) ElMul(A Matrix) Matrix { // Changes receiver
+func (m Matrix) ElMul(A Matrix, RO ...Matrix) (R Matrix) { // Optionally changes receiver
 	var (
-		dataM = m.RawMatrix().Data
-		dataA = A.RawMatrix().Data
+		dataA    = A.DataP
+		nr, nc   = m.Dims()
+		nrA, ncA = A.Dims()
 	)
-	m.checkWritable()
-	for i, val := range dataA {
-		dataM[i] *= val
+	if nr != nrA || nc != ncA {
+		err := fmt.Errorf("dimensions mismatch, have [%d,%d] should equal [%d,%d]",
+			nr, nc, nrA, ncA)
+		panic(err)
 	}
-	return m
+	if len(RO) == 0 {
+		m.checkWritable()
+		R = m
+	} else {
+		R = getResultMatrix(nr, nc, RO)
+	}
+	dataR := R.DataP
+	for i, val := range dataA {
+		dataR[i] *= val
+	}
+	return
 }
 
 func (m Matrix) ElDiv(A Matrix) Matrix { // Changes receiver
