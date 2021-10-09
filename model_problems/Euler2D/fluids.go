@@ -7,7 +7,7 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-type FlowFunction uint8
+type FlowFunction uint16
 
 func (pm FlowFunction) String() string {
 	strings := []string{
@@ -35,6 +35,22 @@ func (pm FlowFunction) String() string {
 		return "Artificial Dissipation Epsilon"
 	case pm == EpsilonDissipationC0:
 		return "Artificial Dissipation Epsilon C0"
+	case pm == XGradientDensity:
+		return "X Direction Gradient of Density"
+	case pm == XGradientXMomentum:
+		return "X Direction Gradient of X Momentum"
+	case pm == XGradientYMomentum:
+		return "X Direction Gradient of Y Momentum"
+	case pm == XGradientEnergy:
+		return "X Direction Gradient of Energy"
+	case pm == YGradientDensity:
+		return "Y Direction Gradient of Density"
+	case pm == YGradientXMomentum:
+		return "Y Direction Gradient of X Momentum"
+	case pm == YGradientYMomentum:
+		return "Y Direction Gradient of Y Momentum"
+	case pm == YGradientEnergy:
+		return "Y Direction Gradient of Energy"
 	default:
 		return "Unknown"
 	}
@@ -58,6 +74,14 @@ const (
 	ShockFunction        = 100
 	EpsilonDissipation   = 101
 	EpsilonDissipationC0 = 102
+	XGradientDensity     = 200
+	XGradientXMomentum   = 201
+	XGradientYMomentum   = 202
+	XGradientEnergy      = 203
+	YGradientDensity     = 300
+	YGradientXMomentum   = 301
+	YGradientYMomentum   = 302
+	YGradientEnergy      = 303
 )
 
 type FreeStream struct {

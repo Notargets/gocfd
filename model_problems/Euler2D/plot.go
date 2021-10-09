@@ -33,6 +33,7 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 	var (
 		Kmax       = c.dfr.K
 		Np         = c.dfr.SolutionElement.Np
+		NpFlux     = c.dfr.FluxElement.Np
 		fld        utils.Matrix
 		skipInterp bool
 	)
@@ -68,6 +69,30 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 	case plotField == EpsilonDissipationC0:
 		field = c.Dissipation.GetC0EpsilonPlotField(c)
 		skipInterp = true
+	case plotField == XGradientDensity || plotField == YGradientDensity ||
+		plotField == XGradientXMomentum || plotField == YGradientXMomentum ||
+		plotField == XGradientYMomentum || plotField == YGradientYMomentum ||
+		plotField == XGradientEnergy || plotField == YGradientEnergy:
+		GradX, GradY := utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+		DOFX, DOFY := utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+		var varNum int
+		switch plotField {
+		case XGradientDensity, YGradientDensity:
+			varNum = 0
+		case XGradientXMomentum, YGradientXMomentum:
+			varNum = 1
+		case XGradientYMomentum, YGradientYMomentum:
+			varNum = 2
+		case XGradientEnergy, YGradientEnergy:
+			varNum = 3
+		}
+		c.GetSolutionGradient(-1, varNum, Q, GradX, GradY, DOFX, DOFY)
+		if plotField < 300 {
+			field = GradX
+		} else {
+			field = GradY
+		}
+		skipInterp = true
 	}
 	if !skipInterp {
 		field = c.dfr.FluxInterp.Mul(fld)
@@ -75,8 +100,9 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 	return
 }
 
-func (c *Euler) PlotQ(Q [4]utils.Matrix, pm *PlotMeta) {
+func (c *Euler) PlotQ(pm *PlotMeta) {
 	var (
+		Q         = c.RecombineShardsKBy4(c.Q)
 		plotField = pm.Field
 		delay     = pm.FrameTime
 		lineType  = pm.LineType

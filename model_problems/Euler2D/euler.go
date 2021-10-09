@@ -509,14 +509,7 @@ func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [][4]utils.
 	printMem bool) {
 	format := "%11.4e"
 	if plotQ {
-		var QQ [4]utils.Matrix
-		if plotQ {
-			QQ = c.RecombineShardsKBy4(c.Q)
-		} else {
-			nilM := utils.Matrix{}
-			QQ = [4]utils.Matrix{nilM, nilM, nilM, nilM}
-		}
-		c.PlotQ(QQ, pm) // wait till we implement time iterative frame updates
+		c.PlotQ(pm) // wait till we implement time iterative frame updates
 	}
 	if c.LocalTimeStepping {
 		fmt.Printf("%10d              ", steps)

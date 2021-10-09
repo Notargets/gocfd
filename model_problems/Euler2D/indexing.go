@@ -63,6 +63,10 @@ func (pm *PartitionMap) GetLocalK(baseK int) (k, Kmax, bn int) {
 }
 
 func (pm *PartitionMap) GetGlobalK(kLocal, bn int) (kGlobal int) {
+	if bn == -1 {
+		kGlobal = kLocal
+		return
+	}
 	var (
 		kMin = pm.Partitions[bn][0]
 	)
