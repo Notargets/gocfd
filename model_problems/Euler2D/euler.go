@@ -575,7 +575,9 @@ func (c *Euler) GetSolutionGradient(myThread, varNum int, Q [4]utils.Matrix, Gra
 		n1x, n2x          = DOFX.Dims()
 		n1y, n2y          = DOFY.Dims()
 		NpEdge            = dfr.FluxElement.Nedge
-		DXmd, DYmd        = dfr.DXMetric.DataP, dfr.DYMetric.DataP
+		// TODO: Shard the DX and DY metrics
+		DXmd, DYmd = dfr.DXMetric.DataP, dfr.DYMetric.DataP
+		KmaxGlobal = dfr.K
 	)
 	switch {
 	case Kmax != KmaxCheck:
@@ -595,16 +597,21 @@ func (c *Euler) GetSolutionGradient(myThread, varNum int, Q [4]utils.Matrix, Gra
 		DOFXd, DOFYd = DOFX.DataP, DOFY.DataP
 	)
 	for k := 0; k < Kmax; k++ {
+		kGlobal := c.Partitions.GetGlobalK(k, myThread)
+
 		for i := 0; i < NpInt; i++ {
 			ind := k + i*Kmax
 			ind2 := k + (i+NpInt)*Kmax
+			indG := kGlobal + i*KmaxGlobal
+			ind2G := kGlobal + (i+NpInt)*KmaxGlobal
 			Un = Q[varNum].DataP[ind]
-			DOFXd[ind], DOFYd[ind] = DXmd[ind]*Un, DYmd[ind]*Un
-			DOFXd[ind2], DOFYd[ind2] = DXmd[ind2]*Un, DYmd[ind2]*Un
+			DOFXd[ind], DOFYd[ind] = DXmd[indG]*Un, DYmd[indG]*Un
+			DOFXd[ind2], DOFYd[ind2] = DXmd[ind2G]*Un, DYmd[ind2G]*Un
 		}
 	}
 	// Load average solution values from solution storage
 	for k := 0; k < Kmax; k++ {
+		kGlobal := c.Partitions.GetGlobalK(k, myThread)
 		for edgeNum := 0; edgeNum < 3; edgeNum++ {
 			edgeVals, sign := c.EdgeStore.GetEdgeValues(SolutionValues, myThread, k, varNum, edgeNum, dfr)
 			switch {
@@ -612,17 +619,19 @@ func (c *Euler) GetSolutionGradient(myThread, varNum int, Q [4]utils.Matrix, Gra
 				var ii int
 				for i := NpEdge - 1; i >= 0; i-- {
 					ind := k + (i+edgeNum*NpEdge)*Kmax
+					indG := kGlobal + (i+edgeNum*NpEdge)*KmaxGlobal
 					Un = edgeVals[ii]
-					DOFXd[ind] = DXmd[ind] * Un
-					DOFYd[ind] = DYmd[ind] * Un
+					DOFXd[ind] = DXmd[indG] * Un
+					DOFYd[ind] = DYmd[indG] * Un
 					ii++
 				}
 			case sign > 0:
 				for i := 0; i < NpEdge; i++ {
 					ind := k + (i+edgeNum*NpEdge)*Kmax
+					indG := kGlobal + (i+edgeNum*NpEdge)*KmaxGlobal
 					Un = edgeVals[i]
-					DOFXd[ind] = DXmd[ind] * Un
-					DOFYd[ind] = DYmd[ind] * Un
+					DOFXd[ind] = DXmd[indG] * Un
+					DOFYd[ind] = DYmd[indG] * Un
 				}
 			}
 		}
