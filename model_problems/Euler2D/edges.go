@@ -40,15 +40,22 @@ func (p EdgeKeySliceSortLeft) Less(i, j int) bool {
 	return vnode1 < vnode2
 }
 
-type NormalFluxType struct {
+type EdgeValueStorage struct {
 	EdgeFluxStorage     [4]utils.Matrix       // Normal flux storage, dimension is NpEdge x Nedges
 	EdgeSolutionStorage [4]utils.Matrix       // Edge Solution storage, dimension is NpEdge x Nedges
-	FluxStorageIndex    map[types.EdgeKey]int // Index into normal flux storage using edge key
+	StorageIndex        map[types.EdgeKey]int // Index into normal flux storage using edge key
 }
 
-func (c *Euler) NewNormalFlux() (nf *NormalFluxType) {
-	nf = &NormalFluxType{
-		FluxStorageIndex: make(map[types.EdgeKey]int),
+type ValueType uint8
+
+const (
+	EdgeFlux ValueType = iota
+	SolutionValues
+)
+
+func (c *Euler) NewEdgeStorage() (nf *EdgeValueStorage) {
+	nf = &EdgeValueStorage{
+		StorageIndex: make(map[types.EdgeKey]int),
 	}
 	// Allocate memory for Normal flux
 	NumEdges := len(c.dfr.Tris.Edges)
@@ -58,31 +65,38 @@ func (c *Euler) NewNormalFlux() (nf *NormalFluxType) {
 	}
 	var index int
 	for en, _ := range c.dfr.Tris.Edges {
-		nf.FluxStorageIndex[en] = index
+		nf.StorageIndex[en] = index
 		index++
 	}
 	return
 }
 
-func (nf *NormalFluxType) GetEdgeNormalFlux(kGlobal, localEdgeNumber int, dfr *DG2D.DFR2D) (NFlux [4][]float64, sign int) {
+func (nf *EdgeValueStorage) GetEdgeValues(valType ValueType, kGlobal, localEdgeNumber int, dfr *DG2D.DFR2D) (EdgeValues [4][]float64, sign int) {
 	var (
 		k       = kGlobal
 		Kmax    = dfr.K
 		edgeNum = localEdgeNumber
 		Nedge   = dfr.FluxElement.Nedge
+		target  [4]utils.Matrix
 	)
+	switch valType {
+	case EdgeFlux:
+		target = nf.EdgeFluxStorage
+	case SolutionValues:
+		target = nf.EdgeSolutionStorage
+	}
 	ind := k + Kmax*edgeNum
 	en := dfr.EdgeNumber[ind]
-	edgeIndex := nf.FluxStorageIndex[en]
+	edgeIndex := nf.StorageIndex[en]
 	ind = edgeIndex * Nedge
 	for n := 0; n < 4; n++ {
-		NFlux[n] = nf.EdgeFluxStorage[n].DataP[ind : ind+Nedge]
+		EdgeValues[n] = target[n].DataP[ind : ind+Nedge]
 	}
 	if int(dfr.Tris.Edges[en].ConnectedTris[0]) == kGlobal {
-		// This normal was computed for this element
+		// These values were stored in this element's order
 		sign = 1
 	} else {
-		// This normal should be reversed in direction and sign
+		// These values should be reversed in direction (and if normals, sign as well)
 		sign = -1
 	}
 	return
@@ -175,12 +189,12 @@ func (c *Euler) CalculateNormalFlux(Time float64, CalculateDT bool, Jdet, DT []u
 			}
 		}
 		// Load the normal flux into the global normal flux storage
-		edgeIndex := c.NormalFlux.FluxStorageIndex[en]
+		edgeIndex := c.EdgeStore.StorageIndex[en]
 		for i := 0; i < Nedge; i++ {
 			ind := i + edgeIndex*Nedge
 			for n := 0; n < 4; n++ {
-				c.NormalFlux.EdgeFluxStorage[n].DataP[ind] = normalFlux[i][n]
-				c.NormalFlux.EdgeSolutionStorage[n].DataP[ind] = avgSolution[i][n]
+				c.EdgeStore.EdgeFluxStorage[n].DataP[ind] = normalFlux[i][n]
+				c.EdgeStore.EdgeSolutionStorage[n].DataP[ind] = avgSolution[i][n]
 			}
 		}
 		if CalculateDT {
@@ -233,7 +247,8 @@ func (c *Euler) SetRTFluxOnEdges(myThread, Kmax int, F_RT_DOF [4]utils.Matrix) {
 		kGlobal := c.Partitions.GetGlobalK(k, myThread)
 		for edgeNum := 0; edgeNum < 3; edgeNum++ {
 			shift := edgeNum * Nedge
-			nFlux, sign := c.NormalFlux.GetEdgeNormalFlux(kGlobal, edgeNum, dfr)
+			//nFlux, sign := c.EdgeStore.GetEdgeNormalFlux(kGlobal, edgeNum, dfr)
+			nFlux, sign := c.EdgeStore.GetEdgeValues(EdgeFlux, kGlobal, edgeNum, dfr)
 			ind2 := kGlobal + KmaxGlobal*edgeNum
 			IInII := dfr.IInII.DataP[ind2]
 			for n := 0; n < 4; n++ {

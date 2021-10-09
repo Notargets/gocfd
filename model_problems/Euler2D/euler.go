@@ -44,7 +44,7 @@ type Euler struct {
 	Limiter              *SolutionLimiter
 	Dissipation          *ScalarDissipation
 	// Edge number mapped quantities, i.e. Face Normal Flux
-	NormalFlux *NormalFluxType
+	EdgeStore *EdgeValueStorage
 }
 
 func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, verbose, profile bool) (c *Euler) {
@@ -69,7 +69,7 @@ func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, ver
 	c.dfr = DG2D.NewDFR2D(ip.PolynomialOrder, plotMesh, meshFile)
 
 	// Allocate Normal flux storage and indices
-	c.NormalFlux = c.NewNormalFlux()
+	c.EdgeStore = c.NewEdgeStorage()
 
 	c.SetParallelDegree(ProcLimit, c.dfr.K) // Must occur after determining the number of elements
 
@@ -241,7 +241,7 @@ func (rk *RungeKutta4SSP) Step(c *Euler) {
 			if !c.LocalTimeStepping {
 				rk.calculateGlobalDT(c)
 			}
-			//fmt.Printf(c.NormalFluxType[0].Print("0NormalFlux"))
+			//fmt.Printf(c.EdgeValueStorage[0].Print("0NormalFlux"))
 			//os.Exit(1)
 			c.Dissipation.CalculateElementViscosity(rk.Jdet, c.Q)
 		case currentStep < 0:
@@ -293,7 +293,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		_ = <-fromController                                // Block until parent sends "go"
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q0) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
-		c.Dissipation.AddDissipation(contLevel, myThread, Jinv, Jdet, Q0, Q_Face, F_RT_DOF)
+		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, Q0, Q_Face, F_RT_DOF)
 		if c.LocalTimeStepping {
 			// Replicate local time step to the other solution points for each k
 			for k := 0; k < Kmax; k++ {
@@ -329,7 +329,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		_ = <-fromController                                // Block until parent sends "go"
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q1) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
-		c.Dissipation.AddDissipation(contLevel, myThread, Jinv, Jdet, Q1, Q_Face, F_RT_DOF)
+		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, Q1, Q_Face, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
@@ -351,7 +351,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		_ = <-fromController                                // Block until parent sends "go"
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q2) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
-		c.Dissipation.AddDissipation(contLevel, myThread, Jinv, Jdet, Q2, Q_Face, F_RT_DOF)
+		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, Q2, Q_Face, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
@@ -373,7 +373,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		_ = <-fromController                                // Block until parent sends "go"
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q3) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
-		c.Dissipation.AddDissipation(contLevel, myThread, Jinv, Jdet, Q3, Q_Face, F_RT_DOF)
+		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, Q3, Q_Face, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		// Note, we are re-using Q1 as storage for Residual here
 		dT = rk.GlobalDT
@@ -571,5 +571,83 @@ func (rk *RungeKutta4SSP) calculateGlobalDT(c *Euler) {
 	rk.GlobalDT = c.CFL / wsMaxAll
 	if rk.Time+rk.GlobalDT > c.FinalTime {
 		rk.GlobalDT = c.FinalTime - rk.Time
+	}
+}
+
+func (c *Euler) GetSolutionGradient(myThread int, Q, GradX, GradY, DOFX, DOFY [4]utils.Matrix) {
+	var (
+		dfr               = c.dfr
+		NpInt, Kmax       = Q[0].Dims()
+		NpFlux, KmaxCheck = GradX[0].Dims()
+		n1x, n2x          = DOFX[0].Dims()
+		n1y, n2y          = DOFY[0].Dims()
+		NpEdge            = dfr.FluxElement.Nedge
+		DXmd, DYmd        = dfr.DXMetric.DataP, dfr.DYMetric.DataP
+	)
+	switch {
+	case Kmax != KmaxCheck:
+		err := fmt.Errorf("K dimensions mismatch, Q[%d] is not GradX[%d]", Kmax, KmaxCheck)
+		panic(err)
+	case n1x != NpFlux || n2x != Kmax:
+		err := fmt.Errorf("Scratch DOFX dimensions mismatch, GradX[%d,%d] is not DOFX[%d,%d]",
+			NpFlux, Kmax, n1x, n2x)
+		panic(err)
+	case n1y != NpFlux || n2y != Kmax:
+		err := fmt.Errorf("Scratch DOFY dimensions mismatch, GradY[%d,%d] is not DOFY[%d,%d]",
+			NpFlux, Kmax, n1y, n2y)
+		panic(err)
+	}
+	for n := 0; n < 4; n++ {
+		var (
+			Un           float64
+			DOFXd, DOFYd = DOFX[n].DataP, DOFY[n].DataP
+		)
+		for k := 0; k < Kmax; k++ {
+			for i := 0; i < NpInt; i++ {
+				ind := k + i*Kmax
+				ind2 := k + (i+NpInt)*Kmax
+				Un = Q[n].DataP[ind]
+				DOFXd[ind], DOFYd[ind] = DXmd[ind]*Un, DYmd[ind]*Un
+				DOFXd[ind2], DOFYd[ind2] = DXmd[ind2]*Un, DYmd[ind2]*Un
+			}
+		}
+	}
+	// Load average solution values from solution storage
+	for k := 0; k < Kmax; k++ {
+		var (
+			kGlobal = c.Partitions.GetGlobalK(k, myThread)
+		)
+		for edgeNum := 0; edgeNum < 3; edgeNum++ {
+			edgeVals, sign := c.EdgeStore.GetEdgeValues(SolutionValues, kGlobal, edgeNum, dfr)
+			for n := 0; n < 4; n++ {
+				var (
+					Un           float64
+					DOFXd, DOFYd = DOFX[n].DataP, DOFY[n].DataP
+				)
+				switch {
+				case sign < 0:
+					var ii int
+					for i := NpEdge - 1; i >= 0; i-- {
+						ind := k + (i+edgeNum*NpEdge)*Kmax
+						Un = edgeVals[n][ii]
+						DOFXd[ind] = DXmd[ind] * Un
+						DOFYd[ind] = DYmd[ind] * Un
+						ii++
+					}
+				case sign > 0:
+					for i := 0; i < NpEdge; i++ {
+						ind := k + (i+edgeNum*NpEdge)*Kmax
+						Un = edgeVals[n][i]
+						DOFXd[ind] = DXmd[ind] * Un
+						DOFYd[ind] = DYmd[ind] * Un
+					}
+				}
+			}
+		}
+	}
+	// Calculate Grad(U)
+	for n := 0; n < 4; n++ {
+		dfr.FluxElement.Div.Mul(DOFX[n], GradX[n]) // X Derivative, Divergence x RT_DOF is X derivative for this DOF
+		dfr.FluxElement.Div.Mul(DOFY[n], GradY[n]) // Y Derivative, Divergence x RT_DOF is Y derivative for this DOF
 	}
 }
