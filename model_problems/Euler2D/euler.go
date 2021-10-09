@@ -68,10 +68,10 @@ func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, ver
 	// Read mesh file, initialize geometry and finite elements
 	c.dfr = DG2D.NewDFR2D(ip.PolynomialOrder, plotMesh, meshFile)
 
+	c.SetParallelDegree(ProcLimit, c.dfr.K) // Must occur after determining the number of elements
+
 	// Allocate Normal flux storage and indices
 	c.EdgeStore = c.NewEdgeStorage()
-
-	c.SetParallelDegree(ProcLimit, c.dfr.K) // Must occur after determining the number of elements
 
 	c.PartitionEdgesByK() // Setup the key for edge calculations, useful for parallelizing the process
 
@@ -574,13 +574,13 @@ func (rk *RungeKutta4SSP) calculateGlobalDT(c *Euler) {
 	}
 }
 
-func (c *Euler) GetSolutionGradient(myThread int, Q, GradX, GradY, DOFX, DOFY [4]utils.Matrix) {
+func (c *Euler) GetSolutionGradient(myThread, varNum int, Q [4]utils.Matrix, GradX, GradY, DOFX, DOFY utils.Matrix) {
 	var (
 		dfr               = c.dfr
 		NpInt, Kmax       = Q[0].Dims()
-		NpFlux, KmaxCheck = GradX[0].Dims()
-		n1x, n2x          = DOFX[0].Dims()
-		n1y, n2y          = DOFY[0].Dims()
+		NpFlux, KmaxCheck = GradX.Dims()
+		n1x, n2x          = DOFX.Dims()
+		n1y, n2y          = DOFY.Dims()
 		NpEdge            = dfr.FluxElement.Nedge
 		DXmd, DYmd        = dfr.DXMetric.DataP, dfr.DYMetric.DataP
 	)
@@ -597,57 +597,44 @@ func (c *Euler) GetSolutionGradient(myThread int, Q, GradX, GradY, DOFX, DOFY [4
 			NpFlux, Kmax, n1y, n2y)
 		panic(err)
 	}
-	for n := 0; n < 4; n++ {
-		var (
-			Un           float64
-			DOFXd, DOFYd = DOFX[n].DataP, DOFY[n].DataP
-		)
-		for k := 0; k < Kmax; k++ {
-			for i := 0; i < NpInt; i++ {
-				ind := k + i*Kmax
-				ind2 := k + (i+NpInt)*Kmax
-				Un = Q[n].DataP[ind]
-				DOFXd[ind], DOFYd[ind] = DXmd[ind]*Un, DYmd[ind]*Un
-				DOFXd[ind2], DOFYd[ind2] = DXmd[ind2]*Un, DYmd[ind2]*Un
-			}
+	var (
+		Un           float64
+		DOFXd, DOFYd = DOFX.DataP, DOFY.DataP
+	)
+	for k := 0; k < Kmax; k++ {
+		for i := 0; i < NpInt; i++ {
+			ind := k + i*Kmax
+			ind2 := k + (i+NpInt)*Kmax
+			Un = Q[varNum].DataP[ind]
+			DOFXd[ind], DOFYd[ind] = DXmd[ind]*Un, DYmd[ind]*Un
+			DOFXd[ind2], DOFYd[ind2] = DXmd[ind2]*Un, DYmd[ind2]*Un
 		}
 	}
 	// Load average solution values from solution storage
 	for k := 0; k < Kmax; k++ {
-		var (
-			kGlobal = c.Partitions.GetGlobalK(k, myThread)
-		)
 		for edgeNum := 0; edgeNum < 3; edgeNum++ {
-			edgeVals, sign := c.EdgeStore.GetEdgeValues(SolutionValues, kGlobal, edgeNum, dfr)
-			for n := 0; n < 4; n++ {
-				var (
-					Un           float64
-					DOFXd, DOFYd = DOFX[n].DataP, DOFY[n].DataP
-				)
-				switch {
-				case sign < 0:
-					var ii int
-					for i := NpEdge - 1; i >= 0; i-- {
-						ind := k + (i+edgeNum*NpEdge)*Kmax
-						Un = edgeVals[n][ii]
-						DOFXd[ind] = DXmd[ind] * Un
-						DOFYd[ind] = DYmd[ind] * Un
-						ii++
-					}
-				case sign > 0:
-					for i := 0; i < NpEdge; i++ {
-						ind := k + (i+edgeNum*NpEdge)*Kmax
-						Un = edgeVals[n][i]
-						DOFXd[ind] = DXmd[ind] * Un
-						DOFYd[ind] = DYmd[ind] * Un
-					}
+			edgeVals, sign := c.EdgeStore.GetEdgeValues(SolutionValues, myThread, k, varNum, edgeNum, dfr)
+			switch {
+			case sign < 0:
+				var ii int
+				for i := NpEdge - 1; i >= 0; i-- {
+					ind := k + (i+edgeNum*NpEdge)*Kmax
+					Un = edgeVals[ii]
+					DOFXd[ind] = DXmd[ind] * Un
+					DOFYd[ind] = DYmd[ind] * Un
+					ii++
+				}
+			case sign > 0:
+				for i := 0; i < NpEdge; i++ {
+					ind := k + (i+edgeNum*NpEdge)*Kmax
+					Un = edgeVals[i]
+					DOFXd[ind] = DXmd[ind] * Un
+					DOFYd[ind] = DYmd[ind] * Un
 				}
 			}
 		}
 	}
 	// Calculate Grad(U)
-	for n := 0; n < 4; n++ {
-		dfr.FluxElement.Div.Mul(DOFX[n], GradX[n]) // X Derivative, Divergence x RT_DOF is X derivative for this DOF
-		dfr.FluxElement.Div.Mul(DOFY[n], GradY[n]) // Y Derivative, Divergence x RT_DOF is Y derivative for this DOF
-	}
+	dfr.FluxElement.Div.Mul(DOFX, GradX) // X Derivative, Divergence x RT_DOF is X derivative for this DOF
+	dfr.FluxElement.Div.Mul(DOFY, GradY) // Y Derivative, Divergence x RT_DOF is Y derivative for this DOF
 }
