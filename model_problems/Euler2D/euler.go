@@ -271,6 +271,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		subStep                      int8
 		Nedge                        = c.dfr.FluxElement.Nedge
 		EdgeQ1                       = make([][4]float64, Nedge) // Local working memory
+		EdgeQ2                       = make([][4]float64, Nedge) // Local working memory
 		contLevel                    = C0
 	)
 	for {
@@ -286,7 +287,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 
 		_ = <-fromController // Block until parent sends "go"
 		rk.MaxWaveSpeed[myThread] =
-			c.CalculateNormalFlux(rk.Time, true, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1) // Global
+			c.CalculateNormalFlux(rk.Time, true, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
 		rk.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController                                // Block until parent sends "go"
@@ -321,8 +322,8 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		c.InterpolateSolutionToEdges(Q1, Q_Face) // Interpolates Q_Face values from Q
 		rk.WorkerDone(&subStep, toController, false)
 
-		_ = <-fromController                                                                     // Block until parent sends "go"
-		c.CalculateNormalFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1) // Global
+		_ = <-fromController                                                                             // Block until parent sends "go"
+		c.CalculateNormalFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
 		rk.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController                                // Block until parent sends "go"
@@ -343,8 +344,8 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		c.InterpolateSolutionToEdges(Q2, Q_Face) // Interpolates Q_Face values from Q
 		rk.WorkerDone(&subStep, toController, false)
 
-		_ = <-fromController                                                                     // Block until parent sends "go"
-		c.CalculateNormalFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1) // Global
+		_ = <-fromController                                                                             // Block until parent sends "go"
+		c.CalculateNormalFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
 		rk.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController                                // Block until parent sends "go"
@@ -365,8 +366,8 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		c.InterpolateSolutionToEdges(Q3, Q_Face) // Interpolates Q_Face values from Q
 		rk.WorkerDone(&subStep, toController, false)
 
-		_ = <-fromController                                                                     // Block until parent sends "go"
-		c.CalculateNormalFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1) // Global
+		_ = <-fromController                                                                             // Block until parent sends "go"
+		c.CalculateNormalFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
 		rk.WorkerDone(&subStep, toController, false)
 
 		_ = <-fromController                                // Block until parent sends "go"

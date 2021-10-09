@@ -41,8 +41,9 @@ func (p EdgeKeySliceSortLeft) Less(i, j int) bool {
 }
 
 type NormalFluxType struct {
-	EdgeFluxStorage  [4]utils.Matrix       // Normal flux storage, dimension is NpEdge x Nedges
-	FluxStorageIndex map[types.EdgeKey]int // Index into normal flux storage using edge key
+	EdgeFluxStorage     [4]utils.Matrix       // Normal flux storage, dimension is NpEdge x Nedges
+	EdgeSolutionStorage [4]utils.Matrix       // Edge Solution storage, dimension is NpEdge x Nedges
+	FluxStorageIndex    map[types.EdgeKey]int // Index into normal flux storage using edge key
 }
 
 func (c *Euler) NewNormalFlux() (nf *NormalFluxType) {
@@ -53,6 +54,7 @@ func (c *Euler) NewNormalFlux() (nf *NormalFluxType) {
 	NumEdges := len(c.dfr.Tris.Edges)
 	for n := 0; n < 4; n++ {
 		nf.EdgeFluxStorage[n] = utils.NewMatrix(NumEdges, c.dfr.FluxElement.Nedge)
+		nf.EdgeSolutionStorage[n] = utils.NewMatrix(NumEdges, c.dfr.FluxElement.Nedge)
 	}
 	var index int
 	for en, _ := range c.dfr.Tris.Edges {
@@ -86,12 +88,14 @@ func (nf *NormalFluxType) GetEdgeNormalFlux(kGlobal, localEdgeNumber int, dfr *D
 	return
 }
 
-func (c *Euler) CalculateNormalFlux(Time float64, CalculateDT bool, Jdet, DT []utils.Matrix, Q_Face [][4]utils.Matrix, edgeKeys EdgeKeySlice, EdgeQ1 [][4]float64) (waveSpeedMax float64) {
+func (c *Euler) CalculateNormalFlux(Time float64, CalculateDT bool, Jdet, DT []utils.Matrix, Q_Face [][4]utils.Matrix,
+	edgeKeys EdgeKeySlice, EdgeQ1, EdgeQ2 [][4]float64) (waveSpeedMax float64) {
 	var (
-		Nedge      = c.dfr.FluxElement.Nedge
-		normalFlux = EdgeQ1
-		pm         = c.Partitions
-		KmaxGlobal = c.dfr.K
+		Nedge       = c.dfr.FluxElement.Nedge
+		normalFlux  = EdgeQ1
+		avgSolution = EdgeQ2
+		pm          = c.Partitions
+		KmaxGlobal  = c.dfr.K
 	)
 	for _, en := range edgeKeys {
 		e := c.dfr.Tris.Edges[en]
@@ -135,6 +139,14 @@ func (c *Euler) CalculateNormalFlux(Time float64, CalculateDT bool, Jdet, DT []u
 					}
 				}
 			}
+			// Store the average solution for this edge - there's only one tri, so it's just a copy of this edge
+			for i := 0; i < Nedge; i++ {
+				ie := i + shift
+				ind := k + ie*Kmax
+				for n := 0; n < 4; n++ {
+					avgSolution[i][n] = Q_Face[bn][n].DataP[ind]
+				}
+			}
 		case 2: // Handle edges with two connected tris - shared faces
 			var (
 				//				kL, kR                   = int(e.ConnectedTris[0]), int(e.ConnectedTris[1])
@@ -153,6 +165,14 @@ func (c *Euler) CalculateNormalFlux(Time float64, CalculateDT bool, Jdet, DT []u
 			case FLUX_RoeER:
 				c.RoeERFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[bnL], Q_Face[bnR], normal0, normalFlux)
 			}
+			// Store the average solution for this edge - average of the two connected tri edges
+			for i := 0; i < Nedge; i++ {
+				indL := kL + (i+shiftL)*KmaxL
+				indR := kR + (Nedge-1-i+shiftR)*KmaxR
+				for n := 0; n < 4; n++ {
+					avgSolution[i][n] = 0.5 * (Q_Face[bnL][n].DataP[indL] + Q_Face[bnR][n].DataP[indR])
+				}
+			}
 		}
 		// Load the normal flux into the global normal flux storage
 		edgeIndex := c.NormalFlux.FluxStorageIndex[en]
@@ -160,6 +180,7 @@ func (c *Euler) CalculateNormalFlux(Time float64, CalculateDT bool, Jdet, DT []u
 			ind := i + edgeIndex*Nedge
 			for n := 0; n < 4; n++ {
 				c.NormalFlux.EdgeFluxStorage[n].DataP[ind] = normalFlux[i][n]
+				c.NormalFlux.EdgeSolutionStorage[n].DataP[ind] = avgSolution[i][n]
 			}
 		}
 		if CalculateDT {
