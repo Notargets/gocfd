@@ -308,7 +308,6 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		}
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		//contLevel := No
-		//c.Dissipation.AddDissipation(contLevel, myThread, rk.Jdet, c.Q, rk.RHSQ)
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
 			for i := 0; i < Kmax*Np; i++ {
@@ -331,7 +330,6 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		c.Dissipation.AddDissipation(contLevel, myThread, Jinv, Jdet, Q1, Q_Face, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
-		//c.Dissipation.AddDissipation(contLevel, myThread, rk.Jdet, rk.Q1, rk.RHSQ)
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
 			for i := 0; i < Kmax*Np; i++ {
@@ -354,7 +352,6 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		c.Dissipation.AddDissipation(contLevel, myThread, Jinv, Jdet, Q2, Q_Face, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
-		//c.Dissipation.AddDissipation(contLevel, myThread, rk.Jdet, rk.Q2, rk.RHSQ)
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
 			for i := 0; i < Kmax*Np; i++ {
@@ -377,7 +374,6 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		c.Dissipation.AddDissipation(contLevel, myThread, Jinv, Jdet, Q3, Q_Face, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
-		//c.Dissipation.AddDissipation(contLevel, myThread, rk.Jdet, rk.Q3, rk.RHSQ)
 		// Note, we are re-using Q1 as storage for Residual here
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {

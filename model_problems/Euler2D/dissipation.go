@@ -77,19 +77,85 @@ func (ve VertexToElement) Shard(pm *PartitionMap) (veSharded []VertexToElement) 
 }
 
 type ScalarDissipation struct {
-	VtoE              []VertexToElement // Sharded vertex to element map, [2] is [vertID, ElementID_Sharded]
-	EtoV              []utils.Matrix    // Sharded Element to Vertex map, Kx3
-	Epsilon           []utils.Matrix    // Sharded Np x Kmax, Interpolated from element vertices
-	EpsilonScalar     [][]float64       // Sharded scalar value of dissipation, one per element
-	DOFX, DOFY        []utils.Matrix    // Sharded NpFlux x Kmax, DOF for Gradient calculation using RT
-	DissX, DissY      []utils.Matrix    // Sharded NpFlux x Kmax, X and Y derivative of dissipation field
-	EpsVertex         []float64         // NVerts x 1, Aggregated (Max) of epsilon surrounding each vertex, Not sharded
-	PMap              *PartitionMap     // Partition map for the solution shards in K
-	U, UClipped       []utils.Matrix    // Sharded scratch areas for assembly and testing of solution values
-	Clipper           utils.Matrix      // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder
-	dfr               *DG2D.DFR2D
-	S0, Kappa         float64
-	BaryCentricCoords utils.Matrix // A thruple(lam0,lam1,lam2) for interpolation for each interior point, Npx3
+	VtoE                []VertexToElement // Sharded vertex to element map, [2] is [vertID, ElementID_Sharded]
+	EtoV                []utils.Matrix    // Sharded Element to Vertex map, Kx3
+	Epsilon             []utils.Matrix    // Sharded Np x Kmax, Interpolated from element vertices
+	EpsilonScalar       [][]float64       // Sharded scalar value of dissipation, one per element
+	DOFX, DOFY          []utils.Matrix    // Sharded NpFlux x Kmax, DOF for Gradient calculation using RT
+	DissX, DissY        []utils.Matrix    // Sharded NpFlux x Kmax, X and Y derivative of dissipation field
+	EpsVertex           []float64         // NVerts x 1, Aggregated (Max) of epsilon surrounding each vertex, Not sharded
+	PMap                *PartitionMap     // Partition map for the solution shards in K
+	U, UClipped         []utils.Matrix    // Sharded scratch areas for assembly and testing of solution values
+	Clipper             utils.Matrix      // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder
+	dfr                 *DG2D.DFR2D
+	S0, Kappa           float64
+	BaryCentricCoords   utils.Matrix // A thruple(lam0,lam1,lam2) for interpolation for each interior point, Npx3
+	VertexEpsilonValues []utils.Matrix
+}
+
+func NewScalarDissipation(kappa float64, dfr *DG2D.DFR2D, pm *PartitionMap) (sd *ScalarDissipation) {
+	var (
+		NPar   = pm.ParallelDegree
+		el     = dfr.SolutionElement
+		Np     = el.Np
+		NpFlux = dfr.FluxElement.Np
+		order  = float64(el.N)
+		NVerts = dfr.VX.Len()
+	)
+	sd = &ScalarDissipation{
+		EpsVertex:           make([]float64, NVerts),
+		EpsilonScalar:       make([][]float64, NPar),    // Viscosity, constant over the element
+		Epsilon:             make([]utils.Matrix, NPar), // Epsilon field, expressed over solution points
+		VertexEpsilonValues: make([]utils.Matrix, NPar), // Epsilon field, expressed over solution points
+		DOFX:                make([]utils.Matrix, NPar),
+		DOFY:                make([]utils.Matrix, NPar),
+		DissX:               make([]utils.Matrix, NPar),
+		DissY:               make([]utils.Matrix, NPar),
+		VtoE:                NewVertexToElement(dfr.Tris.EToV).Shard(pm),
+		PMap:                pm,
+		dfr:                 dfr,
+		// Sharded working matrices
+		U:        make([]utils.Matrix, NPar),
+		UClipped: make([]utils.Matrix, NPar),
+		S0:       1. / math.Pow(order, 4.),
+		Kappa:    0.25,
+	}
+	sd.EtoV = sd.shardEtoV(dfr.Tris.EToV)
+	sd.createInterpolationStencil()
+	if kappa != 0. {
+		sd.Kappa = kappa
+	}
+	for np := 0; np < NPar; np++ {
+		sd.U[np] = utils.NewMatrix(Np, 1)
+		sd.UClipped[np] = utils.NewMatrix(Np, 1)
+		Kmax := pm.GetBucketDimension(np)
+		sd.Epsilon[np] = utils.NewMatrix(NpFlux, Kmax)
+		sd.VertexEpsilonValues[np] = utils.NewMatrix(3, Kmax)
+		sd.EpsilonScalar[np] = make([]float64, Kmax)
+		sd.DOFX[np] = utils.NewMatrix(NpFlux, Kmax)
+		sd.DOFY[np] = utils.NewMatrix(NpFlux, Kmax)
+		sd.DissX[np] = utils.NewMatrix(NpFlux, Kmax)
+		sd.DissY[np] = utils.NewMatrix(NpFlux, Kmax)
+	}
+	/*
+		The "Clipper" matrix drops the last mode from the polynomial and forms an alternative field of values at the node
+		points based on a polynomial with one less term. In other words, if we have a polynomial of degree "p", expressed
+		as values at Np node points, multiplying the Node point values vector by Clipper produces an alternative version
+		of the node values based on truncating the last polynomial mode.
+	*/
+	{
+		data := make([]float64, Np)
+		for i := 0; i < Np; i++ {
+			if i != Np-1 {
+				data[i] = 1.
+			} else {
+				data[i] = 0.
+			}
+		}
+		diag := utils.NewDiagMatrix(Np, data)
+		sd.Clipper = sd.dfr.SolutionElement.V.Mul(diag).Mul(sd.dfr.SolutionElement.Vinv)
+	}
+	return
 }
 
 func (sd *ScalarDissipation) shardEtoV(EtoV utils.Matrix) (ev []utils.Matrix) {
@@ -114,69 +180,6 @@ func (sd *ScalarDissipation) shardEtoV(EtoV utils.Matrix) (ev []utils.Matrix) {
 			msg := fmt.Errorf("dimension incorrect, should be %d, is %d", KMax, klocal)
 			panic(msg)
 		}
-	}
-	return
-}
-
-func NewScalarDissipation(kappa float64, dfr *DG2D.DFR2D, pm *PartitionMap) (sd *ScalarDissipation) {
-	var (
-		NPar   = pm.ParallelDegree
-		el     = dfr.SolutionElement
-		Np     = el.Np
-		NpFlux = dfr.FluxElement.Np
-		order  = float64(el.N)
-		NVerts = dfr.VX.Len()
-	)
-	sd = &ScalarDissipation{
-		EpsVertex:     make([]float64, NVerts),
-		EpsilonScalar: make([][]float64, NPar),    // Viscosity, constant over the element
-		Epsilon:       make([]utils.Matrix, NPar), // Epsilon field, expressed over solution points
-		DOFX:          make([]utils.Matrix, NPar),
-		DOFY:          make([]utils.Matrix, NPar),
-		DissX:         make([]utils.Matrix, NPar),
-		DissY:         make([]utils.Matrix, NPar),
-		VtoE:          NewVertexToElement(dfr.Tris.EToV).Shard(pm),
-		PMap:          pm,
-		dfr:           dfr,
-		// Sharded working matrices
-		U:        make([]utils.Matrix, NPar),
-		UClipped: make([]utils.Matrix, NPar),
-		S0:       1. / math.Pow(order, 4.),
-		Kappa:    0.25,
-	}
-	sd.EtoV = sd.shardEtoV(dfr.Tris.EToV)
-	sd.createInterpolationStencil()
-	if kappa != 0. {
-		sd.Kappa = kappa
-	}
-	for np := 0; np < NPar; np++ {
-		sd.U[np] = utils.NewMatrix(Np, 1)
-		sd.UClipped[np] = utils.NewMatrix(Np, 1)
-		Kmax := pm.GetBucketDimension(np)
-		sd.Epsilon[np] = utils.NewMatrix(NpFlux, Kmax)
-		sd.EpsilonScalar[np] = make([]float64, Kmax)
-		sd.DOFX[np] = utils.NewMatrix(NpFlux, Kmax)
-		sd.DOFY[np] = utils.NewMatrix(NpFlux, Kmax)
-		sd.DissX[np] = utils.NewMatrix(NpFlux, Kmax)
-		sd.DissY[np] = utils.NewMatrix(NpFlux, Kmax)
-	}
-	/*
-		The "Clipper" matrix drops the last mode from the polynomial and forms an alternative field of values at the node
-		points based on a polynomial with one less term. In other words, if we have a polynomial of degree "p", expressed
-		as values at Np node points, multiplying the Node point values vector by Clipper produces an alternative version
-		of the node values based on truncating the last polynomial mode.
-	*/
-	{
-		data := make([]float64, Np)
-		for i := 0; i < Np; i++ {
-			if i != Np-1 {
-				data[i] = 1.
-			} else {
-				data[i] = 0.
-			}
-		}
-		diag := utils.NewDiagMatrix(Np, data)
-		sd.Clipper = sd.dfr.SolutionElement.V.Mul(diag).Mul(sd.dfr.SolutionElement.Vinv)
 	}
 	return
 }
@@ -209,19 +212,39 @@ const (
 
 func (sd *ScalarDissipation) AddDissipation(cont ContinuityLevel, myThread int, Jinv, Jdet utils.Matrix,
 	Q, QFace, F_RT_DOF [4]utils.Matrix) {
-	// TODO: Find/Fix memory allocation leak while re-writing this
-	// TODO: Find/Fix performance issue with C0 version - it is caused by the linear interpolation function
-	// TODO: Memory leak *and* performance issue are verified in the linear interpolation function
+	/*
+		The dissipation term is in the form:
+		diss = epsilon*Grad(U)
+
+		dU/dT = -Div(Flux) + Div(diss)
+		dU/dT = -Div(Flux) + Div(epsilon*Grad(U))
+		dU/dT = -(Div(Flux) - Div(epsilon*Grad(U)))
+		dU/dT = -Div(Flux - epsilon*Grad(U))
+	*/
 	var (
 		dfr                   = sd.dfr
 		Kmax                  = sd.PMap.GetBucketDimension(myThread)
 		NpInt, NpEdge, NpFlux = dfr.FluxElement.Nint, dfr.FluxElement.Nedge, dfr.FluxElement.Np
 
-		EpsilonScalar = sd.EpsilonScalar[myThread]
-		Epsilon       = sd.Epsilon[myThread]
-		DOFX, DOFY    = sd.DOFX[myThread], sd.DOFY[myThread]
-		DissX, DissY  = sd.DissX[myThread], sd.DissY[myThread]
+		EpsilonScalar       = sd.EpsilonScalar[myThread]
+		Epsilon             = sd.Epsilon[myThread]
+		DOFX, DOFY          = sd.DOFX[myThread], sd.DOFY[myThread]
+		DissX, DissY        = sd.DissX[myThread], sd.DissY[myThread]
+		EtoV                = sd.EtoV[myThread]
+		VertexEpsilonValues = sd.VertexEpsilonValues[myThread]
 	)
+	if cont == C0 {
+		// Interpolate epsilon within each element
+		for k := 0; k < Kmax; k++ {
+			tri := EtoV.DataP[3*k : 3*k+3]
+			v := [3]int{int(tri[0]), int(tri[1]), int(tri[2])}
+			for vert := 0; vert < 3; vert++ {
+				ind := k + vert*Kmax
+				VertexEpsilonValues.DataP[ind] = sd.EpsVertex[v[vert]]
+			}
+		}
+		sd.BaryCentricCoords.Mul(VertexEpsilonValues, Epsilon)
+	}
 	for n := 0; n < 4; n++ {
 		var (
 			Un           float64
@@ -243,33 +266,27 @@ func (sd *ScalarDissipation) AddDissipation(cont ContinuityLevel, myThread int, 
 				DOFYd[ind] = DYmd[ind] * Un
 			}
 		}
+		// Calculate Grad(U)
+		dfr.FluxElement.Div.Mul(DOFX, DissX) // X Derivative, Divergence x RT_DOF is X derivative for this DOF
+		dfr.FluxElement.Div.Mul(DOFY, DissY) // Y Derivative, Divergence x RT_DOF is Y derivative for this DOF
 		switch cont {
 		case No:
 			for k := 0; k < Kmax; k++ {
 				for i := 0; i < NpFlux; i++ {
 					ind := k + Kmax*i
-					DOFXd[ind] *= EpsilonScalar[k] // Scalar viscosity, constant within each k'th element
-					DOFYd[ind] *= EpsilonScalar[k]
+					DissX.DataP[ind] *= EpsilonScalar[k] // Scalar viscosity, constant within each k'th element
+					DissY.DataP[ind] *= EpsilonScalar[k]
 				}
 			}
 		case C0:
-			// Interpolate epsilon within each element
-			sd.linearInterpolateEpsilon(myThread)
-			for k := 0; k < Kmax; k++ {
-				for i := 0; i < NpFlux; i++ {
-					ind := k + Kmax*i
-					DOFXd[ind] *= Epsilon.DataP[ind] // C0 viscosity, linear within each k'th element
-					DOFYd[ind] *= Epsilon.DataP[ind]
-				}
-			}
+			DissX.ElMul(Epsilon)
+			DissY.ElMul(Epsilon)
 		}
-		dfr.FluxElement.Div.Mul(DOFX, DissX) // X Derivative, Divergence x RT_DOF is X derivative for this DOF
-		dfr.FluxElement.Div.Mul(DOFY, DissY) // Y Derivative, Divergence x RT_DOF is Y derivative for this DOF
-
 		/*
 			Add the DissX and DissY to the F_RT_DOF using the contravariant transform for the interior
 			and IInII for the edges
 		*/
+		scale := 1.00
 		var (
 			DiXd, DiYd = DissX.DataP, DissY.DataP
 		)
@@ -285,8 +302,8 @@ func (sd *ScalarDissipation) AddDissipation(cont ContinuityLevel, myThread int, 
 				ind2 := k + Kmax*(i+NpInt)
 				DissR := JdetD * (JinvD[0]*DiXd[ind] + JinvD[1]*DiYd[ind])
 				DissS := JdetD * (JinvD[2]*DiXd[ind] + JinvD[3]*DiYd[ind])
-				F_RT_DOF[n].DataP[ind] += DissR
-				F_RT_DOF[n].DataP[ind2] += DissS
+				F_RT_DOF[n].DataP[ind] -= scale * DissR
+				F_RT_DOF[n].DataP[ind2] -= scale * DissS
 			}
 			for edgeNum := 0; edgeNum < 3; edgeNum++ {
 				var (
@@ -294,10 +311,11 @@ func (sd *ScalarDissipation) AddDissipation(cont ContinuityLevel, myThread int, 
 					IInII = IInIId[fInd]
 					nx    = dfr.FaceNorm[0].DataP[fInd]
 					ny    = dfr.FaceNorm[1].DataP[fInd]
+					shift = NpEdge * edgeNum
 				)
 				for i := 0; i < NpEdge; i++ {
-					ind := k + Kmax*(i*edgeNum+2*NpInt)
-					F_RT_DOF[n].DataP[ind] += (nx*DiXd[ind] + ny*DiYd[ind]) * IInII
+					ind := k + (2*NpInt+i+shift)*Kmax
+					F_RT_DOF[n].DataP[ind] -= scale * (nx*DiXd[ind] + ny*DiYd[ind]) * IInII
 				}
 			}
 		}
@@ -388,6 +406,14 @@ func (sd *ScalarDissipation) CalculateElementViscosity(JdetAll []utils.Matrix, Q
 				U        = sd.U[myThread]
 				UClipped = sd.UClipped[myThread]
 			)
+			/*
+				Eps0 wants to be (h/p) and is supposed to be proportional to cell width
+				Something like this for the "h" quantity seems right
+					Np1  = c.dfr.N + 1
+					Np12 = float64(Np1 * Np1)
+					edgeLen     = e.GetEdgeLength()
+					fs := 0.5 * Np12 * edgeLen / Jdet[bn].DataP[k]
+			*/
 			for k := 0; k < Kmax; k++ {
 				var (
 					eps0        = math.Sqrt(2.*Jdet.DataP[k]) / float64(sd.dfr.SolutionElement.N)
@@ -398,9 +424,9 @@ func (sd *ScalarDissipation) CalculateElementViscosity(JdetAll []utils.Matrix, Q
 				switch {
 				case Se < left:
 					Eps[k] = 0.
-				case Se >= left && Se < right:
+				case Se >= left && Se <= right:
 					Eps[k] = 0.5 * eps0 * (1. + math.Sin(math.Pi*oo2kappa*(Se-sd.S0)))
-				case Se >= right:
+				case Se > right:
 					Eps[k] = eps0
 				}
 			}
@@ -438,8 +464,8 @@ func (sd *ScalarDissipation) moment(k, Kmax int, U, UClipped, Rho utils.Matrix) 
 
 func (sd *ScalarDissipation) createInterpolationStencil() {
 	var (
-		Np    = sd.dfr.SolutionElement.Np
-		R, S  = sd.dfr.SolutionElement.R, sd.dfr.SolutionElement.S
+		Np    = sd.dfr.FluxElement.Np
+		R, S  = sd.dfr.FluxElement.R, sd.dfr.FluxElement.S
 		RRinv utils.Matrix
 		err   error
 	)
@@ -469,7 +495,6 @@ func (sd *ScalarDissipation) createInterpolationStencil() {
 		LAM := RRinv.Mul(C)
 		for ii := 0; ii < 3; ii++ {
 			sd.BaryCentricCoords.DataP[ii+3*i] = LAM.DataP[ii]
-			//sd.BaryCentricCoords.Set(i, ii, LAM.DataP[ii])
 		}
 	}
 }

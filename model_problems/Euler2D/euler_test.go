@@ -402,7 +402,10 @@ func TestDissipation(t *testing.T) {
 		for NP := 1; NP < 5; NP++ {
 			pm := NewPartitionMap(NP, KMax)
 			sd := NewScalarDissipation(0, dfr, pm)
-			assert.InDeltaSlicef(t, []float64{0.66667, 0.16667, 0.16667, 0.16667, 0.66667, 0.16667, 0.16667, 0.16667, 0.66667},
+			assert.InDeltaSlicef(t, []float64{0.666666, 0.166666, 0.166666, 0.166666, 0.666666, 0.166666, 0.166666, 0.166666,
+				0.666666, 0.666666, 0.166666, 0.166666, 0.166666, 0.666666, 0.166666, 0.166666, 0.166666, 0.666666, 0.827326,
+				0.172673, 0, 0.5, 0.5, 0, 0.172673, 0.827326, 0, 0, 0.827326, 0.172673, 0, 0.5, 0.5, 0, 0.172673, 0.827326,
+				0.172673, 0, 0.827326, 0.5, 0, 0.5, 0.827326, 0, 0.172673},
 				sd.BaryCentricCoords.DataP, 0.00001, "err msg %s")
 			// Set the epsilon scalar value to the element ID and check the vertex aggregation
 			for np := 0; np < NP; np++ {
