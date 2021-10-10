@@ -93,9 +93,7 @@ func (nf *EdgeValueStorage) GetEdgeValues(valType ValueType, myThread, kLocal, v
 	en := dfr.EdgeNumber[ind]
 	edgeIndex := nf.StorageIndex[en]
 	ind = edgeIndex * Nedge
-	for n := 0; n < 4; n++ {
-		EdgeValues = target.DataP[ind : ind+Nedge]
-	}
+	EdgeValues = target.DataP[ind : ind+Nedge]
 	if int(dfr.Tris.Edges[en].ConnectedTris[0]) == kGlobal {
 		// These values were stored in this element's order
 		sign = 1

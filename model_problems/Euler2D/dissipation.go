@@ -221,9 +221,9 @@ func (sd *ScalarDissipation) AddDissipation(c *Euler, cont ContinuityLevel, myTh
 		dU/dT = -Div(Flux - epsilon*Grad(U))
 	*/
 	var (
-		dfr                   = sd.dfr
-		Kmax                  = sd.PMap.GetBucketDimension(myThread)
-		NpInt, NpEdge, NpFlux = dfr.FluxElement.Nint, dfr.FluxElement.Nedge, dfr.FluxElement.Np
+		dfr           = sd.dfr
+		Kmax          = sd.PMap.GetBucketDimension(myThread)
+		NpInt, NpFlux = dfr.FluxElement.Nint, dfr.FluxElement.Np
 
 		EpsilonScalar       = sd.EpsilonScalar[myThread]
 		Epsilon             = sd.Epsilon[myThread]
@@ -263,9 +263,10 @@ func (sd *ScalarDissipation) AddDissipation(c *Euler, cont ContinuityLevel, myTh
 			Add the DissX and DissY to the F_RT_DOF using the contravariant transform for the interior
 			and IInII for the edges
 		*/
-		scale := 0.10
+		scale := 1.00
 		var (
 			DiXd, DiYd = DissX.DataP, DissY.DataP
+			NpEdge     = dfr.FluxElement.Nedge
 		)
 		for k := 0; k < Kmax; k++ {
 			var (
@@ -370,18 +371,22 @@ func (sd *ScalarDissipation) GetC0EpsilonPlotField(c *Euler) (fld utils.Matrix) 
 
 func (sd *ScalarDissipation) CalculateElementViscosity(JdetAll []utils.Matrix, Qall [][4]utils.Matrix) {
 	var (
-		wg = sync.WaitGroup{}
+		wg  = sync.WaitGroup{}
+		dfr = sd.dfr
 	)
 	for np := 0; np < sd.PMap.ParallelDegree; np++ {
 		wg.Add(1)
 		go func(myThread int) {
 			var (
-				Rho      = Qall[myThread][0]
-				Jdet     = JdetAll[myThread]
-				Eps      = sd.EpsilonScalar[myThread]
-				Kmax     = sd.PMap.GetBucketDimension(myThread)
-				U        = sd.U[myThread]
-				UClipped = sd.UClipped[myThread]
+				Rho        = Qall[myThread][0]
+				Jdet       = JdetAll[myThread]
+				Eps        = sd.EpsilonScalar[myThread]
+				Kmax       = sd.PMap.GetBucketDimension(myThread)
+				U          = sd.U[myThread]
+				UClipped   = sd.UClipped[myThread]
+				KMaxGlobal = sd.PMap.MaxIndex
+				Np1        = sd.dfr.N
+				Np12       = float64(Np1 * Np1)
 			)
 			/*
 				Eps0 wants to be (h/p) and is supposed to be proportional to cell width
@@ -391,9 +396,25 @@ func (sd *ScalarDissipation) CalculateElementViscosity(JdetAll []utils.Matrix, Q
 					edgeLen     = e.GetEdgeLength()
 					fs := 0.5 * Np12 * edgeLen / Jdet[bn].DataP[k]
 			*/
+			_, _ = Np12, Jdet
 			for k := 0; k < Kmax; k++ {
+				// Get edges for this element
+				kGlobal := sd.PMap.GetGlobalK(k, myThread)
+				var maxEdgeLen float64
+				maxEdgeLen = -1
+				for edgeNum := 0; edgeNum < 3; edgeNum++ {
+					ind := kGlobal + KMaxGlobal*edgeNum
+					en := dfr.EdgeNumber[ind]
+					e := dfr.Tris.Edges[en]
+					edgeLen := e.GetEdgeLength()
+					if edgeLen > maxEdgeLen {
+						maxEdgeLen = edgeLen
+					}
+				}
 				var (
-					eps0        = math.Sqrt(2.*Jdet.DataP[k]) / float64(sd.dfr.SolutionElement.N)
+					eps0 = math.Sqrt(2.*Jdet.DataP[k]) / float64(sd.dfr.SolutionElement.N)
+					//eps0        = Jdet.DataP[k] * maxEdgeLen / Np12
+					//eps0        = 0.5 * maxEdgeLen * Np12 * Jdet.DataP[k]
 					Se          = math.Log10(sd.moment(k, Kmax, U, UClipped, Rho))
 					left, right = sd.S0 - sd.Kappa, sd.S0 + sd.Kappa
 					oo2kappa    = 0.5 / sd.Kappa
