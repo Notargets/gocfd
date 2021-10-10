@@ -489,28 +489,30 @@ func TestDissipation2(t *testing.T) {
 		for n := 0; n < 4; n++ {
 			Q[n] = utils.NewMatrix(NpInt, Kmax)
 			Q_Face[n] = utils.NewMatrix(3*Nedge, Kmax)
-			QGradXCheck[n] = utils.NewMatrix(NpInt, Kmax)
-			QGradYCheck[n] = utils.NewMatrix(NpInt, Kmax)
+			QGradXCheck[n] = utils.NewMatrix(NpFlux, Kmax)
+			QGradYCheck[n] = utils.NewMatrix(NpFlux, Kmax)
 		}
 		// Each variable [n] is an nth order polynomial in X and Y
-		for i := 0; i < NpInt; i++ {
+		for i := 0; i < NpFlux; i++ {
 			for k := 0; k < Kmax; k++ {
 				ind := k + i*Kmax
-				X, Y := dfr.SolutionX.DataP[ind], dfr.SolutionY.DataP[ind]
+				X, Y := dfr.FluxX.DataP[ind], dfr.FluxY.DataP[ind]
+				if i < NpInt {
+					Q[0].DataP[ind] = X + Y
+					Q[1].DataP[ind] = X*X + Y*Y
+					Q[2].DataP[ind] = X*X*X + Y*Y*Y
+					Q[3].DataP[ind] = X*X*X*X + Y*Y*Y*Y
+				}
 				// First order in X and Y
-				Q[0].DataP[ind] = X + Y
 				QGradXCheck[0].DataP[ind] = 1.
 				QGradYCheck[0].DataP[ind] = 1.
 				// Second order in X and Y
-				Q[1].DataP[ind] = X*X + Y*Y
 				QGradXCheck[1].DataP[ind] = 2 * X
 				QGradYCheck[1].DataP[ind] = 2 * Y
 				// Third order in X and Y
-				Q[2].DataP[ind] = X*X*X + Y*Y*Y
 				QGradXCheck[2].DataP[ind] = 3 * X * X
 				QGradYCheck[2].DataP[ind] = 3 * Y * Y
 				// Fourth order in X and Y
-				Q[3].DataP[ind] = X*X*X*X + Y*Y*Y*Y
 				QGradXCheck[3].DataP[ind] = 4 * X * X * X
 				QGradYCheck[3].DataP[ind] = 4 * Y * Y * Y
 			}
@@ -520,35 +522,48 @@ func TestDissipation2(t *testing.T) {
 		for n := 0; n < 4; n++ {
 			Q_Face[n] = fI(Q[n])
 		}
-		for n := 0; n < 4; n++ {
-			var (
-				DXmd, DYmd   = dfr.DXMetric.DataP, dfr.DYMetric.DataP
-				DOFX, DOFY   = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
-				DOFXd, DOFYd = DOFX.DataP, DOFY.DataP
-			)
-			//for n := 0; n < 3; n++ {
-			var Un float64
-			for k := 0; k < Kmax; k++ {
-				for i := 0; i < NpFlux; i++ {
-					ind := k + i*Kmax
-					switch {
-					case i < NpInt: // The first NpInt points are the solution element nodes
-						Un = Q[n].DataP[ind]
-					case i >= NpInt && i < 2*NpInt: // The second NpInt points are duplicates of the first NpInt values
-						Un = Q[n].DataP[ind-NpInt*Kmax]
-					case i >= 2*NpInt:
-						Un = Q_Face[n].DataP[ind-2*NpInt*Kmax] // The last 3*Nedge points are the edges in [0-1,1-2,2-0] order
+		// Test hard coded loop GradX and GradY
+		{
+			for n := 0; n < 4; n++ {
+				var (
+					DXmd, DYmd   = dfr.DXMetric.DataP, dfr.DYMetric.DataP
+					DOFX, DOFY   = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+					DOFXd, DOFYd = DOFX.DataP, DOFY.DataP
+				)
+				var Un float64
+				for k := 0; k < Kmax; k++ {
+					for i := 0; i < NpFlux; i++ {
+						ind := k + i*Kmax
+						switch {
+						case i < NpInt: // The first NpInt points are the solution element nodes
+							Un = Q[n].DataP[ind]
+						case i >= NpInt && i < 2*NpInt: // The second NpInt points are duplicates of the first NpInt values
+							Un = Q[n].DataP[ind-NpInt*Kmax]
+						case i >= 2*NpInt:
+							Un = Q_Face[n].DataP[ind-2*NpInt*Kmax] // The last 3*Nedge points are the edges in [0-1,1-2,2-0] order
+						}
+						DOFXd[ind] = DXmd[ind] * Un
+						DOFYd[ind] = DYmd[ind] * Un
 					}
-					DOFXd[ind] = DXmd[ind] * Un
-					DOFYd[ind] = DYmd[ind] * Un
 				}
+				DX := dfr.FluxElement.Div.Mul(DOFX) // X Derivative, Divergence x RT_DOF is X derivative for this DOF
+				DY := dfr.FluxElement.Div.Mul(DOFY) // Y Derivative, Divergence x RT_DOF is Y derivative for this DOF
+				fmt.Printf("Order[%d] check ...", n+1)
+				assert.Equal(t, len(DX.DataP), len(QGradXCheck[n].DataP))
+				assert.Equal(t, len(DY.DataP), len(QGradYCheck[n].DataP))
+				assert.InDeltaSlicef(t, DX.DataP, QGradXCheck[n].DataP, 0.000001, "err msg %s")
+				assert.InDeltaSlicef(t, DY.DataP, QGradYCheck[n].DataP, 0.000001, "err msg %s")
+				fmt.Printf("... validates\n")
 			}
-			DX := dfr.FluxElement.Div.Mul(DOFX) // X Derivative, Divergence x RT_DOF is X derivative for this DOF
-			DY := dfr.FluxElement.Div.Mul(DOFY) // Y Derivative, Divergence x RT_DOF is Y derivative for this DOF
-			fmt.Printf("Order[%d] check ...", n+1)
-			assert.InDeltaSlicef(t, DX.DataP, QGradXCheck[n].DataP, 0.000001, "err msg %s")
-			assert.InDeltaSlicef(t, DY.DataP, QGradYCheck[n].DataP, 0.000001, "err msg %s")
-			fmt.Printf("... validates\n")
+		}
+		// Test function for GradX and GradY
+		{
+			var (
+				DX, DY     = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+				DOFX, DOFY = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+			)
+			// Before this call, we need to load edge data into the edge store
+			c.GetSolutionGradient(-1, 0, Q, DX, DY, DOFX, DOFY)
 		}
 	}
 }
