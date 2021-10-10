@@ -74,9 +74,13 @@ func (pm *PartitionMap) GetGlobalK(kLocal, bn int) (kGlobal int) {
 	return
 }
 
-func (pm *PartitionMap) GetBucketDimension(bucketNum int) (kMax int) {
+func (pm *PartitionMap) GetBucketDimension(bn int) (kMax int) {
+	if bn == -1 {
+		kMax = pm.MaxIndex
+		return
+	}
 	var (
-		k1, k2 = pm.GetBucketRange(bucketNum)
+		k1, k2 = pm.GetBucketRange(bn)
 	)
 	kMax = k2 - k1
 	return

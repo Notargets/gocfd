@@ -563,7 +563,34 @@ func TestDissipation2(t *testing.T) {
 				DOFX, DOFY = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
 			)
 			// Before this call, we need to load edge data into the edge store
-			c.GetSolutionGradient(-1, 0, Q, DX, DY, DOFX, DOFY)
+			myThread := -1
+			for k := 0; k < Kmax; k++ {
+				kGlobal := c.Partitions.GetGlobalK(k, myThread)
+				for edgeNum := 0; edgeNum < 3; edgeNum++ {
+					indE := kGlobal + Kmax*edgeNum
+					en := dfr.EdgeNumber[indE]
+					primeElement := c.dfr.Tris.Edges[en].ConnectedTris[0]
+					if int(primeElement) == kGlobal {
+						edgeIndex := c.EdgeStore.StorageIndex[en]
+						for i := 0; i < Nedge; i++ {
+							ind := i + edgeIndex*Nedge
+							indQ := k + (i+edgeNum*Nedge)*Kmax
+							for n := 0; n < 4; n++ {
+								c.EdgeStore.EdgeSolutionStorage[n].DataP[ind] = Q_Face[n].DataP[indQ]
+							}
+						}
+					}
+				}
+			}
+			for n := 0; n < 4; n++ {
+				fmt.Printf("Order[%d] check ...", n+1)
+				c.GetSolutionGradient(-1, n, Q, DX, DY, DOFX, DOFY)
+				assert.Equal(t, len(DX.DataP), len(QGradXCheck[n].DataP))
+				assert.Equal(t, len(DY.DataP), len(QGradYCheck[n].DataP))
+				assert.InDeltaSlicef(t, DX.DataP, QGradXCheck[n].DataP, 0.000001, "err msg %s")
+				assert.InDeltaSlicef(t, DY.DataP, QGradYCheck[n].DataP, 0.000001, "err msg %s")
+				fmt.Printf("... validates\n")
+			}
 		}
 	}
 }

@@ -66,9 +66,11 @@ func (c *Euler) NewEdgeStorage() (nf *EdgeValueStorage) {
 		nf.EdgeSolutionStorage[n] = utils.NewMatrix(NumEdges, c.dfr.FluxElement.Nedge)
 	}
 	var index int
-	for en, _ := range c.dfr.Tris.Edges {
-		nf.StorageIndex[en] = index
-		index++
+	for np := 0; np < c.Partitions.ParallelDegree; np++ {
+		for _, en := range c.SortedEdgeKeys[np] {
+			nf.StorageIndex[en] = index
+			index++
+		}
 	}
 	return
 }

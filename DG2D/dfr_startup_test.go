@@ -411,6 +411,8 @@ func TestGradient(t *testing.T) {
 				DX := dfr.FluxElement.Div.Mul(DOFX) // X Derivative, Divergence x RT_DOF is X derivative for this DOF
 				DY := dfr.FluxElement.Div.Mul(DOFY) // Y Derivative, Divergence x RT_DOF is Y derivative for this DOF
 				fmt.Printf("Order[%d] check ...", n+1)
+				assert.Equal(t, len(DX.DataP), len(DXCheck[n].DataP))
+				assert.Equal(t, len(DY.DataP), len(DYCheck[n].DataP))
 				assert.InDeltaSlicef(t, DX.DataP, DXCheck[n].DataP, 0.000001, "err msg %s")
 				assert.InDeltaSlicef(t, DY.DataP, DYCheck[n].DataP, 0.000001, "err msg %s")
 				fmt.Printf("... validates\n")

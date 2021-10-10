@@ -69,11 +69,10 @@ func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, ver
 	c.dfr = DG2D.NewDFR2D(ip.PolynomialOrder, plotMesh, meshFile)
 
 	c.SetParallelDegree(ProcLimit, c.dfr.K) // Must occur after determining the number of elements
+	c.PartitionEdgesByK()                   // Setup the key for edge calculations, useful for parallelizing the process
 
 	// Allocate Normal flux storage and indices
 	c.EdgeStore = c.NewEdgeStorage()
-
-	c.PartitionEdgesByK() // Setup the key for edge calculations, useful for parallelizing the process
 
 	c.InitializeSolution(verbose)
 
@@ -568,34 +567,22 @@ func (rk *RungeKutta4SSP) calculateGlobalDT(c *Euler) {
 }
 
 func (c *Euler) GetSolutionGradient(myThread, varNum int, Q [4]utils.Matrix, GradX, GradY, DOFX, DOFY utils.Matrix) {
+	/*
+		Dimensions:
+			Q[4] should be Nint x Kmax
+			All others should be NpFlux x Kmax
+	*/
 	var (
-		dfr               = c.dfr
-		NpInt, Kmax       = Q[0].Dims()
-		NpFlux, KmaxCheck = GradX.Dims()
-		n1x, n2x          = DOFX.Dims()
-		n1y, n2y          = DOFY.Dims()
-		NpEdge            = dfr.FluxElement.Nedge
+		dfr        = c.dfr
+		NpInt      = dfr.FluxElement.Nint
+		NpEdge     = dfr.FluxElement.Nedge
+		KmaxGlobal = c.Partitions.MaxIndex
+		Kmax       = c.Partitions.GetBucketDimension(myThread)
 		// TODO: Shard the DX and DY metrics
-		DXmd, DYmd = dfr.DXMetric.DataP, dfr.DYMetric.DataP
-		KmaxGlobal = dfr.K
-	)
-	switch {
-	case Kmax != KmaxCheck:
-		err := fmt.Errorf("K dimensions mismatch, Q[%d] is not GradX[%d]", Kmax, KmaxCheck)
-		panic(err)
-	case n1x != NpFlux || n2x != Kmax:
-		err := fmt.Errorf("Scratch DOFX dimensions mismatch, GradX[%d,%d] is not DOFX[%d,%d]",
-			NpFlux, Kmax, n1x, n2x)
-		panic(err)
-	case n1y != NpFlux || n2y != Kmax:
-		err := fmt.Errorf("Scratch DOFY dimensions mismatch, GradY[%d,%d] is not DOFY[%d,%d]",
-			NpFlux, Kmax, n1y, n2y)
-		panic(err)
-	}
-	var (
-		Un           float64
+		DXmd, DYmd   = dfr.DXMetric.DataP, dfr.DYMetric.DataP
 		DOFXd, DOFYd = DOFX.DataP, DOFY.DataP
 	)
+	var Un float64
 	for k := 0; k < Kmax; k++ {
 		kGlobal := c.Partitions.GetGlobalK(k, myThread)
 		for i := 0; i < NpInt; i++ {
@@ -617,8 +604,8 @@ func (c *Euler) GetSolutionGradient(myThread, varNum int, Q [4]utils.Matrix, Gra
 			case sign < 0:
 				var ii int
 				for i := NpEdge - 1; i >= 0; i-- {
-					ind := k + (i+edgeNum*NpEdge)*Kmax
-					indG := kGlobal + (i+edgeNum*NpEdge)*KmaxGlobal
+					ind := k + (2*NpInt+i+edgeNum*NpEdge)*Kmax
+					indG := kGlobal + (2*NpInt+i+edgeNum*NpEdge)*KmaxGlobal
 					Un = edgeVals[ii]
 					DOFXd[ind] = DXmd[indG] * Un
 					DOFYd[ind] = DYmd[indG] * Un
@@ -626,8 +613,8 @@ func (c *Euler) GetSolutionGradient(myThread, varNum int, Q [4]utils.Matrix, Gra
 				}
 			case sign > 0:
 				for i := 0; i < NpEdge; i++ {
-					ind := k + (i+edgeNum*NpEdge)*Kmax
-					indG := kGlobal + (i+edgeNum*NpEdge)*KmaxGlobal
+					ind := k + (2*NpInt+i+edgeNum*NpEdge)*Kmax
+					indG := kGlobal + (2*NpInt+i+edgeNum*NpEdge)*KmaxGlobal
 					Un = edgeVals[i]
 					DOFXd[ind] = DXmd[indG] * Un
 					DOFYd[ind] = DYmd[indG] * Un
