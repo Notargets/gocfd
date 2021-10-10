@@ -566,7 +566,8 @@ func (rk *RungeKutta4SSP) calculateGlobalDT(c *Euler) {
 	}
 }
 
-func (c *Euler) GetSolutionGradient(myThread, varNum int, Q [4]utils.Matrix, GradX, GradY, DOFX, DOFY utils.Matrix) {
+func (c *Euler) GetSolutionGradient2(myThread, varNum int, Q [4]utils.Matrix, GradX, GradY, DOFX, DOFY utils.Matrix) {
+	// NOTE!!! This does not seem to work with velocity fields at all - not sure why
 	/*
 		Dimensions:
 			Q[4] should be Nint x Kmax
@@ -625,4 +626,29 @@ func (c *Euler) GetSolutionGradient(myThread, varNum int, Q [4]utils.Matrix, Gra
 	// Calculate Grad(U)
 	dfr.FluxElement.Div.Mul(DOFX, GradX) // X Derivative, Divergence x RT_DOF is X derivative for this DOF
 	dfr.FluxElement.Div.Mul(DOFY, GradY) // Y Derivative, Divergence x RT_DOF is Y derivative for this DOF
+}
+
+func (c *Euler) GetSolutionGradient(myThread, varNum int, Q [4]utils.Matrix, GradX, GradY, DR, DS utils.Matrix) {
+	/*
+		Dimensions:
+			Q[4] should be Nint x Kmax
+			All others should be NpFlux x Kmax
+	*/
+	var (
+		dfr    = c.dfr
+		NpFlux = dfr.FluxElement.Np
+		Kmax   = c.Partitions.GetBucketDimension(myThread)
+	)
+	dfr.FluxDr.Mul(Q[varNum], DR)
+	dfr.FluxDs.Mul(Q[varNum], DS)
+	for k := 0; k < Kmax; k++ {
+		var (
+			JinvD = dfr.Jinv.DataP[4*k : 4*(k+1)]
+		)
+		for i := 0; i < NpFlux; i++ {
+			ind := k + i*Kmax
+			GradX.DataP[ind] = JinvD[0]*DR.DataP[ind] + JinvD[2]*DS.DataP[ind]
+			GradY.DataP[ind] = JinvD[1]*DR.DataP[ind] + JinvD[3]*DS.DataP[ind]
+		}
+	}
 }

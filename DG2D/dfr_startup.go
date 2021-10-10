@@ -143,16 +143,13 @@ func (dfr *DFR2D) CalculateRTBasedDerivativeMetrics() {
 	RTDXmd, RTDYmd := dfr.DXMetric.DataP, dfr.DYMetric.DataP
 	for k := 0; k < Kmax; k++ {
 		var (
-			JinvD              = Jinv.DataP[4*k : 4*(k+1)]
-			Jd                 = Jdet.DataP[k]
-			jj1, jj2, jj3, jj4 = Jd * JinvD[0], Jd * JinvD[1], Jd * JinvD[2], Jd * JinvD[3]
-			ooJd               = 1. / Jdet.DataP[k]
+			JinvD = Jinv.DataP[4*k : 4*(k+1)]
 		)
 		for i := 0; i < NpInt; i++ {
 			ind := k + i*Kmax
 			ind2 := k + (i+NpInt)*Kmax
-			RTDXmd[ind], RTDXmd[ind2] = ooJd*(jj1), ooJd*(jj3)
-			RTDYmd[ind], RTDYmd[ind2] = ooJd*(jj2), ooJd*(jj4)
+			RTDXmd[ind], RTDXmd[ind2] = JinvD[0], JinvD[2]
+			RTDYmd[ind], RTDYmd[ind2] = JinvD[1], JinvD[3]
 		}
 	}
 	var (

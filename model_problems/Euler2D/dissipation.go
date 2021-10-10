@@ -379,7 +379,6 @@ func (sd *ScalarDissipation) CalculateElementViscosity(JdetAll []utils.Matrix, Q
 		go func(myThread int) {
 			var (
 				Rho        = Qall[myThread][0]
-				Jdet       = JdetAll[myThread]
 				Eps        = sd.EpsilonScalar[myThread]
 				Kmax       = sd.PMap.GetBucketDimension(myThread)
 				U          = sd.U[myThread]
@@ -396,7 +395,6 @@ func (sd *ScalarDissipation) CalculateElementViscosity(JdetAll []utils.Matrix, Q
 					edgeLen     = e.GetEdgeLength()
 					fs := 0.5 * Np12 * edgeLen / Jdet[bn].DataP[k]
 			*/
-			_, _ = Np12, Jdet
 			for k := 0; k < Kmax; k++ {
 				// Get edges for this element
 				kGlobal := sd.PMap.GetGlobalK(k, myThread)
@@ -404,17 +402,13 @@ func (sd *ScalarDissipation) CalculateElementViscosity(JdetAll []utils.Matrix, Q
 				maxEdgeLen = -1
 				for edgeNum := 0; edgeNum < 3; edgeNum++ {
 					ind := kGlobal + KMaxGlobal*edgeNum
-					en := dfr.EdgeNumber[ind]
-					e := dfr.Tris.Edges[en]
-					edgeLen := e.GetEdgeLength()
+					edgeLen := dfr.IInII.DataP[ind]
 					if edgeLen > maxEdgeLen {
 						maxEdgeLen = edgeLen
 					}
 				}
 				var (
-					eps0 = math.Sqrt(2.*Jdet.DataP[k]) / float64(sd.dfr.SolutionElement.N)
-					//eps0        = Jdet.DataP[k] * maxEdgeLen / Np12
-					//eps0        = 0.5 * maxEdgeLen * Np12 * Jdet.DataP[k]
+					eps0        = 2 * maxEdgeLen / Np12
 					Se          = math.Log10(sd.moment(k, Kmax, U, UClipped, Rho))
 					left, right = sd.S0 - sd.Kappa, sd.S0 + sd.Kappa
 					oo2kappa    = 0.5 / sd.Kappa
