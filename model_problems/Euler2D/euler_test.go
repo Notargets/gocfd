@@ -38,7 +38,7 @@ func TestEuler(t *testing.T) {
 		msg = "err msg %s"
 		tol = 0.000001
 	)
-	ip := ipDefault
+	ip := *ipDefault
 	ip.FluxType = "average"
 	if true {
 		{ // Test interpolation of solution to edges for all supported orders
@@ -46,7 +46,7 @@ func TestEuler(t *testing.T) {
 			for N := 1; N <= Nmax; N++ {
 				ip.PolynomialOrder = N
 				//c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
-				c := NewEuler(ip, "../../DG2D/test_tris_5.neu", 1, false, false, false)
+				c := NewEuler(&ip, "../../DG2D/test_tris_5.neu", 1, false, false, false)
 				Kmax := c.dfr.K
 				Nint := c.dfr.FluxElement.Nint
 				Nedge := c.dfr.FluxElement.Nedge
@@ -91,7 +91,7 @@ func TestEuler(t *testing.T) {
 			for N := 1; N <= Nmax; N++ {
 				//c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
 				ip.PolynomialOrder = N
-				c := NewEuler(ip, "../../DG2D/test_tris_5.neu", 1, false, false, false)
+				c := NewEuler(&ip, "../../DG2D/test_tris_5.neu", 1, false, false, false)
 				Kmax := c.dfr.K
 				Nint := c.dfr.FluxElement.Nint
 				Nedge := c.dfr.FluxElement.Nedge
@@ -167,7 +167,7 @@ func TestEuler(t *testing.T) {
 			for N := 1; N <= Nmax; N++ {
 				//c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
 				ip.PolynomialOrder = N
-				c := NewEuler(ip, "../../DG2D/test_tris_5.neu", 1, false, false, false)
+				c := NewEuler(&ip, "../../DG2D/test_tris_5.neu", 1, false, false, false)
 				Kmax := c.dfr.K
 				Nint := c.dfr.FluxElement.Nint
 				Nedge := c.dfr.FluxElement.Nedge
@@ -211,20 +211,20 @@ func TestEuler(t *testing.T) {
 				var c *Euler
 				//c = NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, plotMesh, false, false)
 				ip.PolynomialOrder = N
-				c = NewEuler(ip, "../../DG2D/test_tris_1tri.neu", 1, plotMesh, false, false)
+				c = NewEuler(&ip, "../../DG2D/test_tris_1tri.neu", 1, plotMesh, false, false)
 				CheckFlux0(c, t)
 				// Two widely separated triangles - no shared faces
 				//c = NewEuler(1, N, "../../DG2D/test_tris_two.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, plotMesh, false, false)
-				c = NewEuler(ip, "../../DG2D/test_tris_two.neu", 1, plotMesh, false, false)
+				c = NewEuler(&ip, "../../DG2D/test_tris_two.neu", 1, plotMesh, false, false)
 				CheckFlux0(c, t)
 				// Two widely separated triangles - no shared faces - one tri listed in reverse order
 				//c = NewEuler(1, N, "../../DG2D/test_tris_twoR.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, plotMesh, false, false)
-				c = NewEuler(ip, "../../DG2D/test_tris_twoR.neu", 1, plotMesh, false, false)
+				c = NewEuler(&ip, "../../DG2D/test_tris_twoR.neu", 1, plotMesh, false, false)
 				CheckFlux0(c, t)
 				// Connected tris, sharing one edge
 				// plotMesh = true
 				//c = NewEuler(1, N, "../../DG2D/test_tris_6_nowall.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, plotMesh, false, false)
-				c = NewEuler(ip, "../../DG2D/test_tris_6_nowall.neu", 1, plotMesh, false, false)
+				c = NewEuler(&ip, "../../DG2D/test_tris_6_nowall.neu", 1, plotMesh, false, false)
 				CheckFlux0(c, t)
 			}
 		}
@@ -236,7 +236,7 @@ func TestEuler(t *testing.T) {
 			ip.PolynomialOrder = N
 			ip.InitType = "ivortex"
 			//c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, IVORTEX, 1, 0, 1.4, 0, false, 5000, None, plotMesh, false, false)
-			c := NewEuler(ip, "../../DG2D/test_tris_6.neu", 1, plotMesh, false, false)
+			c := NewEuler(&ip, "../../DG2D/test_tris_6.neu", 1, plotMesh, false, false)
 			for _, e := range c.dfr.Tris.Edges {
 				if e.BCType == types.BC_IVortex {
 					e.BCType = types.BC_None
@@ -428,7 +428,9 @@ func TestDissipation(t *testing.T) {
 }
 func TestDissipation2(t *testing.T) {
 	{
-		dfr := DG2D.NewDFR2D(1, false, "../../DG2D/test_tris_9.neu")
+		var (
+			dfr = DG2D.NewDFR2D(1, false, "../../DG2D/test_tris_9.neu")
+		)
 		NP := 1
 		_, KMax := dfr.SolutionElement.Np, dfr.K
 		pm := NewPartitionMap(NP, KMax)
@@ -466,6 +468,88 @@ func TestDissipation2(t *testing.T) {
 			8.13663, 6.17267, 7.82733, 8.17267, 9.00000, 9.00000},
 			sd.Epsilon[0].DataP, 0.00001, "err msg %s")
 		//fmt.Printf(sd.Epsilon[0].Print("Epsilon"))
+	}
+	// TODO: Implement Gradient test using GetSolutionGradient()
+	{
+		ip := *ipDefault
+		ip.FluxType = "average"
+		// Testing to fourth order in X and Y
+		ip.PolynomialOrder = 4
+		c := NewEuler(&ip, "../../DG2D/test_tris_5.neu", 1, false, false, false)
+		var (
+			dfr                      = c.dfr
+			Kmax                     = dfr.K
+			fel                      = dfr.FluxElement
+			NpInt                    = fel.Nint
+			Nedge                    = fel.Nedge
+			NpFlux                   = fel.Np
+			Q, Q_Face                [4]utils.Matrix
+			QGradXCheck, QGradYCheck [4]utils.Matrix
+		)
+		for n := 0; n < 4; n++ {
+			Q[n] = utils.NewMatrix(NpInt, Kmax)
+			Q_Face[n] = utils.NewMatrix(3*Nedge, Kmax)
+			QGradXCheck[n] = utils.NewMatrix(NpInt, Kmax)
+			QGradYCheck[n] = utils.NewMatrix(NpInt, Kmax)
+		}
+		// Each variable [n] is an nth order polynomial in X and Y
+		for i := 0; i < NpInt; i++ {
+			for k := 0; k < Kmax; k++ {
+				ind := k + i*Kmax
+				X, Y := dfr.SolutionX.DataP[ind], dfr.SolutionY.DataP[ind]
+				// First order in X and Y
+				Q[0].DataP[ind] = X + Y
+				QGradXCheck[0].DataP[ind] = 1.
+				QGradYCheck[0].DataP[ind] = 1.
+				// Second order in X and Y
+				Q[1].DataP[ind] = X*X + Y*Y
+				QGradXCheck[1].DataP[ind] = 2 * X
+				QGradYCheck[1].DataP[ind] = 2 * Y
+				// Third order in X and Y
+				Q[2].DataP[ind] = X*X*X + Y*Y*Y
+				QGradXCheck[2].DataP[ind] = 3 * X * X
+				QGradYCheck[2].DataP[ind] = 3 * Y * Y
+				// Fourth order in X and Y
+				Q[3].DataP[ind] = X*X*X*X + Y*Y*Y*Y
+				QGradXCheck[3].DataP[ind] = 4 * X * X * X
+				QGradYCheck[3].DataP[ind] = 4 * Y * Y * Y
+			}
+		}
+		// Interpolate from solution points to edges using precomputed interpolation matrix
+		fI := dfr.FluxEdgeInterp.Mul
+		for n := 0; n < 4; n++ {
+			Q_Face[n] = fI(Q[n])
+		}
+		for n := 0; n < 4; n++ {
+			var (
+				DXmd, DYmd   = dfr.DXMetric.DataP, dfr.DYMetric.DataP
+				DOFX, DOFY   = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+				DOFXd, DOFYd = DOFX.DataP, DOFY.DataP
+			)
+			//for n := 0; n < 3; n++ {
+			var Un float64
+			for k := 0; k < Kmax; k++ {
+				for i := 0; i < NpFlux; i++ {
+					ind := k + i*Kmax
+					switch {
+					case i < NpInt: // The first NpInt points are the solution element nodes
+						Un = Q[n].DataP[ind]
+					case i >= NpInt && i < 2*NpInt: // The second NpInt points are duplicates of the first NpInt values
+						Un = Q[n].DataP[ind-NpInt*Kmax]
+					case i >= 2*NpInt:
+						Un = Q_Face[n].DataP[ind-2*NpInt*Kmax] // The last 3*Nedge points are the edges in [0-1,1-2,2-0] order
+					}
+					DOFXd[ind] = DXmd[ind] * Un
+					DOFYd[ind] = DYmd[ind] * Un
+				}
+			}
+			DX := dfr.FluxElement.Div.Mul(DOFX) // X Derivative, Divergence x RT_DOF is X derivative for this DOF
+			DY := dfr.FluxElement.Div.Mul(DOFY) // Y Derivative, Divergence x RT_DOF is Y derivative for this DOF
+			fmt.Printf("Order[%d] check ...", n+1)
+			assert.InDeltaSlicef(t, DX.DataP, QGradXCheck[n].DataP, 0.000001, "err msg %s")
+			assert.InDeltaSlicef(t, DY.DataP, QGradYCheck[n].DataP, 0.000001, "err msg %s")
+			fmt.Printf("... validates\n")
+		}
 	}
 }
 

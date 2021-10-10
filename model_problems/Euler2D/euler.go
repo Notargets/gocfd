@@ -598,7 +598,6 @@ func (c *Euler) GetSolutionGradient(myThread, varNum int, Q [4]utils.Matrix, Gra
 	)
 	for k := 0; k < Kmax; k++ {
 		kGlobal := c.Partitions.GetGlobalK(k, myThread)
-
 		for i := 0; i < NpInt; i++ {
 			ind := k + i*Kmax
 			ind2 := k + (i+NpInt)*Kmax
