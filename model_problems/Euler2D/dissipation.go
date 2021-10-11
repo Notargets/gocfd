@@ -381,7 +381,7 @@ func (sd *ScalarDissipation) GetC0EpsilonPlotField(c *Euler) (fld utils.Matrix) 
 	return
 }
 
-func (sd *ScalarDissipation) CalculateElementViscosity(JdetAll []utils.Matrix, Qall [][4]utils.Matrix) {
+func (sd *ScalarDissipation) CalculateElementViscosity(Qall [][4]utils.Matrix) {
 	var (
 		wg  = sync.WaitGroup{}
 		dfr = sd.dfr

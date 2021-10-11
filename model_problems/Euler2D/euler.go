@@ -242,7 +242,7 @@ func (rk *RungeKutta4SSP) Step(c *Euler) {
 			}
 			//fmt.Printf(c.EdgeValueStorage[0].Print("0NormalFlux"))
 			//os.Exit(1)
-			c.Dissipation.CalculateElementViscosity(rk.Jdet, c.Q)
+			c.Dissipation.CalculateElementViscosity(c.Q)
 		case currentStep < 0:
 			return
 		}
