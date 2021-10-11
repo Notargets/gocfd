@@ -134,18 +134,18 @@ func (c *Euler) Solve(pm *PlotMeta) {
 }
 
 type RungeKutta4SSP struct {
-	Jdet, Jinv        []utils.Matrix    // Sharded mesh Jacobian and inverse transform
-	RHSQ, Q_Face      [][4]utils.Matrix // State used for matrix multiplies within the time step algorithm
-	Q1, Q2, Q3        [][4]utils.Matrix // Intermediate solution state
-	Residual          [][4]utils.Matrix // Used for reporting, aliased to Q1
-	F_RT_DOF          [][4]utils.Matrix // Normal flux used for divergence
-	DT                []utils.Matrix    // Local time step storage
-	MaxWaveSpeed      []float64         // Shard max wavespeed
-	GlobalDT, Time    float64
-	Kmax              []int // Local element count (dimension: Kmax[ParallelDegree])
-	Np, Nedge, NpFlux int   // Number of points in solution, edge and flux total
-	toWorker          []chan struct{}
-	fromWorkers       chan int8
+	Jdet, Jinv           []utils.Matrix    // Sharded mesh Jacobian and inverse transform
+	RHSQ, Q_Face         [][4]utils.Matrix // State used for matrix multiplies within the time step algorithm
+	Q1, Q2, Q3           [][4]utils.Matrix // Intermediate solution state
+	Residual             [][4]utils.Matrix // Used for reporting, aliased to Q1
+	F_RT_DOF             [][4]utils.Matrix // Normal flux used for divergence
+	DT                   []utils.Matrix    // Local time step storage
+	MaxWaveSpeed         []float64         // Shard max wavespeed
+	GlobalDT, Time       float64
+	Kmax                 []int // Local element count (dimension: Kmax[ParallelDegree])
+	NpInt, Nedge, NpFlux int   // Number of points in solution, edge and flux total
+	toWorker             []chan struct{}
+	fromWorkers          chan int8
 }
 
 func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
@@ -166,7 +166,7 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		DT:           make([]utils.Matrix, NPar),
 		MaxWaveSpeed: make([]float64, NPar),
 		Kmax:         make([]int, NPar),
-		Np:           c.dfr.SolutionElement.Np,
+		NpInt:        c.dfr.SolutionElement.Np,
 		Nedge:        c.dfr.FluxElement.Nedge,
 		NpFlux:       c.dfr.FluxElement.Np,
 		fromWorkers:  make(chan int8, NPar),
@@ -179,14 +179,14 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 	for np := 0; np < NPar; np++ {
 		rk.Kmax[np] = pm.GetBucketDimension(np)
 		for n := 0; n < 4; n++ {
-			rk.Q1[np][n] = utils.NewMatrix(rk.Np, rk.Kmax[np])
-			rk.Q2[np][n] = utils.NewMatrix(rk.Np, rk.Kmax[np])
-			rk.Q3[np][n] = utils.NewMatrix(rk.Np, rk.Kmax[np])
-			rk.RHSQ[np][n] = utils.NewMatrix(rk.Np, rk.Kmax[np])
+			rk.Q1[np][n] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
+			rk.Q2[np][n] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
+			rk.Q3[np][n] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
+			rk.RHSQ[np][n] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 			rk.F_RT_DOF[np][n] = utils.NewMatrix(rk.NpFlux, rk.Kmax[np])
 			rk.Q_Face[np][n] = utils.NewMatrix(rk.Nedge*3, rk.Kmax[np])
 		}
-		rk.DT[np] = utils.NewMatrix(rk.Np, rk.Kmax[np])
+		rk.DT[np] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 	}
 	rk.Residual = rk.Q1
 	return
@@ -249,7 +249,7 @@ func (rk *RungeKutta4SSP) Step(c *Euler) {
 	}
 }
 
-func (rk *RungeKutta4SSP) WorkerDone(subStepP *int8, fromWorker chan int8, isDone bool) {
+func (rk *RungeKutta4SSP) WorkerSync(subStepP *int8, fromWorker chan int8, isDone bool) {
 	if isDone {
 		*subStepP = -1
 	} else {
@@ -261,7 +261,7 @@ func (rk *RungeKutta4SSP) WorkerDone(subStepP *int8, fromWorker chan int8, isDon
 func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan struct{}, toController chan int8) {
 	var (
 		Q0                           = c.Q[myThread]
-		Np                           = rk.Np
+		Np                           = rk.NpInt
 		Kmax, Jdet, Jinv, F_RT_DOF   = rk.Kmax[myThread], rk.Jdet[myThread], rk.Jinv[myThread], rk.F_RT_DOF[myThread]
 		DT, Q_Face, Q1, Q2, Q3, RHSQ = rk.DT[myThread], rk.Q_Face[myThread], rk.Q1[myThread], rk.Q2[myThread], rk.Q3[myThread], rk.RHSQ[myThread]
 		Residual                     = rk.Residual[myThread]
@@ -282,12 +282,12 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 			}
 		}
 		c.InterpolateSolutionToEdges(Q0, Q_Face) // Interpolates Q_Face values from Q
-		rk.WorkerDone(&subStep, toController, false)
+		rk.WorkerSync(&subStep, toController, false)
 
 		_ = <-fromController // Block until parent sends "go"
 		rk.MaxWaveSpeed[myThread] =
 			c.CalculateNormalFlux(rk.Time, true, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
-		rk.WorkerDone(&subStep, toController, false)
+		rk.WorkerSync(&subStep, toController, false)
 
 		_ = <-fromController                                // Block until parent sends "go"
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q0) // Updates F_RT_DOF with values from Q
@@ -317,13 +317,12 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 				Q1[n].DataP[i] = Q0[n].DataP[i] + 0.5*RHSQ[n].DataP[i]*dT
 			}
 		}
-		//c.Limiter.LimitSolution(myThread, rk.Q1)
 		c.InterpolateSolutionToEdges(Q1, Q_Face) // Interpolates Q_Face values from Q
-		rk.WorkerDone(&subStep, toController, false)
+		rk.WorkerSync(&subStep, toController, false)
 
 		_ = <-fromController                                                                             // Block until parent sends "go"
 		c.CalculateNormalFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
-		rk.WorkerDone(&subStep, toController, false)
+		rk.WorkerSync(&subStep, toController, false)
 
 		_ = <-fromController                                // Block until parent sends "go"
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q1) // Updates F_RT_DOF with values from Q
@@ -339,13 +338,12 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 				Q2[n].DataP[i] = Q1[n].DataP[i] + 0.25*RHSQ[n].DataP[i]*dT
 			}
 		}
-		//c.Limiter.LimitSolution(myThread, rk.Q2)
 		c.InterpolateSolutionToEdges(Q2, Q_Face) // Interpolates Q_Face values from Q
-		rk.WorkerDone(&subStep, toController, false)
+		rk.WorkerSync(&subStep, toController, false)
 
 		_ = <-fromController                                                                             // Block until parent sends "go"
 		c.CalculateNormalFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
-		rk.WorkerDone(&subStep, toController, false)
+		rk.WorkerSync(&subStep, toController, false)
 
 		_ = <-fromController                                // Block until parent sends "go"
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q2) // Updates F_RT_DOF with values from Q
@@ -361,13 +359,12 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 				Q3[n].DataP[i] = (1. / 3.) * (2*Q0[n].DataP[i] + Q2[n].DataP[i] + RHSQ[n].DataP[i]*dT)
 			}
 		}
-		//c.Limiter.LimitSolution(myThread, rk.Q3)
 		c.InterpolateSolutionToEdges(Q3, Q_Face) // Interpolates Q_Face values from Q
-		rk.WorkerDone(&subStep, toController, false)
+		rk.WorkerSync(&subStep, toController, false)
 
 		_ = <-fromController                                                                             // Block until parent sends "go"
 		c.CalculateNormalFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
-		rk.WorkerDone(&subStep, toController, false)
+		rk.WorkerSync(&subStep, toController, false)
 
 		_ = <-fromController                                // Block until parent sends "go"
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q3) // Updates F_RT_DOF with values from Q
@@ -386,7 +383,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 			}
 		}
 		c.Limiter.LimitSolution(myThread, c.Q, rk.Residual)
-		rk.WorkerDone(&subStep, toController, true)
+		rk.WorkerSync(&subStep, toController, true)
 	}
 }
 

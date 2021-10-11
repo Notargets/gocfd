@@ -187,8 +187,8 @@ func (c *Euler) InitializeDWave() {
 
 func (c *Euler) MapSolutionSubset() {
 	/*
-		In the DFR approach, there are Np solution points and Np+2 Flux points
-		This index carves the solution points out of a full Np+2 space
+		In the DFR approach, there are NpInt solution points and NpInt+2 Flux points
+		This index carves the solution points out of a full NpInt+2 space
 	*/
 	var (
 		el  = c.El
@@ -276,7 +276,7 @@ func (c *Euler) Run(showGraph bool, graphDelay ...time.Duration) {
 						fmt.Printf("Rho Integration Check: Exact = %5.4f, Model = %5.4f, Log10 Error = %5.4f\n", iRho, iRhoModel, logErr)
 						/*
 							fmt.Printf("K=%v, N=%v, CFL=%v, RMS Errors: Log10 Rho, RhoU, E Error = %5.4f, %5.4f, %5.4f, MaxErr: Rho, RhoU, E = %5.4f, %5.4f, %5.4f\n",
-								el.K, el.Np-1, c.CFL, math.Log10(rms_rho), math.Log10(rms_rhou), math.Log10(rms_e),
+								el.K, el.NpInt-1, c.CFL, math.Log10(rms_rho), math.Log10(rms_rhou), math.Log10(rms_e),
 								math.Log10(max_rho), math.Log10(max_rhou), math.Log10(max_e))
 						*/
 						fmt.Printf("%s\n", "case,K,N,CFL,Log10_Rho_rms,Log10_Rhou_rms,Log10_e_rms,Log10_rho_max,Log10_rhou_max,Log10_e_max")
