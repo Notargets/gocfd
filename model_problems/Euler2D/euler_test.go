@@ -33,6 +33,22 @@ var ipDefault = &InputParameters{
 	Limiter:           "",
 }
 
+func TestFluidFunctions(t *testing.T) {
+	N := 1
+	plotMesh := false
+	ip := *ipDefault
+	ip.Minf = 2.
+	ip.PolynomialOrder = N
+	c := NewEuler(&ip, "../../DG2D/test_tris_6.neu", 1, plotMesh, false, false)
+	funcs := []FlowFunction{Density, XMomentum, YMomentum, Energy, Mach, StaticPressure}
+	values := make([]float64, len(funcs))
+	for i, plotField := range []FlowFunction{Density, XMomentum, YMomentum, Energy, Mach, StaticPressure} {
+		values[i] = c.FS.GetFlowFunction(c.Q[0], 0, plotField)
+		//fmt.Printf("%s[%d] = %8.5f\n", plotField.String(), ik, values[i])
+	}
+	assert.InDeltaSlicef(t, []float64{1, 2, 0, 3.78571, 2, 0.71429}, values, 0.00001, "err msg %s")
+}
+
 func TestEuler(t *testing.T) {
 	var (
 		msg = "err msg %s"
@@ -428,6 +444,7 @@ func TestDissipation(t *testing.T) {
 		}
 	}
 }
+
 func TestDissipation2(t *testing.T) {
 	{
 		var (

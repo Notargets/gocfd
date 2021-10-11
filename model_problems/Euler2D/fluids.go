@@ -131,17 +131,6 @@ func (fs *FreeStream) GetFlowFunctionBase(rho, rhoU, rhoV, E float64, pf FlowFun
 		oorho = 1. / rho
 		q, p  float64
 	)
-	// Calculate q if needed
-	switch pf {
-	case StaticPressure, PressureCoefficient, SoundSpeed, Entropy:
-		q = 0.5 * (rhoU*rhoU + rhoV*rhoV) * oorho
-	}
-	// Calculate p if needed
-	switch pf {
-	case PressureCoefficient, SoundSpeed, Enthalpy, Mach, Entropy:
-		p = GM1 * (E - q)
-	}
-
 	switch pf {
 	case Density:
 		f = rho
@@ -151,28 +140,33 @@ func (fs *FreeStream) GetFlowFunctionBase(rho, rhoU, rhoV, E float64, pf FlowFun
 		f = rhoV
 	case Energy:
 		f = E
-	case StaticPressure:
-		f = GM1 * (E - q)
-	case DynamicPressure:
-		f = 0.5 * (rhoU*rhoU + rhoV*rhoV) * oorho
-	case PressureCoefficient:
-		f = (p - fs.Pinf) / fs.QQinf
-	case SoundSpeed:
-		f = math.Sqrt(math.Abs(Gamma * p * oorho))
+	case DynamicPressure, StaticPressure, PressureCoefficient, SoundSpeed, Enthalpy, Entropy, Mach:
+		q = 0.5 * (rhoU*rhoU + rhoV*rhoV) * oorho
+		p = GM1 * (E - q)
+		switch pf {
+		case DynamicPressure:
+			f = q
+		case StaticPressure:
+			f = p
+		case PressureCoefficient:
+			f = (p - fs.Pinf) / fs.QQinf
+		case SoundSpeed:
+			f = math.Sqrt(math.Abs(Gamma * p * oorho))
+		case Enthalpy:
+			f = (E + p) / rho
+		case Entropy:
+			f = math.Log(p) - Gamma*math.Log(rho)
+		case Mach:
+			C := math.Sqrt(math.Abs(Gamma * p * oorho))
+			U := math.Sqrt((rhoU*rhoU + rhoV*rhoV)) * oorho
+			f = U / C
+		}
 	case Velocity:
 		f = math.Sqrt((rhoU*rhoU + rhoV*rhoV) * oorho)
 	case XVelocity:
 		f = rhoU * oorho
 	case YVelocity:
 		f = rhoV * oorho
-	case Mach:
-		C := math.Sqrt(math.Abs(Gamma * p * oorho))
-		U := math.Sqrt((rhoU*rhoU + rhoV*rhoV)) * oorho
-		f = U / C
-	case Enthalpy:
-		f = (E + p) / rho
-	case Entropy:
-		f = math.Log(p) - Gamma*math.Log(rho)
 	}
 	return
 }
