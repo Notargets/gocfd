@@ -292,7 +292,6 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		_ = <-fromController                                // Block until parent sends "go"
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q0) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
-		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, Q0, Q_Face, F_RT_DOF)
 		if c.LocalTimeStepping {
 			// Replicate local time step to the other solution points for each k
 			for k := 0; k < Kmax; k++ {
@@ -307,6 +306,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 			}
 		}
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
+		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, Q0, RHSQ)
 		//contLevel := No
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
@@ -328,8 +328,8 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		_ = <-fromController                                // Block until parent sends "go"
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q1) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
-		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, Q1, Q_Face, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
+		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, Q0, RHSQ)
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
 			for i := 0; i < Kmax*Np; i++ {
@@ -350,8 +350,8 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		_ = <-fromController                                // Block until parent sends "go"
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q2) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
-		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, Q2, Q_Face, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
+		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, Q0, RHSQ)
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
 			for i := 0; i < Kmax*Np; i++ {
@@ -372,8 +372,8 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		_ = <-fromController                                // Block until parent sends "go"
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q3) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
-		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, Q3, Q_Face, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
+		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, Q0, RHSQ)
 		// Note, we are re-using Q1 as storage for Residual here
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
@@ -414,9 +414,13 @@ func (c *Euler) RHSInternalPoints(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4
 		// Multiply each element's divergence by 1/||J|| to go (r,s)->(x,y), and -1 for the RHS
 		data = RHSQ[n].DataP
 		for k := 0; k < Kmax; k++ {
+			var (
+				oojd = 1. / JdetD[k]
+			)
 			for i := 0; i < Nint; i++ {
 				ind := k + i*Kmax
-				data[ind] /= -JdetD[k]
+				//data[ind] /= -JdetD[k]
+				data[ind] *= -oojd
 			}
 		}
 	}
