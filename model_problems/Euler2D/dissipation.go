@@ -102,6 +102,7 @@ func NewScalarDissipation(kappa float64, dfr *DG2D.DFR2D, pm *PartitionMap) (sd 
 		order  = float64(el.N)
 		NVerts = dfr.VX.Len()
 	)
+	_ = order
 	sd = &ScalarDissipation{
 		EpsVertex:           make([]float64, NVerts),
 		EpsilonScalar:       make([][]float64, NPar),    // Viscosity, constant over the element
@@ -118,8 +119,10 @@ func NewScalarDissipation(kappa float64, dfr *DG2D.DFR2D, pm *PartitionMap) (sd 
 		// Sharded working matrices
 		U:        make([]utils.Matrix, NPar),
 		UClipped: make([]utils.Matrix, NPar),
-		S0:       1. / math.Pow(order, 4.),
-		Kappa:    0.25,
+		//S0:       1. / math.Pow(order, 4.),
+		//Kappa:    0.25,
+		S0:    10.,
+		Kappa: 4.,
 	}
 	sd.EtoV = sd.shardEtoV(dfr.Tris.EToV)
 	sd.createInterpolationStencil()
@@ -396,8 +399,7 @@ func (sd *ScalarDissipation) CalculateElementViscosity(Qall [][4]utils.Matrix) {
 				U          = sd.U[myThread]
 				UClipped   = sd.UClipped[myThread]
 				KMaxGlobal = sd.PMap.MaxIndex
-				Np1        = sd.dfr.N
-				Np12       = float64(Np1 * Np1)
+				Order      = float64(sd.dfr.N)
 			)
 			/*
 				Eps0 wants to be (h/p) and is supposed to be proportional to cell width
@@ -420,7 +422,7 @@ func (sd *ScalarDissipation) CalculateElementViscosity(Qall [][4]utils.Matrix) {
 					}
 				}
 				var (
-					eps0        = 2 * maxEdgeLen / Np12
+					eps0        = maxEdgeLen / Order
 					Se          = math.Log10(sd.moment(k, Kmax, U, UClipped, Rho))
 					left, right = sd.S0 - sd.Kappa, sd.S0 + sd.Kappa
 					oo2kappa    = 0.5 / sd.Kappa
