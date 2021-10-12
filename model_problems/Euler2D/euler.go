@@ -567,7 +567,7 @@ func (rk *RungeKutta4SSP) calculateGlobalDT(c *Euler) {
 	}
 }
 
-func (c *Euler) GetSolutionGradient2(myThread, varNum int, Q [4]utils.Matrix, GradX, GradY, DOFX, DOFY utils.Matrix) {
+func (c *Euler) GetSolutionGradientUsingRTElement(myThread, varNum int, Q [4]utils.Matrix, GradX, GradY, DOFX, DOFY utils.Matrix) {
 	// NOTE!!! This does not seem to work with velocity fields at all - not sure why
 	/*
 		Dimensions:

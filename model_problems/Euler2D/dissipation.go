@@ -119,10 +119,10 @@ func NewScalarDissipation(kappa float64, dfr *DG2D.DFR2D, pm *PartitionMap) (sd 
 		// Sharded working matrices
 		U:        make([]utils.Matrix, NPar),
 		UClipped: make([]utils.Matrix, NPar),
-		//S0:       1. / math.Pow(order, 4.),
+		S0:       1.0 / math.Pow(order, 4.),
+		Kappa:    4.,
 		//Kappa:    0.25,
-		S0:    10.,
-		Kappa: 4.,
+		//S0:    10.,
 	}
 	sd.EtoV = sd.shardEtoV(dfr.Tris.EToV)
 	sd.createInterpolationStencil()
@@ -252,7 +252,8 @@ func (sd *ScalarDissipation) AddDissipation(c *Euler, cont ContinuityLevel, myTh
 		sd.BaryCentricCoords.Mul(VertexEpsilonValues, Epsilon)
 	}
 	for n := 0; n < 4; n++ {
-		c.GetSolutionGradient(myThread, n, Q, DissX, DissY, DOF, DOF2)
+		//c.GetSolutionGradient(myThread, n, Q, DissX, DissY, DOF, DOF2)
+		c.GetSolutionGradientUsingRTElement(myThread, n, Q, DissX, DissY, DOF, DOF2)
 		switch cont {
 		case No:
 			for k := 0; k < Kmax; k++ {

@@ -444,6 +444,7 @@ func TestDissipation(t *testing.T) {
 }
 
 func TestDissipation2(t *testing.T) {
+	// Test C0 continuity of Epsilon using element vertex aggregation
 	{
 		var (
 			dfr = DG2D.NewDFR2D(1, false, "../../DG2D/test_tris_9.neu")
@@ -486,7 +487,7 @@ func TestDissipation2(t *testing.T) {
 			sd.Epsilon[0].DataP, 0.00001, "err msg %s")
 		//fmt.Printf(sd.Epsilon[0].Print("Epsilon"))
 	}
-	// TODO: Implement Gradient test using GetSolutionGradient()
+	// Gradient test using GetSolutionGradient()
 	{
 		ip := *ipDefault
 		ip.FluxType = "average"
@@ -602,6 +603,66 @@ func TestDissipation2(t *testing.T) {
 			for n := 0; n < 4; n++ {
 				fmt.Printf("Order[%d] check ...", n+1)
 				c.GetSolutionGradient(-1, n, Q, DX, DY, DOFX, DOFY)
+				assert.Equal(t, len(DX.DataP), len(QGradXCheck[n].DataP))
+				assert.Equal(t, len(DY.DataP), len(QGradYCheck[n].DataP))
+				assert.InDeltaSlicef(t, DX.DataP, QGradXCheck[n].DataP, 0.000001, "err msg %s")
+				assert.InDeltaSlicef(t, DY.DataP, QGradYCheck[n].DataP, 0.000001, "err msg %s")
+				fmt.Printf("... validates\n")
+			}
+		}
+	}
+}
+
+func TestEuler_GetSolutionGradientUsingRTElement(t *testing.T) {
+	{
+		ip := *ipDefault
+		ip.FluxType = "average"
+		// Testing to fourth order in X and Y
+		ip.PolynomialOrder = 4
+		ip.Minf = 0.8
+		ip.Alpha = 2.
+		c := NewEuler(&ip, "../../DG2D/test_tris_9.neu", 1,
+			false, false, false)
+		rk := c.NewRungeKuttaSSP()
+		myThread := 0
+		var (
+			dfr                      = c.dfr
+			Kmax                     = dfr.K
+			fel                      = dfr.FluxElement
+			Nedge                    = fel.Nedge
+			NpFlux                   = fel.Np
+			QGradXCheck, QGradYCheck [4]utils.Matrix
+			Q0                       = c.Q[myThread]
+			SortedEdgeKeys           = c.SortedEdgeKeys[myThread]
+			EdgeQ1                   = make([][4]float64, Nedge) // Local working memory
+			EdgeQ2                   = make([][4]float64, Nedge) // Local working memory
+		)
+		for n := 0; n < 4; n++ {
+			QGradXCheck[n] = utils.NewMatrix(NpFlux, Kmax)
+			QGradYCheck[n] = utils.NewMatrix(NpFlux, Kmax)
+		}
+		// Flow is freestream, graident should be 0 in all variables
+		for n := 0; n < 4; n++ {
+			for i := 0; i < NpFlux; i++ {
+				for k := 0; k < Kmax; k++ {
+					ind := k + i*Kmax
+					QGradXCheck[n].DataP[ind] = 0.
+					QGradYCheck[n].DataP[ind] = 0.
+				}
+			}
+		}
+		// Interpolate from solution points to edges using precomputed interpolation matrix
+		// Test function for GradX and GradY
+		{
+			var (
+				DX, DY     = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+				DOFX, DOFY = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
+			)
+			rk.MaxWaveSpeed[0] =
+				c.CalculateNormalFlux(rk.Time, true, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
+			for n := 0; n < 4; n++ {
+				fmt.Printf("Variable[%d] check ...", n+1)
+				c.GetSolutionGradient(-1, n, Q0, DX, DY, DOFX, DOFY)
 				assert.Equal(t, len(DX.DataP), len(QGradXCheck[n].DataP))
 				assert.Equal(t, len(DY.DataP), len(QGradYCheck[n].DataP))
 				assert.InDeltaSlicef(t, DX.DataP, QGradXCheck[n].DataP, 0.000001, "err msg %s")
