@@ -65,7 +65,7 @@ func NewLimiterType(label string) (lt LimiterType) {
 	return
 }
 
-func NewSolutionLimiter(t LimiterType, dfr *DG2D.DFR2D, pm *PartitionMap, fs *FreeStream) (bjl *SolutionLimiter) {
+func NewSolutionLimiter(t LimiterType, kappa float64, dfr *DG2D.DFR2D, pm *PartitionMap, fs *FreeStream) (bjl *SolutionLimiter) {
 	var (
 		Np       = dfr.SolutionElement.Np
 		Nthreads = pm.ParallelDegree
@@ -83,7 +83,7 @@ func NewSolutionLimiter(t LimiterType, dfr *DG2D.DFR2D, pm *PartitionMap, fs *Fr
 		dUds:     make([]utils.Matrix, Nthreads),
 	}
 	for np := 0; np < Nthreads; np++ {
-		bjl.ShockFinder[np] = NewAliasShockFinder(dfr.SolutionElement)
+		bjl.ShockFinder[np] = NewAliasShockFinder(dfr.SolutionElement, kappa)
 		bjl.UElement[np] = utils.NewMatrix(Np, 1)
 		bjl.dUdr[np] = utils.NewMatrix(Np, 1)
 		bjl.dUds[np] = utils.NewMatrix(Np, 1)
@@ -101,10 +101,11 @@ func (bjl *SolutionLimiter) LimitSolution(myThread int, Qall, Residual [][4]util
 	if bjl.limiterType == None {
 		return
 	}
+	var sCount int
 	for k := 0; k < Kmax; k++ {
 		for i := 0; i < Np; i++ {
 			ind := k + Kmax*i
-			UE.DataP[i] = Q[3].DataP[ind]
+			UE.DataP[i] = Q[0].DataP[ind]
 			//UE.DataP[i] = Q[0].DataP[ind] + Q[1].DataP[ind] + Q[2].DataP[ind] + Q[3].DataP[ind]
 			//UE.DataP[i] = FS.GetFlowFunction(Q, ind, DynamicPressure)
 			//UE.DataP[i] = FS.GetFlowFunction(Q, ind, Entropy)
@@ -125,8 +126,14 @@ func (bjl *SolutionLimiter) LimitSolution(myThread int, Qall, Residual [][4]util
 					Residual[myThread][n].DataP[ind] = 0.
 				}
 			}
+			sCount++
 		}
 	}
+	/*
+		if sCount > 0 {
+			fmt.Printf("Shock Points[%d]=%d\n", myThread, sCount)
+		}
+	*/
 }
 
 func (bjl *SolutionLimiter) limitScalarFieldBarthJesperson(k, myThread int, Qall [][4]utils.Matrix) {
@@ -221,9 +228,10 @@ type ModeAliasShockFinder struct {
 	Clipper utils.Matrix // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder
 	Np      int
 	q, qalt utils.Matrix // scratch storage for evaluating the moment
+	Kappa   float64
 }
 
-func NewAliasShockFinder(element *DG2D.LagrangeElement2D) (sf *ModeAliasShockFinder) {
+func NewAliasShockFinder(element *DG2D.LagrangeElement2D, Kappa float64) (sf *ModeAliasShockFinder) {
 	var (
 		Np = element.Np
 	)
@@ -232,6 +240,7 @@ func NewAliasShockFinder(element *DG2D.LagrangeElement2D) (sf *ModeAliasShockFin
 		Np:      Np,
 		q:       utils.NewMatrix(Np, 1),
 		qalt:    utils.NewMatrix(Np, 1),
+		Kappa:   Kappa,
 	}
 	data := make([]float64, Np)
 	for i := 0; i < Np; i++ {
@@ -267,7 +276,7 @@ func (sf *ModeAliasShockFinder) ShockIndicator(q []float64) (sigma float64) {
 	var (
 		Se          = math.Log10(sf.moment(q))
 		k           = float64(sf.Element.N)
-		kappa       = 4.
+		kappa       = sf.Kappa
 		C0          = 3.
 		S0          = -C0 * math.Log(k)
 		left, right = S0 - kappa, S0 + kappa
@@ -276,9 +285,9 @@ func (sf *ModeAliasShockFinder) ShockIndicator(q []float64) (sigma float64) {
 	switch {
 	case Se < left:
 		sigma = 1.
-	case Se >= left && Se < right:
+	case Se >= left && Se <= right:
 		sigma = 0.5 * (1. - math.Sin(0.5*math.Pi*ookappa*(Se-S0)))
-	case Se >= right:
+	case Se > right:
 		sigma = 0.
 	}
 	return

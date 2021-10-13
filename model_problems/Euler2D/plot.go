@@ -51,7 +51,7 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 		if c.Limiter != nil {
 			sf = c.Limiter.ShockFinder[0]
 		} else {
-			sf = NewAliasShockFinder(c.dfr.SolutionElement)
+			sf = NewAliasShockFinder(c.dfr.SolutionElement, 2)
 		}
 		fld = utils.NewMatrix(Np, Kmax)
 		fldD := fld.DataP

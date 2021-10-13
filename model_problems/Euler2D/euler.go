@@ -77,7 +77,7 @@ func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, ver
 	c.InitializeSolution(verbose)
 
 	// Allocate a solution limiter
-	c.Limiter = NewSolutionLimiter(NewLimiterType(ip.Limiter), c.dfr, c.Partitions, c.FS)
+	c.Limiter = NewSolutionLimiter(NewLimiterType(ip.Limiter), ip.Kappa, c.dfr, c.Partitions, c.FS)
 
 	// Initiate Artificial Dissipation
 	c.Dissipation = NewScalarDissipation(ip.Kappa, c.dfr, c.Partitions)
@@ -382,7 +382,10 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 				Q0[n].DataP[i] += Residual[n].DataP[i]
 			}
 		}
+		rk.WorkerSync(&subStep, toController, false)
 		c.Limiter.LimitSolution(myThread, c.Q, rk.Residual)
+
+		_ = <-fromController // Block until parent sends "go"
 		rk.WorkerSync(&subStep, toController, true)
 	}
 }
