@@ -13,15 +13,12 @@ func (c *Euler) WallBC(k, Kmax int, Q_Face [4]utils.Matrix, ishift int, normal [
 		Nedge = c.dfr.FluxElement.Nedge
 	)
 	for i := 0; i < Nedge; i++ {
-		ie := i + ishift
-		ind := k + ie*Kmax
+		ind := k + (i+ishift)*Kmax
 		p := c.FS.GetFlowFunction(Q_Face, ind, StaticPressure)
-		for n := 0; n < 4; n++ {
-			normalFlux[i][0] = 0
-			normalFlux[i][1] = normal[0] * p
-			normalFlux[i][2] = normal[1] * p
-			normalFlux[i][3] = 0
-		}
+		normalFlux[i][0] = 0
+		normalFlux[i][1] = normal[0] * p
+		normalFlux[i][2] = normal[1] * p
+		normalFlux[i][3] = 0
 	}
 }
 
