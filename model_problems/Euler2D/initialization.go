@@ -18,14 +18,16 @@ type InitType uint
 const (
 	FREESTREAM InitType = iota
 	IVORTEX
+	SHOCKTUBE
 )
 
 var (
 	InitNames = map[string]InitType{
 		"freestream": FREESTREAM,
 		"ivortex":    IVORTEX,
+		"shocktube":  SHOCKTUBE,
 	}
-	InitPrintNames = []string{"Freestream", "Inviscid Vortex Analytic Solution"}
+	InitPrintNames = []string{"Freestream", "Inviscid Vortex Analytic Solution", "Shock Tube"}
 )
 
 func NewInitType(label string) (it InitType) {

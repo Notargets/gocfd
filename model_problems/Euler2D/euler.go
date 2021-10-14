@@ -86,7 +86,8 @@ func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, ver
 		fmt.Printf("Euler Equations in 2 Dimensions\n")
 		fmt.Printf("Using %d go routines in parallel\n", c.Partitions.ParallelDegree)
 		fmt.Printf("Solving %s\n", c.Case.Print())
-		if c.Case == FREESTREAM {
+		switch c.Case {
+		case FREESTREAM:
 			fmt.Printf("Mach Infinity = %8.5f, Angle of Attack = %8.5f\n", ip.Minf, ip.Alpha)
 		}
 		fmt.Printf("Flux Algorithm: [%s] using Limiter: [%s]\n", c.FluxCalcAlgo.Print(), c.Limiter.limiterType.Print())
@@ -462,6 +463,41 @@ func (c *Euler) InitializeSolution(verbose bool) {
 		for np := 0; np < NP; np++ {
 			Kmax := c.Partitions.GetBucketDimension(np)
 			c.Q[np] = c.InitializeFS(Kmax)
+		}
+	case SHOCKTUBE:
+		c.SolutionX = c.ShardByK(c.dfr.SolutionX)
+		c.SolutionY = c.ShardByK(c.dfr.SolutionY)
+		c.FS.Gamma = 1.4
+		GM1 := c.FS.Gamma - 1
+		c.FS.Qinf = [4]float64{1, 0, 0, 1 / GM1}
+		c.FS.Pinf = c.FS.GetFlowFunctionQQ(c.FS.Qinf, StaticPressure)
+		c.FS.QQinf = c.FS.GetFlowFunctionQQ(c.FS.Qinf, DynamicPressure)
+		c.FS.Cinf = c.FS.GetFlowFunctionQQ(c.FS.Qinf, SoundSpeed)
+		NP := c.Partitions.ParallelDegree
+		for np := 0; np < NP; np++ {
+			var (
+				Kmax = c.Partitions.GetBucketDimension(np)
+				Nint = c.dfr.SolutionElement.Np
+			)
+			for n := 0; n < 4; n++ {
+				c.Q[np][n] = utils.NewMatrix(Nint, Kmax)
+			}
+			for k := 0; k < Kmax; k++ {
+				for i := 0; i < Nint; i++ {
+					ind := k + i*Kmax
+					if c.SolutionX[np].DataP[ind] > 0 {
+						c.Q[np][0].DataP[ind] = c.FS.Qinf[0]
+						c.Q[np][1].DataP[ind] = c.FS.Qinf[1]
+						c.Q[np][2].DataP[ind] = c.FS.Qinf[2]
+						c.Q[np][3].DataP[ind] = c.FS.Qinf[3]
+					} else {
+						c.Q[np][0].DataP[ind] = 0.125
+						c.Q[np][1].DataP[ind] = 0
+						c.Q[np][2].DataP[ind] = 0
+						c.Q[np][3].DataP[ind] = 0.1 / GM1
+					}
+				}
+			}
 		}
 	case IVORTEX:
 		c.FS.Qinf = [4]float64{1, 1, 0, 3}

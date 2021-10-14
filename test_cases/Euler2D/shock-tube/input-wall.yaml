@@ -1,0 +1,13 @@
+Title: "Test Case"
+CFL: 0.10500
+#FluxType: Roe-ER
+FluxType: Roe
+#FluxType: Lax
+InitType: shocktube # Can be "Freestream" or "IVortex"
+PolynomialOrder: 2
+FinalTime: 20
+LocalTimeStepping: false
+MaxIterations: 80000
+#Limiter: Barth Jesperson
+#Kappa: 0.25
+Kappa: 4
