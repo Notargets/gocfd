@@ -3,6 +3,7 @@ package Euler2D
 import (
 	"fmt"
 	"math"
+	"sync"
 	"syscall"
 	"time"
 
@@ -114,7 +115,6 @@ func (c *Euler) Solve(pm *PlotMeta) {
 	rk := c.NewRungeKuttaSSP()
 
 	elapsed := time.Duration(0)
-	rk.StartWorkers(c)
 	var start time.Time
 	for !finished {
 		start = time.Now()
@@ -143,10 +143,9 @@ type RungeKutta4SSP struct {
 	DT                   []utils.Matrix    // Local time step storage
 	MaxWaveSpeed         []float64         // Shard max wavespeed
 	GlobalDT, Time       float64
-	Kmax                 []int // Local element count (dimension: Kmax[ParallelDegree])
-	NpInt, Nedge, NpFlux int   // Number of points in solution, edge and flux total
-	toWorker             []chan struct{}
-	fromWorkers          chan int8
+	Kmax                 []int          // Local element count (dimension: Kmax[ParallelDegree])
+	NpInt, Nedge, NpFlux int            // Number of points in solution, edge and flux total
+	EdgeQ1, EdgeQ2       [][][4]float64 // Sharded local working memory, dimensions Nedge
 }
 
 func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
@@ -170,11 +169,8 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		NpInt:        c.dfr.SolutionElement.Np,
 		Nedge:        c.dfr.FluxElement.Nedge,
 		NpFlux:       c.dfr.FluxElement.Np,
-		fromWorkers:  make(chan int8, NPar),
-		toWorker:     make([]chan struct{}, NPar),
-	}
-	for np := 0; np < NPar; np++ {
-		rk.toWorker[np] = make(chan struct{}, 1)
+		EdgeQ1:       make([][][4]float64, NPar),
+		EdgeQ2:       make([][][4]float64, NPar),
 	}
 	// Initialize memory for RHS
 	for np := 0; np < NPar; np++ {
@@ -188,19 +184,11 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 			rk.Q_Face[np][n] = utils.NewMatrix(rk.Nedge*3, rk.Kmax[np])
 		}
 		rk.DT[np] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
+		rk.EdgeQ1[np] = make([][4]float64, rk.Nedge)
+		rk.EdgeQ2[np] = make([][4]float64, rk.Nedge)
 	}
 	rk.Residual = rk.Q1
 	return
-}
-
-func (rk *RungeKutta4SSP) StartWorkers(c *Euler) {
-	var (
-		pm = c.Partitions
-		NP = pm.ParallelDegree
-	)
-	for np := 0; np < NP; np++ {
-		go rk.StepWorker(c, np, rk.toWorker[np], rk.fromWorkers)
-	}
 }
 
 func (rk *RungeKutta4SSP) Step(c *Euler) {
@@ -209,73 +197,57 @@ func (rk *RungeKutta4SSP) Step(c *Euler) {
 		NOTE: Any CPU work done in this thread makes the workers wait - be careful!
 	*/
 	var (
-		pm = c.Partitions
-		NP = pm.ParallelDegree
+		pm       = c.Partitions
+		NP       = pm.ParallelDegree
+		wg       = sync.WaitGroup{}
+		QCurrent [][4]utils.Matrix
 	)
-	kickOff := func(np int) {
-		rk.toWorker[np] <- struct{}{}
-	}
-	for {
-		// Advance the workers one step by sending the "go" message. They are blocked until they receive this.
-		for np := 0; np < NP; np++ {
-			//rk.toWorker[np] <- struct{}{}
-			go kickOff(np)
-		}
-		currentStep := int8(-1)
-		var ts int8
-		for np := 0; np < NP; np++ {
-			// Each worker sends it's completed step number, we check to make sure they are all the same
-			ts = <-rk.fromWorkers
-			if currentStep == -1 {
-				currentStep = ts
-			}
-			if ts != currentStep {
-				err := fmt.Errorf("[%d]incorrect state, ts = %d, currentStep = %d\n", np, ts, currentStep)
-				panic(err)
-			}
-		}
-		// Workers are blocked below here - make sure no significant CPU work is done here unless abs necessary!
+	for currentStep := 0; currentStep < 9; currentStep++ {
+		// Workers are blocked below here until the StepWorker section - make sure significant work done here is abs necessary!
 		switch {
-		case currentStep == 2:
-			// After step 2, we need to consolidate the local max wavespeeds to calculate global dt
+		case currentStep == 1:
+			// After step 0, we need to consolidate the local max wavespeeds to calculate global dt
 			if !c.LocalTimeStepping {
 				rk.calculateGlobalDT(c)
 			}
-			//fmt.Printf(c.EdgeValueStorage[0].Print("0NormalFlux"))
-			//os.Exit(1)
-			c.Dissipation.CalculateElementViscosity(c.Q)
-		case currentStep < 0:
-			return
+		case currentStep%2 == 1: // Odd steps are pre-time advancement
+			switch currentStep / 2 {
+			case 0:
+				QCurrent = c.Q
+			case 1:
+				QCurrent = rk.Q1
+			case 2:
+				QCurrent = rk.Q2
+			case 3:
+				QCurrent = rk.Q3
+			}
+			c.Dissipation.CalculateElementViscosity(QCurrent)
 		}
+		// Advance the workers one step by sending the "go" message. They are blocked until they receive this.
+		for np := 0; np < NP; np++ {
+			wg.Add(1)
+			go rk.StepWorker(c, np, &wg, currentStep)
+		}
+		wg.Wait()
 	}
 }
 
-func (rk *RungeKutta4SSP) WorkerSync(subStepP *int8, fromWorker chan int8, isDone bool) {
-	if isDone {
-		*subStepP = -1
-	} else {
-		*subStepP++
-	}
-	fromWorker <- *subStepP // Inform controller what step we've just completed
-}
-
-func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan struct{}, toController chan int8) {
+func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup, subStep int) {
 	var (
-		Q0                           = c.Q[myThread]
 		Np                           = rk.NpInt
+		dT                           float64
+		contLevel                    = C0
+		Q0                           = c.Q[myThread]
 		Kmax, Jdet, Jinv, F_RT_DOF   = rk.Kmax[myThread], rk.Jdet[myThread], rk.Jinv[myThread], rk.F_RT_DOF[myThread]
 		DT, Q_Face, Q1, Q2, Q3, RHSQ = rk.DT[myThread], rk.Q_Face[myThread], rk.Q1[myThread], rk.Q2[myThread], rk.Q3[myThread], rk.RHSQ[myThread]
 		Residual                     = rk.Residual[myThread]
+		EdgeQ1, EdgeQ2               = rk.EdgeQ1[myThread], rk.EdgeQ2[myThread]
 		SortedEdgeKeys               = c.SortedEdgeKeys[myThread]
-		dT                           float64
-		subStep                      int8
-		Nedge                        = c.dfr.FluxElement.Nedge
-		EdgeQ1                       = make([][4]float64, Nedge) // Local working memory
-		EdgeQ2                       = make([][4]float64, Nedge) // Local working memory
-		contLevel                    = C0
 	)
-	for {
-		_ = <-fromController // Block until parent sends "go"
+	//defer func() { fmt.Printf("thread %d finished with step %d\n", myThread, subStep); wg.Done() }()
+	defer wg.Done()
+	switch subStep {
+	case 0:
 		if c.LocalTimeStepping {
 			// Setup local time stepping
 			for k := 0; k < Kmax; k++ {
@@ -283,14 +255,10 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 			}
 		}
 		c.InterpolateSolutionToEdges(Q0, Q_Face) // Interpolates Q_Face values from Q
-		rk.WorkerSync(&subStep, toController, false)
-
-		_ = <-fromController // Block until parent sends "go"
+	case 1:
 		rk.MaxWaveSpeed[myThread] =
 			c.CalculateNormalFlux(rk.Time, true, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
-		rk.WorkerSync(&subStep, toController, false)
-
-		_ = <-fromController                                // Block until parent sends "go"
+	case 2:
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q0) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		if c.LocalTimeStepping {
@@ -308,7 +276,6 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 		}
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, Q0, RHSQ)
-		//contLevel := No
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
 			for i := 0; i < Kmax*Np; i++ {
@@ -319,17 +286,13 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 			}
 		}
 		c.InterpolateSolutionToEdges(Q1, Q_Face) // Interpolates Q_Face values from Q
-		rk.WorkerSync(&subStep, toController, false)
-
-		_ = <-fromController                                                                             // Block until parent sends "go"
+	case 3:
 		c.CalculateNormalFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
-		rk.WorkerSync(&subStep, toController, false)
-
-		_ = <-fromController                                // Block until parent sends "go"
+	case 4:
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q1) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
-		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, Q0, RHSQ)
+		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, Q1, RHSQ)
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
 			for i := 0; i < Kmax*Np; i++ {
@@ -340,17 +303,13 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 			}
 		}
 		c.InterpolateSolutionToEdges(Q2, Q_Face) // Interpolates Q_Face values from Q
-		rk.WorkerSync(&subStep, toController, false)
-
-		_ = <-fromController                                                                             // Block until parent sends "go"
+	case 5:
 		c.CalculateNormalFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
-		rk.WorkerSync(&subStep, toController, false)
-
-		_ = <-fromController                                // Block until parent sends "go"
+	case 6:
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q2) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
-		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, Q0, RHSQ)
+		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, Q2, RHSQ)
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
 			for i := 0; i < Kmax*Np; i++ {
@@ -361,17 +320,13 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 			}
 		}
 		c.InterpolateSolutionToEdges(Q3, Q_Face) // Interpolates Q_Face values from Q
-		rk.WorkerSync(&subStep, toController, false)
-
-		_ = <-fromController                                                                             // Block until parent sends "go"
+	case 7:
 		c.CalculateNormalFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
-		rk.WorkerSync(&subStep, toController, false)
-
-		_ = <-fromController                                // Block until parent sends "go"
+	case 8:
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q3) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
-		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, Q0, RHSQ)
+		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, Q3, RHSQ)
 		// Note, we are re-using Q1 as storage for Residual here
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
@@ -383,12 +338,9 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, fromController chan
 				Q0[n].DataP[i] += Residual[n].DataP[i]
 			}
 		}
-		rk.WorkerSync(&subStep, toController, false)
 		c.Limiter.LimitSolution(myThread, c.Q, rk.Residual)
-
-		_ = <-fromController // Block until parent sends "go"
-		rk.WorkerSync(&subStep, toController, true)
 	}
+	return
 }
 
 func (c *Euler) RHSInternalPoints(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4]utils.Matrix) {
