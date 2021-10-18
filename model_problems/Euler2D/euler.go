@@ -592,7 +592,7 @@ func (c *Euler) GetSolutionGradientUsingRTElement(myThread, varNum int, Q [4]uti
 	for k := 0; k < Kmax; k++ {
 		kGlobal := c.Partitions.GetGlobalK(k, myThread)
 		for edgeNum := 0; edgeNum < 3; edgeNum++ {
-			edgeVals, sign := c.EdgeStore.GetEdgeValues(SolutionValues, myThread, k, varNum, edgeNum, dfr)
+			edgeVals, sign := c.EdgeStore.GetEdgeValues(QFluxForGradient, myThread, k, varNum, edgeNum, dfr)
 			switch {
 			case sign < 0:
 				var ii int

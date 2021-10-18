@@ -263,7 +263,7 @@ func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		   fx(All,3) -= (dW1.dm(v)         + dW2.dm(v)                 + dW3       + dW4.dm(v)        )/2.0;
 		   fx(All,4) -= (dW1.dm(H-u.dm(c)) + dW2.dm(sqr(u)+sqr(v))/2.0 + dW3.dm(v) + dW4.dm(H+u.dm(c)))/2.0;
 		*/
-		// Form Roe Fluxes
+		// Form Roe FluxIndex
 		// Ave of normal component of flux
 		normalFlux[i][0] = 0.5 * (Q_FaceL[1].DataP[indL] + Q_FaceR[1].DataP[indR])
 		normalFlux[i][1] = 0.5 * (Q_FaceL[1].DataP[indL]*uL + Q_FaceR[1].DataP[indR]*uR + +pL + pR)

@@ -581,22 +581,21 @@ func TestDissipation2(t *testing.T) {
 				DOFX, DOFY = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
 			)
 			// Before this call, we need to load edge data into the edge store
+			edgeValues := make([][4]float64, Nedge)
 			myThread := -1
 			for k := 0; k < Kmax; k++ {
 				kGlobal := c.Partitions.GetGlobalK(k, myThread)
 				for edgeNum := 0; edgeNum < 3; edgeNum++ {
-					indE := kGlobal + Kmax*edgeNum
-					en := dfr.EdgeNumber[indE]
+					en := dfr.EdgeNumber[kGlobal+Kmax*edgeNum]
 					primeElement := c.dfr.Tris.Edges[en].ConnectedTris[0]
 					if int(primeElement) == kGlobal {
-						edgeIndex := c.EdgeStore.StorageIndex[en]
 						for i := 0; i < Nedge; i++ {
-							ind := i + edgeIndex*Nedge
-							indQ := k + (i+edgeNum*Nedge)*Kmax
+							ind := k + (i+edgeNum*Nedge)*Kmax
 							for n := 0; n < 4; n++ {
-								c.EdgeStore.EdgeSolutionStorage[n].DataP[ind] = Q_Face[n].DataP[indQ]
+								edgeValues[i][n] = Q_Face[n].DataP[ind]
 							}
 						}
+						c.EdgeStore.PutEdgeValues(en, QFluxForGradient, edgeValues)
 					}
 				}
 			}
@@ -789,7 +788,7 @@ func GetStatePoly(x, y float64) (rho, rhoU, rhoV, E float64) {
 				F = [ rhou, rho*u^2+p, rho*u*v, u*(E+p) ];
 				G = [ rhov, rho*u*v, rho*v^2+p, v*(E+p) ];
 				div = diff(F,x)+diff(G,y);
-				fprintf('Code for Divergence of F and G Fluxes\n%s\n',ccode(div));
+				fprintf('Code for Divergence of F and G FluxIndex\n%s\n',ccode(div));
 				fprintf('Code for U \n%s\n%s\n%s\n%s\n',ccode(U));
 	*/
 	var (
