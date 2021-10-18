@@ -257,7 +257,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		c.InterpolateSolutionToEdges(Q0, Q_Face) // Interpolates Q_Face values from Q
 	case 1:
 		rk.MaxWaveSpeed[myThread] =
-			c.CalculateNormalFlux(rk.Time, true, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
+			c.CalculateEdgeFlux(rk.Time, true, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
 	case 2:
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q0) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
@@ -287,7 +287,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		}
 		c.InterpolateSolutionToEdges(Q1, Q_Face) // Interpolates Q_Face values from Q
 	case 3:
-		c.CalculateNormalFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
+		c.CalculateEdgeFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
 	case 4:
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q1) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
@@ -304,7 +304,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		}
 		c.InterpolateSolutionToEdges(Q2, Q_Face) // Interpolates Q_Face values from Q
 	case 5:
-		c.CalculateNormalFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
+		c.CalculateEdgeFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
 	case 6:
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q2) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
@@ -321,7 +321,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		}
 		c.InterpolateSolutionToEdges(Q3, Q_Face) // Interpolates Q_Face values from Q
 	case 7:
-		c.CalculateNormalFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
+		c.CalculateEdgeFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
 	case 8:
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q3) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)

@@ -118,7 +118,7 @@ func (c *Euler) GetFaceNormal(kGlobal, edgeNumber int) (normal [2]float64) {
 	return
 }
 
-func (c *Euler) CalculateNormalFlux(Time float64, CalculateDT bool, Jdet, DT []utils.Matrix, Q_Face [][4]utils.Matrix,
+func (c *Euler) CalculateEdgeFlux(Time float64, CalculateDT bool, Jdet, DT []utils.Matrix, Q_Face [][4]utils.Matrix,
 	edgeKeys EdgeKeySlice, EdgeQ1, EdgeQ2 [][4]float64) (waveSpeedMax float64) {
 	var (
 		Nedge       = c.dfr.FluxElement.Nedge
