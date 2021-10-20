@@ -86,7 +86,7 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 		case XGradientEnergy, YGradientEnergy:
 			varNum = 3
 		}
-		c.GetSolutionGradient(-1, varNum, Q, GradX, GradY, DOFX, DOFY)
+		c.GetSolutionGradientUsingRTElement(-1, varNum, Q, GradX, GradY, DOFX, DOFY)
 		if plotField < 300 {
 			field = GradX
 		} else {

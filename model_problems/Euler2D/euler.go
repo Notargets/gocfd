@@ -202,7 +202,7 @@ func (rk *RungeKutta4SSP) Step(c *Euler) {
 		wg       = sync.WaitGroup{}
 		QCurrent [][4]utils.Matrix
 	)
-	for currentStep := 0; currentStep < 9; currentStep++ {
+	for currentStep := 0; currentStep < 17; currentStep++ {
 		// Workers are blocked below here until the StepWorker section - make sure significant work done here is abs necessary!
 		switch {
 		case currentStep == 1:
@@ -210,7 +210,7 @@ func (rk *RungeKutta4SSP) Step(c *Euler) {
 			if !c.LocalTimeStepping {
 				rk.calculateGlobalDT(c)
 			}
-		case currentStep%2 == 1: // Odd steps are pre-time advancement
+		case currentStep%4 == 1: // pre-time advancement steps
 			switch currentStep / 2 {
 			case 0:
 				QCurrent = c.Q
@@ -259,6 +259,10 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		rk.MaxWaveSpeed[myThread] =
 			c.CalculateEdgeFlux(rk.Time, true, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
 	case 2:
+		c.Dissipation.CalculateEpsilonGradient(c, C0, myThread, Q0)
+	case 3:
+		c.StoreGradientEdgeFlux(SortedEdgeKeys, EdgeQ1)
+	case 4:
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q0) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		if c.LocalTimeStepping {
@@ -286,9 +290,13 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 			}
 		}
 		c.InterpolateSolutionToEdges(Q1, Q_Face) // Interpolates Q_Face values from Q
-	case 3:
+	case 5:
 		c.CalculateEdgeFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
-	case 4:
+	case 6:
+		c.Dissipation.CalculateEpsilonGradient(c, C0, myThread, Q1)
+	case 7:
+		c.StoreGradientEdgeFlux(SortedEdgeKeys, EdgeQ1)
+	case 8:
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q1) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
@@ -303,9 +311,13 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 			}
 		}
 		c.InterpolateSolutionToEdges(Q2, Q_Face) // Interpolates Q_Face values from Q
-	case 5:
+	case 9:
 		c.CalculateEdgeFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
-	case 6:
+	case 10:
+		c.Dissipation.CalculateEpsilonGradient(c, C0, myThread, Q2)
+	case 11:
+		c.StoreGradientEdgeFlux(SortedEdgeKeys, EdgeQ1)
+	case 12:
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q2) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
@@ -320,9 +332,13 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 			}
 		}
 		c.InterpolateSolutionToEdges(Q3, Q_Face) // Interpolates Q_Face values from Q
-	case 7:
+	case 13:
 		c.CalculateEdgeFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
-	case 8:
+	case 14:
+		c.Dissipation.CalculateEpsilonGradient(c, C0, myThread, Q3)
+	case 15:
+		c.StoreGradientEdgeFlux(SortedEdgeKeys, EdgeQ1)
+	case 16:
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q3) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
@@ -559,19 +575,17 @@ func (rk *RungeKutta4SSP) calculateGlobalDT(c *Euler) {
 }
 
 func (c *Euler) GetSolutionGradientUsingRTElement(myThread, varNum int, Q [4]utils.Matrix, GradX, GradY, DOFX, DOFY utils.Matrix) {
-	// NOTE!!! This does not seem to work with velocity fields at all - not sure why
 	/*
 		Dimensions:
 			Q[4] should be Nint x Kmax
 			All others should be NpFlux x Kmax
 	*/
 	var (
-		dfr        = c.dfr
-		NpInt      = dfr.FluxElement.Nint
-		NpEdge     = dfr.FluxElement.Nedge
-		KmaxGlobal = c.Partitions.MaxIndex
-		Kmax       = c.Partitions.GetBucketDimension(myThread)
-		// TODO: Shard the DX and DY metrics
+		dfr          = c.dfr
+		NpInt        = dfr.FluxElement.Nint
+		NpEdge       = dfr.FluxElement.Nedge
+		KmaxGlobal   = c.Partitions.MaxIndex
+		Kmax         = c.Partitions.GetBucketDimension(myThread)
 		DXmd, DYmd   = dfr.DXMetric.DataP, dfr.DYMetric.DataP
 		DOFXd, DOFYd = DOFX.DataP, DOFY.DataP
 	)
@@ -580,38 +594,34 @@ func (c *Euler) GetSolutionGradientUsingRTElement(myThread, varNum int, Q [4]uti
 		kGlobal := c.Partitions.GetGlobalK(k, myThread)
 		for i := 0; i < NpInt; i++ {
 			ind := k + i*Kmax
-			ind2 := k + (i+NpInt)*Kmax
 			indG := kGlobal + i*KmaxGlobal
+			ind2 := k + (i+NpInt)*Kmax
 			ind2G := kGlobal + (i+NpInt)*KmaxGlobal
 			Un = Q[varNum].DataP[ind]
 			DOFXd[ind], DOFYd[ind] = DXmd[indG]*Un, DYmd[indG]*Un
 			DOFXd[ind2], DOFYd[ind2] = DXmd[ind2G]*Un, DYmd[ind2G]*Un
 		}
 	}
-	// Load average solution values from solution storage
+	// Load edge solution values from solution storage
 	for k := 0; k < Kmax; k++ {
 		kGlobal := c.Partitions.GetGlobalK(k, myThread)
 		for edgeNum := 0; edgeNum < 3; edgeNum++ {
 			edgeVals, sign := c.EdgeStore.GetEdgeValues(QFluxForGradient, myThread, k, varNum, edgeNum, dfr)
-			switch {
-			case sign < 0:
-				var ii int
-				for i := NpEdge - 1; i >= 0; i-- {
-					ind := k + (2*NpInt+i+edgeNum*NpEdge)*Kmax
-					indG := kGlobal + (2*NpInt+i+edgeNum*NpEdge)*KmaxGlobal
-					Un = edgeVals[ii]
-					DOFXd[ind] = DXmd[indG] * Un
-					DOFYd[ind] = DYmd[indG] * Un
-					ii++
+			var (
+				ii    int
+				shift = edgeNum * NpEdge
+			)
+			for i := 0; i < NpEdge; i++ {
+				if sign < 0 {
+					ii = NpEdge - 1 - i
+				} else {
+					ii = i
 				}
-			case sign > 0:
-				for i := 0; i < NpEdge; i++ {
-					ind := k + (2*NpInt+i+edgeNum*NpEdge)*Kmax
-					indG := kGlobal + (2*NpInt+i+edgeNum*NpEdge)*KmaxGlobal
-					Un = edgeVals[i]
-					DOFXd[ind] = DXmd[indG] * Un
-					DOFYd[ind] = DYmd[indG] * Un
-				}
+				ind := k + (2*NpInt+i+shift)*Kmax
+				indG := kGlobal + (2*NpInt+i+shift)*KmaxGlobal
+				Un = edgeVals[ii]
+				DOFXd[ind] = DXmd[indG] * Un
+				DOFYd[ind] = DYmd[indG] * Un
 			}
 		}
 	}

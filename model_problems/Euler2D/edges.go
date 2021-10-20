@@ -55,10 +55,6 @@ const (
 	GradientFluxForLaplacian
 )
 
-var (
-	FluxIndex = map[ValueType]int{NumericalFluxForEuler: 0, QFluxForGradient: 1, GradientFluxForLaplacian: 2}
-)
-
 func (c *Euler) NewEdgeStorage() (nf *EdgeValueStorage) {
 	var (
 		NumEdges = len(c.dfr.Tris.Edges)
@@ -67,7 +63,7 @@ func (c *Euler) NewEdgeStorage() (nf *EdgeValueStorage) {
 		StorageIndex: make(map[types.EdgeKey]int),
 		PMap:         c.Partitions,
 		Nedge:        c.dfr.FluxElement.Nedge,
-		Fluxes:       make([][4]utils.Matrix, len(FluxIndex)),
+		Fluxes:       make([][4]utils.Matrix, int(GradientFluxForLaplacian)+1),
 	}
 	// Allocate memory for fluxes
 	for i := range nf.Fluxes {
@@ -91,7 +87,7 @@ func (nf *EdgeValueStorage) GetEdgeValues(valType ValueType, myThread, kLocal, v
 		Kmax    = dfr.K
 		edgeNum = localEdgeNumber
 		Nedge   = nf.Nedge
-		target  = nf.Fluxes[FluxIndex[valType]][varNum]
+		target  = nf.Fluxes[int(valType)][varNum]
 	)
 	en := dfr.EdgeNumber[kGlobal+Kmax*edgeNum]
 	edgeIndex := nf.StorageIndex[en]
@@ -109,13 +105,13 @@ func (nf *EdgeValueStorage) GetEdgeValues(valType ValueType, myThread, kLocal, v
 
 func (nf *EdgeValueStorage) PutEdgeValues(en types.EdgeKey, valType ValueType, EdgeValues [][4]float64) {
 	var (
-		target = nf.Fluxes[FluxIndex[valType]]
+		target = nf.Fluxes[int(valType)]
 	)
 	// Load the normal flux into the global normal flux storage
 	edgeIndex := nf.StorageIndex[en]
-	for i := 0; i < nf.Nedge; i++ {
-		ind := i + edgeIndex*nf.Nedge
-		for n := 0; n < 4; n++ {
+	for n := 0; n < 4; n++ {
+		for i := 0; i < nf.Nedge; i++ {
+			ind := i + edgeIndex*nf.Nedge
 			target[n].DataP[ind] = EdgeValues[i][n]
 		}
 	}
@@ -130,6 +126,56 @@ func (c *Euler) GetFaceNormal(kGlobal, edgeNumber int) (normal [2]float64) {
 	return
 }
 
+func (c *Euler) StoreGradientEdgeFlux(edgeKeys EdgeKeySlice, EdgeQ1 [][4]float64) {
+	var (
+		Nedge                    = c.dfr.FluxElement.Nedge
+		gradientFluxForLaplacian = EdgeQ1
+		pm                       = c.Partitions
+		Nint                     = c.dfr.FluxElement.Nint
+	)
+	for _, en := range edgeKeys {
+		e := c.dfr.Tris.Edges[en]
+		var (
+			kLGlobal             = int(e.ConnectedTris[0])
+			kL, KmaxL, myThreadL = pm.GetLocalK(int(e.ConnectedTris[0]))
+			edgeNumberL          = int(e.ConnectedTriEdgeNumber[0])
+			DissXL, DissYL       = c.Dissipation.DissX[myThreadL], c.Dissipation.DissY[myThreadL]
+			shiftL               = Nedge * edgeNumberL
+			normalL              = c.GetFaceNormal(kLGlobal, edgeNumberL)
+			nxL, nyL             = normalL[0], normalL[1]
+
+			kR, KmaxR, myThreadR = pm.GetLocalK(int(e.ConnectedTris[1]))
+			edgeNumberR          = int(e.ConnectedTriEdgeNumber[1])
+			DissXR, DissYR       = c.Dissipation.DissX[myThreadR], c.Dissipation.DissY[myThreadR]
+			shiftR               = Nedge * edgeNumberR
+			normalR              = c.GetFaceNormal(kLGlobal, edgeNumberL)
+			nxR, nyR             = normalR[0], normalR[1]
+		)
+		switch e.NumConnectedTris {
+		case 0:
+			panic("unable to handle unconnected edges")
+		case 1: // Handle edges with only one triangle
+			for n := 0; n < 4; n++ {
+				for i := 0; i < Nedge; i++ {
+					indL := kL + (2*Nint+shiftL+i)*KmaxL // Reversed edge - storage is for primary element
+					gradientFluxForLaplacian[i][n] = nxL*DissXL[n].DataP[indL] + nyL*DissYL[n].DataP[indL]
+				}
+			}
+		case 2: // Handle edges with two connected tris - shared faces
+			for n := 0; n < 4; n++ {
+				for i := 0; i < Nedge; i++ {
+					indR := kR + (2*Nint+shiftR+Nedge-1-i)*KmaxR // Reversed edge - storage is for primary element
+					// Use right side only per Cockburn and Shu's algorithm for Laplacian, where we alternate flux sides
+					gradientFluxForLaplacian[i][n] = nxR*DissXR[n].DataP[indR] + nyR*DissYR[n].DataP[indR]
+				}
+			}
+		}
+		// Load the normal flux into the global normal flux storage
+		c.EdgeStore.PutEdgeValues(en, GradientFluxForLaplacian, gradientFluxForLaplacian)
+	}
+	return
+}
+
 func (c *Euler) CalculateEdgeFlux(Time float64, CalculateDT bool, Jdet, DT []utils.Matrix, Q_Face [][4]utils.Matrix,
 	edgeKeys EdgeKeySlice, EdgeQ1, EdgeQ2 [][4]float64) (waveSpeedMax float64) {
 	var (
@@ -141,34 +187,42 @@ func (c *Euler) CalculateEdgeFlux(Time float64, CalculateDT bool, Jdet, DT []uti
 	for _, en := range edgeKeys {
 		e := c.dfr.Tris.Edges[en]
 		var (
-			k0Global             = int(e.ConnectedTris[0])
-			k0, Kmax0, myThread0 = pm.GetLocalK(int(e.ConnectedTris[0]))
-			edgeNumber0          = int(e.ConnectedTriEdgeNumber[0])
-			normal0              = c.GetFaceNormal(k0Global, edgeNumber0)
+			kLGlobal             = int(e.ConnectedTris[0])
+			kL, KmaxL, myThreadL = pm.GetLocalK(int(e.ConnectedTris[0]))
+			edgeNumberL          = int(e.ConnectedTriEdgeNumber[0])
+			normalL              = c.GetFaceNormal(kLGlobal, edgeNumberL)
+			shiftL               = edgeNumberL * Nedge
 		)
+		// Store solution for this edge - use left side only per Cockburn and Shu's algorithm for Laplacian, alternate flux sides
+		for i := 0; i < Nedge; i++ {
+			indL := kL + (i+shiftL)*KmaxL
+			for n := 0; n < 4; n++ {
+				qFluxForGradient[i][n] = Q_Face[myThreadL][n].DataP[indL]
+			}
+		}
+		c.EdgeStore.PutEdgeValues(en, QFluxForGradient, qFluxForGradient)
+
 		switch e.NumConnectedTris {
 		case 0:
 			panic("unable to handle unconnected edges")
 		case 1: // Handle edges with only one triangle - default is edge flux, which will be replaced by a BC flux
 			c.calculateNonSharedEdgeFlux(e, Nedge, Time,
-				k0, Kmax0, edgeNumber0, myThread0,
-				normal0, numericalFluxForEuler, qFluxForGradient, Q_Face)
+				kL, KmaxL, edgeNumberL, myThreadL,
+				normalL, numericalFluxForEuler, qFluxForGradient, Q_Face)
 		case 2: // Handle edges with two connected tris - shared faces
 			var (
 				kR, KmaxR, myThreadR = pm.GetLocalK(int(e.ConnectedTris[1]))
 				edgeNumberR          = int(e.ConnectedTriEdgeNumber[1])
 			)
-			c.calculateSharedEdgeFlux(Nedge,
-				k0, Kmax0, edgeNumber0, myThread0,
-				kR, KmaxR, edgeNumberR, myThreadR,
-				normal0, numericalFluxForEuler, qFluxForGradient, Q_Face)
-		}
-		if CalculateDT {
-			waveSpeedMax = c.calculateLocalDT(e, Nedge, Q_Face, Jdet, DT)
+			c.calculateSharedEdgeFlux(Nedge, kL, KmaxL, edgeNumberL, myThreadL, kR, KmaxR, edgeNumberR, myThreadR,
+				normalL, numericalFluxForEuler, Q_Face)
 		}
 		// Load the normal flux into the global normal flux storage
 		c.EdgeStore.PutEdgeValues(en, NumericalFluxForEuler, numericalFluxForEuler)
-		c.EdgeStore.PutEdgeValues(en, QFluxForGradient, qFluxForGradient)
+
+		if CalculateDT {
+			waveSpeedMax = c.calculateLocalDT(e, Nedge, Q_Face, Jdet, DT)
+		}
 	}
 	return
 }
@@ -209,28 +263,19 @@ func (c *Euler) calculateLocalDT(e *DG2D.Edge, Nedge int,
 }
 
 func (c *Euler) calculateSharedEdgeFlux(Nedge, kL, KmaxL, edgeNumberL, myThreadL, kR, KmaxR, edgeNumberR, myThreadR int,
-	normal0 [2]float64, numericalFluxForEuler, qFluxForGradient [][4]float64,
-	Q_Face [][4]utils.Matrix) {
+	normalL [2]float64, numericalFluxForEuler [][4]float64, Q_Face [][4]utils.Matrix) {
 	var (
 		shiftL, shiftR = edgeNumberL * Nedge, edgeNumberR * Nedge
 	)
 	switch c.FluxCalcAlgo {
 	case FLUX_Average:
-		c.AvgFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[myThreadL], Q_Face[myThreadR], normal0, numericalFluxForEuler)
+		c.AvgFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[myThreadL], Q_Face[myThreadR], normalL, numericalFluxForEuler)
 	case FLUX_LaxFriedrichs:
-		c.LaxFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[myThreadL], Q_Face[myThreadR], normal0, numericalFluxForEuler)
+		c.LaxFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[myThreadL], Q_Face[myThreadR], normalL, numericalFluxForEuler)
 	case FLUX_Roe:
-		c.RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[myThreadL], Q_Face[myThreadR], normal0, numericalFluxForEuler)
+		c.RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[myThreadL], Q_Face[myThreadR], normalL, numericalFluxForEuler)
 	case FLUX_RoeER:
-		c.RoeERFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[myThreadL], Q_Face[myThreadR], normal0, numericalFluxForEuler)
-	}
-	// Store the average solution for this edge - average of the two connected tri edges
-	for i := 0; i < Nedge; i++ {
-		indL := kL + (i+shiftL)*KmaxL
-		indR := kR + (Nedge-1-i+shiftR)*KmaxR
-		for n := 0; n < 4; n++ {
-			qFluxForGradient[i][n] = 0.5 * (Q_Face[myThreadL][n].DataP[indL] + Q_Face[myThreadR][n].DataP[indR])
-		}
+		c.RoeERFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[myThreadL], Q_Face[myThreadR], normalL, numericalFluxForEuler)
 	}
 }
 
@@ -264,14 +309,6 @@ func (c *Euler) calculateNonSharedEdgeFlux(e *DG2D.Edge, Nedge int, Time float64
 			for n := 0; n < 4; n++ {
 				numericalFluxForEuler[i][n] = normal0[0]*Fx[n] + normal0[1]*Fy[n]
 			}
-		}
-	}
-	// Store the average solution for this edge - there's only one tri, so it's just a copy of this edge
-	for i := 0; i < Nedge; i++ {
-		ie := i + shift
-		ind := k + ie*Kmax
-		for n := 0; n < 4; n++ {
-			qFluxForGradient[i][n] = Q_Face[myThread][n].DataP[ind]
 		}
 	}
 	return
