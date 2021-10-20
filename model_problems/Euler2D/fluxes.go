@@ -161,27 +161,28 @@ func (c *Euler) AvgFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 func (c *Euler) LaxFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux [][4]float64) {
 	var (
-		Nedge          = c.dfr.FluxElement.Nedge
-		uL, vL, pL, CL float64
-		uR, vR, pR, CR float64
+		Nedge                                  = c.dfr.FluxElement.Nedge
+		EL, rhoL, rhoUL, rhoVL, uL, vL, pL, CL float64
+		ER, rhoR, rhoUR, rhoVR, uR, vR, pR, CR float64
+		nx, ny                                 = normal[0], normal[1]
 	)
 	for i := 0; i < Nedge; i++ {
 		iL := i + shiftL
 		iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
 		indL, indR := kL+iL*KmaxL, kR+iR*KmaxR
-		uL, vL = Q_FaceL[1].DataP[indL]/Q_FaceL[0].DataP[indL], Q_FaceL[2].DataP[indL]/Q_FaceL[0].DataP[indL]
-		uR, vR = Q_FaceR[1].DataP[indR]/Q_FaceR[0].DataP[indR], Q_FaceR[2].DataP[indR]/Q_FaceR[0].DataP[indR]
+		rhoL, rhoR = Q_FaceL[0].DataP[indL], Q_FaceR[0].DataP[indR]
+		rhoUL, rhoVL = Q_FaceL[1].DataP[indL], Q_FaceL[2].DataP[indL]
+		rhoUR, rhoVR = Q_FaceR[1].DataP[indR], Q_FaceR[2].DataP[indR]
+		EL, ER = Q_FaceL[3].DataP[indL], Q_FaceR[3].DataP[indR]
+		uL, vL = rhoUL/rhoL, rhoVL/rhoL
+		uR, vR = rhoUR/rhoR, rhoVR/rhoR
 		pL, pR = c.FS.GetFlowFunction(Q_FaceL, indL, StaticPressure), c.FS.GetFlowFunction(Q_FaceR, indR, StaticPressure)
 		CL, CR = c.FS.GetFlowFunction(Q_FaceL, indL, SoundSpeed), c.FS.GetFlowFunction(Q_FaceR, indR, SoundSpeed)
 		maxV := math.Max(math.Sqrt(uL*uL+vL*vL)+CL, math.Sqrt(uR*uR+vR*vR)+CR)
-		normalFlux[i][0] = 0.5 * (normal[0]*(Q_FaceL[1].DataP[indL]+Q_FaceR[1].DataP[indR]) +
-			normal[1]*(Q_FaceL[2].DataP[indL]+Q_FaceR[2].DataP[indR]))
-		normalFlux[i][1] = 0.5 * (normal[0]*(Q_FaceL[1].DataP[indL]*uL+Q_FaceR[1].DataP[indR]*uR+pL+pR) +
-			normal[1]*(Q_FaceL[1].DataP[indL]*vL+Q_FaceR[1].DataP[indR]*vR))
-		normalFlux[i][2] = 0.5 * (normal[0]*(Q_FaceL[2].DataP[indL]*uL+Q_FaceR[2].DataP[indR]*uR) +
-			normal[1]*(Q_FaceL[2].DataP[indL]*vL+Q_FaceR[2].DataP[indR]*vR+pL+pR))
-		normalFlux[i][3] = 0.5 * (normal[0]*((pL+Q_FaceL[3].DataP[indL])*uL+(pR+Q_FaceR[3].DataP[indR])*uR) +
-			normal[1]*((pL+Q_FaceL[3].DataP[indL])*vL+(pR+Q_FaceR[3].DataP[indR])*vR))
+		normalFlux[i][0] = 0.5 * (nx*(rhoUL+rhoUR) + ny*(rhoVL+rhoVR))
+		normalFlux[i][1] = 0.5 * (nx*(rhoUL*uL+rhoUR*uR+pL+pR) + ny*(rhoUL*vL+rhoUR*vR))
+		normalFlux[i][2] = 0.5 * (nx*(rhoVL*uL+rhoVR*uR) + ny*(rhoVL*vL+rhoVR*vR+pL+pR))
+		normalFlux[i][3] = 0.5 * (nx*((pL+EL)*uL+(pR+ER)*uR) + ny*((pL+EL)*vL+(pR+ER)*vR))
 		for n := 0; n < 4; n++ {
 			normalFlux[i][n] += 0.5 * maxV * (Q_FaceL[n].DataP[indL] - Q_FaceR[n].DataP[indR])
 		}

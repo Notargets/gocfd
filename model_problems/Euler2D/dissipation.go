@@ -120,9 +120,7 @@ func NewScalarDissipation(kappa float64, dfr *DG2D.DFR2D, pm *PartitionMap) (sd 
 		U:        make([]utils.Matrix, NPar),
 		UClipped: make([]utils.Matrix, NPar),
 		S0:       1.0 / math.Pow(order, 4.),
-		Kappa:    2.,
-		//Kappa:    0.25,
-		//S0:    10.,
+		Kappa:    3.,
 	}
 	sd.EtoV = sd.shardEtoV(dfr.Tris.EToV)
 	sd.createInterpolationStencil()
