@@ -205,7 +205,7 @@ func (rk *RungeKutta4SSP) Step(c *Euler) {
 	for currentStep := 0; currentStep < 17; currentStep++ {
 		// Workers are blocked below here until the StepWorker section - make sure significant work done here is abs necessary!
 		switch {
-		case currentStep == 1:
+		case currentStep == 2:
 			// After step 0, we need to consolidate the local max wavespeeds to calculate global dt
 			if !c.LocalTimeStepping {
 				rk.calculateGlobalDT(c)
