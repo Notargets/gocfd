@@ -14,7 +14,7 @@ func (c *Euler) WallBC(k, Kmax int, Q_Face [4]utils.Matrix, ishift int, normal [
 	)
 	for i := 0; i < Nedge; i++ {
 		ind := k + (i+ishift)*Kmax
-		p := c.FS.GetFlowFunction(Q_Face, ind, StaticPressure)
+		p := c.FSFar.GetFlowFunction(Q_Face, ind, StaticPressure)
 		normalFlux[i][0] = 0
 		normalFlux[i][1] = normal[0] * p
 		normalFlux[i][2] = normal[1] * p
@@ -59,7 +59,7 @@ func (c *Euler) FarBC(k, Kmax, ishift int, Q_Face [4]utils.Matrix, normal [2]flo
 	for i := 0; i < Nedge; i++ {
 		iL := i + ishift
 		ind := k + iL*Kmax
-		QBC := c.RiemannBC(k, Kmax, iL, qfD, c.FS.Qinf, normal)
+		QBC := c.RiemannBC(k, Kmax, iL, qfD, c.FSFar.Qinf, normal)
 		qfD[0][ind] = QBC[0]
 		qfD[1][ind] = QBC[1]
 		qfD[2][ind] = QBC[2]
@@ -80,14 +80,14 @@ func (c *Euler) RiemannBC(k, Kmax, i int, QQ [4][]float64, QInf [4]float64, norm
 	var (
 		ind                = k + i*Kmax
 		rhoInt, uInt, vInt = QQ[0][ind], QQ[1][ind] / QQ[0][ind], QQ[2][ind] / QQ[0][ind]
-		pInt               = c.FS.GetFlowFunctionBase(QQ[0][ind], QQ[1][ind], QQ[2][ind], QQ[3][ind], StaticPressure)
-		CInt               = c.FS.GetFlowFunctionBase(QQ[0][ind], QQ[1][ind], QQ[2][ind], QQ[3][ind], SoundSpeed)
-		Gamma              = c.FS.Gamma
+		pInt               = c.FSFar.GetFlowFunctionBase(QQ[0][ind], QQ[1][ind], QQ[2][ind], QQ[3][ind], StaticPressure)
+		CInt               = c.FSFar.GetFlowFunctionBase(QQ[0][ind], QQ[1][ind], QQ[2][ind], QQ[3][ind], SoundSpeed)
+		Gamma              = c.FSFar.Gamma
 		GM1                = Gamma - 1.
 		OOGM1              = 1. / GM1
 		rhoInf, uInf, vInf = QInf[0], QInf[1] / QInf[0], QInf[2] / QInf[0]
-		pInf               = c.FS.Pinf
-		CInf               = c.FS.Cinf
+		pInf               = c.FSFar.Pinf
+		CInf               = c.FSFar.Cinf
 		Vtang, Beta        float64
 		tangent            = [2]float64{-normal[1], normal[0]}
 	)

@@ -51,10 +51,10 @@ func (c *Euler) InitializeFS(Kmax int) (Q [4]utils.Matrix) {
 	var (
 		Np = c.dfr.SolutionElement.Np
 	)
-	Q[0] = utils.NewMatrix(Np, Kmax).AddScalar(c.FS.Qinf[0])
-	Q[1] = utils.NewMatrix(Np, Kmax).AddScalar(c.FS.Qinf[1])
-	Q[2] = utils.NewMatrix(Np, Kmax).AddScalar(c.FS.Qinf[2])
-	Q[3] = utils.NewMatrix(Np, Kmax).AddScalar(c.FS.Qinf[3])
+	Q[0] = utils.NewMatrix(Np, Kmax).AddScalar(c.FSFar.Qinf[0])
+	Q[1] = utils.NewMatrix(Np, Kmax).AddScalar(c.FSFar.Qinf[1])
+	Q[2] = utils.NewMatrix(Np, Kmax).AddScalar(c.FSFar.Qinf[2])
+	Q[3] = utils.NewMatrix(Np, Kmax).AddScalar(c.FSFar.Qinf[3])
 	return
 }
 

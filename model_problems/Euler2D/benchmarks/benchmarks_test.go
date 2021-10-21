@@ -57,7 +57,7 @@ func BenchmarkEulerGetFlowFunction(b *testing.B) {
 		q = [4]float64{1, 1, 1, 1}
 		//c   = Euler2D.NewEuler(1, 1, "", 1, Euler2D.FLUX_LaxFriedrichs, Euler2D.FREESTREAM, 1, 1, 1.4, 0, true, 1, Euler2D.None, false, false, false)
 		c   = Euler2D.NewEuler(ip, "", 1, false, false, false)
-		GM1 = c.FS.Gamma - 1
+		GM1 = c.FSFar.Gamma - 1
 	)
 	var p float64
 	b.Run("direct compute", func(b *testing.B) {
@@ -70,7 +70,7 @@ func BenchmarkEulerGetFlowFunction(b *testing.B) {
 	b.Run("Optimized function call", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			p = c.FS.GetFlowFunctionQQ(q, Euler2D.StaticPressure)
+			p = c.FSFar.GetFlowFunctionQQ(q, Euler2D.StaticPressure)
 		}
 	})
 	pressFunc := func(q [4]float64) (p float64) {

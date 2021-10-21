@@ -242,8 +242,8 @@ func (c *Euler) calculateLocalDT(e *DG2D.Edge, Nedge int,
 	edgeMax := -100.
 	for i := shift; i < shift+Nedge; i++ {
 		ind := k + i*Kmax
-		C := c.FS.GetFlowFunction(Q_Face[myThread], ind, SoundSpeed)
-		U := c.FS.GetFlowFunction(Q_Face[myThread], ind, Velocity)
+		C := c.FSFar.GetFlowFunction(Q_Face[myThread], ind, SoundSpeed)
+		U := c.FSFar.GetFlowFunction(Q_Face[myThread], ind, Velocity)
 		waveSpeed := fs * (U + C)
 		waveSpeedMax = math.Max(waveSpeed, waveSpeedMax)
 		if waveSpeed > edgeMax {

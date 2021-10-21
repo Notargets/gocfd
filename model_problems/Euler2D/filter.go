@@ -96,7 +96,7 @@ func (bjl *SolutionLimiter) LimitSolution(myThread int, Qall, Residual [][4]util
 		Q        = Qall[myThread]
 		Np, Kmax = Q[0].Dims()
 		UE       = bjl.UElement[myThread]
-		//FS       = bjl.FS
+		//FSFar       = bjl.FSFar
 	)
 	if bjl.limiterType == None {
 		return
@@ -107,9 +107,9 @@ func (bjl *SolutionLimiter) LimitSolution(myThread int, Qall, Residual [][4]util
 			ind := k + Kmax*i
 			UE.DataP[i] = Q[0].DataP[ind]
 			//UE.DataP[i] = Q[0].DataP[ind] + Q[1].DataP[ind] + Q[2].DataP[ind] + Q[3].DataP[ind]
-			//UE.DataP[i] = FS.GetFlowFunction(Q, ind, DynamicPressure)
-			//UE.DataP[i] = FS.GetFlowFunction(Q, ind, Entropy)
-			//UE.DataP[i] = Q[0].DataP[ind] * FS.GetFlowFunction(Q, ind, Entropy)
+			//UE.DataP[i] = FSFar.GetFlowFunction(Q, ind, DynamicPressure)
+			//UE.DataP[i] = FSFar.GetFlowFunction(Q, ind, Entropy)
+			//UE.DataP[i] = Q[0].DataP[ind] * FSFar.GetFlowFunction(Q, ind, Entropy)
 		}
 		if bjl.ShockFinder[myThread].ElementHasShock(UE.DataP) { // Element has a shock
 			/*

@@ -43,7 +43,7 @@ func TestFluidFunctions(t *testing.T) {
 	funcs := []FlowFunction{Density, XMomentum, YMomentum, Energy, Mach, StaticPressure}
 	values := make([]float64, len(funcs))
 	for i, plotField := range []FlowFunction{Density, XMomentum, YMomentum, Energy, Mach, StaticPressure} {
-		values[i] = c.FS.GetFlowFunction(c.Q[0], 0, plotField)
+		values[i] = c.FSFar.GetFlowFunction(c.Q[0], 0, plotField)
 		//fmt.Printf("%s[%d] = %8.5f\n", plotField.String(), ik, values[i])
 	}
 	assert.InDeltaSlicef(t, []float64{1, 2, 0, 3.78571, 2, 0.71429}, values, 0.00001, "err msg %s")
@@ -312,10 +312,10 @@ func TestFluxJacobian(t *testing.T) {
 	)
 	{ // Flux Jacobian calculation
 		c := Euler{}
-		c.FS = NewFreeStream(0.1, 1.4, 0)
-		Qinf := c.FS.Qinf
+		c.FSFar = NewFreeStream(0.1, 1.4, 0)
+		Qinf := c.FSFar.Qinf
 		Fx, Gy := c.FluxJacobianCalc(Qinf[0], Qinf[1], Qinf[2], Qinf[3])
-		// Matlab: using the FS Q = [1,.1,0,1.79071]
+		// Matlab: using the FSFar Q = [1,.1,0,1.79071]
 		assert.InDeltaSlicef(t, []float64{
 			0, 1.0000, 0, 0,
 			-0.0080, 0.1600, 0, 0.4000,

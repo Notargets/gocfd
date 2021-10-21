@@ -24,20 +24,20 @@ import (
 */
 type Euler struct {
 	// Input parameters
-	MeshFile          string
-	CFL, FinalTime    float64
-	FS                *FreeStream
-	dfr               *DG2D.DFR2D
-	chart             ChartState
-	profile           bool // Generate a CPU profile of the solver
-	FluxCalcAlgo      FluxType
-	Case              InitType
-	AnalyticSolution  ExactState
-	FluxCalcMock      func(rho, rhoU, rhoV, E float64) (Fx, Fy [4]float64) // For testing
-	SortedEdgeKeys    []EdgeKeySlice                                       // Buckets, one for each parallel partition
-	Partitions        *PartitionMap                                        // mapping of elements into bins for parallelism
-	LocalTimeStepping bool
-	MaxIterations     int
+	MeshFile           string
+	CFL, FinalTime     float64
+	FSFar, FSIn, FSOut *FreeStream
+	dfr                *DG2D.DFR2D
+	chart              ChartState
+	profile            bool // Generate a CPU profile of the solver
+	FluxCalcAlgo       FluxType
+	Case               InitType
+	AnalyticSolution   ExactState
+	FluxCalcMock       func(rho, rhoU, rhoV, E float64) (Fx, Fy [4]float64) // For testing
+	SortedEdgeKeys     []EdgeKeySlice                                       // Buckets, one for each parallel partition
+	Partitions         *PartitionMap                                        // mapping of elements into bins for parallelism
+	LocalTimeStepping  bool
+	MaxIterations      int
 	// Below are partitioned by K (elements) in the first slice
 	Q                    [][4]utils.Matrix // Sharded solution variables, stored at solution point locations, Np_solution x K
 	SolutionX, SolutionY []utils.Matrix
@@ -57,7 +57,7 @@ func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, ver
 		Case:              NewInitType(ip.InitType),
 		LocalTimeStepping: ip.LocalTimeStepping,
 		MaxIterations:     ip.MaxIterations,
-		FS:                NewFreeStream(ip.Minf, ip.Gamma, ip.Alpha),
+		FSFar:             NewFreeStream(ip.Minf, ip.Gamma, ip.Alpha),
 		profile:           profile,
 	}
 	c.FluxCalcMock = c.FluxCalcBase
@@ -78,7 +78,7 @@ func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, ver
 	c.InitializeSolution(verbose)
 
 	// Allocate a solution limiter
-	c.Limiter = NewSolutionLimiter(NewLimiterType(ip.Limiter), ip.Kappa, c.dfr, c.Partitions, c.FS)
+	c.Limiter = NewSolutionLimiter(NewLimiterType(ip.Limiter), ip.Kappa, c.dfr, c.Partitions, c.FSFar)
 
 	// Initiate Artificial Dissipation
 	c.Dissipation = NewScalarDissipation(ip.Kappa, c.dfr, c.Partitions)
@@ -438,12 +438,12 @@ func (c *Euler) InitializeSolution(verbose bool) {
 	case SHOCKTUBE:
 		c.SolutionX = c.ShardByK(c.dfr.SolutionX)
 		c.SolutionY = c.ShardByK(c.dfr.SolutionY)
-		c.FS.Gamma = 1.4
-		GM1 := c.FS.Gamma - 1
-		c.FS.Qinf = [4]float64{1, 0, 0, 1 / GM1}
-		c.FS.Pinf = c.FS.GetFlowFunctionQQ(c.FS.Qinf, StaticPressure)
-		c.FS.QQinf = c.FS.GetFlowFunctionQQ(c.FS.Qinf, DynamicPressure)
-		c.FS.Cinf = c.FS.GetFlowFunctionQQ(c.FS.Qinf, SoundSpeed)
+		c.FSFar.Gamma = 1.4
+		GM1 := c.FSFar.Gamma - 1
+		c.FSFar.Qinf = [4]float64{1, 0, 0, 1 / GM1}
+		c.FSFar.Pinf = c.FSFar.GetFlowFunctionQQ(c.FSFar.Qinf, StaticPressure)
+		c.FSFar.QQinf = c.FSFar.GetFlowFunctionQQ(c.FSFar.Qinf, DynamicPressure)
+		c.FSFar.Cinf = c.FSFar.GetFlowFunctionQQ(c.FSFar.Qinf, SoundSpeed)
 		NP := c.Partitions.ParallelDegree
 		for np := 0; np < NP; np++ {
 			var (
@@ -457,10 +457,10 @@ func (c *Euler) InitializeSolution(verbose bool) {
 				for i := 0; i < Nint; i++ {
 					ind := k + i*Kmax
 					if c.SolutionX[np].DataP[ind] > 0 {
-						c.Q[np][0].DataP[ind] = c.FS.Qinf[0]
-						c.Q[np][1].DataP[ind] = c.FS.Qinf[1]
-						c.Q[np][2].DataP[ind] = c.FS.Qinf[2]
-						c.Q[np][3].DataP[ind] = c.FS.Qinf[3]
+						c.Q[np][0].DataP[ind] = c.FSFar.Qinf[0]
+						c.Q[np][1].DataP[ind] = c.FSFar.Qinf[1]
+						c.Q[np][2].DataP[ind] = c.FSFar.Qinf[2]
+						c.Q[np][3].DataP[ind] = c.FSFar.Qinf[3]
 					} else {
 						c.Q[np][0].DataP[ind] = 0.125
 						c.Q[np][1].DataP[ind] = 0
@@ -471,10 +471,10 @@ func (c *Euler) InitializeSolution(verbose bool) {
 			}
 		}
 	case IVORTEX:
-		c.FS.Qinf = [4]float64{1, 1, 0, 3}
-		c.FS.Pinf = c.FS.GetFlowFunctionQQ(c.FS.Qinf, StaticPressure)
-		c.FS.QQinf = c.FS.GetFlowFunctionQQ(c.FS.Qinf, DynamicPressure)
-		c.FS.Cinf = c.FS.GetFlowFunctionQQ(c.FS.Qinf, SoundSpeed)
+		c.FSFar.Qinf = [4]float64{1, 1, 0, 3}
+		c.FSFar.Pinf = c.FSFar.GetFlowFunctionQQ(c.FSFar.Qinf, StaticPressure)
+		c.FSFar.QQinf = c.FSFar.GetFlowFunctionQQ(c.FSFar.Qinf, DynamicPressure)
+		c.FSFar.Cinf = c.FSFar.GetFlowFunctionQQ(c.FSFar.Qinf, SoundSpeed)
 		c.SolutionX = c.ShardByK(c.dfr.SolutionX)
 		c.SolutionY = c.ShardByK(c.dfr.SolutionY)
 		NP := c.Partitions.ParallelDegree

@@ -78,7 +78,7 @@ func (c *Euler) FluxCalcBase(rho, rhoU, rhoV, E float64) (Fx, Fy [4]float64) {
 		oorho = 1. / rho
 		u     = rhoU * oorho
 		v     = rhoV * oorho
-		p     = c.FS.GetFlowFunctionBase(rho, rhoU, rhoV, E, StaticPressure)
+		p     = c.FSFar.GetFlowFunctionBase(rho, rhoU, rhoV, E, StaticPressure)
 	)
 	Fx, Fy =
 		[4]float64{rhoU, rhoU*u + p, rhoU * v, u * (E + p)},
@@ -108,7 +108,7 @@ func (c *Euler) FluxJacobianCalc(rho, rhoU, rhoV, E float64) (Fx, Gy [16]float64
 		oorho  = 1. / rho
 		u, v   = rhoU * oorho, rhoV * oorho
 		u2, v2 = u * u, v * v
-		Gamma  = c.FS.Gamma
+		Gamma  = c.FSFar.Gamma
 		GM1    = Gamma - 1
 		e0     = E * Gamma * oorho
 		h0     = (u2 + v2) * GM1
@@ -176,8 +176,8 @@ func (c *Euler) LaxFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		EL, ER = Q_FaceL[3].DataP[indL], Q_FaceR[3].DataP[indR]
 		uL, vL = rhoUL/rhoL, rhoVL/rhoL
 		uR, vR = rhoUR/rhoR, rhoVR/rhoR
-		pL, pR = c.FS.GetFlowFunction(Q_FaceL, indL, StaticPressure), c.FS.GetFlowFunction(Q_FaceR, indR, StaticPressure)
-		CL, CR = c.FS.GetFlowFunction(Q_FaceL, indL, SoundSpeed), c.FS.GetFlowFunction(Q_FaceR, indR, SoundSpeed)
+		pL, pR = c.FSFar.GetFlowFunction(Q_FaceL, indL, StaticPressure), c.FSFar.GetFlowFunction(Q_FaceR, indR, StaticPressure)
+		CL, CR = c.FSFar.GetFlowFunction(Q_FaceL, indL, SoundSpeed), c.FSFar.GetFlowFunction(Q_FaceR, indR, SoundSpeed)
 		maxV := math.Max(math.Sqrt(uL*uL+vL*vL)+CL, math.Sqrt(uR*uR+vR*vR)+CR)
 		normalFlux[i][0] = 0.5 * (nx*(rhoUL+rhoUR) + ny*(rhoVL+rhoVR))
 		normalFlux[i][1] = 0.5 * (nx*(rhoUL*uL+rhoUR*uR+pL+pR) + ny*(rhoUL*vL+rhoUR*vR))
@@ -196,7 +196,7 @@ func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		rhoL, uL, vL, pL float64
 		rhoR, uR, vR, pR float64
 		hL, hR           float64
-		Gamma            = c.FS.Gamma
+		Gamma            = c.FSFar.Gamma
 		GM1              = Gamma - 1
 	)
 	rotate := func(rhoU, rhoV, nx, ny float64) (rhoUr, rhoVr float64) {
@@ -221,7 +221,7 @@ func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		rhoR, uR, vR = Q_FaceR[0].DataP[indR], rhoURr/Q_FaceR[0].DataP[indR], rhoVRr/Q_FaceR[0].DataP[indR]
 		//rhoL, uL, vL = Q_FaceL[0].DataP[indL], Q_FaceL[1].DataP[indL]/Q_FaceL[0].DataP[indL], Q_FaceL[2].DataP[indL]/Q_FaceL[0].DataP[indL]
 		//rhoR, uR, vR = Q_FaceR[0].DataP[indR], Q_FaceR[1].DataP[indR]/Q_FaceR[0].DataP[indR], Q_FaceR[2].DataP[indR]/Q_FaceR[0].DataP[indR]
-		pL, pR = c.FS.GetFlowFunction(Q_FaceL, indL, StaticPressure), c.FS.GetFlowFunction(Q_FaceR, indR, StaticPressure)
+		pL, pR = c.FSFar.GetFlowFunction(Q_FaceL, indL, StaticPressure), c.FSFar.GetFlowFunction(Q_FaceR, indR, StaticPressure)
 		/*
 		   HM = (EnerM+pM).dd(rhoM);  HP = (EnerP+pP).dd(rhoP);
 		*/
@@ -304,7 +304,7 @@ func (c *Euler) RoeERFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		rhoL, uL, vL, pL, EL, HL, UL   float64
 		rhoR, uR, vR, pR, ER, HR, UR   float64
 		dU, dP, dRho, dRhoU, dRhoV, dE float64
-		Gamma                          = c.FS.Gamma
+		Gamma                          = c.FSFar.Gamma
 		GM1                            = Gamma - 1
 		nx, ny                         = normal[0], normal[1]
 		rho, u, v, h, H, U, C          float64
@@ -330,7 +330,7 @@ func (c *Euler) RoeERFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		uR, vR = Q_FaceR[1].DataP[indR]*ooRhoR, Q_FaceR[2].DataP[indR]*ooRhoR
 		EL, ER = Q_FaceL[3].DataP[indL], Q_FaceR[3].DataP[indR]
 		UL, UR = nx*uL+ny*vL, nx*uR+ny*vR // Calculate face normal velocity left and right
-		pL, pR = c.FS.GetFlowFunction(Q_FaceL, indL, StaticPressure), c.FS.GetFlowFunction(Q_FaceR, indR, StaticPressure)
+		pL, pR = c.FSFar.GetFlowFunction(Q_FaceL, indL, StaticPressure), c.FSFar.GetFlowFunction(Q_FaceR, indR, StaticPressure)
 		HL, HR = EL+pL, ER+pR
 		// Roe averaged variables
 		ooRs := 1. / (rhoLs + rhoRs)
