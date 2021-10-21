@@ -184,6 +184,8 @@ func TestEuler(t *testing.T) {
 				//c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
 				ip.PolynomialOrder = N
 				c := NewEuler(&ip, "../../DG2D/test_tris_5.neu", 1, false, false, false)
+				gamma := 1.4
+				c.FSIn = NewFreestreamFromQinf(1.4, [4]float64{1, 0, 0, 1. / (gamma - 1.)})
 				Kmax := c.dfr.K
 				Nint := c.dfr.FluxElement.Nint
 				Nedge := c.dfr.FluxElement.Nedge

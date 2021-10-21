@@ -1,10 +1,10 @@
 Title: "Test Case"
-CFL: 0.05000
+CFL: 1.00
 #FluxType: Roe-ER
-#FluxType: Roe
-FluxType: Lax
+FluxType: Roe
+#FluxType: Lax
 InitType: shocktube # Can be "Freestream" or "IVortex"
-PolynomialOrder: 2
+PolynomialOrder: 5
 FinalTime: 20
 LocalTimeStepping: false
 MaxIterations: 80000

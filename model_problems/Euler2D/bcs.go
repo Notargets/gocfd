@@ -51,7 +51,7 @@ func (c *Euler) IVortexBC(Time float64, k, Kmax, ishift int, Q_Face [4]utils.Mat
 	}
 }
 
-func (c *Euler) FarBC(k, Kmax, ishift int, Q_Face [4]utils.Matrix, normal [2]float64) {
+func (c *Euler) FarBC(FS *FreeStream, k, Kmax, ishift int, Q_Face [4]utils.Matrix, normal [2]float64) {
 	var (
 		Nedge = c.dfr.FluxElement.Nedge
 		qfD   = [4][]float64{Q_Face[0].DataP, Q_Face[1].DataP, Q_Face[2].DataP, Q_Face[3].DataP}
@@ -59,7 +59,7 @@ func (c *Euler) FarBC(k, Kmax, ishift int, Q_Face [4]utils.Matrix, normal [2]flo
 	for i := 0; i < Nedge; i++ {
 		iL := i + ishift
 		ind := k + iL*Kmax
-		QBC := c.RiemannBC(k, Kmax, iL, qfD, c.FSFar.Qinf, normal)
+		QBC := c.RiemannBC(k, Kmax, iL, qfD, FS.Qinf, normal)
 		qfD[0][ind] = QBC[0]
 		qfD[1][ind] = QBC[1]
 		qfD[2][ind] = QBC[2]

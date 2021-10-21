@@ -52,7 +52,7 @@ func NewTriangulation(VX, VY utils.Vector, EToV utils.Matrix, BCEdges types.BCMA
 	for key, edges := range BCEdges {
 		flag := key.GetFLAG()
 		switch flag {
-		case types.BC_Far, types.BC_IVortex, types.BC_Wall, types.BC_In, types.BC_Cyl:
+		case types.BC_Far, types.BC_IVortex, types.BC_Wall, types.BC_In, types.BC_Out, types.BC_Cyl:
 			for _, e := range edges {
 				ee := tmesh.Edges[e.GetKey()]
 				ee.BCType = flag

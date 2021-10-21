@@ -98,15 +98,27 @@ func NewFreeStream(Minf, Gamma, Alpha float64) (fs *FreeStream) {
 		uinf   = Minf * math.Cos(Alpha*math.Pi/180.)
 		vinf   = Minf * math.Sin(Alpha*math.Pi/180.)
 	)
+	qq := [4]float64{1, uinf, vinf, ooggm1 + 0.5*Minf*Minf}
 	fs = &FreeStream{
 		Gamma: Gamma,
-		Qinf:  [4]float64{1, uinf, vinf, ooggm1 + 0.5*Minf*Minf},
+		Qinf:  qq,
 		Alpha: Alpha,
 		Minf:  Minf,
 	}
-	fs.Pinf = fs.GetFlowFunctionQQ(fs.Qinf, StaticPressure)
-	fs.QQinf = fs.GetFlowFunctionQQ(fs.Qinf, DynamicPressure)
-	fs.Cinf = fs.GetFlowFunctionQQ(fs.Qinf, SoundSpeed)
+	fs.Pinf = fs.GetFlowFunctionQQ(qq, StaticPressure)
+	fs.QQinf = fs.GetFlowFunctionQQ(qq, DynamicPressure)
+	fs.Cinf = fs.GetFlowFunctionQQ(qq, SoundSpeed)
+	return
+}
+
+func NewFreestreamFromQinf(gamma float64, qq [4]float64) (fs *FreeStream) {
+	fs = &FreeStream{
+		Gamma: gamma,
+		Qinf:  qq,
+	}
+	fs.Pinf = fs.GetFlowFunctionQQ(qq, StaticPressure)
+	fs.QQinf = fs.GetFlowFunctionQQ(qq, DynamicPressure)
+	fs.Cinf = fs.GetFlowFunctionQQ(qq, SoundSpeed)
 	return
 }
 

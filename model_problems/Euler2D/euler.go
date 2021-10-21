@@ -438,12 +438,9 @@ func (c *Euler) InitializeSolution(verbose bool) {
 	case SHOCKTUBE:
 		c.SolutionX = c.ShardByK(c.dfr.SolutionX)
 		c.SolutionY = c.ShardByK(c.dfr.SolutionY)
-		c.FSFar.Gamma = 1.4
-		GM1 := c.FSFar.Gamma - 1
-		c.FSFar.Qinf = [4]float64{1, 0, 0, 1 / GM1}
-		c.FSFar.Pinf = c.FSFar.GetFlowFunctionQQ(c.FSFar.Qinf, StaticPressure)
-		c.FSFar.QQinf = c.FSFar.GetFlowFunctionQQ(c.FSFar.Qinf, DynamicPressure)
-		c.FSFar.Cinf = c.FSFar.GetFlowFunctionQQ(c.FSFar.Qinf, SoundSpeed)
+		gamma := 1.4
+		c.FSIn = NewFreestreamFromQinf(gamma, [4]float64{1, 0, 0, 1 / (gamma - 1)})
+		c.FSOut = NewFreestreamFromQinf(gamma, [4]float64{0.125, 0, 0, 0.1 / (gamma - 1)})
 		NP := c.Partitions.ParallelDegree
 		for np := 0; np < NP; np++ {
 			var (
@@ -456,16 +453,16 @@ func (c *Euler) InitializeSolution(verbose bool) {
 			for k := 0; k < Kmax; k++ {
 				for i := 0; i < Nint; i++ {
 					ind := k + i*Kmax
-					if c.SolutionX[np].DataP[ind] > 0 {
-						c.Q[np][0].DataP[ind] = c.FSFar.Qinf[0]
-						c.Q[np][1].DataP[ind] = c.FSFar.Qinf[1]
-						c.Q[np][2].DataP[ind] = c.FSFar.Qinf[2]
-						c.Q[np][3].DataP[ind] = c.FSFar.Qinf[3]
+					if c.SolutionX[np].DataP[ind] > 0.5 { // The length of the domain should be 0->1
+						c.Q[np][0].DataP[ind] = c.FSIn.Qinf[0]
+						c.Q[np][1].DataP[ind] = c.FSIn.Qinf[1]
+						c.Q[np][2].DataP[ind] = c.FSIn.Qinf[2]
+						c.Q[np][3].DataP[ind] = c.FSIn.Qinf[3]
 					} else {
-						c.Q[np][0].DataP[ind] = 0.125
-						c.Q[np][1].DataP[ind] = 0
-						c.Q[np][2].DataP[ind] = 0
-						c.Q[np][3].DataP[ind] = 0.1 / GM1
+						c.Q[np][0].DataP[ind] = c.FSOut.Qinf[0]
+						c.Q[np][1].DataP[ind] = c.FSOut.Qinf[1]
+						c.Q[np][2].DataP[ind] = c.FSOut.Qinf[2]
+						c.Q[np][3].DataP[ind] = c.FSOut.Qinf[3]
 					}
 				}
 			}

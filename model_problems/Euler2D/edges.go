@@ -290,7 +290,11 @@ func (c *Euler) calculateNonSharedEdgeFlux(e *DG2D.Edge, Nedge int, Time float64
 	calculateNormalFlux = true
 	switch e.BCType {
 	case types.BC_Far:
-		c.FarBC(k, Kmax, shift, Q_Face[myThread], normal0)
+		c.FarBC(c.FSFar, k, Kmax, shift, Q_Face[myThread], normal0)
+	case types.BC_In:
+		c.FarBC(c.FSIn, k, Kmax, shift, Q_Face[myThread], normal0)
+	case types.BC_Out:
+		c.FarBC(c.FSOut, k, Kmax, shift, Q_Face[myThread], normal0)
 	case types.BC_IVortex:
 		c.IVortexBC(Time, k, Kmax, shift, Q_Face[myThread], normal0)
 	case types.BC_Wall, types.BC_Cyl:
