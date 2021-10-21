@@ -122,6 +122,7 @@ func (c *Euler) Solve(pm *PlotMeta) {
 		elapsed += time.Now().Sub(start)
 		steps++
 		rk.Time += rk.GlobalDT
+		rk.StepCount++
 		finished = c.CheckIfFinished(rk.Time, FinalTime, steps)
 		if finished || steps%pm.StepsBeforePlot == 0 || steps == 1 {
 			var printMem bool
@@ -143,6 +144,7 @@ type RungeKutta4SSP struct {
 	DT                   []utils.Matrix    // Local time step storage
 	MaxWaveSpeed         []float64         // Shard max wavespeed
 	GlobalDT, Time       float64
+	StepCount            int
 	Kmax                 []int          // Local element count (dimension: Kmax[ParallelDegree])
 	NpInt, Nedge, NpFlux int            // Number of points in solution, edge and flux total
 	EdgeQ1, EdgeQ2       [][][4]float64 // Sharded local working memory, dimensions Nedge
@@ -243,6 +245,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		Residual                     = rk.Residual[myThread]
 		EdgeQ1, EdgeQ2               = rk.EdgeQ1[myThread], rk.EdgeQ2[myThread]
 		SortedEdgeKeys               = c.SortedEdgeKeys[myThread]
+		DTStartup                    = 1. - math.Pow(math.Exp(-float64(rk.StepCount+1)), 1./32)
 	)
 	//defer func() { fmt.Printf("thread %d finished with step %d\n", myThread, subStep); wg.Done() }()
 	defer wg.Done()
@@ -274,7 +277,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 			for i := 1; i < c.dfr.SolutionElement.Np; i++ {
 				for k := 0; k < Kmax; k++ {
 					ind := k + Kmax*i
-					DT.DataP[ind] = DT.DataP[k]
+					DT.DataP[ind] = DTStartup * DT.DataP[k]
 				}
 			}
 		}
@@ -284,7 +287,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		for n := 0; n < 4; n++ {
 			for i := 0; i < Kmax*Np; i++ {
 				if c.LocalTimeStepping {
-					dT = DT.DataP[i]
+					dT = DTStartup * DT.DataP[i]
 				}
 				Q1[n].DataP[i] = Q0[n].DataP[i] + 0.5*RHSQ[n].DataP[i]*dT
 			}
@@ -305,7 +308,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		for n := 0; n < 4; n++ {
 			for i := 0; i < Kmax*Np; i++ {
 				if c.LocalTimeStepping {
-					dT = DT.DataP[i]
+					dT = DTStartup * DT.DataP[i]
 				}
 				Q2[n].DataP[i] = Q1[n].DataP[i] + 0.25*RHSQ[n].DataP[i]*dT
 			}
@@ -326,7 +329,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		for n := 0; n < 4; n++ {
 			for i := 0; i < Kmax*Np; i++ {
 				if c.LocalTimeStepping {
-					dT = DT.DataP[i]
+					dT = DTStartup * DT.DataP[i]
 				}
 				Q3[n].DataP[i] = (1. / 3.) * (2*Q0[n].DataP[i] + Q2[n].DataP[i] + RHSQ[n].DataP[i]*dT)
 			}
@@ -348,7 +351,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		for n := 0; n < 4; n++ {
 			for i := 0; i < Kmax*Np; i++ {
 				if c.LocalTimeStepping {
-					dT = DT.DataP[i]
+					dT = DTStartup * DT.DataP[i]
 				}
 				Residual[n].DataP[i] = Q3[n].DataP[i] + 0.25*RHSQ[n].DataP[i]*dT - Q0[n].DataP[i]
 				Q0[n].DataP[i] += Residual[n].DataP[i]
