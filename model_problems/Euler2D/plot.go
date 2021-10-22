@@ -100,7 +100,7 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 	return
 }
 
-func (c *Euler) PlotQ(pm *PlotMeta) {
+func (c *Euler) PlotQ(pm *PlotMeta, width, height int) {
 	var (
 		Q         = c.RecombineShardsKBy4(c.Q)
 		plotField = pm.Field
@@ -117,12 +117,16 @@ func (c *Euler) PlotQ(pm *PlotMeta) {
 	}
 	c.chart.fs = functions.NewFSurface(c.chart.gm, [][]float32{fI}, 0)
 	fmt.Printf(" Plot>%s min,max = %8.5f,%8.5f\n", pm.Field.String(), oField.Min(), oField.Max())
-	c.PlotFS(pm.FieldMinP, pm.FieldMaxP, 0.99*oField.Min(), 1.01*oField.Max(), scale, translate, lineType)
+	c.PlotFS(width, height,
+		pm.FieldMinP, pm.FieldMaxP, 0.99*oField.Min(), 1.01*oField.Max(),
+		scale, translate, lineType)
 	utils.SleepFor(int(delay.Milliseconds()))
 	return
 }
 
-func (c *Euler) PlotFS(fminP, fmaxP *float64, fmin, fmax float64, scale float64, translate [2]float32, ltO ...chart2d.LineType) {
+func (c *Euler) PlotFS(width, height int,
+	fminP, fmaxP *float64, fmin, fmax float64,
+	scale float64, translate [2]float32, ltO ...chart2d.LineType) {
 	var (
 		fs             = c.chart.fs
 		trimesh        = fs.Tris
@@ -135,7 +139,8 @@ func (c *Euler) PlotFS(fminP, fmaxP *float64, fmin, fmax float64, scale float64,
 		box = box.Scale(float32(scale))
 		box = box.Translate(translate)
 		//c.chart.chart = chart2d.NewChart2D(1900, 1080, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
-		c.chart.chart = chart2d.NewChart2D(3840, 2160, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
+		//c.chart.chart = chart2d.NewChart2D(3840, 2160, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
+		c.chart.chart = chart2d.NewChart2D(width, height, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
 		go c.chart.chart.Plot()
 		if specifiedScale {
 			// Scale field min/max to preset values

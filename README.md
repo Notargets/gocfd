@@ -9,16 +9,22 @@ Density | X Momentum | Density
 :-------------------------:|:-------------------------:|:-------------------------:
 ![](images/render-mesh-isentropic-vortex-initial-zoom-7.PNG) | ![](images/render-mesh-isentropic-vortex-initial-zoom-7-rhoU.png) | ![](images/vortex-1-2-4-7-lax-cropped.gif)
 
-## Currently [10/12/21]
 
-I've implemented two different gradient calculations to compute the dissipation and verified they function correctly.
 
-The dissipation is not able to suppress shock induced (Gibbs) oscillations as implemented, and I think it's clear that this is due to an effect described by Persson involving the continuity of the gradient operator. In the picture below (2nd order, Roe flux, M=0.8), you can see the base of the shock wave above the NACA0012 airfoil. As the shock strengthens, the X derivative of X momentum is growing and clearly is discontinuous between elements, despite being computed from a C0 continuous X momentum field (accomplished using the RT element). In order for the sub-element shock capturing to work properly, Persson suggests that the gradient must be smooth across elements, otherwise the jumps between elements are strengthened instead of being diminished as needed. The solution described is to use the "LDG" method for computing 2nd order derivatives as described by [Cockburn and Shu](research/filters_and_flux_limiters/cockburn-shu-LDG-second-order-terms.pdf) in 1999.
+## Currently [10/22/21]
 
-Next, I plan to implement 2nd order derivative continuity along the lines of the LDG method, which will also support the next steps in implementation of viscous equations (Navier Stokes). Hopefully, we'll kill two birds with one stone: sharp shock capturing at high order accuracy and viscous solutions!
 
-![](images//discontinuous-gradient-in-shock.PNG)
+Centerline Compared with Exact Solution | Density in 2D 
+:-------------------------:|:-------------------------:
+![](images//sod-2d-broken.PNG) | ![](images//sod-2d-density-broken.PNG) 
 
+I've implemented a 2D version of the 1D shock tube with graphics and the exact solution for comparison.
+
+In the above snapshot, we can see that the shock wave and all waves are running at incorrect wave speed, indicating there is a bug in the physics of the solver somewhere. This is actually good news in that I can hope the general instabilities around shock capturing could be solved by fixing this bug!
+
+So far I've verified the bug exists with both Lax / Rusanov and Roe numerical fluxes, and is the same at 100 points resolution and 500 points.
+
+On the bright side, we see the sharp resolution of the shock wave and near perfect symmetry in the solution, so we just need to chase down the wavespeed error in the solver physics.
 
 ## Discontinuous Galerkin Method for solving systems of equations - CFD, CEM, ... hydrodynamics-fusion (simulate the Sun), etc! 
 
@@ -75,6 +81,16 @@ For example, the following line implements:
 ```
 	RHSE = el.Dr.Mul(FluxH).ElMul(el.Rx).ElDiv(c.Epsilon).Scale(-1)
 ```
+### Updates [10/12/21]
+
+I've implemented two different gradient calculations to compute the dissipation and verified they function correctly.
+
+The dissipation is not able to suppress shock induced (Gibbs) oscillations as implemented, and I think it's clear that this is due to an effect described by Persson involving the continuity of the gradient operator. In the picture below (2nd order, Roe flux, M=0.8), you can see the base of the shock wave above the NACA0012 airfoil. As the shock strengthens, the X derivative of X momentum is growing and clearly is discontinuous between elements, despite being computed from a C0 continuous X momentum field (accomplished using the RT element). In order for the sub-element shock capturing to work properly, Persson suggests that the gradient must be smooth across elements, otherwise the jumps between elements are strengthened instead of being diminished as needed. The solution described is to use the "LDG" method for computing 2nd order derivatives as described by [Cockburn and Shu](research/filters_and_flux_limiters/cockburn-shu-LDG-second-order-terms.pdf) in 1999.
+
+Next, I plan to implement 2nd order derivative continuity along the lines of the LDG method, which will also support the next steps in implementation of viscous equations (Navier Stokes). Hopefully, we'll kill two birds with one stone: sharp shock capturing at high order accuracy and viscous solutions!
+
+![](images//discontinuous-gradient-in-shock.PNG)
+
 ### Updates [10/3/21]
 
 I've implemented laplacian artificial dissipation that tracks shock induced instabilities using the Lagrangian solution element to compute the flux derivatives and also for the divergence of the dissipation field. The method works well for 1st order calculations, with sharp shock resolution and fast convergence, though the intra-element shock resolution is marked with a significant discontinuity with the edges of the shock capturing cell. When the shock aligns with the edge, the result is a near perfect shock capture, but when the shock is not on the edge, the intra-cell solution has spurious internal oscillations.

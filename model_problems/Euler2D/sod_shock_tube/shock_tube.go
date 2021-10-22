@@ -44,6 +44,12 @@ func NewSODShockTube(nPts int, dfr *DG2D.DFR2D) (st *SODShockTube) {
 	xfrac := 1. / float64(nPts-1) // Equal spaced samples across [0->1]
 	for i := range st.XLocations {
 		st.XLocations[i] = float64(i) * xfrac
+		if i == 0 {
+			st.XLocations[i] += 0.00001
+		}
+		if i == nPts-1 {
+			st.XLocations[i] -= 0.00001
+		}
 	}
 	st.calculateInterpolation()
 	return
@@ -106,12 +112,12 @@ func (st *SODShockTube) getUVCoords(x, y float64) (ElementID int, r, s float64) 
 		invDenom := 1. / (dot00*dot11 - dot01*dot01)
 		r = (dot11*dot02 - dot01*dot12) * invDenom
 		s = (dot00*dot12 - dot01*dot02) * invDenom
-		if r >= 0 && s >= 0 && (r+s) < 1. {
+		if r >= 0 && s >= 0 && (r+s) <= 1. {
 			ElementID = k
 			return
 		}
 	}
-	err := fmt.Errorf("unable to find point within elements")
+	err := fmt.Errorf("unable to find point within elements: [%5.3f,%5.3f]", x, y)
 	panic(err)
 }
 
