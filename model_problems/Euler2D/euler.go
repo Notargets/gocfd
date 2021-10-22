@@ -456,7 +456,7 @@ func (c *Euler) InitializeSolution(verbose bool) {
 			for k := 0; k < Kmax; k++ {
 				for i := 0; i < Nint; i++ {
 					ind := k + i*Kmax
-					if c.SolutionX[np].DataP[ind] > 0.5 { // The length of the domain should be 0->1
+					if c.SolutionX[np].DataP[ind] < 0.5 { // The length of the domain should be 0->1
 						c.Q[np][0].DataP[ind] = c.FSIn.Qinf[0]
 						c.Q[np][1].DataP[ind] = c.FSIn.Qinf[1]
 						c.Q[np][2].DataP[ind] = c.FSIn.Qinf[2]

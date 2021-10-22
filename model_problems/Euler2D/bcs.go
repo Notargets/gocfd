@@ -40,7 +40,7 @@ func (c *Euler) IVortexBC(Time float64, k, Kmax, ishift int, Q_Face [4]utils.Mat
 		ind := k + iL*Kmax
 		var QBC [4]float64
 		if riemann {
-			QBC = c.RiemannBC(k, Kmax, iL, qfD, [4]float64{rho, rhoU, rhoV, E}, normal)
+			QBC = c.RiemannBC(c.FSFar, k, Kmax, iL, qfD, [4]float64{rho, rhoU, rhoV, E}, normal)
 		} else {
 			QBC = [4]float64{rho, rhoU, rhoV, E}
 		}
@@ -59,7 +59,7 @@ func (c *Euler) FarBC(FS *FreeStream, k, Kmax, ishift int, Q_Face [4]utils.Matri
 	for i := 0; i < Nedge; i++ {
 		iL := i + ishift
 		ind := k + iL*Kmax
-		QBC := c.RiemannBC(k, Kmax, iL, qfD, FS.Qinf, normal)
+		QBC := c.RiemannBC(FS, k, Kmax, iL, qfD, FS.Qinf, normal)
 		qfD[0][ind] = QBC[0]
 		qfD[1][ind] = QBC[1]
 		qfD[2][ind] = QBC[2]
@@ -67,7 +67,7 @@ func (c *Euler) FarBC(FS *FreeStream, k, Kmax, ishift int, Q_Face [4]utils.Matri
 	}
 }
 
-func (c *Euler) RiemannBC(k, Kmax, i int, QQ [4][]float64, QInf [4]float64, normal [2]float64) (Q [4]float64) {
+func (c *Euler) RiemannBC(FS *FreeStream, k, Kmax, i int, QQ [4][]float64, QInf [4]float64, normal [2]float64) (Q [4]float64) {
 	/*
 			Use Riemann invariants along characteristic lines to calculate 1D flow properties normal to boundary
 		Rinf = VnormInf - 2 * Cinf / (Gamma -1)
@@ -80,14 +80,14 @@ func (c *Euler) RiemannBC(k, Kmax, i int, QQ [4][]float64, QInf [4]float64, norm
 	var (
 		ind                = k + i*Kmax
 		rhoInt, uInt, vInt = QQ[0][ind], QQ[1][ind] / QQ[0][ind], QQ[2][ind] / QQ[0][ind]
-		pInt               = c.FSFar.GetFlowFunctionBase(QQ[0][ind], QQ[1][ind], QQ[2][ind], QQ[3][ind], StaticPressure)
-		CInt               = c.FSFar.GetFlowFunctionBase(QQ[0][ind], QQ[1][ind], QQ[2][ind], QQ[3][ind], SoundSpeed)
-		Gamma              = c.FSFar.Gamma
+		pInt               = FS.GetFlowFunctionBase(QQ[0][ind], QQ[1][ind], QQ[2][ind], QQ[3][ind], StaticPressure)
+		CInt               = FS.GetFlowFunctionBase(QQ[0][ind], QQ[1][ind], QQ[2][ind], QQ[3][ind], SoundSpeed)
+		pInf               = FS.Pinf
+		CInf               = FS.Cinf
+		Gamma              = FS.Gamma
 		GM1                = Gamma - 1.
 		OOGM1              = 1. / GM1
 		rhoInf, uInf, vInf = QInf[0], QInf[1] / QInf[0], QInf[2] / QInf[0]
-		pInf               = c.FSFar.Pinf
-		CInf               = c.FSFar.Cinf
 		Vtang, Beta        float64
 		tangent            = [2]float64{-normal[1], normal[0]}
 	)
