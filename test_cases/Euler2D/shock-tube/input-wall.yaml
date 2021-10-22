@@ -11,3 +11,5 @@ MaxIterations: 80000
 #Limiter: Barth Jesperson
 #Kappa: 0.25
 #Kappa: 4
+#Kappa: 10
+Kappa: 3

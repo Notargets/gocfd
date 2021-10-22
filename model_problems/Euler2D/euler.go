@@ -470,12 +470,10 @@ func (c *Euler) InitializeSolution(verbose bool) {
 				}
 			}
 		}
-		c.ShockTube = sod_shock_tube.NewSODShockTube(100, c.dfr)
+		// There are 5 points vertically, then we double sample (4 pts per cell) to capture all the dynamics
+		c.ShockTube = sod_shock_tube.NewSODShockTube(4*c.dfr.K/5, c.dfr)
 	case IVORTEX:
-		c.FSFar.Qinf = [4]float64{1, 1, 0, 3}
-		c.FSFar.Pinf = c.FSFar.GetFlowFunctionQQ(c.FSFar.Qinf, StaticPressure)
-		c.FSFar.QQinf = c.FSFar.GetFlowFunctionQQ(c.FSFar.Qinf, DynamicPressure)
-		c.FSFar.Cinf = c.FSFar.GetFlowFunctionQQ(c.FSFar.Qinf, SoundSpeed)
+		c.FSFar = NewFreestreamFromQinf(1.4, [4]float64{1, 1, 0, 3})
 		c.SolutionX = c.ShardByK(c.dfr.SolutionX)
 		c.SolutionY = c.ShardByK(c.dfr.SolutionY)
 		NP := c.Partitions.ParallelDegree
