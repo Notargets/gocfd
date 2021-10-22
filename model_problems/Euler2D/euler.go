@@ -511,7 +511,7 @@ func (c *Euler) PrintInitialization(FinalTime float64) {
 		fmt.Printf("    iter                ")
 	} else {
 		fmt.Printf("Solving until finaltime = %8.5f\n", FinalTime)
-		fmt.Printf("    iter    time  min_dt")
+		fmt.Printf("    iter    time      dt")
 	}
 	fmt.Printf("       Res0       Res1       Res2")
 	fmt.Printf("       Res3         L1         L2\n")
