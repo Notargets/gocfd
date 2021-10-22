@@ -7,6 +7,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/notargets/gocfd/model_problems/Euler2D/sod_shock_tube"
+
 	"github.com/notargets/gocfd/types"
 
 	"github.com/notargets/gocfd/DG2D"
@@ -46,6 +48,7 @@ type Euler struct {
 	Dissipation          *ScalarDissipation
 	// Edge number mapped quantities, i.e. Face Normal Flux
 	EdgeStore *EdgeValueStorage
+	ShockTube *sod_shock_tube.SODShockTube
 }
 
 func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, verbose, profile bool) (c *Euler) {
@@ -467,6 +470,7 @@ func (c *Euler) InitializeSolution(verbose bool) {
 				}
 			}
 		}
+		c.ShockTube = sod_shock_tube.NewSODShockTube(100, c.dfr)
 	case IVORTEX:
 		c.FSFar.Qinf = [4]float64{1, 1, 0, 3}
 		c.FSFar.Pinf = c.FSFar.GetFlowFunctionQQ(c.FSFar.Qinf, StaticPressure)
@@ -516,7 +520,12 @@ func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [][4]utils.
 	printMem bool) {
 	format := "%11.4e"
 	if plotQ {
-		c.PlotQ(pm) // wait till we implement time iterative frame updates
+		if c.ShockTube != nil {
+			Qp := c.RecombineShardsKBy4(Q)
+			c.ShockTube.Plot(Time, pm.FrameTime, Qp)
+		} else {
+			c.PlotQ(pm) // wait till we implement time iterative frame updates
+		}
 	}
 	if c.LocalTimeStepping {
 		fmt.Printf("%10d              ", steps)
