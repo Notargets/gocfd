@@ -13,6 +13,9 @@ Density | X Momentum | Density
 
 ## Currently [10/22/21]
 
+*Quick Update* 
+
+Good news: the source of the bug is clearly the time integration (Runge Kutta 4th Order SSP algorithm) - simply changing one of the constants from 0.25 to 0.4 fixes the wavespeed issue completely. I'll revisit the implementation once I find out where I got the coefficients from - in this case I haven't included their source reference in the code (DOH!)
 
 Centerline Compared with Exact Solution | Density in 2D 
 :-------------------------:|:-------------------------:
