@@ -58,7 +58,7 @@ func NewSODShockTube(nPts int, dfr *DG2D.DFR2D) (st *SODShockTube) {
 func (st *SODShockTube) calculateInterpolation() {
 	var (
 		dfr    = st.DFR2D
-		getInt = dfr.SolutionElement.Simplex2DInterpolatingPolyMatrix
+		getInt = dfr.SolutionElement.Simplex2DInterpolatingPolyMatrixJacobi
 		VY     = dfr.VY
 		// Get the centerline Y coordinate
 		ymid = 0.5*(VY.Max()-VY.Min()) + VY.Min()

@@ -79,8 +79,10 @@ func (el *LagrangeElement2D) GetDerivativeMatrices(R, S utils.Vector) (Dr, Ds ut
 	return
 }
 
-func (el *LagrangeElement2D) Simplex2DInterpolatingPolyMatrix(R, S utils.Vector) (polyMatrix utils.Matrix) {
+func (el *LagrangeElement2D) Simplex2DInterpolatingPolyMatrixJacobi(R, S utils.Vector) (polyMatrix utils.Matrix) {
 	/*
+		Uses Jacobi polynomials as the basis function
+
 		Compose a matrix of interpolating polynomials where each row represents one [r,s] location to be interpolated
 		This matrix can then be multiplied by a single vector of function values at the polynomial nodes to produce a
 		vector of interpolated values, one for each interpolation location

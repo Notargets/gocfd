@@ -48,8 +48,9 @@ func NewDFR2D(N int, plotMesh bool, meshFileO ...string) (dfr *DFR2D) {
 		N:               N,
 		SolutionElement: le,
 		FluxElement:     rt,
-		FluxInterp:      le.Simplex2DInterpolatingPolyMatrix(rt.R, rt.S),   // Interpolation matrix for flux nodes
-		FluxEdgeInterp:  le.Simplex2DInterpolatingPolyMatrix(RFlux, SFlux), // Interpolation matrix across three edges
+		// TODO: Implement a Lagrange Interpolating Polynomial version of this, replacing the Jacobi polynomials
+		FluxInterp:     le.Simplex2DInterpolatingPolyMatrixJacobi(rt.R, rt.S),   // Interpolation matrix for flux nodes
+		FluxEdgeInterp: le.Simplex2DInterpolatingPolyMatrixJacobi(RFlux, SFlux), // Interpolation matrix across three edges
 	}
 	dfr.FluxDr, dfr.FluxDs = le.GetDerivativeMatrices(rt.R, rt.S)
 	if len(meshFileO) != 0 {
