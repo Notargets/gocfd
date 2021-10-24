@@ -405,12 +405,12 @@ func TestDissipation(t *testing.T) {
 		}
 		sd := NewScalarDissipation(0, dfr, pm)
 		sd.Kappa = 4.
-		sd.CalculateElementViscosity(Q)
+		sd.CalculateElementViscosity(0, Q)
 		//assert.InDeltaSlicef(t, []float64{0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903},
 		assert.InDeltaSlicef(t, []float64{0.09903, 0.09903, 0.09903, 0.07003, 0.09903, 0.07003, 0.09903, 0.07003, 0.09903, 0.07003},
 			sd.EpsilonScalar[0], 0.00001, "err msg %s")
 		sd.Kappa = 0.75
-		sd.CalculateElementViscosity(Q)
+		sd.CalculateElementViscosity(0, Q)
 		//assert.InDeltaSlicef(t, []float64{0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270},
 		assert.InDeltaSlicef(t, []float64{0.01270, 0.01270, 0.01270, 0.00898, 0.01270, 0.00898, 0.01270, 0.00898, 0.01270, 0.00898},
 			sd.EpsilonScalar[0], 0.00001, "err msg %s")
@@ -437,7 +437,7 @@ func TestDissipation(t *testing.T) {
 			wg := &sync.WaitGroup{}
 			for np := 0; np < NP; np++ {
 				wg.Add(1)
-				sd.propagateEpsilonMaxToVertices(np, wg)
+				sd.propagateEpsilonMaxToVertices(np)
 			}
 			assert.Equal(t, []float64{1, 3, 4, 5, 7, 9, 9, 6, 8, 9}, sd.EpsVertex)
 		}
@@ -464,7 +464,7 @@ func TestDissipation2(t *testing.T) {
 		wg := &sync.WaitGroup{}
 		for np := 0; np < NP; np++ {
 			wg.Add(1)
-			sd.propagateEpsilonMaxToVertices(np, wg)
+			sd.propagateEpsilonMaxToVertices(np)
 		}
 		assert.Equal(t, []float64{1, 3, 4, 5, 7, 9, 9, 6, 8, 9}, sd.EpsVertex)
 		for np := 0; np < NP; np++ {

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"sync"
 
 	"github.com/notargets/gocfd/DG2D"
 
@@ -189,7 +188,7 @@ func (sd *ScalarDissipation) shardEtoV(EtoV utils.Matrix) (ev []utils.Matrix) {
 	return
 }
 
-func (sd *ScalarDissipation) propagateEpsilonMaxToVertices(myThread int, wg *sync.WaitGroup) {
+func (sd *ScalarDissipation) propagateEpsilonMaxToVertices(myThread int) {
 	var (
 		VtoE = sd.VtoE[myThread]
 		max  = math.Max
@@ -204,7 +203,6 @@ func (sd *ScalarDissipation) propagateEpsilonMaxToVertices(myThread int, wg *syn
 			oldVert = vert
 		}
 	}
-	wg.Done()
 }
 
 type ContinuityLevel uint8
@@ -401,67 +399,52 @@ func (sd *ScalarDissipation) GetC0EpsilonPlotField(c *Euler) (fld utils.Matrix) 
 	return
 }
 
-func (sd *ScalarDissipation) CalculateElementViscosity(Qall [][4]utils.Matrix) {
+func (sd *ScalarDissipation) CalculateElementViscosity(myThread int, Qall [][4]utils.Matrix) {
 	var (
-		wg  = sync.WaitGroup{}
-		dfr = sd.dfr
+		dfr        = sd.dfr
+		Rho        = Qall[myThread][0]
+		Eps        = sd.EpsilonScalar[myThread]
+		Kmax       = sd.PMap.GetBucketDimension(myThread)
+		U          = sd.U[myThread]
+		UClipped   = sd.UClipped[myThread]
+		KMaxGlobal = sd.PMap.MaxIndex
+		Order      = float64(sd.dfr.N)
 	)
-	for np := 0; np < sd.PMap.ParallelDegree; np++ {
-		wg.Add(1)
-		go func(myThread int) {
-			var (
-				Rho        = Qall[myThread][0]
-				Eps        = sd.EpsilonScalar[myThread]
-				Kmax       = sd.PMap.GetBucketDimension(myThread)
-				U          = sd.U[myThread]
-				UClipped   = sd.UClipped[myThread]
-				KMaxGlobal = sd.PMap.MaxIndex
-				Order      = float64(sd.dfr.N)
-			)
-			/*
-				Eps0 wants to be (h/p) and is supposed to be proportional to cell width
-				Something like this for the "h" quantity seems right
-					Np1  = c.dfr.N + 1
-					Np12 = float64(Np1 * Np1)
-					edgeLen     = e.GetEdgeLength()
-					fs := 0.5 * Np12 * edgeLen / Jdet[bn].DataP[k]
-			*/
-			for k := 0; k < Kmax; k++ {
-				// Get edges for this element
-				kGlobal := sd.PMap.GetGlobalK(k, myThread)
-				var maxEdgeLen float64
-				maxEdgeLen = -1
-				for edgeNum := 0; edgeNum < 3; edgeNum++ {
-					ind := kGlobal + KMaxGlobal*edgeNum
-					edgeLen := dfr.IInII.DataP[ind]
-					if edgeLen > maxEdgeLen {
-						maxEdgeLen = edgeLen
-					}
-				}
-				var (
-					eps0        = maxEdgeLen / Order
-					Se          = math.Log10(sd.moment(k, Kmax, U, UClipped, Rho))
-					left, right = sd.S0 - sd.Kappa, sd.S0 + sd.Kappa
-					oo2kappa    = 0.5 / sd.Kappa
-				)
-				switch {
-				case Se < left:
-					Eps[k] = 0.
-				case Se >= left && Se <= right:
-					Eps[k] = 0.5 * eps0 * (1. + math.Sin(math.Pi*oo2kappa*(Se-sd.S0)))
-				case Se > right:
-					Eps[k] = eps0
-				}
+	/*
+		Eps0 wants to be (h/p) and is supposed to be proportional to cell width
+		Something like this for the "h" quantity seems right
+			Np1  = c.dfr.N + 1
+			Np12 = float64(Np1 * Np1)
+			edgeLen     = e.GetEdgeLength()
+			fs := 0.5 * Np12 * edgeLen / Jdet[bn].DataP[k]
+	*/
+	for k := 0; k < Kmax; k++ {
+		// Get edges for this element
+		kGlobal := sd.PMap.GetGlobalK(k, myThread)
+		var maxEdgeLen float64
+		maxEdgeLen = -1
+		for edgeNum := 0; edgeNum < 3; edgeNum++ {
+			ind := kGlobal + KMaxGlobal*edgeNum
+			edgeLen := dfr.IInII.DataP[ind]
+			if edgeLen > maxEdgeLen {
+				maxEdgeLen = edgeLen
 			}
-			wg.Done()
-		}(np)
+		}
+		var (
+			eps0        = maxEdgeLen / Order
+			Se          = math.Log10(sd.moment(k, Kmax, U, UClipped, Rho))
+			left, right = sd.S0 - sd.Kappa, sd.S0 + sd.Kappa
+			oo2kappa    = 0.5 / sd.Kappa
+		)
+		switch {
+		case Se < left:
+			Eps[k] = 0.
+		case Se >= left && Se <= right:
+			Eps[k] = 0.5 * eps0 * (1. + math.Sin(math.Pi*oo2kappa*(Se-sd.S0)))
+		case Se > right:
+			Eps[k] = eps0
+		}
 	}
-	wg.Wait()
-	for np := 0; np < sd.PMap.ParallelDegree; np++ {
-		wg.Add(1)
-		go sd.propagateEpsilonMaxToVertices(np, &wg)
-	}
-	wg.Wait()
 }
 
 func (sd *ScalarDissipation) moment(k, Kmax int, U, UClipped, Rho utils.Matrix) (m float64) {

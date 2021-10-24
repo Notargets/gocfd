@@ -1,5 +1,5 @@
 Title: "Test Case"
-CFL: 1.00
+CFL: 0.50
 #FluxType: Roe-ER
 FluxType: Roe
 #FluxType: Lax

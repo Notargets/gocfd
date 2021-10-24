@@ -141,7 +141,7 @@ func (c *Euler) Solve(pm *PlotMeta) {
 type RungeKutta4SSP struct {
 	Jdet, Jinv           []utils.Matrix    // Sharded mesh Jacobian and inverse transform
 	RHSQ, Q_Face         [][4]utils.Matrix // State used for matrix multiplies within the time step algorithm
-	Q1, Q2, Q3           [][4]utils.Matrix // Intermediate solution state
+	Q1, Q2, Q3, Q4       [][4]utils.Matrix // Intermediate solution state
 	Residual             [][4]utils.Matrix // Used for reporting, aliased to Q1
 	F_RT_DOF             [][4]utils.Matrix // Normal flux used for divergence
 	DT                   []utils.Matrix    // Local time step storage
@@ -166,6 +166,7 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		Q1:           make([][4]utils.Matrix, NPar),
 		Q2:           make([][4]utils.Matrix, NPar),
 		Q3:           make([][4]utils.Matrix, NPar),
+		Q4:           make([][4]utils.Matrix, NPar),
 		Residual:     make([][4]utils.Matrix, NPar),
 		F_RT_DOF:     make([][4]utils.Matrix, NPar),
 		DT:           make([]utils.Matrix, NPar),
@@ -184,7 +185,9 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 			rk.Q1[np][n] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 			rk.Q2[np][n] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 			rk.Q3[np][n] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
+			rk.Q4[np][n] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 			rk.RHSQ[np][n] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
+			rk.Residual[np][n] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 			rk.F_RT_DOF[np][n] = utils.NewMatrix(rk.NpFlux, rk.Kmax[np])
 			rk.Q_Face[np][n] = utils.NewMatrix(rk.Nedge*3, rk.Kmax[np])
 		}
@@ -192,7 +195,6 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		rk.EdgeQ1[np] = make([][4]float64, rk.Nedge)
 		rk.EdgeQ2[np] = make([][4]float64, rk.Nedge)
 	}
-	rk.Residual = rk.Q1
 	return
 }
 
@@ -202,33 +204,18 @@ func (rk *RungeKutta4SSP) Step(c *Euler) {
 		NOTE: Any CPU work done in this thread makes the workers wait - be careful!
 	*/
 	var (
-		pm       = c.Partitions
-		NP       = pm.ParallelDegree
-		wg       = sync.WaitGroup{}
-		QCurrent [][4]utils.Matrix
+		pm = c.Partitions
+		NP = pm.ParallelDegree
+		wg = sync.WaitGroup{}
 	)
-	for currentStep := 0; currentStep < 17; currentStep++ {
+	for currentStep := 0; currentStep < 26; currentStep++ {
+		rkStep := getRKStepNumber(currentStep)
+		initDT := (rkStep == 0)
 		// Workers are blocked below here until the StepWorker section - make sure significant work done here is abs necessary!
-		switch {
-		case currentStep == 2:
-			// After step 0, we need to consolidate the local max wavespeeds to calculate global dt
-			if !c.LocalTimeStepping {
-				rk.calculateGlobalDT(c)
-			}
-		case currentStep%4 == 1: // pre-time advancement steps
-			switch currentStep / 2 {
-			case 0:
-				QCurrent = c.Q
-			case 1:
-				QCurrent = rk.Q1
-			case 2:
-				QCurrent = rk.Q2
-			case 3:
-				QCurrent = rk.Q3
-			}
-			c.Dissipation.CalculateElementViscosity(QCurrent)
+		if initDT && !c.LocalTimeStepping {
+			rk.calculateGlobalDT(c) // Compute the global DT for non local timestepping - must be done serially
 		}
-		// Advance the workers one step by sending the "go" message. They are blocked until they receive this.
+		// Advance the workers one step
 		for np := 0; np < NP; np++ {
 			wg.Add(1)
 			go rk.StepWorker(c, np, &wg, currentStep)
@@ -237,22 +224,71 @@ func (rk *RungeKutta4SSP) Step(c *Euler) {
 	}
 }
 
-func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup, subStep int) {
+func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup, currentStep int) {
+	/*
+		SSP54 RK Coefficients from:
+		"A numerical study of diagonally split Runge-Kutta methods for PDEs with discontinuities"
+		Colin B. Macdonald, Sigal Gottlieb and Steven J. Ruuth, 2007
+	*/
 	var (
-		Np                           = rk.NpInt
-		dT                           float64
-		contLevel                    = C0
-		Q0                           = c.Q[myThread]
-		Kmax, Jdet, Jinv, F_RT_DOF   = rk.Kmax[myThread], rk.Jdet[myThread], rk.Jinv[myThread], rk.F_RT_DOF[myThread]
-		DT, Q_Face, Q1, Q2, Q3, RHSQ = rk.DT[myThread], rk.Q_Face[myThread], rk.Q1[myThread], rk.Q2[myThread], rk.Q3[myThread], rk.RHSQ[myThread]
-		Residual                     = rk.Residual[myThread]
-		EdgeQ1, EdgeQ2               = rk.EdgeQ1[myThread], rk.EdgeQ2[myThread]
-		SortedEdgeKeys               = c.SortedEdgeKeys[myThread]
-		DTStartup                    = 1. - math.Pow(math.Exp(-float64(rk.StepCount+1)), 1./32)
+		Np                         = rk.NpInt
+		dT                         float64
+		contLevel                  = C0
+		Kmax, Jdet, Jinv, F_RT_DOF = rk.Kmax[myThread], rk.Jdet[myThread], rk.Jinv[myThread], rk.F_RT_DOF[myThread]
+		DT, Q_Face                 = rk.DT[myThread], rk.Q_Face[myThread]
+		Q0                         = c.Q[myThread]
+		Q1, Q2, Q3, Q4             = rk.Q1[myThread], rk.Q2[myThread], rk.Q3[myThread], rk.Q4[myThread]
+		RHSQ, Residual             = rk.RHSQ[myThread], rk.Residual[myThread]
+		EdgeQ1, EdgeQ2             = rk.EdgeQ1[myThread], rk.EdgeQ2[myThread]
+		SortedEdgeKeys             = c.SortedEdgeKeys[myThread]
+		DTStartup                  = 1. - math.Pow(math.Exp(-float64(rk.StepCount+1)), 1./32)
+		rkStep                     = getRKStepNumber(currentStep)
+		initDT                     = (rkStep == 0) // Calculate time step on first step only
+		QQQ                        = [][4]utils.Matrix{Q0, Q1, Q2, Q3, Q4}[rkStep]
+		QQQAll                     = [][][4]utils.Matrix{c.Q, rk.Q1, rk.Q2, rk.Q3, rk.Q4}[rkStep]
 	)
-	//defer func() { fmt.Printf("thread %d finished with step %d\n", myThread, subStep); wg.Done() }()
 	defer wg.Done()
-	switch subStep {
+	/*
+		Inline functions
+	*/
+	rkAdvance := func(rkstep int, QQQ [4]utils.Matrix) {
+		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, QQQ) // Updates F_RT_DOF with values from Q
+		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
+		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
+		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, QQQ, RHSQ)
+		dT = rk.GlobalDT
+		for n := 0; n < 4; n++ {
+			for i := 0; i < Kmax*Np; i++ {
+				if c.LocalTimeStepping {
+					dT = DTStartup * DT.DataP[i]
+				}
+				dtR := dT * RHSQ[n].DataP[i]
+				U0, U1, U2, U3, U4 := Q0[n].DataP, Q1[n].DataP, Q2[n].DataP, Q3[n].DataP, Q4[n].DataP
+				R, RHS := Residual[n].DataP, RHSQ[n].DataP
+				switch rkstep {
+				case 0:
+					U1[i] = U0[i] + 0.391752226571890*dtR
+				case 1:
+					U2[i] = 0.444370493651235*U0[i] + 0.555629506348765*U1[i] + 0.368410593050371*dtR
+				case 2:
+					U3[i] = 0.620101851488403*U0[i] + 0.379898148511597*U2[i] + 0.251891774271694*dtR
+				case 3:
+					R[i] = RHS[i] // Store the current RHS for use in the last RK step
+					U4[i] = 0.178079954393132*U0[i] + 0.821920045606868*U3[i] + 0.544974750228521*dtR
+				case 4:
+					dtR3 := dT * R[i]
+					R[i] = -U0[i] + 0.517231671970585*U2[i] + 0.096059710526146*U3[i] + 0.386708617503269*U4[i] +
+						0.063692468666290*dtR3 +
+						0.226007483236906*dtR
+					U0[i] += R[i]
+				}
+			}
+		}
+	}
+	/*
+		Execution
+	*/
+	switch currentStep {
 	case 0:
 		if c.LocalTimeStepping {
 			// Setup local time stepping
@@ -260,108 +296,33 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 				DT.DataP[k] = -100 // Global
 			}
 		}
-		c.InterpolateSolutionToEdges(Q0, Q_Face) // Interpolates Q_Face values from Q
-	case 1:
+		c.InterpolateSolutionToEdges(QQQ, Q_Face) // Interpolates Q_Face values from Q
+	case 1, 6, 11, 16, 21:
 		rk.MaxWaveSpeed[myThread] =
-			c.CalculateEdgeFlux(rk.Time, true, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
-	case 2:
-		c.Dissipation.CalculateEpsilonGradient(c, C0, myThread, Q0)
-	case 3:
+			c.CalculateEdgeFlux(rk.Time, initDT, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
+		c.Dissipation.CalculateElementViscosity(myThread, QQQAll)
+	case 2, 7, 12, 17, 22:
+		c.Dissipation.propagateEpsilonMaxToVertices(myThread)
+	case 3, 8, 13, 18, 23:
+		if initDT && c.LocalTimeStepping {
+			c.CalculateLocalDT(DT)
+		}
+		c.Dissipation.CalculateEpsilonGradient(c, C0, myThread, QQQ)
+	case 4, 9, 14, 19, 24:
 		c.StoreGradientEdgeFlux(SortedEdgeKeys, EdgeQ1)
-	case 4:
-		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q0) // Updates F_RT_DOF with values from Q
-		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
-		if c.LocalTimeStepping {
-			// Replicate local time step to the other solution points for each k
-			for k := 0; k < Kmax; k++ {
-				DT.DataP[k] = c.CFL / DT.DataP[k] // Set each element's DT to CFL/(max_wave_speed)
-			}
-			// Set the DT of all interior points of each element to the element DT
-			for i := 1; i < c.dfr.SolutionElement.Np; i++ {
-				for k := 0; k < Kmax; k++ {
-					ind := k + Kmax*i
-					DT.DataP[ind] = DTStartup * DT.DataP[k]
-				}
-			}
+	case 5, 10, 15, 20, 25:
+		rkAdvance(rkStep, QQQ)
+		if rkStep == 4 {
+			c.Limiter.LimitSolution(myThread, c.Q, rk.Residual)
+		} else {
+			c.InterpolateSolutionToEdges(QQQ, Q_Face) // Interpolates Q_Face values from Q
 		}
-		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
-		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, Q0, RHSQ)
-		dT = rk.GlobalDT
-		for n := 0; n < 4; n++ {
-			for i := 0; i < Kmax*Np; i++ {
-				if c.LocalTimeStepping {
-					dT = DTStartup * DT.DataP[i]
-				}
-				Q1[n].DataP[i] = Q0[n].DataP[i] + 0.5*RHSQ[n].DataP[i]*dT
-			}
-		}
-		c.InterpolateSolutionToEdges(Q1, Q_Face) // Interpolates Q_Face values from Q
-	case 5:
-		c.CalculateEdgeFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
-	case 6:
-		c.Dissipation.CalculateEpsilonGradient(c, C0, myThread, Q1)
-	case 7:
-		c.StoreGradientEdgeFlux(SortedEdgeKeys, EdgeQ1)
-	case 8:
-		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q1) // Updates F_RT_DOF with values from Q
-		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
-		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
-		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, Q1, RHSQ)
-		dT = rk.GlobalDT
-		for n := 0; n < 4; n++ {
-			for i := 0; i < Kmax*Np; i++ {
-				if c.LocalTimeStepping {
-					dT = DTStartup * DT.DataP[i]
-				}
-				Q2[n].DataP[i] = Q1[n].DataP[i] + 0.25*RHSQ[n].DataP[i]*dT
-			}
-		}
-		c.InterpolateSolutionToEdges(Q2, Q_Face) // Interpolates Q_Face values from Q
-	case 9:
-		c.CalculateEdgeFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
-	case 10:
-		c.Dissipation.CalculateEpsilonGradient(c, C0, myThread, Q2)
-	case 11:
-		c.StoreGradientEdgeFlux(SortedEdgeKeys, EdgeQ1)
-	case 12:
-		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q2) // Updates F_RT_DOF with values from Q
-		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
-		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
-		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, Q2, RHSQ)
-		dT = rk.GlobalDT
-		for n := 0; n < 4; n++ {
-			for i := 0; i < Kmax*Np; i++ {
-				if c.LocalTimeStepping {
-					dT = DTStartup * DT.DataP[i]
-				}
-				Q3[n].DataP[i] = (1. / 3.) * (2*Q0[n].DataP[i] + Q2[n].DataP[i] + RHSQ[n].DataP[i]*dT)
-			}
-		}
-		c.InterpolateSolutionToEdges(Q3, Q_Face) // Interpolates Q_Face values from Q
-	case 13:
-		c.CalculateEdgeFlux(rk.Time, false, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
-	case 14:
-		c.Dissipation.CalculateEpsilonGradient(c, C0, myThread, Q3)
-	case 15:
-		c.StoreGradientEdgeFlux(SortedEdgeKeys, EdgeQ1)
-	case 16:
-		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, Q3) // Updates F_RT_DOF with values from Q
-		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
-		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
-		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, Q3, RHSQ)
-		// Note, we are re-using Q1 as storage for Residual here
-		dT = rk.GlobalDT
-		for n := 0; n < 4; n++ {
-			for i := 0; i < Kmax*Np; i++ {
-				if c.LocalTimeStepping {
-					dT = DTStartup * DT.DataP[i]
-				}
-				Residual[n].DataP[i] = Q3[n].DataP[i] + 0.25*RHSQ[n].DataP[i]*dT - Q0[n].DataP[i]
-				Q0[n].DataP[i] += Residual[n].DataP[i]
-			}
-		}
-		c.Limiter.LimitSolution(myThread, c.Q, rk.Residual)
 	}
+	return
+}
+
+func getRKStepNumber(currentStep int) (rkStepNum int) {
+	rkStepNum = (currentStep - 1) / 5
 	return
 }
 
@@ -659,6 +620,23 @@ func (c *Euler) GetSolutionGradient(myThread, varNum int, Q [4]utils.Matrix, Gra
 			ind := k + i*Kmax
 			GradX.DataP[ind] = JinvD[0]*DR.DataP[ind] + JinvD[2]*DS.DataP[ind]
 			GradY.DataP[ind] = JinvD[1]*DR.DataP[ind] + JinvD[3]*DS.DataP[ind]
+		}
+	}
+}
+
+func (c *Euler) CalculateLocalDT(DT utils.Matrix) {
+	var (
+		Kmax = c.dfr.K
+	)
+	// Replicate local time step to the other solution points for each k
+	for k := 0; k < Kmax; k++ {
+		DT.DataP[k] = c.CFL / DT.DataP[k] // Set each element's DT to CFL/(max_wave_speed)
+	}
+	// Set the DT of all interior points of each element to the element DT
+	for i := 1; i < c.dfr.SolutionElement.Np; i++ {
+		for k := 0; k < Kmax; k++ {
+			ind := k + Kmax*i
+			DT.DataP[ind] = DT.DataP[k]
 		}
 	}
 }
