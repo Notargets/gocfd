@@ -268,28 +268,29 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		}
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
+			var (
+				U0, U1, U2, U3, U4 = Q0[n].DataP, Q1[n].DataP, Q2[n].DataP, Q3[n].DataP, Q4[n].DataP
+				R, RHS             = Residual[n].DataP, RHSQ[n].DataP
+			)
 			for i := 0; i < Kmax*Np; i++ {
 				if c.LocalTimeStepping {
 					dT = DTStartup * DT.DataP[i]
 				}
-				dtR := dT * RHSQ[n].DataP[i]
-				U0, U1, U2, U3, U4 := Q0[n].DataP, Q1[n].DataP, Q2[n].DataP, Q3[n].DataP, Q4[n].DataP
-				R, RHS := Residual[n].DataP, RHSQ[n].DataP
+				dtRHS := dT * RHSQ[n].DataP[i]
 				switch rkstep {
 				case 0:
-					U1[i] = U0[i] + 0.391752226571890*dtR
+					U1[i] = U0[i] + 0.391752226571890*dtRHS
 				case 1:
-					U2[i] = 0.444370493651235*U0[i] + 0.555629506348765*U1[i] + 0.368410593050371*dtR
+					U2[i] = 0.444370493651235*U0[i] + 0.555629506348765*U1[i] + 0.368410593050371*dtRHS
 				case 2:
-					U3[i] = 0.620101851488403*U0[i] + 0.379898148511597*U2[i] + 0.251891774271694*dtR
+					U3[i] = 0.620101851488403*U0[i] + 0.379898148511597*U2[i] + 0.251891774271694*dtRHS
 				case 3:
 					R[i] = RHS[i] // Store the current RHS for use in the last RK step
-					U4[i] = 0.178079954393132*U0[i] + 0.821920045606868*U3[i] + 0.544974750228521*dtR
+					U4[i] = 0.178079954393132*U0[i] + 0.821920045606868*U3[i] + 0.544974750228521*dtRHS
 				case 4:
 					dtR3 := dT * R[i]
 					R[i] = -U0[i] + 0.517231671970585*U2[i] + 0.096059710526146*U3[i] + 0.386708617503269*U4[i] +
-						0.063692468666290*dtR3 +
-						0.226007483236906*dtR
+						0.063692468666290*dtR3 + 0.226007483236906*dtRHS
 					U0[i] += R[i]
 				}
 			}
