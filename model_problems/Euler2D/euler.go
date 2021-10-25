@@ -81,10 +81,13 @@ func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, ver
 	c.InitializeSolution(verbose)
 
 	// Allocate a solution limiter
-	c.Limiter = NewSolutionLimiter(NewLimiterType(ip.Limiter), ip.Kappa, c.dfr, c.Partitions, c.FSFar)
+	lt := NewLimiterType(ip.Limiter)
+	c.Limiter = NewSolutionLimiter(lt, ip.Kappa, c.dfr, c.Partitions, c.FSFar)
 
 	// Initiate Artificial Dissipation
-	c.Dissipation = NewScalarDissipation(ip.Kappa, c.dfr, c.Partitions)
+	if lt == None {
+		c.Dissipation = NewScalarDissipation(ip.Kappa, c.dfr, c.Partitions)
+	}
 
 	if verbose {
 		fmt.Printf("Euler Equations in 2 Dimensions\n")
@@ -95,7 +98,9 @@ func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, ver
 			fmt.Printf("Mach Infinity = %8.5f, Angle of Attack = %8.5f\n", ip.Minf, ip.Alpha)
 		}
 		fmt.Printf("Flux Algorithm: [%s] using Limiter: [%s]\n", c.FluxCalcAlgo.Print(), c.Limiter.limiterType.Print())
-		fmt.Printf("Artificial Dissipation: Kappa = [%5.3f]\n", c.Dissipation.Kappa)
+		if c.Dissipation != nil {
+			fmt.Printf("Artificial Dissipation: Kappa = [%5.3f]\n", c.Dissipation.Kappa)
+		}
 		fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n",
 			ip.CFL, ip.PolynomialOrder, c.dfr.K)
 	}
@@ -132,7 +137,8 @@ func (c *Euler) Solve(pm *PlotMeta) {
 			if steps%100 == 0 {
 				printMem = true
 			}
-			c.PrintUpdate(rk.Time, rk.GlobalDT, steps, c.Q, rk.Residual, plotQ, pm, printMem)
+			c.PrintUpdate(rk.Time, rk.GlobalDT, steps, c.Q, rk.Residual, plotQ, pm, printMem,
+				rk.LimitedPoints)
 		}
 	}
 	c.PrintFinal(elapsed, steps)
@@ -151,6 +157,7 @@ type RungeKutta4SSP struct {
 	Kmax                 []int          // Local element count (dimension: Kmax[ParallelDegree])
 	NpInt, Nedge, NpFlux int            // Number of points in solution, edge and flux total
 	EdgeQ1, EdgeQ2       [][][4]float64 // Sharded local working memory, dimensions Nedge
+	LimitedPoints        []int          // Sharded number of limited points
 }
 
 func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
@@ -159,24 +166,25 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		NPar = pm.ParallelDegree
 	)
 	rk = &RungeKutta4SSP{
-		Jdet:         c.ShardByKTranspose(c.dfr.Jdet),
-		Jinv:         c.ShardByKTranspose(c.dfr.Jinv),
-		RHSQ:         make([][4]utils.Matrix, NPar),
-		Q_Face:       make([][4]utils.Matrix, NPar),
-		Q1:           make([][4]utils.Matrix, NPar),
-		Q2:           make([][4]utils.Matrix, NPar),
-		Q3:           make([][4]utils.Matrix, NPar),
-		Q4:           make([][4]utils.Matrix, NPar),
-		Residual:     make([][4]utils.Matrix, NPar),
-		F_RT_DOF:     make([][4]utils.Matrix, NPar),
-		DT:           make([]utils.Matrix, NPar),
-		MaxWaveSpeed: make([]float64, NPar),
-		Kmax:         make([]int, NPar),
-		NpInt:        c.dfr.SolutionElement.Np,
-		Nedge:        c.dfr.FluxElement.Nedge,
-		NpFlux:       c.dfr.FluxElement.Np,
-		EdgeQ1:       make([][][4]float64, NPar),
-		EdgeQ2:       make([][][4]float64, NPar),
+		Jdet:          c.ShardByKTranspose(c.dfr.Jdet),
+		Jinv:          c.ShardByKTranspose(c.dfr.Jinv),
+		RHSQ:          make([][4]utils.Matrix, NPar),
+		Q_Face:        make([][4]utils.Matrix, NPar),
+		Q1:            make([][4]utils.Matrix, NPar),
+		Q2:            make([][4]utils.Matrix, NPar),
+		Q3:            make([][4]utils.Matrix, NPar),
+		Q4:            make([][4]utils.Matrix, NPar),
+		Residual:      make([][4]utils.Matrix, NPar),
+		F_RT_DOF:      make([][4]utils.Matrix, NPar),
+		DT:            make([]utils.Matrix, NPar),
+		MaxWaveSpeed:  make([]float64, NPar),
+		Kmax:          make([]int, NPar),
+		NpInt:         c.dfr.SolutionElement.Np,
+		Nedge:         c.dfr.FluxElement.Nedge,
+		NpFlux:        c.dfr.FluxElement.Np,
+		EdgeQ1:        make([][][4]float64, NPar),
+		EdgeQ2:        make([][][4]float64, NPar),
+		LimitedPoints: make([]int, NPar),
 	}
 	// Initialize memory for RHS
 	for np := 0; np < NPar; np++ {
@@ -209,8 +217,9 @@ func (rk *RungeKutta4SSP) Step(c *Euler) {
 		wg = sync.WaitGroup{}
 	)
 	for currentStep := 0; currentStep < 26; currentStep++ {
-		rkStep := getRKStepNumber(currentStep)
-		initDT := (rkStep == 0)
+		//rkStep := getRKStepNumber(currentStep)
+		//initDT                     := (rkStep == 0) // Calculate time step on first RK stage only
+		initDT := true // Calculate time step at each stage
 		// Workers are blocked below here until the StepWorker section - make sure significant work done here is abs necessary!
 		if initDT && !c.LocalTimeStepping {
 			rk.calculateGlobalDT(c) // Compute the global DT for non local timestepping - must be done serially
@@ -218,13 +227,13 @@ func (rk *RungeKutta4SSP) Step(c *Euler) {
 		// Advance the workers one step
 		for np := 0; np < NP; np++ {
 			wg.Add(1)
-			go rk.StepWorker(c, np, &wg, currentStep)
+			go rk.StepWorker(c, np, &wg, currentStep, initDT)
 		}
 		wg.Wait()
 	}
 }
 
-func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup, currentStep int) {
+func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup, currentStep int, initDT bool) {
 	/*
 		SSP54 RK Coefficients from:
 		"A numerical study of diagonally split Runge-Kutta methods for PDEs with discontinuities"
@@ -241,9 +250,8 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		RHSQ, Residual             = rk.RHSQ[myThread], rk.Residual[myThread]
 		EdgeQ1, EdgeQ2             = rk.EdgeQ1[myThread], rk.EdgeQ2[myThread]
 		SortedEdgeKeys             = c.SortedEdgeKeys[myThread]
-		DTStartup                  = 1. - math.Pow(math.Exp(-float64(rk.StepCount+1)), 1./32)
+		DTStartup                  = 1. - math.Pow(math.Exp(-float64(rk.StepCount+1)), 1./64)
 		rkStep                     = getRKStepNumber(currentStep)
-		initDT                     = (rkStep == 0) // Calculate time step on first step only
 		QQQ                        = [][4]utils.Matrix{Q0, Q1, Q2, Q3, Q4}[rkStep]
 		QQQAll                     = [][][4]utils.Matrix{c.Q, rk.Q1, rk.Q2, rk.Q3, rk.Q4}[rkStep]
 	)
@@ -255,7 +263,9 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, QQQ) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
-		c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, QQQ, RHSQ)
+		if c.Dissipation != nil {
+			c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, QQQ, RHSQ)
+		}
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
 			for i := 0; i < Kmax*Np; i++ {
@@ -300,20 +310,28 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 	case 1, 6, 11, 16, 21:
 		rk.MaxWaveSpeed[myThread] =
 			c.CalculateEdgeFlux(rk.Time, initDT, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
-		c.Dissipation.CalculateElementViscosity(myThread, QQQAll)
+		if c.Dissipation != nil {
+			c.Dissipation.CalculateElementViscosity(myThread, QQQAll)
+		}
 	case 2, 7, 12, 17, 22:
-		c.Dissipation.propagateEpsilonMaxToVertices(myThread)
+		if c.Dissipation != nil {
+			c.Dissipation.propagateEpsilonMaxToVertices(myThread)
+		}
 	case 3, 8, 13, 18, 23:
 		if initDT && c.LocalTimeStepping {
 			c.CalculateLocalDT(DT)
 		}
-		c.Dissipation.CalculateEpsilonGradient(c, C0, myThread, QQQ)
+		if c.Dissipation != nil {
+			c.Dissipation.CalculateEpsilonGradient(c, C0, myThread, QQQ)
+		}
 	case 4, 9, 14, 19, 24:
-		c.StoreGradientEdgeFlux(SortedEdgeKeys, EdgeQ1)
+		if c.Dissipation != nil {
+			c.StoreGradientEdgeFlux(SortedEdgeKeys, EdgeQ1)
+		}
 	case 5, 10, 15, 20, 25:
 		rkAdvance(rkStep, QQQ)
 		if rkStep == 4 {
-			c.Limiter.LimitSolution(myThread, c.Q, rk.Residual)
+			rk.LimitedPoints[myThread] = c.Limiter.LimitSolution(myThread, c.Q, rk.Residual)
 		} else {
 			c.InterpolateSolutionToEdges(QQQ, Q_Face) // Interpolates Q_Face values from Q
 		}
@@ -476,7 +494,7 @@ func (c *Euler) PrintInitialization(FinalTime float64) {
 	fmt.Printf("       Res3         L1         L2\n")
 }
 func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [][4]utils.Matrix, plotQ bool, pm *PlotMeta,
-	printMem bool) {
+	printMem bool, limitedPoints []int) {
 	format := "%11.4e"
 	if plotQ {
 		if c.ShockTube != nil {
@@ -511,6 +529,13 @@ func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [][4]utils.
 	fmt.Printf(format, math.Sqrt(l2)/4.)
 	if printMem {
 		fmt.Printf(" :: %s", utils.GetMemUsage())
+	}
+	var lpsum int
+	for _, val := range limitedPoints {
+		lpsum += val
+	}
+	if lpsum != 0 {
+		fmt.Printf(" #limited:%5d/%-8d ", lpsum, c.dfr.K*c.dfr.SolutionElement.Np)
 	}
 	fmt.Printf("\n")
 }
@@ -626,7 +651,7 @@ func (c *Euler) GetSolutionGradient(myThread, varNum int, Q [4]utils.Matrix, Gra
 
 func (c *Euler) CalculateLocalDT(DT utils.Matrix) {
 	var (
-		Kmax = c.dfr.K
+		_, Kmax = DT.Dims()
 	)
 	// Replicate local time step to the other solution points for each k
 	for k := 0; k < Kmax; k++ {

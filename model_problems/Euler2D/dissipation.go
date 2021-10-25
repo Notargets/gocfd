@@ -118,8 +118,8 @@ func NewScalarDissipation(kappa float64, dfr *DG2D.DFR2D, pm *PartitionMap) (sd 
 		// Sharded working matrices
 		U:        make([]utils.Matrix, NPar),
 		UClipped: make([]utils.Matrix, NPar),
-		S0:       1.0 / math.Pow(order, 4.),
-		Kappa:    3.,
+		S0:       4.0 / math.Pow(order, 4.),
+		Kappa:    5.,
 	}
 	sd.EtoV = sd.shardEtoV(dfr.Tris.EToV)
 	sd.createInterpolationStencil()
@@ -431,7 +431,7 @@ func (sd *ScalarDissipation) CalculateElementViscosity(myThread int, Qall [][4]u
 			}
 		}
 		var (
-			eps0        = maxEdgeLen / Order
+			eps0        = 0.75 * maxEdgeLen / Order
 			Se          = math.Log10(sd.moment(k, Kmax, U, UClipped, Rho))
 			left, right = sd.S0 - sd.Kappa, sd.S0 + sd.Kappa
 			oo2kappa    = 0.5 / sd.Kappa
@@ -451,20 +451,25 @@ func (sd *ScalarDissipation) moment(k, Kmax int, U, UClipped, Rho utils.Matrix) 
 	var (
 		Np            = sd.dfr.SolutionElement.Np
 		UD, UClippedD = U.DataP, UClipped.DataP
+		MD            = sd.dfr.SolutionElement.MassMatrix.DataP
 	)
 	for i := 0; i < Np; i++ {
 		ind := k + i*Kmax
-		U.DataP[i] = Rho.DataP[ind]
+		UD[i] = Rho.DataP[ind]
 	}
 	/*
 		Evaluate the L2 moment of (q - qalt) over the element, where qalt is the truncated version of q
 		Here we don't bother using quadrature, we do a simple sum
 	*/
 	UClipped = sd.Clipper.Mul(U, UClipped)
+	var mNum, mDenom float64
 	for i := 0; i < Np; i++ {
+		mass := MD[i+i*Np]
 		t1 := UD[i] - UClippedD[i]
-		m += t1 * t1 / (UD[i] * UD[i])
+		mNum += mass * (t1 * t1)
+		mDenom += mass * (UD[i] * UD[i])
 	}
+	m = mNum / mDenom
 	return
 }
 

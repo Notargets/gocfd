@@ -91,7 +91,7 @@ func NewSolutionLimiter(t LimiterType, kappa float64, dfr *DG2D.DFR2D, pm *Parti
 	return
 }
 
-func (bjl *SolutionLimiter) LimitSolution(myThread int, Qall, Residual [][4]utils.Matrix) {
+func (bjl *SolutionLimiter) LimitSolution(myThread int, Qall, Residual [][4]utils.Matrix) (points int) {
 	var (
 		Q        = Qall[myThread]
 		Np, Kmax = Q[0].Dims()
@@ -101,21 +101,12 @@ func (bjl *SolutionLimiter) LimitSolution(myThread int, Qall, Residual [][4]util
 	if bjl.limiterType == None {
 		return
 	}
-	var sCount int
 	for k := 0; k < Kmax; k++ {
 		for i := 0; i < Np; i++ {
 			ind := k + Kmax*i
 			UE.DataP[i] = Q[0].DataP[ind]
-			//UE.DataP[i] = Q[0].DataP[ind] + Q[1].DataP[ind] + Q[2].DataP[ind] + Q[3].DataP[ind]
-			//UE.DataP[i] = FSFar.GetFlowFunction(Q, ind, DynamicPressure)
-			//UE.DataP[i] = FSFar.GetFlowFunction(Q, ind, Entropy)
-			//UE.DataP[i] = Q[0].DataP[ind] * FSFar.GetFlowFunction(Q, ind, Entropy)
 		}
 		if bjl.ShockFinder[myThread].ElementHasShock(UE.DataP) { // Element has a shock
-			/*
-				kkk, _, _ := bjl.Partitions.GetLocalK(k)
-				fmt.Printf("limiting element %d\n", kkk)
-			*/
 			switch bjl.limiterType {
 			case BarthJesperson:
 				bjl.limitScalarFieldBarthJesperson(k, myThread, Qall)
@@ -126,30 +117,31 @@ func (bjl *SolutionLimiter) LimitSolution(myThread int, Qall, Residual [][4]util
 					Residual[myThread][n].DataP[ind] = 0.
 				}
 			}
-			sCount++
+			points++
 		}
 	}
-	/*
-		if sCount > 0 {
-			fmt.Printf("Shock Points[%d]=%d\n", myThread, sCount)
-		}
-	*/
+	return
 }
 
 func (bjl *SolutionLimiter) limitScalarFieldBarthJesperson(k, myThread int, Qall [][4]utils.Matrix) {
 	var (
+		el         = bjl.Element
 		Np, Kmax   = Qall[myThread][0].Dims()
-		Dr, Ds     = bjl.Element.Dr, bjl.Element.Ds
+		Dr, Ds     = el.Dr, el.Ds
+		MMD        = el.MassMatrix.DataP
 		UE         = bjl.UElement[myThread]
 		dUdr, dUds = bjl.dUdr[myThread], bjl.dUds[myThread]
 		min, max   = math.Min, math.Max
 	)
 	getElAvg := func(f utils.Matrix, kkk, kMx int) (ave float64) {
+		var massTotal float64
 		for i := 0; i < Np; i++ {
 			ind := kkk + kMx*i
-			ave += f.DataP[ind]
+			mass := MMD[i+i*Np]
+			massTotal += mass
+			ave += mass * f.DataP[ind]
 		}
-		ave /= float64(Np)
+		ave /= massTotal
 		return
 	}
 	psiCalc := func(corner int, Umin, Umax, Uave, dUdrAve, dUdsAve float64) (psi float64) {
@@ -206,7 +198,20 @@ func (bjl *SolutionLimiter) limitScalarFieldBarthJesperson(k, myThread int, Qall
 			UE.DataP[i] = U.DataP[ind]
 		}
 		// Obtain average gradient of this cell
-		dUdrAve, dUdsAve := Dr.Mul(UE, dUdr).Avg(), Ds.Mul(UE, dUds).Avg()
+		getAvgDeriv := func(deriv utils.Matrix) (derivAve float64) {
+			var (
+				massTotal float64
+				derivD    = deriv.DataP
+			)
+			for i := 0; i < Np; i++ {
+				mass := MMD[i+i*Np]
+				massTotal += mass
+				derivAve += mass * derivD[i]
+			}
+			derivAve /= massTotal
+			return
+		}
+		dUdrAve, dUdsAve := getAvgDeriv(Dr.Mul(UE, dUdr)), getAvgDeriv(Ds.Mul(UE, dUds))
 		// Form psi as the minimum of all three corners
 		var psi float64
 		psi = 10000.
@@ -274,11 +279,12 @@ func (sf *ModeAliasShockFinder) ShockIndicator(q []float64) (sigma float64) {
 		Original method by Persson, constants chosen to match Zhiqiang, et. al.
 	*/
 	var (
-		Se          = math.Log10(sf.moment(q))
-		k           = float64(sf.Element.N)
-		kappa       = sf.Kappa
-		C0          = 3.
-		S0          = -C0 * math.Log(k)
+		Se    = math.Log10(sf.moment(q))
+		k     = float64(sf.Element.N)
+		kappa = sf.Kappa
+		//C0          = 3.
+		//S0          = -C0 * math.Log(k)
+		S0          = 4. / math.Pow(k, 4)
 		left, right = S0 - kappa, S0 + kappa
 		ookappa     = 1. / kappa
 	)
@@ -295,22 +301,24 @@ func (sf *ModeAliasShockFinder) ShockIndicator(q []float64) (sigma float64) {
 
 func (sf *ModeAliasShockFinder) moment(q []float64) (m float64) {
 	var (
-		qd, qaltd = sf.q.DataP, sf.qalt.DataP
+		Np            = sf.Np
+		U, UClipped   = sf.q, sf.qalt
+		UD, UClippedD = U.DataP, UClipped.DataP
+		MD            = sf.Element.MassMatrix.DataP
 	)
-	if len(q) != sf.Np {
-		err := fmt.Errorf("incorrect dimension of solution vector, should be %d is %d",
-			sf.Np, len(q))
-		panic(err)
-	}
+	copy(sf.q.DataP, q)
 	/*
 		Evaluate the L2 moment of (q - qalt) over the element, where qalt is the truncated version of q
 		Here we don't bother using quadrature, we do a simple sum
 	*/
-	copy(sf.q.DataP, q)
-	sf.qalt = sf.Clipper.Mul(sf.q, sf.qalt)
-	for i := 0; i < sf.Np; i++ {
-		t1 := qd[i] - qaltd[i]
-		m += t1 * t1 / (qd[i] * qd[i])
+	UClipped = sf.Clipper.Mul(U, UClipped)
+	var mNum, mDenom float64
+	for i := 0; i < Np; i++ {
+		mass := MD[i+i*Np]
+		t1 := UD[i] - UClippedD[i]
+		mNum += mass * (t1 * t1)
+		mDenom += mass * (UD[i] * UD[i])
 	}
+	m = mNum / mDenom
 	return
 }

@@ -1,5 +1,5 @@
 Title: "Test Case"
-CFL: 0.50
+CFL: 1.50
 #FluxType: Roe-ER
 FluxType: Roe
 #FluxType: Lax
@@ -10,6 +10,7 @@ LocalTimeStepping: false
 MaxIterations: 80000
 #Limiter: Barth Jesperson
 #Kappa: 0.25
-#Kappa: 4
+Kappa: 8
+#Kappa: 0
+#Kappa: 5
 #Kappa: 10
-Kappa: 10
