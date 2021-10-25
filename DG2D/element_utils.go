@@ -20,30 +20,6 @@ func Vandermonde2D(N int, r, s utils.Vector) (V2D utils.Matrix) {
 	return
 }
 
-func Simplex2DPTerm(r, s float64, i, j int) (P float64) {
-	aa, bb := rsToab(r, s)
-	a, b := utils.NewVector(1, []float64{aa}), utils.NewVector(1, []float64{bb})
-	P = Simplex2DP(a, b, i, j)[0]
-	return
-}
-
-func Simplex2DP(a, b utils.Vector, i, j int) (P []float64) {
-	var (
-		Np = a.Len()
-		bd = b.DataP
-	)
-	h1 := DG1D.JacobiP(a, 0, 0, i)
-	h2 := DG1D.JacobiP(b, float64(2*i+1), 0, j)
-	P = make([]float64, Np)
-	sq2 := math.Sqrt(2)
-	for ii := range h1 {
-		tv1 := sq2 * h1[ii] * h2[ii]
-		tv2 := utils.POW(1-bd[ii], i)
-		P[ii] = tv1 * tv2
-	}
-	return
-}
-
 // Purpose  : Compute (x,y) nodes in equilateral triangle for
 //            polynomial of order N
 func Nodes2D(N int) (x, y utils.Vector) {
@@ -158,12 +134,20 @@ func GradVandermonde2D(N int, r, s utils.Vector) (V2Dr, V2Ds utils.Matrix) {
 	return
 }
 
-func GradSimplex2DPTerm(r, s float64, i, j int) (ddr, dds float64) {
-	rr := utils.NewVector(1, []float64{r})
-	ss := utils.NewVector(1, []float64{s})
-	a, b := RStoAB(rr, ss)
-	ddrV, ddsV := GradSimplex2DP(a, b, i, j)
-	ddr, dds = ddrV[0], ddsV[0]
+func Simplex2DP(a, b utils.Vector, i, j int) (P []float64) {
+	var (
+		Np = a.Len()
+		bd = b.DataP
+	)
+	h1 := DG1D.JacobiP(a, 0, 0, i)
+	h2 := DG1D.JacobiP(b, float64(2*i+1), 0, j)
+	P = make([]float64, Np)
+	sq2 := math.Sqrt(2)
+	for ii := range h1 {
+		tv1 := sq2 * h1[ii] * h2[ii]
+		tv2 := utils.POW(1-bd[ii], i)
+		P[ii] = tv1 * tv2
+	}
 	return
 }
 
@@ -171,7 +155,6 @@ func GradSimplex2DP(a, b utils.Vector, id, jd int) (ddr, dds []float64) {
 	var (
 		ad, bd = a.DataP, b.DataP
 	)
-	_ = ad
 	fa := DG1D.JacobiP(a, 0, 0, id)
 	dfa := DG1D.GradJacobiP(a, 0, 0, id)
 	gb := DG1D.JacobiP(b, 2*float64(id)+1, 0, jd)
@@ -203,6 +186,22 @@ func GradSimplex2DP(a, b utils.Vector, id, jd int) (ddr, dds []float64) {
 		// Normalize
 		dds[i] *= math.Pow(2, float64(id)+0.5)
 	}
+	return
+}
+
+func Simplex2DPTerm(r, s float64, i, j int) (P float64) {
+	aa, bb := rsToab(r, s)
+	a, b := utils.NewVector(1, []float64{aa}), utils.NewVector(1, []float64{bb})
+	P = Simplex2DP(a, b, i, j)[0]
+	return
+}
+
+func GradSimplex2DPTerm(r, s float64, i, j int) (ddr, dds float64) {
+	rr := utils.NewVector(1, []float64{r})
+	ss := utils.NewVector(1, []float64{s})
+	a, b := RStoAB(rr, ss)
+	ddrV, ddsV := GradSimplex2DP(a, b, i, j)
+	ddr, dds = ddrV[0], ddsV[0]
 	return
 }
 

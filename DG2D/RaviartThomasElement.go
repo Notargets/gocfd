@@ -111,46 +111,48 @@ func (rt *RTElement) GetTermType(i int) (rtt RTPointType) {
 
 func (rt *RTElement) CalculateBasis() {
 	/*
-				This is constructed from the defining space of the RT element:
-								 2
-					RT_k = [(P_k) ]   + [ X ] P_k
-						 = [ b1(r,s)_i + r * b3(r,s)_j ]
-						   [ b2(r,s)_i + s * b3(r,s)_j ]
-					j := 1, (K+1)(K+2)/2
-					j := 1, (K+1) (highest order terms in polynomial)
+					This is constructed from the defining space of the RT element:
+									 2
+						RT_k = [(P_k) ]   + [ X ] P_k
+							 = [ b1(r,s)_i + r * b3(r,s)_j ]
+							   [ b2(r,s)_i + s * b3(r,s)_j ]
+						i := 1, (K+1)(K+2)/2
+						j := 1, (K+1) (highest order terms in polynomial)
 
-				The dimension of RT_k is (K+1)(K+3) and we can see from the above that the total
-				number of terms in the polynomial will be:
-					  (K+1)(K+2) + K+1 = (K+1)(K+3)
+					The dimension of RT_k is (K+1)(K+3) and we can see from the above that the total
+					number of terms in the polynomial will be:
+		                    b1(r,s)        b2(r,s)     b3(r,s)
+		                  (K+1)(K+2)/2 + (K+1)(K+2)/2 + (K+1)
+						  (K+1)(K+2) + K+1 = (K+1)(K+3)
 
-				The explanation for why the b3 polynomial sub-basis is partially consumed:
-				When multiplied by [ X ], the b3 polynomial produces terms redundant with
-				the b1 and b2 sub-bases. The redundancy is removed from the b3 sub-basis to
-				compensate, producing the correct overall dimension.
+					The explanation for why the b3 polynomial sub-basis is partially consumed:
+					When multiplied by [ X ], the b3 polynomial produces terms redundant with
+					the b1 and b2 sub-bases. The redundancy is removed from the b3 sub-basis to
+					compensate, producing the correct overall dimension.
 
-				Another more physical way to think about it: The [ X ] * P_k term is tracing a
-				1D shell within the 2D space - the [ X ] "pointer vector" is permuted through
-				a 1D polynomial at high order to represent the outer surface of the shape.
+					Another more physical way to think about it: The [ X ] * P_k term is tracing a
+					1D shell within the 2D space - the [ X ] "pointer vector" is permuted through
+					a 1D polynomial at high order to represent the outer surface of the shape.
 
-				Two groups of bases, two ways, a pair of polynomial types and a pair of geometric types:
-					1) The RT basis consists of two parts, the (P_k)2 basis and a P_k basis with (N+1) terms.
-					The dimension of the first part is 2 * (K+1)(K+2)/2 and the second is (K+1). The total number of terms
-					in the polynomial space is:
-						2*(K+1)(K+2)/2 + (K+1) = (K+3)(K+1)
+					Two groups of bases, two ways, a pair of polynomial types and a pair of geometric types:
+						1) The RT basis consists of two parts, the (P_k)2 basis and a P_k basis with (N+1) terms.
+						The dimension of the first part is 2 * (K+1)(K+2)/2 and the second is (K+1). The total number of terms
+						in the polynomial space is:
+							2*(K+1)(K+2)/2 + (K+1) = (K+3)(K+1)
 
-					2) The RT basis is also composed of two types of geometric bases, interior and exterior
-					points. The number of interior points is (K)(K+1)/2, and the number of edge points is 3*(K+1).
-					For each interior point, we have two basis vectors, [1,0] and [0,1]. The total degrees of freedom are:
-						2*(K)(K+1)/2 + 3(K+1) = (K+3)*(K+1)
+						2) The RT basis is also composed of two types of geometric bases, interior and exterior
+						points. The number of interior points is (K)(K+1)/2, and the number of edge points is 3*(K+1).
+						For each interior point, we have two basis vectors, [1,0] and [0,1]. The total degrees of freedom are:
+							2*(K)(K+1)/2 + 3(K+1) = (K+3)*(K+1)
 
-				The number of interior points matches a 2D Lagrangian element basis at order (K-1):
-		    		There are (K)(K+1)/2 interior points in this RT element, which matches the point count of a Lagrangian
-					element at order (K-1). This is very convenient and enabling for the DFR method, as it allows us to
-					represent the flux vector function of a solution at degree (K-1) on an RT element of order (K) by
-					simply transferring the values from the (K-1) solution element to the interior of the RT(K) element.
-					We then provide the flux values along the triangle edges of the RT(K) element, after which we can
-					calculate gradient, divergence, and curl using a polynomial of degree (K), yielding a gradient,
-					divergence, curl of order (K-1), which is exactly what we need for the solution at (K-1).
+					The number of interior points matches a 2D Lagrangian element basis at order (K-1):
+			    		There are (K)(K+1)/2 interior points in this RT element, which matches the point count of a Lagrangian
+						element at order (K-1). This is very convenient and enabling for the DFR method, as it allows us to
+						represent the flux vector function of a solution at degree (K-1) on an RT element of order (K) by
+						simply transferring the values from the (K-1) solution element to the interior of the RT(K) element.
+						We then provide the flux values along the triangle edges of the RT(K) element, after which we can
+						calculate gradient, divergence, and curl using a polynomial of degree (K), yielding a gradient,
+						divergence, curl of order (K-1), which is exactly what we need for the solution at (K-1).
 	*/
 	/*	   			Inputs:
 							(N)(N+2)/2 [r,s] points from the interior of the [-1,1] triangle
@@ -231,11 +233,11 @@ func (rt *RTElement) CalculateBasis() {
 	Pdr0, Pds1 := utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
 	for ii, rr := range rt.R.DataP {
 		ss := rt.S.DataP[ii]
-		p0, p1 = rt.EvaluateRTBasis(rr, ss) // each of p1,p2 stores the polynomial terms for the R and S directions
+		p0, p1 = rt.EvaluateRTBasis(rr, ss) // each of p0,p1 stores the polynomial terms for the R and S directions
 		P0.M.SetRow(ii, p0)
 		P1.M.SetRow(ii, p1)
-		p0, _ = rt.EvaluateRTBasis(rr, ss, Dr) // each of p1,p2 stores the polynomial terms for the R and S directions
-		_, p1 = rt.EvaluateRTBasis(rr, ss, Ds) // each of p1,p2 stores the polynomial terms for the R and S directions
+		p0, _ = rt.EvaluateRTBasis(rr, ss, Dr) // each of p0,p1 stores the polynomial terms for the R and S directions
+		_, p1 = rt.EvaluateRTBasis(rr, ss, Ds) // each of p0,p1 stores the polynomial terms for the R and S directions
 		Pdr0.M.SetRow(ii, p0)
 		Pds1.M.SetRow(ii, p1)
 	}
