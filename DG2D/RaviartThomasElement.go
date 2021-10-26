@@ -380,7 +380,7 @@ func ExtendGeomToRT(N int, rInt, sInt utils.Vector) (r, s utils.Vector) {
 
 func NodesEpsilon(N int) (R, S utils.Vector) {
 	/*
-		From the 2017 paper "Ainv Direct Flux Reconstruction Scheme for Advection Diffusion Problems on Triangular Grids"
+		From the 2017 paper "A Direct Flux Reconstruction Scheme for Advection Diffusion Problems on Triangular Grids"
 
 		This is a node set that is compatible with DFR in that it implements colocated solution and flux points for the
 		interior nodes, while enabling a set of face nodes for the N+1 degree flux polynomial

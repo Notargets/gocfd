@@ -15,15 +15,77 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestLagrangePolynomial(t *testing.T) {
+	{
+		N := 2
+		R, _ := NodesEpsilon(N - 1)
+		fmt.Printf(R.Print("R"))
+		fmt.Printf(LagrangeInterpolationMatrix(R).Print("I"))
+	}
+}
+
+func LagrangeInterpolationMatrix(R utils.Vector) (I utils.Matrix) {
+	var (
+		Np = R.Len()
+	)
+	I = utils.NewMatrix(Np, Np)
+	for j := 0; j < Np; j++ {
+		Col := LagrangeJthPolynomial(R.DataP, j)
+		fmt.Printf("Col = %v\n", Col)
+		I.SetCol(j, Col)
+	}
+	return
+}
+
+func LagrangeJthPolynomial(R []float64, J int) (L []float64) {
+	/*
+		Given a set of k+1 points (R), evaluate the jth lagrange polynomial at point t
+	*/
+	var (
+		Np = len(R)
+	)
+	L = make([]float64, Np)
+	for i, r := range R {
+		L[i] = LagrangePolyAtJ(r, R, J)
+	}
+	return
+}
+
+func LagrangePolyAtJ(r float64, R []float64, j int) (f float64) {
+	/*
+		From https://en.wikipedia.org/wiki/Lagrange_polynomial
+		This evaluates the Lagrange polynomial at term J for location R[j]
+
+		The equivalent Newton polynomial is more efficient for repetitive usage
+
+		Given a set of k points in (R), evaluate the jth lagrange polynomial at point t
+		Note: j starts at 0
+	*/
+	var (
+		km1 = len(R)
+	)
+	if j > km1-1 || j < 0 {
+		panic("value of j larger than array or less than zero")
+	}
+	xj := R[j]
+	f = 1
+	for i, xi := range R {
+		if i == j {
+			continue
+		}
+		f *= (r - xi) / (xj - xi)
+	}
+	return
+}
+
 func TestRTElement(t *testing.T) {
 	{
 		// Check term-wise orthogonal 2D polynomial basis
 		N := 2
 		R, S := NodesEpsilon(N - 1)
-		a, b := RStoAB(R, S)
 		ii, jj := 1, 1
-		p := Simplex2DP(a, b, ii, jj)
-		ddr, dds := GradSimplex2DP(a, b, ii, jj)
+		p := Simplex2DP(R, S, ii, jj)
+		ddr, dds := GradSimplex2DP(R, S, ii, jj)
 		Np := R.Len()
 		pCheck, ddrCheck, ddsCheck := make([]float64, Np), make([]float64, Np), make([]float64, Np)
 		for i, rVal := range R.DataP {

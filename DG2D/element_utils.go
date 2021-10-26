@@ -7,13 +7,12 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-func Vandermonde2D(N int, r, s utils.Vector) (V2D utils.Matrix) {
-	V2D = utils.NewMatrix(r.Len(), (N+1)*(N+2)/2)
-	a, b := RStoAB(r, s)
+func Vandermonde2D(N int, R, S utils.Vector) (V2D utils.Matrix) {
+	V2D = utils.NewMatrix(R.Len(), (N+1)*(N+2)/2)
 	var sk int
 	for i := 0; i <= N; i++ {
 		for j := 0; j <= (N - i); j++ {
-			V2D.SetCol(sk, Simplex2DP(a, b, i, j))
+			V2D.SetCol(sk, Simplex2DP(R, S, i, j))
 			sk++
 		}
 	}
@@ -115,17 +114,16 @@ func Warpfactor(N int, rout utils.Vector) (warpF []float64) {
 	return
 }
 
-func GradVandermonde2D(N int, r, s utils.Vector) (V2Dr, V2Ds utils.Matrix) {
+func GradVandermonde2D(N int, R, S utils.Vector) (V2Dr, V2Ds utils.Matrix) {
 	var (
-		a, b = RStoAB(r, s)
-		Np   = (N + 1) * (N + 2) / 2
-		Nr   = r.Len()
+		Np = (N + 1) * (N + 2) / 2
+		Nr = R.Len()
 	)
 	V2Dr, V2Ds = utils.NewMatrix(Nr, Np), utils.NewMatrix(Nr, Np)
 	var sk int
 	for i := 0; i <= N; i++ {
 		for j := 0; j <= (N - i); j++ {
-			ddr, dds := GradSimplex2DP(a, b, i, j)
+			ddr, dds := GradSimplex2DP(R, S, i, j)
 			V2Dr.M.SetCol(sk, ddr)
 			V2Ds.M.SetCol(sk, dds)
 			sk++
@@ -134,13 +132,14 @@ func GradVandermonde2D(N int, r, s utils.Vector) (V2Dr, V2Ds utils.Matrix) {
 	return
 }
 
-func Simplex2DP(a, b utils.Vector, i, j int) (P []float64) {
+func Simplex2DP(R, S utils.Vector, i, j int) (P []float64) {
 	var (
-		Np = a.Len()
-		bd = b.DataP
+		A, B = RStoAB(R, S)
+		Np   = A.Len()
+		bd   = B.DataP
 	)
-	h1 := DG1D.JacobiP(a, 0, 0, i)
-	h2 := DG1D.JacobiP(b, float64(2*i+1), 0, j)
+	h1 := DG1D.JacobiP(A, 0, 0, i)
+	h2 := DG1D.JacobiP(B, float64(2*i+1), 0, j)
 	P = make([]float64, Np)
 	sq2 := math.Sqrt(2)
 	for ii := range h1 {
@@ -151,16 +150,17 @@ func Simplex2DP(a, b utils.Vector, i, j int) (P []float64) {
 	return
 }
 
-func GradSimplex2DP(a, b utils.Vector, id, jd int) (ddr, dds []float64) {
+func GradSimplex2DP(R, S utils.Vector, id, jd int) (ddr, dds []float64) {
 	var (
-		ad, bd = a.DataP, b.DataP
+		A, B   = RStoAB(R, S)
+		ad, bd = A.DataP, B.DataP
 	)
-	fa := DG1D.JacobiP(a, 0, 0, id)
-	dfa := DG1D.GradJacobiP(a, 0, 0, id)
-	gb := DG1D.JacobiP(b, 2*float64(id)+1, 0, jd)
-	dgb := DG1D.GradJacobiP(b, 2*float64(id)+1, 0, jd)
+	fa := DG1D.JacobiP(A, 0, 0, id)
+	dfa := DG1D.GradJacobiP(A, 0, 0, id)
+	gb := DG1D.JacobiP(B, 2*float64(id)+1, 0, jd)
+	dgb := DG1D.GradJacobiP(B, 2*float64(id)+1, 0, jd)
 	// r-derivative
-	// d/dr = da/dr d/da + db/dr d/db = (2/(1-s)) d/da = (2/(1-b)) d/da
+	// d/dr = da/dr d/da + db/dr d/db = (2/(1-s)) d/da = (2/(1-B)) d/da
 	ddr = make([]float64, len(gb))
 	for i := range ddr {
 		ddr[i] = dfa[i] * gb[i]
@@ -171,7 +171,7 @@ func GradSimplex2DP(a, b utils.Vector, id, jd int) (ddr, dds []float64) {
 		ddr[i] *= math.Pow(2, float64(id)+0.5)
 	}
 	// s-derivative
-	// d/ds = ((1+a)/2)/((1-b)/2) d/da + d/db
+	// d/ds = ((1+A)/2)/((1-B)/2) d/da + d/db
 	dds = make([]float64, len(gb))
 	for i := range dds {
 		dds[i] = 0.5 * dfa[i] * gb[i] * (1 + ad[i])
@@ -190,25 +190,20 @@ func GradSimplex2DP(a, b utils.Vector, id, jd int) (ddr, dds []float64) {
 }
 
 func Simplex2DPTerm(r, s float64, i, j int) (P float64) {
-	aa, bb := rsToab(r, s)
-	a, b := utils.NewVector(1, []float64{aa}), utils.NewVector(1, []float64{bb})
-	P = Simplex2DP(a, b, i, j)[0]
+	P = Simplex2DP(utils.NewVector(1, []float64{r}), utils.NewVector(1, []float64{s}), i, j)[0]
 	return
 }
 
 func GradSimplex2DPTerm(r, s float64, i, j int) (ddr, dds float64) {
-	rr := utils.NewVector(1, []float64{r})
-	ss := utils.NewVector(1, []float64{s})
-	a, b := RStoAB(rr, ss)
-	ddrV, ddsV := GradSimplex2DP(a, b, i, j)
+	ddrV, ddsV := GradSimplex2DP(utils.NewVector(1, []float64{r}), utils.NewVector(1, []float64{s}), i, j)
 	ddr, dds = ddrV[0], ddsV[0]
 	return
 }
 
-func RStoAB(r, s utils.Vector) (a, b utils.Vector) {
+func RStoAB(R, S utils.Vector) (a, b utils.Vector) {
 	var (
-		Np     = r.Len()
-		rd, sd = r.DataP, s.DataP
+		Np     = R.Len()
+		rd, sd = R.DataP, S.DataP
 	)
 	ad, bd := make([]float64, Np), make([]float64, Np)
 	for n, sval := range sd {
