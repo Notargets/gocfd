@@ -34,6 +34,17 @@ tensor product as Hesthaven does in the book I've used for the core of this meth
 levels of variance from their mean, and my concern is that the Jacobi polynomials may be too "wild" when interpolating
 to the element's extrema - specifically the interpolation of solution values to the edges.
 
+Jacobi Polynomials to N=9| Interval: -1 < X < 1
+:-------------------------:|:-------------------------:|
+Alpha = Beta = 0| Alpha = Beta = -0.99
+![](images/jacobi-polynomial-to-degree9-alpha=beta=0.PNG) | ![](images/jacobi-polynomial-to-degree9-alpha=beta=-.99.PNG) |
+
+In the above plot of the Jacobi polynomial in the interval -1 to 1, we can see what appears to be a collapse in the
+values of the polynomials of all orders at the extrema of the interval. Intuition says we want to have all modes equally
+available across the interval, and when we use the Alpha and Beta parameters to stretch the polynomials we can improve
+the collapse as see in the plot on the right, although there is still quite a narrowing among modes. I tried running the
+airfoil case using the basis on the right and it does seem to improve both convergence and extrema, but only marginally.
+
 Up next: I'm implementing Lagrange Interpolating basis functions to the finite element construction as an alternative.
 This will allow for comparison among basis functions and selection of the best for shock waves.
 
