@@ -9,30 +9,34 @@ Density | X Momentum | Density
 :-------------------------:|:-------------------------:|:-------------------------:
 ![](images/render-mesh-isentropic-vortex-initial-zoom-7.PNG) | ![](images/render-mesh-isentropic-vortex-initial-zoom-7-rhoU.png) | ![](images/vortex-1-2-4-7-lax-cropped.gif)
 
+## Currently [10/26/21]
 
+After fixing up the limiter and the epsilon artificial dissipation and doing some numerical studies with the shock tube 
+and airfoil, I'm convinced that the core flux/divergence scheme is a bit too "bouncy" as compared with other schemes.
+The main issue with the limiter now is that there is "buzzing" around the shock wave, where the shock bounces back and
+forth between neighoring cells, which stops convergence. There's one more thing I can do to make the limiter work better,
+by filtering on characteristic variables instead of the conserved variables. This has been shown to focus the limiting
+more where it's needed, and delivers a much cleaner result with less dissipation. I'll definitely implement that later,
+but I think it's time for some core work first.
 
-## Update [10/24/21]
+Given the success that Jameson and Romero experienced with their simplified DFR and when compared to the other DFR results,
+it seems this current method is not as able to handle shock waves without significant Gauss instabilities. This has become
+more clear when using the artificial dissipation approach, which *captures shock waves within a single element*, an 
+excellent feature that works now within this method. While in-element shock capturing works now, there are aphysical
+extrema within the shock containing cells that Persson, et al did not experience. There are many excellent results with
+the method so far, and it does seem close to complete and capable, so my question is: how can the current method core be
+improved to fundamentally be better at handling shock waves?
 
-I've replaced the previous broken Runge Kutta time advancement scheme with an explicit SSP54 scheme from Gottlieb, et. al. and now the SOD shocktube results are in excellent agreement with the exact result as shown below. Note the slight bulge in the density profile at the centerline - or alternately it's a lag near the tube walls.
+After thinking about the above question, I think the answer may lie in the basis functions I've been using. The basis
+functions define the modes energy has access to within the element, with various wave shapes that store energy. Though
+Romero and Jameson used Lagrange Interpolating polynomials as their basis, I chose to use the Jacobi polynomials in a
+tensor product as Hesthaven does in the book I've used for the core of this method. Basis functions have different
+levels of variance from their mean, and my concern is that the Jacobi polynomials may be too "wild" when interpolating
+to the element's extrema - specifically the interpolation of solution values to the edges.
 
-SSP54 Time integration Centerline Compared with Exact Solution | Density in 2D
-:-------------------------:|:-------------------------:
-![](images//sod-2d-ssp54.PNG) | ![](images//sod-2d-ssp54-density.PNG)
+Up next: I'm implementing Lagrange Interpolating basis functions to the finite element construction as an alternative.
+This will allow for comparison among basis functions and selection of the best for shock waves.
 
-Previously:
-Good news: the source of the bug is clearly the time integration (Runge Kutta 4th Order SSP algorithm) - simply changing one of the constants from 0.25 to 0.4 fixes the wavespeed issue completely. I'll revisit the implementation once I find out where I got the coefficients from - in this case I haven't included their source reference in the code (DOH!)
-
-Centerline Compared with Exact Solution | Density in 2D 
-:-------------------------:|:-------------------------:
-![](images//sod-2d-broken.PNG) | ![](images//sod-2d-density-broken.PNG) 
-
-I've implemented a 2D version of the 1D shock tube with graphics and the exact solution for comparison.
-
-In the above snapshot, we can see that the shock wave and all waves are running at incorrect wave speed, indicating there is a bug in the physics of the solver somewhere. This is actually good news in that I can hope the general instabilities around shock capturing could be solved by fixing this bug!
-
-So far I've verified the bug exists with both Lax / Rusanov and Roe numerical fluxes, and is the same at 100 points resolution and 500 points.
-
-On the bright side, we see the sharp resolution of the shock wave and near perfect symmetry in the solution, so we just need to chase down the wavespeed error in the solver physics.
 
 ## Discontinuous Galerkin Method for solving systems of equations - CFD, CEM, ... hydrodynamics-fusion (simulate the Sun), etc! 
 
@@ -89,6 +93,30 @@ For example, the following line implements:
 ```
 	RHSE = el.Dr.Mul(FluxH).ElMul(el.Rx).ElDiv(c.Epsilon).Scale(-1)
 ```
+
+### Updates [10/24/21]
+
+I've replaced the previous broken Runge Kutta time advancement scheme with an explicit SSP54 scheme from Gottlieb, et. al. and now the SOD shocktube results are in excellent agreement with the exact result as shown below. Note the slight bulge in the density profile at the centerline - or alternately it's a lag near the tube walls.
+
+SSP54 Time integration Centerline Compared with Exact Solution | Density in 2D
+:-------------------------:|:-------------------------:
+![](images//sod-2d-ssp54.PNG) | ![](images//sod-2d-ssp54-density.PNG)
+
+Previously:
+Good news: the source of the bug is clearly the time integration (Runge Kutta 4th Order SSP algorithm) - simply changing one of the constants from 0.25 to 0.4 fixes the wavespeed issue completely. I'll revisit the implementation once I find out where I got the coefficients from - in this case I haven't included their source reference in the code (DOH!)
+
+Centerline Compared with Exact Solution | Density in 2D
+:-------------------------:|:-------------------------:
+![](images//sod-2d-broken.PNG) | ![](images//sod-2d-density-broken.PNG)
+
+I've implemented a 2D version of the 1D shock tube with graphics and the exact solution for comparison.
+
+In the above snapshot, we can see that the shock wave and all waves are running at incorrect wave speed, indicating there is a bug in the physics of the solver somewhere. This is actually good news in that I can hope the general instabilities around shock capturing could be solved by fixing this bug!
+
+So far I've verified the bug exists with both Lax / Rusanov and Roe numerical fluxes, and is the same at 100 points resolution and 500 points.
+
+On the bright side, we see the sharp resolution of the shock wave and near perfect symmetry in the solution, so we just need to chase down the wavespeed error in the solver physics.
+
 ### Updates [10/12/21]
 
 I've implemented two different gradient calculations to compute the dissipation and verified they function correctly.
