@@ -48,10 +48,10 @@ airfoil case using the basis on the right and it does seem to improve both conve
 Up next: I'm implementing Lagrange Interpolating basis functions to the finite element construction as an alternative.
 This will allow for comparison among basis functions and selection of the best for shock waves.
 
-2nd Order, NACA 0012 Airfoil| Mach = 0.8, Alpha = 2 degrees
-:-------------------------:|:-------------------------:|
-Artificial Dissipation, Intra Cell Shock Captured, Converged Solution| Solution Limiter, Non-Converged
-![](images//naca0012-m=0.8-aoa=2-Jacobi-Epsilon.PNG) | ![](images//naca0012-m=0.8-aoa=2-Jacobi-Limiter.PNG) |
+2nd Order, NACA 0012 Airfoil, Mach = 0.8, Alpha = 2 degrees | _ | _
+:-------------------------:|:-------------------------:|:-------------------------:|
+Artificial Dissipation, Intra Cell Shock Captured, Converged Solution| Same as left, with stretched basis | Solution Limiter, Non-Converged
+![](images//naca0012-m=0.8-aoa=2-Jacobi-Epsilon.PNG) | ![](images/naca0012-m=0.8-aoa=2-Jacobi-alpha=-.99,beta=-.99Epsilon.PNG) | ![](images//naca0012-m=0.8-aoa=2-Jacobi-Limiter.PNG) |
 
 
 ## Discontinuous Galerkin Method for solving systems of equations - CFD, CEM, ... hydrodynamics-fusion (simulate the Sun), etc! 
