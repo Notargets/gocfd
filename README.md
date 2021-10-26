@@ -37,8 +37,9 @@ to the element's extrema - specifically the interpolation of solution values to 
 Up next: I'm implementing Lagrange Interpolating basis functions to the finite element construction as an alternative.
 This will allow for comparison among basis functions and selection of the best for shock waves.
 
+2nd Order, NACA 0012 Airfoil| Mach = 0.8, Alpha = 2 degrees
+:-------------------------:|:-------------------------:|
 Artificial Dissipation, Intra Cell Shock Captured, Converged Solution| Solution Limiter, Non-Converged
-:-------------------------:|:-------------------------:
 ![](images//naca0012-m=0.8-aoa=2-Jacobi-Epsilon.PNG) | ![](images//naca0012-m=0.8-aoa=2-Jacobi-Limiter.PNG) |
 
 
