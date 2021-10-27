@@ -3,7 +3,11 @@ package DG2D
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"testing"
+	"time"
+
+	"github.com/notargets/gocfd/DG1D"
 
 	"github.com/notargets/gocfd/utils"
 
@@ -17,10 +21,46 @@ import (
 
 func TestLagrangePolynomial(t *testing.T) {
 	{
-		N := 2
-		R, _ := NodesEpsilon(N - 1)
-		fmt.Printf(R.Print("R"))
-		fmt.Printf(LagrangeInterpolationMatrix(R).Print("I"))
+		//N := 2
+		//R, _ := NodesEpsilon(N - 1)
+		numSamples := 5000
+		rd := make([]float64, numSamples)
+		rd[0] = -1
+		inc := 2. / float64(numSamples-1.)
+		for i := 1; i < numSamples; i++ {
+			rd[i] = rd[0] + float64(i)*inc
+		}
+		// TODO: Make a pluggable basis underneath the RT (and Lagrange) elements - Lagrange, Hesthaven, Spectral?
+		R := utils.NewVector(numSamples, rd)
+		//fmt.Printf("R = %5.3f\n", R.DataP)
+		var plot bool
+		plot = false
+		if plot { // This is false by default
+			chart := utils.NewLineChart(1920, 1080, -1, 1, -4, 4)
+			var delay time.Duration
+			lineColor := -1.
+			nMax := 10
+			inc = 2. / float64(nMax-1.)
+			var alpha, beta float64
+			for n := 0; n < nMax; n++ {
+				switch n % 4 {
+				case 0:
+					//alpha, beta = 0, 0
+				case 1:
+					alpha, beta = 2*float64(n)+1, 0
+				case 2:
+					alpha, beta = 0, 2*float64(n)+1
+				case 3:
+					//alpha, beta = -.5, -.49
+				}
+				f := DG1D.JacobiP(R, alpha, beta, n)
+				if n == nMax-1 {
+					delay = 120 * time.Second
+				}
+				chart.Plot(delay, R.DataP, f, lineColor, "JacobiP["+strconv.Itoa(n)+"]")
+				lineColor += inc
+			}
+		}
 	}
 }
 

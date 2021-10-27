@@ -2,15 +2,12 @@ package sod_shock_tube
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/notargets/gocfd/DG2D"
 
 	"github.com/notargets/gocfd/model_problems/Euler1D"
 
-	"github.com/notargets/avs/chart2d"
-	utils2 "github.com/notargets/avs/utils"
 	"github.com/notargets/gocfd/utils"
 )
 
@@ -26,9 +23,7 @@ type SODShockTube struct {
 	Rho, RhoU, E        []float64 // Interpolated values from solution, used for validation
 	Npts                int       // Npts = # Xlocations, Np = Interior solution polynomial nodes
 	DFR2D               *DG2D.DFR2D
-	plotOnce            sync.Once
-	chart               *chart2d.Chart2D
-	colorMap            *utils2.ColorMap
+	LineChart           *utils.LineChart
 }
 
 func NewSODShockTube(nPts int, dfr *DG2D.DFR2D) (st *SODShockTube) {
@@ -40,6 +35,7 @@ func NewSODShockTube(nPts int, dfr *DG2D.DFR2D) (st *SODShockTube) {
 		RhoU:                make([]float64, nPts),
 		E:                   make([]float64, nPts),
 		DFR2D:               dfr,
+		LineChart:           utils.NewLineChart(1920, 1080, 0, 1, -.1, 2.6),
 	}
 	xfrac := 1. / float64(nPts-1) // Equal spaced samples across [0->1]
 	for i := range st.XLocations {
@@ -142,27 +138,11 @@ func (st *SODShockTube) interpolateFields(Q [4]utils.Matrix) {
 }
 
 func (st *SODShockTube) Plot(timeT float64, graphDelay time.Duration, Q [4]utils.Matrix) (iRho float64) {
-	var (
-		fmin, fmax float32
-	)
 	st.interpolateFields(Q)
-	xmin, xmax := float32(0), float32(1)
-	fmin, fmax = float32(-0.1), float32(2.6)
-	st.plotOnce.Do(func() {
-		st.chart = chart2d.NewChart2D(1920, 1280, xmin, xmax, fmin, fmax)
-		st.colorMap = utils2.NewColorMap(-1, 1, 1)
-		go st.chart.Plot()
-	})
-	pSeries := func(field []float64, name string, color float32, gl chart2d.GlyphType) {
-		if err := st.chart.AddSeries(name, st.XLocations, field,
-			gl, chart2d.Solid, st.colorMap.GetRGB(color)); err != nil {
-			panic("unable to add graph series")
-		}
-	}
-	pSeries(st.Rho, "Rho", -0.7, chart2d.NoGlyph)
-	pSeries(st.RhoU, "RhoU", 0.0, chart2d.NoGlyph)
-	pSeries(st.E, "Ener", 0.7, chart2d.NoGlyph)
-	iRho = Euler1D.AddAnalyticSod(st.chart, st.colorMap, timeT)
+	st.LineChart.Plot(0, st.XLocations, st.Rho, -.7, "Rho")
+	st.LineChart.Plot(0, st.XLocations, st.RhoU, 0., "RhoU")
+	st.LineChart.Plot(graphDelay, st.XLocations, st.E, 0.7, "E")
+	iRho = Euler1D.AddAnalyticSod(st.LineChart.Chart, st.LineChart.ColorMap, timeT)
 	time.Sleep(graphDelay)
 	return
 }

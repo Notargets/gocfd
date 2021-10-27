@@ -4,6 +4,9 @@ import (
 	"image/color"
 	"time"
 
+	"github.com/notargets/avs/chart2d"
+	utils2 "github.com/notargets/avs/utils"
+
 	graphics2D "github.com/notargets/avs/geometry"
 )
 
@@ -83,5 +86,34 @@ func ArraysToPoints(r1, r2 []float64) (points []graphics2D.Point) {
 		points[i].X[0] = float32(r1[i])
 		points[i].X[1] = float32(r2[i])
 	}
+	return
+}
+
+type LineChart struct {
+	Chart    *chart2d.Chart2D
+	ColorMap *utils2.ColorMap
+}
+
+func NewLineChart(width, height int, xmin, xmax, fmin, fmax float64) (lc *LineChart) {
+	lc = &LineChart{
+		Chart:    chart2d.NewChart2D(width, height, float32(xmin), float32(xmax), float32(fmin), float32(fmax)),
+		ColorMap: utils2.NewColorMap(-1, 1, 1),
+	}
+	go lc.Chart.Plot()
+	return
+}
+
+func (lc *LineChart) Plot(graphDelay time.Duration, x, f []float64, lineColor float64, lineName string) {
+	/*
+		lineColor goes from -1 (red) to 1 (blue)
+	*/
+	pSeries := func(field []float64, name string, color float32, gl chart2d.GlyphType) {
+		if err := lc.Chart.AddSeries(name, x, f,
+			gl, chart2d.Solid, lc.ColorMap.GetRGB(color)); err != nil {
+			panic("unable to add graph series")
+		}
+	}
+	pSeries(f, lineName, float32(lineColor), chart2d.NoGlyph)
+	time.Sleep(graphDelay)
 	return
 }
