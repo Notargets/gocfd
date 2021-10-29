@@ -61,6 +61,19 @@ func TestLagrangePolynomial(t *testing.T) {
 			lineColor += lineInc
 		}
 	}
+	{
+		R := []float64{-1, -.5, 0, .5, 1.} // P = 4
+		lp := NewLagrangeBasis1D(R)
+		RI := []float64{-.9, -.75, -.2, .2, .75, .9} // 6 points
+		im := lp.GetInterpolationMatrix(RI)
+		Ni, Np := im.Dims()
+		assert.Equal(t, 6, Ni)
+		assert.Equal(t, 5, Np)
+		F := utils.NewMatrix(Np, 1, []float64{10, 5, 1, 5, 10})
+		FI := im.Mul(F)
+		assert.InDeltaSlice(t, []float64{9.72640, 8.35938, 1.71840, 1.71840, 8.35938, 9.72640},
+			FI.DataP, 0.00001, "err msg %s")
+	}
 }
 
 type LagrangeBasis1D struct {
@@ -93,6 +106,25 @@ func NewLagrangeBasis1D(r []float64) (lb *LagrangeBasis1D) {
 			if i != j {
 				lb.Weights[j] /= r[j] - r[i]
 			}
+		}
+	}
+	return
+}
+
+func (lb *LagrangeBasis1D) GetInterpolationMatrix(R []float64) (im utils.Matrix) {
+	/*
+			Provided function values at each of the P+1 nodes, interpolate a new function value at location r
+			Note that the points in R are not necessarily the defining points of the basis, and are not necessarily at the
+		    same points within F, the provided set of function values at the nodes of the basis
+	*/
+	var (
+		fj = make([]float64, len(R)) // temporary storage for each basis function evaluation
+	)
+	im = utils.NewMatrix(len(R), lb.Np) // Rows are for evaluation points, columns for basis
+	for j := 0; j < lb.Np; j++ {        // For each basis function
+		fj = lb.EvaluateBasisPolynomial(R, j)
+		for i, val := range fj {
+			im.Set(i, j, val)
 		}
 	}
 	return
