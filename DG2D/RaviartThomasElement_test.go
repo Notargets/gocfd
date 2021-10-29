@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/notargets/gocfd/DG1D"
-
 	"github.com/notargets/gocfd/utils"
 
 	utils2 "github.com/notargets/avs/utils"
@@ -20,100 +18,129 @@ import (
 )
 
 func TestLagrangePolynomial(t *testing.T) {
-	{
-		//N := 2
-		//R, _ := NodesEpsilon(N - 1)
-		numSamples := 5000
-		rd := make([]float64, numSamples)
-		rd[0] = -1
-		inc := 2. / float64(numSamples-1.)
-		for i := 1; i < numSamples; i++ {
-			rd[i] = rd[0] + float64(i)*inc
-		}
+	numSamples := 500
+	rd := make([]float64, numSamples)
+	xmin, xmax := -1., 1.
+	fmin, fmax := -0.5, 1.25
+	inc := (xmax - xmin) / float64(numSamples-1.)
+	for i := 0; i < numSamples; i++ {
+		rd[i] = xmin + float64(i)*inc
+	}
+	SamplesR := utils.NewVector(numSamples, rd)
+	f := make([]float64, SamplesR.Len())
+	var plot bool
+	plot = false
+	if plot {
+		chart := utils.NewLineChart(1920, 1080, xmin, xmax, fmin, fmax)
 		// TODO: Make a pluggable basis underneath the RT (and Lagrange) elements - Lagrange, Hesthaven, Spectral?
-		R := utils.NewVector(numSamples, rd)
-		//fmt.Printf("R = %5.3f\n", R.DataP)
-		var plot bool
-		plot = false
-		if plot { // This is false by default
-			chart := utils.NewLineChart(1920, 1080, -1, 1, -4, 4)
-			var delay time.Duration
-			lineColor := -1.
-			nMax := 10
-			inc = 2. / float64(nMax-1.)
-			var alpha, beta float64
-			for n := 0; n < nMax; n++ {
-				switch n % 4 {
-				case 0:
-					//alpha, beta = 0, 0
-				case 1:
-					alpha, beta = 2*float64(n)+1, 0
-				case 2:
-					alpha, beta = 0, 2*float64(n)+1
-				case 3:
-					//alpha, beta = -.5, -.49
+		var delay time.Duration
+		Nmax := 4
+		lineInc := 2. / float64(Nmax-2)
+		lineColor := -1. // colormap goes from -1,1
+		for n := 1; n < Nmax; n++ {
+			Np := n + 1
+			R := utils.NewVector(Np)
+			inc = (xmax - xmin) / float64(Np-1)
+			for i := 0; i < Np; i++ {
+				R.DataP[i] = xmin + float64(i)*inc
+			}
+			lp := NewLagrangeBasis1D(R.DataP)
+			_ = lp
+			for j := 0; j < R.Len(); j++ {
+				for i, r := range SamplesR.DataP {
+					//f[i] = DG1D.JacobiP(utils.NewVector(1, []float64{r}), 0, 0, j)[0]
+					f[i] = lp.EvaluateBasisPolynomial([]float64{r}, j)[0]
 				}
-				f := DG1D.JacobiP(R, alpha, beta, n)
-				if n == nMax-1 {
+				if n == Nmax-1 && j == R.Len()-1 {
 					delay = 120 * time.Second
 				}
-				chart.Plot(delay, R.DataP, f, lineColor, "JacobiP["+strconv.Itoa(n)+"]")
-				lineColor += inc
+				name := "JacobiP[" + strconv.Itoa(n) + "," + strconv.Itoa(j) + "]"
+				fmt.Printf("Chart Name: [%s], lineColor = %5.3f\n", name, lineColor)
+				chart.Plot(delay, SamplesR.DataP, f, lineColor, name)
+			}
+			lineColor += lineInc
+		}
+	}
+}
+
+type LagrangeBasis1D struct {
+	P       int       // Order
+	Np      int       // Dimension of basis = N+1
+	Weights []float64 // Barycentric weights, one per basis polynomial
+	Nodes   []float64 // Nodes at which basis is defined
+}
+
+func NewLagrangeBasis1D(r []float64) (lb *LagrangeBasis1D) {
+	/*
+		At a given order P, there are (P+1) basis polynomials representing that order
+		To recover a basis polynomial we need to specifiy:
+		`	P = The order of the basis
+			j = The basis polynomial number within the basis
+			R = The points used to define the basis, (P+1) dimension
+	*/
+	lb = &LagrangeBasis1D{
+		P:       len(r) - 1,
+		Np:      len(r),
+		Weights: make([]float64, len(r)),
+		Nodes:   r,
+	}
+	// Calculate the weight for each basis function j
+	for j := 0; j < lb.Np; j++ {
+		lb.Weights[j] = 1.
+	}
+	for j := 0; j < lb.Np; j++ {
+		for i := 0; i < lb.Np; i++ {
+			if i != j {
+				lb.Weights[j] /= r[j] - r[i]
 			}
 		}
 	}
-}
-
-func LagrangeInterpolationMatrix(R utils.Vector) (I utils.Matrix) {
-	var (
-		Np = R.Len()
-	)
-	I = utils.NewMatrix(Np, Np)
-	for j := 0; j < Np; j++ {
-		Col := LagrangeJthPolynomial(R.DataP, j)
-		fmt.Printf("Col = %v\n", Col)
-		I.SetCol(j, Col)
-	}
 	return
 }
 
-func LagrangeJthPolynomial(R []float64, J int) (L []float64) {
+func (lb *LagrangeBasis1D) Interpolate(R []float64, F []float64) (f []float64) {
 	/*
-		Given a set of k+1 points (R), evaluate the jth lagrange polynomial at point t
+			Provided function values at each of the P+1 nodes, interpolate a new function value at location r
+			Note that the points in R are not necessarily the defining points of the basis, and are not necessarily at the
+		    same points within F, the provided set of function values at the nodes of the basis
 	*/
 	var (
-		Np = len(R)
+		fj = make([]float64, len(R)) // temporary storage for each basis function evaluation
 	)
-	L = make([]float64, Np)
-	for i, r := range R {
-		L[i] = LagrangePolyAtJ(r, R, J)
-	}
-	return
-}
-
-func LagrangePolyAtJ(r float64, R []float64, j int) (f float64) {
-	/*
-		From https://en.wikipedia.org/wiki/Lagrange_polynomial
-		This evaluates the Lagrange polynomial at term J for location R[j]
-
-		The equivalent Newton polynomial is more efficient for repetitive usage
-
-		Given a set of k points in (R), evaluate the jth lagrange polynomial at point t
-		Note: j starts at 0
-	*/
-	var (
-		km1 = len(R)
-	)
-	if j > km1-1 || j < 0 {
-		panic("value of j larger than array or less than zero")
-	}
-	xj := R[j]
-	f = 1
-	for i, xi := range R {
-		if i == j {
-			continue
+	for j := 0; j < lb.Np; j++ { // For each basis function
+		fj = lb.EvaluateBasisPolynomial(R, j)
+		for i := range R {
+			f[i] += fj[i] * F[j]
 		}
-		f *= (r - xi) / (xj - xi)
+	}
+	return
+}
+
+func (lb *LagrangeBasis1D) EvaluateBasisPolynomial(R []float64, j int) (f []float64) {
+	/*
+		This evaluates a single basis polynomial (the jth) within the basis for order P at all points in R
+		Note that the points in R are not necessarily the defining points of the basis
+	*/
+	f = make([]float64, len(R))
+	for i, r := range R {
+		f[i] = lb.evaluateL(r) * lb.Weights[j]
+		if math.Abs(r-lb.Nodes[j]) < 0.0000000001 {
+			f[i] = 1.
+		} else {
+			f[i] /= (r - lb.Nodes[j])
+		}
+	}
+	return
+}
+
+func (lb *LagrangeBasis1D) evaluateL(r float64) (f float64) {
+	/*
+		This is the polynomial term in the Barycentric version of the Lagrange polynomial basis
+		It is not specific to the jth polynomial, but applies to all the individual basis polynomials
+	*/
+	f = 1.
+	for _, rr := range lb.Nodes {
+		f *= (r - rr)
 	}
 	return
 }
