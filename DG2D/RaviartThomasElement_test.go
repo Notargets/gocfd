@@ -49,7 +49,7 @@ func TestLagrangePolynomial(t *testing.T) {
 			for j := 0; j < R.Len(); j++ {
 				for i, r := range SamplesR.DataP {
 					//f[i] = DG1D.JacobiP(utils.NewVector(1, []float64{r}), 0, 0, j)[0]
-					f[i] = lp.EvaluateBasisPolynomial([]float64{r}, j)[0]
+					f[i] = lp.BasisPolynomial([]float64{r}, j)[0]
 				}
 				if n == Nmax-1 && j == R.Len()-1 {
 					delay = 120 * time.Second
@@ -82,7 +82,7 @@ func TestLagrangePolynomial(t *testing.T) {
 		lb2d := NewLagrangeBasis2D(Nmax, utils.NewVector(Np, R.DataP), utils.NewVector(Np, S.DataP))
 		RR := utils.NewVector(4, []float64{-1, -0.5, 0.5, 1.})
 		SS := utils.NewVector(4, []float64{-1, -0.5, 0.5, 1.})
-		assert.InDeltaSlicef(t, lb2d.EvaluateBasisPolynomialTerm(RR, SS, 0, 0), []float64{
+		assert.InDeltaSlicef(t, lb2d.BasisPolynomialTerm(RR, SS, 0, 0), []float64{
 			1.8736592735117479, 0.08527444844638511, 2.157995170376074, 0.1385595874119674,
 		}, 0.0000001, "blah")
 		Interp := lb2d.GetInterpMatrix(RR, SS)

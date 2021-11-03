@@ -312,7 +312,7 @@ func (lb *LagrangeBasis1D) GetInterpolationMatrix(R []float64) (im utils.Matrix)
 	)
 	im = utils.NewMatrix(len(R), lb.Np) // Rows are for evaluation points, columns for basis
 	for j := 0; j < lb.Np; j++ {        // For each basis function
-		fj = lb.EvaluateBasisPolynomial(R, j)
+		fj = lb.BasisPolynomial(R, j)
 		for i, val := range fj {
 			im.Set(i, j, val)
 		}
@@ -330,7 +330,7 @@ func (lb *LagrangeBasis1D) Interpolate(R []float64, F []float64) (f []float64) {
 		fj = make([]float64, len(R)) // temporary storage for each basis function evaluation
 	)
 	for j := 0; j < lb.Np; j++ { // For each basis function
-		fj = lb.EvaluateBasisPolynomial(R, j)
+		fj = lb.BasisPolynomial(R, j)
 		for i := range R {
 			f[i] += fj[i] * F[j]
 		}
@@ -338,7 +338,7 @@ func (lb *LagrangeBasis1D) Interpolate(R []float64, F []float64) (f []float64) {
 	return
 }
 
-func (lb *LagrangeBasis1D) EvaluateBasisPolynomial(R []float64, j int) (f []float64) {
+func (lb *LagrangeBasis1D) BasisPolynomial(R []float64, j int) (f []float64) {
 	/*
 		This evaluates a single basis polynomial (the jth) within the basis for order P at all points in R
 		Note that the points in R are not necessarily the defining points of the basis
@@ -444,13 +444,24 @@ func (lb2d *LagrangeBasis2D) GetGradInterpMatrices(R, S utils.Vector) (InterpDR,
 	return
 }
 
-func (lb2d *LagrangeBasis2D) EvaluateBasisPolynomialTerm(R, S utils.Vector, i, j int) (P []float64) {
+func (lb2d *LagrangeBasis2D) BasisPolynomialTerm(R, S utils.Vector, i, j int) (P []float64) {
 	/*
 		[i,j] are the coordinates of the basis polynomial term
 		R and S are the location to get values from the polynomial
 	*/
 	Interp := lb2d.GetInterpMatrix(R, S)
 	P = Interp.Row(lb2d.getTermNumber(i, j)).DataP
+	return
+}
+
+func (lb2d *LagrangeBasis2D) GradBasisPolynomialTerm(R, S utils.Vector, i, j int) (DrTerms, DsTerms []float64) {
+	/*
+		[i,j] are the coordinates of the basis polynomial term
+		R and S are the location to get values from the polynomial
+	*/
+	InterpDR, InterpDS := lb2d.GetGradInterpMatrices(R, S)
+	DrTerms = InterpDR.Row(lb2d.getTermNumber(i, j)).DataP
+	DsTerms = InterpDS.Row(lb2d.getTermNumber(i, j)).DataP
 	return
 }
 
