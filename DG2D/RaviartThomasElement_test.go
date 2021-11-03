@@ -87,6 +87,9 @@ func TestLagrangePolynomial(t *testing.T) {
 		}, 0.0000001, "blah")
 		Interp := lb2d.GetInterpMatrix(RR, SS)
 		assert.InDeltaSlicef(t, Interp.SumCols().DataP, []float64{1, 1, 1, 1}, 0.000001, "blah")
+		InterpDR, InterpDS := lb2d.GetGradInterpMatrices(RR, SS)
+		assert.InDeltaSlicef(t, InterpDR.SumCols().DataP, []float64{0, 0, 0, 0}, 0.0000001, "blah")
+		assert.InDeltaSlicef(t, InterpDS.SumCols().DataP, []float64{0, 0, 0, 0}, 0.0000001, "blah")
 	}
 }
 

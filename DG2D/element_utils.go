@@ -368,9 +368,10 @@ func (lb *LagrangeBasis1D) evaluateL(r float64) (f float64) {
 }
 
 type LagrangeBasis2D struct {
-	P, Np           int          // Order
-	RNodes, SNodes  []float64    // Nodes at which basis is defined
-	V, Vinv, Vr, Vs utils.Matrix // Inverse of Vandermonde matrix and derivatives for orthogonal non-Lagrange 2D polynomial basis
+	P, Np                      int          // Order
+	RNodes, SNodes             []float64    // Nodes at which basis is defined
+	V, Vinv, Vr, Vs            utils.Matrix // Inverse of Vandermonde matrix and derivatives for orthogonal non-Lagrange 2D polynomial basis
+	Interp, InterpDR, InterpDS utils.Matrix
 }
 
 func NewLagrangeBasis2D(P int, R, S utils.Vector) (lb2d *LagrangeBasis2D) {
@@ -419,6 +420,27 @@ func (lb2d *LagrangeBasis2D) GetInterpMatrix(R, S utils.Vector) (Interp utils.Ma
 		}
 	}
 	Interp = lb2d.Vinv.Transpose().Mul(Interp.Transpose())
+	return
+}
+
+func (lb2d *LagrangeBasis2D) GetGradInterpMatrices(R, S utils.Vector) (InterpDR, InterpDS utils.Matrix) {
+	var (
+		Np = lb2d.Np
+		N  = lb2d.P
+	)
+	InterpDR = utils.NewMatrix(R.Len(), Np) // Will transpose after fill
+	InterpDS = utils.NewMatrix(R.Len(), Np) // Will transpose after fill
+	var sk int
+	for I := 0; I <= N; I++ {
+		for J := 0; J <= N-I; J++ {
+			dR, dS := GradSimplex2DP(R, S, I, J)
+			InterpDR.SetCol(sk, dR)
+			InterpDS.SetCol(sk, dS)
+			sk++
+		}
+	}
+	InterpDR = lb2d.Vinv.Transpose().Mul(InterpDR.Transpose())
+	InterpDS = lb2d.Vinv.Transpose().Mul(InterpDS.Transpose())
 	return
 }
 
