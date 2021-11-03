@@ -134,6 +134,7 @@ func (m Matrix) Print(msgI ...string) (o string) {
 	}
 	formatString := "%s = \n%8.5f\n"
 	o = fmt.Sprintf(formatString, name, mat.Formatted(m.M, mat.Squeeze()))
+	fmt.Printf(o)
 	return
 }
 
@@ -1194,6 +1195,29 @@ func IndexedAssign(mI interface{}, I Index, ValI interface{}) (err error) { // C
 			i, j := indexToIJColMajor(I[ii], nr)
 			m.M.Set(i, j, val)
 		}
+	}
+	return
+}
+
+func (m *Matrix) InverseWithCheck() (R Matrix) {
+	var (
+		err   error
+		nr, _ = m.Dims()
+		msg   = "possible weakly stable wrong solution ie: even spaced point distro"
+	)
+	if R, err = m.Inverse(); err != nil {
+		panic(msg + err.Error())
+	}
+	// Perform check of the inverse to catch (previously seen) errors in the inversion
+	InvCheck := m.Mul(R).SumCols()
+	var sum float64
+	for _, val := range InvCheck.DataP {
+		sum += val
+	}
+	if math.Abs(sum-float64(nr)) > 0.000001 {
+		err = fmt.Errorf("Inversion of Vandermonde matrix failed with sum [%5.3f], expected [%5.3f]",
+			sum, float64(nr))
+		panic(msg + err.Error())
 	}
 	return
 }

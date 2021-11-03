@@ -1,6 +1,7 @@
 package DG2D
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/notargets/gocfd/DG1D"
@@ -262,5 +263,186 @@ func CalculateElementLocalGeometry(EToV utils.Matrix, VX, VY, R, S utils.Vector)
 	Y = R.Copy().Add(S).Scale(-1).Outer(VY.SubsetIndex(va.ToIndex())).Add(
 		R.Copy().AddScalar(1).Outer(VY.SubsetIndex(vb.ToIndex()))).Add(
 		S.Copy().AddScalar(1).Outer(VY.SubsetIndex(vc.ToIndex()))).Scale(0.5)
+	return
+}
+
+type LagrangeBasis1D struct {
+	P       int       // Order
+	Np      int       // Dimension of basis = N+1
+	Weights []float64 // Barycentric weights, one per basis polynomial
+	Nodes   []float64 // Nodes at which basis is defined
+}
+
+func NewLagrangeBasis1D(R []float64) (lb *LagrangeBasis1D) {
+	/*
+		At a given order P, there are (P+1) basis polynomials representing that order
+		To recover a basis polynomial we need to specifiy:
+		`	P = The order of the basis
+			j = The basis polynomial number within the basis
+			R = The points used to define the basis, (P+1) dimension
+	*/
+	lb = &LagrangeBasis1D{
+		P:       len(R) - 1,
+		Np:      len(R),
+		Weights: make([]float64, len(R)),
+		Nodes:   R,
+	}
+	// Calculate the weight for each basis function j
+	for j := 0; j < lb.Np; j++ {
+		lb.Weights[j] = 1.
+	}
+	for j := 0; j < lb.Np; j++ {
+		for i := 0; i < lb.Np; i++ {
+			if i != j {
+				lb.Weights[j] /= R[j] - R[i]
+			}
+		}
+	}
+	return
+}
+
+func (lb *LagrangeBasis1D) GetInterpolationMatrix(R []float64) (im utils.Matrix) {
+	/*
+			Provided function values at each of the P+1 nodes, interpolate a new function value at location r
+			Note that the points in R are not necessarily the defining points of the basis, and are not necessarily at the
+		    same points within F, the provided set of function values at the nodes of the basis
+	*/
+	var (
+		fj = make([]float64, len(R)) // temporary storage for each basis function evaluation
+	)
+	im = utils.NewMatrix(len(R), lb.Np) // Rows are for evaluation points, columns for basis
+	for j := 0; j < lb.Np; j++ {        // For each basis function
+		fj = lb.EvaluateBasisPolynomial(R, j)
+		for i, val := range fj {
+			im.Set(i, j, val)
+		}
+	}
+	return
+}
+
+func (lb *LagrangeBasis1D) Interpolate(R []float64, F []float64) (f []float64) {
+	/*
+			Provided function values at each of the P+1 nodes, interpolate a new function value at location r
+			Note that the points in R are not necessarily the defining points of the basis, and are not necessarily at the
+		    same points within F, the provided set of function values at the nodes of the basis
+	*/
+	var (
+		fj = make([]float64, len(R)) // temporary storage for each basis function evaluation
+	)
+	for j := 0; j < lb.Np; j++ { // For each basis function
+		fj = lb.EvaluateBasisPolynomial(R, j)
+		for i := range R {
+			f[i] += fj[i] * F[j]
+		}
+	}
+	return
+}
+
+func (lb *LagrangeBasis1D) EvaluateBasisPolynomial(R []float64, j int) (f []float64) {
+	/*
+		This evaluates a single basis polynomial (the jth) within the basis for order P at all points in R
+		Note that the points in R are not necessarily the defining points of the basis
+	*/
+	f = make([]float64, len(R))
+	for i, r := range R {
+		f[i] = lb.evaluateL(r) * lb.Weights[j]
+		if math.Abs(r-lb.Nodes[j]) < 0.0000000001 {
+			f[i] = 1.
+		} else {
+			f[i] /= (r - lb.Nodes[j])
+		}
+	}
+	return
+}
+
+func (lb *LagrangeBasis1D) evaluateL(r float64) (f float64) {
+	/*
+		This is the polynomial term in the Barycentric version of the Lagrange polynomial basis
+		It is not specific to the jth polynomial, but applies to all the individual basis polynomials
+	*/
+	f = 1.
+	for _, rr := range lb.Nodes {
+		f *= (r - rr)
+	}
+	return
+}
+
+type LagrangeBasis2D struct {
+	P, Np           int          // Order
+	RNodes, SNodes  []float64    // Nodes at which basis is defined
+	V, Vinv, Vr, Vs utils.Matrix // Inverse of Vandermonde matrix and derivatives for orthogonal non-Lagrange 2D polynomial basis
+}
+
+func NewLagrangeBasis2D(P int, R, S utils.Vector) (lb2d *LagrangeBasis2D) {
+	/*
+			From Karniadakis and Sherwin's "Spectral/hp Element Methods for CFD" on page 124:
+			"Since there is not a closed form expression for the Lagrange polynomial through an arbitrary set of points in the
+			triangular region, it is necessary to express the Lagrange polynomial in terms of another polynomial which has a
+			closed form definition..."
+
+			Here we use the 2D simplex orthogonal polynomial from Hesthaven to produce a generalized Vandermonde matrix, from
+		    which we can use the inverse of the Vandermonde to multiply the other basis at locations of our choosing to obtain
+			the Lagrange basis coefficients.
+	*/
+	var (
+		Np = (P + 1) * (P + 2) / 2
+	)
+	// Dimension: Np = (N+1)*(N+2)/2
+	if Np != R.Len() || Np != S.Len() {
+		err := fmt.Errorf("wrong length of arrays defining basis nodes, should be %d, is [Rlen,Slen] = [%d,%d]",
+			Np, R.Len(), S.Len())
+		panic(err)
+	}
+	lb2d = &LagrangeBasis2D{
+		P:      P,
+		Np:     Np,
+		RNodes: R.DataP,
+		SNodes: S.DataP,
+	}
+	lb2d.V = Vandermonde2D(P, R, S)
+	lb2d.Vinv = lb2d.V.InverseWithCheck()
+	lb2d.Vr, lb2d.Vs = GradVandermonde2D(P, R, S)
+	return
+}
+
+func (lb2d *LagrangeBasis2D) GetInterpMatrix(R, S utils.Vector) (Interp utils.Matrix) {
+	var (
+		Np = lb2d.Np
+		N  = lb2d.P
+	)
+	Interp = utils.NewMatrix(R.Len(), Np) // Will transpose after fill
+	var sk int
+	for I := 0; I <= N; I++ {
+		for J := 0; J <= N-I; J++ {
+			Interp.SetCol(sk, Simplex2DP(R, S, I, J))
+			sk++
+		}
+	}
+	Interp = lb2d.Vinv.Transpose().Mul(Interp.Transpose())
+	return
+}
+
+func (lb2d *LagrangeBasis2D) EvaluateBasisPolynomialTerm(R, S utils.Vector, i, j int) (P []float64) {
+	/*
+		[i,j] are the coordinates of the basis polynomial term
+		R and S are the location to get values from the polynomial
+	*/
+	Interp := lb2d.GetInterpMatrix(R, S)
+	P = Interp.Row(lb2d.getTermNumber(i, j)).DataP
+	return
+}
+
+func (lb2d *LagrangeBasis2D) getTermNumber(i, j int) (sk int) {
+	var (
+		N = lb2d.P
+	)
+	for I := 0; I <= N; I++ {
+		for J := 0; J <= N-I; J++ {
+			if I == i && J == j {
+				return
+			}
+			sk++
+		}
+	}
 	return
 }

@@ -30,9 +30,6 @@ const (
 )
 
 func NewLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
-	var (
-		err error
-	)
 	el = &LagrangeElement2D{
 		N:      N,
 		Np:     (N + 1) * (N + 2) / 2,
@@ -53,9 +50,7 @@ func NewLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
 	}
 	// Build reference element matrices
 	el.V = Vandermonde2D(el.N, el.R, el.S)
-	if el.Vinv, err = el.V.Inverse(); err != nil {
-		panic(err)
-	}
+	el.Vinv = el.V.InverseWithCheck()
 	el.MassMatrix = el.Vinv.Transpose().Mul(el.Vinv)
 	// Initialize the (r,s) differentiation matrices on the simplex, evaluated at (r,s) at order N
 	/*
