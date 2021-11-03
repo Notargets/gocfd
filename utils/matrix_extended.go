@@ -941,6 +941,9 @@ func (m Matrix) Row(i int) Vector {
 		nr, nc = m.Dims()
 		vData  = make([]float64, nc)
 	)
+	if i < 0 || i >= nr {
+		panic(fmt.Errorf("row index is %d, either <0 or >%d", i, nr))
+	}
 	i = lim(i, nr)
 	for j := range vData {
 		vData[j] = data[j+i*nc]

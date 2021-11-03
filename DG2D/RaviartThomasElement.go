@@ -10,13 +10,14 @@ import (
 )
 
 type RTElement struct {
-	N           int             // Order of element
-	Np          int             // Number of points in element
-	Nedge, Nint int             // Number of Edge and Interior points
-	A           utils.Matrix    // Polynomial coefficient matrix, NpxNp
-	V           [2]utils.Matrix // Vandermonde matrix for each direction r and s, [2]xNpxNp
-	Div, DivInt utils.Matrix    // Divergence matrix, NpxNp for all, NintxNp Interior Points
-	R, S        utils.Vector    // Point locations defining element in [-1,1] Triangle, NpxNp
+	N           int              // Order of element
+	Np          int              // Number of points in element
+	Nedge, Nint int              // Number of Edge and Interior points
+	A           utils.Matrix     // Polynomial coefficient matrix, NpxNp
+	V           [2]utils.Matrix  // Vandermonde matrix for each direction r and s, [2]xNpxNp
+	Div, DivInt utils.Matrix     // Divergence matrix, NpxNp for all, NintxNp Interior Points
+	R, S        utils.Vector     // Point locations defining element in [-1,1] Triangle, NpxNp
+	L2Dp        *LagrangeBasis2D // 2D Lagrange Polynomial Basis
 }
 
 type RTPointType uint8
@@ -50,6 +51,7 @@ func NewRTElement(N int, R, S utils.Vector) (rt *RTElement) {
 		S:     S,
 		Nint:  N * (N + 1) / 2,
 		Nedge: N + 1,
+		L2Dp:  NewLagrangeBasis2D(N-1, R, S),
 	}
 	rt.CalculateBasis()
 	return
@@ -171,12 +173,13 @@ func (rt *RTElement) CalculateBasis() {
 						Since this is a vector valued element/basis, we have a interpolation matrix for each direction.
 	*/
 	var (
-		err  error
-		N    = rt.N
-		R, S = rt.R, rt.S
-		Np   = (N + 1) * (N + 3)
-		Nint = N * (N + 1) / 2
-		P    utils.Matrix
+		err              error
+		N                = rt.N
+		R, S             = rt.R, rt.S
+		Np               = (N + 1) * (N + 3)
+		Nint             = N * (N + 1) / 2
+		P                utils.Matrix
+		useLagrangeBasis = false
 	)
 	// Add the edge and additional interior (duplicated) points to complete the RT geometry2D
 	rt.R, rt.S = ExtendGeomToRT(N, R, S)
@@ -195,7 +198,11 @@ func (rt *RTElement) CalculateBasis() {
 			First, evaluate the polynomial at the (r,s) coordinates
 			This is the same set that will be used for all dot products to form the basis matrix
 		*/
-		p0, p1 = rt.EvaluateRTBasis(rr, ss) // each of p1,p2 stores the polynomial terms for the R and S directions
+		if useLagrangeBasis {
+			p0, p1 = rt.EvaluateLagrangeRTBasis(rr, ss) // each of p1,p2 stores the polynomial terms for the R and S directions
+		} else {
+			p0, p1 = rt.EvaluateONRTBasis(rr, ss) // each of p1,p2 stores the polynomial terms for the R and S directions
+		}
 		// Implement dot product of (unit vector)_ii with each vector term in the polynomial evaluated at location ii
 		switch rt.GetTermType(ii) {
 		case InteriorR:
@@ -233,11 +240,20 @@ func (rt *RTElement) CalculateBasis() {
 	Pdr0, Pds1 := utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
 	for ii, rr := range rt.R.DataP {
 		ss := rt.S.DataP[ii]
-		p0, p1 = rt.EvaluateRTBasis(rr, ss) // each of p0,p1 stores the polynomial terms for the R and S directions
+		if useLagrangeBasis {
+			p0, p1 = rt.EvaluateLagrangeRTBasis(rr, ss) // each of p1,p2 stores the polynomial terms for the R and S directions
+		} else {
+			p0, p1 = rt.EvaluateONRTBasis(rr, ss) // each of p0,p1 stores the polynomial terms for the R and S directions
+		}
 		P0.M.SetRow(ii, p0)
 		P1.M.SetRow(ii, p1)
-		p0, _ = rt.EvaluateRTBasis(rr, ss, Dr) // each of p0,p1 stores the polynomial terms for the R and S directions
-		_, p1 = rt.EvaluateRTBasis(rr, ss, Ds) // each of p0,p1 stores the polynomial terms for the R and S directions
+		if useLagrangeBasis {
+			p0, _ = rt.EvaluateLagrangeRTBasis(rr, ss, Dr) // each of p0,p1 stores the polynomial terms for the R and S directions
+			_, p1 = rt.EvaluateLagrangeRTBasis(rr, ss, Ds) // each of p0,p1 stores the polynomial terms for the R and S directions
+		} else {
+			p0, _ = rt.EvaluateONRTBasis(rr, ss, Dr) // each of p0,p1 stores the polynomial terms for the R and S directions
+			_, p1 = rt.EvaluateONRTBasis(rr, ss, Ds) // each of p0,p1 stores the polynomial terms for the R and S directions
+		}
 		Pdr0.M.SetRow(ii, p0)
 		Pds1.M.SetRow(ii, p1)
 	}
@@ -261,7 +277,7 @@ const (
 	Ds
 )
 
-func (rt *RTElement) EvaluateRTBasis(r, s float64, derivO ...DerivativeDirection) (p1, p2 []float64) {
+func (rt *RTElement) EvaluateONRTBasis(r, s float64, derivO ...DerivativeDirection) (p1, p2 []float64) {
 	var (
 		sk       int
 		N        = rt.N
@@ -272,6 +288,9 @@ func (rt *RTElement) EvaluateRTBasis(r, s float64, derivO ...DerivativeDirection
 	)
 	if len(derivO) != 0 {
 		deriv = derivO[0]
+	}
+	ONTerm2D := func(r, s float64, i, j int) (val float64) {
+		return Simplex2DPTerm(r, s, i, j)
 	}
 	DrONTerm2D := func(r, s float64, i, j int) (val float64) {
 		val, _ = GradSimplex2DPTerm(r, s, i, j)
@@ -285,7 +304,85 @@ func (rt *RTElement) EvaluateRTBasis(r, s float64, derivO ...DerivativeDirection
 	}
 	switch deriv {
 	case None:
-		tFunc = Simplex2DPTerm
+		tFunc = ONTerm2D
+	case Dr:
+		tFunc = DrONTerm2D
+	case Ds:
+		tFunc = DsONTerm2D
+	}
+	p1, p2 = make([]float64, Np), make([]float64, Np)
+	// Evaluate the full 2D polynomial basis first, once for each of two components
+	for i := 0; i <= N; i++ {
+		for j := 0; j <= (N - i); j++ {
+			val := tFunc(r, s, i, j)
+			p1[sk] = val
+			p2[sk+N2DBasis] = val
+			sk++
+		}
+	}
+	// Evaluate the term ([ X ]*(Pk)) at only the top N+1 terms (highest order) of the 2D polynomial
+	sk += N2DBasis // Skip to the beginning of the second polynomial group
+	for i := 0; i <= N; i++ {
+		j := N - i
+		val := tFunc(r, s, i, j)
+		switch deriv {
+		case None:
+			p1[sk] = val * r
+			p2[sk] = val * s
+		case Dr:
+			val2 := Simplex2DPTerm(r, s, i, j)
+			p1[sk] = val2 + val*r
+			p2[sk] = val * s
+		case Ds:
+			val2 := Simplex2DPTerm(r, s, i, j)
+			p1[sk] = val * r
+			p2[sk] = val2 + val*s
+		}
+		sk++
+	}
+	return
+}
+
+func (rt *RTElement) EvaluateLagrangeRTBasis(r, s float64, derivO ...DerivativeDirection) (p1, p2 []float64) {
+	var (
+		sk       int
+		N        = rt.N
+		Np       = (N + 1) * (N + 3)
+		N2DBasis = (N + 1) * (N + 2) / 2 // Number of polynomial terms for each of R and S directions
+		deriv    = None
+		tFunc    func(r, s float64, i, j int) (val float64)
+		l2dp     = rt.L2Dp
+	)
+	if len(derivO) != 0 {
+		deriv = derivO[0]
+	}
+	ONTerm2D := func(r, s float64, i, j int) (val float64) {
+		var (
+			R, S = utils.NewVector(1, []float64{r}), utils.NewVector(1, []float64{s})
+		)
+		return l2dp.BasisPolynomialTerm(R, S, i, j)[0]
+	}
+	DrONTerm2D := func(r, s float64, i, j int) (val float64) {
+		var (
+			R, S = utils.NewVector(1, []float64{r}), utils.NewVector(1, []float64{s})
+		)
+		valSlice, _ := l2dp.GradBasisPolynomialTerm(R, S, i, j)
+		val = valSlice[0]
+		//fmt.Printf("Dr r,s,i,j,val = %8.5f,%8.5f,%d,%d,%8.5f,", r, s, i, j, val)
+		return
+	}
+	DsONTerm2D := func(r, s float64, i, j int) (val float64) {
+		var (
+			R, S = utils.NewVector(1, []float64{r}), utils.NewVector(1, []float64{s})
+		)
+		_, valSlice := l2dp.GradBasisPolynomialTerm(R, S, i, j)
+		val = valSlice[0]
+		//fmt.Printf("Ds r,s,i,j,val = %8.5f,%8.5f,%d,%d,%8.5f,", r, s, i, j, val)
+		return
+	}
+	switch deriv {
+	case None:
+		tFunc = ONTerm2D
 	case Dr:
 		tFunc = DrONTerm2D
 	case Ds:

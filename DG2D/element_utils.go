@@ -450,6 +450,7 @@ func (lb2d *LagrangeBasis2D) BasisPolynomialTerm(R, S utils.Vector, i, j int) (P
 		R and S are the location to get values from the polynomial
 	*/
 	Interp := lb2d.GetInterpMatrix(R, S)
+	fmt.Printf("P = %d, term number[%d,%d] = %d\n", lb2d.P, i, j, lb2d.getTermNumber(i, j))
 	P = Interp.Row(lb2d.getTermNumber(i, j)).DataP
 	return
 }
@@ -477,5 +478,6 @@ func (lb2d *LagrangeBasis2D) getTermNumber(i, j int) (sk int) {
 			sk++
 		}
 	}
+	sk = -1
 	return
 }

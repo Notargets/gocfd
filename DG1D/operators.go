@@ -8,8 +8,9 @@ import (
 
 func (el Elements1D) SlopeLimitN(U utils.Matrix, M float64) (ULim utils.Matrix) {
 	var (
-		Uh   = el.Vinv.Mul(U)
-		eps0 = 1.0e-8
+		Uh    = el.Vinv.Mul(U)
+		eps0  = 1.0e-8
+		nr, _ = U.Dims()
 	)
 	Uh.SetRange(1, -1, 0, -1, 0)
 	Uh = el.V.Mul(Uh)
@@ -17,7 +18,7 @@ func (el Elements1D) SlopeLimitN(U utils.Matrix, M float64) (ULim utils.Matrix) 
 
 	// End values of each element
 	ue1 := U.Row(0)
-	ue2 := U.Row(-1)
+	ue2 := U.Row(nr - 1)
 
 	// Cell averages
 	vkm1 := vk.Subset(0, 0).Concat(vk.Subset(0, -2))
