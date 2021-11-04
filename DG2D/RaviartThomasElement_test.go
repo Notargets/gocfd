@@ -61,21 +61,12 @@ func TestLagrangePolynomial(t *testing.T) {
 			lineColor += lineInc
 		}
 	}
-	{
-		R := []float64{-1, -.5, 0, .5, 1.} // P = 4
-		lp := NewLagrangeBasis1D(R)
-		RI := []float64{-.9, -.75, -.2, .2, .75, .9} // 6 points
-		im := lp.GetInterpolationMatrix(RI)
-		Ni, Np := im.Dims()
-		assert.Equal(t, 6, Ni)
-		assert.Equal(t, 5, Np)
-		F := utils.NewMatrix(Np, 1, []float64{10, 5, 1, 5, 10})
-		FI := im.Mul(F)
-		assert.InDeltaSlice(t, []float64{9.72640, 8.35938, 1.71840, 1.71840, 8.35938, 9.72640},
-			FI.DataP, 0.00001, "err msg %s")
-	}
+
+}
+
+func TestRTElementLagrange(t *testing.T) {
 	// Test 2D Lagrange polynomial basis
-	{
+	if true {
 		Nmax := 2
 		Np := (Nmax + 1) * (Nmax + 2) / 2
 		R, S := NodesEpsilon(Nmax)
@@ -86,10 +77,89 @@ func TestLagrangePolynomial(t *testing.T) {
 			1.8736592735117479, 0.08527444844638511, 2.157995170376074, 0.1385595874119674,
 		}, 0.0000001, "blah")
 		Interp := lb2d.GetInterpMatrix(RR, SS)
-		assert.InDeltaSlicef(t, Interp.SumCols().DataP, []float64{1, 1, 1, 1}, 0.000001, "blah")
+		assert.InDeltaSlicef(t, Interp.SumRows().DataP, []float64{1, 1, 1, 1}, 0.000001, "blah")
 		InterpDR, InterpDS := lb2d.GetGradInterpMatrices(RR, SS)
-		assert.InDeltaSlicef(t, InterpDR.SumCols().DataP, []float64{0, 0, 0, 0}, 0.0000001, "blah")
-		assert.InDeltaSlicef(t, InterpDS.SumCols().DataP, []float64{0, 0, 0, 0}, 0.0000001, "blah")
+		assert.InDeltaSlicef(t, InterpDR.SumRows().DataP, []float64{0, 0, 0, 0}, 0.0000001, "blah")
+		assert.InDeltaSlicef(t, InterpDS.SumRows().DataP, []float64{0, 0, 0, 0}, 0.0000001, "blah")
+	}
+	errorCheck := func(N int, div, divCheck []float64) (minInt, maxInt, minEdge, maxEdge float64) {
+		var (
+			Npm    = len(div)
+			errors = make([]float64, Npm)
+		)
+		for i := 0; i < Npm; i++ {
+			//var ddr, dds float64
+			errors[i] = div[i] - divCheck[i]
+		}
+		minInt, maxInt = errors[0], errors[0]
+		Nint := N * (N + 1) / 2
+		minEdge, maxEdge = errors[Nint], errors[Nint]
+		for i := 0; i < Nint; i++ {
+			errAbs := math.Abs(errors[i])
+			if minInt > errAbs {
+				minInt = errAbs
+			}
+			if maxInt < errAbs {
+				maxInt = errAbs
+			}
+		}
+		for i := Nint; i < Npm; i++ {
+			errAbs := math.Abs(errors[i])
+			if minEdge > errAbs {
+				minEdge = errAbs
+			}
+			if maxEdge < errAbs {
+				maxEdge = errAbs
+			}
+		}
+		fmt.Printf("Order = %d, ", N)
+		fmt.Printf("Min, Max Int Err = %8.5f, %8.5f, Min, Max Edge Err = %8.5f, %8.5f\n", minInt, maxInt, minEdge, maxEdge)
+		return
+	}
+	checkSolution := func(rt *RTElement, Order int) (s1, s2, divCheck []float64) {
+		var (
+			Np = rt.Np
+		)
+		s1, s2 = make([]float64, Np), make([]float64, Np)
+		divCheck = make([]float64, Np)
+		var ss1, ss2 float64
+		for i := 0; i < Np; i++ {
+			r := rt.R.DataP[i]
+			s := rt.S.DataP[i]
+			ccf := float64(Order)
+			s1[i] = utils.POW(r, Order)
+			s2[i] = utils.POW(s, Order)
+			ss1, ss2 = ccf*utils.POW(r, Order-1), ccf*utils.POW(s, Order-1)
+			divCheck[i] = ss1 + ss2
+		}
+		return
+	}
+	// Test the polynomial term function
+	{
+		lb2d := &LagrangeBasis2D{P: 0}
+		assert.Equal(t, 0, lb2d.getTermNumber(0, 0))
+		assert.Equal(t, -1, lb2d.getTermNumber(1, 0))
+		assert.Equal(t, -1, lb2d.getTermNumber(0, 1))
+	}
+	if true { // Check Divergence for polynomial vector fields of order < N against analytical solution
+		Nend := 8
+		for N := 1; N < Nend; N++ {
+			R, S := NodesEpsilon(N - 1)
+			rt := NewRTElement(R, S, N, true)
+			for cOrder := 0; cOrder <= N; cOrder++ {
+				fmt.Printf("Check Order = %d, ", cOrder)
+				s1, s2, divCheck := checkSolution(rt, cOrder)
+				sp := rt.ProjectFunctionOntoBasis(s1, s2)
+				sm := utils.NewMatrix(rt.Np, 1, sp)
+				divM := rt.Div.Mul(sm)
+				//fmt.Println(divM.Print("divM"))
+				minerrInt, maxerrInt, minerrEdge, maxerrEdge := errorCheck(N, divM.DataP, divCheck)
+				assert.True(t, near(minerrInt, 0.0, 0.00001))
+				assert.True(t, near(maxerrInt, 0.0, 0.00001))
+				assert.True(t, near(minerrEdge, 0.0, 0.00001))
+				assert.True(t, near(maxerrEdge, 0.0, 0.00001))
+			}
+		}
 	}
 }
 
@@ -164,19 +234,11 @@ func TestRTElement(t *testing.T) {
 		}
 		return
 	}
-	{
-		N := 1
-		R, S := NodesEpsilon(N - 1)
-		rt := NewRTElement(N, R, S)
-		fmt.Println(rt.V[0].Print("V0"))
-		fmt.Println(rt.V[1].Print("V1"))
-		fmt.Println(rt.Div.Print("Div"))
-	}
 	if true { // Check Divergence for polynomial vector fields of order < N against analytical solution
 		Nend := 8
 		for N := 1; N < Nend; N++ {
 			R, S := NodesEpsilon(N - 1)
-			rt := NewRTElement(N, R, S)
+			rt := NewRTElement(R, S, N, false)
 			for cOrder := 0; cOrder <= N; cOrder++ {
 				fmt.Printf("Check Order = %d, ", cOrder)
 				s1, s2, divCheck := checkSolution(rt, cOrder)
@@ -198,7 +260,7 @@ func TestRTElement(t *testing.T) {
 		NRT := N + 1
 		R, S := NodesEpsilon(N)
 		//Nint := R.Len()
-		rt := NewRTElement(NRT, R, S)
+		rt := NewRTElement(R, S, NRT, false)
 		s1, s2 := make([]float64, rt.R.Len()), make([]float64, rt.R.Len())
 		for i := range rt.R.DataP {
 			s1[i] = 1

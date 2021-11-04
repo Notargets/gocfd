@@ -419,7 +419,7 @@ func (lb2d *LagrangeBasis2D) GetInterpMatrix(R, S utils.Vector) (Interp utils.Ma
 			sk++
 		}
 	}
-	Interp = lb2d.Vinv.Transpose().Mul(Interp.Transpose())
+	Interp = lb2d.Vinv.Transpose().Mul(Interp.Transpose()).Transpose()
 	return
 }
 
@@ -439,8 +439,8 @@ func (lb2d *LagrangeBasis2D) GetGradInterpMatrices(R, S utils.Vector) (InterpDR,
 			sk++
 		}
 	}
-	InterpDR = lb2d.Vinv.Transpose().Mul(InterpDR.Transpose())
-	InterpDS = lb2d.Vinv.Transpose().Mul(InterpDS.Transpose())
+	InterpDR = lb2d.Vinv.Transpose().Mul(InterpDR.Transpose()).Transpose()
+	InterpDS = lb2d.Vinv.Transpose().Mul(InterpDS.Transpose()).Transpose()
 	return
 }
 
@@ -450,8 +450,8 @@ func (lb2d *LagrangeBasis2D) BasisPolynomialTerm(R, S utils.Vector, i, j int) (P
 		R and S are the location to get values from the polynomial
 	*/
 	Interp := lb2d.GetInterpMatrix(R, S)
-	fmt.Printf("P = %d, term number[%d,%d] = %d\n", lb2d.P, i, j, lb2d.getTermNumber(i, j))
-	P = Interp.Row(lb2d.getTermNumber(i, j)).DataP
+	//fmt.Printf("P = %d, term number[%d,%d] = %d\n", lb2d.P, i, j, lb2d.getTermNumber(i, j))
+	P = Interp.Col(lb2d.getTermNumber(i, j)).DataP
 	return
 }
 
@@ -461,8 +461,10 @@ func (lb2d *LagrangeBasis2D) GradBasisPolynomialTerm(R, S utils.Vector, i, j int
 		R and S are the location to get values from the polynomial
 	*/
 	InterpDR, InterpDS := lb2d.GetGradInterpMatrices(R, S)
-	DrTerms = InterpDR.Row(lb2d.getTermNumber(i, j)).DataP
-	DsTerms = InterpDS.Row(lb2d.getTermNumber(i, j)).DataP
+	InterpDR = InterpDR
+	InterpDS = InterpDS
+	DrTerms = InterpDR.Col(lb2d.getTermNumber(i, j)).DataP
+	DsTerms = InterpDS.Col(lb2d.getTermNumber(i, j)).DataP
 	return
 }
 

@@ -41,16 +41,24 @@ func NewDFR2D(N int, plotMesh bool, meshFileO ...string) (dfr *DFR2D) {
 		panic(fmt.Errorf("Polynomial order must be >= 1, have %d", N))
 	}
 	le := NewLagrangeElement2D(N, Epsilon)
-	rt := NewRTElement(N+1, le.R, le.S)
+	useLagrangeBasis := true
+	rt := NewRTElement(le.R, le.S, N+1, useLagrangeBasis)
 	RFlux := utils.NewVector(rt.Nedge*3, rt.GetEdgeLocations(rt.R)) // For the Interpolation matrix across three edges
 	SFlux := utils.NewVector(rt.Nedge*3, rt.GetEdgeLocations(rt.S)) // For the Interpolation matrix across three edges
 	dfr = &DFR2D{
 		N:               N,
 		SolutionElement: le,
 		FluxElement:     rt,
-		// TODO: Implement a Lagrange Interpolating Polynomial version of this, replacing the Jacobi polynomials
-		FluxInterp:     le.Simplex2DInterpolatingPolyMatrixJacobi(rt.R, rt.S),   // Interpolation matrix for flux nodes
-		FluxEdgeInterp: le.Simplex2DInterpolatingPolyMatrixJacobi(RFlux, SFlux), // Interpolation matrix across three edges
+	}
+	if useLagrangeBasis {
+		fmt.Printf("Using 2D Lagrange Polynomial Basis")
+		l2dp := NewLagrangeBasis2D(N, le.R, le.S)
+		dfr.FluxInterp = l2dp.GetInterpMatrix(rt.R, rt.S)       // Interpolation matrix for flux nodes
+		dfr.FluxEdgeInterp = l2dp.GetInterpMatrix(RFlux, SFlux) // Interpolation matrix across three edges
+	} else {
+		fmt.Printf("Using 2D Jacobi OrthoNormal Polynomial Basis")
+		dfr.FluxInterp = le.Simplex2DInterpolatingPolyMatrixJacobi(rt.R, rt.S)       // Interpolation matrix for flux nodes
+		dfr.FluxEdgeInterp = le.Simplex2DInterpolatingPolyMatrixJacobi(RFlux, SFlux) // Interpolation matrix across three edges
 	}
 	dfr.FluxDr, dfr.FluxDs = le.GetDerivativeMatrices(rt.R, rt.S)
 	if len(meshFileO) != 0 {
