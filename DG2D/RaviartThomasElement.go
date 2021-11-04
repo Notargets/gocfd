@@ -171,7 +171,6 @@ func (rt *RTElement) CalculateBasis(useLagrangeBasis bool) {
 						Since this is a vector valued element/basis, we have a interpolation matrix for each direction.
 	*/
 	var (
-		err  error
 		N    = rt.N
 		R, S = rt.R, rt.S
 		Np   = (N + 1) * (N + 3)
@@ -239,9 +238,7 @@ func (rt *RTElement) CalculateBasis(useLagrangeBasis bool) {
 		}
 	}
 	// Invert [P] = [A] to obtain the coefficients (columns) of polynomials (rows), each row is a polynomial
-	if rt.A, err = P.Inverse(); err != nil {
-		panic(err)
-	}
+	rt.A = P.InverseWithCheck()
 	// Evaluate 2D polynomial basis at geometric locations, also evaluate derivatives Dr and Ds for R and S
 	P0, P1 := utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
 	Pdr0, Pds1 := utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
