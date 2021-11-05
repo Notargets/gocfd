@@ -257,7 +257,7 @@ func (ndg *NDG2D) Lift2D() {
 	// face 3
 	faceMap(S, 2, utils.NewRangeOffset(2*ndg.Element.Nfp+1, 3*ndg.Element.Nfp))
 	// inv(mass matrix)*\I_n (L_i,L_j)_{edge_n}
-	ndg.LIFT = ndg.Element.V.Mul(ndg.Element.V.Transpose().Mul(Emat))
+	ndg.LIFT = ndg.Element.JB2D.V.Mul(ndg.Element.JB2D.V.Transpose().Mul(Emat))
 	return
 }
 

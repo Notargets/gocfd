@@ -34,10 +34,11 @@ func TestNDG2D(t *testing.T) {
 		assert.True(t, nearVec([]float64{0.7071, 0.7071, 0.7071, 0.7071, 0.7071, 0.7071}, h1, 0.0001))
 		h2 := DG1D.JacobiP(b, float64(1), 0, 0)
 		assert.True(t, nearVec([]float64{0.7071, 0.7071, 0.7071, 0.7071, 0.7071, 0.7071}, h2, 0.0001))
-		P := Simplex2DP(R, S, 0, 0)
+		JB2D := NewJacobiBasis2D(N, R, S)
+		P := JB2D.Simplex2DP(R, S, 0, 0)
 		assert.True(t, nearVec([]float64{0.7071, 0.7071, 0.7071, 0.7071, 0.7071, 0.7071}, P, 0.0001))
 
-		V := Vandermonde2D(N, R, S)
+		V := JB2D.Vandermonde2D(N, R, S)
 		assert.True(t, nearVec([]float64{
 			0.7071, -1.0000, 1.2247, -1.7321, 2.1213, 2.7386,
 			0.7071, -1.0000, 1.2247, 0, 0, -1.3693,
@@ -46,7 +47,7 @@ func TestNDG2D(t *testing.T) {
 			0.7071, 0.5000, -0.6124, 0.8660, 1.5910, 0.6847,
 			0.7071, 2.0000, 3.6742, 0, 0, 0,
 		}, V.DataP, 0.0001))
-		V2Dr, V2Ds := GradVandermonde2D(N, R, S)
+		V2Dr, V2Ds := JB2D.GradVandermonde2D(N, R, S)
 		assert.True(t, nearVec([]float64{
 			0, 0, 0, 1.7321, -2.1213, -8.2158,
 			0, 0, 0, 1.7321, -2.1213, 0,

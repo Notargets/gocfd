@@ -73,7 +73,7 @@ func TestRTElementLagrange(t *testing.T) {
 		lb2d := NewLagrangeBasis2D(Nmax, utils.NewVector(Np, R.DataP), utils.NewVector(Np, S.DataP))
 		RR := utils.NewVector(4, []float64{-1, -0.5, 0.5, 1.})
 		SS := utils.NewVector(4, []float64{-1, -0.5, 0.5, 1.})
-		assert.InDeltaSlicef(t, lb2d.BasisPolynomialTerm(RR, SS, 0, 0), []float64{
+		assert.InDeltaSlicef(t, lb2d.BasisPolynomial(RR, SS, 0, 0), []float64{
 			1.8736592735117479, 0.08527444844638511, 2.157995170376074, 0.1385595874119674,
 		}, 0.0000001, "blah")
 		Interp := lb2d.GetInterpMatrix(RR, SS)
@@ -168,15 +168,17 @@ func TestRTElement(t *testing.T) {
 		// Check term-wise orthogonal 2D polynomial basis
 		N := 2
 		R, S := NodesEpsilon(N - 1)
+		JB2D := NewJacobiBasis2D(N-1, R, S)
 		ii, jj := 1, 1
-		p := Simplex2DP(R, S, ii, jj)
-		ddr, dds := GradSimplex2DP(R, S, ii, jj)
+		p := JB2D.Simplex2DP(R, S, ii, jj)
+		ddr, dds := JB2D.GradSimplex2DP(R, S, ii, jj)
 		Np := R.Len()
 		pCheck, ddrCheck, ddsCheck := make([]float64, Np), make([]float64, Np), make([]float64, Np)
 		for i, rVal := range R.DataP {
 			sVal := S.DataP[i]
-			ddrCheck[i], ddsCheck[i] = GradSimplex2DPTerm(rVal, sVal, ii, jj)
-			pCheck[i] = Simplex2DPTerm(rVal, sVal, ii, jj)
+			ddrCheck[i] = JB2D.PolynomialTermDr(rVal, sVal, ii, jj)
+			ddsCheck[i] = JB2D.PolynomialTermDs(rVal, sVal, ii, jj)
+			pCheck[i] = JB2D.PolynomialTerm(rVal, sVal, ii, jj)
 		}
 		assert.True(t, nearVec(pCheck, p, 0.000001))
 		assert.True(t, nearVec(ddrCheck, ddr, 0.000001))

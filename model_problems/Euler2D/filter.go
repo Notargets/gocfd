@@ -262,7 +262,7 @@ func NewAliasShockFinder(element *DG2D.LagrangeElement2D, Kappa float64) (sf *Mo
 		as values at Np node points, multiplying the Node point values vector by Clipper produces an alternative version
 		of the node values based on truncating the last polynomial mode.
 	*/
-	sf.Clipper = element.V.Mul(diag).Mul(element.Vinv)
+	sf.Clipper = element.JB2D.V.Mul(diag).Mul(element.JB2D.Vinv)
 	return
 }
 

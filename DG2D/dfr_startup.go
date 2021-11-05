@@ -34,6 +34,7 @@ type DFR2D struct {
 	FaceNorm             [2]utils.Matrix // Face normal (normalized), Kx3
 	IInII                utils.Matrix    // Mag face normal divided by unit triangle face norm mag, Kx3 dimension
 	EdgeNumber           []types.EdgeKey // Edge number for each edge, used to index into edge structures, Kx3 dimension
+	SolutionBasis        Basis2D
 }
 
 func NewDFR2D(N int, plotMesh bool, meshFileO ...string) (dfr *DFR2D) {
@@ -50,16 +51,17 @@ func NewDFR2D(N int, plotMesh bool, meshFileO ...string) (dfr *DFR2D) {
 		SolutionElement: le,
 		FluxElement:     rt,
 	}
+	// Get interpolation matrix for edges using a basis on solution points at polynomial degree le.N
 	if useLagrangeBasis {
 		fmt.Printf("Using 2D Lagrange Polynomial Basis")
-		l2dp := NewLagrangeBasis2D(N, le.R, le.S)
-		dfr.FluxInterp = l2dp.GetInterpMatrix(rt.R, rt.S)       // Interpolation matrix for flux nodes
-		dfr.FluxEdgeInterp = l2dp.GetInterpMatrix(RFlux, SFlux) // Interpolation matrix across three edges
+		dfr.SolutionBasis = NewLagrangeBasis2D(le.N, le.R, le.S)
 	} else {
 		fmt.Printf("Using 2D Jacobi OrthoNormal Polynomial Basis")
-		dfr.FluxInterp = le.Simplex2DInterpolatingPolyMatrixJacobi(rt.R, rt.S)       // Interpolation matrix for flux nodes
-		dfr.FluxEdgeInterp = le.Simplex2DInterpolatingPolyMatrixJacobi(RFlux, SFlux) // Interpolation matrix across three edges
+		dfr.SolutionBasis = NewJacobiBasis2D(le.N, le.R, le.S)
 	}
+	// Get the interpolation matrices that interpolate the whole RT element and just the edges using solution points
+	dfr.FluxInterp = dfr.SolutionBasis.GetInterpMatrix(rt.R, rt.S)       // Interpolation matrix for flux nodes
+	dfr.FluxEdgeInterp = dfr.SolutionBasis.GetInterpMatrix(RFlux, SFlux) // Interpolation matrix across three edges
 	dfr.FluxDr, dfr.FluxDs = le.GetDerivativeMatrices(rt.R, rt.S)
 	if len(meshFileO) != 0 {
 		var EToV utils.Matrix

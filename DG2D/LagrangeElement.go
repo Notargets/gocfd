@@ -7,11 +7,12 @@ import (
 )
 
 type LagrangeElement2D struct {
-	N, Nfp, Np, NFaces  int
-	R, S                utils.Vector
-	Dr, Ds              utils.Matrix
-	V, Vinv, MassMatrix utils.Matrix
-	Cub                 *Cubature
+	N, Nfp, Np, NFaces int
+	R, S               utils.Vector
+	Dr, Ds             utils.Matrix
+	MassMatrix         utils.Matrix
+	Cub                *Cubature
+	JB2D               *JacobiBasis2D
 }
 
 type Cubature struct {
@@ -49,9 +50,8 @@ func NewLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
 		el.R, el.S = XYtoRS(Nodes2D(el.N))
 	}
 	// Build reference element matrices
-	el.V = Vandermonde2D(el.N, el.R, el.S)
-	el.Vinv = el.V.InverseWithCheck()
-	el.MassMatrix = el.Vinv.Transpose().Mul(el.Vinv)
+	el.JB2D = NewJacobiBasis2D(el.N, el.R, el.S)
+	el.MassMatrix = el.JB2D.Vinv.Transpose().Mul(el.JB2D.Vinv)
 	// Initialize the (r,s) differentiation matrices on the simplex, evaluated at (r,s) at order N
 	/*
 		Vr, Vs := GradVandermonde2D(el.N, el.R, el.S)
@@ -60,8 +60,6 @@ func NewLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
 	*/
 	el.Dr, el.Ds = el.GetDerivativeMatrices(el.R, el.S)
 	// Mark fields read only
-	el.V.SetReadOnly("V")
-	el.Vinv.SetReadOnly("Vinv")
 	el.MassMatrix.SetReadOnly("MassMatrix")
 	el.Dr.SetReadOnly("Dr")
 	el.Ds.SetReadOnly("Ds")
@@ -69,37 +67,8 @@ func NewLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
 }
 
 func (el *LagrangeElement2D) GetDerivativeMatrices(R, S utils.Vector) (Dr, Ds utils.Matrix) {
-	Vr, Vs := GradVandermonde2D(el.N, R, S)
-	Dr, Ds = Vr.Mul(el.Vinv), Vs.Mul(el.Vinv)
-	return
-}
-
-func (el *LagrangeElement2D) Simplex2DInterpolatingPolyMatrixJacobi(R, S utils.Vector) (polyMatrix utils.Matrix) {
-	/*
-		Uses Jacobi polynomials as the basis function
-
-		Compose a matrix of interpolating polynomials where each row represents one [r,s] location to be interpolated
-		This matrix can then be multiplied by a single vector of function values at the polynomial nodes to produce a
-		vector of interpolated values, one for each interpolation location
-	*/
-	var (
-		N  = el.N
-		Np = el.Np
-	)
-	// First compute polynomial terms, used by all polynomials
-	polyTerms := make([]float64, R.Len()*Np)
-	var sk int
-	for ii, r := range R.DataP {
-		s := S.DataP[ii]
-		for i := 0; i <= N; i++ {
-			for j := 0; j <= (N - i); j++ {
-				polyTerms[sk] = Simplex2DPTerm(r, s, i, j)
-				sk++
-			}
-		}
-	}
-	ptV := utils.NewMatrix(R.Len(), Np, polyTerms).Transpose()
-	polyMatrix = el.Vinv.Transpose().Mul(ptV).Transpose()
+	Vr, Vs := el.JB2D.GradVandermonde2D(el.N, R, S)
+	Dr, Ds = Vr.Mul(el.JB2D.Vinv), Vs.Mul(el.JB2D.Vinv)
 	return
 }
 

@@ -1,24 +1,11 @@
 package DG2D
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/notargets/gocfd/DG1D"
 	"github.com/notargets/gocfd/utils"
 )
-
-func Vandermonde2D(N int, R, S utils.Vector) (V2D utils.Matrix) {
-	V2D = utils.NewMatrix(R.Len(), (N+1)*(N+2)/2)
-	var sk int
-	for i := 0; i <= N; i++ {
-		for j := 0; j <= (N - i); j++ {
-			V2D.SetCol(sk, Simplex2DP(R, S, i, j))
-			sk++
-		}
-	}
-	return
-}
 
 // Purpose  : Compute (x,y) nodes in equilateral triangle for
 //            polynomial of order N
@@ -112,92 +99,6 @@ func Warpfactor(N int, rout utils.Vector) (warpF []float64) {
 	w2 := warp.Copy()
 	warp.ElDiv(sf.ToMatrix()).Add(w2.ElMul(zerof.AddScalar(-1).ToMatrix()))
 	warpF = warp.DataP
-	return
-}
-
-func GradVandermonde2D(N int, R, S utils.Vector) (V2Dr, V2Ds utils.Matrix) {
-	var (
-		Np = (N + 1) * (N + 2) / 2
-		Nr = R.Len()
-	)
-	V2Dr, V2Ds = utils.NewMatrix(Nr, Np), utils.NewMatrix(Nr, Np)
-	var sk int
-	for i := 0; i <= N; i++ {
-		for j := 0; j <= (N - i); j++ {
-			ddr, dds := GradSimplex2DP(R, S, i, j)
-			V2Dr.M.SetCol(sk, ddr)
-			V2Ds.M.SetCol(sk, dds)
-			sk++
-		}
-	}
-	return
-}
-
-func Simplex2DP(R, S utils.Vector, i, j int) (P []float64) {
-	var (
-		A, B = RStoAB(R, S)
-		Np   = A.Len()
-		bd   = B.DataP
-	)
-	h1 := DG1D.JacobiP(A, 0, 0, i)
-	h2 := DG1D.JacobiP(B, float64(2*i+1), 0, j)
-	P = make([]float64, Np)
-	sq2 := math.Sqrt(2)
-	for ii := range h1 {
-		tv1 := sq2 * h1[ii] * h2[ii]
-		tv2 := utils.POW(1-bd[ii], i)
-		P[ii] = tv1 * tv2
-	}
-	return
-}
-
-func GradSimplex2DP(R, S utils.Vector, id, jd int) (ddr, dds []float64) {
-	var (
-		A, B   = RStoAB(R, S)
-		ad, bd = A.DataP, B.DataP
-	)
-	fa := DG1D.JacobiP(A, 0, 0, id)
-	dfa := DG1D.GradJacobiP(A, 0, 0, id)
-	gb := DG1D.JacobiP(B, 2*float64(id)+1, 0, jd)
-	dgb := DG1D.GradJacobiP(B, 2*float64(id)+1, 0, jd)
-	// r-derivative
-	// d/dr = da/dr d/da + db/dr d/db = (2/(1-s)) d/da = (2/(1-B)) d/da
-	ddr = make([]float64, len(gb))
-	for i := range ddr {
-		ddr[i] = dfa[i] * gb[i]
-		if id > 0 {
-			ddr[i] *= utils.POW(0.5*(1-bd[i]), id-1)
-		}
-		// Normalize
-		ddr[i] *= math.Pow(2, float64(id)+0.5)
-	}
-	// s-derivative
-	// d/ds = ((1+A)/2)/((1-B)/2) d/da + d/db
-	dds = make([]float64, len(gb))
-	for i := range dds {
-		dds[i] = 0.5 * dfa[i] * gb[i] * (1 + ad[i])
-		if id > 0 {
-			dds[i] *= utils.POW(0.5*(1-bd[i]), id-1)
-		}
-		tmp := dgb[i] * utils.POW(0.5*(1-bd[i]), id)
-		if id > 0 {
-			tmp -= 0.5 * float64(id) * gb[i] * utils.POW(0.5*(1-bd[i]), id-1)
-		}
-		dds[i] += fa[i] * tmp
-		// Normalize
-		dds[i] *= math.Pow(2, float64(id)+0.5)
-	}
-	return
-}
-
-func Simplex2DPTerm(r, s float64, i, j int) (P float64) {
-	P = Simplex2DP(utils.NewVector(1, []float64{r}), utils.NewVector(1, []float64{s}), i, j)[0]
-	return
-}
-
-func GradSimplex2DPTerm(r, s float64, i, j int) (ddr, dds float64) {
-	ddrV, ddsV := GradSimplex2DP(utils.NewVector(1, []float64{r}), utils.NewVector(1, []float64{s}), i, j)
-	ddr, dds = ddrV[0], ddsV[0]
 	return
 }
 
@@ -364,122 +265,5 @@ func (lb *LagrangeBasis1D) evaluateL(r float64) (f float64) {
 	for _, rr := range lb.Nodes {
 		f *= (r - rr)
 	}
-	return
-}
-
-type LagrangeBasis2D struct {
-	P, Np                      int          // Order
-	RNodes, SNodes             []float64    // Nodes at which basis is defined
-	V, Vinv, Vr, Vs            utils.Matrix // Inverse of Vandermonde matrix and derivatives for orthogonal non-Lagrange 2D polynomial basis
-	Interp, InterpDR, InterpDS utils.Matrix
-}
-
-func NewLagrangeBasis2D(P int, R, S utils.Vector) (lb2d *LagrangeBasis2D) {
-	/*
-			From Karniadakis and Sherwin's "Spectral/hp Element Methods for CFD" on page 124:
-			"Since there is not a closed form expression for the Lagrange polynomial through an arbitrary set of points in the
-			triangular region, it is necessary to express the Lagrange polynomial in terms of another polynomial which has a
-			closed form definition..."
-
-			Here we use the 2D simplex orthogonal polynomial from Hesthaven to produce a generalized Vandermonde matrix, from
-		    which we can use the inverse of the Vandermonde to multiply the other basis at locations of our choosing to obtain
-			the Lagrange basis coefficients.
-	*/
-	var (
-		Np = (P + 1) * (P + 2) / 2
-	)
-	// Dimension: Np = (N+1)*(N+2)/2
-	if Np != R.Len() || Np != S.Len() {
-		err := fmt.Errorf("wrong length of arrays defining basis nodes, should be %d, is [Rlen,Slen] = [%d,%d]",
-			Np, R.Len(), S.Len())
-		panic(err)
-	}
-	lb2d = &LagrangeBasis2D{
-		P:      P,
-		Np:     Np,
-		RNodes: R.DataP,
-		SNodes: S.DataP,
-	}
-	lb2d.V = Vandermonde2D(P, R, S)
-	lb2d.Vinv = lb2d.V.InverseWithCheck()
-	lb2d.Vr, lb2d.Vs = GradVandermonde2D(P, R, S)
-	return
-}
-
-func (lb2d *LagrangeBasis2D) GetInterpMatrix(R, S utils.Vector) (Interp utils.Matrix) {
-	var (
-		Np = lb2d.Np
-		N  = lb2d.P
-	)
-	Interp = utils.NewMatrix(R.Len(), Np) // Will transpose after fill
-	var sk int
-	for I := 0; I <= N; I++ {
-		for J := 0; J <= N-I; J++ {
-			Interp.SetCol(sk, Simplex2DP(R, S, I, J))
-			sk++
-		}
-	}
-	Interp = lb2d.Vinv.Transpose().Mul(Interp.Transpose()).Transpose()
-	return
-}
-
-func (lb2d *LagrangeBasis2D) GetGradInterpMatrices(R, S utils.Vector) (InterpDR, InterpDS utils.Matrix) {
-	var (
-		Np = lb2d.Np
-		N  = lb2d.P
-	)
-	InterpDR = utils.NewMatrix(R.Len(), Np) // Will transpose after fill
-	InterpDS = utils.NewMatrix(R.Len(), Np) // Will transpose after fill
-	var sk int
-	for I := 0; I <= N; I++ {
-		for J := 0; J <= N-I; J++ {
-			dR, dS := GradSimplex2DP(R, S, I, J)
-			InterpDR.SetCol(sk, dR)
-			InterpDS.SetCol(sk, dS)
-			sk++
-		}
-	}
-	InterpDR = lb2d.Vinv.Transpose().Mul(InterpDR.Transpose()).Transpose()
-	InterpDS = lb2d.Vinv.Transpose().Mul(InterpDS.Transpose()).Transpose()
-	return
-}
-
-func (lb2d *LagrangeBasis2D) BasisPolynomialTerm(R, S utils.Vector, i, j int) (P []float64) {
-	/*
-		[i,j] are the coordinates of the basis polynomial term
-		R and S are the location to get values from the polynomial
-	*/
-	Interp := lb2d.GetInterpMatrix(R, S)
-	//fmt.Printf("P = %d, term number[%d,%d] = %d\n", lb2d.P, i, j, lb2d.getTermNumber(i, j))
-	P = Interp.Col(lb2d.getTermNumber(i, j)).DataP
-	return
-}
-
-func (lb2d *LagrangeBasis2D) GradBasisPolynomialTerm(R, S utils.Vector, i, j int) (DrTerms, DsTerms []float64) {
-	/*
-		[i,j] are the coordinates of the basis polynomial term
-		R and S are the location to get values from the polynomial
-	*/
-	InterpDR, InterpDS := lb2d.GetGradInterpMatrices(R, S)
-	InterpDR = InterpDR
-	InterpDS = InterpDS
-	DrTerms = InterpDR.Col(lb2d.getTermNumber(i, j)).DataP
-	DsTerms = InterpDS.Col(lb2d.getTermNumber(i, j)).DataP
-	return
-}
-
-func (lb2d *LagrangeBasis2D) getTermNumber(i, j int) (sk int) {
-	var (
-		N = lb2d.P
-	)
-	for I := 0; I <= N; I++ {
-		for J := 0; J <= N-I; J++ {
-			if I == i && J == j {
-				return
-			}
-			sk++
-		}
-	}
-	sk = -1
 	return
 }

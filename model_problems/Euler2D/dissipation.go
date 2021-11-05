@@ -157,7 +157,7 @@ func NewScalarDissipation(kappa float64, dfr *DG2D.DFR2D, pm *PartitionMap) (sd 
 			}
 		}
 		diag := utils.NewDiagMatrix(Np, data)
-		sd.Clipper = sd.dfr.SolutionElement.V.Mul(diag).Mul(sd.dfr.SolutionElement.Vinv)
+		sd.Clipper = sd.dfr.SolutionElement.JB2D.V.Mul(diag).Mul(sd.dfr.SolutionElement.JB2D.Vinv)
 	}
 	return
 }

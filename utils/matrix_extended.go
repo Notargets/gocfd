@@ -1206,10 +1206,10 @@ func (m *Matrix) InverseWithCheck() (R Matrix) {
 	var (
 		err   error
 		nr, _ = m.Dims()
-		msg   = "possible weakly stable wrong solution ie: even spaced point distro"
+		msg   = "possible weakly stable wrong solution ie: even spaced point distro, "
 	)
 	if R, err = m.Inverse(); err != nil {
-		panic(msg + err.Error())
+		panic(err)
 	}
 	// Perform check of the inverse to catch (previously seen) errors in the inversion
 	InvCheck := m.Mul(R).SumCols()
