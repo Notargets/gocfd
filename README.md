@@ -11,11 +11,17 @@ Density | X Momentum | Density
 
 ## Currently [11/5/21]
 
+Next: I'm going to look into an exponential filter for the polynomial interpolation to the edges.
+
 I've implemented a "true" 2D Lagrange polynomial basis for the scheme and now can compare results using the Jacobi Orthonormal
 2D basis with the Lagrange 2D basis. As expected, the Lagrange basis is a bit less bouncy, but it still exhibits pretty
 large Gibbs oscillations around shock waves, and the problem is worse at higher order, like the Jacobi basis.
 
-Next: I'm going to look into an exponential filter for the polynomial interpolation to the edges.
+NACA0012 M=0.8, AOA=2 Lagrange vs Jacobi Basis| L2 Norm Convergence History
+:-------------------------:|:-------------------------:|
+Mach Number | Convergence, CFL = 3, Kappa = 3 (Artificial Dissipation)
+![](images/naca0012-LGvsJCbasis-K=3.PNG) | ![](images/naca0012-LGvsJCbasis-K=3-convergence.PNG) |
+
 
 ## Discontinuous Galerkin Method for solving systems of equations - CFD, CEM, ... hydrodynamics-fusion (simulate the Sun), etc! 
 
