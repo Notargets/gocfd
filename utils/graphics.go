@@ -4,6 +4,8 @@ import (
 	"image/color"
 	"time"
 
+	"github.com/notargets/avs/functions"
+
 	"github.com/notargets/avs/chart2d"
 	utils2 "github.com/notargets/avs/utils"
 
@@ -116,4 +118,40 @@ func (lc *LineChart) Plot(graphDelay time.Duration, x, f []float64, lineColor fl
 	pSeries(f, lineName, float32(lineColor), chart2d.NoGlyph)
 	time.Sleep(graphDelay)
 	return
+}
+
+type SurfacePlot struct {
+	Chart        *chart2d.Chart2D
+	ColorMap     *utils2.ColorMap
+	GraphicsMesh *graphics2D.TriMesh
+}
+
+func NewSurfacePlot(width, height int, xmin, xmax, ymin, ymax float64,
+	gm *graphics2D.TriMesh) (sp *SurfacePlot) {
+	sp = &SurfacePlot{
+		Chart:        chart2d.NewChart2D(width, height, float32(xmin), float32(xmax), float32(ymin), float32(ymax)),
+		GraphicsMesh: gm,
+	}
+	go sp.Chart.Plot()
+	return
+}
+
+func (sp *SurfacePlot) AddColorMap(fmin, fmax float64) {
+	sp.ColorMap = utils2.NewColorMap(float32(fmin), float32(fmax), 1.)
+}
+
+func (sp *SurfacePlot) AddFunctionSurface(field []float32) {
+	/*
+		oField should be [NpFlux, K]
+	*/
+	var (
+		noLine = chart2d.NoLine
+		white  = color.RGBA{R: 255, G: 255, B: 255, A: 1}
+		black  = color.RGBA{R: 0, G: 0, B: 0, A: 1}
+	)
+	_, _ = white, black
+	fs := functions.NewFSurface(sp.GraphicsMesh, [][]float32{field}, 0)
+	if err := sp.Chart.AddFunctionSurface("FSurface", *fs, noLine, white); err != nil {
+		panic("unable to add function surface series")
+	}
 }

@@ -258,7 +258,7 @@ func TestRTElement(t *testing.T) {
 	}
 	plot := false
 	if plot {
-		N := 7
+		N := 2
 		NRT := N + 1
 		R, S := NodesEpsilon(N)
 		//Nint := R.Len()
@@ -303,7 +303,7 @@ func PlotTestTri(plotGeom bool) (chart *chart2d.Chart2D) {
 
 	if plotGeom {
 		if err := chart.AddTriMesh("TriMesh", trimesh,
-			chart2d.CrossGlyph, chart2d.Solid, utils.GetColor(utils.White)); err != nil {
+			chart2d.CrossGlyph, chart2d.Solid, utils.GetColor(utils.Black)); err != nil {
 			panic("unable to add graph series")
 		}
 	}
