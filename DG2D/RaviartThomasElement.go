@@ -31,37 +31,37 @@ const (
 	Edge3                 // Edge from vertex 2-0, Normal is [-1,0]
 )
 
-func NewRTElement(R, S utils.Vector, N int, useLagrangeBasis bool) (rt *RTElement) {
-	// We expect that there are points in R and S to match the dimension of dim(P(N-1))
+func NewRTElement(R, S utils.Vector, NFlux int, useLagrangeBasis bool) (rt *RTElement) {
+	// We expect that there are points in R and S to match the dimension of dim(P(NFlux-1))
 	/*
 		<---- Nint ----><---- Nint ----><---Nedge----><---Nedge----><---Nedge---->
 		         Solution Points          Edge 1 pts	Edge 2 pts	  Edge 3 pts
 		<---- Nint ----><---- Nint ----><---Nedge----><---Nedge----><---Nedge---->
 	*/
 	var (
-		NN         = N - 1
-		NpInterior = (NN + 1) * (NN + 2) / 2
-		RNP1, SNP1 utils.Vector
+		NSolution    = NFlux - 1
+		NpInterior   = (NSolution + 1) * (NSolution + 2) / 2
+		RFlux, SFlux utils.Vector
 	)
 	if R.Len() != NpInterior || S.Len() != NpInterior {
 		panic("incorrect number of interior points supplied")
 	}
 	rt = &RTElement{
-		N:     N,
+		N:     NFlux,
 		R:     R,
 		S:     S,
-		Nint:  N * (N + 1) / 2,
-		Nedge: N + 1,
+		Nint:  NFlux * (NFlux + 1) / 2,
+		Nedge: NFlux + 1,
 	}
-	if N < 8 {
-		RNP1, SNP1 = NodesEpsilon(N)
+	if NFlux < 8 {
+		RFlux, SFlux = NodesEpsilon(NFlux)
 	} else {
-		RNP1, SNP1 = XYtoRS(Nodes2D(N))
+		RFlux, SFlux = XYtoRS(Nodes2D(NFlux))
 	}
 	if useLagrangeBasis {
-		rt.RTPolyBasis = NewLagrangeBasis2D(N, RNP1, SNP1)
+		rt.RTPolyBasis = NewLagrangeBasis2D(NFlux, RFlux, SFlux)
 	} else {
-		rt.RTPolyBasis = NewJacobiBasis2D(N, RNP1, SNP1)
+		rt.RTPolyBasis = NewJacobiBasis2D(NFlux, RFlux, SFlux)
 	}
 	rt.CalculateBasis()
 	return
@@ -271,9 +271,8 @@ const (
 	Ds
 )
 
-func (rt *RTElement) EvaluateRTBasis(b1 Basis2D, r, s float64, derivO ...DerivativeDirection) (p1, p2 []float64) {
+func (rt *RTElement) EvaluateRTBasis(b1 Basis2D, r, s float64, derivO ...DerivativeDirection) (p0, p1 []float64) {
 	var (
-		sk       int
 		N        = rt.N
 		Np       = (N + 1) * (N + 3)
 		N2DBasis = (N + 1) * (N + 2) / 2 // Number of polynomial terms for each of R and S directions
@@ -291,14 +290,17 @@ func (rt *RTElement) EvaluateRTBasis(b1 Basis2D, r, s float64, derivO ...Derivat
 	case Ds:
 		tFunc = b1.PolynomialTermDs
 	}
-	p1, p2 = make([]float64, Np), make([]float64, Np)
+	p0, p1 = make([]float64, Np), make([]float64, Np)
 	// Evaluate the full 2D polynomial basis first, once for each of two components
 	//fmt.Printf("N = %d\n", N)
+	// TODO: Fix this - right now we're using more interior poly terms than edges, should be reversed
+	// Vector basis first
+	var sk int
 	for i := 0; i <= N; i++ {
 		for j := 0; j <= (N - i); j++ {
 			val := tFunc(r, s, i, j)
-			p1[sk] = val
-			p2[sk+N2DBasis] = val
+			p0[sk] = val
+			p1[sk+N2DBasis] = val
 			sk++
 		}
 	}
@@ -309,16 +311,16 @@ func (rt *RTElement) EvaluateRTBasis(b1 Basis2D, r, s float64, derivO ...Derivat
 		val := tFunc(r, s, i, j)
 		switch deriv {
 		case None:
-			p1[sk] = val * r
-			p2[sk] = val * s
+			p0[sk] = val * r
+			p1[sk] = val * s
 		case Dr:
 			val2 := b1.PolynomialTerm(r, s, i, j)
-			p1[sk] = val2 + val*r
-			p2[sk] = val * s
+			p0[sk] = val2 + val*r
+			p1[sk] = val * s
 		case Ds:
 			val2 := b1.PolynomialTerm(r, s, i, j)
-			p1[sk] = val * r
-			p2[sk] = val2 + val*s
+			p0[sk] = val * r
+			p1[sk] = val2 + val*s
 		}
 		sk++
 	}
