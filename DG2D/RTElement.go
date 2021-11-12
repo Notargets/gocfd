@@ -167,13 +167,13 @@ func (rtb *RTBasis2DSimplex) LagrangePolyAtJ(r float64, R []float64, j int) (p f
 	if j > Np1D-1 || j < 0 {
 		panic("value of j larger than array or less than zero")
 	}
-	s := 1.
+	p = 1
 	for i, rBasis := range R {
 		if i == j {
 			continue
 		}
 		metric := (r - rBasis) / (R[j] - rBasis)
-		s *= metric
+		p *= metric
 	}
 	return
 }
@@ -182,14 +182,14 @@ func (rtb *RTBasis2DSimplex) LagrangePolyDerivAtJ(r float64, R []float64, j int)
 	var (
 		p = rtb.LagrangePolyAtJ(r, R, j)
 	)
-	s := 1.
+	dp = 1
 	for i, rBasis := range R {
 		if i == j {
 			continue
 		}
-		s *= 1 / (r - rBasis)
+		dp *= 1 / (r - rBasis)
 	}
-	dp = p * s
+	dp *= p
 	return
 }
 
@@ -616,8 +616,9 @@ func (rtb *RTBasis2DSimplex) CalculateBasis() {
 	}
 	P.Print("P")
 	// Invert [P] = [A] to obtain the coefficients (columns) of polynomials (rows), each row is a polynomial
-	//A := P.InverseWithCheck()
-	A := utils.NewDiagMatrix(Np, nil, 1)
+	A := P.InverseWithCheck()
+	A.Print("A")
+	//A := utils.NewDiagMatrix(Np, nil, 1)
 	// Evaluate 2D polynomial basis at geometric locations, also evaluate derivatives Dr and Ds for R and S
 	P0, P1 := utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
 	Pdr0, Pds1 := utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
@@ -639,9 +640,11 @@ func (rtb *RTBasis2DSimplex) CalculateBasis() {
 	rtb.V[0] = P0.Mul(A)
 	rtb.V[1] = P1.Mul(A)
 	rtb.Div = Pdr0.Mul(A).Add(Pds1.Mul(A))
-	rtb.DivInt = utils.NewMatrix(rtb.NpInt, Np)
-	for i := 0; i < rtb.NpInt; i++ {
-		rtb.DivInt.M.SetRow(i, rtb.Div.Row(i).DataP)
+	if rtb.P != 0 {
+		rtb.DivInt = utils.NewMatrix(rtb.NpInt, Np)
+		for i := 0; i < rtb.NpInt; i++ {
+			rtb.DivInt.M.SetRow(i, rtb.Div.Row(i).DataP)
+		}
 	}
 	return
 }
