@@ -350,7 +350,7 @@ func (el *Elements1D) LagrangeInterpolant(r float64) (Li utils.Matrix) {
 	return
 }
 
-func LagrangePolyAtJ(t float64, R []float64, j int) (s float64) {
+func LagrangePolyAtJ(r float64, R []float64, j int) (s float64) {
 	/*
 		From https://en.wikipedia.org/wiki/Lagrange_polynomial
 		This evaluates the Lagrange polynomial at term J for location R[j]
@@ -363,13 +363,12 @@ func LagrangePolyAtJ(t float64, R []float64, j int) (s float64) {
 	if j > k || j < 0 {
 		panic("value of j larger than array or less than zero")
 	}
-	valj := R[j]
 	s = 1
-	for i, val := range R {
+	for i, rBasis := range R {
 		if i == j {
 			continue
 		}
-		metric := (t - val) / (valj - val)
+		metric := (r - rBasis) / (R[j] - rBasis)
 		s *= metric
 	}
 	return
