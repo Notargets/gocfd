@@ -20,7 +20,7 @@ I had chosen to use a 2D polynomial basis of degree "P", the same degree as the 
 functions for edges and interior. I multiplied the edge functions by [X] and used the highest order basis functions for
 the edges, left over after consuming basis for the interior points.
 
-Now, after reviewing [V.J. Ervin, "Computational Bases for RTk and BDMk on Triangles](research/flux_reconstruction/DFR/computational-bases-for-RTk-and-BDMk-on-triangles.pdf), I believe the RT element 
+Now, after reviewing [V.J. Ervin, "Computational Bases for RTk and BDMk on Triangles](research/convergence_and_fluxes/DFR/computational-bases-for-RTk-and-BDMk-on-triangles.pdf), I believe the RT element 
 basis he constructed is superior and that mine likely has some asymmetries that may be producing the "wiggles".
 
 I'm now working on a revised RT element basis, following Ervin's design.
