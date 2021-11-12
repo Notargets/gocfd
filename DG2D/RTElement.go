@@ -18,13 +18,16 @@ type RTBasis2DSimplex struct {
 }
 
 func NewRTBasis2DSimplex(P int) (rtb *RTBasis2DSimplex) {
-	Rint, Sint := NodesEpsilon(P - 1)
+	var Rint, Sint utils.Vector
 	rtb = &RTBasis2DSimplex{
-		P:             P,
-		Np:            (P + 1) * (P + 3),
-		NpInt:         P * (P + 1) / 2,                     // Number of interior points is same as the 2D scalar space one order lesser
-		NpEdge:        P + 1,                               // Each edge is P+1 nodes
-		Scalar2DBasis: NewLagrangeBasis2D(P-1, Rint, Sint), // Basis used as part of non-Normal basis elements
+		P:      P,
+		Np:     (P + 1) * (P + 3),
+		NpInt:  P * (P + 1) / 2, // Number of interior points is same as the 2D scalar space one order lesser
+		NpEdge: P + 1,           // Each edge is P+1 nodes
+	}
+	if P > 0 {
+		Rint, Sint = NodesEpsilon(P - 1)
+		rtb.Scalar2DBasis = NewLagrangeBasis2D(P-1, Rint, Sint) // Basis used as part of non-Normal basis elements
 	}
 	rtb.R, rtb.S = rtb.ExtendGeomToRT(Rint, Sint)
 	rtb.CalculateBasis()
@@ -450,6 +453,65 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 			sk++
 		}
 	case 2:
+		e1r, e1s := rtb.getCoreBasisTerm(e1, r, s)
+		e2r, e2s := rtb.getCoreBasisTerm(e2, r, s)
+		e3r, e3s := rtb.getCoreBasisTerm(e3, r, s)
+		l1xi := rtb.Lagrange1DPoly(r, RGauss, 0, RDir)
+		l1eta := rtb.Lagrange1DPoly(s, RGauss, 0, SDir)
+		l2xi := rtb.Lagrange1DPoly(r, RGauss, 1, RDir)
+		l2eta := rtb.Lagrange1DPoly(s, RGauss, 1, SDir)
+		l3xi := rtb.Lagrange1DPoly(r, RGauss, 2, RDir)
+		l3eta := rtb.Lagrange1DPoly(s, RGauss, 2, SDir)
+		if deriv == None {
+			p0[sk], p1[sk] = l1eta*e1r, l1eta*e1s
+			sk++
+			p0[sk], p1[sk] = l2eta*e1r, l2eta*e1s
+			sk++
+			p0[sk], p1[sk] = l3eta*e1r, l3eta*e1s
+			sk++
+			p0[sk], p1[sk] = l3eta*e2r, l3eta*e2s
+			sk++
+			p0[sk], p1[sk] = l2eta*e2r, l2eta*e2s
+			sk++
+			p0[sk], p1[sk] = l1eta*e2r, l1eta*e2s
+			sk++
+			p0[sk], p1[sk] = l1xi*e3r, l1xi*e3s
+			sk++
+			p0[sk], p1[sk] = l2xi*e3r, l2xi*e3s
+			sk++
+			p0[sk], p1[sk] = l3xi*e3r, l3xi*e3s
+			sk++
+		} else {
+			e1Rderiv, e1Sderiv := rtb.getCoreBasisTerm(e1, r, s, deriv)
+			e2Rderiv, e2Sderiv := rtb.getCoreBasisTerm(e2, r, s, deriv)
+			e3Rderiv, e3Sderiv := rtb.getCoreBasisTerm(e3, r, s, deriv)
+			l1xiDeriv := rtb.Lagrange1DPoly(r, RGauss, 0, RDir, deriv)
+			l1etaDeriv := rtb.Lagrange1DPoly(s, RGauss, 0, SDir, deriv)
+			l2xiDeriv := rtb.Lagrange1DPoly(r, RGauss, 1, RDir, deriv)
+			l2etaDeriv := rtb.Lagrange1DPoly(s, RGauss, 1, SDir, deriv)
+			l3xiDeriv := rtb.Lagrange1DPoly(r, RGauss, 2, RDir, deriv)
+			l3etaDeriv := rtb.Lagrange1DPoly(s, RGauss, 2, SDir, deriv)
+			p0[sk], p1[sk] = CRP(e1r, e1Rderiv, l1eta, l1etaDeriv), CRP(e1s, e1Sderiv, l1eta, l1etaDeriv)
+			sk++
+			p0[sk], p1[sk] = CRP(e1r, e1Rderiv, l2eta, l2etaDeriv), CRP(e1s, e1Sderiv, l2eta, l2etaDeriv)
+			sk++
+			p0[sk], p1[sk] = CRP(e1r, e1Rderiv, l3eta, l3etaDeriv), CRP(e1s, e1Sderiv, l3eta, l3etaDeriv)
+			sk++
+
+			p0[sk], p1[sk] = CRP(e2r, e2Rderiv, l3eta, l3etaDeriv), CRP(e2s, e2Sderiv, l3eta, l3etaDeriv)
+			sk++
+			p0[sk], p1[sk] = CRP(e2r, e2Rderiv, l2eta, l2etaDeriv), CRP(e2s, e2Sderiv, l2eta, l2etaDeriv)
+			sk++
+			p0[sk], p1[sk] = CRP(e2r, e2Rderiv, l1eta, l1etaDeriv), CRP(e2s, e2Sderiv, l1eta, l1etaDeriv)
+			sk++
+
+			p0[sk], p1[sk] = CRP(e3r, e3Rderiv, l1xi, l1xiDeriv), CRP(e3s, e3Sderiv, l1xi, l1xiDeriv)
+			sk++
+			p0[sk], p1[sk] = CRP(e3r, e3Rderiv, l2xi, l2xiDeriv), CRP(e3s, e3Sderiv, l2xi, l2xiDeriv)
+			sk++
+			p0[sk], p1[sk] = CRP(e3r, e3Rderiv, l3xi, l3xiDeriv), CRP(e3s, e3Sderiv, l3xi, l3xiDeriv)
+			sk++
+		}
 	default:
 	}
 	return
@@ -460,7 +522,6 @@ func (rtb *RTBasis2DSimplex) CalculateBasis() (P utils.Matrix) {
 		We follow the basis function construction of V.J. Ervin "Computational Bases for RTk and BDMk on Triangles"
 	*/
 	var (
-		N  = rtb.P
 		Np = rtb.Np
 		b1 = rtb.Scalar2DBasis
 		//N2DBasis = rtb.NpInt
@@ -474,18 +535,20 @@ func (rtb *RTBasis2DSimplex) CalculateBasis() (P utils.Matrix) {
 		panic(err)
 	}
 	P = utils.NewMatrix(Np, Np)
-	switch deriv {
-	case None:
-		tFunc = b1.PolynomialTerm
-	case Dr:
-		tFunc = b1.PolynomialTermDr
-	case Ds:
-		tFunc = b1.PolynomialTermDs
+	if rtb.P > 0 {
+		switch deriv {
+		case None:
+			tFunc = b1.PolynomialTerm
+		case Dr:
+			tFunc = b1.PolynomialTermDr
+		case Ds:
+			tFunc = b1.PolynomialTermDs
+		}
 	}
 	_ = tFunc
 	// Evaluate at geometric locations
 	P = utils.NewMatrix(Np, Np)
-	rowEdge := make([]float64, N+1)
+	rowEdge := make([]float64, Np)
 	oosr2 := math.Sqrt(2)
 	for ii, rr := range R {
 		ss := S[ii]
@@ -494,8 +557,6 @@ func (rtb *RTBasis2DSimplex) CalculateBasis() (P utils.Matrix) {
 			This is the same set that will be used for all dot products to form the basis matrix
 		*/
 		p0, p1 = rtb.EvaluateBasisAtLocation(rr, ss)
-		//os.Exit(1)
-		//p0, p1 = rt.EvaluateRTBasis(basis, rr, ss) // each of p1,p2 stores the polynomial terms for the R and S directions
 		// Implement dot product of (unit vector)_ii with each vector term in the polynomial evaluated at location ii
 		switch rtb.getLocationType(ii) {
 		case InteriorR:
