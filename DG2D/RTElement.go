@@ -282,7 +282,8 @@ func (rtb *RTBasis2DSimplex) getLocationType(i int) (locationType RTPointType) {
 
 func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...DerivativeDirection) (p0, p1 []float64) {
 	var (
-		deriv DerivativeDirection
+		deriv  DerivativeDirection
+		RGauss = DG1D.LegendreZeros(rtb.P)
 	)
 	if len(derivO) != 0 {
 		deriv = derivO[0]
@@ -298,6 +299,10 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 		case Ds:
 			p = rtb.Scalar2DBasis.PolynomialTermDs(r, s, i, j)
 		}
+		return
+	}
+	CRP := func(pL, dpL, pR, dpR float64) (dp float64) {
+		dp = dpL*pR + pL*dpR
 		return
 	}
 	p0, p1 = make([]float64, rtb.Np), make([]float64, rtb.Np)
@@ -320,11 +325,11 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 		sk++
 	case 2:
 		// Six "non-Normal" basis functions, use linear 2D polynomial for triangles multiplied by e4 and e5
-		l1 := rtb.LinearPoly(r, s, 0, 0, None)
-		l2 := rtb.LinearPoly(r, s, 1, 0, None)
-		l3 := rtb.LinearPoly(r, s, 0, 1, None)
-		e4r, e4s := rtb.getCoreBasisTerm(e4, r, s, None)
-		e5r, e5s := rtb.getCoreBasisTerm(e5, r, s, None)
+		e4r, e4s := rtb.getCoreBasisTerm(e4, r, s)
+		e5r, e5s := rtb.getCoreBasisTerm(e5, r, s)
+		l1 := rtb.LinearPoly(r, s, 0, 0)
+		l2 := rtb.LinearPoly(r, s, 1, 0)
+		l3 := rtb.LinearPoly(r, s, 0, 1)
 		if deriv == None {
 			p0[sk], p1[sk] = e4r*l1, e4s*l1
 			sk++
@@ -343,30 +348,31 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 			l1deriv := rtb.LinearPoly(r, s, 0, 0, deriv)
 			l2deriv := rtb.LinearPoly(r, s, 1, 0, deriv)
 			l3deriv := rtb.LinearPoly(r, s, 0, 1, deriv)
-			e4rderiv, e4sderiv := rtb.getCoreBasisTerm(e4, r, s, deriv)
-			e5rderiv, e5sderiv := rtb.getCoreBasisTerm(e5, r, s, deriv)
-			p0[sk], p1[sk] = e4r*l1deriv+e4rderiv*l1, e4s*l1deriv+e4sderiv*l1
+			e4Rderiv, e4Sderiv := rtb.getCoreBasisTerm(e4, r, s, deriv)
+			e5Rderiv, e5Sderiv := rtb.getCoreBasisTerm(e5, r, s, deriv)
+			p0[sk], p1[sk] = CRP(e4r, e4Rderiv, l1, l1deriv), CRP(e4s, e4Sderiv, l1, l1deriv)
 			sk++
-			p0[sk], p1[sk] = e4r*l2deriv+e4rderiv*l2, e4s*l2deriv+e4sderiv*l2
+			p0[sk], p1[sk] = CRP(e4r, e4Rderiv, l2, l2deriv), CRP(e4s, e4Sderiv, l2, l2deriv)
 			sk++
-			p0[sk], p1[sk] = e4r*l3deriv+e4rderiv*l3, e4s*l3deriv+e4sderiv*l3
+			p0[sk], p1[sk] = CRP(e4r, e4Rderiv, l3, l3deriv), CRP(e4s, e4Sderiv, l3, l3deriv)
 			sk++
-			p0[sk], p1[sk] = e5r*l1deriv+e5rderiv*l1, e5s*l1deriv+e5sderiv*l1
+
+			p0[sk], p1[sk] = CRP(e5r, e5Rderiv, l1, l1deriv), CRP(e5s, e5Sderiv, l1, l1deriv)
 			sk++
-			p0[sk], p1[sk] = e5r*l2deriv+e5rderiv*l2, e5s*l2deriv+e5sderiv*l2
+			p0[sk], p1[sk] = CRP(e5r, e5Rderiv, l2, l2deriv), CRP(e5s, e5Sderiv, l2, l2deriv)
 			sk++
-			p0[sk], p1[sk] = e5r*l3deriv+e5rderiv*l3, e5s*l3deriv+e5sderiv*l3
+			p0[sk], p1[sk] = CRP(e5r, e5Rderiv, l3, l3deriv), CRP(e5s, e5Sderiv, l3, l3deriv)
 			sk++
 		}
 	default:
+		e4r, e4s := rtb.getCoreBasisTerm(e4, r, s)
+		e5r, e5s := rtb.getCoreBasisTerm(e5, r, s)
 		var (
-			e4rderiv, e4sderiv, e5rderiv, e5sderiv float64
+			e4Rderiv, e4Sderiv, e5Rderiv, e5Sderiv float64
 		)
-		e4r, e4s := rtb.getCoreBasisTerm(e4, r, s, None)
-		e5r, e5s := rtb.getCoreBasisTerm(e5, r, s, None)
 		if deriv != None {
-			e4rderiv, e4sderiv = rtb.getCoreBasisTerm(e4, r, s, deriv)
-			e5rderiv, e5sderiv = rtb.getCoreBasisTerm(e5, r, s, deriv)
+			e4Rderiv, e4Sderiv = rtb.getCoreBasisTerm(e4, r, s, deriv)
+			e5Rderiv, e5Sderiv = rtb.getCoreBasisTerm(e5, r, s, deriv)
 		}
 		Pint := rtb.P - 1
 		for i := 0; i <= Pint; i++ {
@@ -379,9 +385,9 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 					sk++
 				} else {
 					dpdr := Basis2DTerm(r, s, i, j, deriv)
-					p0[sk], p1[sk] = dpdr*e4r+p*e4rderiv, dpdr*e4s+p*e4sderiv
+					p0[sk], p1[sk] = CRP(e4r, e4Rderiv, p, dpdr), CRP(e4s, e4Sderiv, p, dpdr)
 					sk++
-					p0[sk], p1[sk] = dpdr*e5r+p*e5rderiv, dpdr*e5s+p*e5sderiv
+					p0[sk], p1[sk] = CRP(e5r, e5Rderiv, p, dpdr), CRP(e5s, e5Sderiv, p, dpdr)
 					sk++
 				}
 			}
@@ -393,7 +399,56 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 	*/
 	switch rtb.P {
 	case 0:
+		p0[sk], p1[sk] = rtb.getCoreBasisTerm(e1, r, s, deriv)
+		sk++
+		p0[sk], p1[sk] = rtb.getCoreBasisTerm(e2, r, s, deriv)
+		sk++
+		p0[sk], p1[sk] = rtb.getCoreBasisTerm(e3, r, s, deriv)
+		sk++
 	case 1:
+		e1r, e1s := rtb.getCoreBasisTerm(e1, r, s)
+		e2r, e2s := rtb.getCoreBasisTerm(e2, r, s)
+		e3r, e3s := rtb.getCoreBasisTerm(e3, r, s)
+		l1xi := rtb.Lagrange1DPoly(r, RGauss, 0, RDir)
+		l1eta := rtb.Lagrange1DPoly(s, RGauss, 0, SDir)
+		l2xi := rtb.Lagrange1DPoly(r, RGauss, 1, RDir)
+		l2eta := rtb.Lagrange1DPoly(s, RGauss, 1, SDir)
+		if deriv == None {
+			p0[sk], p1[sk] = l1eta*e1r, l1eta*e1s
+			sk++
+			p0[sk], p1[sk] = l2eta*e1r, l2eta*e1s
+			sk++
+			p0[sk], p1[sk] = l2eta*e2r, l2eta*e2s
+			sk++
+			p0[sk], p1[sk] = l1eta*e2r, l1eta*e2s
+			sk++
+			p0[sk], p1[sk] = l1xi*e3r, l1xi*e3s
+			sk++
+			p0[sk], p1[sk] = l2xi*e3r, l2xi*e3s
+			sk++
+		} else {
+			e1Rderiv, e1Sderiv := rtb.getCoreBasisTerm(e1, r, s, deriv)
+			e2Rderiv, e2Sderiv := rtb.getCoreBasisTerm(e2, r, s, deriv)
+			e3Rderiv, e3Sderiv := rtb.getCoreBasisTerm(e3, r, s, deriv)
+			l1xiDeriv := rtb.Lagrange1DPoly(r, RGauss, 0, RDir, deriv)
+			l1etaDeriv := rtb.Lagrange1DPoly(s, RGauss, 0, SDir, deriv)
+			l2xiDeriv := rtb.Lagrange1DPoly(r, RGauss, 1, RDir, deriv)
+			l2etaDeriv := rtb.Lagrange1DPoly(s, RGauss, 1, SDir, deriv)
+			p0[sk], p1[sk] = CRP(e1r, e1Rderiv, l1eta, l1etaDeriv), CRP(e1s, e1Sderiv, l1eta, l1etaDeriv)
+			sk++
+			p0[sk], p1[sk] = CRP(e1r, e1Rderiv, l2eta, l2etaDeriv), CRP(e1s, e1Sderiv, l2eta, l2etaDeriv)
+			sk++
+
+			p0[sk], p1[sk] = CRP(e2r, e2Rderiv, l2eta, l2etaDeriv), CRP(e2s, e2Sderiv, l2eta, l2etaDeriv)
+			sk++
+			p0[sk], p1[sk] = CRP(e2r, e2Rderiv, l1eta, l1etaDeriv), CRP(e2s, e2Sderiv, l1eta, l1etaDeriv)
+			sk++
+
+			p0[sk], p1[sk] = CRP(e3r, e3Rderiv, l1xi, l1xiDeriv), CRP(e3s, e3Sderiv, l1xi, l1xiDeriv)
+			sk++
+			p0[sk], p1[sk] = CRP(e3r, e3Rderiv, l2xi, l2xiDeriv), CRP(e3s, e3Sderiv, l2xi, l2xiDeriv)
+			sk++
+		}
 	case 2:
 	default:
 	}
