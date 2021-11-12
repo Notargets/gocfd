@@ -52,14 +52,24 @@ func NewMatrix(nr, nc int, dataO ...[]float64) (R Matrix) {
 	return
 }
 
-func NewDiagMatrix(nr int, data []float64) (R Matrix) {
-	if len(data) != nr {
+func NewDiagMatrix(nr int, data []float64, scalarO ...float64) (R Matrix) {
+	var (
+		isScalar bool
+	)
+	if len(data) == 0 && len(scalarO) != 0 {
+		isScalar = true
+	}
+	if len(data) != nr && !isScalar {
 		err := fmt.Errorf("wrong length vector, is %d, should be %d", len(data), nr)
 		panic(err)
 	}
 	R = NewMatrix(nr, nr)
 	for i := 0; i < nr; i++ {
-		R.Set(i, i, data[i])
+		if isScalar {
+			R.Set(i, i, scalarO[0])
+		} else {
+			R.Set(i, i, data[i])
+		}
 	}
 	return
 }
