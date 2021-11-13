@@ -147,12 +147,12 @@ func (rtb *RTBasis2DSimplex) Lagrange1DPoly(r float64, R []float64, j int,
 	case None:
 		p = rtb.LagrangePolyAtJ(r, R, j)
 	case Dr:
-		if dir == RDir {
+		if dir == SDir {
 			return
 		}
 		p = rtb.LagrangePolyDerivAtJ(r, R, j)
 	case Ds:
-		if dir == SDir {
+		if dir == RDir {
 			return
 		}
 		p = rtb.LagrangePolyDerivAtJ(r, R, j)
