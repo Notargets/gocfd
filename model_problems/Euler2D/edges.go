@@ -62,7 +62,7 @@ func (c *Euler) NewEdgeStorage() (nf *EdgeValueStorage) {
 	nf = &EdgeValueStorage{
 		StorageIndex: make(map[types.EdgeKey]int),
 		PMap:         c.Partitions,
-		Nedge:        c.dfr.FluxElement.Nedge,
+		Nedge:        c.dfr.FluxElement.NpEdge,
 		Fluxes:       make([][4]utils.Matrix, int(GradientFluxForLaplacian)+1),
 	}
 	// Allocate memory for fluxes
@@ -128,10 +128,10 @@ func (c *Euler) GetFaceNormal(kGlobal, edgeNumber int) (normal [2]float64) {
 
 func (c *Euler) StoreGradientEdgeFlux(edgeKeys EdgeKeySlice, EdgeQ1 [][4]float64) {
 	var (
-		Nedge                    = c.dfr.FluxElement.Nedge
+		Nedge                    = c.dfr.FluxElement.NpEdge
 		gradientFluxForLaplacian = EdgeQ1
 		pm                       = c.Partitions
-		Nint                     = c.dfr.FluxElement.Nint
+		Nint                     = c.dfr.FluxElement.NpInt
 	)
 	for _, en := range edgeKeys {
 		e := c.dfr.Tris.Edges[en]
@@ -179,7 +179,7 @@ func (c *Euler) StoreGradientEdgeFlux(edgeKeys EdgeKeySlice, EdgeQ1 [][4]float64
 func (c *Euler) CalculateEdgeFlux(Time float64, CalculateDT bool, Jdet, DT []utils.Matrix, Q_Face [][4]utils.Matrix,
 	edgeKeys EdgeKeySlice, EdgeQ1, EdgeQ2 [][4]float64) (waveSpeedMax float64) {
 	var (
-		Nedge                 = c.dfr.FluxElement.Nedge
+		Nedge                 = c.dfr.FluxElement.NpEdge
 		numericalFluxForEuler = EdgeQ1
 		qFluxForGradient      = EdgeQ2
 		pm                    = c.Partitions
@@ -321,8 +321,8 @@ func (c *Euler) calculateNonSharedEdgeFlux(e *DG2D.Edge, Nedge int, Time float64
 func (c *Euler) SetRTFluxOnEdges(myThread, Kmax int, F_RT_DOF [4]utils.Matrix) {
 	var (
 		dfr        = c.dfr
-		Nedge      = dfr.FluxElement.Nedge
-		Nint       = dfr.FluxElement.Nint
+		Nedge      = dfr.FluxElement.NpEdge
+		Nint       = dfr.FluxElement.NpInt
 		KmaxGlobal = c.dfr.K
 	)
 	for k := 0; k < Kmax; k++ {

@@ -39,7 +39,7 @@ func TestDFR2D(t *testing.T) {
 		// Verify the interpolated vals match the input solution values from the same [R,S]
 		assert.True(t, nearVec(s, values.DataP[0:3], 0.0000001))
 		assert.True(t, nearVec(s, values.DataP[3:6], 0.0000001))
-		// After 2*Nint points, the values have unknown expected interpolated values
+		// After 2*NpInt points, the values have unknown expected interpolated values
 	}
 	// Test accuracy of interpolation
 	{
@@ -48,14 +48,14 @@ func TestDFR2D(t *testing.T) {
 			dfr := NewDFR2D(N, false)
 			el := dfr.SolutionElement
 			fluxEl := dfr.FluxElement
-			// Construct a 2D polynomial at the flux element geo locations, the first Nint of which match the interior
+			// Construct a 2D polynomial at the flux element geo locations, the first NpInt of which match the interior
 			sFlux := make([]float64, fluxEl.Np)
 			for i := 0; i < fluxEl.Np; i++ {
 				sFlux[i] = utils.POW(fluxEl.R.DataP[i], N) + utils.POW(fluxEl.S.DataP[i], N)
 			}
-			// Copy the polynomial values from the first Nint positions in the flux solution
+			// Copy the polynomial values from the first NpInt positions in the flux solution
 			s := make([]float64, el.Np)
-			for i := 0; i < fluxEl.Nint; i++ {
+			for i := 0; i < fluxEl.NpInt; i++ {
 				s[i] = sFlux[i]
 			}
 			sM := utils.NewMatrix(el.Np, 1, s)
@@ -72,8 +72,8 @@ func TestDFR2D(t *testing.T) {
 		dfr := NewDFR2D(N, false)
 		el := dfr.SolutionElement
 		rt := dfr.FluxElement
-		assert.True(t, nearVec(rt.GetInternalLocations(rt.R), el.R.DataP, 0.000001))
-		assert.True(t, nearVec(rt.GetInternalLocations(rt.S), el.S.DataP, 0.000001))
+		assert.True(t, nearVec(rt.GetInternalLocations(rt.R.DataP), el.R.DataP, 0.000001))
+		assert.True(t, nearVec(rt.GetInternalLocations(rt.S.DataP), el.S.DataP, 0.000001))
 		//fmt.Printf("Edge R = %v\n", rt.GetEdgeLocations(rt.R))
 		//fmt.Printf("Edge S = %v\n", rt.GetEdgeLocations(rt.S))
 	}
@@ -83,14 +83,14 @@ func TestDFR2D(t *testing.T) {
 		dfr := NewDFR2D(N, false)
 		el := dfr.SolutionElement
 		rt := dfr.FluxElement
-		assert.Equal(t, el.Np, rt.Nint)
-		solution := make([]float64, rt.Nint)
+		assert.Equal(t, el.Np, rt.NpInt)
+		solution := make([]float64, rt.NpInt)
 		// Load some values into the solution space
-		for i := 0; i < rt.Nint; i++ {
-			solution[i] = float64(i) / float64(rt.Nint-1)
+		for i := 0; i < rt.NpInt; i++ {
+			solution[i] = float64(i) / float64(rt.NpInt-1)
 		}
 		// Interpolate from interior to flux points
-		sV := utils.NewMatrix(rt.Nint, 1, solution)
+		sV := utils.NewMatrix(rt.NpInt, 1, solution)
 		_ = dfr.FluxEdgeInterp.Mul(sV)
 		//fmt.Printf("%s\n", fluxInterp.Print("fluxInterp"))
 		//fmt.Printf("%s\n", sV.Print("sV"))
@@ -205,61 +205,6 @@ func TestDFR2D(t *testing.T) {
 			}
 		}
 	}
-	// Test divergence
-	{
-		checkSolution := func(dfr *DFR2D, Order int) (Fx, Fy, divCheck utils.Matrix) {
-			var (
-				rt  = dfr.FluxElement
-				K   = dfr.K
-				Np  = rt.Np
-				ccf = float64(Order)
-			)
-			divCheck = utils.NewMatrix(K, Np)
-			Fx, Fy = utils.NewMatrix(K, Np), utils.NewMatrix(K, Np)
-			for k := 0; k < K; k++ {
-				var (
-					xD, yD   = dfr.FluxX.Col(k).DataP[0:Np], dfr.FluxY.Col(k).DataP[0:Np]
-					fxD, fyD = Fx.DataP, Fy.DataP
-					dcD      = divCheck.DataP
-				)
-				for n := 0; n < Np; n++ {
-					ind := n + k*Np
-					x, y := xD[n], yD[n]
-					fxD[ind], fyD[ind] = utils.POW(x, Order), utils.POW(y, Order)
-					dcD[ind] = ccf * (utils.POW(x, Order-1) + utils.POW(y, Order-1))
-				}
-			}
-			return
-		}
-		{ // Check Divergence for polynomial vector fields of order < N against analytical solution
-			N := 7 // Order of element
-			dfr := NewDFR2D(N, false, "test_tris_5.neu")
-			rt := dfr.FluxElement
-			for cOrder := 1; cOrder <= N; cOrder++ { // Run a test on polynomial flux vector fields up to Nth order
-				Fx, Fy, divCheck := checkSolution(dfr, cOrder)
-				// Project the flux onto the RT basis directly
-				Fp := dfr.ProjectFluxOntoRTSpace(Fx, Fy)
-				for k := 0; k < dfr.K; k++ {
-					var (
-						Fpk  = Fp.Row(k).ToMatrix()
-						Jdet = dfr.Jdet.Row(k).DataP[0]
-					)
-					divM := rt.Div.Mul(Fpk).Scale(1. / Jdet)
-					assert.True(t, nearVec(divCheck.Row(k).DataP, divM.DataP, 0.00001))
-				}
-				// Now project flux onto untransformed normals using ||n|| scaling factor, divergence should be the same
-				SetNormalFluxOnEdges(dfr, Fx, Fy, &Fp)
-				for k := 0; k < dfr.K; k++ {
-					var (
-						Fpk  = Fp.Row(k).ToMatrix()
-						Jdet = dfr.Jdet.Row(k).DataP[0]
-					)
-					divM := rt.Div.Mul(Fpk).Scale(1. / Jdet)
-					assert.True(t, nearVec(divCheck.Row(k).DataP, divM.DataP, 0.00001))
-				}
-			}
-		}
-	}
 	// Test output of triangulated mesh for plotting
 	{
 		N := 1
@@ -291,6 +236,66 @@ func TestDFR2D(t *testing.T) {
 			PlotFS(fs, 0, 1)
 			//PlotFS(fs, 0, 1, chart2d.Solid)
 			utils.SleepFor(50000)
+		}
+	}
+}
+
+func TestDivergence(t *testing.T) {
+	// Test divergence
+	checkSolution := func(dfr *DFR2D, Order int) (Fx, Fy, divCheck utils.Matrix) {
+		var (
+			rt  = dfr.FluxElement
+			K   = dfr.K
+			Np  = rt.Np
+			ccf = float64(Order)
+		)
+		divCheck = utils.NewMatrix(K, Np)
+		Fx, Fy = utils.NewMatrix(K, Np), utils.NewMatrix(K, Np)
+		for k := 0; k < K; k++ {
+			var (
+				xD, yD   = dfr.FluxX.Col(k).DataP[0:Np], dfr.FluxY.Col(k).DataP[0:Np]
+				fxD, fyD = Fx.DataP, Fy.DataP
+				dcD      = divCheck.DataP
+			)
+			for n := 0; n < Np; n++ {
+				ind := n + k*Np
+				x, y := xD[n], yD[n]
+				fxD[ind], fyD[ind] = utils.POW(x, Order), utils.POW(y, Order)
+				dcD[ind] = ccf * (utils.POW(x, Order-1) + utils.POW(y, Order-1))
+			}
+		}
+		return
+	}
+	{ // Check Divergence for polynomial vector fields of order < N against analytical solution
+		N := 7 // Order of element
+		dfr := NewDFR2D(N, false, "test_tris_5.neu")
+		rt := dfr.FluxElement
+		//rt.Div.Print("Div")
+		//rt.DivInt.Print("DivInt")
+		for cOrder := 1; cOrder <= N; cOrder++ { // Run a test on polynomial flux vector fields up to Nth order
+			Fx, Fy, divCheck := checkSolution(dfr, cOrder)
+			// Project the flux onto the RT basis directly
+			Fp := dfr.ProjectFluxOntoRTSpace(Fx, Fy)
+			for k := 0; k < dfr.K; k++ {
+				var (
+					Fpk  = Fp.Row(k).ToMatrix()
+					Jdet = dfr.Jdet.Row(k).DataP[0]
+				)
+				divM := rt.Div.Mul(Fpk).Scale(1. / Jdet)
+				//divM.Print("divM")
+				//fmt.Printf("divCheck.Row(k) = %v\n", divCheck.Row(k).DataP)
+				assert.InDeltaSlicef(t, divCheck.Row(k).DataP, divM.DataP, 0.00001, "")
+			}
+			// Now project flux onto untransformed normals using ||n|| scaling factor, divergence should be the same
+			SetNormalFluxOnEdges(dfr, Fx, Fy, &Fp)
+			for k := 0; k < dfr.K; k++ {
+				var (
+					Fpk  = Fp.Row(k).ToMatrix()
+					Jdet = dfr.Jdet.Row(k).DataP[0]
+				)
+				divM := rt.Div.Mul(Fpk).Scale(1. / Jdet)
+				assert.InDeltaSlicef(t, divCheck.Row(k).DataP, divM.DataP, 0.00001, "")
+			}
 		}
 	}
 }
@@ -402,7 +407,7 @@ func TestGradient(t *testing.T) {
 						case i >= NpInt && i < 2*NpInt: // The second NpInt points are duplicates of the first NpInt values
 							Un = Uint[n].DataP[ind-NpInt*Kmax]
 						case i >= 2*NpInt:
-							Un = Uedge[n].DataP[ind-2*NpInt*Kmax] // The last 3*Nedge points are the edges in [0-1,1-2,2-0] order
+							Un = Uedge[n].DataP[ind-2*NpInt*Kmax] // The last 3*NpEdge points are the edges in [0-1,1-2,2-0] order
 						}
 						DOFXd[ind] = DXmd[ind] * Un
 						DOFYd[ind] = DYmd[ind] * Un
@@ -474,8 +479,8 @@ func SetNormalFluxOnEdges(dfr *DFR2D, Fx, Fy utils.Matrix, Fp *utils.Matrix) {
 		Np       = dfr.FluxElement.Np
 		fxD, fyD = Fx.DataP, Fy.DataP
 		fpD      = Fp.DataP
-		Nint     = dfr.FluxElement.Nint
-		Nedge    = dfr.FluxElement.Nedge
+		Nint     = dfr.FluxElement.NpInt
+		Nedge    = dfr.FluxElement.NpEdge
 	)
 	norm := func(vec [2]float64) (n float64) {
 		n = math.Sqrt(vec[0]*vec[0] + vec[1]*vec[1])

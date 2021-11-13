@@ -269,7 +269,7 @@ func (sd *ScalarDissipation) AddDissipation(c *Euler, cont ContinuityLevel, myTh
 	var (
 		dfr          = sd.dfr
 		Kmax         = sd.PMap.GetBucketDimension(myThread)
-		NpInt        = dfr.FluxElement.Nint
+		NpInt        = dfr.FluxElement.NpInt
 		KmaxGlobal   = sd.PMap.MaxIndex
 		DOF          = sd.DissDOF[myThread]
 		DIV          = sd.DissDiv[myThread]
@@ -282,7 +282,7 @@ func (sd *ScalarDissipation) AddDissipation(c *Euler, cont ContinuityLevel, myTh
 		*/
 		var (
 			DiXd, DiYd = DissX[n].DataP, DissY[n].DataP
-			NpEdge     = dfr.FluxElement.Nedge
+			NpEdge     = dfr.FluxElement.NpEdge
 			DOFd       = DOF.DataP
 		)
 		for k := 0; k < Kmax; k++ {

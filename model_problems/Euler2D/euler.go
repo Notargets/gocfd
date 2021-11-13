@@ -180,7 +180,7 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		MaxWaveSpeed:  make([]float64, NPar),
 		Kmax:          make([]int, NPar),
 		NpInt:         c.dfr.SolutionElement.Np,
-		Nedge:         c.dfr.FluxElement.Nedge,
+		Nedge:         c.dfr.FluxElement.NpEdge,
 		NpFlux:        c.dfr.FluxElement.Np,
 		EdgeQ1:        make([][][4]float64, NPar),
 		EdgeQ2:        make([][][4]float64, NPar),
@@ -348,7 +348,7 @@ func getRKStepNumber(currentStep int) (rkStepNum int) {
 func (c *Euler) RHSInternalPoints(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4]utils.Matrix) {
 	var (
 		JdetD = Jdet.DataP
-		Nint  = c.dfr.FluxElement.Nint
+		Nint  = c.dfr.FluxElement.NpInt
 		data  []float64
 	)
 	/*
@@ -383,7 +383,7 @@ func (c *Euler) RHSInternalPoints(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4
 
 func (c *Euler) SetRTFluxInternal(Kmax int, Jdet, Jinv utils.Matrix, F_RT_DOF, Q [4]utils.Matrix) {
 	var (
-		Nint   = c.dfr.FluxElement.Nint
+		Nint   = c.dfr.FluxElement.NpInt
 		NpFlux = c.dfr.FluxElement.Np
 		fdofD  = [4][]float64{F_RT_DOF[0].DataP, F_RT_DOF[1].DataP, F_RT_DOF[2].DataP, F_RT_DOF[3].DataP}
 	)
@@ -572,13 +572,13 @@ func (rk *RungeKutta4SSP) calculateGlobalDT(c *Euler) {
 func (c *Euler) GetSolutionGradientUsingRTElement(myThread, varNum int, Q [4]utils.Matrix, GradX, GradY, DOFX, DOFY utils.Matrix) {
 	/*
 		Dimensions:
-			Q[4] should be Nint x Kmax
+			Q[4] should be NpInt x Kmax
 			All others should be NpFlux x Kmax
 	*/
 	var (
 		dfr          = c.dfr
-		NpInt        = dfr.FluxElement.Nint
-		NpEdge       = dfr.FluxElement.Nedge
+		NpInt        = dfr.FluxElement.NpInt
+		NpEdge       = dfr.FluxElement.NpEdge
 		KmaxGlobal   = c.Partitions.MaxIndex
 		Kmax         = c.Partitions.GetBucketDimension(myThread)
 		DXmd, DYmd   = dfr.DXMetric.DataP, dfr.DYMetric.DataP
@@ -628,7 +628,7 @@ func (c *Euler) GetSolutionGradientUsingRTElement(myThread, varNum int, Q [4]uti
 func (c *Euler) GetSolutionGradient(myThread, varNum int, Q [4]utils.Matrix, GradX, GradY, DR, DS utils.Matrix) {
 	/*
 		Dimensions:
-			Q[4] should be Nint x Kmax
+			Q[4] should be NpInt x Kmax
 			All others should be NpFlux x Kmax
 	*/
 	var (

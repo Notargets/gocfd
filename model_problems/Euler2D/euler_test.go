@@ -64,8 +64,8 @@ func TestEuler(t *testing.T) {
 				//c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
 				c := NewEuler(&ip, "../../DG2D/test_tris_5.neu", 1, false, false, false)
 				Kmax := c.dfr.K
-				Nint := c.dfr.FluxElement.Nint
-				Nedge := c.dfr.FluxElement.Nedge
+				Nint := c.dfr.FluxElement.NpInt
+				Nedge := c.dfr.FluxElement.NpEdge
 				var Q, Q_Face [4]utils.Matrix
 				for n := 0; n < 4; n++ {
 					Q[n] = utils.NewMatrix(Nint, Kmax)
@@ -99,7 +99,7 @@ func TestEuler(t *testing.T) {
 			/*
 				Solver approach:
 				0) Solution is stored on sol points as Q
-				0a) Flux is computed and stored in X, Y component projections in the 2*Nint front of F_RT_DOF
+				0a) Flux is computed and stored in X, Y component projections in the 2*NpInt front of F_RT_DOF
 				1) Solution is extrapolated to edge points in Q_Face from Q
 				2) Edges are traversed, flux is calculated and projected onto edge face normals, scaled and placed into F_RT_DOF
 			*/
@@ -109,9 +109,9 @@ func TestEuler(t *testing.T) {
 				ip.PolynomialOrder = N
 				c := NewEuler(&ip, "../../DG2D/test_tris_5.neu", 1, false, false, false)
 				Kmax := c.dfr.K
-				Nint := c.dfr.FluxElement.Nint
-				Nedge := c.dfr.FluxElement.Nedge
-				NpFlux := c.dfr.FluxElement.Np // Np = 2*Nint+3*Nedge
+				Nint := c.dfr.FluxElement.NpInt
+				Nedge := c.dfr.FluxElement.NpEdge
+				NpFlux := c.dfr.FluxElement.Np // Np = 2*NpInt+3*NpEdge
 				var Q_Face, F_RT_DOF [4]utils.Matrix
 				for n := 0; n < 4; n++ {
 					Q_Face[n] = utils.NewMatrix(3*Nedge, Kmax)
@@ -186,9 +186,9 @@ func TestEuler(t *testing.T) {
 				c := NewEuler(&ip, "../../DG2D/test_tris_5.neu", 1, false, false, false)
 				c.FSIn = c.FSFar
 				Kmax := c.dfr.K
-				Nint := c.dfr.FluxElement.Nint
-				Nedge := c.dfr.FluxElement.Nedge
-				NpFlux := c.dfr.FluxElement.Np // Np = 2*Nint+3*Nedge
+				Nint := c.dfr.FluxElement.NpInt
+				Nedge := c.dfr.FluxElement.NpEdge
+				NpFlux := c.dfr.FluxElement.Np // Np = 2*NpInt+3*NpEdge
 				// Mark the initial state with the element number
 				var Q_Face, F_RT_DOF [4]utils.Matrix
 				for n := 0; n < 4; n++ {
@@ -260,9 +260,9 @@ func TestEuler(t *testing.T) {
 				}
 			}
 			Kmax := c.dfr.K
-			Nint := c.dfr.FluxElement.Nint
-			Nedge := c.dfr.FluxElement.Nedge
-			NpFlux := c.dfr.FluxElement.Np // Np = 2*Nint+3*Nedge
+			Nint := c.dfr.FluxElement.NpInt
+			Nedge := c.dfr.FluxElement.NpEdge
+			NpFlux := c.dfr.FluxElement.Np // Np = 2*NpInt+3*NpEdge
 			// Mark the initial state with the element number
 			var Q_Face, F_RT_DOF [4]utils.Matrix
 			for n := 0; n < 4; n++ {
@@ -282,7 +282,7 @@ func TestEuler(t *testing.T) {
 			n := 0
 			//fmt.Printf("component[%d]\n", n)
 			div = c.dfr.FluxElement.DivInt.Mul(F_RT_DOF[n])
-			//c.DivideByJacobian(Kmax, Nint, c.dfr.Jdet, div.DataP, 1)
+			//c.DivideByJacobian(Kmax, NpInt, c.dfr.Jdet, div.DataP, 1)
 			for k := 0; k < Kmax; k++ {
 				for i := 0; i < Nint; i++ {
 					ind := k + i*Kmax
@@ -503,8 +503,8 @@ func TestDissipation2(t *testing.T) {
 			dfr                      = c.dfr
 			Kmax                     = dfr.K
 			fel                      = dfr.FluxElement
-			NpInt                    = fel.Nint
-			Nedge                    = fel.Nedge
+			NpInt                    = fel.NpInt
+			Nedge                    = fel.NpEdge
 			NpFlux                   = fel.Np
 			Q, Q_Face                [4]utils.Matrix
 			QGradXCheck, QGradYCheck [4]utils.Matrix
@@ -563,7 +563,7 @@ func TestDissipation2(t *testing.T) {
 						case i >= NpInt && i < 2*NpInt: // The second NpInt points are duplicates of the first NpInt values
 							Un = Q[n].DataP[ind-NpInt*Kmax]
 						case i >= 2*NpInt:
-							Un = Q_Face[n].DataP[ind-2*NpInt*Kmax] // The last 3*Nedge points are the edges in [0-1,1-2,2-0] order
+							Un = Q_Face[n].DataP[ind-2*NpInt*Kmax] // The last 3*NpEdge points are the edges in [0-1,1-2,2-0] order
 						}
 						DOFXd[ind] = DXmd[ind] * Un
 						DOFYd[ind] = DYmd[ind] * Un
@@ -633,7 +633,7 @@ func TestEuler_GetSolutionGradientUsingRTElement(t *testing.T) {
 			dfr                      = c.dfr
 			Kmax                     = dfr.K
 			fel                      = dfr.FluxElement
-			Nedge                    = fel.Nedge
+			Nedge                    = fel.NpEdge
 			NpFlux                   = fel.Np
 			QGradXCheck, QGradYCheck [4]utils.Matrix
 			Q0                       = c.Q[myThread]
@@ -850,8 +850,8 @@ func CheckFlux0(c *Euler, t *testing.T) {
 	X, Y := c.dfr.FluxX, c.dfr.FluxY
 	QFlux := InitializePolynomial(X, Y)
 	Kmax := c.dfr.K
-	Nint := c.dfr.FluxElement.Nint
-	Nedge := c.dfr.FluxElement.Nedge
+	Nint := c.dfr.FluxElement.NpInt
+	Nedge := c.dfr.FluxElement.NpEdge
 	NpFlux := c.dfr.FluxElement.Np
 	var Q, Q_Face, F_RT_DOF [4]utils.Matrix
 	for n := 0; n < 4; n++ {

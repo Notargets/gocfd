@@ -16,9 +16,10 @@ import (
 )
 
 type DFR2D struct {
-	N                  int
-	SolutionElement    *LagrangeElement2D
-	FluxElement        *RTElement
+	N               int
+	SolutionElement *LagrangeElement2D
+	FluxElement     *RTElement
+	//FluxElement        *RTBasis2DSimplex
 	FluxInterp         utils.Matrix // Interpolates from the interior (solution) points to all of the flux points
 	FluxEdgeInterp     utils.Matrix // Interpolates only from interior to the edge points in the flux element
 	FluxDr, FluxDs     utils.Matrix // Derivatives from the interior (solution) points to all of the flux points
@@ -38,14 +39,15 @@ type DFR2D struct {
 }
 
 func NewDFR2D(N int, plotMesh bool, meshFileO ...string) (dfr *DFR2D) {
-	if N < 1 {
-		panic(fmt.Errorf("Polynomial order must be >= 1, have %d", N))
+	if N < 0 {
+		panic(fmt.Errorf("Polynomial order must be >= 0, have %d", N))
 	}
 	le := NewLagrangeElement2D(N, Epsilon)
 	useLagrangeBasis := false
 	rt := NewRTElement(le.R, le.S, N+1, useLagrangeBasis)
-	RFlux := utils.NewVector(rt.Nedge*3, rt.GetEdgeLocations(rt.R)) // For the Interpolation matrix across three edges
-	SFlux := utils.NewVector(rt.Nedge*3, rt.GetEdgeLocations(rt.S)) // For the Interpolation matrix across three edges
+	//rt := NewRTBasis2DSimplex(N+1, useLagrangeBasis)
+	RFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.R.DataP)) // For the Interpolation matrix across three edges
+	SFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.S.DataP)) // For the Interpolation matrix across three edges
 	dfr = &DFR2D{
 		N:               N,
 		SolutionElement: le,
@@ -146,8 +148,8 @@ func (dfr *DFR2D) CalculateRTBasedDerivativeMetrics() {
 		still have accuracy of the X or Y derivative equal to the interior element polynomial degree
 	*/
 	var (
-		NpFlux, NpInt, Kmax = dfr.FluxElement.Np, dfr.FluxElement.Nint, dfr.K
-		NpEdge              = dfr.FluxElement.Nedge
+		NpFlux, NpInt, Kmax = dfr.FluxElement.Np, dfr.FluxElement.NpInt, dfr.K
+		NpEdge              = dfr.FluxElement.NpEdge
 		Jinv, Jdet          = dfr.Jinv, dfr.Jdet
 	)
 	dfr.DXMetric, dfr.DYMetric = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
@@ -261,7 +263,7 @@ func (dfr *DFR2D) ProjectFluxOntoRTSpace(Fx, Fy utils.Matrix) (Fp utils.Matrix) 
 			ind := n + k*Np
 			fT := [2]float64{Jdet * (Jinv[0]*fxD[ind] + Jinv[1]*fyD[ind]), Jdet * (Jinv[2]*fxD[ind] + Jinv[3]*fyD[ind])}
 			oosr2 := 1 / math.Sqrt(2)
-			switch rt.GetTermType(n) {
+			switch rt.getLocationType(n) {
 			case All:
 				panic("bad input")
 			case InteriorR:
@@ -296,10 +298,10 @@ func (dfr *DFR2D) ConvertScalarToOutputMesh(f utils.Matrix) (fI []float32) {
 	var (
 		fD     = f.DataP
 		Kmax   = dfr.K
-		Nint   = dfr.FluxElement.Nint
-		Nedge  = dfr.FluxElement.Nedge
+		Nint   = dfr.FluxElement.NpInt
+		Nedge  = dfr.FluxElement.NpEdge
 		NpFlux = dfr.FluxElement.Np
-		Np     = NpFlux - Nint + 3 // Subtract Nint to remove the dup pts and add 3 for the verts
+		Np     = NpFlux - Nint + 3 // Subtract NpInt to remove the dup pts and add 3 for the verts
 	)
 	Ind := func(k, i, Kmax int) (ind int) {
 		ind = k + i*Kmax
@@ -324,7 +326,7 @@ func (dfr *DFR2D) ConvertScalarToOutputMesh(f utils.Matrix) (fI []float32) {
 				// Create values for each corner by averaging the nodes opposite each
 				fI[ind] = 0.5 * (edge[(ii+2)%3][1] + edge[ii][0])
 			case ii >= 3:
-				indFlux := Ind(k, ii-3+Nint, Kmax) // Refers to the nodes, skipping the first Nint repeated points
+				indFlux := Ind(k, ii-3+Nint, Kmax) // Refers to the nodes, skipping the first NpInt repeated points
 				fI[ind] = float32(fD[indFlux])
 			}
 		}
@@ -336,7 +338,7 @@ func (dfr *DFR2D) OutputMesh() (gm *graphics2D.TriMesh) {
 	/*
 				For each of K elements, the layout of the output mesh is:
 				Indexed geometry:
-					Three vertices of the base triangle, followed by RT node points, excluding duplicated Nint pts
+					Three vertices of the base triangle, followed by RT node points, excluding duplicated NpInt pts
 		    	Triangles:
 					Some number of triangles, defined by indexing into the Indexed Geometry / function values
 
@@ -348,7 +350,7 @@ func (dfr *DFR2D) OutputMesh() (gm *graphics2D.TriMesh) {
 	// the Delaunay triangulation
 	var (
 		Kmax   = dfr.K
-		Nint   = dfr.FluxElement.Nint
+		Nint   = dfr.FluxElement.NpInt
 		NpFlux = dfr.FluxElement.Np
 	)
 	Ind := func(k, i, Kmax int) (ind int) {
@@ -374,7 +376,7 @@ func (dfr *DFR2D) OutputMesh() (gm *graphics2D.TriMesh) {
 	gm = &gmB
 
 	// Build the X,Y coordinates to support the triangulation index
-	Np := NpFlux - Nint + 3 // Subtract Nint to remove the dup pts and add 3 for the verts
+	Np := NpFlux - Nint + 3 // Subtract NpInt to remove the dup pts and add 3 for the verts
 	VX, VY := utils.NewMatrix(Np, Kmax), utils.NewMatrix(Np, Kmax)
 	vxd, vyd := VX.DataP, VY.DataP
 	for k := 0; k < Kmax; k++ {
@@ -385,7 +387,7 @@ func (dfr *DFR2D) OutputMesh() (gm *graphics2D.TriMesh) {
 			case ii < 3:
 				vxd[ind], vyd[ind] = dfr.VX.DataP[verts[ii]], dfr.VY.DataP[verts[ii]]
 			case ii >= 3:
-				indFlux := Ind(k, ii-3+Nint, Kmax) // Refers to the nodes, skipping the first Nint repeated points
+				indFlux := Ind(k, ii-3+Nint, Kmax) // Refers to the nodes, skipping the first NpInt repeated points
 				vxd[ind], vyd[ind] = dfr.FluxX.DataP[indFlux], dfr.FluxY.DataP[indFlux]
 			}
 		}

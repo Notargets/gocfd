@@ -261,7 +261,7 @@ func TestRTElement(t *testing.T) {
 		N := 2
 		NRT := N + 1
 		R, S := NodesEpsilon(N)
-		//Nint := R.Len()
+		//NpInt := R.Len()
 		rt := NewRTElement(R, S, NRT, false)
 		s1, s2 := make([]float64, rt.R.Len()), make([]float64, rt.R.Len())
 		for i := range rt.R.DataP {

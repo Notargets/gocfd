@@ -36,8 +36,8 @@ func NewLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
 		Np:     (N + 1) * (N + 2) / 2,
 		NFaces: 3,
 	}
-	if N < 1 {
-		panic(fmt.Errorf("Polynomial order must be >= 1, have %d", N))
+	if N < 0 {
+		panic(fmt.Errorf("Polynomial order must be >= 0, have %d", N))
 	}
 	el.Nfp = el.N + 1
 	el.Np = (el.N + 1) * (el.N + 2) / 2

@@ -10,14 +10,14 @@ import (
 )
 
 type RTElement struct {
-	N           int             // Order of element
-	Np          int             // Number of points in element
-	Nedge, Nint int             // Number of Edge and Interior points
-	A           utils.Matrix    // Polynomial coefficient matrix, NpxNp
-	V           [2]utils.Matrix // Vandermonde matrix for each direction r and s, [2]xNpxNp
-	Div, DivInt utils.Matrix    // Divergence matrix, NpxNp for all, NintxNp Interior Points
-	R, S        utils.Vector    // Point locations defining element in [-1,1] Triangle, NpxNp
-	RTPolyBasis Basis2D
+	N             int             // Order of element
+	Np            int             // Number of points in element
+	NpEdge, NpInt int             // Number of Edge and Interior points
+	A             utils.Matrix    // Polynomial coefficient matrix, NpxNp
+	V             [2]utils.Matrix // Vandermonde matrix for each direction r and s, [2]xNpxNp
+	Div, DivInt   utils.Matrix    // Divergence matrix, NpxNp for all, NintxNp Interior Points
+	R, S          utils.Vector    // Point locations defining element in [-1,1] Triangle, NpxNp
+	RTPolyBasis   Basis2D
 }
 
 type RTPointType uint8
@@ -34,9 +34,9 @@ const (
 func NewRTElement(R, S utils.Vector, NFlux int, useLagrangeBasis bool) (rt *RTElement) {
 	// We expect that there are points in R and S to match the dimension of dim(P(NFlux-1))
 	/*
-		<---- Nint ----><---- Nint ----><---Nedge----><---Nedge----><---Nedge---->
+		<---- NpInt ----><---- NpInt ----><---NpEdge----><---NpEdge----><---NpEdge---->
 		         Solution Points          Edge 1 pts	Edge 2 pts	  Edge 3 pts
-		<---- Nint ----><---- Nint ----><---Nedge----><---Nedge----><---Nedge---->
+		<---- NpInt ----><---- NpInt ----><---NpEdge----><---NpEdge----><---NpEdge---->
 	*/
 	var (
 		NSolution    = NFlux - 1
@@ -47,11 +47,11 @@ func NewRTElement(R, S utils.Vector, NFlux int, useLagrangeBasis bool) (rt *RTEl
 		panic("incorrect number of interior points supplied")
 	}
 	rt = &RTElement{
-		N:     NFlux,
-		R:     R,
-		S:     S,
-		Nint:  NFlux * (NFlux + 1) / 2,
-		Nedge: NFlux + 1,
+		N:      NFlux,
+		R:      R,
+		S:      S,
+		NpInt:  NFlux * (NFlux + 1) / 2,
+		NpEdge: NFlux + 1,
 	}
 	if NFlux < 8 {
 		RFlux, SFlux = NodesEpsilon(NFlux)
@@ -118,6 +118,10 @@ func (rt *RTElement) GetTermType(i int) (rtt RTPointType) {
 		// Edge3: Unit vector is [-1,0]
 		rtt = Edge3
 	}
+	return
+}
+func (rt *RTElement) getLocationType(i int) (rtt RTPointType) {
+	rtt = rt.GetTermType(i)
 	return
 }
 
@@ -462,25 +466,25 @@ func NodesEpsilon(N int) (R, S utils.Vector) {
 	return
 }
 
-func (rt *RTElement) GetInternalLocations(F utils.Vector) (Finternal []float64) {
+func (rt *RTElement) GetInternalLocations(F []float64) (Finternal []float64) {
 	var (
-		Nint = rt.Nint
+		Nint = rt.NpInt
 	)
 	Finternal = make([]float64, Nint)
 	for i := 0; i < Nint; i++ {
-		Finternal[i] = F.DataP[i]
+		Finternal[i] = F[i]
 	}
 	return
 }
 
-func (rt *RTElement) GetEdgeLocations(F utils.Vector) (Fedge []float64) {
+func (rt *RTElement) GetEdgeLocations(F []float64) (Fedge []float64) {
 	var (
-		Nint     = rt.Nint
-		NedgeTot = rt.Nedge * 3
+		Nint     = rt.NpInt
+		NedgeTot = rt.NpEdge * 3
 	)
 	Fedge = make([]float64, NedgeTot)
 	for i := 0; i < NedgeTot; i++ {
-		Fedge[i] = F.DataP[i+2*Nint]
+		Fedge[i] = F[i+2*Nint]
 	}
 	return
 }

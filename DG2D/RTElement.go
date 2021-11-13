@@ -10,16 +10,16 @@ import (
 )
 
 type RTBasis2DSimplex struct {
-	P             int       // Polynomial Order
-	Np            int       // Number of terms and nodes in basis
-	NpInt, NpEdge int       // Number of nodes in interior and on each edge, Np = 2*NpInt + 3*NpEdge
-	R, S          []float64 // Node locations within [-1,1] reference triangle
-	Scalar2DBasis Basis2D   // Basis used for part of the RT basis construction
+	P             int          // Polynomial Order
+	Np            int          // Number of terms and nodes in basis
+	NpInt, NpEdge int          // Number of nodes in interior and on each edge, Np = 2*NpInt + 3*NpEdge
+	R, S          utils.Vector // Node locations within [-1,1] reference triangle
+	Scalar2DBasis Basis2D      // Basis used for part of the RT basis construction
 	V             [2]utils.Matrix
 	Div, DivInt   utils.Matrix
 }
 
-func NewRTBasis2DSimplex(P int) (rtb *RTBasis2DSimplex) {
+func NewRTBasis2DSimplex(P int, useLagrangeBasis bool) (rtb *RTBasis2DSimplex) {
 	var Rint, Sint utils.Vector
 	rtb = &RTBasis2DSimplex{
 		P:      P,
@@ -28,9 +28,16 @@ func NewRTBasis2DSimplex(P int) (rtb *RTBasis2DSimplex) {
 		NpEdge: P + 1,           // Each edge is P+1 nodes
 	}
 	if P > 0 {
-		Rint, Sint = NodesEpsilon(P - 1)
-		//rtb.Scalar2DBasis = NewLagrangeBasis2D(P-1, Rint, Sint) // Basis used as part of non-Normal basis elements
-		rtb.Scalar2DBasis = NewJacobiBasis2D(P-1, Rint, Sint) // Basis used as part of non-Normal basis elements
+		if P < 9 {
+			Rint, Sint = NodesEpsilon(P - 1)
+		} else {
+			Rint, Sint = XYtoRS(Nodes2D(P - 1))
+		}
+		if useLagrangeBasis {
+			rtb.Scalar2DBasis = NewLagrangeBasis2D(P-1, Rint, Sint) // Basis used as part of non-Normal basis elements
+		} else {
+			rtb.Scalar2DBasis = NewJacobiBasis2D(P-1, Rint, Sint) // Basis used as part of non-Normal basis elements
+		}
 	}
 	rtb.R, rtb.S = rtb.ExtendGeomToRT(Rint, Sint)
 	rtb.CalculateBasis()
@@ -163,33 +170,45 @@ func (rtb *RTBasis2DSimplex) Lagrange1DPoly(r float64, R []float64, j int,
 func (rtb *RTBasis2DSimplex) LagrangePolyAtJ(r float64, R []float64, j int) (p float64) {
 	var (
 		Np1D = len(R)
+		XJ   = R[j]
+		XI   = r
 	)
 	if j > Np1D-1 || j < 0 {
 		panic("value of j larger than array or less than zero")
 	}
 	p = 1
-	for i, rBasis := range R {
-		if i == j {
-			continue
+	for m, XM := range R {
+		if m != j {
+			metric := (XI - XM) / (XJ - XM)
+			p *= metric
 		}
-		metric := (r - rBasis) / (R[j] - rBasis)
-		p *= metric
 	}
 	return
 }
 
 func (rtb *RTBasis2DSimplex) LagrangePolyDerivAtJ(r float64, R []float64, j int) (dp float64) {
+	/*
+		From https://en.wikipedia.org/wiki/Lagrange_polynomial#Derivatives
+	*/
 	var (
-		p = rtb.LagrangePolyAtJ(r, R, j)
+		XJ = R[j]
+		X  = r
+		t1 float64
 	)
-	dp = 1
-	for i, rBasis := range R {
-		if i == j {
-			continue
+	for i, XI := range R {
+		if i != j {
+			t1 = 1 / (XJ - XI)
+			var p float64
+			p = 1
+			for m, XM := range R {
+				if m != i && m != j {
+					p *= (X - XM) / (XJ - XM)
+				}
+			}
+			dp += t1 * p
 		}
-		dp *= 1 / (r - rBasis)
 	}
-	dp *= p
+	dp *= 0.5 // Convert to [-1,1] triangle from [0,1] triangle
 	return
 }
 
@@ -568,19 +587,19 @@ func (rtb *RTBasis2DSimplex) CalculateBasis() {
 	*/
 	var (
 		Np     = rtb.Np
-		R, S   = rtb.R, rtb.S
+		Rd, Sd = rtb.R.DataP, rtb.S.DataP
 		p0, p1 []float64
 	)
 	P := utils.NewMatrix(Np, Np)
-	if len(R) != Np {
-		err := fmt.Errorf("calculated dimension %d doesn't match length of basis nodes %d", Np, len(R))
+	if len(Rd) != Np {
+		err := fmt.Errorf("calculated dimension %d doesn't match length of basis nodes %d", Np, len(Rd))
 		panic(err)
 	}
 	// Evaluate at geometric locations
 	rowEdge := make([]float64, Np)
 	oosr2 := math.Sqrt(2)
-	for ii, rr := range R {
-		ss := S[ii]
+	for ii, rr := range Rd {
+		ss := Sd[ii]
 		/*
 			First, evaluate the polynomial at the (r,s) coordinates
 			This is the same set that will be used for all dot products to form the basis matrix
@@ -614,29 +633,31 @@ func (rtb *RTBasis2DSimplex) CalculateBasis() {
 			P.M.SetRow(ii, rowEdge)
 		}
 	}
-	P.Print("P")
+	//P.Print("P")
 	// Invert [P] = [A] to obtain the coefficients (columns) of polynomials (rows), each row is a polynomial
 	A := P.InverseWithCheck()
-	A.Print("A")
+	//A.Print("A")
 	//A := utils.NewDiagMatrix(Np, nil, 1)
-	// Evaluate 2D polynomial basis at geometric locations, also evaluate derivatives Dr and Ds for R and S
+	// Evaluate 2D polynomial basis at geometric locations, also evaluate derivatives Dr and Ds for Rd and Sd
 	P0, P1 := utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
 	Pdr0, Pds1 := utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
-	for ii, rr := range rtb.R {
-		ss := rtb.S[ii]
-		p0, p1 = rtb.EvaluateBasisAtLocation(rr, ss) // each of p1,p2 stores the polynomial terms for the R and S directions
+	for ii, rr := range rtb.R.DataP {
+		ss := rtb.S.DataP[ii]
+		p0, p1 = rtb.EvaluateBasisAtLocation(rr, ss) // each of p1,p2 stores the polynomial terms for the Rd and Sd directions
 		P0.M.SetRow(ii, p0)
 		P1.M.SetRow(ii, p1)
-		p0, _ = rtb.EvaluateBasisAtLocation(rr, ss, Dr) // each of p0,p1 stores the polynomial terms for the R and S directions
-		_, p1 = rtb.EvaluateBasisAtLocation(rr, ss, Ds) // each of p0,p1 stores the polynomial terms for the R and S directions
-		Pdr0.M.SetRow(ii, p0)
-		Pds1.M.SetRow(ii, p1)
+		p0, _ = rtb.EvaluateBasisAtLocation(rr, ss, Dr) // each of p0,p1 stores the polynomial terms for the Rd and Sd directions
+		_, p1 = rtb.EvaluateBasisAtLocation(rr, ss, Ds) // each of p0,p1 stores the polynomial terms for the Rd and Sd directions
+		Pdr0.M.SetRow(ii, p0)                           // Only need the dP/dr(r) term from P(r,s)
+		Pds1.M.SetRow(ii, p1)                           // Only need the dP/ds(s) term from P(r,s)
 	}
 	// Construct the Vandermonde matrices for each direction by multiplying coefficients of constrained basis
-	P0.Print("P0")
-	P1.Print("P1")
-	Pdr0.Print("Pdr0")
-	Pds1.Print("Pds1")
+	/*
+		P0.Print("P0")
+		P1.Print("P1")
+		Pdr0.Print("Pdr0")
+		Pds1.Print("Pds1")
+	*/
 	rtb.V[0] = P0.Mul(A)
 	rtb.V[1] = P1.Mul(A)
 	rtb.Div = Pdr0.Mul(A).Add(Pds1.Mul(A))
@@ -649,11 +670,12 @@ func (rtb *RTBasis2DSimplex) CalculateBasis() {
 	return
 }
 
-func (rtb *RTBasis2DSimplex) ExtendGeomToRT(Rint, Sint utils.Vector) (R, S []float64) {
+func (rtb *RTBasis2DSimplex) ExtendGeomToRT(Rint, Sint utils.Vector) (R, S utils.Vector) {
 	var (
 		N            = rtb.P
 		NpEdge       = N + 1
 		rData, sData = Rint.DataP, Sint.DataP
+		Rd, Sd       []float64
 	)
 	/*
 		Determine geometric locations of edge points, located at Gauss locations in 1D, projected onto the edges
@@ -663,11 +685,11 @@ func (rtb *RTBasis2DSimplex) ExtendGeomToRT(Rint, Sint utils.Vector) (R, S []flo
 		Double the number of interior points to match each direction of the basis
 	*/
 	if N == 0 { // Special case: when N=0, the interior of the RT element is empty
-		R, S = []float64{}, []float64{}
+		Rd, Sd = []float64{}, []float64{}
 	} else {
 		for i := 0; i < 2; i++ {
-			R = append(R, rData...)
-			S = append(S, sData...)
+			Rd = append(Rd, rData...)
+			Sd = append(Sd, sData...)
 		}
 	}
 
@@ -688,7 +710,32 @@ func (rtb *RTBasis2DSimplex) ExtendGeomToRT(Rint, Sint utils.Vector) (R, S []flo
 		rEdgeData[i+2*NpEdge] = -1
 		sEdgeData[i+2*NpEdge] = -gp
 	}
-	R = append(R, rEdgeData...)
-	S = append(S, sEdgeData...)
+	Rd = append(Rd, rEdgeData...)
+	Sd = append(Sd, sEdgeData...)
+	nn := len(Rd)
+	R, S = utils.NewVector(nn, Rd), utils.NewVector(nn, Sd)
+	return
+}
+
+func (rtb *RTBasis2DSimplex) GetEdgeLocations(F []float64) (Fedge []float64) {
+	var (
+		Nint     = rtb.NpInt
+		NedgeTot = rtb.NpEdge * 3
+	)
+	Fedge = make([]float64, NedgeTot)
+	for i := 0; i < NedgeTot; i++ {
+		Fedge[i] = F[i+2*Nint]
+	}
+	return
+}
+
+func (rtb *RTBasis2DSimplex) GetInternalLocations(F []float64) (Finternal []float64) {
+	var (
+		Nint = rtb.NpInt
+	)
+	Finternal = make([]float64, Nint)
+	for i := 0; i < Nint; i++ {
+		Finternal[i] = F[i]
+	}
 	return
 }

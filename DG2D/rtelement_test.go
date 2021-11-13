@@ -28,7 +28,7 @@ func TestRTElement_CalculateBasis(t *testing.T) {
 		RGauss := DG1D.LegendreZeros(rtb.P)
 		//for i := 0; i < rtb.Np; i++ {
 		i := 0
-		r, s := rtb.R[i], rtb.S[i]
+		r, s := rtb.R.DataP[i], rtb.S.DataP[i]
 
 		// Core basis
 		p0, p1 := rtb.getCoreBasisTerm(e1, r, s)
@@ -74,24 +74,24 @@ func TestRTElement_CalculateBasis(t *testing.T) {
 		// Lagrange 1D basis derivatives
 		l1xiDr := rtb.Lagrange1DPoly(r, RGauss, 0, RDir, Dr)
 		l1etaDr := rtb.Lagrange1DPoly(s, RGauss, 0, SDir, Dr)
-		assert.InDeltaf(t, -0.866, l1xiDr, 0.001, "")
+		assert.InDeltaf(t, -0.433, l1xiDr, 0.001, "")
 		assert.InDeltaf(t, 0.000, l1etaDr, 0.001, "")
 		l1xiDs := rtb.Lagrange1DPoly(r, RGauss, 0, RDir, Ds)
 		l1etaDs := rtb.Lagrange1DPoly(s, RGauss, 0, SDir, Ds)
 		assert.InDeltaf(t, 0.000, l1xiDs, 0.001, "")
-		assert.InDeltaf(t, -0.866, l1etaDs, 0.001, "")
+		assert.InDeltaf(t, -0.433, l1etaDs, 0.001, "")
 
 		l2xiDr := rtb.Lagrange1DPoly(r, RGauss, 1, RDir, Dr)
 		l2etaDr := rtb.Lagrange1DPoly(s, RGauss, 1, SDir, Dr)
-		assert.InDeltaf(t, 0.866, l2xiDr, 0.001, "")
+		assert.InDeltaf(t, 0.433, l2xiDr, 0.001, "")
 		assert.InDeltaf(t, 0.000, l2etaDr, 0.001, "")
 		l2xiDs := rtb.Lagrange1DPoly(r, RGauss, 1, RDir, Ds)
 		l2etaDs := rtb.Lagrange1DPoly(s, RGauss, 1, SDir, Ds)
 		assert.InDeltaf(t, 0.000, l2xiDs, 0.001, "")
-		assert.InDeltaf(t, 0.866, l2etaDs, 0.001, "")
+		assert.InDeltaf(t, 0.433, l2etaDs, 0.001, "")
 	}
-	if false {
-		rtb := NewRTBasis2DSimplex(1)
+	if true {
+		rtb := NewRTBasis2DSimplex(1, false)
 		assert.Equal(t, rtb.P, 1)
 	}
 }
