@@ -1,6 +1,7 @@
 package DG2D
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +13,71 @@ import (
 
 func TestRTElement_CalculateBasis(t *testing.T) {
 	{
+		P := 1
+		rtb := NewRTBasis2DSimplex(P, false)
+		// Lagrange 1D polynomial
+		{
+			g1 := 0.5 - math.Sqrt(3)/6
+			g2 := 0.5 + math.Sqrt(3)/6
+			g1 = 2*g1 - 1
+			g2 = 2*g2 - 1
+			l1 := func(t float64) (p float64) {
+				p = (t - g2) / (g1 - g2)
+				return
+			}
+			l2 := func(t float64) (p float64) {
+				p = (t - g1) / (g2 - g1)
+				return
+			}
+			RGauss := DG1D.LegendreZeros(P)
+			for _, r := range RGauss {
+				assert.InDeltaf(t, l1(r), rtb.Lagrange1DPoly(r, RGauss, 0, RDir), 0.00001, "")
+				assert.InDeltaf(t, l2(r), rtb.Lagrange1DPoly(r, RGauss, 1, RDir), 0.00001, "")
+				assert.InDeltaf(t, 0, rtb.Lagrange1DPoly(r, RGauss, 0, RDir, Ds), 0.00001, "")
+				assert.InDeltaf(t, 0, rtb.Lagrange1DPoly(r, RGauss, 1, RDir, Ds), 0.00001, "")
+				// Check derivative
+				assert.InDeltaf(t, 1.0/(g1-g2), rtb.Lagrange1DPoly(r, RGauss, 0, RDir, Dr), 0.00001, "")
+				assert.InDeltaf(t, 1.0/(g2-g1), rtb.Lagrange1DPoly(r, RGauss, 1, RDir, Dr), 0.00001, "")
+			}
+		}
+		// Linear 2D Polynomial
+		{
+			j := 0
+			assert.InDeltaf(t, 0, rtb.LinearPoly(0, 0, j), 0.00001, "")
+			assert.InDeltaf(t, 1, rtb.LinearPoly(-1, -1, j), 0.00001, "")
+			assert.InDeltaf(t, 0, rtb.LinearPoly(-1, 1, j), 0.00001, "")
+			assert.InDeltaf(t, 0, rtb.LinearPoly(1, -1, j), 0.00001, "")
+			assert.InDeltaf(t, -1, rtb.LinearPoly(1, 1, j), 0.00001, "")
+			assert.InDeltaf(t, 1./3, rtb.LinearPoly(-1./3, -1./3, j), 0.00001, "")
+
+			j = 1
+			assert.InDeltaf(t, 0.5, rtb.LinearPoly(0, 0, j), 0.00001, "")
+			assert.InDeltaf(t, 0, rtb.LinearPoly(-1, -1, j), 0.00001, "")
+			assert.InDeltaf(t, 0, rtb.LinearPoly(-1, 1, j), 0.00001, "")
+			assert.InDeltaf(t, 1, rtb.LinearPoly(1, -1, j), 0.00001, "")
+			assert.InDeltaf(t, 1, rtb.LinearPoly(1, 1, j), 0.00001, "")
+			assert.InDeltaf(t, 1./3, rtb.LinearPoly(-1./3, -1./3, j), 0.00001, "")
+
+			j = 2
+			assert.InDeltaf(t, 0.5, rtb.LinearPoly(0, 0, j), 0.00001, "")
+			assert.InDeltaf(t, 0, rtb.LinearPoly(-1, -1, j), 0.00001, "")
+			assert.InDeltaf(t, 1, rtb.LinearPoly(-1, 1, j), 0.00001, "")
+			assert.InDeltaf(t, 0, rtb.LinearPoly(1, -1, j), 0.00001, "")
+			assert.InDeltaf(t, 1, rtb.LinearPoly(1, 1, j), 0.00001, "")
+			assert.InDeltaf(t, 1./3, rtb.LinearPoly(-1./3, -1./3, j), 0.00001, "")
+
+			// Dr
+			assert.InDeltaf(t, -0.5, rtb.LinearPoly(0, 0, 0, Dr), 0.00001, "")
+			assert.InDeltaf(t, 0.5, rtb.LinearPoly(0, 0, 1, Dr), 0.00001, "")
+			assert.InDeltaf(t, 0.0, rtb.LinearPoly(0, 0, 2, Dr), 0.00001, "")
+
+			// Ds
+			assert.InDeltaf(t, -0.5, rtb.LinearPoly(0, 0, 0, Ds), 0.00001, "")
+			assert.InDeltaf(t, 0.0, rtb.LinearPoly(0, 0, 1, Ds), 0.00001, "")
+			assert.InDeltaf(t, 0.5, rtb.LinearPoly(0, 0, 2, Ds), 0.00001, "")
+		}
+	}
+	if false {
 		var rtb *RTBasis2DSimplex
 		var Rint, Sint utils.Vector
 		P := 1
@@ -90,8 +156,17 @@ func TestRTElement_CalculateBasis(t *testing.T) {
 		assert.InDeltaf(t, 0.000, l2xiDs, 0.001, "")
 		assert.InDeltaf(t, 0.433, l2etaDs, 0.001, "")
 	}
-	if true {
-		rtb := NewRTBasis2DSimplex(1, false)
-		assert.Equal(t, rtb.P, 1)
+	if false {
+		P := 1
+		rtb := NewRTBasis2DSimplex(P, false)
+		assert.Equal(t, rtb.P, P)
+		rtb.V[0].Print("V0")
+		rtb.V[1].Print("V1")
+		rtb.DivInt.Print("DivInt")
+		R, S := NodesEpsilon(P - 1)
+		rt := NewRTElement(R, S, P, false)
+		rt.V[0].Print("V0 rt")
+		rt.V[1].Print("V1 rt")
+		rt.DivInt.Print("DivInt rt")
 	}
 }

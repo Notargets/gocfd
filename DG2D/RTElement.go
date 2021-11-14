@@ -44,13 +44,6 @@ func NewRTBasis2DSimplex(P int, useLagrangeBasis bool) (rtb *RTBasis2DSimplex) {
 	return
 }
 
-func convertToUnitTriangle(r, s float64) (xi, eta float64) {
-	// Convert R,S coordinates from a [-1,1] triangle to a [0,1] triangle to match up with the basis definition
-	xi = (r + 1) / 2
-	eta = (s + 1) / 2
-	return
-}
-
 /*
 	Set up the five core vector basis functions used for all order of terms
 */
@@ -66,9 +59,9 @@ const (
 
 func (rtb *RTBasis2DSimplex) getCoreBasisTerm(tt TermType, r, s float64, derivO ...DerivativeDirection) (p0, p1 float64) {
 	var (
-		xi, eta = convertToUnitTriangle(r, s)
-		sr2     = math.Sqrt(2)
-		deriv   DerivativeDirection
+		sr2   = math.Sqrt(2)
+		oosr2 = 1. / sr2
+		deriv DerivativeDirection
 	)
 	if len(derivO) != 0 {
 		deriv = derivO[0]
@@ -79,18 +72,22 @@ func (rtb *RTBasis2DSimplex) getCoreBasisTerm(tt TermType, r, s float64, derivO 
 	case e1:
 		switch deriv {
 		case None:
-			p0 = sr2 * xi
-			p1 = sr2 * eta
+			//p0 = sr2 * xi
+			//p1 = sr2 * eta
+			p0 = oosr2 * (r + 1)
+			p1 = oosr2 * (s + 1)
 		case Dr:
-			p0 = 0.5 * sr2
+			p0 = oosr2
 		case Ds:
-			p1 = 0.5 * sr2
+			p1 = oosr2
 		}
 	case e2:
 		switch deriv {
 		case None:
-			p0 = xi - 1
-			p1 = eta
+			//p0 = xi - 1
+			//p1 = eta
+			p0 = 0.5*r - 0.5
+			p1 = 0.5*s + 0.5
 		case Dr:
 			p0 = 0.5
 		case Ds:
@@ -99,8 +96,10 @@ func (rtb *RTBasis2DSimplex) getCoreBasisTerm(tt TermType, r, s float64, derivO 
 	case e3:
 		switch deriv {
 		case None:
-			p0 = xi
-			p1 = eta - 1
+			//p0 = xi
+			//p1 = eta - 1
+			p0 = 0.5*r + 0.5
+			p1 = 0.5*s - 0.5
 		case Dr:
 			p0 = 0.5
 		case Ds:
@@ -109,24 +108,28 @@ func (rtb *RTBasis2DSimplex) getCoreBasisTerm(tt TermType, r, s float64, derivO 
 	case e4:
 		switch deriv {
 		case None:
-			p0 = eta * xi
-			p1 = eta * (eta - 1)
+			//p0 = eta * xi
+			//p1 = eta * (eta - 1)
+			p0 = 0.25 * (r*s + r + s + 1)
+			p1 = 0.25 * (s*s - 1)
 		case Dr:
-			p0 = 0.5 * eta
+			p0 = 0.25 * (s + 1)
 		case Ds:
-			p0 = 0.5 * xi
-			p1 = eta - 0.5
+			p0 = 0.25 * (r + 1)
+			p1 = 0.5 * s
 		}
 	case e5:
 		switch deriv {
 		case None:
-			p0 = xi * (xi - 1)
-			p1 = xi * eta
+			//p0 = xi * (xi - 1)
+			//p1 = xi * eta
+			p0 = 0.25 * (r*r - 1)
+			p1 = 0.25 * (r*s + r + s + 1)
 		case Dr:
-			p0 = xi - 0.5
-			p1 = 0.5 * eta
+			p0 = 0.5 * r
+			p1 = 0.25 * (s + 1)
 		case Ds:
-			p1 = 0.5 * xi
+			p1 = 0.25 * (r + 1)
 		}
 	}
 	return
@@ -152,70 +155,57 @@ func (rtb *RTBasis2DSimplex) Lagrange1DPoly(r float64, R []float64, j int,
 	}
 	switch deriv {
 	case None:
-		p = rtb.LagrangePolyAtJ(r, R, j)
-	case Dr:
-		if dir == SDir {
-			return
+		var (
+			Np1D = len(R)
+			XJ   = R[j]
+			XI   = r
+		)
+		if j > Np1D-1 || j < 0 {
+			panic("value of j larger than array or less than zero")
 		}
-		p = rtb.LagrangePolyDerivAtJ(r, R, j)
-	case Ds:
-		if dir == RDir {
-			return
-		}
-		p = rtb.LagrangePolyDerivAtJ(r, R, j)
-	}
-	return
-}
-
-func (rtb *RTBasis2DSimplex) LagrangePolyAtJ(r float64, R []float64, j int) (p float64) {
-	var (
-		Np1D = len(R)
-		XJ   = R[j]
-		XI   = r
-	)
-	if j > Np1D-1 || j < 0 {
-		panic("value of j larger than array or less than zero")
-	}
-	p = 1
-	for m, XM := range R {
-		if m != j {
-			metric := (XI - XM) / (XJ - XM)
-			p *= metric
-		}
-	}
-	return
-}
-
-func (rtb *RTBasis2DSimplex) LagrangePolyDerivAtJ(r float64, R []float64, j int) (dp float64) {
-	/*
-		From https://en.wikipedia.org/wiki/Lagrange_polynomial#Derivatives
-	*/
-	var (
-		XJ = R[j]
-		X  = r
-		t1 float64
-	)
-	for i, XI := range R {
-		if i != j {
-			t1 = 1 / (XJ - XI)
-			var p float64
-			p = 1
-			for m, XM := range R {
-				if m != i && m != j {
-					p *= (X - XM) / (XJ - XM)
-				}
+		p = 1
+		for m, XM := range R {
+			if m != j {
+				p *= (XI - XM) / (XJ - XM)
 			}
-			dp += t1 * p
+		}
+	case Dr, Ds:
+		switch {
+		case dir == SDir && deriv == Dr:
+			return
+		case dir == RDir && deriv == Ds:
+			return
+		}
+		/*
+			From https://en.wikipedia.org/wiki/Lagrange_polynomial#Derivatives
+		*/
+		var (
+			XJ = R[j]
+			X  = r
+		)
+		for i, XI := range R {
+			if i != j {
+				pp := 1.
+				for m, XM := range R {
+					if m != i && m != j {
+						pp *= (X - XM) / (XJ - XM)
+					}
+				}
+				p += pp / (XJ - XI)
+			}
 		}
 	}
-	dp *= 0.5 // Convert to [-1,1] triangle from [0,1] triangle
 	return
 }
 
-func (rtb *RTBasis2DSimplex) LinearPoly(r, s float64, i, j int, derivO ...DerivativeDirection) (p float64) {
+func (rtb *RTBasis2DSimplex) LinearPoly(r, s float64, j int, derivO ...DerivativeDirection) (p float64) {
 	var (
 		deriv DerivativeDirection
 	)
+	if j > 2 || j < 0 {
+		err := fmt.Errorf("linear 2D polynomial called with bad parameters [j]=[%d]", j)
+		panic(err)
+	}
 	if len(derivO) != 0 {
 		deriv = derivO[0]
 	} else {
@@ -223,59 +213,32 @@ func (rtb *RTBasis2DSimplex) LinearPoly(r, s float64, i, j int, derivO ...Deriva
 	}
 	switch deriv {
 	case None:
-		p = rtb.LinearPolyTerm2D(r, s, i, j)
+		switch j {
+		case 0:
+			p = -0.5 * (r + s)
+		case 1:
+			p = 0.5*r + 0.5
+		case 2:
+			p = 0.5*s + 0.5
+		}
 	case Dr:
-		p = rtb.LinearPolyTerm2DDr(i, j)
+		switch j {
+		case 0:
+			p = -0.5
+		case 1:
+			p = 0.5
+		case 2:
+			p = 0
+		}
 	case Ds:
-		p = rtb.LinearPolyTerm2DDs(i, j)
-	}
-	return
-}
-
-func (rtb *RTBasis2DSimplex) LinearPolyTerm2D(r, s float64, i, j int) (p float64) {
-	var (
-		xi, eta = convertToUnitTriangle(r, s)
-	)
-	switch {
-	case i == 0 && j == 0:
-		p = 1 - xi - eta
-	case i == 1 && j == 0:
-		p = xi
-	case i == 0 && j == 1:
-		p = eta
-	default:
-		err := fmt.Errorf("linear 2D polynomial called with bad parameters [i,j]=[%d,%d]", i, j)
-		panic(err)
-	}
-	return
-}
-
-func (rtb *RTBasis2DSimplex) LinearPolyTerm2DDr(i, j int) (dpdr float64) {
-	switch {
-	case i == 0 && j == 0:
-		dpdr = -0.5
-	case i == 1 && j == 0:
-		dpdr = 0.5
-	case i == 0 && j == 1:
-		dpdr = 0
-	default:
-		err := fmt.Errorf("linear 2D polynomial called with bad parameters [i,j]=[%d,%d]", i, j)
-		panic(err)
-	}
-	return
-}
-
-func (rtb *RTBasis2DSimplex) LinearPolyTerm2DDs(i, j int) (dpds float64) {
-	switch {
-	case i == 0 && j == 0:
-		dpds = -0.5
-	case i == 1 && j == 0:
-		dpds = 0
-	case i == 0 && j == 1:
-		dpds = 0.5
-	default:
-		err := fmt.Errorf("linear 2D polynomial called with bad parameters [i,j]=[%d,%d]", i, j)
-		panic(err)
+		switch j {
+		case 0:
+			p = -0.5
+		case 1:
+			p = 0
+		case 2:
+			p = 0.5
+		}
 	}
 	return
 }
@@ -301,6 +264,8 @@ func (rtb *RTBasis2DSimplex) getLocationType(i int) (locationType RTPointType) {
 	case i >= 2*NpInt+2*NpEdge && i < 2*NpInt+3*NpEdge:
 		// Edge3: Unit vector is [-1,0]
 		locationType = Edge3
+	default:
+		fmt.Errorf("unable to match node location for node %d and Np = %d", i, rtb.Np)
 	}
 	return
 }
@@ -327,6 +292,7 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 		return
 	}
 	CRP := func(pL, dpL, pR, dpR float64) (dp float64) {
+		// Chain Rule Product d(P*F)/dr = F*(dP/dr)+ P*(dF/dr)
 		dp = dpL*pR + pL*dpR
 		return
 	}
@@ -352,9 +318,9 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 		// Six "non-Normal" basis functions, use linear 2D polynomial for triangles multiplied by e4 and e5
 		e4r, e4s := rtb.getCoreBasisTerm(e4, r, s)
 		e5r, e5s := rtb.getCoreBasisTerm(e5, r, s)
-		l1 := rtb.LinearPoly(r, s, 0, 0)
-		l2 := rtb.LinearPoly(r, s, 1, 0)
-		l3 := rtb.LinearPoly(r, s, 0, 1)
+		l1 := rtb.LinearPoly(r, s, 0)
+		l2 := rtb.LinearPoly(r, s, 1)
+		l3 := rtb.LinearPoly(r, s, 2)
 		if deriv == None {
 			p0[sk], p1[sk] = e4r*l1, e4s*l1
 			sk++
@@ -362,6 +328,7 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 			sk++
 			p0[sk], p1[sk] = e4r*l3, e4s*l3
 			sk++
+
 			p0[sk], p1[sk] = e5r*l1, e5s*l1
 			sk++
 			p0[sk], p1[sk] = e5r*l2, e5s*l2
@@ -370,11 +337,11 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 			sk++
 		} else {
 			// This covers either derivative direction, Dr or Ds
-			l1deriv := rtb.LinearPoly(r, s, 0, 0, deriv)
-			l2deriv := rtb.LinearPoly(r, s, 1, 0, deriv)
-			l3deriv := rtb.LinearPoly(r, s, 0, 1, deriv)
 			e4Rderiv, e4Sderiv := rtb.getCoreBasisTerm(e4, r, s, deriv)
 			e5Rderiv, e5Sderiv := rtb.getCoreBasisTerm(e5, r, s, deriv)
+			l1deriv := rtb.LinearPoly(r, s, 0, deriv)
+			l2deriv := rtb.LinearPoly(r, s, 1, deriv)
+			l3deriv := rtb.LinearPoly(r, s, 2, deriv)
 			p0[sk], p1[sk] = CRP(e4r, e4Rderiv, l1, l1deriv), CRP(e4s, e4Sderiv, l1, l1deriv)
 			sk++
 			p0[sk], p1[sk] = CRP(e4r, e4Rderiv, l2, l2deriv), CRP(e4s, e4Sderiv, l2, l2deriv)
@@ -478,60 +445,62 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 		e1r, e1s := rtb.getCoreBasisTerm(e1, r, s)
 		e2r, e2s := rtb.getCoreBasisTerm(e2, r, s)
 		e3r, e3s := rtb.getCoreBasisTerm(e3, r, s)
-		l1xi := rtb.Lagrange1DPoly(r, RGauss, 0, RDir)
-		l1eta := rtb.Lagrange1DPoly(s, RGauss, 0, SDir)
-		l2xi := rtb.Lagrange1DPoly(r, RGauss, 1, RDir)
-		l2eta := rtb.Lagrange1DPoly(s, RGauss, 1, SDir)
-		l3xi := rtb.Lagrange1DPoly(r, RGauss, 2, RDir)
-		l3eta := rtb.Lagrange1DPoly(s, RGauss, 2, SDir)
+		q1xi := rtb.Lagrange1DPoly(r, RGauss, 0, RDir)
+		q2xi := rtb.Lagrange1DPoly(r, RGauss, 1, RDir)
+		q3xi := rtb.Lagrange1DPoly(r, RGauss, 2, RDir)
+		q1eta := rtb.Lagrange1DPoly(s, RGauss, 0, SDir)
+		q2eta := rtb.Lagrange1DPoly(s, RGauss, 1, SDir)
+		q3eta := rtb.Lagrange1DPoly(s, RGauss, 2, SDir)
 		if deriv == None {
-			p0[sk], p1[sk] = l1eta*e1r, l1eta*e1s
+			p0[sk], p1[sk] = q1eta*e1r, q1eta*e1s
 			sk++
-			p0[sk], p1[sk] = l2eta*e1r, l2eta*e1s
+			p0[sk], p1[sk] = q2eta*e1r, q2eta*e1s
 			sk++
-			p0[sk], p1[sk] = l3eta*e1r, l3eta*e1s
+			p0[sk], p1[sk] = q3eta*e1r, q3eta*e1s
 			sk++
-			p0[sk], p1[sk] = l3eta*e2r, l3eta*e2s
+
+			p0[sk], p1[sk] = q3eta*e2r, q3eta*e2s
 			sk++
-			p0[sk], p1[sk] = l2eta*e2r, l2eta*e2s
+			p0[sk], p1[sk] = q2eta*e2r, q2eta*e2s
 			sk++
-			p0[sk], p1[sk] = l1eta*e2r, l1eta*e2s
+			p0[sk], p1[sk] = q1eta*e2r, q1eta*e2s
 			sk++
-			p0[sk], p1[sk] = l1xi*e3r, l1xi*e3s
+
+			p0[sk], p1[sk] = q1xi*e3r, q1xi*e3s
 			sk++
-			p0[sk], p1[sk] = l2xi*e3r, l2xi*e3s
+			p0[sk], p1[sk] = q2xi*e3r, q2xi*e3s
 			sk++
-			p0[sk], p1[sk] = l3xi*e3r, l3xi*e3s
+			p0[sk], p1[sk] = q3xi*e3r, q3xi*e3s
 			sk++
 		} else {
 			e1Rderiv, e1Sderiv := rtb.getCoreBasisTerm(e1, r, s, deriv)
 			e2Rderiv, e2Sderiv := rtb.getCoreBasisTerm(e2, r, s, deriv)
 			e3Rderiv, e3Sderiv := rtb.getCoreBasisTerm(e3, r, s, deriv)
-			l1xiDeriv := rtb.Lagrange1DPoly(r, RGauss, 0, RDir, deriv)
-			l1etaDeriv := rtb.Lagrange1DPoly(s, RGauss, 0, SDir, deriv)
-			l2xiDeriv := rtb.Lagrange1DPoly(r, RGauss, 1, RDir, deriv)
-			l2etaDeriv := rtb.Lagrange1DPoly(s, RGauss, 1, SDir, deriv)
-			l3xiDeriv := rtb.Lagrange1DPoly(r, RGauss, 2, RDir, deriv)
-			l3etaDeriv := rtb.Lagrange1DPoly(s, RGauss, 2, SDir, deriv)
-			p0[sk], p1[sk] = CRP(e1r, e1Rderiv, l1eta, l1etaDeriv), CRP(e1s, e1Sderiv, l1eta, l1etaDeriv)
+			q1xiDeriv := rtb.Lagrange1DPoly(r, RGauss, 0, RDir, deriv)
+			q2xiDeriv := rtb.Lagrange1DPoly(r, RGauss, 1, RDir, deriv)
+			q3xiDeriv := rtb.Lagrange1DPoly(r, RGauss, 2, RDir, deriv)
+			q1etaDeriv := rtb.Lagrange1DPoly(s, RGauss, 0, SDir, deriv)
+			q2etaDeriv := rtb.Lagrange1DPoly(s, RGauss, 1, SDir, deriv)
+			q3etaDeriv := rtb.Lagrange1DPoly(s, RGauss, 2, SDir, deriv)
+			p0[sk], p1[sk] = CRP(e1r, e1Rderiv, q1eta, q1etaDeriv), CRP(e1s, e1Sderiv, q1eta, q1etaDeriv)
 			sk++
-			p0[sk], p1[sk] = CRP(e1r, e1Rderiv, l2eta, l2etaDeriv), CRP(e1s, e1Sderiv, l2eta, l2etaDeriv)
+			p0[sk], p1[sk] = CRP(e1r, e1Rderiv, q2eta, q2etaDeriv), CRP(e1s, e1Sderiv, q2eta, q2etaDeriv)
 			sk++
-			p0[sk], p1[sk] = CRP(e1r, e1Rderiv, l3eta, l3etaDeriv), CRP(e1s, e1Sderiv, l3eta, l3etaDeriv)
-			sk++
-
-			p0[sk], p1[sk] = CRP(e2r, e2Rderiv, l3eta, l3etaDeriv), CRP(e2s, e2Sderiv, l3eta, l3etaDeriv)
-			sk++
-			p0[sk], p1[sk] = CRP(e2r, e2Rderiv, l2eta, l2etaDeriv), CRP(e2s, e2Sderiv, l2eta, l2etaDeriv)
-			sk++
-			p0[sk], p1[sk] = CRP(e2r, e2Rderiv, l1eta, l1etaDeriv), CRP(e2s, e2Sderiv, l1eta, l1etaDeriv)
+			p0[sk], p1[sk] = CRP(e1r, e1Rderiv, q3eta, q3etaDeriv), CRP(e1s, e1Sderiv, q3eta, q3etaDeriv)
 			sk++
 
-			p0[sk], p1[sk] = CRP(e3r, e3Rderiv, l1xi, l1xiDeriv), CRP(e3s, e3Sderiv, l1xi, l1xiDeriv)
+			p0[sk], p1[sk] = CRP(e2r, e2Rderiv, q3eta, q3etaDeriv), CRP(e2s, e2Sderiv, q3eta, q3etaDeriv)
 			sk++
-			p0[sk], p1[sk] = CRP(e3r, e3Rderiv, l2xi, l2xiDeriv), CRP(e3s, e3Sderiv, l2xi, l2xiDeriv)
+			p0[sk], p1[sk] = CRP(e2r, e2Rderiv, q2eta, q2etaDeriv), CRP(e2s, e2Sderiv, q2eta, q2etaDeriv)
 			sk++
-			p0[sk], p1[sk] = CRP(e3r, e3Rderiv, l3xi, l3xiDeriv), CRP(e3s, e3Sderiv, l3xi, l3xiDeriv)
+			p0[sk], p1[sk] = CRP(e2r, e2Rderiv, q1eta, q1etaDeriv), CRP(e2s, e2Sderiv, q1eta, q1etaDeriv)
+			sk++
+
+			p0[sk], p1[sk] = CRP(e3r, e3Rderiv, q1xi, q1xiDeriv), CRP(e3s, e3Sderiv, q1xi, q1xiDeriv)
+			sk++
+			p0[sk], p1[sk] = CRP(e3r, e3Rderiv, q2xi, q2xiDeriv), CRP(e3s, e3Sderiv, q2xi, q2xiDeriv)
+			sk++
+			p0[sk], p1[sk] = CRP(e3r, e3Rderiv, q3xi, q3xiDeriv), CRP(e3s, e3Sderiv, q3xi, q3xiDeriv)
 			sk++
 		}
 	default:
@@ -597,7 +566,7 @@ func (rtb *RTBasis2DSimplex) CalculateBasis() {
 	}
 	// Evaluate at geometric locations
 	rowEdge := make([]float64, Np)
-	oosr2 := math.Sqrt(2)
+	oosr2 := 1. / math.Sqrt(2)
 	for ii, rr := range Rd {
 		ss := Sd[ii]
 		/*
