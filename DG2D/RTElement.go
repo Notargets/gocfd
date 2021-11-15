@@ -19,6 +19,15 @@ type RTBasis2DSimplex struct {
 	Div, DivInt   utils.Matrix
 }
 
+/*
+This is a second Raviart-Thomas element basis implementation within this project.
+
+This implementation is based on the paper "Computational Bases for RTk and BDMk on Triangles" by V. J. Ervin
+
+In this approach, edges are specifically addressed with 1D Lagrange polynomials multiplied by edge specific basis
+functions, while the interior points are composed of a supplied 2D scalar polynomial multiplied by a barycentric basis
+for the triangle.
+*/
 func NewRTBasis2DSimplex(P int, useLagrangeBasis bool) (rtb *RTBasis2DSimplex) {
 	var Rint, Sint utils.Vector
 	rtb = &RTBasis2DSimplex{
@@ -41,205 +50,6 @@ func NewRTBasis2DSimplex(P int, useLagrangeBasis bool) (rtb *RTBasis2DSimplex) {
 	}
 	rtb.R, rtb.S = rtb.ExtendGeomToRT(Rint, Sint)
 	rtb.CalculateBasis()
-	return
-}
-
-/*
-	Set up the five core vector basis functions used for all order of terms
-*/
-type TermType uint8
-
-const (
-	e1 TermType = iota
-	e2
-	e3
-	e4
-	e5
-)
-
-func (rtb *RTBasis2DSimplex) getCoreBasisTerm(tt TermType, r, s float64, derivO ...DerivativeDirection) (p0, p1 float64) {
-	var (
-		sr2   = math.Sqrt(2)
-		oosr2 = 1. / sr2
-		deriv DerivativeDirection
-	)
-	if len(derivO) != 0 {
-		deriv = derivO[0]
-	} else {
-		deriv = None
-	}
-	switch tt {
-	case e1:
-		switch deriv {
-		case None:
-			//p0 = sr2 * xi
-			//p1 = sr2 * eta
-			p0 = oosr2 * (r + 1)
-			p1 = oosr2 * (s + 1)
-		case Dr:
-			p0 = oosr2
-		case Ds:
-			p1 = oosr2
-		}
-	case e2:
-		switch deriv {
-		case None:
-			//p0 = xi - 1
-			//p1 = eta
-			p0 = 0.5*r - 0.5
-			p1 = 0.5*s + 0.5
-		case Dr:
-			p0 = 0.5
-		case Ds:
-			p1 = 0.5
-		}
-	case e3:
-		switch deriv {
-		case None:
-			//p0 = xi
-			//p1 = eta - 1
-			p0 = 0.5*r + 0.5
-			p1 = 0.5*s - 0.5
-		case Dr:
-			p0 = 0.5
-		case Ds:
-			p1 = 0.5
-		}
-	case e4:
-		switch deriv {
-		case None:
-			//p0 = eta * xi
-			//p1 = eta * (eta - 1)
-			p0 = 0.25 * (r*s + r + s + 1)
-			p1 = 0.25 * (s*s - 1)
-		case Dr:
-			p0 = 0.25 * (s + 1)
-		case Ds:
-			p0 = 0.25 * (r + 1)
-			p1 = 0.5 * s
-		}
-	case e5:
-		switch deriv {
-		case None:
-			//p0 = xi * (xi - 1)
-			//p1 = xi * eta
-			p0 = 0.25 * (r*r - 1)
-			p1 = 0.25 * (r*s + r + s + 1)
-		case Dr:
-			p0 = 0.5 * r
-			p1 = 0.25 * (s + 1)
-		case Ds:
-			p1 = 0.25 * (r + 1)
-		}
-	}
-	return
-}
-
-type Direction uint8
-
-const (
-	RDir Direction = iota
-	SDir
-)
-
-func (rtb *RTBasis2DSimplex) Lagrange1DPoly(r float64, R []float64, j int,
-	dir Direction, derivO ...DerivativeDirection) (p float64) {
-	// This is a 1D polynomial, but the nodes are either in the RDir or SDir direction within 2D
-	var (
-		deriv DerivativeDirection
-	)
-	if len(derivO) != 0 {
-		deriv = derivO[0]
-	} else {
-		deriv = None
-	}
-	switch deriv {
-	case None:
-		var (
-			Np1D = len(R)
-			XJ   = R[j]
-			XI   = r
-		)
-		if j > Np1D-1 || j < 0 {
-			panic("value of j larger than array or less than zero")
-		}
-		p = 1
-		for m, XM := range R {
-			if m != j {
-				p *= (XI - XM) / (XJ - XM)
-			}
-		}
-	case Dr, Ds:
-		switch {
-		case dir == SDir && deriv == Dr:
-			return
-		case dir == RDir && deriv == Ds:
-			return
-		}
-		/*
-			From https://en.wikipedia.org/wiki/Lagrange_polynomial#Derivatives
-		*/
-		var (
-			XJ = R[j]
-			X  = r
-		)
-		for i, XI := range R {
-			if i != j {
-				pp := 1.
-				for m, XM := range R {
-					if m != i && m != j {
-						pp *= (X - XM) / (XJ - XM)
-					}
-				}
-				p += pp / (XJ - XI)
-			}
-		}
-	}
-	return
-}
-
-func (rtb *RTBasis2DSimplex) LinearPoly(r, s float64, j int, derivO ...DerivativeDirection) (p float64) {
-	var (
-		deriv DerivativeDirection
-	)
-	if j > 2 || j < 0 {
-		err := fmt.Errorf("linear 2D polynomial called with bad parameters [j]=[%d]", j)
-		panic(err)
-	}
-	if len(derivO) != 0 {
-		deriv = derivO[0]
-	} else {
-		deriv = None
-	}
-	switch deriv {
-	case None:
-		switch j {
-		case 0:
-			p = -0.5 * (r + s)
-		case 1:
-			p = 0.5*r + 0.5
-		case 2:
-			p = 0.5*s + 0.5
-		}
-	case Dr:
-		switch j {
-		case 0:
-			p = -0.5
-		case 1:
-			p = 0.5
-		case 2:
-			p = 0
-		}
-	case Ds:
-		switch j {
-		case 0:
-			p = -0.5
-		case 1:
-			p = 0
-		case 2:
-			p = 0.5
-		}
-	}
 	return
 }
 
@@ -667,11 +477,8 @@ func (rtb *RTBasis2DSimplex) CalculateBasis() {
 			P.M.SetRow(ii, rowEdge)
 		}
 	}
-	//P.Print("P")
 	// Invert [P] = [A] to obtain the coefficients (columns) of polynomials (rows), each row is a polynomial
 	A := P.InverseWithCheck()
-	//A.Print("A")
-	//A := utils.NewDiagMatrix(Np, nil, 1)
 	// Evaluate 2D polynomial basis at geometric locations, also evaluate derivatives Dr and Ds for Rd and Sd
 	P0, P1 := utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
 	Pdr0, Pds1 := utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
@@ -686,12 +493,6 @@ func (rtb *RTBasis2DSimplex) CalculateBasis() {
 		Pds1.M.SetRow(ii, p1)                           // Only need the dP/ds(s) term from P(r,s)
 	}
 	// Construct the Vandermonde matrices for each direction by multiplying coefficients of constrained basis
-	/*
-		P0.Print("P0")
-		P1.Print("P1")
-		Pdr0.Print("Pdr0")
-		Pds1.Print("Pds1")
-	*/
 	rtb.V[0] = P0.Mul(A)
 	rtb.V[1] = P1.Mul(A)
 	rtb.Div = Pdr0.Mul(A).Add(Pds1.Mul(A))
@@ -770,6 +571,206 @@ func (rtb *RTBasis2DSimplex) GetInternalLocations(F []float64) (Finternal []floa
 	Finternal = make([]float64, Nint)
 	for i := 0; i < Nint; i++ {
 		Finternal[i] = F[i]
+	}
+	return
+}
+
+/*
+	Set up the five core vector basis functions used for all order of terms
+*/
+
+type TermType uint8
+
+const (
+	e1 TermType = iota
+	e2
+	e3
+	e4
+	e5
+)
+
+func (rtb *RTBasis2DSimplex) getCoreBasisTerm(tt TermType, r, s float64, derivO ...DerivativeDirection) (p0, p1 float64) {
+	var (
+		sr2   = math.Sqrt(2)
+		oosr2 = 1. / sr2
+		deriv DerivativeDirection
+	)
+	if len(derivO) != 0 {
+		deriv = derivO[0]
+	} else {
+		deriv = None
+	}
+	switch tt {
+	case e1:
+		switch deriv {
+		case None:
+			//p0 = sr2 * xi
+			//p1 = sr2 * eta
+			p0 = oosr2 * (r + 1)
+			p1 = oosr2 * (s + 1)
+		case Dr:
+			p0 = oosr2
+		case Ds:
+			p1 = oosr2
+		}
+	case e2:
+		switch deriv {
+		case None:
+			//p0 = xi - 1
+			//p1 = eta
+			p0 = 0.5*r - 0.5
+			p1 = 0.5*s + 0.5
+		case Dr:
+			p0 = 0.5
+		case Ds:
+			p1 = 0.5
+		}
+	case e3:
+		switch deriv {
+		case None:
+			//p0 = xi
+			//p1 = eta - 1
+			p0 = 0.5*r + 0.5
+			p1 = 0.5*s - 0.5
+		case Dr:
+			p0 = 0.5
+		case Ds:
+			p1 = 0.5
+		}
+	case e4:
+		switch deriv {
+		case None:
+			//p0 = eta * xi
+			//p1 = eta * (eta - 1)
+			p0 = 0.25 * (r*s + r + s + 1)
+			p1 = 0.25 * (s*s - 1)
+		case Dr:
+			p0 = 0.25 * (s + 1)
+		case Ds:
+			p0 = 0.25 * (r + 1)
+			p1 = 0.5 * s
+		}
+	case e5:
+		switch deriv {
+		case None:
+			//p0 = xi * (xi - 1)
+			//p1 = xi * eta
+			p0 = 0.25 * (r*r - 1)
+			p1 = 0.25 * (r*s + r + s + 1)
+		case Dr:
+			p0 = 0.5 * r
+			p1 = 0.25 * (s + 1)
+		case Ds:
+			p1 = 0.25 * (r + 1)
+		}
+	}
+	return
+}
+
+type Direction uint8
+
+const (
+	RDir Direction = iota
+	SDir
+)
+
+func (rtb *RTBasis2DSimplex) Lagrange1DPoly(r float64, R []float64, j int,
+	dir Direction, derivO ...DerivativeDirection) (p float64) {
+	// This is a 1D polynomial, but the nodes are either in the RDir or SDir direction within 2D
+	var (
+		deriv DerivativeDirection
+	)
+	if len(derivO) != 0 {
+		deriv = derivO[0]
+	} else {
+		deriv = None
+	}
+	switch deriv {
+	case None:
+		var (
+			Np1D = len(R)
+			XJ   = R[j]
+			XI   = r
+		)
+		if j > Np1D-1 || j < 0 {
+			panic("value of j larger than array or less than zero")
+		}
+		p = 1
+		for m, XM := range R {
+			if m != j {
+				p *= (XI - XM) / (XJ - XM)
+			}
+		}
+	case Dr, Ds:
+		switch {
+		case dir == SDir && deriv == Dr:
+			return
+		case dir == RDir && deriv == Ds:
+			return
+		}
+		/*
+			From https://en.wikipedia.org/wiki/Lagrange_polynomial#Derivatives
+		*/
+		var (
+			XJ = R[j]
+			X  = r
+		)
+		for i, XI := range R {
+			if i != j {
+				pp := 1.
+				for m, XM := range R {
+					if m != i && m != j {
+						pp *= (X - XM) / (XJ - XM)
+					}
+				}
+				p += pp / (XJ - XI)
+			}
+		}
+	}
+	return
+}
+
+func (rtb *RTBasis2DSimplex) LinearPoly(r, s float64, j int, derivO ...DerivativeDirection) (p float64) {
+	var (
+		deriv DerivativeDirection
+	)
+	if j > 2 || j < 0 {
+		err := fmt.Errorf("linear 2D polynomial called with bad parameters [j]=[%d]", j)
+		panic(err)
+	}
+	if len(derivO) != 0 {
+		deriv = derivO[0]
+	} else {
+		deriv = None
+	}
+	switch deriv {
+	case None:
+		switch j {
+		case 0:
+			p = -0.5 * (r + s)
+		case 1:
+			p = 0.5*r + 0.5
+		case 2:
+			p = 0.5*s + 0.5
+		}
+	case Dr:
+		switch j {
+		case 0:
+			p = -0.5
+		case 1:
+			p = 0.5
+		case 2:
+			p = 0
+		}
+	case Ds:
+		switch j {
+		case 0:
+			p = -0.5
+		case 1:
+			p = 0
+		case 2:
+			p = 0.5
+		}
 	}
 	return
 }

@@ -20,17 +20,6 @@ type RTElement struct {
 	RTPolyBasis   Basis2D
 }
 
-type RTPointType uint8
-
-const (
-	All       RTPointType = iota
-	InteriorR             // R component of vector field
-	InteriorS             // S component of vector field
-	Edge1                 // Edge from vertex 0-1, Normal is [0,-1]
-	Edge2                 // Edge from vertex 1-2, Normal is [1./sqrt(2),1./sqrt(2)]
-	Edge3                 // Edge from vertex 2-0, Normal is [-1,0]
-)
-
 func NewRTElement(R, S utils.Vector, NFlux int, useLagrangeBasis bool) (rt *RTElement) {
 	// We expect that there are points in R and S to match the dimension of dim(P(NFlux-1))
 	/*
@@ -64,64 +53,6 @@ func NewRTElement(R, S utils.Vector, NFlux int, useLagrangeBasis bool) (rt *RTEl
 		rt.RTPolyBasis = NewJacobiBasis2D(NFlux, RFlux, SFlux)
 	}
 	rt.CalculateBasis()
-	return
-}
-
-func (rt *RTElement) ProjectFunctionOntoBasis(s1, s2 []float64) (sp []float64) {
-	var (
-		Np = len(s1)
-	)
-	sp = make([]float64, Np)
-	oosr2 := 1 / math.Sqrt(2)
-	for i := range s1 {
-		switch rt.GetTermType(i) {
-		case InteriorR:
-			// Unit vector is [1,0]
-			sp[i] = s1[i]
-		case InteriorS:
-			// Unit vector is [0,1]
-			sp[i] = s2[i]
-		case Edge1:
-			// Edge1: // Unit vector is [0,-1]
-			sp[i] = -s2[i]
-		case Edge2:
-			// Edge2: Unit vector is [1/sqrt(2), 1/sqrt(2)]
-			sp[i] = (s1[i] + s2[i]) * oosr2
-		case Edge3:
-			// Edge3: Unit vector is [-1,0]
-			sp[i] = -s1[i]
-		}
-	}
-	return
-}
-
-func (rt *RTElement) GetTermType(i int) (rtt RTPointType) {
-	var (
-		N     = rt.N
-		Nint  = N * (N + 1) / 2 // one order less than RT element in (P_k)2
-		Nedge = (N + 1)
-	)
-	switch {
-	case i < Nint:
-		// Unit vector is [1,0]
-		rtt = InteriorR
-	case i >= Nint && i < 2*Nint:
-		// Unit vector is [0,1]
-		rtt = InteriorS
-	case i >= 2*Nint && i < 2*Nint+Nedge:
-		// Edge1: Unit vector is [0,-1]
-		rtt = Edge1
-	case i >= 2*Nint+Nedge && i < 2*Nint+2*Nedge:
-		// Edge2: Unit vector is [1/sqrt(2), 1/sqrt(2)]
-		rtt = Edge2
-	case i >= 2*Nint+2*Nedge && i < 2*Nint+3*Nedge:
-		// Edge3: Unit vector is [-1,0]
-		rtt = Edge3
-	}
-	return
-}
-func (rt *RTElement) getLocationType(i int) (rtt RTPointType) {
-	rtt = rt.GetTermType(i)
 	return
 }
 
@@ -213,7 +144,7 @@ func (rt *RTElement) CalculateBasis() {
 		*/
 		p0, p1 = rt.EvaluateRTBasis(basis, rr, ss) // each of p1,p2 stores the polynomial terms for the R and S directions
 		// Implement dot product of (unit vector)_ii with each vector term in the polynomial evaluated at location ii
-		switch rt.GetTermType(ii) {
+		switch rt.getLocationType(ii) {
 		case InteriorR:
 			// Unit vector is [1,0]
 			P.M.SetRow(ii, p0)
@@ -296,8 +227,6 @@ func (rt *RTElement) EvaluateRTBasis(b1 Basis2D, r, s float64, derivO ...Derivat
 	}
 	p0, p1 = make([]float64, Np), make([]float64, Np)
 	// Evaluate the full 2D polynomial basis first, once for each of two components
-	//fmt.Printf("N = %d\n", N)
-	// TODO: Fix this - right now we're using more interior poly terms than edges, should be reversed
 	// Vector basis first
 	var sk int
 	for i := 0; i <= N; i++ {
@@ -485,6 +414,71 @@ func (rt *RTElement) GetEdgeLocations(F []float64) (Fedge []float64) {
 	Fedge = make([]float64, NedgeTot)
 	for i := 0; i < NedgeTot; i++ {
 		Fedge[i] = F[i+2*Nint]
+	}
+	return
+}
+
+func (rt *RTElement) ProjectFunctionOntoBasis(s1, s2 []float64) (sp []float64) {
+	var (
+		Np = len(s1)
+	)
+	sp = make([]float64, Np)
+	oosr2 := 1 / math.Sqrt(2)
+	for i := range s1 {
+		switch rt.getLocationType(i) {
+		case InteriorR:
+			// Unit vector is [1,0]
+			sp[i] = s1[i]
+		case InteriorS:
+			// Unit vector is [0,1]
+			sp[i] = s2[i]
+		case Edge1:
+			// Edge1: // Unit vector is [0,-1]
+			sp[i] = -s2[i]
+		case Edge2:
+			// Edge2: Unit vector is [1/sqrt(2), 1/sqrt(2)]
+			sp[i] = (s1[i] + s2[i]) * oosr2
+		case Edge3:
+			// Edge3: Unit vector is [-1,0]
+			sp[i] = -s1[i]
+		}
+	}
+	return
+}
+
+type RTPointType uint8
+
+const (
+	All       RTPointType = iota
+	InteriorR             // R component of vector field
+	InteriorS             // S component of vector field
+	Edge1                 // Edge from vertex 0-1, Normal is [0,-1]
+	Edge2                 // Edge from vertex 1-2, Normal is [1./sqrt(2),1./sqrt(2)]
+	Edge3                 // Edge from vertex 2-0, Normal is [-1,0]
+)
+
+func (rt *RTElement) getLocationType(i int) (rtt RTPointType) {
+	var (
+		N     = rt.N
+		Nint  = N * (N + 1) / 2 // one order less than RT element in (P_k)2
+		Nedge = (N + 1)
+	)
+	switch {
+	case i < Nint:
+		// Unit vector is [1,0]
+		rtt = InteriorR
+	case i >= Nint && i < 2*Nint:
+		// Unit vector is [0,1]
+		rtt = InteriorS
+	case i >= 2*Nint && i < 2*Nint+Nedge:
+		// Edge1: Unit vector is [0,-1]
+		rtt = Edge1
+	case i >= 2*Nint+Nedge && i < 2*Nint+2*Nedge:
+		// Edge2: Unit vector is [1/sqrt(2), 1/sqrt(2)]
+		rtt = Edge2
+	case i >= 2*Nint+2*Nedge && i < 2*Nint+3*Nedge:
+		// Edge3: Unit vector is [-1,0]
+		rtt = Edge3
 	}
 	return
 }
