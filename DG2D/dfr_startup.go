@@ -18,8 +18,8 @@ import (
 type DFR2D struct {
 	N               int
 	SolutionElement *LagrangeElement2D
-	FluxElement     *RTElement
-	//FluxElement        *RTBasis2DSimplex
+	//FluxElement     *RTElement
+	FluxElement        *RTBasis2DSimplex
 	FluxInterp         utils.Matrix // Interpolates from the interior (solution) points to all of the flux points
 	FluxEdgeInterp     utils.Matrix // Interpolates only from interior to the edge points in the flux element
 	FluxDr, FluxDs     utils.Matrix // Derivatives from the interior (solution) points to all of the flux points
@@ -44,8 +44,8 @@ func NewDFR2D(N int, plotMesh bool, meshFileO ...string) (dfr *DFR2D) {
 	}
 	le := NewLagrangeElement2D(N, Epsilon)
 	useLagrangeBasis := false
-	rt := NewRTElement(le.R, le.S, N+1, useLagrangeBasis)
-	//rt := NewRTBasis2DSimplex(N+1, useLagrangeBasis)
+	//rt := NewRTElement(le.R, le.S, N+1, useLagrangeBasis)
+	rt := NewRTBasis2DSimplex(N+1, useLagrangeBasis)
 	RFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.R.DataP)) // For the Interpolation matrix across three edges
 	SFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.S.DataP)) // For the Interpolation matrix across three edges
 	dfr = &DFR2D{
