@@ -74,6 +74,11 @@ For example, the following line implements:
 
 ### Updates [11/9/21]
 
+NACA0012 M=0.8, AOA=2 New RT Element vs Lagrange Basis vs Jacobi Basis|
+:-------------------------:|
+L2 Convergence Compared|
+![](images/convergence-newRT.PNG) |
+
 Update [11/15/21]: The results are in - a completely new Raviart-Thomas element design is now available, and it gives
 results that are very similar to the prior implementation. It's hard to judge which is superior, but at this point
 the new basis requires a slightly higher artificial dissipation for the airfoil case and seems to achieve similar
