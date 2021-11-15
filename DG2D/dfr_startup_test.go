@@ -267,14 +267,14 @@ func TestDivergence(t *testing.T) {
 		return
 	}
 	{ // Check Divergence for polynomial vector fields of order < N against analytical solution
-		//N := 2 // Order of element
 		N := 7 // Order of element
+		//N := 7 // Order of element
 		dfr := NewDFR2D(N, false, "test_tris_5.neu")
 		rt := dfr.FluxElement
 		//rt.Div.Print("Div")
 		//rt.DivInt.Print("DivInt")
 		for cOrder := 1; cOrder <= N; cOrder++ { // Run a test on polynomial flux vector fields up to Nth order
-			fmt.Printf("checking order[%d]...", cOrder)
+			fmt.Printf("checking RT order[%d]...", cOrder+1)
 			Fx, Fy, divCheck := checkSolution(dfr, cOrder)
 			// Project the flux onto the RT basis directly
 			Fp := dfr.ProjectFluxOntoRTSpace(Fx, Fy)

@@ -400,12 +400,12 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 		sk++
 	case 2:
 		// Six "non-Normal" basis functions, use linear 2D polynomial for triangles multiplied by e4 and e5
-		e4r, e4s := rtb.getCoreBasisTerm(e4, r, s)
-		e5r, e5s := rtb.getCoreBasisTerm(e5, r, s)
-		l1 := rtb.LinearPoly(r, s, 0)
-		l2 := rtb.LinearPoly(r, s, 1)
-		l3 := rtb.LinearPoly(r, s, 2)
 		if deriv == None {
+			e4r, e4s := rtb.getCoreBasisTerm(e4, r, s)
+			e5r, e5s := rtb.getCoreBasisTerm(e5, r, s)
+			l1 := rtb.LinearPoly(r, s, 0)
+			l2 := rtb.LinearPoly(r, s, 1)
+			l3 := rtb.LinearPoly(r, s, 2)
 			p0[sk], p1[sk] = e4r*l1, e4s*l1
 			sk++
 			p0[sk], p1[sk] = e4r*l2, e4s*l2
@@ -448,7 +448,7 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 		Pint := rtb.P - 1
 		for i := 0; i <= Pint; i++ {
 			for j := 0; j <= Pint-i; j++ {
-				p := rtb.Scalar2DBasis.PolynomialTerm(r, s, i, j)
+				p := Basis2DTerm(r, s, i, j, None)
 				if deriv == None {
 					p0[sk], p1[sk] = p*e4r, p*e4s
 					sk++
@@ -477,22 +477,24 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 		p0[sk], p1[sk] = rtb.getCoreBasisTerm(e3, r, s, deriv)
 		sk++
 	case 1:
-		e1r, e1s := rtb.getCoreBasisTerm(e1, r, s)
-		e2r, e2s := rtb.getCoreBasisTerm(e2, r, s)
-		e3r, e3s := rtb.getCoreBasisTerm(e3, r, s)
-		l1xi := rtb.Lagrange1DPoly(r, RGauss, 0, RDir)
-		l1eta := rtb.Lagrange1DPoly(s, RGauss, 0, SDir)
-		l2xi := rtb.Lagrange1DPoly(r, RGauss, 1, RDir)
-		l2eta := rtb.Lagrange1DPoly(s, RGauss, 1, SDir)
 		if deriv == None {
+			e1r, e1s := rtb.getCoreBasisTerm(e1, r, s)
+			e2r, e2s := rtb.getCoreBasisTerm(e2, r, s)
+			e3r, e3s := rtb.getCoreBasisTerm(e3, r, s)
+			l1xi := rtb.Lagrange1DPoly(r, RGauss, 0, RDir)
+			l2xi := rtb.Lagrange1DPoly(r, RGauss, 1, RDir)
+			l1eta := rtb.Lagrange1DPoly(s, RGauss, 0, SDir)
+			l2eta := rtb.Lagrange1DPoly(s, RGauss, 1, SDir)
 			p0[sk], p1[sk] = l1eta*e1r, l1eta*e1s
 			sk++
 			p0[sk], p1[sk] = l2eta*e1r, l2eta*e1s
 			sk++
+
 			p0[sk], p1[sk] = l2eta*e2r, l2eta*e2s
 			sk++
 			p0[sk], p1[sk] = l1eta*e2r, l1eta*e2s
 			sk++
+
 			p0[sk], p1[sk] = l1xi*e3r, l1xi*e3s
 			sk++
 			p0[sk], p1[sk] = l2xi*e3r, l2xi*e3s
@@ -514,16 +516,16 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 			sk++
 		}
 	case 2:
-		e1r, e1s := rtb.getCoreBasisTerm(e1, r, s)
-		e2r, e2s := rtb.getCoreBasisTerm(e2, r, s)
-		e3r, e3s := rtb.getCoreBasisTerm(e3, r, s)
-		q1xi := rtb.Lagrange1DPoly(r, RGauss, 0, RDir)
-		q2xi := rtb.Lagrange1DPoly(r, RGauss, 1, RDir)
-		q3xi := rtb.Lagrange1DPoly(r, RGauss, 2, RDir)
-		q1eta := rtb.Lagrange1DPoly(s, RGauss, 0, SDir)
-		q2eta := rtb.Lagrange1DPoly(s, RGauss, 1, SDir)
-		q3eta := rtb.Lagrange1DPoly(s, RGauss, 2, SDir)
 		if deriv == None {
+			e1r, e1s := rtb.getCoreBasisTerm(e1, r, s)
+			e2r, e2s := rtb.getCoreBasisTerm(e2, r, s)
+			e3r, e3s := rtb.getCoreBasisTerm(e3, r, s)
+			q1xi := rtb.Lagrange1DPoly(r, RGauss, 0, RDir)
+			q2xi := rtb.Lagrange1DPoly(r, RGauss, 1, RDir)
+			q3xi := rtb.Lagrange1DPoly(r, RGauss, 2, RDir)
+			q1eta := rtb.Lagrange1DPoly(s, RGauss, 0, SDir)
+			q2eta := rtb.Lagrange1DPoly(s, RGauss, 1, SDir)
+			q3eta := rtb.Lagrange1DPoly(s, RGauss, 2, SDir)
 			p0[sk], p1[sk] = q1eta*e1r, q1eta*e1s
 			sk++
 			p0[sk], p1[sk] = q2eta*e1r, q2eta*e1s
@@ -604,7 +606,7 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 			}
 			for j := 0; j < rtb.P+1; j++ {
 				lxi := rtb.Lagrange1DPoly(r, RGauss, j, RDir)
-				lxiDeriv := rtb.Lagrange1DPoly(r, RGauss, rtb.P-j, RDir, deriv)
+				lxiDeriv := rtb.Lagrange1DPoly(r, RGauss, j, RDir, deriv)
 				p0[sk], p1[sk] = CRP(e3r, e3Rderiv, lxi, lxiDeriv), CRP(e3s, e3Sderiv, lxi, lxiDeriv)
 				sk++
 			}

@@ -85,7 +85,7 @@ func JacobiGL(alpha, beta float64, N int) (R utils.Vector) {
 	return
 }
 
-func LegendreZeros(N int) (X []float64) {
+func LegendreZeros(N int, reverseO ...bool) (X []float64) {
 	/*
 		For a given order N, there are N locations within [-1,1] that are the zeros of the Legendre polynomial
 		These zeros were tabulated within "TABLE OF THE ZEROS OF THE LEGENDRE POLYNOMIALS OF ORDER 1-16 AND THE
@@ -170,6 +170,18 @@ func LegendreZeros(N int) (X []float64) {
 	default:
 		err := fmt.Errorf("distribution undefined for order %d", N)
 		panic(err)
+	}
+	var reverse bool
+	if len(reverseO) != 0 {
+		reverse = reverseO[0]
+	}
+	if reverse {
+		length := len(X)
+		X2 := make([]float64, length)
+		for i, x := range X {
+			X2[length-1-i] = x
+		}
+		X = X2
 	}
 	return
 }
