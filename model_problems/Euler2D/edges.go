@@ -349,10 +349,23 @@ func (c *Euler) SetRTFluxOnEdges(myThread, Kmax int, F_RT_DOF [4]utils.Matrix) {
 	}
 }
 
-func (c *Euler) InterpolateSolutionToEdges(Q, Q_Face [4]utils.Matrix) {
+func (c *Euler) InterpolateSolutionToEdges(Kmax int, Q [4]utils.Matrix, Q_Face [4]utils.Matrix, Flux, Flux_Face [2][4]utils.Matrix) {
 	// Interpolate from solution points to edges using precomputed interpolation matrix
 	for n := 0; n < 4; n++ {
 		c.dfr.FluxEdgeInterp.Mul(Q[n], Q_Face[n])
+	}
+	// Calculate Flux for interior points
+	for i := 0; i < c.dfr.SolutionElement.Np*Kmax; i++ {
+		Fx, Fy := c.CalculateFlux(Q, i)
+		for n := 0; n < 4; n++ {
+			Flux[0][n].DataP[i] = Fx[n]
+			Flux[1][n].DataP[i] = Fy[n]
+		}
+	}
+	// Interpolate Flux to the edges
+	for n := 0; n < 4; n++ {
+		c.dfr.FluxEdgeInterp.Mul(Flux[0][n], Flux_Face[0][n])
+		c.dfr.FluxEdgeInterp.Mul(Flux[1][n], Flux_Face[1][n])
 	}
 	return
 }

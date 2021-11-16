@@ -145,13 +145,15 @@ func (c *Euler) Solve(pm *PlotMeta) {
 }
 
 type RungeKutta4SSP struct {
-	Jdet, Jinv           []utils.Matrix    // Sharded mesh Jacobian and inverse transform
-	RHSQ, Q_Face         [][4]utils.Matrix // State used for matrix multiplies within the time step algorithm
-	Q1, Q2, Q3, Q4       [][4]utils.Matrix // Intermediate solution state
-	Residual             [][4]utils.Matrix // Used for reporting, aliased to Q1
-	F_RT_DOF             [][4]utils.Matrix // Normal flux used for divergence
-	DT                   []utils.Matrix    // Local time step storage
-	MaxWaveSpeed         []float64         // Shard max wavespeed
+	Jdet, Jinv           []utils.Matrix       // Sharded mesh Jacobian and inverse transform
+	RHSQ, Q_Face         [][4]utils.Matrix    // State used for matrix multiplies within the time step algorithm
+	Flux_Face            [][2][4]utils.Matrix // Flux interpolated to edges from interior
+	Q1, Q2, Q3, Q4       [][4]utils.Matrix    // Intermediate solution state
+	Flux                 [][2][4]utils.Matrix // Flux at solution points, used for interpolation to edges
+	Residual             [][4]utils.Matrix    // Used for reporting, aliased to Q1
+	F_RT_DOF             [][4]utils.Matrix    // Normal flux used for divergence
+	DT                   []utils.Matrix       // Local time step storage
+	MaxWaveSpeed         []float64            // Shard max wavespeed
 	GlobalDT, Time       float64
 	StepCount            int
 	Kmax                 []int          // Local element count (dimension: Kmax[ParallelDegree])
@@ -170,10 +172,12 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		Jinv:          c.ShardByKTranspose(c.dfr.Jinv),
 		RHSQ:          make([][4]utils.Matrix, NPar),
 		Q_Face:        make([][4]utils.Matrix, NPar),
+		Flux_Face:     make([][2][4]utils.Matrix, NPar),
 		Q1:            make([][4]utils.Matrix, NPar),
 		Q2:            make([][4]utils.Matrix, NPar),
 		Q3:            make([][4]utils.Matrix, NPar),
 		Q4:            make([][4]utils.Matrix, NPar),
+		Flux:          make([][2][4]utils.Matrix, NPar),
 		Residual:      make([][4]utils.Matrix, NPar),
 		F_RT_DOF:      make([][4]utils.Matrix, NPar),
 		DT:            make([]utils.Matrix, NPar),
@@ -194,10 +198,14 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 			rk.Q2[np][n] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 			rk.Q3[np][n] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 			rk.Q4[np][n] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
+			rk.Flux[np][0][n] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
+			rk.Flux[np][1][n] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 			rk.RHSQ[np][n] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 			rk.Residual[np][n] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 			rk.F_RT_DOF[np][n] = utils.NewMatrix(rk.NpFlux, rk.Kmax[np])
 			rk.Q_Face[np][n] = utils.NewMatrix(rk.Nedge*3, rk.Kmax[np])
+			rk.Flux_Face[np][0][n] = utils.NewMatrix(rk.Nedge*3, rk.Kmax[np])
+			rk.Flux_Face[np][1][n] = utils.NewMatrix(rk.Nedge*3, rk.Kmax[np])
 		}
 		rk.DT[np] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 		rk.EdgeQ1[np] = make([][4]float64, rk.Nedge)
@@ -244,9 +252,10 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		dT                         float64
 		contLevel                  = C0
 		Kmax, Jdet, Jinv, F_RT_DOF = rk.Kmax[myThread], rk.Jdet[myThread], rk.Jinv[myThread], rk.F_RT_DOF[myThread]
-		DT, Q_Face                 = rk.DT[myThread], rk.Q_Face[myThread]
+		DT, Q_Face, Flux_Face      = rk.DT[myThread], rk.Q_Face[myThread], rk.Flux_Face[myThread]
 		Q0                         = c.Q[myThread]
 		Q1, Q2, Q3, Q4             = rk.Q1[myThread], rk.Q2[myThread], rk.Q3[myThread], rk.Q4[myThread]
+		Flux                       = rk.Flux[myThread]
 		RHSQ, Residual             = rk.RHSQ[myThread], rk.Residual[myThread]
 		EdgeQ1, EdgeQ2             = rk.EdgeQ1[myThread], rk.EdgeQ2[myThread]
 		SortedEdgeKeys             = c.SortedEdgeKeys[myThread]
@@ -307,7 +316,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 				DT.DataP[k] = -100 // Global
 			}
 		}
-		c.InterpolateSolutionToEdges(QQQ, Q_Face) // Interpolates Q_Face values from Q
+		c.InterpolateSolutionToEdges(Kmax, QQQ, Q_Face, Flux, Flux_Face) // Interpolates Q_Face values from Q
 	case 1, 6, 11, 16, 21:
 		rk.MaxWaveSpeed[myThread] =
 			c.CalculateEdgeFlux(rk.Time, initDT, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
@@ -334,7 +343,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		if rkStep == 4 {
 			rk.LimitedPoints[myThread] = c.Limiter.LimitSolution(myThread, c.Q, rk.Residual)
 		} else {
-			c.InterpolateSolutionToEdges(QQQ, Q_Face) // Interpolates Q_Face values from Q
+			c.InterpolateSolutionToEdges(Kmax, QQQ, Q_Face, Flux, Flux_Face) // Interpolates Q_Face values from Q
 		}
 	}
 	return

@@ -191,13 +191,18 @@ func TestEuler(t *testing.T) {
 				NpFlux := c.dfr.FluxElement.Np // Np = 2*NpInt+3*NpEdge
 				// Mark the initial state with the element number
 				var Q_Face, F_RT_DOF [4]utils.Matrix
+				var Flux, Flux_Face [2][4]utils.Matrix
 				for n := 0; n < 4; n++ {
 					F_RT_DOF[n] = utils.NewMatrix(NpFlux, Kmax)
 					Q_Face[n] = utils.NewMatrix(3*Nedge, Kmax)
+					Flux_Face[0][n] = utils.NewMatrix(3*Nedge, Kmax)
+					Flux_Face[1][n] = utils.NewMatrix(3*Nedge, Kmax)
+					Flux[0][n] = utils.NewMatrix(Nint, Kmax)
+					Flux[1][n] = utils.NewMatrix(Nint, Kmax)
 				}
 				Q := c.Q[0]
 				c.SetRTFluxInternal(Kmax, c.dfr.Jdet, c.dfr.Jinv, F_RT_DOF, Q)
-				c.InterpolateSolutionToEdges(Q, Q_Face)
+				c.InterpolateSolutionToEdges(Kmax, Q, Q_Face, Flux, Flux_Face)
 				EdgeQ1 := make([][4]float64, Nedge)
 				EdgeQ2 := make([][4]float64, Nedge)
 				c.CalculateEdgeFlux(0, false, nil, nil, [][4]utils.Matrix{Q_Face}, c.SortedEdgeKeys[0], EdgeQ1, EdgeQ2)
@@ -265,14 +270,19 @@ func TestEuler(t *testing.T) {
 			NpFlux := c.dfr.FluxElement.Np // Np = 2*NpInt+3*NpEdge
 			// Mark the initial state with the element number
 			var Q_Face, F_RT_DOF [4]utils.Matrix
+			var Flux, Flux_Face [2][4]utils.Matrix
 			for n := 0; n < 4; n++ {
 				F_RT_DOF[n] = utils.NewMatrix(NpFlux, Kmax)
 				Q_Face[n] = utils.NewMatrix(3*Nedge, Kmax)
+				Flux_Face[0][n] = utils.NewMatrix(3*Nedge, Kmax)
+				Flux_Face[1][n] = utils.NewMatrix(3*Nedge, Kmax)
+				Flux[0][n] = utils.NewMatrix(Nint, Kmax)
+				Flux[1][n] = utils.NewMatrix(Nint, Kmax)
 			}
 			Q := c.Q[0]
 			X, Y := c.dfr.FluxX, c.dfr.FluxY
 			c.SetRTFluxInternal(Kmax, c.dfr.Jdet, c.dfr.Jinv, F_RT_DOF, Q)
-			c.InterpolateSolutionToEdges(Q, Q_Face)
+			c.InterpolateSolutionToEdges(Kmax, Q, Q_Face, Flux, Flux_Face)
 			EdgeQ1 := make([][4]float64, Nedge)
 			EdgeQ2 := make([][4]float64, Nedge)
 			c.CalculateEdgeFlux(0, false, nil, nil, [][4]utils.Matrix{Q_Face}, c.SortedEdgeKeys[0], EdgeQ1, EdgeQ2)
