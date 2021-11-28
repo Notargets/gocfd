@@ -59,7 +59,7 @@ func TestEuler(t *testing.T) {
 	if true {
 		{ // Test interpolation of solution to edges for all supported orders
 			Nmax := 7
-			for N := 1; N <= Nmax; N++ {
+			for N := 0; N <= Nmax; N++ {
 				ip.PolynomialOrder = N
 				//c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
 				c := NewEuler(&ip, "../../DG2D/test_tris_5.neu", 1, false, false, false)
@@ -104,7 +104,7 @@ func TestEuler(t *testing.T) {
 				2) Edges are traversed, flux is calculated and projected onto edge face normals, scaled and placed into F_RT_DOF
 			*/
 			Nmax := 7
-			for N := 1; N <= Nmax; N++ {
+			for N := 0; N <= Nmax; N++ {
 				//c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
 				ip.PolynomialOrder = N
 				c := NewEuler(&ip, "../../DG2D/test_tris_5.neu", 1, false, false, false)
@@ -234,7 +234,7 @@ func TestEuler(t *testing.T) {
 				Elements should not straddle the axes if a perfect polynomial flux capture is needed
 			*/
 			Nmax := 7
-			for N := 1; N <= Nmax; N++ {
+			for N := 0; N <= Nmax; N++ {
 				plotMesh := false
 				// Single triangle test case
 				var c *Euler
