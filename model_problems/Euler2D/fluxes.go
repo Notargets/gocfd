@@ -189,8 +189,37 @@ func (c *Euler) LaxFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 	}
 }
 
+func (c *Euler) LaxFlux2(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
+	Q_FaceL, Q_FaceR [4]utils.Matrix, Flux_FaceL, Flux_FaceR [2][4]utils.Matrix,
+	normal [2]float64, normalFlux [][4]float64) {
+	var (
+		Nedge                          = c.dfr.FluxElement.NpEdge
+		rhoL, rhoUL, rhoVL, uL, vL, CL float64
+		rhoR, rhoUR, rhoVR, uR, vR, CR float64
+		nx, ny                         = normal[0], normal[1]
+	)
+	for i := 0; i < Nedge; i++ {
+		iL := i + shiftL
+		iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
+		indL, indR := kL+iL*KmaxL, kR+iR*KmaxR
+		rhoL, rhoR = Q_FaceL[0].DataP[indL], Q_FaceR[0].DataP[indR]
+		rhoUL, rhoVL = Q_FaceL[1].DataP[indL], Q_FaceL[2].DataP[indL]
+		rhoUR, rhoVR = Q_FaceR[1].DataP[indR], Q_FaceR[2].DataP[indR]
+		uL, vL = rhoUL/rhoL, rhoVL/rhoL
+		uR, vR = rhoUR/rhoR, rhoVR/rhoR
+		CL, CR = c.FSFar.GetFlowFunction(Q_FaceL, indL, SoundSpeed), c.FSFar.GetFlowFunction(Q_FaceR, indR, SoundSpeed)
+		maxV := math.Max(math.Sqrt(uL*uL+vL*vL)+CL, math.Sqrt(uR*uR+vR*vR)+CR)
+		for n := 0; n < 4; n++ {
+			nL := nx*Flux_FaceL[0][n].DataP[indL] + ny*Flux_FaceL[1][n].DataP[indL]
+			nR := nx*Flux_FaceR[0][n].DataP[indR] + ny*Flux_FaceR[1][n].DataP[indR]
+			normalFlux[i][n] = 0.5 * (nL + nR + maxV*(Q_FaceL[n].DataP[indL]-Q_FaceR[n].DataP[indR]))
+		}
+	}
+}
+
 func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux [][4]float64) {
+	//fmt.Printf("here 1\n")
 	var (
 		Nedge            = c.dfr.FluxElement.NpEdge
 		rhoL, uL, vL, pL float64
@@ -384,5 +413,74 @@ func (c *Euler) RoeERFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		normalFlux[i][1] -= 0.5 * (sigma*dRhoU + (dPu+dPp)*nx + dUu*rho*u)
 		normalFlux[i][2] -= 0.5 * (sigma*dRhoV + (dPu+dPp)*ny + dUu*rho*v)
 		normalFlux[i][3] -= 0.5 * (sigma*dE + (dPu+dPp)*ny + dUu*H)
+	}
+}
+
+func (c *Euler) RoeFlux2(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
+	Q_FaceL, Q_FaceR [4]utils.Matrix, Flux_FaceL, Flux_FaceR [2][4]utils.Matrix,
+	normal [2]float64, normalFlux [][4]float64) {
+	//fmt.Printf("here 2\n")
+	var (
+		Nedge            = c.dfr.FluxElement.NpEdge
+		rhoL, uL, vL, pL float64
+		rhoR, uR, vR, pR float64
+		hL, hR           float64
+		Gamma            = c.FSFar.Gamma
+		GM1              = Gamma - 1
+	)
+	rotate := func(rhoU, rhoV, nx, ny float64) (rhoUr, rhoVr float64) {
+		rhoUr = rhoU*nx + rhoV*ny
+		rhoVr = rhoU*(-ny) + rhoV*nx
+		return
+	}
+	for i := 0; i < Nedge; i++ {
+		iL := i + shiftL
+		iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
+		indL, indR := kL+iL*KmaxL, kR+iR*KmaxR
+		// Rotate the momentum into face normal coordinates before calculating fluxes
+		rhoULr, rhoVLr := rotate(Q_FaceL[1].DataP[indL], Q_FaceL[2].DataP[indL], normal[0], normal[1])
+		rhoURr, rhoVRr := rotate(Q_FaceR[1].DataP[indR], Q_FaceR[2].DataP[indR], normal[0], normal[1])
+		rhoL, uL, vL = Q_FaceL[0].DataP[indL], rhoULr/Q_FaceL[0].DataP[indL], rhoVLr/Q_FaceL[0].DataP[indL]
+		rhoR, uR, vR = Q_FaceR[0].DataP[indR], rhoURr/Q_FaceR[0].DataP[indR], rhoVRr/Q_FaceR[0].DataP[indR]
+		pL, pR = c.FSFar.GetFlowFunction(Q_FaceL, indL, StaticPressure), c.FSFar.GetFlowFunction(Q_FaceR, indR, StaticPressure)
+		/*
+		   HM = (EnerM+pM).dd(rhoM);  HP = (EnerP+pP).dd(rhoP);
+		*/
+		// Enthalpy
+		hL, hR = (Q_FaceL[3].DataP[indL]+pL)/rhoL, (Q_FaceR[3].DataP[indR]+pR)/rhoR
+		// Compute Roe average variables
+		rhoLs, rhoRs := math.Sqrt(rhoL), math.Sqrt(rhoR)
+		rhoLsRs := rhoLs + rhoRs
+
+		rho := rhoLs * rhoRs
+		u := (rhoLs*uL + rhoRs*uR) / rhoLsRs
+		v := (rhoLs*vL + rhoRs*vR) / rhoLsRs
+		h := (rhoLs*hL + rhoRs*hR) / rhoLsRs
+		c2 := GM1 * (h - 0.5*(u*u+v*v))
+		C := math.Sqrt(c2)
+		// Riemann fluxes
+		dW1 := -0.5*(rho*(uR-uL))/C + 0.5*(pR-pL)/c2
+		dW2 := (rhoR - rhoL) - (pR-pL)/c2
+		dW3 := rho * (vR - vL)
+		dW4 := 0.5*(rho*(uR-uL))/C + 0.5*(pR-pL)/c2
+		dW1 = math.Abs(u-C) * dW1
+		dW2 = math.Abs(u) * dW2
+		dW3 = math.Abs(u) * dW3
+		dW4 = math.Abs(u+C) * dW4
+		normalFlux[i][0] = -0.5 * (dW1 + dW2 + dW4)
+		normalFlux[i][1] = -0.5 * (dW1*(u-C) + dW2*u + dW4*(u+C))
+		normalFlux[i][2] = -0.5 * (dW1*v + dW2*v + dW3 + dW4*v)
+		normalFlux[i][3] = -0.5 * (dW1*(h-u*C) + 0.5*dW2*(u*u+v*v) + dW3*v + dW4*(h+u*C))
+
+		// rotate back to Cartesian
+		normalFlux[i][1], normalFlux[i][2] = normal[0]*normalFlux[i][1]-normal[1]*normalFlux[i][2],
+			normal[1]*normalFlux[i][1]+normal[0]*normalFlux[i][2]
+
+		for n := 0; n < 4; n++ {
+			nL := normal[0]*Flux_FaceL[0][n].DataP[indL] + normal[1]*Flux_FaceL[1][n].DataP[indL]
+			nR := normal[0]*Flux_FaceR[0][n].DataP[indR] + normal[1]*Flux_FaceR[1][n].DataP[indR]
+			normalFlux[i][n] += 0.5 * (nL + nR)
+			//_, _ = nL, nR
+		}
 	}
 }

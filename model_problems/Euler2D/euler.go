@@ -70,7 +70,7 @@ func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, ver
 	}
 
 	// Read mesh file, initialize geometry and finite elements
-	c.dfr = DG2D.NewDFR2D(ip.PolynomialOrder, plotMesh, meshFile)
+	c.dfr = DG2D.NewDFR2D(ip.PolynomialOrder, plotMesh, verbose, meshFile)
 
 	c.SetParallelDegree(ProcLimit, c.dfr.K) // Must occur after determining the number of elements
 	c.PartitionEdgesByK()                   // Setup the key for edge calculations, useful for parallelizing the process
@@ -242,11 +242,6 @@ func (rk *RungeKutta4SSP) Step(c *Euler) {
 }
 
 func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup, currentStep int, initDT bool) {
-	/*
-		SSP54 RK Coefficients from:
-		"A numerical study of diagonally split Runge-Kutta methods for PDEs with discontinuities"
-		Colin B. Macdonald, Sigal Gottlieb and Steven J. Ruuth, 2007
-	*/
 	var (
 		Np                         = rk.NpInt
 		dT                         float64
@@ -269,6 +264,11 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		Inline functions
 	*/
 	rkAdvance := func(rkstep int, QQQ [4]utils.Matrix) {
+		/*
+			SSP54 RK Coefficients from:
+			"A numerical study of diagonally split Runge-Kutta methods for PDEs with discontinuities"
+			Colin B. Macdonald, Sigal Gottlieb and Steven J. Ruuth, 2007
+		*/
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, QQQ) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
@@ -316,10 +316,10 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 				DT.DataP[k] = -100 // Global
 			}
 		}
-		c.InterpolateSolutionToEdges(Kmax, QQQ, Q_Face, Flux, Flux_Face) // Interpolates Q_Face values from Q
+		c.InterpolateSolutionToEdges(QQQ, Q_Face, Flux, Flux_Face) // Interpolates Q_Face values from Q
 	case 1, 6, 11, 16, 21:
 		rk.MaxWaveSpeed[myThread] =
-			c.CalculateEdgeFlux(rk.Time, initDT, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
+			c.CalculateEdgeFlux(rk.Time, initDT, rk.Jdet, rk.DT, rk.Q_Face, rk.Flux_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
 		if c.Dissipation != nil {
 			c.Dissipation.CalculateElementViscosity(myThread, QQQAll)
 		}
@@ -343,7 +343,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		if rkStep == 4 {
 			rk.LimitedPoints[myThread] = c.Limiter.LimitSolution(myThread, c.Q, rk.Residual)
 		} else {
-			c.InterpolateSolutionToEdges(Kmax, QQQ, Q_Face, Flux, Flux_Face) // Interpolates Q_Face values from Q
+			c.InterpolateSolutionToEdges(QQQ, Q_Face, Flux, Flux_Face) // Interpolates Q_Face values from Q
 		}
 	}
 	return

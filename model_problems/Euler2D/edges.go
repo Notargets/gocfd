@@ -177,7 +177,7 @@ func (c *Euler) StoreGradientEdgeFlux(edgeKeys EdgeKeySlice, EdgeQ1 [][4]float64
 }
 
 func (c *Euler) CalculateEdgeFlux(Time float64, CalculateDT bool, Jdet, DT []utils.Matrix, Q_Face [][4]utils.Matrix,
-	edgeKeys EdgeKeySlice, EdgeQ1, EdgeQ2 [][4]float64) (waveSpeedMax float64) {
+	Flux_Face [][2][4]utils.Matrix, edgeKeys EdgeKeySlice, EdgeQ1, EdgeQ2 [][4]float64) (waveSpeedMax float64) {
 	var (
 		Nedge                 = c.dfr.FluxElement.NpEdge
 		numericalFluxForEuler = EdgeQ1
@@ -202,6 +202,11 @@ func (c *Euler) CalculateEdgeFlux(Time float64, CalculateDT bool, Jdet, DT []uti
 		}
 		c.EdgeStore.PutEdgeValues(en, QFluxForGradient, qFluxForGradient)
 
+		for i := range numericalFluxForEuler {
+			for n := 0; n < 4; n++ {
+				numericalFluxForEuler[i][n] = 0
+			}
+		}
 		switch e.NumConnectedTris {
 		case 0:
 			panic("unable to handle unconnected edges")
@@ -215,7 +220,7 @@ func (c *Euler) CalculateEdgeFlux(Time float64, CalculateDT bool, Jdet, DT []uti
 				edgeNumberR          = int(e.ConnectedTriEdgeNumber[1])
 			)
 			c.calculateSharedEdgeFlux(Nedge, kL, KmaxL, edgeNumberL, myThreadL, kR, KmaxR, edgeNumberR, myThreadR,
-				normalL, numericalFluxForEuler, Q_Face)
+				normalL, numericalFluxForEuler, Q_Face, Flux_Face)
 		}
 		// Load the normal flux into the global normal flux storage
 		c.EdgeStore.PutEdgeValues(en, NumericalFluxForEuler, numericalFluxForEuler)
@@ -263,17 +268,28 @@ func (c *Euler) calculateLocalDT(e *DG2D.Edge, Nedge int,
 }
 
 func (c *Euler) calculateSharedEdgeFlux(Nedge, kL, KmaxL, edgeNumberL, myThreadL, kR, KmaxR, edgeNumberR, myThreadR int,
-	normalL [2]float64, numericalFluxForEuler [][4]float64, Q_Face [][4]utils.Matrix) {
+	normalL [2]float64, numericalFluxForEuler [][4]float64, Q_Face [][4]utils.Matrix, Flux_Face [][2][4]utils.Matrix) {
 	var (
-		shiftL, shiftR = edgeNumberL * Nedge, edgeNumberR * Nedge
+		shiftL, shiftR      = edgeNumberL * Nedge, edgeNumberR * Nedge
+		interpolateFluxNotQ = true
 	)
 	switch c.FluxCalcAlgo {
 	case FLUX_Average:
 		c.AvgFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[myThreadL], Q_Face[myThreadR], normalL, numericalFluxForEuler)
 	case FLUX_LaxFriedrichs:
-		c.LaxFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[myThreadL], Q_Face[myThreadR], normalL, numericalFluxForEuler)
+		if interpolateFluxNotQ {
+			c.LaxFlux2(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[myThreadL], Q_Face[myThreadR], Flux_Face[myThreadL],
+				Flux_Face[myThreadR], normalL, numericalFluxForEuler)
+		} else {
+			c.LaxFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[myThreadL], Q_Face[myThreadR], normalL, numericalFluxForEuler)
+		}
 	case FLUX_Roe:
-		c.RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[myThreadL], Q_Face[myThreadR], normalL, numericalFluxForEuler)
+		if interpolateFluxNotQ {
+			c.RoeFlux2(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[myThreadL], Q_Face[myThreadR], Flux_Face[myThreadL],
+				Flux_Face[myThreadR], normalL, numericalFluxForEuler)
+		} else {
+			c.RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[myThreadL], Q_Face[myThreadR], normalL, numericalFluxForEuler)
+		}
 	case FLUX_RoeER:
 		c.RoeERFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[myThreadL], Q_Face[myThreadR], normalL, numericalFluxForEuler)
 	}
@@ -289,6 +305,8 @@ func (c *Euler) calculateNonSharedEdgeFlux(e *DG2D.Edge, Nedge int, Time float64
 	)
 	calculateNormalFlux = true
 	switch e.BCType {
+	case types.BC_None:
+		// Do nothing, calculate normal flux
 	case types.BC_Far:
 		c.FarBC(c.FSFar, k, Kmax, shift, Q_Face[myThread], normal0)
 	case types.BC_In:
@@ -349,23 +367,29 @@ func (c *Euler) SetRTFluxOnEdges(myThread, Kmax int, F_RT_DOF [4]utils.Matrix) {
 	}
 }
 
-func (c *Euler) InterpolateSolutionToEdges(Kmax int, Q [4]utils.Matrix, Q_Face [4]utils.Matrix, Flux, Flux_Face [2][4]utils.Matrix) {
+func (c *Euler) InterpolateSolutionToEdges(Q, Q_Face [4]utils.Matrix, Flux, Flux_Face [2][4]utils.Matrix) {
+	var (
+		interpolateFluxNotQ = true
+	)
 	// Interpolate from solution points to edges using precomputed interpolation matrix
 	for n := 0; n < 4; n++ {
 		c.dfr.FluxEdgeInterp.Mul(Q[n], Q_Face[n])
 	}
-	// Calculate Flux for interior points
-	for i := 0; i < c.dfr.SolutionElement.Np*Kmax; i++ {
-		Fx, Fy := c.CalculateFlux(Q, i)
-		for n := 0; n < 4; n++ {
-			Flux[0][n].DataP[i] = Fx[n]
-			Flux[1][n].DataP[i] = Fy[n]
+	if interpolateFluxNotQ {
+		// Calculate Flux for interior points
+		for i := range Q[0].DataP {
+			//for i := 0; i < c.dfr.SolutionElement.Np*Kmax; i++ {
+			Fx, Fy := c.CalculateFlux(Q, i)
+			for n := 0; n < 4; n++ {
+				Flux[0][n].DataP[i] = Fx[n]
+				Flux[1][n].DataP[i] = Fy[n]
+			}
 		}
-	}
-	// Interpolate Flux to the edges
-	for n := 0; n < 4; n++ {
-		c.dfr.FluxEdgeInterp.Mul(Flux[0][n], Flux_Face[0][n])
-		c.dfr.FluxEdgeInterp.Mul(Flux[1][n], Flux_Face[1][n])
+		// Interpolate Flux to the edges
+		for n := 0; n < 4; n++ {
+			c.dfr.FluxEdgeInterp.Mul(Flux[0][n], Flux_Face[0][n])
+			c.dfr.FluxEdgeInterp.Mul(Flux[1][n], Flux_Face[1][n])
+		}
 	}
 	return
 }

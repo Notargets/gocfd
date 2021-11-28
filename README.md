@@ -9,12 +9,25 @@ Density | X Momentum | Density
 :-------------------------:|:-------------------------:|:-------------------------:
 ![](images/render-mesh-isentropic-vortex-initial-zoom-7.PNG) | ![](images/render-mesh-isentropic-vortex-initial-zoom-7-rhoU.png) | ![](images/vortex-1-2-4-7-lax-cropped.gif)
 
-## Currently [11/15/21]
+## Currently [11/27/21]
 
-New theory: it's the interpolation of the solution values to the edges that is the culprit - instead,
-I'll interpolate the flux from the solution points to the edge along with the solution values, then compose the Roe
-flux as an average of the interpolated L/R fluxes plus terms arising from the interpolated solution values for the
-Riemann problem at the edge.
+I've implemented interpolation of fluxes to the edges, replacing the interpolation of solution values followed by
+computation of the flux. It's currently an option for Lax and Roe fluxes. Below is a 2nd order converged solution using
+the new approach, showing very smooth solution contours.
+
+NACA 0012, Mach = 0.5, Alpha = 2, Interpolated Flux, Converged |
+:-------------------------:
+![](images/interpolateFluxNotQ-M=0.5.PNG) |
+
+It's definitely a more computationally expensive route, but it seems to be "correct", in that there are fewer interpolation
+errors evident in the solution. The results are substantially different in that we get:
+1) stable and convergent solutions at subsonic Mach for orders 0,2,4, unstable at P=1, likely due to interpolation overshoot
+2) smoother and more realistic solution contours without the edge defects
+
+I think it's likely this is a better formulation for the edge computations, but we need something that will eliminate
+the spurious new minima/maxima being introduced by the flux interpolation. TVD/ENO concepts come to mind, where we
+limit the interpolated values so as not to introduce new minima/maxima, but I think it's important to formulate such an
+operation so that it doesn't create aphysical effects, especially in the time accurate solver.
 
 ## Discontinuous Galerkin Method for solving systems of equations - CFD, CEM, ... hydrodynamics-fusion (simulate the Sun), etc! 
 
@@ -71,6 +84,12 @@ For example, the following line implements:
 ```
 	RHSE = el.Dr.Mul(FluxH).ElMul(el.Rx).ElDiv(c.Epsilon).Scale(-1)
 ```
+### Updates [11/15/21]
+
+New theory: it's the interpolation of the solution values to the edges that is the culprit - instead,
+I'll interpolate the flux from the solution points to the edge along with the solution values, then compose the Roe
+flux as an average of the interpolated L/R fluxes plus terms arising from the interpolated solution values for the
+Riemann problem at the edge.
 
 ### Updates [11/9/21]
 

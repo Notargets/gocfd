@@ -180,10 +180,14 @@ func TestEuler(t *testing.T) {
 	if true {
 		{ // Test solution process part 2 - Freestream divergence should be zero
 			Nmax := 7
-			for N := 1; N <= Nmax; N++ {
+			for N := 0; N <= Nmax; N++ {
 				//c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
 				ip.PolynomialOrder = N
-				c := NewEuler(&ip, "../../DG2D/test_tris_5.neu", 1, false, false, false)
+				//ip.Minf = 0.301
+				//ip.Alpha = 2
+				plotMesh := false
+				//c := NewEuler(&ip, "../../DG2D/test_tris_5.neu", 1, plotMesh, false, false)
+				c := NewEuler(&ip, "../../DG2D/test_tris_6_nowall.neu", 1, plotMesh, false, false)
 				c.FSIn = c.FSFar
 				Kmax := c.dfr.K
 				Nint := c.dfr.FluxElement.NpInt
@@ -202,10 +206,11 @@ func TestEuler(t *testing.T) {
 				}
 				Q := c.Q[0]
 				c.SetRTFluxInternal(Kmax, c.dfr.Jdet, c.dfr.Jinv, F_RT_DOF, Q)
-				c.InterpolateSolutionToEdges(Kmax, Q, Q_Face, Flux, Flux_Face)
+				c.InterpolateSolutionToEdges(Q, Q_Face, Flux, Flux_Face)
 				EdgeQ1 := make([][4]float64, Nedge)
 				EdgeQ2 := make([][4]float64, Nedge)
-				c.CalculateEdgeFlux(0, false, nil, nil, [][4]utils.Matrix{Q_Face}, c.SortedEdgeKeys[0], EdgeQ1, EdgeQ2)
+				c.CalculateEdgeFlux(0, false, nil, nil, [][4]utils.Matrix{Q_Face},
+					[][2][4]utils.Matrix{Flux_Face}, c.SortedEdgeKeys[0], EdgeQ1, EdgeQ2)
 				c.SetRTFluxOnEdges(0, Kmax, F_RT_DOF)
 				// Check that freestream divergence on this mesh is zero
 				for n := 0; n < 4; n++ {
@@ -217,7 +222,9 @@ func TestEuler(t *testing.T) {
 							div.DataP[ind] /= c.dfr.Jdet.DataP[k]
 						}
 					}
+					fmt.Printf("checking variable[%d]...", n)
 					assert.True(t, nearVecScalar(div.DataP, 0., 0.000001))
+					fmt.Printf("done.\n")
 				}
 			}
 		}
@@ -282,10 +289,11 @@ func TestEuler(t *testing.T) {
 			Q := c.Q[0]
 			X, Y := c.dfr.FluxX, c.dfr.FluxY
 			c.SetRTFluxInternal(Kmax, c.dfr.Jdet, c.dfr.Jinv, F_RT_DOF, Q)
-			c.InterpolateSolutionToEdges(Kmax, Q, Q_Face, Flux, Flux_Face)
+			c.InterpolateSolutionToEdges(Q, Q_Face, Flux, Flux_Face)
 			EdgeQ1 := make([][4]float64, Nedge)
 			EdgeQ2 := make([][4]float64, Nedge)
-			c.CalculateEdgeFlux(0, false, nil, nil, [][4]utils.Matrix{Q_Face}, c.SortedEdgeKeys[0], EdgeQ1, EdgeQ2)
+			c.CalculateEdgeFlux(0, false, nil, nil, [][4]utils.Matrix{Q_Face},
+				[][2][4]utils.Matrix{Flux_Face}, c.SortedEdgeKeys[0], EdgeQ1, EdgeQ2)
 			c.SetRTFluxOnEdges(0, Kmax, F_RT_DOF)
 			var div utils.Matrix
 			// Density is the easiest equation to match with a polynomial
@@ -316,6 +324,64 @@ func TestEuler(t *testing.T) {
 	}
 }
 
+func TestFluxInterpolation(t *testing.T) {
+	N := 0
+	plotMesh := false
+	ip := *ipDefault
+	ip.Minf = 1.
+	ip.PolynomialOrder = N
+	ip.FluxType = "Roe"
+	c := NewEuler(&ip, "../../DG2D/test_tris_6.neu", 1, plotMesh, true, false)
+	rk := c.NewRungeKuttaSSP()
+	c.InterpolateSolutionToEdges(c.Q[0], rk.Q_Face[0], rk.Flux[0], rk.Flux_Face[0])
+
+	c.CalculateEdgeFlux(0, false, rk.Jdet, rk.DT, rk.Q_Face, rk.Flux_Face, c.SortedEdgeKeys[0],
+		rk.EdgeQ1[0], rk.EdgeQ2[0]) // Global
+
+	fmt.Printf("Len(keys) = %d\n", len(c.SortedEdgeKeys[0]))
+	/*
+		for k := 0; k < c.dfr.K; k++ {
+			for en := 0; en < 3; en++ {
+	*/
+	for n := 0; n < 4; n++ {
+		k, en := 0, 2
+		eq, sn := c.EdgeStore.GetEdgeValues(NumericalFluxForEuler, 0, k, n, en, c.dfr)
+		fmt.Printf("Edge[%d,%d] = [%d] * %v\n", k, en, sn, eq)
+	}
+	for n := 0; n < 4; n++ {
+		k, en := 1, 0
+		eq, sn := c.EdgeStore.GetEdgeValues(NumericalFluxForEuler, 0, k, n, en, c.dfr)
+		fmt.Printf("Edge[%d,%d] = [%d] * %v\n", k, en, sn, eq)
+	}
+	/*
+			}
+		}
+	*/
+
+	/*
+		fe := c.dfr.FluxElement
+		fmt.Printf("NpInt, NpFlux = %d,%d\n", fe.NpInt, fe.Np)
+		for n := 0; n < 4; n++ {
+			c.Q[0][n].Print("Q[" + strconv.Itoa(n) + "]")
+		}
+		for n := 0; n < 4; n++ {
+			rk.Flux[0][0][n].Print("Fx[" + strconv.Itoa(n) + "]")
+		}
+		for n := 0; n < 4; n++ {
+			rk.Flux[0][1][n].Print("Fy[" + strconv.Itoa(n) + "]")
+		}
+		for n := 0; n < 4; n++ {
+			rk.Flux_Face[0][0][n].Print("Fx_Face[" + strconv.Itoa(n) + "]")
+		}
+		for n := 0; n < 4; n++ {
+			rk.Flux_Face[0][1][n].Print("Fy_Face[" + strconv.Itoa(n) + "]")
+		}
+		for n := 0; n < 4; n++ {
+			rk.Q_Face[0][n].Print("Q_Face[" + strconv.Itoa(n) + "]")
+		}
+	*/
+}
+
 func TestFluxJacobian(t *testing.T) {
 	var (
 		tol = 0.000001
@@ -343,7 +409,7 @@ func TestFluxJacobian(t *testing.T) {
 }
 
 func TestEdges(t *testing.T) {
-	dfr := DG2D.NewDFR2D(1, false, "../../DG2D/test_tris_9.neu")
+	dfr := DG2D.NewDFR2D(1, false, false, "../../DG2D/test_tris_9.neu")
 	assert.Equal(t, len(dfr.Tris.Edges), 19)
 	edges := make(EdgeKeySlice, len(dfr.Tris.Edges))
 	var i int
@@ -371,7 +437,7 @@ func TestEdges(t *testing.T) {
 
 func TestDissipation(t *testing.T) {
 	{
-		dfr := DG2D.NewDFR2D(1, false, "../../DG2D/test_tris_9.neu")
+		dfr := DG2D.NewDFR2D(1, false, false, "../../DG2D/test_tris_9.neu")
 		VtoE := NewVertexToElement(dfr.Tris.EToV)
 		assert.Equal(t, VertexToElement{{0, 0, 0}, {0, 1, 0}, {1, 3, 0}, {1, 1, 0}, {1, 2, 0}, {2, 4, 0}, {2, 3, 0}, {3, 5, 0}, {3, 0, 0}, {4, 2, 0}, {4, 5, 0}, {4, 6, 0}, {4, 1, 0}, {4, 0, 0}, {4, 7, 0}, {5, 4, 0}, {5, 3, 0}, {5, 9, 0}, {5, 8, 0}, {5, 2, 0}, {5, 7, 0}, {6, 4, 0}, {6, 9, 0}, {7, 5, 0}, {7, 6, 0}, {8, 8, 0}, {8, 6, 0}, {8, 7, 0}, {9, 8, 0}, {9, 9, 0}},
 			VtoE)
@@ -395,7 +461,7 @@ func TestDissipation(t *testing.T) {
 		}
 	}
 	if false { // Turn off value check tests while working on the constants in the artificial dissipation
-		dfr := DG2D.NewDFR2D(2, false, "../../DG2D/test_tris_9.neu")
+		dfr := DG2D.NewDFR2D(2, false, false, "../../DG2D/test_tris_9.neu")
 		Np, KMax := dfr.SolutionElement.Np, dfr.K
 		pm := NewPartitionMap(1, KMax)
 		Q := make([][4]utils.Matrix, 1)
@@ -426,7 +492,7 @@ func TestDissipation(t *testing.T) {
 			sd.EpsilonScalar[0], 0.00001, "err msg %s")
 	}
 	{
-		dfr := DG2D.NewDFR2D(1, false, "../../DG2D/test_tris_9.neu")
+		dfr := DG2D.NewDFR2D(1, false, false, "../../DG2D/test_tris_9.neu")
 		_, KMax := dfr.SolutionElement.Np, dfr.K
 		for NP := 1; NP < 5; NP++ {
 			pm := NewPartitionMap(NP, KMax)
@@ -460,7 +526,7 @@ func TestDissipation2(t *testing.T) {
 	// Test C0 continuity of Epsilon using element vertex aggregation
 	{
 		var (
-			dfr = DG2D.NewDFR2D(1, false, "../../DG2D/test_tris_9.neu")
+			dfr = DG2D.NewDFR2D(1, false, false, "../../DG2D/test_tris_9.neu")
 		)
 		NP := 1
 		_, KMax := dfr.SolutionElement.Np, dfr.K
@@ -673,7 +739,8 @@ func TestEuler_GetSolutionGradientUsingRTElement(t *testing.T) {
 				DOFX, DOFY = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
 			)
 			rk.MaxWaveSpeed[0] =
-				c.CalculateEdgeFlux(rk.Time, true, rk.Jdet, rk.DT, rk.Q_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
+				c.CalculateEdgeFlux(rk.Time, true, rk.Jdet, rk.DT, rk.Q_Face, rk.Flux_Face, SortedEdgeKeys,
+					EdgeQ1, EdgeQ2) // Global
 			for n := 0; n < 4; n++ {
 				fmt.Printf("Variable[%d] check ...", n+1)
 				c.GetSolutionGradient(-1, n, Q0, DX, DY, DOFX, DOFY)
@@ -864,9 +931,12 @@ func CheckFlux0(c *Euler, t *testing.T) {
 	Nedge := c.dfr.FluxElement.NpEdge
 	NpFlux := c.dfr.FluxElement.Np
 	var Q, Q_Face, F_RT_DOF [4]utils.Matrix
+	var Flux_Face [2][4]utils.Matrix
 	for n := 0; n < 4; n++ {
 		Q[n] = utils.NewMatrix(Nint, Kmax)
 		Q_Face[n] = utils.NewMatrix(3*Nedge, Kmax)
+		Flux_Face[0][n] = utils.NewMatrix(3*Nedge, Kmax)
+		Flux_Face[1][n] = utils.NewMatrix(3*Nedge, Kmax)
 		F_RT_DOF[n] = utils.NewMatrix(NpFlux, Kmax)
 		for k := 0; k < Kmax; k++ {
 			for i := 0; i < Nint; i++ {
@@ -884,7 +954,8 @@ func CheckFlux0(c *Euler, t *testing.T) {
 	EdgeQ1 := make([][4]float64, Nedge)
 	EdgeQ2 := make([][4]float64, Nedge)
 	// No need to interpolate to the edges, they are left at initialized state in Q_Face
-	c.CalculateEdgeFlux(0, false, nil, nil, [][4]utils.Matrix{Q_Face}, c.SortedEdgeKeys[0], EdgeQ1, EdgeQ2)
+	c.CalculateEdgeFlux(0, false, nil, nil, [][4]utils.Matrix{Q_Face},
+		[][2][4]utils.Matrix{Flux_Face}, c.SortedEdgeKeys[0], EdgeQ1, EdgeQ2)
 	c.SetRTFluxOnEdges(0, Kmax, F_RT_DOF)
 
 	var div utils.Matrix

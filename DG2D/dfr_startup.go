@@ -38,7 +38,7 @@ type DFR2D struct {
 	SolutionBasis        Basis2D
 }
 
-func NewDFR2D(N int, plotMesh bool, meshFileO ...string) (dfr *DFR2D) {
+func NewDFR2D(N int, plotMesh bool, verbose bool, meshFileO ...string) (dfr *DFR2D) {
 	if N < 0 {
 		panic(fmt.Errorf("Polynomial order must be >= 0, have %d", N))
 	}
@@ -71,10 +71,10 @@ func NewDFR2D(N int, plotMesh bool, meshFileO ...string) (dfr *DFR2D) {
 		switch t {
 		case GAMBIT_FILE:
 			dfr.K, dfr.VX, dfr.VY, EToV, dfr.BCEdges =
-				readfiles.ReadGambit2d(meshFileO[0], false)
+				readfiles.ReadGambit2d(meshFileO[0], verbose)
 		case SU2_FILE:
 			dfr.K, dfr.VX, dfr.VY, EToV, dfr.BCEdges =
-				readfiles.ReadSU2(meshFileO[0], false)
+				readfiles.ReadSU2(meshFileO[0], verbose)
 		}
 		//dfr.BCEdges.Print()
 		dfr.Tris = NewTriangulation(dfr.VX, dfr.VY, EToV, dfr.BCEdges)
