@@ -9,11 +9,11 @@ Density | X Momentum | Density
 :-------------------------:|:-------------------------:|:-------------------------:
 ![](images/render-mesh-isentropic-vortex-initial-zoom-7.PNG) | ![](images/render-mesh-isentropic-vortex-initial-zoom-7-rhoU.png) | ![](images/vortex-1-2-4-7-lax-cropped.gif)
 
-## Currently [11/27/21]
+## Currently [11/28/21]
 
-Update: I've now continued testing and transonic cases are also working for P!=1. What's interesting now is that for P=0,
- the transonic solutions and shock tube solutions are wiggle free / monotone. Below is a transonic airfoil solution at
-Mach = 0.8, converged, on a mesh with 42,500 elements. The shock wave is finely resolved and is monotone. The convergence
+I've now continued testing and transonic cases are also working for P!=1. What's interesting now is that for P=0,
+the transonic solutions and shock tube solutions are wiggle free / monotone. Below is a transonic airfoil solution at
+Mach = 1.0 and 0.8, converged, on a mesh with 42,500 elements. The shock wave is finely resolved and is monotone. The convergence
 was also far more monotone and rapid than the higher order solutions.
 
 The biggest difference between the 0th order solutions and higher order is the interpolation of the flux from the interior
@@ -27,23 +27,14 @@ New extrema are being created, and my instinct is to eliminate the extrema by li
 and max of the values in the interior. This would remove "extrapolation artifacts", but what is the impact on numerical
 accuracy?
 
+P=0, NACA 0012, Mach = 1.0, Alpha = 2, Interpolated Flux, Converged |
+:-------------------------:|
+![](images/interpolateFluxNotQ-M=1.0-P=0.PNG) |
+
 P=2, NACA 0012, Mach = 0.5, Alpha = 2, Interpolated Flux, Converged | P=0, Mach = 0.8, Fine Mesh, Converged |
 :-------------------------:|:-------------------------:
 ![](images/interpolateFluxNotQ-M=0.5.PNG) | ![](images/interpolateFluxNotQ-M=0.8-P=0.PNG) |
 
-I've implemented interpolation of fluxes to the edges, replacing the interpolation of solution values followed by
-computation of the flux. It's currently an option for Lax and Roe fluxes. Below is a 2nd order converged solution using
-the new approach, showing very smooth solution contours.
-
-It's definitely a more computationally expensive route, but it seems to be "correct", in that there are fewer interpolation
-errors evident in the solution. The results are substantially different in that we get:
-1) stable and convergent solutions at subsonic Mach for orders 0,2,4, unstable at P=1, likely due to interpolation overshoot
-2) smoother and more realistic solution contours without the edge defects
-
-I think it's likely this is a better formulation for the edge computations, but we need something that will eliminate
-the spurious new minima/maxima being introduced by the flux interpolation. TVD/ENO concepts come to mind, where we
-limit the interpolated values so as not to introduce new minima/maxima, but I think it's important to formulate such an
-operation so that it doesn't create aphysical effects, especially in the time accurate solver.
 
 ## Discontinuous Galerkin Method for solving systems of equations - CFD, CEM, ... hydrodynamics-fusion (simulate the Sun), etc! 
 
@@ -100,6 +91,23 @@ For example, the following line implements:
 ```
 	RHSE = el.Dr.Mul(FluxH).ElMul(el.Rx).ElDiv(c.Epsilon).Scale(-1)
 ```
+
+### Updates [11/27/21]
+
+I've implemented interpolation of fluxes to the edges, replacing the interpolation of solution values followed by
+computation of the flux. It's currently an option for Lax and Roe fluxes. Below is a 2nd order converged solution using
+the new approach, showing very smooth solution contours.
+
+It's definitely a more computationally expensive route, but it seems to be "correct", in that there are fewer interpolation
+errors evident in the solution. The results are substantially different in that we get:
+1) stable and convergent solutions at subsonic Mach for orders 0,2,4, unstable at P=1, likely due to interpolation overshoot
+2) smoother and more realistic solution contours without the edge defects
+
+I think it's likely this is a better formulation for the edge computations, but we need something that will eliminate
+the spurious new minima/maxima being introduced by the flux interpolation. TVD/ENO concepts come to mind, where we
+limit the interpolated values so as not to introduce new minima/maxima, but I think it's important to formulate such an
+operation so that it doesn't create aphysical effects, especially in the time accurate solver.
+
 ### Updates [11/15/21]
 
 New theory: it's the interpolation of the solution values to the edges that is the culprit - instead,
