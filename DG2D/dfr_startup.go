@@ -55,10 +55,14 @@ func NewDFR2D(N int, plotMesh bool, verbose bool, meshFileO ...string) (dfr *DFR
 	}
 	// Get interpolation matrix for edges using a basis on solution points at polynomial degree le.N
 	if useLagrangeBasis {
-		fmt.Printf("Using 2D Lagrange Polynomial Basis\n")
+		if verbose {
+			fmt.Printf("Using 2D Lagrange Polynomial Basis\n")
+		}
 		dfr.SolutionBasis = NewLagrangeBasis2D(le.N, le.R, le.S)
 	} else {
-		fmt.Printf("Using 2D Jacobi OrthoNormal Polynomial Basis\n")
+		if verbose {
+			fmt.Printf("Using 2D Jacobi OrthoNormal Polynomial Basis\n")
+		}
 		dfr.SolutionBasis = NewJacobiBasis2D(le.N, le.R, le.S)
 	}
 	// Get the interpolation matrices that interpolate the whole RT element and just the edges using solution points
