@@ -325,61 +325,69 @@ func TestEuler(t *testing.T) {
 }
 
 func TestFluxInterpolation(t *testing.T) {
-	N := 0
+	N := 2
 	plotMesh := false
 	ip := *ipDefault
 	ip.Minf = 1.
 	ip.PolynomialOrder = N
 	ip.FluxType = "Roe"
-	c := NewEuler(&ip, "../../DG2D/test_tris_6.neu", 1, plotMesh, true, false)
+	c := NewEuler(&ip, "../../DG2D/test_tris_6.neu", 1, plotMesh, false, false)
 	rk := c.NewRungeKuttaSSP()
 	c.InterpolateSolutionToEdges(c.Q[0], rk.Q_Face[0], rk.Flux[0], rk.Flux_Face[0])
-
-	c.CalculateEdgeFlux(0, false, rk.Jdet, rk.DT, rk.Q_Face, rk.Flux_Face, c.SortedEdgeKeys[0],
-		rk.EdgeQ1[0], rk.EdgeQ2[0]) // Global
-
-	fmt.Printf("Len(keys) = %d\n", len(c.SortedEdgeKeys[0]))
+	el := c.dfr.SolutionElement
 	/*
-		for k := 0; k < c.dfr.K; k++ {
-			for en := 0; en < 3; en++ {
+		el.JB2D.V.Print("V")
+		el.JB2D.Vinv.Print("Vinv")
+		el.MassMatrix.Print("M")
 	*/
-	for n := 0; n < 4; n++ {
-		k, en := 0, 2
-		eq, sn := c.EdgeStore.GetEdgeValues(NumericalFluxForEuler, 0, k, n, en, c.dfr)
-		fmt.Printf("Edge[%d,%d] = [%d] * %v\n", k, en, sn, eq)
-	}
-	for n := 0; n < 4; n++ {
-		k, en := 1, 0
-		eq, sn := c.EdgeStore.GetEdgeValues(NumericalFluxForEuler, 0, k, n, en, c.dfr)
-		fmt.Printf("Edge[%d,%d] = [%d] * %v\n", k, en, sn, eq)
-	}
-	/*
+	RR := [][2]float64{{-1 / 3, -1 / 3}, {-1, -1}, {-1, 1}, {1, -1}}
+	NpInt := el.Np
+	locations := utils.NewMatrix(len(RR), NpInt)
+	for ii, rr := range RR {
+		var sm int
+		for i := 0; i <= N; i++ {
+			for j := 0; j <= N-i; j++ {
+				//fmt.Printf("i,j = %d,%d\n", i, j)
+				r, s := rr[0], rr[1]
+				//fmt.Printf("Basis value at [%3.1f,%3.1f][%d,%d] = %5.3f\n", r, s, i, j, el.JB2D.PolynomialTerm(r, s, i, j))
+				locations.Set(ii, sm, el.JB2D.PolynomialTerm(r, s, i, j))
+				sm++
 			}
 		}
-	*/
+	}
+	filter := make([]float64, 10)
+	filter[0] = 1
+	filter[1] = 1.0
+	filter[2] = 1.0
+	filter[3] = 0.00
+	filter[4] = 0.00
+	filter[5] = 0.00
+	filter[6] = 0.00
+	filter[7] = 0.00
+	filter[8] = 0.00
+	filter[9] = 0.00
+	truncate := utils.NewDiagMatrix(NpInt, filter[:NpInt])
 
-	/*
-		fe := c.dfr.FluxElement
-		fmt.Printf("NpInt, NpFlux = %d,%d\n", fe.NpInt, fe.Np)
-		for n := 0; n < 4; n++ {
-			c.Q[0][n].Print("Q[" + strconv.Itoa(n) + "]")
-		}
-		for n := 0; n < 4; n++ {
-			rk.Flux[0][0][n].Print("Fx[" + strconv.Itoa(n) + "]")
-		}
-		for n := 0; n < 4; n++ {
-			rk.Flux[0][1][n].Print("Fy[" + strconv.Itoa(n) + "]")
-		}
-		for n := 0; n < 4; n++ {
-			rk.Flux_Face[0][0][n].Print("Fx_Face[" + strconv.Itoa(n) + "]")
-		}
-		for n := 0; n < 4; n++ {
-			rk.Flux_Face[0][1][n].Print("Fy_Face[" + strconv.Itoa(n) + "]")
-		}
-		for n := 0; n < 4; n++ {
-			rk.Q_Face[0][n].Print("Q_Face[" + strconv.Itoa(n) + "]")
-		}
-	*/
+	//solution := utils.NewMatrix(NpInt, 1, []float64{1, 1, 1, 1, 1, 1})
+	//modes := el.JB2D.Vinv.Mul(solution)
+	//solution.Transpose().Print("solution-const")
+	//modes.Transpose().Print("modes1")
+	//locations.Mul(modes).Transpose().Print("Locations1")
+	//solution = utils.NewMatrix(NpInt, 1, []float64{1, 1, 1, 0.5, 0.5, 1.5})
+	solution := utils.NewMatrix(NpInt, 1, []float64{1.0, 0.5, 1.5, 1.5, 1.5, 1.5, 1, 1, 1, 1})
+	modes := el.JB2D.Vinv.Mul(solution)
+	solution.Transpose().Print("solution-variable")
+	modes.Transpose().Print("modes2")
+	locations.Mul(modes).Transpose().Print("Locations2")
+
+	VinvFiltered := truncate.Mul(el.JB2D.Vinv)
+	modes = VinvFiltered.Mul(solution)
+	//modes.Transpose().Print("modes3")
+	locations.Mul(modes).Transpose().Print("Locations3")
+
+	R, S := utils.NewVector(4, []float64{-1 / 3, -1, -1, 1}), utils.NewVector(4, []float64{-1 / 3, -1, 1, -1})
+	linterp := el.JB2D.GetInterpMatrix(R, S)
+	linterp.Mul(solution).Transpose().Print("linterp-locations")
 }
 
 func TestFluxJacobian(t *testing.T) {
