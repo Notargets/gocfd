@@ -512,7 +512,7 @@ func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [][4]utils.
 			c.ShockTube.Plot(Time, pm.FrameTime, Qp)
 			c.PlotQ(pm, 1920, 1080) // wait till we implement time iterative frame updates
 		} else {
-			c.PlotQ(pm, 3840, 2160) // wait till we implement time iterative frame updates
+			c.PlotQ(pm, 1920, 1080) // wait till we implement time iterative frame updates
 		}
 	}
 	if c.LocalTimeStepping {
