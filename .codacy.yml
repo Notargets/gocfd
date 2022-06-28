@@ -3,3 +3,7 @@ engines:
     enabled: true
     exclude_paths:
       - '**_test.go'
+exclude_paths:
+  - "test_cases/**"
+  - "research/**"
+  - "images/**"
