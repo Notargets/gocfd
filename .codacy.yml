@@ -7,3 +7,4 @@ exclude_paths:
   - "test_cases/**"
   - "research/**"
   - "images/**"
+  - "README.md"
