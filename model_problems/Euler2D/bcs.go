@@ -92,28 +92,42 @@ func (c *Euler) RiemannBC(FS *FreeStream, k, Kmax, i int, QQ [4][]float64, QInf 
 		tangent            = [2]float64{-normal[1], normal[0]}
 	)
 	VnormInt := normal[0]*uInt + normal[1]*vInt
-	VnormInf := normal[0]*uInf + normal[1]*vInf
-	Rinf := VnormInf - 2.*CInf*OOGM1
-	Rint := VnormInt + 2.*CInt*OOGM1
-	Vnorm := 0.5 * (Rint + Rinf)
-	C := 0.25 * GM1 * (Rint - Rinf)
-	//fmt.Printf("normal = %8.5f,%8.5f\n", normal[0], normal[1])
-	switch {
-	case VnormInt < 0: // Inflow, entropy and tangent velocity from Qinf
-		Vtang = tangent[0]*uInf + tangent[1]*vInf
-		Beta = pInf / math.Pow(rhoInf, Gamma)
-	case VnormInt >= 0: // Outflow, entropy and tangent velocity from Qint
-		Vtang = tangent[0]*uInt + tangent[1]*vInt
-		Beta = pInt / math.Pow(rhoInt, Gamma)
+	if FS.Minf <= 1. {
+		VnormInf := normal[0]*uInf + normal[1]*vInf
+		Rinf := VnormInf - 2.*CInf*OOGM1
+		Rint := VnormInt + 2.*CInt*OOGM1
+		Vnorm := 0.5 * (Rint + Rinf)
+		C := 0.25 * GM1 * (Rint - Rinf)
+		//fmt.Printf("normal = %8.5f,%8.5f\n", normal[0], normal[1])
+		switch {
+		case VnormInt < 0: // Inflow, entropy and tangent velocity from Qinf
+			Vtang = tangent[0]*uInf + tangent[1]*vInf
+			Beta = pInf / math.Pow(rhoInf, Gamma)
+		case VnormInt >= 0: // Outflow, entropy and tangent velocity from Qint
+			Vtang = tangent[0]*uInt + tangent[1]*vInt
+			Beta = pInt / math.Pow(rhoInt, Gamma)
+		}
+		u := Vnorm*normal[0] + Vtang*tangent[0]
+		v := Vnorm*normal[1] + Vtang*tangent[1]
+		//fmt.Printf("uInt,vInt=%8.5f,%8.5f u,v=%8.5f,%8.5f\n", uInt, vInt, u, v)
+		rho := math.Pow(C*C/(Gamma*Beta), OOGM1)
+		p := Beta * math.Pow(rho, Gamma)
+		Q[0] = rho
+		Q[1] = rho * u
+		Q[2] = rho * v
+		Q[3] = p*OOGM1 + 0.5*rho*(u*u+v*v)
+	} else { // Supersonic far field
+		if VnormInt < 0 { // Inflow, copy all field variables from Qinf
+			Q[0] = QInf[0]
+			Q[1] = QInf[1]
+			Q[2] = QInf[2]
+			Q[3] = QInf[3]
+		} else { // Outflow, copy all from Qint
+			Q[0] = QQ[0][ind]
+			Q[1] = QQ[1][ind]
+			Q[2] = QQ[2][ind]
+			Q[3] = QQ[3][ind]
+		}
 	}
-	u := Vnorm*normal[0] + Vtang*tangent[0]
-	v := Vnorm*normal[1] + Vtang*tangent[1]
-	//fmt.Printf("uInt,vInt=%8.5f,%8.5f u,v=%8.5f,%8.5f\n", uInt, vInt, u, v)
-	rho := math.Pow(C*C/(Gamma*Beta), OOGM1)
-	p := Beta * math.Pow(rho, Gamma)
-	Q[0] = rho
-	Q[1] = rho * u
-	Q[2] = rho * v
-	Q[3] = p*OOGM1 + 0.5*rho*(u*u+v*v)
 	return
 }
