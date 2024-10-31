@@ -612,7 +612,7 @@ func expandRangeI(max int, RangeI interface{}) (I Index) {
 	return
 }
 
-//func (m Matrix) AssignVector(I Index, Ainv Vector) Matrix { // Changes receiver
+// func (m Matrix) AssignVector(I Index, Ainv Vector) Matrix { // Changes receiver
 func (m Matrix) AssignVector(I Index, AI interface{}) Matrix { // Changes receiver
 	// Assigns values indexed into M using values sequentially from Vector Ainv
 	var (

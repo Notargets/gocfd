@@ -165,9 +165,9 @@ func (e *Edge) AddTri(en types.EdgeKey, k, conn int, intEdgeNumber InternalEdgeN
 
 /*
 Note that we do not use a slice for any of the fields inside of an edge - why?
-	- each slice ([]type) has an overhead of pointer plus length and capacity ints, total of 24 bytes for an empty slice
-	- adding to a slice using append() is expensive
-	-> by using fixed allocations with the max of 2 ([2]type), we use less memory (total of 14 bytes) and compute
+  - each slice ([]type) has an overhead of pointer plus length and capacity ints, total of 24 bytes for an empty slice
+  - adding to a slice using append() is expensive
+    -> by using fixed allocations with the max of 2 ([2]type), we use less memory (total of 14 bytes) and compute
 */
 type Edge struct {
 	// Total Storage: 32 bytes (14 bytes, 64-bit aligned to 16, plus 2x8 bytes for ||n||)

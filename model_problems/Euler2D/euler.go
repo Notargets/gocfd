@@ -19,10 +19,11 @@ import (
 )
 
 /*
-	In the DFR scheme, we have two sets of points:
-		- Solution points (inside element)
-		- Flux Points (on element faces)
-	The flux element operates on both sets of points, the solution element only operates on the internal solution points
+In the DFR scheme, we have two sets of points:
+  - Solution points (inside element)
+  - Flux Points (on element faces)
+
+The flux element operates on both sets of points, the solution element only operates on the internal solution points
 */
 type Euler struct {
 	// Input parameters

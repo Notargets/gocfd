@@ -1,13 +1,13 @@
 # gocfd
 Awesome CFD solver written in Go
 
-NACA 0012 Airfoil at M=0.3, Alpha=6, Roe flux, Local Time Stepping| M=0.5, Alpha=0, Roe Flux, 1482 O(2) Elements, Converged
-:----------------------------------------------------------------:|----------------------------------------------------------------:|
-![](images/naca12_2d_m0.3_a6_roe.gif)| ![](images/naca12_2d_m0.5_aoa0_Roe.PNG)
+| NACA 0012 Airfoil at M=0.3, Alpha=6, Roe flux, Local Time Stepping | M=0.5, Alpha=0, Roe Flux, 1482 O(2) Elements, Converged |
+|:------------------------------------------------------------------:|--------------------------------------------------------:|
+|               ![](images/naca12_2d_m0.3_a6_roe.gif)                |                 ![](images/naca12_2d_m0.5_aoa0_Roe.PNG) |
 
-Density | X Momentum | Density
-:-------------------------:|:-------------------------:|:-------------------------:
-![](images/render-mesh-isentropic-vortex-initial-zoom-7.PNG) | ![](images/render-mesh-isentropic-vortex-initial-zoom-7-rhoU.png) | ![](images/vortex-1-2-4-7-lax-cropped.gif)
+|                           Density                            |                            X Momentum                             |                  Density                   |
+|:------------------------------------------------------------:|:-----------------------------------------------------------------:|:------------------------------------------:|
+| ![](images/render-mesh-isentropic-vortex-initial-zoom-7.PNG) | ![](images/render-mesh-isentropic-vortex-initial-zoom-7-rhoU.png) | ![](images/vortex-1-2-4-7-lax-cropped.gif) |
 
 ====
 
@@ -27,13 +27,13 @@ New extrema are being created, and my instinct is to eliminate the extrema by li
 and max of the values in the interior. This would remove "extrapolation artifacts", but what is the impact on numerical
 accuracy?
 
-P=0, NACA 0012, Mach = 1.0, Alpha = 2, Interpolated Flux, Converged |
-:-------------------------:|
-![](images/interpolateFluxNotQ-M=1.0-P=0.PNG) |
+| P=0, NACA 0012, Mach = 1.0, Alpha = 2, Interpolated Flux, Converged |
+|:-------------------------------------------------------------------:|
+|            ![](images/interpolateFluxNotQ-M=1.0-P=0.PNG)            |
 
-P=2, NACA 0012, Mach = 0.5, Alpha = 2, Interpolated Flux, Converged | P=0, Mach = 0.8, Fine Mesh, Converged |
-:-------------------------:|:-------------------------:
-![](images/interpolateFluxNotQ-M=0.5.PNG) | ![](images/interpolateFluxNotQ-M=0.8-P=0.PNG) |
+| P=2, NACA 0012, Mach = 0.5, Alpha = 2, Interpolated Flux, Converged |     P=0, Mach = 0.8, Fine Mesh, Converged     |
+|:-------------------------------------------------------------------:|:---------------------------------------------:|
+|              ![](images/interpolateFluxNotQ-M=0.5.PNG)              | ![](images/interpolateFluxNotQ-M=0.8-P=0.PNG) |
 
 
 ## Discontinuous Galerkin Method for solving systems of equations - CFD, CEM, ... hydrodynamics-fusion (simulate the Sun), etc! 
@@ -137,10 +137,10 @@ Riemann problem at the edge.
 
 ### Updates [11/9/21]
 
-NACA0012 M=0.8, AOA=2 New RT Element vs Lagrange Basis vs Jacobi Basis|
-:-------------------------:|
-L2 Convergence Compared|
-![](images/convergence-newRT.PNG) |
+| NACA0012 M=0.8, AOA=2 New RT Element vs Lagrange Basis vs Jacobi Basis |
+|:----------------------------------------------------------------------:|
+|                        L2 Convergence Compared                         |
+|                   ![](images/convergence-newRT.PNG)                    |
 
 Update [11/15/21]: The results are in - a completely new Raviart-Thomas element design is now available, and it gives
 results that are very similar to the prior implementation. It's hard to judge which is superior, but at this point
@@ -182,10 +182,10 @@ the RT element is different between the two, but that seems to not impact the re
 My conclusion based on this experiment: The interpolation to the edges appears to be more important to the solution than
 the polynomial basis used in computing the divergence.
 
-NACA0012 M=0.8, AOA=2 Lagrange vs Jacobi Basis| L2 Norm Convergence History
-:-------------------------:|:-------------------------:|
-Mach Number | Convergence, CFL = 3, Kappa = 3 (Artificial Dissipation)
-![](images/naca0012-LGvsJCbasis-K=3.PNG) | ![](images/naca0012-LGvsJCbasis-K=3-convergence.PNG) |
+| NACA0012 M=0.8, AOA=2 Lagrange vs Jacobi Basis |               L2 Norm Convergence History                |
+|:----------------------------------------------:|:--------------------------------------------------------:|
+|                  Mach Number                   | Convergence, CFL = 3, Kappa = 3 (Artificial Dissipation) |
+|    ![](images/naca0012-LGvsJCbasis-K=3.PNG)    |   ![](images/naca0012-LGvsJCbasis-K=3-convergence.PNG)   |
 
 ### Updates [10/26/21]
 
@@ -212,10 +212,10 @@ tensor product as Hesthaven does in the book I've used for the core of this meth
 levels of variance from their mean, and my concern is that the Jacobi polynomials may be too "wild" when interpolating
 to the element's extrema - specifically the interpolation of solution values to the edges.
 
-Jacobi Polynomials to N=9| Interval: -1 < X < 1
-:-------------------------:|:-------------------------:|
-Alpha = Beta = 0| Alpha = Beta = -0.99
-![](images/jacobi-polynomial-to-degree9-alpha=beta=0.PNG) | ![](images/jacobi-polynomial-to-degree9-alpha=beta=-.99.PNG) |
+|                 Jacobi Polynomials to N=9                 |                     Interval: -1 < X < 1                     |
+|:---------------------------------------------------------:|:------------------------------------------------------------:|
+|                     Alpha = Beta = 0                      |                     Alpha = Beta = -0.99                     |
+| ![](images/jacobi-polynomial-to-degree9-alpha=beta=0.PNG) | ![](images/jacobi-polynomial-to-degree9-alpha=beta=-.99.PNG) |
 
 In the above plot of the Jacobi polynomial in the interval -1 to 1, we can see what appears to be a collapse in the
 values of the polynomials of all orders at the extrema of the interval. Intuition says we want to have all modes equally
@@ -226,26 +226,26 @@ airfoil case using the basis on the right and it does seem to improve both conve
 Up next: I'm implementing Lagrange Interpolating basis functions to the finite element construction as an alternative.
 This will allow for comparison among basis functions and selection of the best for shock waves.
 
-2nd Order, NACA 0012 Airfoil, Mach = 0.8, Alpha = 2 degrees | _ | _
-:-------------------------:|:-------------------------:|:-------------------------:|
-Artificial Dissipation, Intra Cell Shock Captured, Converged Solution| Same as left, with stretched basis | Solution Limiter, Non-Converged
-![](images//naca0012-m=0.8-aoa=2-Jacobi-Epsilon.PNG) | ![](images/naca0012-m=0.8-aoa=2-Jacobi-alpha=-.99,beta=-.99Epsilon.PNG) | ![](images//naca0012-m=0.8-aoa=2-Jacobi-Limiter.PNG) |
+|      2nd Order, NACA 0012 Airfoil, Mach = 0.8, Alpha = 2 degrees      |                                    _                                    |                          _                          |
+|:---------------------------------------------------------------------:|:-----------------------------------------------------------------------:|:---------------------------------------------------:|
+| Artificial Dissipation, Intra Cell Shock Captured, Converged Solution |                   Same as left, with stretched basis                    |           Solution Limiter, Non-Converged           |
+|          ![](images/naca0012-m=0.8-aoa=2-Jacobi-Epsilon.PNG)          | ![](images/naca0012-m=0.8-aoa=2-Jacobi-alpha=-.99,beta=-.99Epsilon.PNG) | ![](images/naca0012-m=0.8-aoa=2-Jacobi-Limiter.PNG) |
 
 
 ### Updates [10/24/21]
 
 I've replaced the previous broken Runge Kutta time advancement scheme with an explicit SSP54 scheme from Gottlieb, et. al. and now the SOD shocktube results are in excellent agreement with the exact result as shown below. Note the slight bulge in the density profile at the centerline - or alternately it's a lag near the tube walls.
 
-SSP54 Time integration Centerline Compared with Exact Solution | Density in 2D
-:-------------------------:|:-------------------------:
-![](images//sod-2d-ssp54.PNG) | ![](images//sod-2d-ssp54-density.PNG)
+| SSP54 Time integration Centerline Compared with Exact Solution |            Density in 2D             |
+|:--------------------------------------------------------------:|:------------------------------------:|
+|                  ![](images/sod-2d-ssp54.PNG)                  | ![](images/sod-2d-ssp54-density.PNG) |
 
 Previously:
 Good news: the source of the bug is clearly the time integration (Runge Kutta 4th Order SSP algorithm) - simply changing one of the constants from 0.25 to 0.4 fixes the wavespeed issue completely. I'll revisit the implementation once I find out where I got the coefficients from - in this case I haven't included their source reference in the code (DOH!)
 
-Centerline Compared with Exact Solution | Density in 2D
-:-------------------------:|:-------------------------:
-![](images//sod-2d-broken.PNG) | ![](images//sod-2d-density-broken.PNG)
+| Centerline Compared with Exact Solution |             Density in 2D             |
+|:---------------------------------------:|:-------------------------------------:|
+|      ![](images/sod-2d-broken.PNG)      | ![](images/sod-2d-density-broken.PNG) |
 
 I've implemented a 2D version of the 1D shock tube with graphics and the exact solution for comparison.
 
@@ -263,7 +263,7 @@ The dissipation is not able to suppress shock induced (Gibbs) oscillations as im
 
 Next, I plan to implement 2nd order derivative continuity along the lines of the LDG method, which will also support the next steps in implementation of viscous equations (Navier Stokes). Hopefully, we'll kill two birds with one stone: sharp shock capturing at high order accuracy and viscous solutions!
 
-![](images//discontinuous-gradient-in-shock.PNG)
+![](images/discontinuous-gradient-in-shock.PNG)
 
 ### Updates [10/3/21]
 
@@ -334,9 +334,9 @@ Used to remove stiffness in propagating high frequency changes where the differe
 
 Time Accurate Abrupt Start Transients
 
-| 1st Order | 4th Order | 5th Order | 
-:-------------------------:|:-------------------------:|:-------------------------:|
-![](images/naca-transient-time-accurate-O1.PNG) | ![](images/naca-transient-time-accurate.PNG) | ![](images/naca-transient-time-accurate-O5.PNG) |
+|                    1st Order                    |                  4th Order                   |                    5th Order                    | 
+|:-----------------------------------------------:|:--------------------------------------------:|:-----------------------------------------------:|
+| ![](images/naca-transient-time-accurate-O1.PNG) | ![](images/naca-transient-time-accurate.PNG) | ![](images/naca-transient-time-accurate-O5.PNG) |
 
 The above is just for fun - the wave interactions are all subsonic with Minf = 0.5 and AOA = 2. It's interesting to compare the resolution of the fine wave interactions between the different polynomial orders.
 
@@ -435,7 +435,7 @@ Next up: graphics to display the solution on the full set of polynomial nodes. G
 ### Updates (Nov 9 2020):
 Testing the calculation of divergence using an exact polynomial flux field calculated in Matlab. It seems there's a bug involving the indexing or process using the full transformed calculation with edge computations because the divergence is nearly exact for the first element (k=0) and the mass equation divergence, but deviates for other elements and equations. It's very useful at this point to verify the accuracy of the divergence operator because the bulk of the solver relies on this one operator, and so we can characterize the accuracy (and stability) of the algorithm almost entirely by evaluating the divergence.
 
-<img align="text-align:center" src="images/polynomialTestFlux.PNG" width="600" height="500" />
+<img src="images/polynomialTestFlux.PNG" width="600" height="500"  alt=""/>
 
 Above we see the polynomial flux field in a series of graphs for each equation in the conservative variables and the resulting divergence for each equation. All values are real, not complex and appear smooth (and thus differentiable!).
 
@@ -452,10 +452,10 @@ I'm working now on the actual data structures that will efficiently compute the 
 ### Updates (Oct 2 2020):
 Up next: I'm working on initializing the 2D DFR solution method. My plan is to construct a separate structure containing all faces such that we can iterate through the face structure to construct the fluxes on each face only once. Each face is shared by two elements, and each face has a complex and expensive flux construction that unifies the computed values from each element into a single flux shared by both. By constructing a dedicated group of faces, we can iterate through them in parallel to do that construction without duplication. The shared flux values will be placed directly into the flux storage locations (part of the RT element) so that the divergence can be calculated to advance the solution.
 
-<img align="text-align:center" src="images/mesh_element.PNG" width="600" height="500" />
+<img src="images/mesh_element.PNG" width="600" height="500"  alt=""/>
 Above we see three elements and within each are the interior solution points and along the edges/faces are the flux points for Order = 1. Each RT element has 12 points, 3 on each face and three interior, while the three Order 1 solution points are in the interior.
 
-<img align="text-align:center" src="images/rt7_triangulation.PNG" width="600" height="500" />
+<img src="images/rt7_triangulation.PNG" width="600" height="500"  alt=""/>
 
 I've implemented a Delaunay triangulation that converts 2D point fields with fixed boundaries into a triangle mesh. The picture shows the RT7 element triangulated using the method. Now we can use the triangulation within the reference element to implement contour tracing and other graphics to display the field contents within the high order elements. This approach requires that we triangulate only the reference element, then we use that triangulation to fill the insides of the triangles in the mesh (using the affine transform).
 
@@ -471,9 +471,9 @@ The reason this took me quite a while: the choice of basis functions for the RT 
 ### Updates (Aug 20 2020):
 I finally have a working Raviart-Thomas element at any K up to 7th order now. The limitation to 7th order is a matter of finding optimized point distributions for this element type. This RT element closely follows the approach described in [Romero and Jameson](https://github.com/Notargets/gocfd/blob/master/research/convergence_and_fluxes/DFR/romero_jsc_2017.pdf) for the 3rd and 4th orders, and uses the point distributions from [Williams and Shun](https://github.com/Notargets/gocfd/blob/master/research/convergence_and_fluxes/DFR/williams-shun-jameson-quadrature.pdf) for orders 1,2 and 5-7. The RT vector basis cooefficients for order N are solved numerically in one matrix inversion, yielding a full polynomial basis with (N+1)(N+3) terms implemented as degrees of freedom defining the basis distributed on the [-1,-1] reference triangle. There are 3(N+1) points on the faces of the triangle, and N(N+1)/2 points defining the interior, and each of the interior points hosts 2 degrees of freedom, one for each orthogonal basis vector [r,s] = [1,0] and [0,1], the axis vectos for r and s. The zero order (N=0) element has 0 interior points and 3 face points, one on each face, the N=1 element has 2 points on each face and 1 point in the interior, the N=2 has 9 points on faces (3 per edge), and 3 interior points, for a total of (2+1)(2+3)=15 degrees of freedom.
 
-RT0 Element | RT7 Element
-:-------------------------:|:-------------------------:
-![](images/RT1_element.PNG) | ![](images/RT7_element.PNG)
+|         RT0 Element         |         RT7 Element         |
+|:---------------------------:|:---------------------------:|
+| ![](images/RT1_element.PNG) | ![](images/RT7_element.PNG) |
 
 The Raviart-Thomas elements at orders 1 and 7 are shown above, with basis vectors as green lines. On the left is RT1, showing a single interior point with two basis vectors. The RT7 element has 28 interior points, each with two basis vectors. The edges of RT7 each have 8 points, each with a single normal vector for the basis.
 
@@ -492,7 +492,7 @@ I have found the open source element library "Fiat", part of FEniCS, that implem
 So - I'm back to basic research on the meaning of finite elements and how to properly represent the flux on Raviart-Thomas elements. Papers I'm reading can be found [here](research/convergence_and_fluxes).
 
 ### Updates (June 25, 2020):
-<img align="text-align:center" src="images/tri-nodes-n3-6.PNG" width="600" height="500" />
+<img src="images/tri-nodes-n3-6.PNG" width="600" height="500"  alt=""/>
 
 Experimenting with node distributions - shown are the LGL points with warping per the Hesthaven approach.
 
@@ -578,9 +578,9 @@ The Jameson DFR algorithm provides an equivalent, but simpler and more efficient
 A highly resolved solution from the DFR/Roe solver looks qualitatively good without bumps or other instability artifacts. The contact discontinuity is in the right place and very sharply resolved.
 
 #### Comparison of DFR/Roe and Galerkin/Lax at T = 0.2, N=2, 200 Elements
-DFR Roe (fixed flux) | Galerkin Lax
-:-------------------------:|:-------------------------:
-![](images/eulerDFR-K200-N2-fixedRoe.PNG) | ![](images/eulerGK-K200-N2.PNG)
+|           DFR Roe (fixed flux)            |          Galerkin Lax           |
+|:-----------------------------------------:|:-------------------------------:|
+| ![](images/eulerDFR-K200-N2-fixedRoe.PNG) | ![](images/eulerGK-K200-N2.PNG) |
 
 I removed a term that was present in the 3D version of the flux that doesn't make sense in 1D, and now the contact discontinuity is in the right place and the bump is gone.
 
@@ -589,9 +589,9 @@ Now, when we compare the DFR Roe flux (left) to the Galerkin Lax flux (right), w
 I also optimized some of the DFR code and timed each solution. Surprisingly, the DFR/Roe is slightly faster than the Galerkin/Lax.
 
 #### T = 0.2, N=3, 2000 Elements
-DFR Roe (broken flux) | Galerkin Lax
-:-------------------------:|:-------------------------:
-![](images/EulerDFR-K2000-N3.PNG) | ![](images/EulerGK-K2000-N3.PNG)
+|       DFR Roe (broken flux)       |           Galerkin Lax           |
+|:---------------------------------:|:--------------------------------:|
+| ![](images/EulerDFR-K2000-N3.PNG) | ![](images/EulerGK-K2000-N3.PNG) |
 
 DFR/Roe versus Galerkin/Lax: In the DFR solution the contact discontinuity is steeper than the GK/Lax solution. There is a very slight position error for the contact discontinuity in the DFR solution and also a bump on the left side of it, an artifact of the underdamped aliasing.
 
@@ -705,20 +705,19 @@ You can also target a final time for the simulation using the "-FinalTime" flag.
 bash# gocfd -model 2 -graph -K 250 -N 1 -FinalTime 0.2
 ```
 #### T = 0.2, 60 Elements
-Linear Elements | 10th Order Elements
-:-------------------------:|:-------------------------:
-![](images/Euler1D-SOD-K60-N1-T0.2.PNG) | ![](images/Euler1D-SOD-K60-N10-T0.2.PNG)
+|             Linear Elements             |           10th Order Elements            |
+|:---------------------------------------:|:----------------------------------------:|
+| ![](images/Euler1D-SOD-K60-N1-T0.2.PNG) | ![](images/Euler1D-SOD-K60-N10-T0.2.PNG) |
 
 #### T = 0.2, 250 Elements
-Linear Elements | 10th Order Elements
-:-------------------------:|:-------------------------:
-![](images/Euler1D-SOD-K250-N1-T0.2.PNG) | ![](images/Euler1D-SOD-K250-N10-T0.2.PNG)
+|             Linear Elements              |            10th Order Elements            |
+|:----------------------------------------:|:-----------------------------------------:|
+| ![](images/Euler1D-SOD-K250-N1-T0.2.PNG) | ![](images/Euler1D-SOD-K250-N10-T0.2.PNG) |
 
 #### T = 0.2, 500 Elements
-Linear Elements | 10th Order Elements
-:-------------------------:|:-------------------------:
-![](images/Euler1D-SOD-K500-N1-T0.2.PNG) | ![](images/Euler1D-SOD-K500-N10-T0.2.PNG)
-
+|             Linear Elements              |            10th Order Elements            |
+|:----------------------------------------:|:-----------------------------------------:|
+| ![](images/Euler1D-SOD-K500-N1-T0.2.PNG) | ![](images/Euler1D-SOD-K500-N10-T0.2.PNG) |
 
 ### Model Problem Example #2: Maxwell's Equations solved in a 1D Cavity
 

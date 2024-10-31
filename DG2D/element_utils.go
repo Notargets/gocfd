@@ -8,7 +8,8 @@ import (
 )
 
 // Purpose  : Compute (x,y) nodes in equilateral triangle for
-//            polynomial of order N
+//
+//	polynomial of order N
 func Nodes2D(N int) (x, y utils.Vector) {
 	var (
 		alpha                                                               float64
@@ -135,7 +136,8 @@ func rsToab(r, s float64) (a, b float64) {
 
 // function [r,s] = xytors(x,y)
 // Purpose : Transfer from (x,y) in equilateral triangle
-//           to (r,s) coordinates in standard triangle
+//
+//	to (r,s) coordinates in standard triangle
 func XYtoRS(x, y utils.Vector) (r, s utils.Vector) {
 	r, s = utils.NewVector(x.Len()), utils.NewVector(x.Len())
 	var (
