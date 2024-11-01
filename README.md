@@ -10,6 +10,31 @@ Awesome CFD solver written in Go
 | ![](images/render-mesh-isentropic-vortex-initial-zoom-7.PNG) | ![](images/render-mesh-isentropic-vortex-initial-zoom-7-rhoU.png) | ![](images/vortex-1-2-4-7-lax-cropped.gif) |
 
 ====
+## Currently [11/1/24]
+
+It's been a three year hiatus for me on this project, now I'm back at it!
+
+I had previously confirmed that the oscillations present at polynomial element orders greater than P=0 is a systemic
+oscillation due to interpolation through discontinuities. I had tried artificial dissipation and limiters, but had not
+been able to get monotone solutions that converge.
+
+We need a test case that eliminates things like boundary conditions as potential problem sources, so I'm using a simple
+15 degree wedge with an incoming shock wave. Below are converged solutions for P=0, P=2 and P=4 for this case at M=2 with
+948 triangle elements. No filter or limiter was used and the solutions converged tightly. Note the clear increase in shock
+resolution as the order is increased, and the accurate reflected shock angle. The color range is auto scaled, so the
+P=0 solution is clearly monotone, going from red to blue without diversion, while the P=2 and P=4 solutions have the
+highest peaks and valleys consuming the red and dark blue, leaving green and light blue for the before and after shock
+values.
+
+In the new test case, we can definitely see the single pronounced oscillation at the shock wave as bits of red and dark
+blue on either side of the shock. My next approach will apply a filter to the solution that will exponentially damp the
+higher order modes of the polynomial element. It should remove the oscillation.
+
+|      15 degree wedge, Mach = 2.0, Converged, P=0       | P=2 | P=4 |
+|:------------------------------------------------------:|:------------------------------------------------------:|:------------------------------------------------------:|
+| ![](images/M=2-15deg-wedge-P=0-converged-nofilter.PNG) | ![](images/M=2-15deg-wedge-P=2-converged-nofilter.PNG) | ![](images/M=2-15deg-wedge-P=4-converged-nofilter.PNG) |
+
+## Updates [11/28/21]
 
 I've now continued testing and transonic cases are also working for P!=1. What's interesting now is that for P=0,
 the transonic solutions and shock tube solutions are wiggle free / monotone. Below is a transonic airfoil solution at
@@ -91,8 +116,6 @@ For example, the following line implements:
 ```
 	RHSE = el.Dr.Mul(FluxH).ElMul(el.Rx).ElDiv(c.Epsilon).Scale(-1)
 ```
-## Currently [11/28/21]
-
 Update: [12/01/21]
 
 I've implemented a min/max limiter that restricts values interpolated from the
