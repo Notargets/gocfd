@@ -31,11 +31,11 @@ var (
 	LimiterNames = map[string]LimiterType{
 		"barthjesperson":  BarthJesperson,
 		"barth jesperson": BarthJesperson,
-		"perssonC0":       PerssonC0,
-		"persson C0":      PerssonC0,
+		"perssonc0":       PerssonC0,
+		"persson c0":      PerssonC0,
 	}
 	LimiterNamesRev = map[LimiterType]string{
-		BarthJesperson: "BarthJesperson",
+		BarthJesperson: "Barth Jesperson",
 		PerssonC0:      "Persson, C0 viscosity",
 	}
 )

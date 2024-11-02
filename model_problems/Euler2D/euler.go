@@ -86,7 +86,7 @@ func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, ver
 	c.Limiter = NewSolutionLimiter(lt, ip.Kappa, c.dfr, c.Partitions, c.FSFar)
 
 	// Initiate Artificial Dissipation
-	if lt == None {
+	if lt == PerssonC0 {
 		c.Dissipation = NewScalarDissipation(ip.Kappa, c.dfr, c.Partitions)
 	}
 

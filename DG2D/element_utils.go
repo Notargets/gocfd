@@ -10,7 +10,7 @@ import (
 // Purpose  : Compute (x,y) nodes in equilateral triangle for
 //
 //	polynomial of order N
-func Nodes2D(N int) (x, y utils.Vector) {
+func Nodes2D(N int) (x utils.Vector, y utils.Vector) {
 	var (
 		alpha                                                               float64
 		Np                                                                  = (N + 1) * (N + 2) / 2
