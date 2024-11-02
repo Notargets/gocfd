@@ -98,7 +98,7 @@ func (bjl *SolutionLimiter) LimitSolution(myThread int, Qall, Residual [][4]util
 		UE       = bjl.UElement[myThread]
 		//FSFar       = bjl.FSFar
 	)
-	if bjl.limiterType == None {
+	if bjl.limiterType != BarthJesperson {
 		return
 	}
 	for k := 0; k < Kmax; k++ {
@@ -107,10 +107,7 @@ func (bjl *SolutionLimiter) LimitSolution(myThread int, Qall, Residual [][4]util
 			UE.DataP[i] = Q[0].DataP[ind]
 		}
 		if bjl.ShockFinder[myThread].ElementHasShock(UE.DataP) { // Element has a shock
-			switch bjl.limiterType {
-			case BarthJesperson:
-				bjl.limitScalarFieldBarthJesperson(k, myThread, Qall)
-			}
+			bjl.limitScalarFieldBarthJesperson(k, myThread, Qall)
 			for n := 0; n < 4; n++ {
 				for i := 0; i < Np; i++ {
 					ind := k + Kmax*i

@@ -100,7 +100,10 @@ func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, ver
 		}
 		fmt.Printf("Flux Algorithm: [%s] using Limiter: [%s]\n", c.FluxCalcAlgo.Print(), c.Limiter.limiterType.Print())
 		if c.Dissipation != nil {
-			fmt.Printf("Artificial Dissipation: Kappa = [%5.3f]\n", c.Dissipation.Kappa)
+			fmt.Printf("Artificial Dissipation Coefficient: Kappa = [%5.3f]\n", c.Dissipation.Kappa)
+		}
+		if c.Limiter.limiterType == BarthJesperson {
+			fmt.Printf("Shock Finder Coefficient: Kappa = [%5.3f]\n", ip.Kappa)
 		}
 		fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n",
 			ip.CFL, ip.PolynomialOrder, c.dfr.K)
