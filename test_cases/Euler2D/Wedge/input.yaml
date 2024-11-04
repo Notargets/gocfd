@@ -13,7 +13,9 @@ Gamma: 1.4
 Alpha: 0.
 LocalTimeStepping: true
 MaxIterations: 800000
-Limiter: perssonC0
-Kappa: 5
-#Limiter: Barth Jesperson
-#Kappa: 8
+
+#Limiter: 
+#Limiter: PerssonC0
+Limiter: Barth Jesperson
+#Limiter: ModeFilter
+Kappa: 6

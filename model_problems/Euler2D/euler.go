@@ -86,8 +86,9 @@ func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, ver
 	c.Limiter = NewSolutionLimiter(lt, ip.Kappa, c.dfr, c.Partitions, c.FSFar)
 
 	// Initiate Artificial Dissipation
-	if lt == PerssonC0 {
+	if lt == PerssonC0T {
 		c.Dissipation = NewScalarDissipation(ip.Kappa, c.dfr, c.Partitions)
+		//		c.Limiter = NewSolutionLimiter(ModeFilterT, ip.Kappa, c.dfr, c.Partitions, c.FSFar)
 	}
 
 	if verbose {
@@ -102,7 +103,7 @@ func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, ver
 		if c.Dissipation != nil {
 			fmt.Printf("Artificial Dissipation Coefficient: Kappa = [%5.3f]\n", c.Dissipation.Kappa)
 		}
-		if c.Limiter.limiterType == BarthJesperson {
+		if c.Limiter.limiterType == BarthJespersonT {
 			fmt.Printf("Shock Finder Coefficient: Kappa = [%5.3f]\n", ip.Kappa)
 		}
 		fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n",
@@ -155,6 +156,7 @@ type RungeKutta4SSP struct {
 	Q1, Q2, Q3, Q4       [][4]utils.Matrix    // Intermediate solution state
 	Flux                 [][2][4]utils.Matrix // Flux at solution points, used for interpolation to edges
 	Residual             [][4]utils.Matrix    // Used for reporting, aliased to Q1
+	FilterScratch        []utils.Matrix       // Scratch space for filtering
 	F_RT_DOF             [][4]utils.Matrix    // Normal flux used for divergence
 	DT                   []utils.Matrix       // Local time step storage
 	MaxWaveSpeed         []float64            // Shard max wavespeed
@@ -183,6 +185,7 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		Q4:            make([][4]utils.Matrix, NPar),
 		Flux:          make([][2][4]utils.Matrix, NPar),
 		Residual:      make([][4]utils.Matrix, NPar),
+		FilterScratch: make([]utils.Matrix, NPar),
 		F_RT_DOF:      make([][4]utils.Matrix, NPar),
 		DT:            make([]utils.Matrix, NPar),
 		MaxWaveSpeed:  make([]float64, NPar),
@@ -197,6 +200,7 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 	// Initialize memory for RHS
 	for np := 0; np < NPar; np++ {
 		rk.Kmax[np] = pm.GetBucketDimension(np)
+		rk.FilterScratch[np] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 		for n := 0; n < 4; n++ {
 			rk.Q1[np][n] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 			rk.Q2[np][n] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
@@ -249,7 +253,6 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 	var (
 		Np                         = rk.NpInt
 		dT                         float64
-		contLevel                  = C0
 		Kmax, Jdet, Jinv, F_RT_DOF = rk.Kmax[myThread], rk.Jdet[myThread], rk.Jinv[myThread], rk.F_RT_DOF[myThread]
 		DT, Q_Face, Flux_Face      = rk.DT[myThread], rk.Q_Face[myThread], rk.Flux_Face[myThread]
 		Q0                         = c.Q[myThread]
@@ -277,7 +280,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		if c.Dissipation != nil {
-			c.Dissipation.AddDissipation(c, contLevel, myThread, Jinv, Jdet, QQQ, RHSQ)
+			c.Dissipation.AddDissipation(c, myThread, Jinv, Jdet, QQQ, RHSQ)
 		}
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
@@ -343,10 +346,9 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 			c.StoreGradientEdgeFlux(SortedEdgeKeys, EdgeQ1)
 		}
 	case 5, 10, 15, 20, 25:
+		rk.LimitedPoints[myThread] = c.Limiter.LimitSolution(myThread, c.Q, rk.Residual, rk.FilterScratch)
 		rkAdvance(rkStep, QQQ)
-		if rkStep == 4 {
-			rk.LimitedPoints[myThread] = c.Limiter.LimitSolution(myThread, c.Q, rk.Residual)
-		} else {
+		if rkStep != 4 {
 			c.InterpolateSolutionToEdges(QQQ, Q_Face, Flux, Flux_Face) // Interpolates Q_Face values from Q
 		}
 	}

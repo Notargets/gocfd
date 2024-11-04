@@ -127,6 +127,7 @@ func (m Matrix) Slice(I, K, J, L int) (R Matrix) { // Does not change receiver
 }
 
 func (m Matrix) Copy(RO ...Matrix) (R Matrix) { // Does not change receiver
+	// Copies the source m Matrix into a target duplicate
 	var (
 		nr, nc = m.Dims()
 	)
