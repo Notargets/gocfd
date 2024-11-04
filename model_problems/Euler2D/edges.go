@@ -369,99 +369,29 @@ func (c *Euler) SetRTFluxOnEdges(myThread, Kmax int, F_RT_DOF [4]utils.Matrix) {
 
 func (c *Euler) InterpolateSolutionToEdges(Q, Q_Face [4]utils.Matrix, Flux, Flux_Face [2][4]utils.Matrix) {
 	var (
-		NpInt, Kmax         = Q[0].Dims()
-		NpEdges, _          = Q_Face[0].Dims()
-		interpolateFluxNotQ = true
-		min, max            = math.Min, math.Max
+		NpInt, Kmax = Q[0].Dims()
 	)
-	limitValues := func(Interior, Edges [4]utils.Matrix) {
-		for n := 0; n < 4; n++ {
-			var (
-				fmin, fmax float64
-				id, ed     = Interior[n].DataP, Edges[n].DataP
-			)
-			for k := 0; k < Kmax; k++ {
-				// Find the min/max within this element
-				fmin, fmax = id[k], id[k]
-				for i := 0; i < NpInt; i++ {
-					ind := k + i*Kmax
-					fmin = min(id[ind], fmin)
-					fmax = max(id[ind], fmax)
-				}
-				// Limit the interpolated edge value to the interior limits
-				for i := 0; i < NpEdges; i++ {
-					ind := k + i*Kmax
-					ed[ind] = max(fmin, ed[ind])
-					ed[ind] = min(fmax, ed[ind])
-				}
-			}
-		}
-	}
-	_ = limitValues
-	limitValues2 := func(Interior, Edges [4]utils.Matrix) {
-		var (
-			fmin, fmax float64
-			id, ed     = Interior[0].DataP, Edges[0].DataP
-			imin, imax int
-		)
-		for k := 0; k < Kmax; k++ {
-			// Find the min/max within this element
-			fmin, fmax = id[k], id[k]
-			imin, imax = k, k
-			for i := 0; i < NpInt; i++ {
-				ind := k + i*Kmax
-				if id[ind] < fmin {
-					fmin = id[ind]
-					imin = ind
-				}
-				if id[ind] > fmax {
-					fmax = id[ind]
-					imax = ind
-				}
-			}
-			// Limit the interpolated edge value to the interior limits
-			for i := 0; i < NpEdges; i++ {
-				ind := k + i*Kmax
-				if ed[ind] < fmin {
-					for n := 0; n < 4; n++ {
-						Edges[n].DataP[ind] = Interior[n].DataP[imin]
-					}
-				}
-				if ed[ind] > fmax {
-					for n := 0; n < 4; n++ {
-						Edges[n].DataP[ind] = Interior[n].DataP[imax]
-					}
-				}
-			}
-		}
-	}
-	_, _ = limitValues, limitValues2
 	// Interpolate from solution points to edges using precomputed interpolation matrix
 	for n := 0; n < 4; n++ {
 		c.dfr.FluxEdgeInterp.Mul(Q[n], Q_Face[n])
 	}
-	//limitValues2(Q, Q_Face)
-	if interpolateFluxNotQ {
-		// Calculate Flux for interior points
-		for k := 0; k < Kmax; k++ {
-			for i := 0; i < NpInt; i++ {
-				//for i := range Q[0].DataP {
-				//for i := 0; i < c.dfr.SolutionElement.Np*Kmax; i++ {
-				ind := k + Kmax*i
-				Fx, Fy := c.CalculateFlux(Q, ind)
-				for n := 0; n < 4; n++ {
-					Flux[0][n].DataP[ind] = Fx[n]
-					Flux[1][n].DataP[ind] = Fy[n]
-				}
+	// Calculate Flux for interior points
+	for k := 0; k < Kmax; k++ {
+		for i := 0; i < NpInt; i++ {
+			//for i := range Q[0].DataP {
+			//for i := 0; i < c.dfr.SolutionElement.Np*Kmax; i++ {
+			ind := k + Kmax*i
+			Fx, Fy := c.CalculateFlux(Q, ind)
+			for n := 0; n < 4; n++ {
+				Flux[0][n].DataP[ind] = Fx[n]
+				Flux[1][n].DataP[ind] = Fy[n]
 			}
 		}
-		// Interpolate Flux to the edges
-		for n := 0; n < 4; n++ {
-			c.dfr.FluxEdgeInterp.Mul(Flux[0][n], Flux_Face[0][n])
-			c.dfr.FluxEdgeInterp.Mul(Flux[1][n], Flux_Face[1][n])
-		}
-		//limitValues2(Flux[0], Flux_Face[0])
-		//limitValues2(Flux[1], Flux_Face[1])
+	}
+	// Interpolate Flux to the edges
+	for n := 0; n < 4; n++ {
+		c.dfr.FluxEdgeInterp.Mul(Flux[0][n], Flux_Face[0][n])
+		c.dfr.FluxEdgeInterp.Mul(Flux[1][n], Flux_Face[1][n])
 	}
 	return
 }
