@@ -98,7 +98,7 @@ func NewSolutionLimiter(t LimiterType, kappa float64, dfr *DG2D.DFR2D, pm *Parti
 		}
 	case ModeFilterT:
 		for np := 0; np < Nthreads; np++ {
-			bjl.ModalFilter[np] = NewModeFilter(bjl.Element, kappa)
+			bjl.ModalFilter[np] = NewModeFilter(bjl.Element, 2*kappa)
 		}
 	}
 	return
@@ -260,8 +260,7 @@ func NewModeFilter(element *DG2D.LagrangeElement2D, SP float64) (mf *ModeFilter)
 		N = element.N
 	)
 	mf = &ModeFilter{
-		//Clipper: element.JB2D.V.Mul(cutoffFilter2D(N, N, 0.95)).Mul(element.JB2D.Vinv),
-		Clipper: element.JB2D.V.Mul(expFilter2D(N, N-1, SP)).Mul(element.JB2D.Vinv),
+		Clipper: element.JB2D.V.Mul(expFilter2D(N, N/2, SP)).Mul(element.JB2D.Vinv),
 	}
 	return
 }
