@@ -147,18 +147,7 @@ func NewScalarDissipation(kappa float64, dfr *DG2D.DFR2D, pm *PartitionMap) (sd 
 		as values at Np node points, multiplying the Node point values vector by Clipper produces an alternative version
 		of the node values based on truncating the last polynomial mode.
 	*/
-	{
-		data := make([]float64, Np)
-		for i := 0; i < Np; i++ {
-			if i != Np-1 {
-				data[i] = 1.
-			} else {
-				data[i] = 0.
-			}
-		}
-		diag := utils.NewDiagMatrix(Np, data)
-		sd.Clipper = sd.dfr.SolutionElement.JB2D.V.Mul(diag).Mul(sd.dfr.SolutionElement.JB2D.Vinv)
-	}
+	sd.Clipper = el.JB2D.V.Mul(CutoffFilter2D(el.N, el.N-1, 0)).Mul(el.JB2D.Vinv)
 	return
 }
 

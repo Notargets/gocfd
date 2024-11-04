@@ -265,7 +265,7 @@ func NewModeFilter(element *DG2D.LagrangeElement2D, SP float64) (mf *ModeFilter)
 	return
 }
 
-func cutoffFilter2D(N, NCutoff int, frac float64) (diag utils.Matrix) {
+func CutoffFilter2D(N, NCutoff int, frac float64) (diag utils.Matrix) {
 	/*
 		The NCutoff is inclusive, so if you want to clip the top mode at N, input N
 	*/
@@ -343,7 +343,7 @@ func NewAliasShockFinder(element *DG2D.LagrangeElement2D, Kappa float64) (sf *Mo
 		as values at Np node points, multiplying the Node point values vector by Clipper produces an alternative version
 		of the node values based on truncating the last polynomial mode.
 	*/
-	sf.Clipper = element.JB2D.V.Mul(cutoffFilter2D(N, N, 0)).Mul(element.JB2D.Vinv)
+	sf.Clipper = element.JB2D.V.Mul(CutoffFilter2D(N, N, 0)).Mul(element.JB2D.Vinv)
 	return
 }
 
