@@ -1,8 +1,12 @@
 ---
+title: Discussion about shock capturing methods for Discontinuous Galerkin methods
+---
+
+# Question
 
 What is the most successful method for capturing shock waves in the Euler equations for high order discontinuous galerkin finite elements methods?
 
----
+# Answer
 
 Capturing shock waves in the Euler equations for high-order discontinuous Galerkin (DG) finite element methods is a challenging task because of the need to balance high accuracy in smooth regions with stability near discontinuities. The most successful methods typically combine **shock capturing mechanisms** with **limiting techniques** or **artificial viscosity**. Here are the most common and successful approaches:
 
@@ -54,11 +58,11 @@ Capturing shock waves in the Euler equations for high-order discontinuous Galerk
 
 By combining these techniques, high-order DG methods can achieve both accuracy and stability for problems with shock waves in the Euler equations.
 
----
+# Question
 
 Limiters will “buzz”, bouncing a shock location between neighbor cells and making it impossible to converge a solution. What is the most successful technique to eliminate the buzzing phenomenon of a limiter?
 
----
+# Answer
 
 The "buzzing" phenomenon in limiters occurs because traditional limiters can interact with the shock in a way that destabilizes its position, causing it to oscillate between neighboring cells. This can prevent convergence, especially in steady-state problems. The most successful techniques to eliminate this buzzing effect focus on **shock detection, localized stabilization, and preserving a balance between limiting and smooth transitions**. Here are the key approaches:
 
@@ -140,11 +144,11 @@ A practical hybrid strategy:
 These techniques, used together, effectively stabilize the shock location and ensure solution convergence.
 
 
----
+# Question
 
 Woodward and Colella implemented schemes that captured strong shock waves, describe their method and associated methods that captured strong shocks, like those in fusion generating plasmas
 
----
+# Answer
 
 The **Woodward and Colella method**, introduced in their seminal 1984 paper, was designed to capture strong shock waves in compressible fluid dynamics, such as those encountered in fusion-generating plasmas. Their method is based on **high-resolution shock-capturing schemes**, particularly the use of **Godunov-type methods** combined with **piecewise parabolic reconstruction** to achieve high accuracy in smooth regions and stability near discontinuities.
 
@@ -297,11 +301,11 @@ While PPM itself is not widely used on unstructured simplex meshes, its principl
 
 In these contexts, **DG methods**, **WENO schemes**, and **adaptive hybrid approaches** provide the best combination of PPM-inspired accuracy and flexibility on unstructured meshes.
 
----
+# Question
 
 When interpolating flux within a simplex to the interface of a neighbor cell in a discontinuous galerkin method, using the polynomial basis of the cell to obtain the value on the near side of the face often causes large oscillations in values. How is this handled in current successful implementations?
 
----
+# Answer
 
 When interpolating flux within a simplex to the interface of a neighboring cell in **Discontinuous Galerkin (DG) methods**, oscillations can occur near discontinuities due to the high-order nature of the polynomial basis. These oscillations, often linked to the **Gibbs phenomenon**, are exacerbated in the presence of shocks or steep gradients. Modern successful implementations handle this problem using a combination of **stabilization techniques**, **limiting strategies**, and **improved reconstruction methods**. Below are the key approaches:
 
@@ -390,11 +394,11 @@ A **hybrid strategy** is typically most effective:
 
 By combining these techniques, modern DG methods on unstructured simplex meshes effectively handle large oscillations in flux interpolation at interfaces.
 
----
+# Question
 
 The problem with modal limiting is that for small order like P=2, you still get large oscillations in the interpolated values and truncating or modifying the highest mode is all that is available as there are only 2, which doesn’t allow for smooth or powerful enough corrections.
 
----
+# Answer
 
 You're absolutely right that **modal limiting** becomes ineffective for low-order polynomial spaces, such as \( P = 2 \), because there are insufficient modes to apply a nuanced correction. Truncating or modifying just the highest mode can result in inadequate control of oscillations and poor shock resolution. Modern approaches to address this issue focus on combining **better reconstruction strategies**, **face-specific treatments**, and **hybrid methods** to achieve more robust stabilization. Here are alternative and successful strategies tailored to this limitation:
 
@@ -485,11 +489,11 @@ Given the constraints of \( P = 2 \), a combination of the following is often mo
 
 These approaches mitigate the limitations of low-order modal limiting and ensure robust performance in the presence of strong shocks or steep gradients.
 
----
+# Question
 
 How does projection work in a galerkin element? I am confused about the term projection, as it seems to involve an integral process to arrive at the lower order representation.
 
----
+# Answer
 
 The term **projection** in the context of a Galerkin element refers to the mathematical process of approximating a function (e.g., a solution or a flux) onto a finite-dimensional space spanned by the basis functions of the element. This process typically involves **integrals** to compute the coefficients of the basis functions, ensuring the approximation is optimal in some sense (e.g., minimizing error in the chosen norm). Let’s break this down:
 
@@ -602,11 +606,11 @@ Projection in Galerkin methods involves:
 
 This process provides a mathematically consistent way to stabilize and approximate solutions in DG methods, particularly near interfaces or discontinuities.
 
----
+# Question
 
 Provide an example of projection from p=2 to p=1 in a simplex in matrix form.
 
----
+# Answer
 
 Let's work through an example of projecting a solution from a **\( P=2 \)** (quadratic polynomial) space to a **\( P=1 \)** (linear polynomial) space on a simplex (e.g., a triangular element in 2D).
 
@@ -729,11 +733,11 @@ Consider a simplex with vertices at \((0,0)\), \((1,0)\), and \((0,1)\). The bas
 This process ensures that the \( P=1 \) solution is the optimal projection of the \( P=2 \) solution in the \( L^2 \)-sense. While the exact values of the integrals depend on the simplex geometry, the steps above outline how projection is handled in matrix form.
 
 
----
+# Question
 
 Why is the Vandermonde matrix used in interpolation, when the sum of coefficients times basis functions could be used instead?
 
----
+# Answer
 
 The **Vandermonde matrix** is used in interpolation to provide a systematic way to determine the coefficients of a polynomial representation when values are given at specific points (e.g., nodal values). While the sum of coefficients times basis functions is the ultimate representation of the interpolating polynomial, the **Vandermonde matrix** plays a critical role in constructing this representation efficiently and in converting between representations. Here’s why it is commonly used:
 
@@ -849,11 +853,11 @@ The Vandermonde matrix is used in interpolation because it provides:
 
 While it’s theoretically possible to skip the Vandermonde matrix by directly summing coefficients and basis functions, this is often impractical and inefficient in cases where the basis functions overlap or when working with general nodal values.
 
----
+# Question
 
 Is projection deemed unnecessary when using persson artificial viscosity or does persson use project or pther special techniques to interpolate the flux to each side of an element interface in conjunction with the artificial viscosity method?
 
----
+# Answer
 
 Projection is not deemed unnecessary when using **Persson's artificial viscosity**; in fact, it plays a key role in stabilizing the solution. While the artificial viscosity method itself introduces a localized dissipation to handle discontinuities and steep gradients, projection or careful flux interpolation is still required to stabilize the solution at element interfaces in **Discontinuous Galerkin (DG) methods**. Here’s how projection and interpolation interact with Persson's approach:
 
@@ -940,11 +944,11 @@ When using Persson's artificial viscosity, a typical workflow might involve:
 ### **Conclusion**
 Projection (or related flux interpolation techniques) is not eliminated by using Persson's artificial viscosity. Instead, projection often works **in conjunction** with artificial viscosity to stabilize flux computations at element interfaces. This combination ensures smooth solutions within elements and robust, oscillation-free fluxes across interfaces, which is essential for high-order DG methods applied to problems with discontinuities.
 
----
+# Question
 
 Can you provide a technical paper reference or a textbook that provides details and reference implementations of projection used to create lower order interpolations for galerkin elements in a style similar to Hesthaven?
 
----
+# Answer
 
 For a comprehensive understanding of projection techniques used to create lower-order interpolations in Galerkin elements, particularly within the framework of Discontinuous Galerkin (DG) methods, the following resources are highly recommended:
 
@@ -960,11 +964,11 @@ For a comprehensive understanding of projection techniques used to create lower-
 
 These resources offer detailed explanations and practical guidance on implementing projection and interpolation techniques in DG methods, aligning with the instructional style found in Hesthaven's works. 
 
----
+# Question
 
 Neither of those provide practical examples of projection used to interpolate from the nodes to the neighbor face.
 
----
+# Answer
 
 I understand your request for practical examples of projection techniques used to interpolate from nodal values to neighboring element faces within Discontinuous Galerkin (DG) methods. While specific examples may not be readily available in the previously mentioned resources, the following references provide detailed discussions and methodologies that can be applied to this aspect of DG implementations:
 
@@ -980,11 +984,11 @@ I understand your request for practical examples of projection techniques used t
 
 These references should offer the detailed methodologies and practical examples you're seeking for implementing projection techniques in DG methods. 
 
----
+# Question
 
 Is there a text for galerkin elements that walks through practical examples of using quadrature to calculate the projection operation from P=N to P=1 in transformed coordinates?
 
----
+# Answer
 
 For a practical understanding of using quadrature to perform projection operations from a higher-order polynomial space (\( P = N \)) to a lower-order space (\( P = 1 \)) within Galerkin finite element methods, especially in transformed coordinates, the following resource is highly recommended:
 
@@ -995,11 +999,11 @@ For a practical understanding of using quadrature to perform projection operatio
 
 These notes should provide the practical examples and detailed explanations you're seeking for implementing projection operations in Galerkin finite element methods using quadrature in transformed coordinates. 
 
----
+# Question
 
 Dead link
 
----
+# Answer
 
 I apologize for the inconvenience caused by the dead link. For a practical understanding of using quadrature to perform projection operations from a higher-order polynomial space (\( P = N \)) to a lower-order space (\( P = 1 \)) within Galerkin finite element methods, especially in transformed coordinates, the following resource is highly recommended:
 
