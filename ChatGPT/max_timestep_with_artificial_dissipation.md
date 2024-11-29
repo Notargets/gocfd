@@ -1,6 +1,8 @@
-============================================
+---
+
 What is the max eigenvalue of persson’s artificial viscosity for simplex discontinuous galerkin finite elements used to solve the euler equations?
-============================================
+
+---
 
 The maximum eigenvalue of Persson's artificial viscosity for simplex discontinuous Galerkin finite elements used to solve the Euler equations depends on the specific formulation and normalization of the viscosity model. However, in the commonly used framework proposed by Persson and Peraire (2006), the artificial viscosity \(\nu\) is scaled to stabilize high-frequency oscillations while maintaining consistency and conservation properties.
 
@@ -37,9 +39,11 @@ The value of \(C\) is problem-dependent and typically chosen empirically (e.g., 
 
 If you'd like, I can help derive specific values or expressions for a given problem setup or implementation details!
 
-============================================
+---
+
 I need the maximum eigenvalue for use in deriving the maximum stable timestep within a CFL limit for the time stepping method.
-============================================
+
+---
 
 To derive the maximum stable timestep within a CFL (Courant-Friedrichs-Lewy) limit for the Euler equations using Persson's artificial viscosity and simplex discontinuous Galerkin finite elements, we must consider the **maximum eigenvalue** of the combined system (physical fluxes + artificial viscosity). Here's the breakdown:
 
