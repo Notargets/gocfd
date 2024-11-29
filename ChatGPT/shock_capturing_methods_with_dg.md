@@ -1,5 +1,5 @@
 ---
-title: Discussion about shock capturing methods for Discontinuous Galerkin methods
+title: Discussion with ChatGPT4o about shock capturing methods for Discontinuous Galerkin methods
 ---
 
 # Question
@@ -229,11 +229,11 @@ Here is a detailed breakdown of their method and related techniques for capturin
 These characteristics make PPM and related methods like WENO and HRSC the preferred choice for modeling strong shocks in high-energy plasma simulations.
 
 
----
+# Question
 
 Is PPM used in any popular unstructured simplex mesh methods
 
----
+# Answer
 
 The **Piecewise Parabolic Method (PPM)** was originally developed for structured grids and Cartesian meshes, where its reconstruction and flux computations are straightforward to implement. However, adapting PPM to **unstructured simplex meshes** (e.g., triangular or tetrahedral meshes) is more complex due to the geometric irregularities and the need for accurate reconstruction and flux integration over arbitrarily shaped cells. While PPM itself is not directly used in most unstructured simplex mesh methods, **ideas from PPM** have been incorporated into modern high-order methods for unstructured meshes. These include **reconstruction techniques**, **limiting strategies**, and **shock-capturing mechanisms**.
 
@@ -400,14 +400,14 @@ The problem with modal limiting is that for small order like P=2, you still get 
 
 # Answer
 
-You're absolutely right that **modal limiting** becomes ineffective for low-order polynomial spaces, such as \( P = 2 \), because there are insufficient modes to apply a nuanced correction. Truncating or modifying just the highest mode can result in inadequate control of oscillations and poor shock resolution. Modern approaches to address this issue focus on combining **better reconstruction strategies**, **face-specific treatments**, and **hybrid methods** to achieve more robust stabilization. Here are alternative and successful strategies tailored to this limitation:
+You're absolutely right that **modal limiting** becomes ineffective for low-order polynomial spaces, such as $P=2$, because there are insufficient modes to apply a nuanced correction. Truncating or modifying just the highest mode can result in inadequate control of oscillations and poor shock resolution. Modern approaches to address this issue focus on combining **better reconstruction strategies**, **face-specific treatments**, and **hybrid methods** to achieve more robust stabilization. Here are alternative and successful strategies tailored to this limitation:
 
 ---
 
 ### 1. **Subcell Limiting (Subcell Finite Volume Hybridization)**
    - **Subcell Resolution**: Decompose each element into subcells (e.g., small finite volume cells within the simplex) and apply limiting or shock-capturing techniques at the subcell level.
    - Instead of modifying the modal basis, compute a **subcell solution** and then reconstruct a consistent high-order representation.
-   - This method allows for finer corrections and avoids the constraints imposed by the small number of modes in \( P = 2 \).
+   - This method allows for finer corrections and avoids the constraints imposed by the small number of modes in $P=2$.
    - **Examples**:
      - **Finite Volume-DG Hybrid**: Use finite volume reconstruction within the cell while retaining DG methods for smooth regions.
      - **Subcell WENO reconstruction**: Reconstruct fluxes on subcell stencils using WENO methods.
@@ -419,7 +419,7 @@ You're absolutely right that **modal limiting** becomes ineffective for low-orde
    - Limit the values of the solution or flux directly at the nodes (or quadrature points) of the element.
    - By operating in physical space rather than modal space, this approach offers more direct control of oscillations at low orders.
    - **Advantages**:
-     - Works effectively for \( P = 2 \) because it does not rely on truncating modes.
+     - Works effectively for $P=2$ because it does not rely on truncating modes.
      - Avoids the global effect of modifying modal coefficients.
 
 ---
@@ -440,7 +440,7 @@ You're absolutely right that **modal limiting** becomes ineffective for low-orde
 
 ### 5. **Polynomial Decomposition with Entropy Filtering**
    - Split the polynomial solution into a smooth part and a discontinuous part, and apply selective damping to the discontinuous component.
-   - For \( P = 2 \), this method involves modifying the highest mode while using entropy constraints to ensure physical consistency.
+   - For $P=2$, this method involves modifying the highest mode while using entropy constraints to ensure physical consistency.
    - **Entropy filtering** avoids large oscillations by suppressing unphysical entropy production.
 
 ---
@@ -456,7 +456,7 @@ You're absolutely right that **modal limiting** becomes ineffective for low-orde
 ### 7. **Flux Projection Techniques**
    - Instead of interpolating the polynomial to the face directly, project the flux onto a **low-order representation** (e.g., constant or linear) specifically for flux evaluation.
    - This reduces oscillations caused by high-order interpolations near discontinuities.
-   - The resulting flux is still consistent with the DG framework but avoids relying entirely on \( P = 2 \) interpolation.
+   - The resulting flux is still consistent with the DG framework but avoids relying entirely on $P=2$ interpolation.
 
 ---
 
@@ -481,7 +481,7 @@ You're absolutely right that **modal limiting** becomes ineffective for low-orde
 ---
 
 ### Practical Recommendations
-Given the constraints of \( P = 2 \), a combination of the following is often most effective:
+Given the constraints of $P=2$, a combination of the following is often most effective:
 1. **Nodal or gradient-based limiting**: Focus on limiting values or gradients directly rather than modal coefficients.
 2. **Subcell resolution**: Incorporate finer resolution inside cells using hybrid finite volume or subcell WENO techniques.
 3. **Artificial viscosity**: Apply localized dissipation in regions of steep gradients or shocks.
@@ -500,68 +500,68 @@ The term **projection** in the context of a Galerkin element refers to the mathe
 ---
 
 ### **1. What is Projection?**
-In Galerkin methods, projection means **representing a function in terms of the basis functions** used within an element. If the basis functions are \(\{\phi_1, \phi_2, \dots, \phi_N\}\), and the function to be approximated is \(f(x)\), the projection seeks a representation:
+In Galerkin methods, projection means **representing a function in terms of the basis functions** used within an element. If the basis functions are $\{\phi_1, \phi_2, \dots, \phi_N\}$, and the function to be approximated is $f(x)$, the projection seeks a representation:
 
-\[
+$$
 f_h(x) = \sum_{i=1}^N \hat{f}_i \phi_i(x),
-\]
+$$
 
-where \(\{\hat{f}_i\}\) are the coefficients of the projection (the "weights" of the basis functions).
+where $\{\hat{f}_i\}$ are the coefficients of the projection (the "weights" of the basis functions).
 
 ---
 
 ### **2. How is the Projection Computed?**
-To determine the coefficients \(\hat{f}_i\), the Galerkin projection requires that \(f_h(x)\) satisfy the following **orthogonality condition**:
+To determine the coefficients $\hat{f}_i$, the Galerkin projection requires that $f_h(x)$ satisfy the following **orthogonality condition**:
 
-\[
+$$
 \int_\Omega \left(f(x) - f_h(x)\right) \phi_i(x) \, dx = 0 \quad \text{for all } i = 1, \dots, N,
-\]
+$$
 
 where:
-- \(\Omega\) is the domain of the element.
-- \(f(x) - f_h(x)\) is the approximation error.
+- $\Omega$ is the domain of the element.
+- $f(x) - f_h(x)$ is the approximation error.
 
-This ensures that the residual (error) is orthogonal to the basis functions, minimizing the approximation error in the \(L^2\)-norm (the square-integrable norm).
+This ensures that the residual (error) is orthogonal to the basis functions, minimizing the approximation error in the $L^2$-norm (the square-integrable norm).
 
 ---
 
 ### **3. Integral Representation**
-Expanding \(f_h(x)\) into its basis function form:
+Expanding $f_h(x)$ into its basis function form:
 
-\[
+$$
 \int_\Omega \left(f(x) - \sum_{j=1}^N \hat{f}_j \phi_j(x)\right) \phi_i(x) \, dx = 0.
-\]
+$$
 
-Simplifying this, the coefficients \(\{\hat{f}_j\}\) are determined by solving:
+Simplifying this, the coefficients $\{\hat{f}_j\}$ are determined by solving:
 
-\[
+$$
 \int_\Omega f(x) \phi_i(x) \, dx = \sum_{j=1}^N \hat{f}_j \int_\Omega \phi_j(x) \phi_i(x) \, dx.
-\]
+$$
 
 In matrix form, this can be written as:
 
-\[
+$$
 M \hat{f} = F,
-\]
+$$
 
 where:
-- \(M_{ij} = \int_\Omega \phi_i(x) \phi_j(x) \, dx\) is the **mass matrix** (or projection matrix),
-- \(F_i = \int_\Omega f(x) \phi_i(x) \, dx\) are the **right-hand side integrals**.
+- $M_{ij} = \int_\Omega \phi_i(x) \phi_j(x) \, dx$ is the **mass matrix** (or projection matrix),
+- $F_i = \int_\Omega f(x) \phi_i(x) \, dx$ are the **right-hand side integrals**.
 
 ---
 
 ### **4. Lower-Order Projection**
-When projecting a higher-order polynomial \(f(x)\) onto a **lower-order subspace**, the process is the same, but the basis functions \(\{\phi_i(x)\}\) now correspond to a reduced set representing the lower-order space. The integrals effectively "smooth out" the higher-order components, leaving only the part of \(f(x)\) that lies in the lower-order space.
+When projecting a higher-order polynomial $f(x)$ onto a **lower-order subspace**, the process is the same, but the basis functions $\{\phi_i(x)\}$ now correspond to a reduced set representing the lower-order space. The integrals effectively "smooth out" the higher-order components, leaving only the part of $f(x)$ that lies in the lower-order space.
 
 For example:
-- If \(f(x)\) is a quadratic polynomial (degree 2), projecting it onto a linear basis (degree 1) retains only the linear part of \(f(x)\), discarding the higher-order terms.
+- If $f(x)$ is a quadratic polynomial (degree 2), projecting it onto a linear basis (degree 1) retains only the linear part of $f(x)$, discarding the higher-order terms.
 
 This smoothing effect is one reason why projection is used near shocks or discontinuities to stabilize oscillations.
 
 ---
 
 ### **5. Key Properties of Projection**
-- **Optimality**: The projection minimizes the approximation error in the chosen norm (typically \(L^2\)).
+- **Optimality**: The projection minimizes the approximation error in the chosen norm (typically $L^2$).
 - **Filtering**: Higher-order components are filtered out when projecting onto a lower-order space.
 - **Integral Process**: The integrals compute how the function aligns with the basis functions, ensuring the approximation is accurate within the space spanned by the basis.
 
@@ -570,13 +570,13 @@ This smoothing effect is one reason why projection is used near shocks or discon
 ### **6. Practical Implementation**
 In numerical methods:
 - The integrals are typically computed using **numerical quadrature** (e.g., Gaussian quadrature).
-- The projection may involve solving a small linear system if the mass matrix \(M\) is not diagonal.
+- The projection may involve solving a small linear system if the mass matrix $M$ is not diagonal.
 
 For example, in **Discontinuous Galerkin (DG) methods**:
 - To project a flux onto the element basis, compute:
-  \[
+  $$
   \hat{f}_i = \frac{\int_\Omega f(x) \phi_i(x) \, dx}{\int_\Omega \phi_i(x) \phi_i(x) \, dx},
-  \]
+  $$
   assuming the basis functions are orthogonal.
 
 ---
@@ -589,9 +589,9 @@ For example, in **Discontinuous Galerkin (DG) methods**:
 ---
 
 ### Example: Flux Projection
-If \(f(x)\) is a flux computed on a high-order basis, and we want a stable representation at a face, we project it onto a linear (or constant) basis:
+If $f(x)$ is a flux computed on a high-order basis, and we want a stable representation at a face, we project it onto a linear (or constant) basis:
 
-1. Compute the integrals of \(f(x)\) with respect to the lower-order basis functions.
+1. Compute the integrals of $f(x)$ with respect to the lower-order basis functions.
 2. Reconstruct the flux on the face using only the coefficients of the lower-order basis.
 
 This projection reduces oscillations while preserving the essential features of the flux.
@@ -612,39 +612,39 @@ Provide an example of projection from p=2 to p=1 in a simplex in matrix form.
 
 # Answer
 
-Let's work through an example of projecting a solution from a **\( P=2 \)** (quadratic polynomial) space to a **\( P=1 \)** (linear polynomial) space on a simplex (e.g., a triangular element in 2D).
+Let's work through an example of projecting a solution from a **$P=2$** (quadratic polynomial) space to a **$P=1$** (linear polynomial) space on a simplex (e.g., a triangular element in 2D).
 
 ---
 
 ### **Setup**
 
 1. **Polynomial Basis**:
-   - For \( P=2 \) on a 2D simplex, the basis functions might be:
-     \[
+   - For $P=2$ on a 2D simplex, the basis functions might be:
+     $$
      \phi_1(x, y) = 1, \quad \phi_2(x, y) = x, \quad \phi_3(x, y) = y, \quad \phi_4(x, y) = x^2, \quad \phi_5(x, y) = xy, \quad \phi_6(x, y) = y^2.
-     \]
-   - For \( P=1 \) on the same simplex, the basis functions are:
-     \[
+     $$
+   - For $P=1$ on the same simplex, the basis functions are:
+     $$
      \psi_1(x, y) = 1, \quad \psi_2(x, y) = x, \quad \psi_3(x, y) = y.
-     \]
+     $$
 
 2. **Solution Representation**:
-   - The solution \( u(x, y) \) in the \( P=2 \) space is:
-     \[
+   - The solution $u(x, y)$ in the $P=2$ space is:
+     $$
      u^{P=2}(x, y) = \sum_{i=1}^6 \hat{u}_i \phi_i(x, y),
-     \]
-     where \(\hat{u}_i\) are the coefficients in the \( P=2 \) basis.
-   - We want to approximate \( u(x, y) \) in the \( P=1 \) space:
-     \[
+     $$
+     where $\hat{u}_i$ are the coefficients in the $P=2$ basis.
+   - We want to approximate $u(x, y)$ in the $P=1$ space:
+     $$
      u^{P=1}(x, y) = \sum_{j=1}^3 \tilde{u}_j \psi_j(x, y),
-     \]
-     where \(\tilde{u}_j\) are the coefficients in the \( P=1 \) basis.
+     $$
+     where $\tilde{u}_j$ are the coefficients in the $P=1$ basis.
 
 3. **Projection Requirement**:
-   - The projection ensures that the \( L^2 \)-norm of the error is minimized:
-     \[
+   - The projection ensures that the $L^2$-norm of the error is minimized:
+     $$
      \int_\text{simplex} \left( u^{P=2}(x, y) - u^{P=1}(x, y) \right) \psi_j(x, y) \, dx\,dy = 0 \quad \text{for } j = 1, 2, 3.
-     \]
+     $$
 
 ---
 
@@ -652,85 +652,85 @@ Let's work through an example of projecting a solution from a **\( P=2 \)** (qua
 
 We derive the projection by solving:
 
-\[
+$$
 M \tilde{u} = F,
-\]
+$$
 
 where:
-- \( M \) is the **mass matrix** for the \( P=1 \) basis.
-- \( F \) is the **projection vector** containing integrals of the \( P=2 \) basis functions with the \( P=1 \) basis functions.
+- $M$ is the **mass matrix** for the $P=1$ basis.
+- $F$ is the **projection vector** containing integrals of the $P=2$ basis functions with the $P=1$ basis functions.
 
 ---
 
-1. **Mass Matrix (\( M \))**:
-   - The mass matrix for the \( P=1 \) basis is:
-     \[
+1. **Mass Matrix ($M$)**:
+   - The mass matrix for the $P=1$ basis is:
+     $$
      M_{jk} = \int_\text{simplex} \psi_j(x, y) \psi_k(x, y) \, dx\,dy.
-     \]
+     $$
 
-2. **Projection Vector (\( F \))**:
-   - The projection vector relates the \( P=2 \) and \( P=1 \) bases:
-     \[
+2. **Projection Vector ($F$)**:
+   - The projection vector relates the $P=2$ and $P=1$ bases:
+     $$
      F_j = \int_\text{simplex} u^{P=2}(x, y) \psi_j(x, y) \, dx\,dy = \int_\text{simplex} \left( \sum_{i=1}^6 \hat{u}_i \phi_i(x, y) \right) \psi_j(x, y) \, dx\,dy.
-     \]
+     $$
 
    - This can be expressed as:
-     \[
+     $$
      F_j = \sum_{i=1}^6 \hat{u}_i \int_\text{simplex} \phi_i(x, y) \psi_j(x, y) \, dx\,dy.
-     \]
+     $$
 
-   - Let \( P_{ji} = \int_\text{simplex} \phi_i(x, y) \psi_j(x, y) \, dx\,dy \). Then:
-     \[
+   - Let $P_{ji} = \int_\text{simplex} \phi_i(x, y) \psi_j(x, y) \, dx\,dy$. Then:
+     $$
      F_j = \sum_{i=1}^6 P_{ji} \hat{u}_i.
-     \]
+     $$
 
 3. **Linear System**:
    - Substituting into the matrix form:
-     \[
+     $$
      M \tilde{u} = P \hat{u}.
-     \]
+     $$
    - Here:
-     - \( M \in \mathbb{R}^{3 \times 3} \): \( P=1 \) mass matrix.
-     - \( P \in \mathbb{R}^{3 \times 6} \): Projection matrix between \( P=2 \) and \( P=1 \).
-     - \( \hat{u} \in \mathbb{R}^6 \): Coefficients in the \( P=2 \) basis.
-     - \( \tilde{u} \in \mathbb{R}^3 \): Coefficients in the \( P=1 \) basis.
+     - $M \in \mathbb{R}^{3 \times 3}$: $P=1$ mass matrix.
+     - $P \in \mathbb{R}^{3 \times 6}$: Projection matrix between $P=2$ and $P=1$.
+     - $\hat{u} \in \mathbb{R}^6$: Coefficients in the $P=2$ basis.
+     - $\tilde{u} \in \mathbb{R}^3$: Coefficients in the $P=1$ basis.
 
 ---
 
 ### **Example on a Simplex**
 
-Consider a simplex with vertices at \((0,0)\), \((1,0)\), and \((0,1)\). The basis functions and integrals are computed over this domain.
+Consider a simplex with vertices at $(0,0)$, $(1,0)$, and $(0,1)$. The basis functions and integrals are computed over this domain.
 
 1. **Basis Functions**:
-   - \( P=2 \): \(\phi_1 = 1\), \(\phi_2 = x\), \(\phi_3 = y\), \(\phi_4 = x^2\), \(\phi_5 = xy\), \(\phi_6 = y^2\).
-   - \( P=1 \): \(\psi_1 = 1\), \(\psi_2 = x\), \(\psi_3 = y\).
+   - $P=2$: $\phi_1 = 1$, $\phi_2 = x$, $\phi_3 = y$, $\phi_4 = x^2$, $\phi_5 = xy$, $\phi_6 = y^2$.
+   - $P=1$: $\psi_1 = 1$, $\psi_2 = x$, $\psi_3 = y$.
 
-2. **Mass Matrix (\( M \))**:
-   - For \( P=1 \), the integrals are:
-     \[
+2. **Mass Matrix ($ M $)**:
+   - For $P=1$, the integrals are:
+     $$
      M_{11} = \int_\text{simplex} 1 \cdot 1 \, dx\,dy, \quad M_{12} = \int_\text{simplex} 1 \cdot x \, dx\,dy, \quad \dots
-     \]
+     $$
 
    - On this simplex:
-     \[
+     $$
      M = \frac{1}{24} \begin{bmatrix}
      2 & 1 & 1 \\
      1 & 2 & 1 \\
      1 & 1 & 2
      \end{bmatrix}.
-     \]
+     $$
 
-3. **Projection Matrix (\( P \))**:
-   - Compute each entry \( P_{ji} = \int_\text{simplex} \phi_i(x, y) \psi_j(x, y) \, dx\,dy \).
+3. **Projection Matrix ($ P $)**:
+   - Compute each entry $P_{ji} = \int_\text{simplex} \phi_i(x, y) \psi_j(x, y) \, dx\,dy$.
 
 4. **Linear System**:
-   - Solve \( M \tilde{u} = P \hat{u} \) for \(\tilde{u}\), giving the \( P=1 \) coefficients.
+   - Solve $M \tilde{u} = P \hat{u}$ for $\tilde{u}$, giving the $P=1$ coefficients.
 
 ---
 
 ### **Conclusion**
 
-This process ensures that the \( P=1 \) solution is the optimal projection of the \( P=2 \) solution in the \( L^2 \)-sense. While the exact values of the integrals depend on the simplex geometry, the steps above outline how projection is handled in matrix form.
+This process ensures that the $P=1$ solution is the optimal projection of the $P=2$ solution in the $L^2$-sense. While the exact values of the integrals depend on the simplex geometry, the steps above outline how projection is handled in matrix form.
 
 
 # Question
@@ -745,23 +745,23 @@ The **Vandermonde matrix** is used in interpolation to provide a systematic way 
 
 ### **1. The Role of the Vandermonde Matrix**
 
-The Vandermonde matrix arises when we seek to construct a polynomial interpolant \( p(x) \) that matches given data points \((x_i, f_i)\), where \( f_i \) are the function values at the interpolation points \( x_i \). The interpolant is expressed as:
+The Vandermonde matrix arises when we seek to construct a polynomial interpolant $p(x)$ that matches given data points $(x_i, f_i)$, where $f_i$ are the function values at the interpolation points $x_i$. The interpolant is expressed as:
 
-\[
+$$
 p(x) = \sum_{j=0}^N c_j \phi_j(x),
-\]
+$$
 
-where \( \{\phi_j(x)\} \) are the basis functions (e.g., monomials, Lagrange polynomials, or orthogonal polynomials), and \( \{c_j\} \) are the unknown coefficients to be determined.
+where $\{\phi_j(x)\}$ are the basis functions (e.g., monomials, Lagrange polynomials, or orthogonal polynomials), and $\{c_j\}$ are the unknown coefficients to be determined.
 
 The interpolation condition is:
 
-\[
+$$
 p(x_i) = f_i, \quad \text{for } i = 0, 1, \dots, N.
-\]
+$$
 
 This leads to the linear system:
 
-\[
+$$
 \begin{bmatrix}
 \phi_0(x_0) & \phi_1(x_0) & \cdots & \phi_N(x_0) \\
 \phi_0(x_1) & \phi_1(x_1) & \cdots & \phi_N(x_1) \\
@@ -781,13 +781,13 @@ f_1 \\
 \vdots \\
 f_N
 \end{bmatrix}.
-\]
+$$
 
-The coefficient matrix here is the **Vandermonde matrix**, denoted \( V \), with entries:
+The coefficient matrix here is the **Vandermonde matrix**, denoted $V$, with entries:
 
-\[
+$$
 V_{ij} = \phi_j(x_i).
-\]
+$$
 
 ---
 
@@ -797,30 +797,30 @@ The Vandermonde matrix provides a way to systematically solve for the coefficien
 
 #### (a) **Efficient and Systematic Construction**
 - The Vandermonde matrix is a structured matrix that directly encodes the relationship between the polynomial basis and the nodal values.
-- It provides a clear path to solving for the coefficients \( \{c_j\} \), ensuring the interpolating polynomial satisfies the given data.
+- It provides a clear path to solving for the coefficients $\{c_j\}$, ensuring the interpolating polynomial satisfies the given data.
 
 #### (b) **Basis Independence**
-- By constructing the Vandermonde matrix, the method works regardless of the choice of polynomial basis \( \{\phi_j(x)\} \), whether monomials \( \{1, x, x^2, \dots\} \), Lagrange basis functions, or orthogonal polynomials.
+- By constructing the Vandermonde matrix, the method works regardless of the choice of polynomial basis $\{\phi_j(x)\}$, whether monomials $\{1, x, x^2, \dots\}$, Lagrange basis functions, or orthogonal polynomials.
 - This flexibility is particularly important in numerical methods like finite elements or spectral methods, where different bases may be used.
 
 #### (c) **Explicit Connection to Nodal Values**
-- In some bases (e.g., monomials), the coefficients \( \{c_j\} \) do not directly correspond to function values at the nodes \( \{f_i\} \). The Vandermonde matrix bridges this gap by mapping between these representations.
+- In some bases (e.g., monomials), the coefficients $\{c_j\}$ do not directly correspond to function values at the nodes $\{f_i\}$. The Vandermonde matrix bridges this gap by mapping between these representations.
 
 #### (d) **Linear System Representation**
-- The Vandermonde matrix turns the interpolation problem into a standard linear algebra problem. Once \( V \) is constructed, solving \( Vc = f \) yields the coefficients directly.
+- The Vandermonde matrix turns the interpolation problem into a standard linear algebra problem. Once $V$ is constructed, solving $Vc = f$ yields the coefficients directly.
 
 ---
 
 ### **3. Why Not Directly Use the Basis Functions?**
 
-While the representation \( p(x) = \sum_j c_j \phi_j(x) \) is the desired result, determining the coefficients \( \{c_j\} \) without constructing the Vandermonde matrix can be cumbersome:
+While the representation $p(x) = \sum_j c_j \phi_j(x)$ is the desired result, determining the coefficients $\{c_j\}$ without constructing the Vandermonde matrix can be cumbersome:
 
 #### (a) **Basis Function Coupling**
-- In general, the values of the function at the nodes \( f_i \) do not directly correspond to the coefficients \( c_j \), unless the basis functions are specially chosen (e.g., orthogonal basis on specific points).
-- For arbitrary bases, the relationship between \( f_i \) and \( c_j \) must be computed, which is what the Vandermonde matrix encapsulates.
+- In general, the values of the function at the nodes $f_i$ do not directly correspond to the coefficients $c_j$, unless the basis functions are specially chosen (e.g., orthogonal basis on specific points).
+- For arbitrary bases, the relationship between $f_i$ and $c_j$ must be computed, which is what the Vandermonde matrix encapsulates.
 
 #### (b) **Non-Orthogonal Bases**
-- If the basis \( \{\phi_j(x)\} \) is not orthogonal, the coefficients \( c_j \) are not directly proportional to the function values at the nodes. The Vandermonde matrix accounts for the interactions between basis functions at different nodes.
+- If the basis $\{\phi_j(x)\}$ is not orthogonal, the coefficients $c_j$ are not directly proportional to the function values at the nodes. The Vandermonde matrix accounts for the interactions between basis functions at different nodes.
 
 #### (c) **Numerical Stability**
 - Constructing and solving the Vandermonde matrix, especially with well-chosen points (e.g., Chebyshev or Gauss points), ensures numerical stability. Direct manipulation of basis functions can lead to instabilities due to ill-conditioning or overlapping basis effects.
@@ -830,15 +830,15 @@ While the representation \( p(x) = \sum_j c_j \phi_j(x) \) is the desired result
 ### **4. Practical Use of the Vandermonde Matrix**
 
 In practice:
-1. For **monomial bases** (e.g., \( \phi_j(x) = x^j \)):
+1. For **monomial bases** (e.g., $\phi_j(x) = x^j$):
    - The Vandermonde matrix is explicitly:
-     \[
+     $$
      V_{ij} = x_i^j,
-     \]
-     and is typically ill-conditioned for large \( N \) or unevenly spaced points \( \{x_i\} \).
+     $$
+     and is typically ill-conditioned for large $N$ or unevenly spaced points $\{x_i\}$.
 
 2. For **Lagrange basis functions**:
-   - The Vandermonde matrix becomes a diagonal matrix in barycentric form because \( \psi_j(x_i) = \delta_{ij} \), simplifying computations.
+   - The Vandermonde matrix becomes a diagonal matrix in barycentric form because $\psi_j(x_i) = \delta_{ij}$, simplifying computations.
 
 3. For **orthogonal polynomial bases**:
    - The Vandermonde matrix is well-conditioned for certain quadrature points (e.g., Gauss-Lobatto or Chebyshev nodes).
@@ -867,10 +867,10 @@ Projection is not deemed unnecessary when using **Persson's artificial viscosity
 **Persson’s artificial viscosity**:
 - Adds a dissipation term to the governing equations, dynamically increasing viscosity near shocks or steep gradients while leaving smooth regions unaffected.
 - The artificial viscosity is introduced in the form:
-  \[
+  $$
   \nabla \cdot (\mu \nabla u),
-  \]
-  where \(\mu\) is the artificial viscosity coefficient, typically computed using a **spectral smoothness indicator** based on the decay of high-order modal coefficients.
+  $$
+  where $\mu$ is the artificial viscosity coefficient, typically computed using a **spectral smoothness indicator** based on the decay of high-order modal coefficients.
 
 However, artificial viscosity does not directly resolve the issue of how to interpolate fluxes across element interfaces. Without proper stabilization, oscillations at interfaces can still occur, especially in **high-order DG methods**.
 
@@ -912,10 +912,10 @@ Persson's artificial viscosity is often combined with other techniques to handle
 
 #### (e) **Face-Averaged Fluxes**
 - Instead of directly interpolating the high-order flux to the interface, compute **face-averaged fluxes** using numerical quadrature:
-  \[
+  $$
   \bar{f} = \frac{1}{|S|} \int_S f(x) \, dS,
-  \]
-  where \( S \) is the interface face.
+  $$
+  where $S$ is the interface face.
 - This reduces oscillations while maintaining accuracy.
 
 #### (f) **Filtering**
@@ -925,7 +925,7 @@ Persson's artificial viscosity is often combined with other techniques to handle
 
 ### **4. Best Practices in Implementations**
 When using Persson's artificial viscosity, a typical workflow might involve:
-1. **Smoothness Detection**: Use the spectral smoothness indicator to compute \(\mu\) for artificial viscosity.
+1. **Smoothness Detection**: Use the spectral smoothness indicator to compute $\mu$ for artificial viscosity.
 2. **Artificial Viscosity Application**: Modify the governing equations with the viscosity term, ensuring stabilization within elements.
 3. **Flux Interpolation**:
    - Use **projection** to stabilize the flux representation, especially for high-order solutions.
@@ -990,7 +990,7 @@ Is there a text for galerkin elements that walks through practical examples of u
 
 # Answer
 
-For a practical understanding of using quadrature to perform projection operations from a higher-order polynomial space (\( P = N \)) to a lower-order space (\( P = 1 \)) within Galerkin finite element methods, especially in transformed coordinates, the following resource is highly recommended:
+For a practical understanding of using quadrature to perform projection operations from a higher-order polynomial space ($ P = N $) to a lower-order space ($ P=1 $) within Galerkin finite element methods, especially in transformed coordinates, the following resource is highly recommended:
 
 **"The Finite Element Method – Lecture Notes" by Per-Olof Persson**:
 - **Overview**: These lecture notes provide a comprehensive introduction to the finite element method, including detailed discussions on numerical quadrature and projection techniques.
@@ -1005,7 +1005,7 @@ Dead link
 
 # Answer
 
-I apologize for the inconvenience caused by the dead link. For a practical understanding of using quadrature to perform projection operations from a higher-order polynomial space (\( P = N \)) to a lower-order space (\( P = 1 \)) within Galerkin finite element methods, especially in transformed coordinates, the following resource is highly recommended:
+I apologize for the inconvenience caused by the dead link. For a practical understanding of using quadrature to perform projection operations from a higher-order polynomial space ($P=N$) to a lower-order space ($P=1$) within Galerkin finite element methods, especially in transformed coordinates, the following resource is highly recommended:
 
 **"The Finite Element Method – Lecture Notes" by Per-Olof Persson**:
 - **Overview**: These lecture notes provide a comprehensive introduction to the finite element method, including detailed discussions on numerical quadrature and projection techniques.
