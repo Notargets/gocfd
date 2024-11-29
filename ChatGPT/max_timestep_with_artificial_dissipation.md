@@ -1,5 +1,5 @@
 ---
-title: Discussion about the maximum stable timestep under a CFL constraint for Persson's artificial viscocity
+title: Discussion with ChatGPT 4o about the maximum stable timestep under a CFL constraint for Persson's artificial viscocity
 ---
 
 # Question
