@@ -1,28 +1,16 @@
-### Update: Model Problem Example #2: Maxwell's Equations solved in a 1D Cavity
+## Update: [11/27/21]
 
-The Maxwell equations are solved in a 1D metal cavity with a change of material half way through the domain. The initial condition is a sine wave for the E (electric) field in the left half of the domain, and zero for E and H everywhere else. The E field is zero on the boundary (face flux out = face flux in) and the H field passes through unchanged (face flux zero), corresponding to a metallic boundary.
+I've implemented interpolation of fluxes to the edges, replacing the interpolation of solution values followed by
+computation of the flux. It's currently an option for Lax and Roe fluxes. Below is a 2nd order converged solution using
+the new approach, showing very smooth solution contours.
 
+It's definitely a more computationally expensive route, but it seems to be "correct", in that there are fewer interpolation
+errors evident in the solution. The results are substantially different in that we get:
+1) stable and convergent solutions at subsonic Mach for orders 0,2,4, unstable at P=1, likely due to interpolation overshoot
+2) smoother and more realistic solution contours without the edge defects
 
-
-Run the example with graphics like this:
-```
-bash# make
-bash# gocfd -model 1 -delay 0 -graph -K 80 -N 5
-```
-
-Unlike the advection equation model problem, this solver does have unstable points in the space of K (element count) and N (polynomial degree). So far, it appears that the polynomial degree must be >= 5 for stability, otherwise aliasing occurs, where even/odd modes are excited among grid points.
-
-In the example pictured, there are 80 elements (K=80) and the element polynomial degree is 5 (N=5).
-
-#### Initial State
-![](../images/Maxwell1D-cavity0.PNG)
-
-#### Intermediate State
-![](../images/Maxwell1D-cavity.PNG)
-
-#### First Mode
-![](../images/Maxwell1D-cavity2.PNG)
-
-#### Second Mode
-![](../images/Maxwell1D-cavity4.PNG)
+I think it's likely this is a better formulation for the edge computations, but we need something that will eliminate
+the spurious new minima/maxima being introduced by the flux interpolation. TVD/ENO concepts come to mind, where we
+limit the interpolated values so as not to introduce new minima/maxima, but I think it's important to formulate such an
+operation so that it doesn't create aphysical effects, especially in the time accurate solver.
 

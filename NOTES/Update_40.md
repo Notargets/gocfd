@@ -1,29 +1,7 @@
-### Update: Model Problem Example #3: Euler's Equations in 1D - Sod's shock tube
+## Update: [11/15/21]
 
-The 1D Euler equations are solved with boundary and initial conditions for the Sod shock tube problem. There is an analytic solution for this case and it is widely used to test shock capturing ability of a solver.
-
-Run the example with graphics like this:
-```
-bash# make
-bash# gocfd -model 2 -graph -K 250 -N 1
-```
-
-You can also target a final time for the simulation using the "-FinalTime" flag. You will have to use CTRL-C to exit the simulation when it arrives at the target time. This leaves the plot on screen so you can screen cap it.
-```
-bash# gocfd -model 2 -graph -K 250 -N 1 -FinalTime 0.2
-```
-#### T = 0.2, 60 Elements
-|             Linear Elements             |           10th Order Elements            |
-|:---------------------------------------:|:----------------------------------------:|
-| ![](../images/Euler1D-SOD-K60-N1-T0.2.PNG) | ![](../images/Euler1D-SOD-K60-N10-T0.2.PNG) |
-
-#### T = 0.2, 250 Elements
-|             Linear Elements              |            10th Order Elements            |
-|:----------------------------------------:|:-----------------------------------------:|
-| ![](../images/Euler1D-SOD-K250-N1-T0.2.PNG) | ![](../images/Euler1D-SOD-K250-N10-T0.2.PNG) |
-
-#### T = 0.2, 500 Elements
-|             Linear Elements              |            10th Order Elements            |
-|:----------------------------------------:|:-----------------------------------------:|
-| ![](../images/Euler1D-SOD-K500-N1-T0.2.PNG) | ![](../images/Euler1D-SOD-K500-N10-T0.2.PNG) |
+New theory: it's the interpolation of the solution values to the edges that is the culprit - instead,
+I'll interpolate the flux from the solution points to the edge along with the solution values, then compose the Roe
+flux as an average of the interpolated L/R fluxes plus terms arising from the interpolated solution values for the
+Riemann problem at the edge.
 

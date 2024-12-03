@@ -1,11 +1,5 @@
-### Update: (Nov 24 2020):
-The 2D Euler solver now works! Yay!
+## Update: Nov 5 2020):
+Progress on the 2D Euler equations solution! There are now unit tests showing that we get zero divergence for the freestream initialized solution on a test mesh. This includes the shared face normals and boundaries along with the solution interpolation. The remaining work to complete the solver includes boundary conditions and the Roe/Lax Riemann flux calculation at shared faces - each of which are pure local calculations.
 
-I've tested the Isentropic Vortex case successfully using a Lax flux and a Riemann BC backed by an analytic solution at the boundaries. Unlike the DG solver based on integration in Westhaven, et al, this solver is not stable when using a Dirichlet (fixed) BC set directly to the analytic solution, so the Riemann solution suppresses unstable waves at the boundary. I haven't calculated error yet, but it's clear that as we increase the solver order, the solution gets much more resolved with lower undershoots, so it appears as though a convergence study will show super convergence, as expected.
-
-The solver is stable with CFL = 1 using the RK3 SSP time advancement scheme. I'll plan to do a formal stability analysis later, but all looks good! The movie below is 1st Order (top left), 2nd Order (top right), 4th Order (btm left) and 7th Order (btm right) solutions of the isentropic vortex case with the same 256 element mesh using a Lax flux. We can see the resolution and dispersion improve as the order increases.
-
-![](../images/vortex-1-2-4-7-lax-cropped.gif)
-
-You can recreate the above with ```gocfd 2D -g --gridFile DG2D/vortexA04.neu -n 1```, change the order with the "-n" option. "gocfd help 2D" for all options.
+I'm very happy with the simplicity of the resulting algorithm. There are two matrix multiplications (across all elements), a matrix multiplication for the edge interpolation and a single calculation per edge for the Riemann fluxes. I think the code is easily understood and it should be simple to implement in GPU and other parallel systems. 
 

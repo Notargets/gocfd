@@ -1,32 +1,38 @@
-### Update: [11/9/21]
+## Update: Model Problem Example #3a: Euler's Equations in 1D - Shock Collision
 
-| NACA0012 M=0.8, AOA=2 New RT Element vs Lagrange Basis vs Jacobi Basis |
-|:----------------------------------------------------------------------:|
-|                        L2 Convergence Compared                         |
-|                   ![](../images/convergence-newRT.PNG)                    |
+This is an interesting problem because of the temperature remainder after the collision. In the plot, temperature is red, density is blue, and velocity is orange. After the shocks pass out of the domain, the remaining temperature "bubble" can't dissipate, because the Euler equations have no mechanism for temperature diffusion.
 
-Update: [11/15/21]: The results are in - a completely new Raviart-Thomas element design is now available, and it gives
-results that are very similar to the prior implementation. It's hard to judge which is superior, but at this point
-the new basis requires a slightly higher artificial dissipation for the airfoil case and seems to achieve similar
-convergence rates. The "wiggles" in the shock tube case are still present. Mostly, I'd say the results prove that the
-RT element basis is not responsible for the general instability with shocks. The "good news" here - after re-designing
-and replacing the core of the DFR method, we get very similar results, which gives new confidence that the DFR core is
-likely correct. New theory: it's the interpolation of the solution values to the edges that is the culprit - instead,
-I'll interpolate the flux from the solution points to the edge along with the solution values, then compose the Roe
-flux as an average of the interpolated L/R fluxes plus terms arising from the interpolated solution values for the
-Riemann problem at the edge.
+This case is obtained by initializing the tube as with the Sod tube, but leaving the exit boundary at the left side values (In == Out). This produces a left running shock wave that meets with the shock moving right.
 
-I see a/the problem now! The current build of the RT element used for divergence is incorrect, or at least is different
-from other constructions in a fundamental way. There are two polynomial domains included in the RT element, one is a
-2D vector polynomial field ```[Pk]^2```, and the other is a 2D scalar polynomial multiplied by the vector location
-```[X](Pk)```. These are allocated to the interior points and to the edges separately.
+#### T = 0.36, 1000 Elements
+![](../images/Euler1D-MidTube-K1000-N6-T.36.PNG)
 
-I had chosen to use a 2D polynomial basis of degree "P", the same degree as the RT element to implement the basis
-functions for edges and interior. I multiplied the edge functions by [X] and used the highest order basis functions for
-the edges, left over after consuming basis for the interior points.
+### Update: Model Problem Example #3: Euler's Equations in 1D - Sod's shock tube
 
-Now, after reviewing [V.J. Ervin, "Computational Bases for RTk and BDMk on Triangles](research/convergence_and_fluxes/DFR/computational-bases-for-RTk-and-BDMk-on-triangles.pdf), I believe the RT element
-basis he constructed is superior and that mine likely has some asymmetries that may be producing the "wiggles".
+The 1D Euler equations are solved with boundary and initial conditions for the Sod shock tube problem. There is an analytic solution for this case and it is widely used to test shock capturing ability of a solver.
 
-I'm now working on a revised RT element basis, following Ervin's design.
+Run the example with graphics like this:
+```
+bash# make
+bash# gocfd -model 2 -graph -K 250 -N 1
+```
+
+You can also target a final time for the simulation using the "-FinalTime" flag. You will have to use CTRL-C to exit the simulation when it arrives at the target time. This leaves the plot on screen so you can screen cap it.
+```
+bash# gocfd -model 2 -graph -K 250 -N 1 -FinalTime 0.2
+```
+#### T = 0.2, 60 Elements
+|             Linear Elements             |           10th Order Elements            |
+|:---------------------------------------:|:----------------------------------------:|
+| ![](../images/Euler1D-SOD-K60-N1-T0.2.PNG) | ![](../images/Euler1D-SOD-K60-N10-T0.2.PNG) |
+
+#### T = 0.2, 250 Elements
+|             Linear Elements              |            10th Order Elements            |
+|:----------------------------------------:|:-----------------------------------------:|
+| ![](../images/Euler1D-SOD-K250-N1-T0.2.PNG) | ![](../images/Euler1D-SOD-K250-N10-T0.2.PNG) |
+
+#### T = 0.2, 500 Elements
+|             Linear Elements              |            10th Order Elements            |
+|:----------------------------------------:|:-----------------------------------------:|
+| ![](../images/Euler1D-SOD-K500-N1-T0.2.PNG) | ![](../images/Euler1D-SOD-K500-N10-T0.2.PNG) |
 

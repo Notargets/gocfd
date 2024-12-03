@@ -1,6 +1,11 @@
-### Update: [10/3/21]
+## Update: (May 25, 2020): Roe Flux with DFR - Euler 1D compared to Analytic Solution in real time
 
-I've implemented laplacian artificial dissipation that tracks shock induced instabilities using the Lagrangian solution element to compute the flux derivatives and also for the divergence of the dissipation field. The method works well for 1st order calculations, with sharp shock resolution and fast convergence, though the intra-element shock resolution is marked with a significant discontinuity with the edges of the shock capturing cell. When the shock aligns with the edge, the result is a near perfect shock capture, but when the shock is not on the edge, the intra-cell solution has spurious internal oscillations.
+#### T = 0.223, N=4, Roe Flux, 600 Elements
+![](../images/EulerDFRRho1.PNG)
 
-Based on these results, I'm implementing what seems a simpler and more appropriate method: The dissipation flux will be calculated for all points within the Raviart Thomas element used for the calculation of the fluid flux divergence. The resulting dissipation flux [epsR, epsS] is then added to the physical fluid flux [fluxR,fluxS] and then the divergence of the combined flux is calculated using the RT element divergence operator. I'm anticipating that this approach should provide added stability to the flux field, which is an (N+1)th order polynomial field that overlays the (N)th order solution field. In the prior approach, the (N)th order divergence of the artificial dissipation is added to the (N+1)th order derived physical divergence, and I think that is creating aliasing errors that are unstable.
+This is cool - being able to see exactly the errors and successes in realtime. The above is a snap of an interim result where I'm now showing the exact solution in symbols overlaying the simulation in realtime and sure enough we see a shock speed error on the leading shock wave, along with excellent reproduction of the smooth expansion flow.
+
+I also went back and checked the Galerkin (non-DFR) Euler case and it has the same error in shock propagation speed as the DFR/Roe result, which says there's a common error somewhere. It's good to spend time doing basic accuracy tests!
+
+You can recreate this using ``` gocfd -graph -model 5 -CFL 0.75 -N 4 -K 600```
 

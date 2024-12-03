@@ -1,10 +1,14 @@
-### Update: June 25, 2020):
-<img src="images/tri-nodes-n3-6.PNG" width="600" height="500"  alt=""/>
+## Update: (Aug 18, 2021):
 
-Experimenting with node distributions - shown are the LGL points with warping per the Hesthaven approach.
+Investigating algorithmic methods to speed up convergence to a steady state solution. These techniques can also be applied to unsteady/time varying solutions by solving incremental time advancement sub-problems.
 
-Unsolved/undecided: Is it a good idea to use the next higher order LGL points for the flux and interpolate down to the solution points from there? 
-This question arises because, unlike in the 1D case, there isn't an overlapping points group like the Gauss points for the interior and the LGL points at one higher polynomial degree, which conveniently accomplished having colocated solution and flux points in the interior. Instead, as can be seen in the above graphic - the interior points are at very different locations between orders (eg N=3 compared with N=4), so every transfer from flux points and solutions points will involve interpolation between points. This introduces interpolation errors I'd like to avoid...
-
-Given that for a given multidimensional polynomial degree N the number of polynomial points needed is (N+1)(N+2)/2, so it seems impossible to find a distribution of points that would overlap as in the 1D case.
+There are many algorithms in the literature, including:
+#### Node implicit
+Implicit time advancement within each element, which should improve the convergence rate as the order of the elements increase.
+#### Line Gauss-Seidel Implicit
+Improves global implicitness by solving advancing lines(2D) or planes(3D) through the field. This technique has been shown to greatly improve convergence of viscous problems with cells packed tightly to surface geometry.
+#### Multigrid
+Propagates low frequency changes rapidly through the finest mesh using nested coarse meshes.
+#### Preconditioners
+Used to remove stiffness in propagating high frequency changes where the difference in wave speeds is large. Examples include very low speed flows where the acoustic wave speed and sonic wave speeds differ greatly, or viscous problems where the viscous eigenvalues are very small compared to sonic waves.
 

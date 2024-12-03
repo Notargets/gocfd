@@ -1,8 +1,5 @@
-### Update: (Dec 31, 2020):
+## Update: Sep 9 2020):
+I've now validated the RT element up to 7th order for divergence of polynomial vector fields. Happily, the special case of zero divergence is being captured with high precision.
 
-New Year's Day progress!
-
-I partitioned the 2D solver by elements for enhanced parallelism. The solver now computes the RHS and time stepping fully parallel, but must still synchronize between each time sub-step (within the Runge-Kutta solver) to exchange data at edges, which is also done in parallel. So there are now two discrete stages/types of parallelism, one for the full domain of elements, and one for the edge exchanges and flux computation.
-
-As a result of the partitioning, the parallelism is far better and we can get much faster solution times. The level of parallelism is well suited to machines with less than 100 processors. For more parallelism, we will need to use a mesh partitioning algorithm that selects the element partitions so as to minimize the surface area shared between partitions, such as the commonly used tool "metis". When the elements are partitioned in that way, we can isolate the time spent in synchronization to exactly the minimum necessary. By comparison, now we're doing all edge flux computation during the synchronization period.
+The reason this took me quite a while: the choice of basis functions for the RT polynomial must be approached with great care, as the derivatives of the basis must be normalized properly. The literature provides many examples of alternatives for the basis, many of which seem to produce erroneous divergence values that do not show convergence, or even diverge with increasing element order. Others use moments of dot products for the interior, which is not the same process that is used by Jameson and Romero's DFR work. In the interest of staying close to that work, I ended up using the same 2D polynomial basis for the Simplex (triangle) as used by Westhaven with the procedure described by Romero to create the basis for the RT element, which preserves the connection with the Lagrange element interior points. I now have validated that this combination accurately reproduces divergence for polynomial functions and shows convergent behavior with good accuracy for transcendental fields up to 7th order.
 

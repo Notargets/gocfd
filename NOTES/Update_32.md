@@ -1,16 +1,12 @@
-### Update: June 2, 2020): 
+## Update: [9/18/21]
+Update: The data are in - the new Roe-ER flux *is* faster to compute and has good characteristics, so it's a good thing  and will be useful for turbulence capturing and strong shock applications later. However, tests showed that using either *Roe* or *Roe-ER* flux calculations crashed due to odd-even instability with shocks past maybe Mach 0.6 on the airfoil test. I'm thinking that we need to stabilize the flux at the border of the element using higher order approximations and clipping them using MUSCL/TVD approach. This is similar to a typical J->J+1 structured approach but using "wiggle simulation" for the flux derivatives at the boundary. I wonder also if I'll need to increase the derivative degree at the boundary along with the overall order of the element? It's very do-able, though I think I'd want to do a more analytic derivation for sampling higher order fields within elements.
 
-Implemented a smooth solution (Density Wave) in the Euler Equations DFR solver and ran convergence studies. The results show a couple of things:
-1) Rapid convergence to machine zero across polynomial order and number of elements
-2) Order of convergence is N, not the optimal (N+1)
-3) Aliasing instability when using the Roe flux
-4) The "SlopeMod" limiter destroys the accuracy of the smooth solution
+Removing the "wiggles", part X: There are still odd-even instability modes being triggered by shocks, which for now I'm assuming are being introduced by the flux transfers between elements. It's possible that the discontinuities from shocks are landing in the polynomial basis and amplifying there, but first I'm going to eliminate the flux transfer amplifications before doing anything inside the element.
 
-While it was very nice to see (1) happen, the results of (2) made me take a harder look at the DFR approach implemented now. I had taken the "shortcut" of having set the flux at the element faces, and not modifying the interior flux values, which has the impact of converting the flux into a polynomial of order (N-2) due to the removal of the two faces from the order N basis by forcing their values. It seems that the resulting algorithm has a demonstrated order of (N-1) in convergence rate as a result.
+I'm planning now to implement a TVD scheme at 2nd order for the flux transfer as follows:
+1) Interpolate the Q field to the edge using the element polynomial basis (same as now)
+2) Interpolate an additional value close to the edge, say 0.01 of the edge length close
+3) Use the two values on either side of each edge to construct a MUSCL with TVD to obtain the edge flux
 
-One of the reasons I took the above shortcut is that right now we are using the "Legendre-Gauss-Lobato" (LGL) nodes for the algorithm, per Hesthaven, and the LGL points include the face vertices for each element, which makes it impossible to implement the Jameson DFR approach for DFR.
-
-In the Jameson DFR, the Gauss quadrature points do not include the face vertices. The algorithm sets the flux values at the face vertices, then performs an interpolation across the combination of interior and face (N+1+2) vertices to determine the coefficients of the interior flux polynomial such that the new polynomial passes through all (N+1) interior points in the element and the two face vertices. The resulting reconstructed flux polynomial is of order (N+2) and resides on the (N+3) face and solution interior points. Derivatives of this flux are then used directly in the solution algorithm as described in this excellent [AFOSR presentation](http://aero-comlab.stanford.edu/Papers/AFOSR-Meeting-Jul-2014.pdf).
-
-The Jameson DFR algorithm provides an equivalent, but simpler and more efficient (15% faster) way to achieve all of the benefits of DG methods. The DFR solver uses the differential form of the target equations, rather than the integral form, which makes it easier to attack more complex combinations of target equations. DFR has also been extended by Jameson, et al to incorporate spectral methods with entropy stable properties.
+This approach should introduce damping to oscillatory modes crossing the boundary, while slightly improving the accuracy of the interpolated flux.
 
