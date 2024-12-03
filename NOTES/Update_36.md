@@ -21,3 +21,6 @@ So far I've verified the bug exists with both Lax / Rusanov and Roe numerical fl
 
 On the bright side, we see the sharp resolution of the shock wave and near perfect symmetry in the solution, so we just need to chase down the wavespeed error in the solver physics.
 
+
+
+[Back to Index](../NOTES_Index.md)

@@ -14,3 +14,6 @@ In the Jameson DFR, the Gauss quadrature points do not include the face vertices
 
 The Jameson DFR algorithm provides an equivalent, but simpler and more efficient (15% faster) way to achieve all of the benefits of DG methods. The DFR solver uses the differential form of the target equations, rather than the integral form, which makes it easier to attack more complex combinations of target equations. DFR has also been extended by Jameson, et al to incorporate spectral methods with entropy stable properties.
 
+
+
+[Back to Index](../NOTES_Index.md)

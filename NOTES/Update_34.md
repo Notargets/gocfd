@@ -4,3 +4,6 @@ I've implemented laplacian artificial dissipation that tracks shock induced inst
 
 Based on these results, I'm implementing what seems a simpler and more appropriate method: The dissipation flux will be calculated for all points within the Raviart Thomas element used for the calculation of the fluid flux divergence. The resulting dissipation flux [epsR, epsS] is then added to the physical fluid flux [fluxR,fluxS] and then the divergence of the combined flux is calculated using the RT element divergence operator. I'm anticipating that this approach should provide added stability to the flux field, which is an (N+1)th order polynomial field that overlays the (N)th order solution field. In the prior approach, the (N)th order divergence of the artificial dissipation is added to the (N+1)th order derived physical divergence, and I think that is creating aliasing errors that are unstable.
 
+
+
+[Back to Index](../NOTES_Index.md)

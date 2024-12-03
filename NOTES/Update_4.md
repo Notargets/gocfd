@@ -6,3 +6,6 @@ My first round of research yielded the [Direct Flux Reconstruction](research/fil
 
 In my past CFD experience, discontinuities in solving the Navier Stokes equations are not limited to shock waves. Rather, we find shear flows have discontinuities that are similar enough to shock waves that shock finding techniques used to guide the application of numerical diffusion can be active at the edge of boundary layers and at other critical regions, which often leads to inaccuracies far from shocks. The text's gradient based limiter would clearly suffer from this kind of problem among others.
 
+
+
+[Back to Index](../NOTES_Index.md)

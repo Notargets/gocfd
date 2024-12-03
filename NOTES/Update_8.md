@@ -9,3 +9,6 @@ I also went back and checked the Galerkin (non-DFR) Euler case and it has the sa
 
 You can recreate this using ``` gocfd -graph -model 5 -CFL 0.75 -N 4 -K 600```
 
+
+
+[Back to Index](../NOTES_Index.md)

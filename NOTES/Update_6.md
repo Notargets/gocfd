@@ -9,3 +9,6 @@ The primary differences between using DFR and traditional Nodal Discontinuous Ga
 
 For (3) in this case, I used the same Lax-Friedrichs flux calculation from the text, then averaged the values from each side of each face together to make a single consistent face value shared by neighboring elements.
 
+
+
+[Back to Index](../NOTES_Index.md)

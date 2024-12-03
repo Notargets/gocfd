@@ -11,3 +11,6 @@ Here is the cool part: the number of interior points within each of the above el
 
 I'm still implementing tests, but the basics are finally there. Next step: implement gradient, divergence, curl operators and test for convergence to known solutions to [ sin(y), sin(x) ]. After that, I'll need to implement the calculation of the coordinate transform Jacobian, which actually follows from the previous operators in that the calculation of [ J ] includes the same derivatives used in the gradient.
 
+
+
+[Back to Index](../NOTES_Index.md)

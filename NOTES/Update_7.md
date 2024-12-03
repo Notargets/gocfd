@@ -9,3 +9,6 @@ DFR for Maxwell's equations now uses 2nd order artificial dissipation to remove 
 
 You can see it as model 4 with default parameters like ```gocfd -model 4 -graph``` The issue is the instability - it scales with N, so is a higher order modal signal - It could be that the Lax Friedrich's flux, which is 1st order, is not providing damping of the higher order modes. But why are there higher order modes? Are these unresolved waves? I can't answer without more looking into it...
 
+
+
+[Back to Index](../NOTES_Index.md)

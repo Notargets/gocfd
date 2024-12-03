@@ -18,3 +18,6 @@ inside the cell consequent from the intra-cell capture of the discontinuity.
 I think the next step I'll take is to modify the artificial viscoscity to parameterize it similarly to Vandenhoeck, then
 run some experiments to validate stability when capturing shock waves over a couple of elements.
 
+
+
+[Back to Index](../NOTES_Index.md)

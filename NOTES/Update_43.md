@@ -46,3 +46,6 @@ I studied CFD in graduate school in 1987 and worked for Northrop for 10 years bu
 
 Then, last year (2019), I noticed there were some amazing looking results appearing on Youtube and elsewhere showing well resolved turbulent eddies and shear flows using this new "Discontinuous Galerkin Finite Elements" method...
 
+
+
+[Back to Index](../NOTES_Index.md)

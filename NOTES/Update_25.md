@@ -20,3 +20,5 @@ As a result of the above experiments, the next focus is on:
 - A possible solution: compose RT and Lagrange elements for quads and polygons to enable later use in Navier-Stokes and multigrid
 
 ![](../images/convergence-study-naca0012.PNG)
+
+[Back to Index](../NOTES_Index.md)

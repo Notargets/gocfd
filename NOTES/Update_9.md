@@ -30,3 +30,6 @@ The shock speed problem I saw yesterday turns out to have been the exact solutio
 
 After correcting the exact solution to Sod's shock tube problem, the two Euler solvers match up pretty well all around, with some small differences between them - phew!
 
+
+
+[Back to Index](../NOTES_Index.md)

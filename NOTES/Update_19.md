@@ -3,3 +3,6 @@ Progress on the 2D Euler equations solution! There are now unit tests showing th
 
 I'm very happy with the simplicity of the resulting algorithm. There are two matrix multiplications (across all elements), a matrix multiplication for the edge interpolation and a single calculation per edge for the Riemann fluxes. I think the code is easily understood and it should be simple to implement in GPU and other parallel systems. 
 
+
+
+[Back to Index](../NOTES_Index.md)

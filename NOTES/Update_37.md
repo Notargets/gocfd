@@ -43,3 +43,6 @@ This will allow for comparison among basis functions and selection of the best f
 |          ![](../images/naca0012-m=0.8-aoa=2-Jacobi-Epsilon.PNG)          | ![](../images/naca0012-m=0.8-aoa=2-Jacobi-alpha=-.99,beta=-.99Epsilon.PNG) | ![](../images/naca0012-m=0.8-aoa=2-Jacobi-Limiter.PNG) |
 
 
+
+
+[Back to Index](../NOTES_Index.md)

@@ -16,3 +16,6 @@ I measured the instruction rate and on the 16 core AMD Threadripper server, we'r
 
 A very likely reason for the scaling fall-off is the limited memory bandwidth of the AMD threadripper servers, one a 1950X and the larger is a 2990WX. The memory bandwidth of the 16-core 1950X is is 50 GB/s, which translates to a limit of 3.1 GFlops for non-cache local workloads: ```3.125 Gops/s = 50 GB/s / 8-bytes per operand / 2 load and store operations per operand```, so the observed 1.3 could be hitting close to the limit when multiplied by the operands per operation, say 2x if they were all AVX SIMD operations, which is the limit of the 128-bit SIMD register on this AMD Threadripper. Another contributing data point: the 2990WX runs out of parallel scaling much earlier than the smaller server, and the explanation is that it has a problematic memory architecture: 16 cores of the 32 total have to have memory accessed remotely through the other 16. This effectively limits the memory bandwidth to 64 GB/s, which is hardly more than the smaller machine. This would explain the steeper falloff on the 2990WX.
 
+
+
+[Back to Index](../NOTES_Index.md)

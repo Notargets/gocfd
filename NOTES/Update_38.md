@@ -18,3 +18,6 @@ the polynomial basis used in computing the divergence.
 |                  Mach Number                   | Convergence, CFL = 3, Kappa = 3 (Artificial Dissipation) |
 |    ![](../images/naca0012-LGvsJCbasis-K=3.PNG)    |   ![](../images/naca0012-LGvsJCbasis-K=3-convergence.PNG)   |
 
+
+
+[Back to Index](../NOTES_Index.md)

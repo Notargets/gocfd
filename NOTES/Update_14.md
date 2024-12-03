@@ -8,3 +8,6 @@ I have found the open source element library "Fiat", part of FEniCS, that implem
 
 So - I'm back to basic research on the meaning of finite elements and how to properly represent the flux on Raviart-Thomas elements. Papers I'm reading can be found [here](research/convergence_and_fluxes).
 
+
+
+[Back to Index](../NOTES_Index.md)

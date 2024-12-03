@@ -30,3 +30,6 @@ basis he constructed is superior and that mine likely has some asymmetries that 
 
 I'm now working on a revised RT element basis, following Ervin's design.
 
+
+
+[Back to Index](../NOTES_Index.md)

@@ -13,3 +13,6 @@ For (1), they use the fact that in a smooth solution, the energy dissipates rapi
 
 I'm currently working on calculating the shock finder from Persson, after which there are a variety of dissipation and/or filtering approaches we can use, for instance the modified Barth / Jesperson filter used by [Zhiqiang He, et al](https://github.com/Notargets/gocfd/blob/master/research/filters_and_flux_limiters/Zhiqiang-He-Barth-Jesperson-limiter.pdf).
 
+
+
+[Back to Index](../NOTES_Index.md)

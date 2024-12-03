@@ -12,3 +12,6 @@ Propagates low frequency changes rapidly through the finest mesh using nested co
 #### Preconditioners
 Used to remove stiffness in propagating high frequency changes where the difference in wave speeds is large. Examples include very low speed flows where the acoustic wave speed and sonic wave speeds differ greatly, or viscous problems where the viscous eigenvalues are very small compared to sonic waves.
 
+
+
+[Back to Index](../NOTES_Index.md)

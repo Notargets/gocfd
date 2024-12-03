@@ -8,3 +8,5 @@ This question arises because, unlike in the 1D case, there isn't an overlapping 
 Given that for a given multidimensional polynomial degree N the number of polynomial points needed is (N+1)(N+2)/2, so it seems impossible to find a distribution of points that would overlap as in the 1D case.
 
 <img src="../images/tri-nodes-n3-6.PNG" width="600" height="500"  alt=""/>
+
+[Back to Index](../NOTES_Index.md)
