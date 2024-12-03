@@ -6,7 +6,7 @@ I've found a lot of good material on these elements and the Raviart-Thomas eleme
 
 I have found the open source element library "Fiat", part of FEniCS, that implements RT elements and will produce a Vandermonde matrix for them, but I'm not convinced it's useful in a way similar to Lagrange elements. Also, I found that the ordering of the polynomial expansions are strange in the RT elements in Fiat - not sure it matters, but it's not a straightforward "smallest to largest" ordering, which brings into question how to use that Vandermonde matrix in general.
 
-So - I'm back to basic research on the meaning of finite elements and how to properly represent the flux on Raviart-Thomas elements. Papers I'm reading can be found [here](research/convergence_and_fluxes).
+So - I'm back to basic research on the meaning of finite elements and how to properly represent the flux on Raviart-Thomas elements. Papers I'm reading can be found [here](../research/convergence_and_fluxes).
 
 
 

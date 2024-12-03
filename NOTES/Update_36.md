@@ -1,13 +1,17 @@
 ## Update: [10/24/21]
 
-I've replaced the previous broken Runge Kutta time advancement scheme with an explicit SSP54 scheme from Gottlieb, et. al. and now the SOD shocktube results are in excellent agreement with the exact result as shown below. Note the slight bulge in the density profile at the centerline - or alternately it's a lag near the tube walls.
+I've replaced the previous broken Runge-Kutta time advancement scheme with an explicit SSP54 scheme from Gottlieb, et al. and
+now the SOD shocktube results are in excellent agreement with the exact result as shown below. Note the slight bulge in the
+density profile at the centerline—or alternately, it's a lag near the tube walls.
 
 | SSP54 Time integration Centerline Compared with Exact Solution |            Density in 2D             |
 |:--------------------------------------------------------------:|:------------------------------------:|
 |                  ![](../images/sod-2d-ssp54.PNG)                  | ![](../images/sod-2d-ssp54-density.PNG) |
 
 Previously:
-Good news: the source of the bug is clearly the time integration (Runge Kutta 4th Order SSP algorithm) - simply changing one of the constants from 0.25 to 0.4 fixes the wavespeed issue completely. I'll revisit the implementation once I find out where I got the coefficients from - in this case I haven't included their source reference in the code (DOH!)
+Good news: the source of the bug is clearly the time integration (Runge-Kutta 4th Order SSP algorithm) - simply changing one
+of the constants from 0.25 to 0.4 fixes the wave speed issue completely. I'll revisit the implementation once I find out where
+I got the coefficients from - in this case, I haven't included their source reference in the code (DOH!)
 
 | Centerline Compared with Exact Solution |             Density in 2D             |
 |:---------------------------------------:|:-------------------------------------:|
