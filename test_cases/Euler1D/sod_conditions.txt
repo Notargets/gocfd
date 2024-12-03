@@ -1,0 +1,10 @@
+X: from 0 to 1
+T: from 0 to 20
+Left:
+Rho = 1
+U = 0
+E = 1/(gamma-1)
+Right:
+Rho = 0.125
+U = 0
+E = 0.1/(gamma-1)
