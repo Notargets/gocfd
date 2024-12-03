@@ -6,5 +6,5 @@ The dissipation is not able to suppress shock induced (Gibbs) oscillations as im
 
 Next, I plan to implement 2nd order derivative continuity along the lines of the LDG method, which will also support the next steps in implementation of viscous equations (Navier Stokes). Hopefully, we'll kill two birds with one stone: sharp shock capturing at high order accuracy and viscous solutions!
 
-![](images/discontinuous-gradient-in-shock.PNG)
+![](../images/discontinuous-gradient-in-shock.PNG)
 

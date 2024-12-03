@@ -5,7 +5,7 @@ I've tested the Isentropic Vortex case successfully using a Lax flux and a Riema
 
 The solver is stable with CFL = 1 using the RK3 SSP time advancement scheme. I'll plan to do a formal stability analysis later, but all looks good! The movie below is 1st Order (top left), 2nd Order (top right), 4th Order (btm left) and 7th Order (btm right) solutions of the isentropic vortex case with the same 256 element mesh using a Lax flux. We can see the resolution and dispersion improve as the order increases.
 
-![](images/vortex-1-2-4-7-lax-cropped.gif)
+![](../images/vortex-1-2-4-7-lax-cropped.gif)
 
 You can recreate the above with ```gocfd 2D -g --gridFile DG2D/vortexA04.neu -n 1```, change the order with the "-n" option. "gocfd help 2D" for all options.
 

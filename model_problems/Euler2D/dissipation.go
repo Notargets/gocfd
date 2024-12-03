@@ -245,7 +245,7 @@ func (sd *ScalarDissipation) CalculateEpsilonGradient(c *Euler, cont ContinuityL
 	}
 }
 
-func (sd *ScalarDissipation) AddDissipation(c *Euler, myThread int, Jinv, Jdet utils.Matrix, Q, RHSQ [4]utils.Matrix) {
+func (sd *ScalarDissipation) AddDissipation(c *Euler, myThread int, Jinv, Jdet utils.Matrix, RHSQ [4]utils.Matrix) {
 	/*
 		The dissipation term is in the form:
 		diss = epsilon*Grad(U)

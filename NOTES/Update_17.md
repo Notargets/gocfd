@@ -1,5 +1,5 @@
 ### Update: (Dec 22, 2020):
-![](images/convergence-study-naca0012.PNG)
+![](../images/convergence-study-naca0012.PNG)
 
 In the graph we compare convergence to steady state using two kinds of flux calculation and two types of Runge Kutta time advancement. The RK4 SSP time advancement is far superior in terms of CFL stability, as expected, without much increase in computational work or storage as compared with the RK3 method. The difference between the interpolated flux and the normal (interpolated Q, then calculate flux) is very small. The Lax and Roe flux results with RK4 are almost identical, the two lines on the graph are indistinguishable. 
 

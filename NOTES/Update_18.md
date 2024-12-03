@@ -1,5 +1,5 @@
 ### Update: (Dec 15, 2020):
-![](images/scaling-study-vortex-opt.gif)
+![](../images/scaling-study-vortex-opt.gif)
 
 The solver now uses multiple cores / CPUs to speed things up. The speedup is somewhat limited, I'm currently getting about 6x speedup on a 16 core machine, but it was very short work to get this level of speedup (a couple of hours). The face computations are parallelized very efficiently, and the same approach and structure should be fine to scale to thousands of cores.
 

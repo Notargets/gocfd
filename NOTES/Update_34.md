@@ -1,6 +1,6 @@
 ### Update: (May 25, 2020): Roe Flux with DFR - Euler 1D compared to Analytic Solution in real time
 #### T = 0.223, N=4, Roe Flux, 600 Elements
-![](images/EulerDFRRho1.PNG)
+![](../images/EulerDFRRho1.PNG)
 
 This is cool - being able to see exactly the errors and successes in realtime. The above is a snap of an interim result where I'm now showing the exact solution in symbols overlaying the simulation in realtime and sure enough we see a shock speed error on the leading shock wave, along with excellent reproduction of the smooth expansion flow.
 

@@ -5,5 +5,5 @@ This is an interesting problem because of the temperature remainder after the co
 This case is obtained by initializing the tube as with the Sod tube, but leaving the exit boundary at the left side values (In == Out). This produces a left running shock wave that meets with the shock moving right.
 
 #### T = 0.36, 1000 Elements
-![](images/Euler1D-MidTube-K1000-N6-T.36.PNG)
+![](../images/Euler1D-MidTube-K1000-N6-T.36.PNG)
 

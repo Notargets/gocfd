@@ -26,7 +26,7 @@ to the element's extrema - specifically the interpolation of solution values to 
 |                 Jacobi Polynomials to N=9                 |                     Interval: -1 < X < 1                     |
 |:---------------------------------------------------------:|:------------------------------------------------------------:|
 |                     Alpha = Beta = 0                      |                     Alpha = Beta = -0.99                     |
-| ![](images/jacobi-polynomial-to-degree9-alpha=beta=0.PNG) | ![](images/jacobi-polynomial-to-degree9-alpha=beta=-.99.PNG) |
+| ![](../images/jacobi-polynomial-to-degree9-alpha=beta=0.PNG) | ![](../images/jacobi-polynomial-to-degree9-alpha=beta=-.99.PNG) |
 
 In the above plot of the Jacobi polynomial in the interval -1 to 1, we can see what appears to be a collapse in the
 values of the polynomials of all orders at the extrema of the interval. Intuition says we want to have all modes equally
@@ -40,6 +40,6 @@ This will allow for comparison among basis functions and selection of the best f
 |      2nd Order, NACA 0012 Airfoil, Mach = 0.8, Alpha = 2 degrees      |                                    _                                    |                          _                          |
 |:---------------------------------------------------------------------:|:-----------------------------------------------------------------------:|:---------------------------------------------------:|
 | Artificial Dissipation, Intra Cell Shock Captured, Converged Solution |                   Same as left, with stretched basis                    |           Solution Limiter, Non-Converged           |
-|          ![](images/naca0012-m=0.8-aoa=2-Jacobi-Epsilon.PNG)          | ![](images/naca0012-m=0.8-aoa=2-Jacobi-alpha=-.99,beta=-.99Epsilon.PNG) | ![](images/naca0012-m=0.8-aoa=2-Jacobi-Limiter.PNG) |
+|          ![](../images/naca0012-m=0.8-aoa=2-Jacobi-Epsilon.PNG)          | ![](../images/naca0012-m=0.8-aoa=2-Jacobi-alpha=-.99,beta=-.99Epsilon.PNG) | ![](../images/naca0012-m=0.8-aoa=2-Jacobi-Limiter.PNG) |
 
 

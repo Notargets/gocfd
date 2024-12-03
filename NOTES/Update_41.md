@@ -15,14 +15,14 @@ Unlike the advection equation model problem, this solver does have unstable poin
 In the example pictured, there are 80 elements (K=80) and the element polynomial degree is 5 (N=5).
 
 #### Initial State
-![](images/Maxwell1D-cavity0.PNG)
+![](../images/Maxwell1D-cavity0.PNG)
 
 #### Intermediate State
-![](images/Maxwell1D-cavity.PNG)
+![](../images/Maxwell1D-cavity.PNG)
 
 #### First Mode
-![](images/Maxwell1D-cavity2.PNG)
+![](../images/Maxwell1D-cavity2.PNG)
 
 #### Second Mode
-![](images/Maxwell1D-cavity4.PNG)
+![](../images/Maxwell1D-cavity4.PNG)
 

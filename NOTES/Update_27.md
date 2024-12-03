@@ -3,7 +3,7 @@ I finally have a working Raviart-Thomas element at any K up to 7th order now. Th
 
 |         RT0 Element         |         RT7 Element         |
 |:---------------------------:|:---------------------------:|
-| ![](images/RT1_element.PNG) | ![](images/RT7_element.PNG) |
+| ![](../images/RT1_element.PNG) | ![](../images/RT7_element.PNG) |
 
 The Raviart-Thomas elements at orders 1 and 7 are shown above, with basis vectors as green lines. On the left is RT1, showing a single interior point with two basis vectors. The RT7 element has 28 interior points, each with two basis vectors. The edges of RT7 each have 8 points, each with a single normal vector for the basis.
 

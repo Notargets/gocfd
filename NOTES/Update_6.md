@@ -4,14 +4,14 @@ I've replaced the previous broken Runge Kutta time advancement scheme with an ex
 
 | SSP54 Time integration Centerline Compared with Exact Solution |            Density in 2D             |
 |:--------------------------------------------------------------:|:------------------------------------:|
-|                  ![](images/sod-2d-ssp54.PNG)                  | ![](images/sod-2d-ssp54-density.PNG) |
+|                  ![](../images/sod-2d-ssp54.PNG)                  | ![](../images/sod-2d-ssp54-density.PNG) |
 
 Previously:
 Good news: the source of the bug is clearly the time integration (Runge Kutta 4th Order SSP algorithm) - simply changing one of the constants from 0.25 to 0.4 fixes the wavespeed issue completely. I'll revisit the implementation once I find out where I got the coefficients from - in this case I haven't included their source reference in the code (DOH!)
 
 | Centerline Compared with Exact Solution |             Density in 2D             |
 |:---------------------------------------:|:-------------------------------------:|
-|      ![](images/sod-2d-broken.PNG)      | ![](images/sod-2d-density-broken.PNG) |
+|      ![](../images/sod-2d-broken.PNG)      | ![](../images/sod-2d-density-broken.PNG) |
 
 I've implemented a 2D version of the 1D shock tube with graphics and the exact solution for comparison.
 

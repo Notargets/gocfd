@@ -15,15 +15,15 @@ bash# gocfd -model 2 -graph -K 250 -N 1 -FinalTime 0.2
 #### T = 0.2, 60 Elements
 |             Linear Elements             |           10th Order Elements            |
 |:---------------------------------------:|:----------------------------------------:|
-| ![](images/Euler1D-SOD-K60-N1-T0.2.PNG) | ![](images/Euler1D-SOD-K60-N10-T0.2.PNG) |
+| ![](../images/Euler1D-SOD-K60-N1-T0.2.PNG) | ![](../images/Euler1D-SOD-K60-N10-T0.2.PNG) |
 
 #### T = 0.2, 250 Elements
 |             Linear Elements              |            10th Order Elements            |
 |:----------------------------------------:|:-----------------------------------------:|
-| ![](images/Euler1D-SOD-K250-N1-T0.2.PNG) | ![](images/Euler1D-SOD-K250-N10-T0.2.PNG) |
+| ![](../images/Euler1D-SOD-K250-N1-T0.2.PNG) | ![](../images/Euler1D-SOD-K250-N10-T0.2.PNG) |
 
 #### T = 0.2, 500 Elements
 |             Linear Elements              |            10th Order Elements            |
 |:----------------------------------------:|:-----------------------------------------:|
-| ![](images/Euler1D-SOD-K500-N1-T0.2.PNG) | ![](images/Euler1D-SOD-K500-N10-T0.2.PNG) |
+| ![](../images/Euler1D-SOD-K500-N1-T0.2.PNG) | ![](../images/Euler1D-SOD-K500-N10-T0.2.PNG) |
 

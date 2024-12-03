@@ -44,6 +44,6 @@ Rho Integration Check: Exact = 0.5625, Model = 0.5625, Log10 Error = -4.3576
 case,K,N,CFL,Log10_Rho_rms,Log10_Rhou_rms,Log10_e_rms,Log10_rho_max,Log10_rhou_max,Log10_e_max
 "DFR Integration, Roe Flux",2000,8,2.5000,-2.6913,-2.7635,-2.2407,-1.7183,-1.6491,-1.1754
 ```
-![](images/Euler-1D-DFR2-Roe-N8-K2000-0.1.PNG)
+![](../images/Euler-1D-DFR2-Roe-N8-K2000-0.1.PNG)
 
 

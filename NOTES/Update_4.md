@@ -16,5 +16,5 @@ the polynomial basis used in computing the divergence.
 | NACA0012 M=0.8, AOA=2 Lagrange vs Jacobi Basis |               L2 Norm Convergence History                |
 |:----------------------------------------------:|:--------------------------------------------------------:|
 |                  Mach Number                   | Convergence, CFL = 3, Kappa = 3 (Artificial Dissipation) |
-|    ![](images/naca0012-LGvsJCbasis-K=3.PNG)    |   ![](images/naca0012-LGvsJCbasis-K=3-convergence.PNG)   |
+|    ![](../images/naca0012-LGvsJCbasis-K=3.PNG)    |   ![](../images/naca0012-LGvsJCbasis-K=3-convergence.PNG)   |
 

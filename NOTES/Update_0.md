@@ -3,11 +3,11 @@ Awesome CFD solver written in Go
 
 | NACA 0012 Airfoil at M=0.3, Alpha=6, Roe flux, Local Time Stepping | M=0.5, Alpha=0, Roe Flux, 1482 O(2) Elements, Converged |
 |:------------------------------------------------------------------:|--------------------------------------------------------:|
-|               ![](images/naca12_2d_m0.3_a6_roe.gif)                |                 ![](images/naca12_2d_m0.5_aoa0_Roe.PNG) |
+|               ![](../images/naca12_2d_m0.3_a6_roe.gif)                |                 ![](../images/naca12_2d_m0.5_aoa0_Roe.PNG) |
 
 |                           Density                            |                            X Momentum                             |                  Density                   |
 |:------------------------------------------------------------:|:-----------------------------------------------------------------:|:------------------------------------------:|
-| ![](images/render-mesh-isentropic-vortex-initial-zoom-7.PNG) | ![](images/render-mesh-isentropic-vortex-initial-zoom-7-rhoU.png) | ![](images/vortex-1-2-4-7-lax-cropped.gif) |
+| ![](../images/render-mesh-isentropic-vortex-initial-zoom-7.PNG) | ![](../images/render-mesh-isentropic-vortex-initial-zoom-7-rhoU.png) | ![](../images/vortex-1-2-4-7-lax-cropped.gif) |
 
 ====
 ## Update: [11/2/24]
@@ -32,11 +32,11 @@ values, similar in complexity to implementing a viscous flow field.
 
 |                    No Limiter<br/>P=0                    |                            P=2                             |                                P=4                                 |
 |:----------------------------------------------------------:|:----------------------------------------------------------:|:------------------------------------------------------------------:|
-|   ![](images/M=2-15deg-wedge-P=0-converged-nofilter.PNG)   |   ![](images/M=2-15deg-wedge-P=2-converged-nofilter.PNG)   |                        No Solution Possible                        |
+|   ![](../images/M=2-15deg-wedge-P=0-converged-nofilter.PNG)   |   ![](../images/M=2-15deg-wedge-P=2-converged-nofilter.PNG)   |                        No Solution Possible                        |
 |                Barth Jespersen Limiter<br/>                |                                                            |                                                                    |
-|   ![](images/M=2-15deg-wedge-P=0-converged-nofilter.PNG)   |   ![](images/M=2-15deg-wedge-P=2-BarthJ-K5-buzzing.PNG)    |       ![](images/M=2-15deg-wedge-P=4-BarthJ-K5-buzzing.PNG)        |
+|   ![](../images/M=2-15deg-wedge-P=0-converged-nofilter.PNG)   |   ![](../images/M=2-15deg-wedge-P=2-BarthJ-K5-buzzing.PNG)    |       ![](../images/M=2-15deg-wedge-P=4-BarthJ-K5-buzzing.PNG)        |
 |           Persson C0 Continuous Dissipation<br/>           |                                                            |                                                                    |
-| ![](images/M=2-15deg-wedge-P=0-converged-perssonC0-K5.PNG) | ![](images/M=2-15deg-wedge-P=2-converged-perssonC0-K5.PNG) | ![](images/M=2-15deg-wedge-P=4-converged-perssonC0-K5.PNG) |
+| ![](../images/M=2-15deg-wedge-P=0-converged-perssonC0-K5.PNG) | ![](../images/M=2-15deg-wedge-P=2-converged-perssonC0-K5.PNG) | ![](../images/M=2-15deg-wedge-P=4-converged-perssonC0-K5.PNG) |
 
 ## Update: [11/28/21]
 
@@ -58,11 +58,11 @@ accuracy?
 
 | P=0, NACA 0012, Mach = 1.0, Alpha = 2, Interpolated Flux, Converged |
 |:-------------------------------------------------------------------:|
-|            ![](images/interpolateFluxNotQ-M=1.0-P=0.PNG)            |
+|            ![](../images/interpolateFluxNotQ-M=1.0-P=0.PNG)            |
 
 | P=2, NACA 0012, Mach = 0.5, Alpha = 2, Interpolated Flux, Converged |     P=0, Mach = 0.8, Fine Mesh, Converged     |
 |:-------------------------------------------------------------------:|:---------------------------------------------:|
-|              ![](images/interpolateFluxNotQ-M=0.5.PNG)              | ![](images/interpolateFluxNotQ-M=0.8-P=0.PNG) |
+|              ![](../images/interpolateFluxNotQ-M=0.5.PNG)              | ![](../images/interpolateFluxNotQ-M=0.8-P=0.PNG) |
 
 
 ## Discontinuous Galerkin Method for solving systems of equations - CFD, CEM, ... hydrodynamics-fusion (simulate the Sun), etc! 

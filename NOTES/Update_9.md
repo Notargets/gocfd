@@ -1,7 +1,7 @@
 ### Update: [9/21/21]
 
 Update: I finished the shock finder, below is a plot of the "ShockFunction" (function 100) for the NACA0012 airfoil at M=0.8 on it's way to becoming unstable. We can clearly see the shock function has picked up instability at the forming shock wave on the trailing edge and at the curvature inflection on the top. We can also see the shock indicator tracking the startup transient wave coming from the leading edge. It looks to be very effective, as reported! Next step - implement dissipation for "troubled elements" to remove the instability.
-![](images/shock-finder-naca-m0.8.PNG)
+![](../images/shock-finder-naca-m0.8.PNG)
 
 After some research, I found a general pattern and one excellent summary from [Persson, et al](https://github.com/Notargets/gocfd/blob/master/research/filters_and_flux_limiters/PerssonPeraire_ShockCapturing.pdf) describing how to capture shocks within the elements themselves while eliminating the aliasing oscillations.
 

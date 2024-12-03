@@ -280,7 +280,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		if c.Dissipation != nil {
-			c.Dissipation.AddDissipation(c, myThread, Jinv, Jdet, QQQ, RHSQ)
+			c.Dissipation.AddDissipation(c, myThread, Jinv, Jdet, RHSQ)
 		}
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
