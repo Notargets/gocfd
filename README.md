@@ -41,7 +41,7 @@ export DISPLAY=:0
 gocfd 1D -g
 
 ### 2D Airfoil Test Case
-gocfd 2D -F test_cases/Euler2D/naca_12/mesh/nacaAirfoil-base.su2 -I test_cases/Euler2D/naca_12/input-wall.yaml -g -z 0.08
+gocfd 2D -F test_cases/Euler2D/naca_12/mesh/nacaAirfoil-base.su2 -I test_cases/Euler2D/naca_12/input-wall.yaml -g -s 50 -z 0.08
 ```
 
 ## Code Review Guidelines

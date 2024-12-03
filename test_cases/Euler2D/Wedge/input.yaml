@@ -15,7 +15,7 @@ LocalTimeStepping: true
 MaxIterations: 800000
 
 #Limiter: 
-#Limiter: PerssonC0
-Limiter: Barth Jesperson
+Limiter: PerssonC0
+#Limiter: Barth Jesperson
 #Limiter: ModeFilter
-Kappa: 6
+Kappa: 3

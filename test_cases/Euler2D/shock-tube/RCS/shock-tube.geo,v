@@ -1,0 +1,44 @@
+head	1.1;
+access;
+symbols;
+locks
+	llonergan:1.1; strict;
+comment	@# @;
+
+
+1.1
+date	2021.10.22.20.32.01;	author llonergan;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@Point(1) = {0, 0, 0, 0.01};
+Point(2) = {0.5, 0, 0, 0.01};
+Point(3) = {1.0, 0, 0, 0.01};
+Point(4) = {1.0, 0.1, 0, 0.01};
+Point(5) = {0.5, 0.1, 0, 0.01};
+Point(6) = {0, 0.1, 0, 0.01};
+Line(1) = {1, 2};
+Line(2) = {2, 5};
+Line(3) = {5, 6};
+Line(4) = {6, 1};
+Line(5) = {2, 3};
+Line(6) = {3, 4};
+Line(7) = {4, 5};
+Curve Loop(1) = {1, 2, 3, 4};
+Curve Loop(2) = {5, 6, 7, -2};
+Plane Surface(1) = {1};
+Plane Surface(2) = {2};
+Physical Curve("In") = {4};
+Physical Curve("Out") = {6};
+Physical Curve("Wall") = {3, 1, 7, 5};
+@
