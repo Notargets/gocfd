@@ -51,6 +51,11 @@ well-resolved turbulent eddies and shear flows using this new "Discontinuous Gal
 ====
 # Quick Start Guide
 
+## Supported Platforms
+
+I've run the code on many Ubuntu Linux distributions, and also on Windows 10. Because it is written in Go, it should be
+portable to many platforms that support OpenGL graphics.
+
 ## Building on Ubuntu Linux
 
 First, ensure the Go language is installed and available in your PATH. Proceed to install the necessary prerequisites:
@@ -89,7 +94,7 @@ For example, consider this implementation:
 RHSE = el.Dr.Mul(FluxH).ElMul(el.Rx).ElDiv(c.Epsilon).Scale(-1)
 ```
 
-## Requirements to run the code
+## Details on Ubuntu packages needed to run the code
 Here is what I'm using as a platform:
 ```
 me@home:bash# go version
