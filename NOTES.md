@@ -10,7 +10,7 @@ Awesome CFD solver written in Go
 | ![](images/render-mesh-isentropic-vortex-initial-zoom-7.PNG) | ![](images/render-mesh-isentropic-vortex-initial-zoom-7-rhoU.png) | ![](images/vortex-1-2-4-7-lax-cropped.gif) |
 
 ====
-## Currently [11/2/24]
+## Update: [11/2/24]
 
 After a three year hiatus I'm back!
 
@@ -38,7 +38,7 @@ values, similar in complexity to implementing a viscous flow field.
 |           Persson C0 Continuous Dissipation<br/>           |                                                            |                                                                    |
 | ![](images/M=2-15deg-wedge-P=0-converged-perssonC0-K5.PNG) | ![](images/M=2-15deg-wedge-P=2-converged-perssonC0-K5.PNG) | ![](images/M=2-15deg-wedge-P=4-converged-perssonC0-K5.PNG) |
 
-## Updates [11/28/21]
+## Update: [11/28/21]
 
 I've now continued testing and transonic cases are also working for P!=1. What's interesting now is that for P=0,
 the transonic solutions and shock tube solutions are wiggle free / monotone. Below is a transonic airfoil solution at
@@ -106,7 +106,7 @@ inside the cell consequent from the intra-cell capture of the discontinuity.
 
 I think the next step I'll take is to modify the artificial viscoscity to parameterize it similarly to Vandenhoeck, then
 run some experiments to validate stability when capturing shock waves over a couple of elements.
-### Updates [11/27/21]
+### Update: [11/27/21]
 
 I've implemented interpolation of fluxes to the edges, replacing the interpolation of solution values followed by
 computation of the flux. It's currently an option for Lax and Roe fluxes. Below is a 2nd order converged solution using
@@ -122,21 +122,21 @@ the spurious new minima/maxima being introduced by the flux interpolation. TVD/E
 limit the interpolated values so as not to introduce new minima/maxima, but I think it's important to formulate such an
 operation so that it doesn't create aphysical effects, especially in the time accurate solver.
 
-### Updates [11/15/21]
+### Update: [11/15/21]
 
 New theory: it's the interpolation of the solution values to the edges that is the culprit - instead,
 I'll interpolate the flux from the solution points to the edge along with the solution values, then compose the Roe
 flux as an average of the interpolated L/R fluxes plus terms arising from the interpolated solution values for the
 Riemann problem at the edge.
 
-### Updates [11/9/21]
+### Update: [11/9/21]
 
 | NACA0012 M=0.8, AOA=2 New RT Element vs Lagrange Basis vs Jacobi Basis |
 |:----------------------------------------------------------------------:|
 |                        L2 Convergence Compared                         |
 |                   ![](images/convergence-newRT.PNG)                    |
 
-Update [11/15/21]: The results are in - a completely new Raviart-Thomas element design is now available, and it gives
+Update: [11/15/21]: The results are in - a completely new Raviart-Thomas element design is now available, and it gives
 results that are very similar to the prior implementation. It's hard to judge which is superior, but at this point
 the new basis requires a slightly higher artificial dissipation for the airfoil case and seems to achieve similar
 convergence rates. The "wiggles" in the shock tube case are still present. Mostly, I'd say the results prove that the
@@ -161,7 +161,7 @@ basis he constructed is superior and that mine likely has some asymmetries that 
 
 I'm now working on a revised RT element basis, following Ervin's design.
 
-### Updates [11/5/21]
+### Update: [11/5/21]
 
 Next: I'm going to look into an exponential filter for the polynomial interpolation to the edges.
 
@@ -181,7 +181,7 @@ the polynomial basis used in computing the divergence.
 |                  Mach Number                   | Convergence, CFL = 3, Kappa = 3 (Artificial Dissipation) |
 |    ![](images/naca0012-LGvsJCbasis-K=3.PNG)    |   ![](images/naca0012-LGvsJCbasis-K=3-convergence.PNG)   |
 
-### Updates [10/26/21]
+### Update: [10/26/21]
 
 After fixing up the limiter and the epsilon artificial dissipation and doing some numerical studies with the shock tube
 and airfoil, I'm convinced that the core flux/divergence scheme is a bit too "bouncy" as compared with other schemes.
@@ -226,7 +226,7 @@ This will allow for comparison among basis functions and selection of the best f
 |          ![](images/naca0012-m=0.8-aoa=2-Jacobi-Epsilon.PNG)          | ![](images/naca0012-m=0.8-aoa=2-Jacobi-alpha=-.99,beta=-.99Epsilon.PNG) | ![](images/naca0012-m=0.8-aoa=2-Jacobi-Limiter.PNG) |
 
 
-### Updates [10/24/21]
+### Update: [10/24/21]
 
 I've replaced the previous broken Runge Kutta time advancement scheme with an explicit SSP54 scheme from Gottlieb, et. al. and now the SOD shocktube results are in excellent agreement with the exact result as shown below. Note the slight bulge in the density profile at the centerline - or alternately it's a lag near the tube walls.
 
@@ -249,7 +249,7 @@ So far I've verified the bug exists with both Lax / Rusanov and Roe numerical fl
 
 On the bright side, we see the sharp resolution of the shock wave and near perfect symmetry in the solution, so we just need to chase down the wavespeed error in the solver physics.
 
-### Updates [10/12/21]
+### Update: [10/12/21]
 
 I've implemented two different gradient calculations to compute the dissipation and verified they function correctly.
 
@@ -259,13 +259,13 @@ Next, I plan to implement 2nd order derivative continuity along the lines of the
 
 ![](images/discontinuous-gradient-in-shock.PNG)
 
-### Updates [10/3/21]
+### Update: [10/3/21]
 
 I've implemented laplacian artificial dissipation that tracks shock induced instabilities using the Lagrangian solution element to compute the flux derivatives and also for the divergence of the dissipation field. The method works well for 1st order calculations, with sharp shock resolution and fast convergence, though the intra-element shock resolution is marked with a significant discontinuity with the edges of the shock capturing cell. When the shock aligns with the edge, the result is a near perfect shock capture, but when the shock is not on the edge, the intra-cell solution has spurious internal oscillations.
 
 Based on these results, I'm implementing what seems a simpler and more appropriate method: The dissipation flux will be calculated for all points within the Raviart Thomas element used for the calculation of the fluid flux divergence. The resulting dissipation flux [epsR, epsS] is then added to the physical fluid flux [fluxR,fluxS] and then the divergence of the combined flux is calculated using the RT element divergence operator. I'm anticipating that this approach should provide added stability to the flux field, which is an (N+1)th order polynomial field that overlays the (N)th order solution field. In the prior approach, the (N)th order divergence of the artificial dissipation is added to the (N+1)th order derived physical divergence, and I think that is creating aliasing errors that are unstable.
 
-### Updates [9/21/21]
+### Update: [9/21/21]
 
 Update: I finished the shock finder, below is a plot of the "ShockFunction" (function 100) for the NACA0012 airfoil at M=0.8 on it's way to becoming unstable. We can clearly see the shock function has picked up instability at the forming shock wave on the trailing edge and at the curvature inflection on the top. We can also see the shock indicator tracking the startup transient wave coming from the leading edge. It looks to be very effective, as reported! Next step - implement dissipation for "troubled elements" to remove the instability.
 ![](images/shock-finder-naca-m0.8.PNG)
@@ -280,7 +280,7 @@ For (1), they use the fact that in a smooth solution, the energy dissipates rapi
 
 I'm currently working on calculating the shock finder from Persson, after which there are a variety of dissipation and/or filtering approaches we can use, for instance the modified Barth / Jesperson filter used by [Zhiqiang He, et al](https://github.com/Notargets/gocfd/blob/master/research/filters_and_flux_limiters/Zhiqiang-He-Barth-Jesperson-limiter.pdf).
 
-### Updates[9/18/21]
+### Update: [9/18/21]
 Update: The data are in - the new Roe-ER flux *is* faster to compute and has good characteristics, so it's a good thing  and will be useful for turbulence capturing and strong shock applications later. However, tests showed that using either *Roe* or *Roe-ER* flux calculations crashed due to odd-even instability with shocks past maybe Mach 0.6 on the airfoil test. I'm thinking that we need to stabilize the flux at the border of the element using higher order approximations and clipping them using MUSCL/TVD approach. This is similar to a typical J->J+1 structured approach but using "wiggle simulation" for the flux derivatives at the boundary. I wonder also if I'll need to increase the derivative degree at the boundary along with the overall order of the element? It's very do-able, though I think I'd want to do a more analytic derivation for sampling higher order fields within elements.
 
 Removing the "wiggles", part X: There are still odd-even instability modes being triggered by shocks, which for now I'm assuming are being introduced by the flux transfers between elements. It's possible that the discontinuities from shocks are landing in the polynomial basis and amplifying there, but first I'm going to eliminate the flux transfer amplifications before doing anything inside the element.
@@ -292,7 +292,7 @@ I'm planning now to implement a TVD scheme at 2nd order for the flux transfer as
 
 This approach should introduce damping to oscillatory modes crossing the boundary, while slightly improving the accuracy of the interpolated flux.
 
-### Updates[9/18/21]
+### Update: [9/18/21]
 
 Working on an enhanced flux transfer scheme that promises to protect against odd-even decoupling ("wiggles") while minimizing artificial dissipation that can destroy turbulence fields, etc.
 
@@ -302,7 +302,7 @@ My remaining concern / question is about whether the use of a flux limiter for t
 
 
 
-### Updates [8/28/21]
+### Update: [8/28/21]
 
 Working on adding routines to invert and solve block matrix systems so that I can implement an implicit time advancement scheme.
 
@@ -310,7 +310,7 @@ Implicit fluid dynamics schemes all use the flux jacobian of the underlying equa
 
 The work I'm doing now will add a capability to efficiently store the full block system matrix and use it to solve for the time update.
 
-### Updates (Aug 18, 2021):
+### Update: (Aug 18, 2021):
 
 Investigating algorithmic methods to speed up convergence to a steady state solution. These techniques can also be applied to unsteady/time varying solutions by solving incremental time advancement sub-problems.
 
@@ -324,7 +324,7 @@ Propagates low frequency changes rapidly through the finest mesh using nested co
 #### Preconditioners
 Used to remove stiffness in propagating high frequency changes where the difference in wave speeds is large. Examples include very low speed flows where the acoustic wave speed and sonic wave speeds differ greatly, or viscous problems where the viscous eigenvalues are very small compared to sonic waves.
 
-### Updates (Jan 11, 2021):
+### Update: (Jan 11, 2021):
 
 Time Accurate Abrupt Start Transients
 
@@ -342,7 +342,7 @@ I measured the instruction rate and on the 16 core AMD Threadripper server, we'r
 
 A very likely reason for the scaling fall-off is the limited memory bandwidth of the AMD threadripper servers, one a 1950X and the larger is a 2990WX. The memory bandwidth of the 16-core 1950X is is 50 GB/s, which translates to a limit of 3.1 GFlops for non-cache local workloads: ```3.125 Gops/s = 50 GB/s / 8-bytes per operand / 2 load and store operations per operand```, so the observed 1.3 could be hitting close to the limit when multiplied by the operands per operation, say 2x if they were all AVX SIMD operations, which is the limit of the 128-bit SIMD register on this AMD Threadripper. Another contributing data point: the 2990WX runs out of parallel scaling much earlier than the smaller server, and the explanation is that it has a problematic memory architecture: 16 cores of the 32 total have to have memory accessed remotely through the other 16. This effectively limits the memory bandwidth to 64 GB/s, which is hardly more than the smaller machine. This would explain the steeper falloff on the 2990WX.
 
-### Updates (Dec 31, 2020):
+### Update: (Dec 31, 2020):
 
 I added a command line option to generate a runtime profile for only the solver portion of the code, for example, this command:
 ``` gocfd 2D -I input-bench.yaml -F mesh/naca12_2d-medium-lal.su2 -s 100 -p 1 --profile```
@@ -356,7 +356,7 @@ At this point, the runtime profile is pretty flat and clean of excess memory all
 
 The above graph shows parallel CPU scaling for two meshes, one coarse (K=4,481) and one fine (K=42,475) on two different multi-processor Linux servers, each an AMD threadripper architecture from 2018/19. On the 16 core, 32 hyper-thread machine, we get a max scaling of around 12x on 32 threads, and we might expect to see scaling to around 20x on 32 hyperthreads if we were perfect (a hyper-thread is not equivalent to a core). Interestingly, on the machine with twice the CPU cores, we see slightly worse scaling, especially at higher parallelism request. Because of this second finding, I believe we are seeing performance degradation due to cache conflicts, where the processors are unable to happily share access to the cache because of cache contention. I've been anticipating this effect, as I've organized the memory accesses in ways that might trigger a lot of strided accesses that may not be cache friendly, which will incur this kind of effect on an SMP system. More investigation is needed to determine what is causing the apparent contention... 
 
-### Updates (Dec 31, 2020):
+### Update: (Dec 31, 2020):
 
 New Year's Day progress!
 
@@ -364,7 +364,7 @@ I partitioned the 2D solver by elements for enhanced parallelism. The solver now
 
 As a result of the partitioning, the parallelism is far better and we can get much faster solution times. The level of parallelism is well suited to machines with less than 100 processors. For more parallelism, we will need to use a mesh partitioning algorithm that selects the element partitions so as to minimize the surface area shared between partitions, such as the commonly used tool "metis". When the elements are partitioned in that way, we can isolate the time spent in synchronization to exactly the minimum necessary. By comparison, now we're doing all edge flux computation during the synchronization period.
 
-### Updates (Dec 22, 2020):
+### Update: (Dec 22, 2020):
 ![](images/convergence-study-naca0012.PNG)
 
 In the graph we compare convergence to steady state using two kinds of flux calculation and two types of Runge Kutta time advancement. The RK4 SSP time advancement is far superior in terms of CFL stability, as expected, without much increase in computational work or storage as compared with the RK3 method. The difference between the interpolated flux and the normal (interpolated Q, then calculate flux) is very small. The Lax and Roe flux results with RK4 are almost identical, the two lines on the graph are indistinguishable. 
@@ -386,7 +386,7 @@ As a result of the above experiments, the next focus is on:
 - A complication: normal multigrid methods use agglomeration to compose the lower order meshes from the fine mesh. Currently, we only have triangular elements, so we can not use quad or other polygons that arise from agglomeration.
 - A possible solution: compose RT and Lagrange elements for quads and polygons to enable later use in Navier-Stokes and multigrid
 
-### Updates (Dec 15, 2020):
+### Update: (Dec 15, 2020):
 ![](images/scaling-study-vortex-opt.gif)
 
 The solver now uses multiple cores / CPUs to speed things up. The speedup is somewhat limited, I'm currently getting about 6x speedup on a 16 core machine, but it was very short work to get this level of speedup (a couple of hours). The face computations are parallelized very efficiently, and the same approach and structure should be fine to scale to thousands of cores.
@@ -404,7 +404,7 @@ This current work includes the use of periodic boundary conditions for the right
 
 Next up: solid wall BCs so we can run airfoils, cylinders, etc etc.
 
-### Updates (Nov 24 2020):
+### Update: (Nov 24 2020):
 The 2D Euler solver now works! Yay!
 
 I've tested the Isentropic Vortex case successfully using a Lax flux and a Riemann BC backed by an analytic solution at the boundaries. Unlike the DG solver based on integration in Westhaven, et al, this solver is not stable when using a Dirichlet (fixed) BC set directly to the analytic solution, so the Riemann solution suppresses unstable waves at the boundary. I haven't calculated error yet, but it's clear that as we increase the solver order, the solution gets much more resolved with lower undershoots, so it appears as though a convergence study will show super convergence, as expected.
@@ -415,35 +415,35 @@ The solver is stable with CFL = 1 using the RK3 SSP time advancement scheme. I'l
 
 You can recreate the above with ```gocfd 2D -g --gridFile DG2D/vortexA04.neu -n 1```, change the order with the "-n" option. "gocfd help 2D" for all options.
 
-### Updates (Nov 20 2020):
+### Update: (Nov 20 2020):
 Graphics :-D
 Very happy to see the first [avs renderings of the 2D density!](images/render-mesh-isentropic-vortex-initial-zoom-7.PNG) This is a 7-th order mesh, zoomed in on the center of the initial solution for the isentropic vortex.
 
 For comparison - [here is a first order version of the same view](images/render-mesh-isentropic-vortex-initial-zoom.PNG). You can see the triangulation detail - note that there is a nested triangle configuration, a larger layer of triangles has within it a set of internal triangles. Those are the nodes of the finite elements, and the triangulation inside the larger triangles is a Delaunay triangulation, intended to be used as a linear approximation to the polynomial field. 
 
-### Updates (Nov 18 2020):
+### Update: Nov 18 2020):
 The 2D Euler solver is functionally complete now, although lacking (many) boundary conditions, the Roe and Lax flux calculations and testing / validation. I want to display the solution graphically to debug.
 
 Next up: graphics to display the solution on the full set of polynomial nodes. Graphics will be key to debugging and answering questions like: "is it better to interpolate flux or solution values, then compute flux?" My plan is to export the triangulation of the RT or Lagrange elements to the graphics plotting in AVS. One question to address: how to handle the corners of the triangles? Currently, the corners are not present in the RT or Lagrange elements - we only have edges up to the corner and interior points. I think that I would rather average the two closest edge points to create the corner value than interpolate corners - my rationale is that I don't want to create artificial extrema in the solution while plotting, it can distract from the actual, and likely problematic extrema I'm seeking to plot. 
 
-### Updates (Nov 9 2020):
+### Update: Nov 9 2020):
 Testing the calculation of divergence using an exact polynomial flux field calculated in Matlab. It seems there's a bug involving the indexing or process using the full transformed calculation with edge computations because the divergence is nearly exact for the first element (k=0) and the mass equation divergence, but deviates for other elements and equations. It's very useful at this point to verify the accuracy of the divergence operator because the bulk of the solver relies on this one operator, and so we can characterize the accuracy (and stability) of the algorithm almost entirely by evaluating the divergence.
 
 <img src="images/polynomialTestFlux.PNG" width="600" height="500"  alt=""/>
 
 Above we see the polynomial flux field in a series of graphs for each equation in the conservative variables and the resulting divergence for each equation. All values are real, not complex and appear smooth (and thus differentiable!).
 
-### Updates (Nov 5 2020):
+### Update: Nov 5 2020):
 Progress on the 2D Euler equations solution! There are now unit tests showing that we get zero divergence for the freestream initialized solution on a test mesh. This includes the shared face normals and boundaries along with the solution interpolation. The remaining work to complete the solver includes boundary conditions and the Roe/Lax Riemann flux calculation at shared faces - each of which are pure local calculations.
 
 I'm very happy with the simplicity of the resulting algorithm. There are two matrix multiplications (across all elements), a matrix multiplication for the edge interpolation and a single calculation per edge for the Riemann fluxes. I think the code is easily understood and it should be simple to implement in GPU and other parallel systems. 
 
-### Updates (Nov 2 2020):
+### Update: Nov 2 2020):
 Divergence is now tested correct for transformed triangles, including the use of the ||n|| scale factor to carry ((Flux) dot (face normal)) correctly into the RT element degree of freedom for edges.
 
 I'm working now on the actual data structures that will efficiently compute the flux values, etc., with an eye on the memory / CPU/GPU performance tradeoffs. Contiguous space matrix multiplications are supported well by GPU, so I'm focusing on making most everything a contiguous space matrix multiply.
 
-### Updates (Oct 2 2020):
+### Update: Oct 2 2020):
 Up next: I'm working on initializing the 2D DFR solution method. My plan is to construct a separate structure containing all faces such that we can iterate through the face structure to construct the fluxes on each face only once. Each face is shared by two elements, and each face has a complex and expensive flux construction that unifies the computed values from each element into a single flux shared by both. By constructing a dedicated group of faces, we can iterate through them in parallel to do that construction without duplication. The shared flux values will be placed directly into the flux storage locations (part of the RT element) so that the divergence can be calculated to advance the solution.
 
 <img src="images/mesh_element.PNG" width="600" height="500"  alt=""/>
@@ -457,12 +457,12 @@ I'm adding a contour plotting capability that will provide display of functions 
 
 The triangulated mesh containing vertices, the interior solution points and the edge flux points is then used for a linear contour algorithm to produce the isolines for the whole mesh. The resulting isoline field is a linearized view of the polynomials, but is sampled at the full resolution of the polynomial basis at N+1, which should provide an accurate representation of the solution field, though not at the same polynomial order. This should be very useful for visually characterizing the interpolation to the flux points on edges and other attributes of the solution process, in addition to showing actual solutions with high fidelity.
 
-### Updates (Sep 9 2020):
+### Update: Sep 9 2020):
 I've now validated the RT element up to 7th order for divergence of polynomial vector fields. Happily, the special case of zero divergence is being captured with high precision.
 
 The reason this took me quite a while: the choice of basis functions for the RT polynomial must be approached with great care, as the derivatives of the basis must be normalized properly. The literature provides many examples of alternatives for the basis, many of which seem to produce erroneous divergence values that do not show convergence, or even diverge with increasing element order. Others use moments of dot products for the interior, which is not the same process that is used by Jameson and Romero's DFR work. In the interest of staying close to that work, I ended up using the same 2D polynomial basis for the Simplex (triangle) as used by Westhaven with the procedure described by Romero to create the basis for the RT element, which preserves the connection with the Lagrange element interior points. I now have validated that this combination accurately reproduces divergence for polynomial functions and shows convergent behavior with good accuracy for transcendental fields up to 7th order.
 
-### Updates (Aug 20 2020):
+### Update: Aug 20 2020):
 I finally have a working Raviart-Thomas element at any K up to 7th order now. The limitation to 7th order is a matter of finding optimized point distributions for this element type. This RT element closely follows the approach described in [Romero and Jameson](https://github.com/Notargets/gocfd/blob/master/research/convergence_and_fluxes/DFR/romero_jsc_2017.pdf) for the 3rd and 4th orders, and uses the point distributions from [Williams and Shun](https://github.com/Notargets/gocfd/blob/master/research/convergence_and_fluxes/DFR/williams-shun-jameson-quadrature.pdf) for orders 1,2 and 5-7. The RT vector basis cooefficients for order N are solved numerically in one matrix inversion, yielding a full polynomial basis with (N+1)(N+3) terms implemented as degrees of freedom defining the basis distributed on the [-1,-1] reference triangle. There are 3(N+1) points on the faces of the triangle, and N(N+1)/2 points defining the interior, and each of the interior points hosts 2 degrees of freedom, one for each orthogonal basis vector [r,s] = [1,0] and [0,1], the axis vectos for r and s. The zero order (N=0) element has 0 interior points and 3 face points, one on each face, the N=1 element has 2 points on each face and 1 point in the interior, the N=2 has 9 points on faces (3 per edge), and 3 interior points, for a total of (2+1)(2+3)=15 degrees of freedom.
 
 |         RT0 Element         |         RT7 Element         |
@@ -475,7 +475,7 @@ Here is the cool part: the number of interior points within each of the above el
 
 I'm still implementing tests, but the basics are finally there. Next step: implement gradient, divergence, curl operators and test for convergence to known solutions to [ sin(y), sin(x) ]. After that, I'll need to implement the calculation of the coordinate transform Jacobian, which actually follows from the previous operators in that the calculation of [ J ] includes the same derivatives used in the gradient.
 
-### Updates (July 7 2020):
+### Update: July 7 2020):
 
 Researching the use of the Raviart-Thomas finite element to represent the numerical flux and divergence.
 
@@ -485,7 +485,7 @@ I have found the open source element library "Fiat", part of FEniCS, that implem
 
 So - I'm back to basic research on the meaning of finite elements and how to properly represent the flux on Raviart-Thomas elements. Papers I'm reading can be found [here](research/convergence_and_fluxes).
 
-### Updates (June 25, 2020):
+### Update: June 25, 2020):
 <img src="images/tri-nodes-n3-6.PNG" width="600" height="500"  alt=""/>
 
 Experimenting with node distributions - shown are the LGL points with warping per the Hesthaven approach.
@@ -495,12 +495,12 @@ This question arises because, unlike in the 1D case, there isn't an overlapping 
 
 Given that for a given multidimensional polynomial degree N the number of polynomial points needed is (N+1)(N+2)/2, so it seems impossible to find a distribution of points that would overlap as in the 1D case.
 
-### Updates (June 13, 2020):
+### Update: June 13, 2020):
 ![](images/Inlet-small.PNG)
 
 Implemented a Gambit formatted mesh reader and updated AVS to plot tri meshes.
 
-### Updates (June 9, 2020):
+### Update: June 9, 2020):
 
 Success!
 
@@ -549,7 +549,7 @@ case,K,N,CFL,Log10_Rho_rms,Log10_Rhou_rms,Log10_e_rms,Log10_rho_max,Log10_rhou_m
 ![](images/Euler-1D-DFR2-Roe-N8-K2000-0.1.PNG)
 
 
-### Updates (June 2, 2020): 
+### Update: June 2, 2020): 
 
 Implemented a smooth solution (Density Wave) in the Euler Equations DFR solver and ran convergence studies. The results show a couple of things:
 1) Rapid convergence to machine zero across polynomial order and number of elements
@@ -565,7 +565,7 @@ In the Jameson DFR, the Gauss quadrature points do not include the face vertices
 
 The Jameson DFR algorithm provides an equivalent, but simpler and more efficient (15% faster) way to achieve all of the benefits of DG methods. The DFR solver uses the differential form of the target equations, rather than the integral form, which makes it easier to attack more complex combinations of target equations. DFR has also been extended by Jameson, et al to incorporate spectral methods with entropy stable properties.
 
-### Updates (May 26, 2020): Verified DFR and Roe Flux after fixing the Exact solution to the Sod shock tube
+### Update: May 26, 2020): Verified DFR and Roe Flux after fixing the Exact solution to the Sod shock tube
 #### Resolved DFR/Roe solution compared to exact at T = 0.2, N=3, 2000 Elements
 ![](images/EulerDFR-K2000-N3-fixedRoe.PNG)
 
@@ -596,7 +596,7 @@ The shock speed problem I saw yesterday turns out to have been the exact solutio
 
 After correcting the exact solution to Sod's shock tube problem, the two Euler solvers match up pretty well all around, with some small differences between them - phew!
 
-### Update (May 25, 2020): Roe Flux with DFR - Euler 1D compared to Analytic Solution in real time
+### Update: (May 25, 2020): Roe Flux with DFR - Euler 1D compared to Analytic Solution in real time
 #### T = 0.223, N=4, Roe Flux, 600 Elements
 ![](images/EulerDFRRho1.PNG)
 
@@ -606,7 +606,7 @@ I also went back and checked the Galerkin (non-DFR) Euler case and it has the sa
 
 You can recreate this using ``` gocfd -graph -model 5 -CFL 0.75 -N 4 -K 600```
 
-### Update (May 12, 2020): DFR and Aliasing, Instability and Fixing it
+### Update: (May 12, 2020): DFR and Aliasing, Instability and Fixing it
 On the path to implementing direct flux reconstruction, I found what appeared to be 2nd order aliasing without a clear origin. After consulting Hesthaven(2007) section 5.3, I see that the issue is the interpolation of the flux and subsequently taking the derivative of that interpolated flux. As stated: "the derivative of the interpolation is not the same as the interpolation of the derivative", or put another way, by simply computing the flux from the nodal points of the solution polynomial, we are not treating the flux formally as a polynomial - instead we should perform a formal polynomial fit (projection, instead of interpolation) of the flux prior to using that polynomial to compute derivatives of the flux. The result of using interpolation shown in the text is that we produce an aliasing error into the solution, and their answer is to filter it away instead of using the much more compute intensive projection. The aliasing error also gets worse with increasing N, so the filter should change with N.
 
 I've implemented a simple 2nd order dissipative filter with a constant coefficient, which works well to knock out the oscillations without introducing solution error. I also experimented with a combined 2nd / 4th order filter, similar to what is commonly used in finite volume schemes and for this problem the 2nd order dissipation was enough. However, I can not get stable results beyond about N=6 with this filter, so I'll also investigate an efficient way to do projection and/or improved filters.
@@ -616,7 +616,7 @@ DFR for Maxwell's equations now uses 2nd order artificial dissipation to remove 
 
 You can see it as model 4 with default parameters like ```gocfd -model 4 -graph``` The issue is the instability - it scales with N, so is a higher order modal signal - It could be that the Lax Friedrich's flux, which is 1st order, is not providing damping of the higher order modes. But why are there higher order modes? Are these unresolved waves? I can't answer without more looking into it...
 
-### Current Status (May 9, 2020): Direct Flux Reconstruction implemented for 1D Advection, moving to implement for the other two 1D model problems
+### Update: (May 9, 2020): Direct Flux Reconstruction implemented for 1D Advection, moving to implement for the other two 1D model problems
 
 DFR works for Advection (-model 3) and seems to improve accuracy and physicality.
 
@@ -627,47 +627,15 @@ The primary differences between using DFR and traditional Nodal Discontinuous Ga
 
 For (3) in this case, I used the same Lax-Friedrichs flux calculation from the text, then averaged the values from each side of each face together to make a single consistent face value shared by neighboring elements.
 
-### (May 1, 2020): Researching Direct Flux Reconstruction methods
+### Update: (May 1, 2020): Researching Direct Flux Reconstruction methods
 During testing of the method in 1D as outlined in the text, it became clear that the slope limiter is quite crude and is degrading the physicality of the solution. The authors were clear that this is just for example use, and now I'm convinced of it!
 
 My first round of research yielded the [Direct Flux Reconstruction](research/filters_and_flux_limiters/Romero2015.pdf) technique from a 2014 paper by Antony Jameson, et al (one of my favorite CFD people of all time). The technique is extremely simple and has the great promise of extending the degree of accuracy to the Flux terms of more complex equations, in addition to enabling the use of flux limiters that have been proven for flows with discontinuities.
 
 In my past CFD experience, discontinuities in solving the Navier Stokes equations are not limited to shock waves. Rather, we find shear flows have discontinuities that are similar enough to shock waves that shock finding techniques used to guide the application of numerical diffusion can be active at the edge of boundary layers and at other critical regions, which often leads to inaccuracies far from shocks. The text's gradient based limiter would clearly suffer from this kind of problem among others.
 
-## Requirements to run the code
-Here is what I'm using as a platform:
-```
-me@home:bash# go version
-go version go1.14 linux/amd64
-me@home:bash# cat /etc/os-release
-NAME="Ubuntu"
-VERSION="18.04.4 LTS (Bionic Beaver)"
-...
-```
-You also need to install some X11 and OpenGL related packages in Ubuntu, like this:
-```
-apt update
-apt install libx11-dev libxi-dev libxcursor-dev libxrandr-dev libxinerama-dev mesa-common-dev libgl1-mesa-dev
-```
-A proper build should go like this:
-```
-me@home:bash# make
-go fmt ./...  && go install ./...
-run this -> $GOPATH/bin/gocfd
-me@home:bash# /gocfd$ gocfd --help
-Usage of gocfd:
-  -K int
-        Number of elements in model (default 60)
-  -N int
-        polynomial degree (default 8)
-  -delay int
-        milliseconds of delay for plotting (default 0)
-  -graph
-        display a graph while computing solution
-  -model int
-        model to run: 0 = Advect1D, 1 = Maxwell1D (default 1)
-```
-### Current Status: Researching Direct Flux Reconstruction methods
+
+### Update: Researching Direct Flux Reconstruction methods
 
 During testing of the method in 1D as outlined in the text, it became clear that the slope limiter is quite crude and is degrading the physicality of the solution. The authors were clear that this is just for example use, and now I'm convinced of it!
 
@@ -675,7 +643,7 @@ My first round of research yielded the [Direct Flux Reconstruction](research/fil
 
 In my past CFD experience, discontinuities in solving the Navier Stokes equations are not limited to shock waves. Rather, we find shear flows have discontinuities that are similar enough to shock waves that shock finding techniques used to guide the application of numerical diffusion can be active at the edge of boundary layers and at other critical regions, which often leads to inaccuracies far from shocks. The text's gradient based limiter would clearly suffer from this kind of problem among others.
 
-### Model Problem Example #3a: Euler's Equations in 1D - Shock Collision
+### Update: Model Problem Example #3a: Euler's Equations in 1D - Shock Collision
 
 This is an interesting problem because of the temperature remainder after the collision. In the plot, temperature is red, density is blue, and velocity is orange. After the shocks pass out of the domain, the remaining temperature "bubble" can't dissipate, because the Euler equations have no mechanism for temperature diffusion.
 
@@ -684,7 +652,7 @@ This case is obtained by initializing the tube as with the Sod tube, but leaving
 #### T = 0.36, 1000 Elements
 ![](images/Euler1D-MidTube-K1000-N6-T.36.PNG)
 
-### Model Problem Example #3: Euler's Equations in 1D - Sod's shock tube
+### Update: Model Problem Example #3: Euler's Equations in 1D - Sod's shock tube
 
 The 1D Euler equations are solved with boundary and initial conditions for the Sod shock tube problem. There is an analytic solution for this case and it is widely used to test shock capturing ability of a solver.
 
@@ -713,7 +681,7 @@ bash# gocfd -model 2 -graph -K 250 -N 1 -FinalTime 0.2
 |:----------------------------------------:|:-----------------------------------------:|
 | ![](images/Euler1D-SOD-K500-N1-T0.2.PNG) | ![](images/Euler1D-SOD-K500-N10-T0.2.PNG) |
 
-### Model Problem Example #2: Maxwell's Equations solved in a 1D Cavity
+### Update: Model Problem Example #2: Maxwell's Equations solved in a 1D Cavity
 
 The Maxwell equations are solved in a 1D metal cavity with a change of material half way through the domain. The initial condition is a sine wave for the E (electric) field in the left half of the domain, and zero for E and H everywhere else. The E field is zero on the boundary (face flux out = face flux in) and the H field passes through unchanged (face flux zero), corresponding to a metallic boundary.
 
@@ -741,7 +709,7 @@ In the example pictured, there are 80 elements (K=80) and the element polynomial
 #### Second Mode
 ![](images/Maxwell1D-cavity4.PNG)
 
-### Model Problem Example #1: Advection Equation
+### Update: Model Problem Example #1: Advection Equation
 <span style="display:block;text-align:center">![](images/Advect1D-0.PNG)</span>
 
 The first model problem is 1D Advection with a left boundary driven sine wave. You can run it with integrated graphics like this:

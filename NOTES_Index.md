@@ -1,0 +1,43 @@
+- [Update 43](./NOTES/Update_0.md): After a three year hiatus I'm back!
+- [Update 42](./NOTES/Update_1.md): computation of the flux.
+- [Update 41](./NOTES/Update_2.md): Riemann problem at the edge.
+- [Update 40](./NOTES/Update_3.md): results that are very similar to the prior implementation.
+- [Update 39](./NOTES/Update_4.md): Next: I'm going to look into an exponential filter for the polynomial interpolation to the edges.
+- [Update 38](./NOTES/Update_5.md): and airfoil, I'm convinced that the core flux/divergence scheme is a bit too "bouncy" as compared with other schemes.
+- [Update 37](./NOTES/Update_6.md): I've replaced the previous broken Runge Kutta time advancement scheme with an explicit SSP54 scheme from Gottlieb, et.
+- [Update 36](./NOTES/Update_7.md): I've implemented two different gradient calculations to compute the dissipation and verified they function correctly.
+- [Update 35](./NOTES/Update_8.md): I've implemented laplacian artificial dissipation that tracks shock induced instabilities using the Lagrangian solution element to compute the flux derivatives and also for the divergence of the dissipation field.
+- [Update 34](./NOTES/Update_9.md): Update: I finished the shock finder, below is a plot of the "ShockFunction" (function 100) for the NACA0012 airfoil at M=0.8 on it's way to becoming unstable.
+- [Update 33](./NOTES/Update_10.md): Update: The data are in - the new Roe-ER flux *is* faster to compute and has good characteristics, so it's a good thing  and will be useful for turbulence capturing and strong shock applications later.
+- [Update 32](./NOTES/Update_11.md): Working on an enhanced flux transfer scheme that promises to protect against odd-even decoupling ("wiggles") while minimizing artificial dissipation that can destroy turbulence fields, etc.
+- [Update 31](./NOTES/Update_12.md): Working on adding routines to invert and solve block matrix systems so that I can implement an implicit time advancement scheme.
+- [Update 30](./NOTES/Update_13.md): Investigating algorithmic methods to speed up convergence to a steady state solution.
+- [Update 29](./NOTES/Update_14.md): The above is just for fun - the wave interactions are all subsonic with Minf = 0.5 and AOA = 2.
+- [Update 28](./NOTES/Update_15.md): At this point, the runtime profile is pretty flat and clean of excess memory allocation.
+- [Update 27](./NOTES/Update_16.md): New Year's Day progress!
+- [Update 26](./NOTES/Update_17.md): In the graph we compare convergence to steady state using two kinds of flux calculation and two types of Runge Kutta time advancement.
+- [Update 25](./NOTES/Update_18.md): The solver now uses multiple cores / CPUs to speed things up.
+- [Update 24](./NOTES/Update_19.md): The 2D Euler solver now works!
+- [Update 23](./NOTES/Update_20.md): Very happy to see the first [avs renderings of the 2D density!](images/render-mesh-isentropic-vortex-initial-zoom-7.PNG) This is a 7-th order mesh, zoomed in on the center of the initial solution for the isentropic vortex.
+- [Update 22](./NOTES/Update_21.md): The 2D Euler solver is functionally complete now, although lacking (many) boundary conditions, the Roe and Lax flux calculations and testing / validation.
+- [Update 21](./NOTES/Update_22.md): Testing the calculation of divergence using an exact polynomial flux field calculated in Matlab.
+- [Update 20](./NOTES/Update_23.md): Progress on the 2D Euler equations solution!
+- [Update 19](./NOTES/Update_24.md): Divergence is now tested correct for transformed triangles, including the use of the ||n|| scale factor to carry ((Flux) dot (face normal)) correctly into the RT element degree of freedom for edges.
+- [Update 18](./NOTES/Update_25.md): Up next: I'm working on initializing the 2D DFR solution method.
+- [Update 17](./NOTES/Update_26.md): I've now validated the RT element up to 7th order for divergence of polynomial vector fields.
+- [Update 16](./NOTES/Update_27.md): I finally have a working Raviart-Thomas element at any K up to 7th order now.
+- [Update 15](./NOTES/Update_28.md): Researching the use of the Raviart-Thomas finite element to represent the numerical flux and divergence.
+- [Update 14](./NOTES/Update_29.md): Experimenting with node distributions - shown are the LGL points with warping per the Hesthaven approach.
+- [Update 13](./NOTES/Update_30.md): Implemented a Gambit formatted mesh reader and updated AVS to plot tri meshes.
+- [Update 12](./NOTES/Update_31.md): Success!
+- [Update 11](./NOTES/Update_32.md): Implemented a smooth solution (Density Wave) in the Euler Equations DFR solver and ran convergence studies.
+- [Update 10](./NOTES/Update_33.md): A highly resolved solution from the DFR/Roe solver looks qualitatively good without bumps or other instability artifacts.
+- [Update 9](./NOTES/Update_34.md): This is cool - being able to see exactly the errors and successes in realtime.
+- [Update 8](./NOTES/Update_35.md): On the path to implementing direct flux reconstruction, I found what appeared to be 2nd order aliasing without a clear origin.
+- [Update 7](./NOTES/Update_36.md): DFR works for Advection (-model 3) and seems to improve accuracy and physicality.
+- [Update 6](./NOTES/Update_37.md): During testing of the method in 1D as outlined in the text, it became clear that the slope limiter is quite crude and is degrading the physicality of the solution.
+- [Update 5](./NOTES/Update_38.md): During testing of the method in 1D as outlined in the text, it became clear that the slope limiter is quite crude and is degrading the physicality of the solution.
+- [Update 4](./NOTES/Update_39.md): This is an interesting problem because of the temperature remainder after the collision.
+- [Update 3](./NOTES/Update_40.md): The 1D Euler equations are solved with boundary and initial conditions for the Sod shock tube problem.
+- [Update 2](./NOTES/Update_41.md): The Maxwell equations are solved in a 1D metal cavity with a change of material half way through the domain.
+- [Update 1](./NOTES/Update_42.md): The first model problem is 1D Advection with a left boundary driven sine wave.
