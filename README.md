@@ -7,14 +7,22 @@ For detailed progress logs, see [NOTES_Index.md.](NOTES_Index.md). Currently, th
 
 The next steps, post shock capture capability, will involve incorporating viscous flowfields and likely adding various implicit time integration solvers.
 
-# Quick Start Guide
+| NACA 0012 Airfoil at M=0.3, Alpha=6, Roe flux, Local Time Stepping | M=0.5, Alpha=0, Roe Flux, 1482 O(2) Elements, Converged |
+|:------------------------------------------------------------------:|--------------------------------------------------------:|
+|               ![](images/naca12_2d_m0.3_a6_roe.gif)                |                 ![](images/naca12_2d_m0.5_aoa0_Roe.PNG) |
 
+|                           Density                            |                            X Momentum                             |                  Density                   |
+|:------------------------------------------------------------:|:-----------------------------------------------------------------:|:------------------------------------------:|
+| ![](images/render-mesh-isentropic-vortex-initial-zoom-7.PNG) | ![](images/render-mesh-isentropic-vortex-initial-zoom-7-rhoU.png) | ![](images/vortex-1-2-4-7-lax-cropped.gif) |
+
+====
+# Quick Start Guide
 
 ## Building on Ubuntu Linux
 
 First, ensure the Go language is installed and available in your PATH. Proceed to install the necessary prerequisites:
 
-```bash
+```
 sudo apt update
 sudo apt install libx11-dev libxi-dev libxcursor-dev libxrandr-dev libxinerama-dev mesa-common-dev libgl1-mesa-dev libxxf86vm-dev
 
@@ -26,14 +34,14 @@ make
 
 ### 1D Shock Tube Test Case
 #### Without Graphics
-`gocfd 1D`
+gocfd 1D
 
 #### With Graphics Enabled
 export DISPLAY=:0
-`gocfd 1D -g`
+gocfd 1D -g
 
 ### 2D Airfoil Test Case
-`gocfd 2D -F test_cases/Euler2D/naca_12/mesh/nacaAirfoil-base.su2 -I test_cases/Euler2D/naca_12/input-wall.yaml -g -z 0.08`
+gocfd 2D -F test_cases/Euler2D/naca_12/mesh/nacaAirfoil-base.su2 -I test_cases/Euler2D/naca_12/input-wall.yaml -g -z 0.08
 ```
 
 ## Code Review Guidelines
@@ -68,16 +76,4 @@ A proper build should go like this:
 me@home:bash# make
 go fmt ./...  && go install ./...
 run this -> $GOPATH/bin/gocfd
-me@home:bash# /gocfd$ gocfd --help
-Usage of gocfd:
-  -K int
-        Number of elements in model (default 60)
-  -N int
-        polynomial degree (default 8)
-  -delay int
-        milliseconds of delay for plotting (default 0)
-  -graph
-        display a graph while computing solution
-  -model int
-        model to run: 0 = Advect1D, 1 = Maxwell1D (default 1)
 ```
