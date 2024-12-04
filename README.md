@@ -3,7 +3,7 @@ A CFD Solver implemented in the Go programming language.
 
 Implements the Direct Flux Reconstruction (DFR) method within Galerkin Discontinuous Finite Elements (GDFE) for unstructured meshes.
 
-For detailed progress logs, see [NOTES_Index.md.](NOTES_Index.md). Currently, there is a functional solver for 2D Euler Equations allowing the input of unstructured meshes and boundary conditions to simulate flowfields. Effectively capturing shock waves and contact discontinuities is underway.
+For detailed progress logs, see [CHANGELOG.md](CHANGELOG.md). Currently, there is a functional solver for 2D Euler Equations allowing the input of unstructured meshes and boundary conditions to simulate flowfields. Effectively capturing shock waves and contact discontinuities is underway.
 
 The next steps, post shock capture capability, will involve incorporating viscous flowfields and likely adding various implicit time integration solvers.
 
