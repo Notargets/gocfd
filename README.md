@@ -3,16 +3,16 @@
 
 A computational fluid dynamics (CFD) solver written in Go.
 
-The solver utilizes the Direct Flux Reconstruction (DFR) method within Galerkin Discontinuous Finite Elements (GDFE)
-tailored for unstructured mesh simulations.
+The solver utilizes the Direct Flux Reconstruction (DFR) method within Galerkin Discontinuous Finite Elements (GDFE) tailored
+for unstructured mesh simulations.
 
-For a comprehensive log of project updates and progress, please refer to [CHANGELOG.md](CHANGELOG.md). Currently, the
-solver is capable of handling 2D Euler equations, supporting the input of unstructured meshes and boundary conditions
-for flowfield simulation. Ongoing developments focus on the efficient capture of shock waves and contact
-discontinuities. Look [here](INTRODUCTION.md) for some background on this project and attributions.
+For a comprehensive log of project updates and progress, please refer to [CHANGELOG.md](CHANGELOG.md). Currently, the solver is
+capable of handling 2D Euler equations, supporting the input of unstructured meshes and boundary conditions for flowfield
+simulation. Ongoing developments focus on the efficient capture of shock waves and contact discontinuities. Look
+[here](INTRODUCTION.md) for some background on this project and attributions.
 
-Future enhancements, following shock capture improvements, will include the integration of viscous flowfields, along
-with the possible addition of various implicit time integration solvers.
+Future enhancements, following shock capture improvements, will include the integration of viscous flowfields, along with the
+possible addition of various implicit time integration solvers.
 
 | NACA 0012 Airfoil at M=0.3, Alpha=6, Roe flux, Local Time Stepping | M=0.5, Alpha=0, Roe Flux, 1482 O(2) Elements, Converged |
 |:------------------------------------------------------------------:|--------------------------------------------------------:|
@@ -22,8 +22,8 @@ with the possible addition of various implicit time integration solvers.
 
 ## Supported Platforms
 
-I've run the code on many Ubuntu Linux distributions, and also on Windows 10. Because it is written in Go, it should be
-portable to many platforms that support OpenGL graphics.
+I've run the code on many Ubuntu Linux distributions, and also on Windows 10. Because it is written in Go, it should be portable
+to many platforms that support OpenGL graphics.
 
 ## Building on Ubuntu Linux
 
@@ -53,12 +53,17 @@ gocfd 2D -F test_cases/Euler2D/naca_12/mesh/nacaAirfoil-base.su2 -I test_cases/E
 
 ## Code Review Guidelines
 
-To review the physics implementation, explore the code within the `model_problems` directory. Each file implements a physical model or an additional numerical method.
+To review the physics implementation, explore the code within the `model_problems` directory. Each file implements a physical
+model or an additional numerical method.
 
-For insights into the math/matrix library, see `utils/matrix_extended.go` and `utils/vector_extended.go`. They utilize a chained operator syntax prioritizing reuse, reducing copying, and clarifying operand dimensionality. While not exhaustive, especially in terms of value assignment and indexing, this approach mirrors the functionalities found in related texts and MATLAB, proving both functional and useful. The syntax resembles reverse Polish notation (RPN), where values accumulate through chained operations.
-
+For insights into the math/matrix library, see [utils/matrix_extended.go](utils/matrix_extended.go) and
+[utils/vector_extended.go](utils/vector_extended.go). They utilize a chained operator syntax prioritizing reuse, reducing
+copying, and clarifying operand dimensionality. While not exhaustive, especially in terms of value assignment and indexing, this
+approach mirrors the functionalities found in related texts and MATLAB, proving both functional and useful. The syntax
+resembles reverse Polish notation (RPN), where values accumulate through chained operations.
 For example, consider this implementation:
-```rhsE = - Dr * FluxH .* Rx ./ epsilon```. Here, `Dr` stands for the "Derivative Matrix", `Rx` represents (1 / J) applying the transform of R to X, and `epsilon` is the metallic impedance, all applied to the Flux matrix:
+```rhsE = - Dr * FluxH .* Rx ./ epsilon```. Here, `Dr` stands for the "Derivative Matrix", `Rx` represents (1 / J) applying the
+transform of R to X, and `epsilon` is the metallic impedance, all applied to the Flux matrix:
 ```
 RHSE = el.Dr.Mul(FluxH).ElMul(el.Rx).ElDiv(c.Epsilon).Scale(-1)
 ```
