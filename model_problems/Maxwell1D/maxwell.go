@@ -226,11 +226,11 @@ func (c *Maxwell) Plot(showGraph bool, graphDelay []time.Duration, E, H utils.Ma
 	})
 
 	if err := c.chart.AddSeries("E", el.X.Transpose().RawMatrix().Data, E.Transpose().RawMatrix().Data,
-		chart2d.NoGlyph, chart2d.Solid, c.colorMap.GetRGB(0)); err != nil {
+		chart2d.NoGlyph, 0.001, chart2d.Solid, c.colorMap.GetRGB(0)); err != nil {
 		panic("unable to add graph series")
 	}
 	if err := c.chart.AddSeries("H", el.X.Transpose().RawMatrix().Data, H.Transpose().RawMatrix().Data,
-		chart2d.NoGlyph, chart2d.Solid, c.colorMap.GetRGB(0.7)); err != nil {
+		chart2d.NoGlyph, 0.001, chart2d.Solid, c.colorMap.GetRGB(0.7)); err != nil {
 		panic("unable to add graph series")
 	}
 	if len(graphDelay) != 0 {

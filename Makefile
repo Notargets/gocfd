@@ -5,6 +5,9 @@ gocfd:
 test:
 	go test -cover ./...
 
+tidy:
+	go mod tidy
+
 builder:
 	docker build -f Dockerfile_Ubuntu -t gcr.io/gocfd-275017/builder .
 

@@ -109,9 +109,9 @@ func (lc *LineChart) Plot(graphDelay time.Duration, x, f []float64, lineColor fl
 	/*
 		lineColor goes from -1 (red) to 1 (blue)
 	*/
-	pSeries := func(field []float64, name string, color float32, gl chart2d.GlyphType) {
+	pSeries := func(field []float64, name string, color float32, glyphType chart2d.GlyphType) {
 		if err := lc.Chart.AddSeries(name, x, f,
-			gl, chart2d.Solid, lc.ColorMap.GetRGB(color)); err != nil {
+			glyphType, 0.001, chart2d.Solid, lc.ColorMap.GetRGB(color)); err != nil {
 			panic("unable to add graph series")
 		}
 	}

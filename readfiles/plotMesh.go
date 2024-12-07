@@ -54,7 +54,7 @@ func PlotMesh(VX, VY utils.Vector, EToV, X, Y utils.Matrix, plotPoints bool, pm 
 	}
 	_, _ = colorMap, white
 	if err := chart.AddTriMesh("TriMesh", trimesh,
-		chart2d.CrossGlyph, chart2d.Solid, white); err != nil {
+		chart2d.NoGlyph, 0.005, chart2d.Solid, white); err != nil {
 		panic("unable to add graph series")
 	}
 	var ptsGlyph chart2d.GlyphType
@@ -63,7 +63,7 @@ func PlotMesh(VX, VY utils.Vector, EToV, X, Y utils.Matrix, plotPoints bool, pm 
 		ptsGlyph = chart2d.CircleGlyph
 	}
 	if err := chart.AddSeries("Elements", X.Transpose().DataP, Y.Transpose().DataP,
-		ptsGlyph, chart2d.NoLine, black); err != nil {
+		ptsGlyph, 0.0005, chart2d.NoLine, black); err != nil {
 		panic(err)
 	}
 

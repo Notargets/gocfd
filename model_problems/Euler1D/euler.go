@@ -516,7 +516,7 @@ func (c *Euler) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) 
 		c.colorMap = utils2.NewColorMap(-1, 1, 1)
 		go c.chart.Plot()
 	})
-	pSeries := func(field utils.Matrix, name string, color float32, gl chart2d.GlyphType) {
+	pSeries := func(field utils.Matrix, name string, color float32, glyphType chart2d.GlyphType) {
 		var (
 			x utils.Matrix
 		)
@@ -525,7 +525,7 @@ func (c *Euler) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) 
 			x = elS.X
 		}
 		if err := c.chart.AddSeries(name, x.Transpose().RawMatrix().Data, field.Transpose().RawMatrix().Data,
-			gl, chart2d.Solid, c.colorMap.GetRGB(color)); err != nil {
+			glyphType, 0.001, chart2d.Solid, c.colorMap.GetRGB(color)); err != nil {
 			panic("unable to add graph series")
 		}
 	}
@@ -559,7 +559,7 @@ func DWaveCalc(X utils.Matrix, timeT float64) (x, rho []float64) {
 
 func AddAnalyticDWave(chart *chart2d.Chart2D, colorMap *utils2.ColorMap, X utils.Matrix, timeT float64) {
 	x, rho := DWaveCalc(X, timeT)
-	if err := chart.AddSeries("ExactRho", x, rho, chart2d.XGlyph, chart2d.NoLine, colorMap.GetRGB(-0.7)); err != nil {
+	if err := chart.AddSeries("ExactRho", x, rho, chart2d.XGlyph, 0.01, chart2d.NoLine, colorMap.GetRGB(-0.7)); err != nil {
 		panic("unable to add exact solution Rho")
 	}
 	return
@@ -583,13 +583,13 @@ func dwaveErrorCalc(X, Rho utils.Matrix, t float64) (rms_rho, max_rho float64) {
 func AddAnalyticSod(chart *chart2d.Chart2D, colorMap *utils2.ColorMap, timeT float64) (iRho float64) {
 	sod := sod_shock_tube.NewSOD(timeT)
 	X, Rho, _, RhoU, E := sod.Get()
-	if err := chart.AddSeries("ExactRho", X, Rho, chart2d.XGlyph, chart2d.NoLine, colorMap.GetRGB(-0.7)); err != nil {
+	if err := chart.AddSeries("ExactRho", X, Rho, chart2d.XGlyph, 0.01, chart2d.NoLine, colorMap.GetRGB(-0.7)); err != nil {
 		panic("unable to add exact solution Rho")
 	}
-	if err := chart.AddSeries("ExactRhoU", X, RhoU, chart2d.XGlyph, chart2d.NoLine, colorMap.GetRGB(0.0)); err != nil {
+	if err := chart.AddSeries("ExactRhoU", X, RhoU, chart2d.XGlyph, 0.01, chart2d.NoLine, colorMap.GetRGB(0.0)); err != nil {
 		panic("unable to add exact solution RhoU")
 	}
-	if err := chart.AddSeries("ExactE", X, E, chart2d.XGlyph, chart2d.NoLine, colorMap.GetRGB(0.7)); err != nil {
+	if err := chart.AddSeries("ExactE", X, E, chart2d.XGlyph, 0.01, chart2d.NoLine, colorMap.GetRGB(0.7)); err != nil {
 		panic("unable to add exact solution E")
 	}
 	iRho = integrate(X, Rho)

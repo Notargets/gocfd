@@ -198,7 +198,7 @@ func (c *Advection) Plot(showGraph bool, graphDelay []time.Duration, U utils.Mat
 	})
 
 	if err := c.chart.AddSeries("U", el.X.Transpose().RawMatrix().Data, U.Transpose().RawMatrix().Data,
-		chart2d.NoGlyph, chart2d.Solid, c.colorMap.GetRGB(0)); err != nil {
+		chart2d.NoGlyph, 0.01, chart2d.Solid, c.colorMap.GetRGB(0)); err != nil {
 		panic("unable to add graph series")
 	}
 	if len(graphDelay) != 0 {

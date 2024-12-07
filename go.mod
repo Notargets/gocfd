@@ -11,7 +11,7 @@ require (
 	github.com/james-bowman/sparse v0.0.0-20200204164517-b588421ac5da
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.3.2 // indirect
-	github.com/notargets/avs v0.0.7-0.20201217183319-0f9c8f3d02f3
+	github.com/notargets/avs v0.0.7-0.20241207233657-731169a9b6fa
 	github.com/pelletier/go-toml v1.8.0 // indirect
 	github.com/pkg/profile v1.5.0
 	github.com/spf13/afero v1.2.2 // indirect
