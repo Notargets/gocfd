@@ -21,6 +21,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/notargets/gocfd/InputParameters"
+
 	"github.com/notargets/avs/chart2d"
 
 	"github.com/notargets/gocfd/model_problems/Euler2D"
@@ -30,6 +32,8 @@ import (
 
 type Model2D struct {
 	GridFile                     string
+	PlotMesh                     bool
+	NOrder                       int
 	ICFile                       string
 	Graph                        bool
 	GraphField                   int
@@ -55,6 +59,8 @@ var TwoDCmd = &cobra.Command{
 		if m2d.GridFile, err = cmd.Flags().GetString("gridFile"); err != nil {
 			panic(err)
 		}
+		m2d.PlotMesh, _ = cmd.Flags().GetBool("plotMesh")
+		m2d.NOrder, _ = cmd.Flags().GetInt("nOrder")
 		if m2d.ICFile, err = cmd.Flags().GetString("inputConditionsFile"); err != nil {
 			panic(err)
 		}
@@ -77,20 +83,40 @@ var TwoDCmd = &cobra.Command{
 		if fmax != -1000 {
 			m2d.fmaxP = &fmax
 		}
-		ip := processInput(m2d)
-		Run2D(m2d, ip)
+		pm := &InputParameters.PlotMeta{
+			Plot:            m2d.Graph,
+			PlotMesh:        m2d.PlotMesh,
+			Field:           uint16(m2d.GraphField),
+			FieldMinP:       m2d.fminP,
+			FieldMaxP:       m2d.fmaxP,
+			FrameTime:       m2d.Delay,
+			StepsBeforePlot: m2d.PlotSteps,
+			LineType:        chart2d.NoLine,
+			Scale:           m2d.Zoom,
+			TranslateX:      m2d.TranslateX,
+			TranslateY:      m2d.TranslateY,
+		}
+
+		ip := processInput(m2d, pm.PlotMesh)
+		Run2D(m2d, ip, pm)
 	},
 }
 
-func processInput(m2d *Model2D) (ip *Euler2D.InputParameters) {
+func processInput(m2d *Model2D, plotMesh bool) (ip *InputParameters.InputParameters2D) {
 	var (
 		err      error
-		willExit bool
+		willExit = false
 	)
 	if len(m2d.GridFile) == 0 {
 		err := fmt.Errorf("must supply a grid file (-F, --gridFile) in .neu (Gambit neutral file) format")
 		fmt.Printf("error: %s\n", err.Error())
 		willExit = true
+	}
+	if plotMesh && m2d.NOrder == -1 {
+		err = fmt.Errorf("must supply an order (-nOrder) for the mesh")
+		fmt.Println(err)
+		fmt.Println("exiting")
+		os.Exit(1)
 	}
 	if len(m2d.ICFile) == 0 {
 		err := fmt.Errorf("must supply an input parameters file (-I, --inputConditionsFile) in .neu (Gambit neutral file) format")
@@ -106,29 +132,38 @@ FinalTime: 4
 ########################################
 `
 		fmt.Printf("Example File Contents:%s\n", exampleFile)
-		willExit = true
+		if !plotMesh {
+			willExit = true
+		}
 	}
 	if willExit {
+		fmt.Println("exiting")
 		os.Exit(1)
 	}
+	ip = &InputParameters.InputParameters2D{}
+	ip.Gamma = 1.4 // Default
+	ip.Minf = 0.1  // Default
+	var data []byte
 	if len(m2d.ICFile) != 0 {
-		var data []byte
 		if data, err = ioutil.ReadFile(m2d.ICFile); err != nil {
 			panic(err)
 		}
-		ip = &Euler2D.InputParameters{}
-		ip.Gamma = 1.4 // Default
-		ip.Minf = 0.1  // Default
 		if err = ip.Parse(data); err != nil {
 			panic(err)
 		}
+	} else {
+		ip.PolynomialOrder = m2d.NOrder // Default
+		ip.FluxType = "Lax"             // Default
+		ip.InitType = "Freestream"
 	}
 	return
 }
 
 func init() {
 	rootCmd.AddCommand(TwoDCmd)
-	TwoDCmd.Flags().StringP("gridFile", "F", "", "Grid file to read in Gambit (.neu) format")
+	TwoDCmd.Flags().StringP("gridFile", "F", "", "Grid file to read in Gambit (.neu) or SU2 (.su2) format")
+	TwoDCmd.Flags().BoolP("plotMesh", "m", false, "plot the input mesh and exit")
+	TwoDCmd.Flags().IntP("nOrder", "N", -1, "order of the polynomial used for the mesh")
 	TwoDCmd.Flags().StringP("inputConditionsFile", "I", "", "YAML file for input parameters like:\n\t- CFL\n\t- NPR (nozzle pressure ratio)")
 	TwoDCmd.Flags().BoolP("graph", "g", false, "display a graph while computing solution")
 	TwoDCmd.Flags().IntP("delay", "d", 0, "milliseconds of delay for plotting")
@@ -143,20 +178,12 @@ func init() {
 	TwoDCmd.Flags().Bool("profile", false, "generate a runtime profile of the solver, can be converted to PDF using 'go tool pprof -pdf filename'")
 }
 
-func Run2D(m2d *Model2D, ip *Euler2D.InputParameters) {
-	c := Euler2D.NewEuler(ip, m2d.GridFile, m2d.ParallelProcLimit, false, true, m2d.Profile)
-	pm := &Euler2D.PlotMeta{
-		Plot:            m2d.Graph,
-		Field:           Euler2D.FlowFunction(m2d.GraphField),
-		FieldMinP:       m2d.fminP,
-		FieldMaxP:       m2d.fmaxP,
-		FrameTime:       m2d.Delay,
-		StepsBeforePlot: m2d.PlotSteps,
-		LineType:        chart2d.NoLine,
-		Scale:           m2d.Zoom,
-		TranslateX:      m2d.TranslateX,
-		TranslateY:      m2d.TranslateY,
-	}
+func Run2D(m2d *Model2D, ip *InputParameters.InputParameters2D, pm *InputParameters.PlotMeta) {
+	//fmt.Printf("m2d: %+v\n", m2d)
+	//fmt.Printf("ip: %+v\n", ip)
+	//fmt.Printf("pm: %+v\n", pm)
+	//os.Exit(1)
+	c := Euler2D.NewEuler(ip, pm, m2d.GridFile, m2d.ParallelProcLimit, true, m2d.Profile)
 	/*
 		if ip.ImplicitSolver {
 			c.SolveImplicit(pm)

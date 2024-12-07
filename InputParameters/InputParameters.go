@@ -1,14 +1,17 @@
-package Euler2D
+package InputParameters
 
 import (
 	"fmt"
 	"sort"
+	"time"
+
+	"github.com/notargets/avs/chart2d"
 
 	"github.com/ghodss/yaml"
 )
 
 // Parameters obtained from the YAML input file
-type InputParameters struct {
+type InputParameters2D struct {
 	Title             string                                `yaml:"Title"`
 	CFL               float64                               `yaml:"CFL"`
 	FluxType          string                                `yaml:"FluxType"`
@@ -26,11 +29,11 @@ type InputParameters struct {
 	Kappa             float64                               `yaml:"Kappa"`
 }
 
-func (ip *InputParameters) Parse(data []byte) error {
+func (ip *InputParameters2D) Parse(data []byte) error {
 	return yaml.Unmarshal(data, ip)
 }
 
-func (ip *InputParameters) Print() {
+func (ip *InputParameters2D) Print() {
 	fmt.Printf("\"%s\"\t\t= Title\n", ip.Title)
 	fmt.Printf("%8.5f\t\t= CFL\n", ip.CFL)
 	fmt.Printf("%8.5f\t\t= FinalTime\n", ip.FinalTime)
@@ -47,4 +50,16 @@ func (ip *InputParameters) Print() {
 	for _, key := range keys {
 		fmt.Printf("BCs[%s] = %v\n", key, ip.BCs[key])
 	}
+}
+
+type PlotMeta struct {
+	Plot                   bool
+	PlotMesh               bool
+	Scale                  float64
+	TranslateX, TranslateY float64
+	Field                  uint16
+	FieldMinP, FieldMaxP   *float64 // nil if no forced min, max
+	FrameTime              time.Duration
+	StepsBeforePlot        int
+	LineType               chart2d.LineType
 }

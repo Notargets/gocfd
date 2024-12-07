@@ -3,9 +3,12 @@ package Euler2D
 import (
 	"fmt"
 	"math"
+	"os"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/notargets/gocfd/InputParameters"
 
 	"github.com/notargets/gocfd/model_problems/Euler2D/sod_shock_tube"
 
@@ -52,7 +55,7 @@ type Euler struct {
 	ShockTube *sod_shock_tube.SODShockTube
 }
 
-func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, verbose, profile bool) (c *Euler) {
+func NewEuler(ip *InputParameters.InputParameters2D, pm *InputParameters.PlotMeta, meshFile string, ProcLimit int, verbose, profile bool) (c *Euler) {
 	c = &Euler{
 		MeshFile:          meshFile,
 		CFL:               ip.CFL,
@@ -71,7 +74,7 @@ func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, ver
 	}
 
 	// Read mesh file, initialize geometry and finite elements
-	c.dfr = DG2D.NewDFR2D(ip.PolynomialOrder, plotMesh, verbose, meshFile)
+	c.dfr = DG2D.NewDFR2D(ip.PolynomialOrder, pm, verbose, meshFile)
 
 	c.SetParallelDegree(ProcLimit, c.dfr.K) // Must occur after determining the number of elements
 	c.PartitionEdgesByK()                   // Setup the key for edge calculations, useful for parallelizing the process
@@ -83,6 +86,12 @@ func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, ver
 
 	// Allocate a solution limiter
 	lt := NewLimiterType(ip.Limiter)
+	if FlowFunction(pm.Field) == ShockFunction {
+		if lt != BarthJespersonT {
+			fmt.Println("Plotting shock function requires the use of the Barth Jespersen limiter type")
+			os.Exit(1)
+		}
+	}
 	c.Limiter = NewSolutionLimiter(lt, ip.Kappa, c.dfr, c.Partitions, c.FSFar)
 
 	// Initiate Artificial Dissipation
@@ -112,7 +121,7 @@ func NewEuler(ip *InputParameters, meshFile string, ProcLimit int, plotMesh, ver
 	return
 }
 
-func (c *Euler) Solve(pm *PlotMeta) {
+func (c *Euler) Solve(pm *InputParameters.PlotMeta) {
 	var (
 		FinalTime = c.FinalTime
 		steps     int
@@ -509,7 +518,7 @@ func (c *Euler) PrintInitialization(FinalTime float64) {
 	fmt.Printf("       Res0       Res1       Res2")
 	fmt.Printf("       Res3         L1         L2\n")
 }
-func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [][4]utils.Matrix, plotQ bool, pm *PlotMeta,
+func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [][4]utils.Matrix, plotQ bool, pm *InputParameters.PlotMeta,
 	printMem bool, limitedPoints []int) {
 	format := "%11.4e"
 	if plotQ {

@@ -9,6 +9,7 @@ FinalTime: 20
 LocalTimeStepping: false
 MaxIterations: 80000
 #Limiter: Barth Jesperson
+Limiter: persson c0
 #Kappa: 0.25
 Kappa: 4
 #Kappa: 0

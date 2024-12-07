@@ -3,7 +3,8 @@ package Euler2D
 import (
 	"fmt"
 	"image/color"
-	"time"
+
+	"github.com/notargets/gocfd/InputParameters"
 
 	"github.com/notargets/avs/chart2d"
 	"github.com/notargets/avs/functions"
@@ -11,17 +12,6 @@ import (
 	utils2 "github.com/notargets/avs/utils"
 	"github.com/notargets/gocfd/utils"
 )
-
-type PlotMeta struct {
-	Plot                   bool
-	Scale                  float64
-	TranslateX, TranslateY float64
-	Field                  FlowFunction
-	FieldMinP, FieldMaxP   *float64 // nil if no forced min, max
-	FrameTime              time.Duration
-	StepsBeforePlot        int
-	LineType               chart2d.LineType
-}
 
 type ChartState struct {
 	chart *chart2d.Chart2D
@@ -100,10 +90,10 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 	return
 }
 
-func (c *Euler) PlotQ(pm *PlotMeta, width, height int) {
+func (c *Euler) PlotQ(pm *InputParameters.PlotMeta, width, height int) {
 	var (
 		Q         = c.RecombineShardsKBy4(c.Q)
-		plotField = pm.Field
+		plotField = FlowFunction(pm.Field)
 		delay     = pm.FrameTime
 		lineType  = pm.LineType
 		scale     = pm.Scale
@@ -116,7 +106,7 @@ func (c *Euler) PlotQ(pm *PlotMeta, width, height int) {
 		c.chart.gm = c.dfr.OutputMesh()
 	}
 	c.chart.fs = functions.NewFSurface(c.chart.gm, [][]float32{fI}, 0)
-	fmt.Printf(" Plot>%s min,max = %8.5f,%8.5f\n", pm.Field.String(), oField.Min(), oField.Max())
+	fmt.Printf(" Plot>%s min,max = %8.5f,%8.5f\n", plotField.String(), oField.Min(), oField.Max())
 	c.PlotFS(width, height,
 		pm.FieldMinP, pm.FieldMaxP, 0.99*oField.Min(), 1.01*oField.Max(),
 		scale, translate, lineType)

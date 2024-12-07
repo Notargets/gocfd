@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/notargets/gocfd/InputParameters"
+
 	"github.com/notargets/gocfd/DG2D"
 
 	"github.com/notargets/gocfd/types"
@@ -16,7 +18,7 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-var ipDefault = &InputParameters{
+var ipDefault = &InputParameters.InputParameters2D{
 	Title:             "",
 	CFL:               1,
 	FluxType:          "Lax",
@@ -39,7 +41,7 @@ func TestFluidFunctions(t *testing.T) {
 	ip := *ipDefault
 	ip.Minf = 2.
 	ip.PolynomialOrder = N
-	c := NewEuler(&ip, "../../DG2D/test_tris_6.neu", 1, plotMesh, false, false)
+	c := NewEuler(&ip, nil, "../../DG2D/test_tris_6.neu", 1, false, false)
 	funcs := []FlowFunction{Density, XMomentum, YMomentum, Energy, Mach, StaticPressure}
 	values := make([]float64, len(funcs))
 	for i, plotField := range []FlowFunction{Density, XMomentum, YMomentum, Energy, Mach, StaticPressure} {
@@ -62,7 +64,7 @@ func TestEuler(t *testing.T) {
 			for N := 0; N <= Nmax; N++ {
 				ip.PolynomialOrder = N
 				//c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
-				c := NewEuler(&ip, "../../DG2D/test_tris_5.neu", 1, false, false, false)
+				c := NewEuler(&ip, nil, "../../DG2D/test_tris_5.neu", 1, false, false)
 				Kmax := c.dfr.K
 				Nint := c.dfr.FluxElement.NpInt
 				Nedge := c.dfr.FluxElement.NpEdge
@@ -107,7 +109,7 @@ func TestEuler(t *testing.T) {
 			for N := 0; N <= Nmax; N++ {
 				//c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
 				ip.PolynomialOrder = N
-				c := NewEuler(&ip, "../../DG2D/test_tris_5.neu", 1, false, false, false)
+				c := NewEuler(&ip, nil, "../../DG2D/test_tris_5.neu", 1, false, false)
 				Kmax := c.dfr.K
 				Nint := c.dfr.FluxElement.NpInt
 				Nedge := c.dfr.FluxElement.NpEdge
@@ -187,7 +189,7 @@ func TestEuler(t *testing.T) {
 				//ip.Alpha = 2
 				plotMesh := false
 				//c := NewEuler(&ip, "../../DG2D/test_tris_5.neu", 1, plotMesh, false, false)
-				c := NewEuler(&ip, "../../DG2D/test_tris_6_nowall.neu", 1, plotMesh, false, false)
+				c := NewEuler(&ip, nil, "../../DG2D/test_tris_6_nowall.neu", 1, false, false)
 				c.FSIn = c.FSFar
 				Kmax := c.dfr.K
 				Nint := c.dfr.FluxElement.NpInt
@@ -240,20 +242,20 @@ func TestEuler(t *testing.T) {
 				var c *Euler
 				//c = NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, plotMesh, false, false)
 				ip.PolynomialOrder = N
-				c = NewEuler(&ip, "../../DG2D/test_tris_1tri.neu", 1, plotMesh, false, false)
+				c = NewEuler(&ip, nil, "../../DG2D/test_tris_1tri.neu", 1, false, false)
 				CheckFlux0(c, t)
 				// Two widely separated triangles - no shared faces
 				//c = NewEuler(1, N, "../../DG2D/test_tris_two.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, plotMesh, false, false)
-				c = NewEuler(&ip, "../../DG2D/test_tris_two.neu", 1, plotMesh, false, false)
+				c = NewEuler(&ip, nil, "../../DG2D/test_tris_two.neu", 1, false, false)
 				CheckFlux0(c, t)
 				// Two widely separated triangles - no shared faces - one tri listed in reverse order
 				//c = NewEuler(1, N, "../../DG2D/test_tris_twoR.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, plotMesh, false, false)
-				c = NewEuler(&ip, "../../DG2D/test_tris_twoR.neu", 1, plotMesh, false, false)
+				c = NewEuler(&ip, nil, "../../DG2D/test_tris_twoR.neu", 1, false, false)
 				CheckFlux0(c, t)
 				// Connected tris, sharing one edge
 				// plotMesh = true
 				//c = NewEuler(1, N, "../../DG2D/test_tris_6_nowall.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, plotMesh, false, false)
-				c = NewEuler(&ip, "../../DG2D/test_tris_6_nowall.neu", 1, plotMesh, false, false)
+				c = NewEuler(&ip, nil, "../../DG2D/test_tris_6_nowall.neu", 1, false, false)
 				CheckFlux0(c, t)
 			}
 		}
@@ -265,7 +267,7 @@ func TestEuler(t *testing.T) {
 			ip.PolynomialOrder = N
 			ip.InitType = "ivortex"
 			//c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, IVORTEX, 1, 0, 1.4, 0, false, 5000, None, plotMesh, false, false)
-			c := NewEuler(&ip, "../../DG2D/test_tris_6.neu", 1, plotMesh, false, false)
+			c := NewEuler(&ip, nil, "../../DG2D/test_tris_6.neu", 1, false, false)
 			for _, e := range c.dfr.Tris.Edges {
 				if e.BCType == types.BC_IVortex {
 					e.BCType = types.BC_None
@@ -331,7 +333,7 @@ func TestFluxInterpolation(t *testing.T) {
 	ip.Minf = 1.
 	ip.PolynomialOrder = N
 	ip.FluxType = "Roe"
-	c := NewEuler(&ip, "../../DG2D/test_tris_6.neu", 1, plotMesh, false, false)
+	c := NewEuler(&ip, nil, "../../DG2D/test_tris_6.neu", 1, false, false)
 	rk := c.NewRungeKuttaSSP()
 	c.InterpolateSolutionToEdges(c.Q[0], rk.Q_Face[0], rk.Flux[0], rk.Flux_Face[0])
 	el := c.dfr.SolutionElement
@@ -582,7 +584,7 @@ func TestDissipation2(t *testing.T) {
 		ip.FluxType = "average"
 		// Testing to fourth order in X and Y
 		ip.PolynomialOrder = 4
-		c := NewEuler(&ip, "../../DG2D/test_tris_5.neu", 1, false, false, false)
+		c := NewEuler(&ip, nil, "../../DG2D/test_tris_5.neu", 1, false, false)
 		var (
 			dfr                      = c.dfr
 			Kmax                     = dfr.K
@@ -709,8 +711,7 @@ func TestEuler_GetSolutionGradientUsingRTElement(t *testing.T) {
 		ip.PolynomialOrder = 4
 		ip.Minf = 0.8
 		ip.Alpha = 2.
-		c := NewEuler(&ip, "../../DG2D/test_tris_9.neu", 1,
-			false, false, false)
+		c := NewEuler(&ip, nil, "../../DG2D/test_tris_9.neu", 1, false, false)
 		rk := c.NewRungeKuttaSSP()
 		myThread := 0
 		var (
@@ -781,7 +782,7 @@ BCs:
       22:
          P: 1.5
 `)
-	var input InputParameters
+	var input InputParameters.InputParameters2D
 	if err = input.Parse(fileInput); err != nil {
 		panic(err)
 	}

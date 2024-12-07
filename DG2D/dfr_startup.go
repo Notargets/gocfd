@@ -1,9 +1,13 @@
 package DG2D
 
 import (
+	"bufio"
 	"fmt"
 	"math"
+	"os"
 	"strings"
+
+	"github.com/notargets/gocfd/InputParameters"
 
 	"github.com/notargets/gocfd/types"
 
@@ -38,7 +42,7 @@ type DFR2D struct {
 	SolutionBasis        Basis2D
 }
 
-func NewDFR2D(N int, plotMesh bool, verbose bool, meshFileO ...string) (dfr *DFR2D) {
+func NewDFR2D(N int, pm *InputParameters.PlotMeta, verbose bool, meshFileO ...string) (dfr *DFR2D) {
 	if N < 0 {
 		panic(fmt.Errorf("Polynomial order must be >= 0, have %d", N))
 	}
@@ -87,9 +91,12 @@ func NewDFR2D(N int, plotMesh bool, verbose bool, meshFileO ...string) (dfr *DFR
 			CalculateElementLocalGeometry(dfr.Tris.EToV, dfr.VX, dfr.VY, dfr.FluxElement.R, dfr.FluxElement.S)
 		dfr.SolutionX, dfr.SolutionY =
 			CalculateElementLocalGeometry(dfr.Tris.EToV, dfr.VX, dfr.VY, dfr.SolutionElement.R, dfr.SolutionElement.S)
-		if plotMesh {
-			readfiles.PlotMesh(dfr.VX, dfr.VY, EToV, dfr.SolutionX, dfr.SolutionY, true)
-			utils.SleepFor(50000)
+		if pm.PlotMesh {
+			readfiles.PlotMesh(dfr.VX, dfr.VY, EToV, dfr.SolutionX, dfr.SolutionY, true, pm)
+			fmt.Println("Number of elements in mesh K = ", dfr.K)
+			fmt.Println("Press 'Enter' to exit...")
+			bufio.NewReader(os.Stdin).ReadBytes('\n')
+			os.Exit(0)
 		}
 		// Calculate RT based derivative metrics for use in calculating Dx and Dy using the RT element
 		dfr.CalculateJacobian()

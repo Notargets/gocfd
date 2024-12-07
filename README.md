@@ -20,6 +20,11 @@ possible addition of various implicit time integration solvers.
 
 # Quick Start Guide
 
+## Supported Mesh Input Formats
+
+Both Gambit (.neu) and SU2 (.su2) unstructured triangular mesh formats are accepted. You can check to see that your mesh
+was input correctly by plotting it with the -m flag.
+
 ## Supported Platforms
 
 I've run the code on many Ubuntu Linux distributions, and also on Windows 10. Because it is written in Go, it should be portable
