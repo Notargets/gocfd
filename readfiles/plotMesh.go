@@ -36,7 +36,7 @@ func PlotMesh(VX, VY utils.Vector, EToV, X, Y utils.Matrix, plotPoints bool, pm 
 	}
 	trimesh.Geometry = points
 	box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
-	box = box.Scale(1.5)
+	box = box.Scale(float32(pm.Scale))
 	chart = chart2d.NewChart2D(1920, 1920, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
 	chart.AddColorMap(colorMap)
 	go chart.Plot()
