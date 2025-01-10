@@ -48,7 +48,7 @@ func TestLagrangePolynomial(t *testing.T) {
 			_ = lp
 			for j := 0; j < R.Len(); j++ {
 				for i, r := range SamplesR.DataP {
-					//f[i] = DG1D.JacobiP(utils.NewVector(1, []float64{r}), 0, 0, j)[0]
+					// f[i] = DG1D.JacobiP(utils.NewVector(1, []float64{r}), 0, 0, j)[0]
 					f[i] = lp.BasisPolynomial([]float64{r}, j)[0]
 				}
 				if n == Nmax-1 && j == R.Len()-1 {
@@ -88,7 +88,7 @@ func TestRTElementLagrange(t *testing.T) {
 			errors = make([]float64, Npm)
 		)
 		for i := 0; i < Npm; i++ {
-			//var ddr, dds float64
+			// var ddr, dds float64
 			errors[i] = div[i] - divCheck[i]
 		}
 		minInt, maxInt = errors[0], errors[0]
@@ -152,7 +152,7 @@ func TestRTElementLagrange(t *testing.T) {
 				sp := rt.ProjectFunctionOntoBasis(s1, s2)
 				sm := utils.NewMatrix(rt.Np, 1, sp)
 				divM := rt.Div.Mul(sm)
-				//fmt.Println(divM.Print("divM"))
+				// fmt.Println(divM.Print("divM"))
 				minerrInt, maxerrInt, minerrEdge, maxerrEdge := errorCheck(N, divM.DataP, divCheck)
 				assert.True(t, near(minerrInt, 0.0, 0.00001))
 				assert.True(t, near(maxerrInt, 0.0, 0.00001))
@@ -190,7 +190,7 @@ func TestRTElement(t *testing.T) {
 			errors = make([]float64, Npm)
 		)
 		for i := 0; i < Npm; i++ {
-			//var ddr, dds float64
+			// var ddr, dds float64
 			errors[i] = div[i] - divCheck[i]
 		}
 		minInt, maxInt = errors[0], errors[0]
@@ -247,7 +247,7 @@ func TestRTElement(t *testing.T) {
 				sp := rt.ProjectFunctionOntoBasis(s1, s2)
 				sm := utils.NewMatrix(rt.Np, 1, sp)
 				divM := rt.Div.Mul(sm)
-				//fmt.Println(divM.Print("divM"))
+				// fmt.Println(divM.Print("divM"))
 				minerrInt, maxerrInt, minerrEdge, maxerrEdge := errorCheck(N, divM.DataP, divCheck)
 				assert.True(t, near(minerrInt, 0.0, 0.00001))
 				assert.True(t, near(maxerrInt, 0.0, 0.00001))
@@ -261,7 +261,7 @@ func TestRTElement(t *testing.T) {
 		N := 2
 		NRT := N + 1
 		R, S := NodesEpsilon(N)
-		//NpInt := R.Len()
+		// NpInt := R.Len()
 		rt := NewRTElement(R, S, NRT, false)
 		s1, s2 := make([]float64, rt.R.Len()), make([]float64, rt.R.Len())
 		for i := range rt.R.DataP {
@@ -303,7 +303,8 @@ func PlotTestTri(plotGeom bool) (chart *chart2d.Chart2D) {
 
 	if plotGeom {
 		if err := chart.AddTriMesh("TriMesh", trimesh,
-			chart2d.CrossGlyph, chart2d.Solid, utils.GetColor(utils.Black)); err != nil {
+			chart2d.CrossGlyph, 0.1, chart2d.Solid,
+			utils.GetColor(utils.Black)); err != nil {
 			panic("unable to add graph series")
 		}
 	}

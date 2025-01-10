@@ -64,13 +64,13 @@ func Plot(xmin, xmax float32, X, Rho, P, U, E []float64) {
 	})
 	pSeries := func(field []float64, name string, color float32, gl chart2d.GlyphType) {
 		if err := chart_test.AddSeries(name, X, field,
-			gl, chart2d.Solid, colormap_test.GetRGB(color)); err != nil {
+			gl, 0.1, chart2d.Solid, colormap_test.GetRGB(color)); err != nil {
 			panic("unable to add graph series")
 		}
 	}
 	pSeries(Rho, "Rho", -0.7, chart2d.CrossGlyph)
 	pSeries(E, "E", 0.7, chart2d.BoxGlyph)
-	//pSeries(P, "P", 0.7, chart2d.BoxGlyph)
-	//pSeries(U, "U", 0.2, chart2d.NoGlyph)
-	//pSeries(E, "E", 0.7, chart2d.NoGlyph)
+	// pSeries(P, "P", 0.7, chart2d.BoxGlyph)
+	// pSeries(U, "U", 0.2, chart2d.NoGlyph)
+	// pSeries(E, "E", 0.7, chart2d.NoGlyph)
 }
