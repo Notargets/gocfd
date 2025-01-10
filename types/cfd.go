@@ -42,6 +42,12 @@ var BCNameMap = map[string]BCFLAG{
 
 type BCMAP map[BCTAG][]EdgeInt // Map of BCs, key is BC tag name, e.g. "Periodic-1" or "Wall" or "Wall-top"
 
+func (bmap BCMAP) ListNames() (nl []string) {
+	nl = []string{"inflow", "outflow", "wall", "far", "cyl", "dirichlet",
+		"neuman", "slip", "periodic", "periodicreversed"}
+	return
+}
+
 type BCTAG string // Tag used to name a BC consisting of a primary name ("Wall") with an optional label ("Wall-top")
 
 func NewBCTAG(label string) (bf BCTAG) {

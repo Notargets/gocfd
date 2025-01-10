@@ -20,9 +20,8 @@ import (
 )
 
 type DFR2D struct {
-	N               int
-	SolutionElement *LagrangeElement2D
-	//FluxElement     *RTElement
+	N                  int
+	SolutionElement    *LagrangeElement2D
 	FluxElement        *RTBasis2DSimplex
 	FluxInterp         utils.Matrix // Interpolates from the interior (solution) points to all of the flux points
 	FluxEdgeInterp     utils.Matrix // Interpolates only from interior to the edge points in the flux element
@@ -48,7 +47,7 @@ func NewDFR2D(N int, pm *InputParameters.PlotMeta, verbose bool, meshFileO ...st
 	}
 	le := NewLagrangeElement2D(N, Epsilon)
 	useLagrangeBasis := false
-	//rt := NewRTElement(le.R, le.S, N+1, useLagrangeBasis)
+	// rt := NewRTElement(le.R, le.S, N+1, useLagrangeBasis)
 	rt := NewRTBasis2DSimplex(N+1, useLagrangeBasis)
 	RFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.R.DataP)) // For the Interpolation matrix across three edges
 	SFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.S.DataP)) // For the Interpolation matrix across three edges
@@ -84,7 +83,7 @@ func NewDFR2D(N int, pm *InputParameters.PlotMeta, verbose bool, meshFileO ...st
 			dfr.K, dfr.VX, dfr.VY, EToV, dfr.BCEdges =
 				readfiles.ReadSU2(meshFileO[0], verbose)
 		}
-		//dfr.BCEdges.Print()
+		// dfr.BCEdges.Print()
 		dfr.Tris = NewTriangulation(dfr.VX, dfr.VY, EToV, dfr.BCEdges)
 		// Build connectivity matrices
 		dfr.FluxX, dfr.FluxY =
@@ -203,8 +202,8 @@ func (dfr *DFR2D) CalculateJacobian() {
 		v := [3]int{int(tri[0]), int(tri[1]), int(tri[2])}
 		v1x, v2x, v3x := dfr.VX.AtVec(v[0]), dfr.VX.AtVec(v[1]), dfr.VX.AtVec(v[2])
 		v1y, v2y, v3y := dfr.VY.AtVec(v[0]), dfr.VY.AtVec(v[1]), dfr.VY.AtVec(v[2])
-		//xr, yr := 0.5*(v2x-v1x), 0.5*(v2y-v1y)
-		//xs, ys := 0.5*(v3x-v1x), 0.5*(v3y-v1y)
+		// xr, yr := 0.5*(v2x-v1x), 0.5*(v2y-v1y)
+		// xs, ys := 0.5*(v3x-v1x), 0.5*(v3y-v1y)
 		xr, yr := 0.5*(v2x-v1x), 0.5*(v2y-v1y)
 		xs, ys := 0.5*(v3x-v1x), 0.5*(v3y-v1y)
 		// Jacobian is [xr, xs]
@@ -388,6 +387,9 @@ func (dfr *DFR2D) OutputMesh() (gm *graphics2D.TriMesh) {
 
 	// Build the X,Y coordinates to support the triangulation index
 	Np := NpFlux - Nint + 3 // Subtract NpInt to remove the dup pts and add 3 for the verts
+	fmt.Printf("Size of constructed element: Np=%d\n", Np)
+	fmt.Printf("Size of original flux element: NpFlux=%d\n", NpFlux)
+	fmt.Printf("Size of original flux element interior: NpInt=%d\n", Nint)
 	VX, VY := utils.NewMatrix(Np, Kmax), utils.NewMatrix(Np, Kmax)
 	vxd, vyd := VX.DataP, VY.DataP
 	for k := 0; k < Kmax; k++ {
@@ -403,8 +405,8 @@ func (dfr *DFR2D) OutputMesh() (gm *graphics2D.TriMesh) {
 			}
 		}
 	}
-	//fmt.Println(VX.Transpose().Print("VX_Out"))
-	//fmt.Println(VY.Transpose().Print("VY_Out"))
+	// fmt.Println(VX.Transpose().Print("VX_Out"))
+	// fmt.Println(VY.Transpose().Print("VY_Out"))
 
 	// Now replicate the triangle mesh for all triangles
 	baseTris := gm.Triangles
@@ -425,7 +427,7 @@ func (dfr *DFR2D) OutputMesh() (gm *graphics2D.TriMesh) {
 			gm.BaseGeometryClass.Geometry[ind] = graphics2D.Point{X: [2]float32{float32(vxd[ind]), float32(vyd[ind])}}
 		}
 	}
-	//gm.Attributes = make([][]float32, len(gm.Triangles)) // Empty attributes
+	// gm.Attributes = make([][]float32, len(gm.Triangles)) // Empty attributes
 	gm.Attributes = nil
 	return
 }

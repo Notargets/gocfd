@@ -12,10 +12,22 @@ import (
 
 type VertexToElement [][3]int32 // Vertex id is the first int32, element ID is the next, threadID third
 
-func (ve VertexToElement) Len() int           { return len(ve) }
-func (ve VertexToElement) Swap(i, j int)      { ve[i], ve[j] = ve[j], ve[i] }
-func (ve VertexToElement) Less(i, j int) bool { return ve[i][0] < ve[j][0] }
-func (ve VertexToElement) Sort()              { sort.Sort(ve) }
+func (ve VertexToElement) Len() int      { return len(ve) }
+func (ve VertexToElement) Swap(i, j int) { ve[i], ve[j] = ve[j], ve[i] }
+func (ve VertexToElement) Less(i, j int) bool {
+	if ve[i][0] < ve[j][0] {
+		return true
+	} else if ve[i][0] == ve[j][0] {
+		if ve[i][1] < ve[j][1] {
+			return true
+		} else if ve[i][1] == ve[j][1] {
+			if ve[i][2] < ve[j][2] {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 func NewVertexToElement(EtoV utils.Matrix) (VtoE VertexToElement) {
 	var (
@@ -33,7 +45,7 @@ func NewVertexToElement(EtoV utils.Matrix) (VtoE VertexToElement) {
 			ii++
 		}
 	}
-	VtoE.Sort()
+	sort.Sort(VtoE)
 	return
 }
 
@@ -56,7 +68,7 @@ func (ve VertexToElement) Shard(pm *PartitionMap) (veSharded []VertexToElement) 
 	for np := 0; np < NPar; np++ {
 		for i := 0; i < approxBucketSize; i++ {
 			veSharded[np] = append(veSharded[np], getShardedPair(ve[ib], pm))
-			//veSharded[np] = append(veSharded[np], ve[ib])
+			// veSharded[np] = append(veSharded[np], ve[ib])
 			ib++
 			if ib == lve {
 				return
@@ -65,7 +77,7 @@ func (ve VertexToElement) Shard(pm *PartitionMap) (veSharded []VertexToElement) 
 		vNum = ve[ib][0]
 		for ib < lve && ve[ib][0] == vNum {
 			veSharded[np] = append(veSharded[np], getShardedPair(ve[ib], pm))
-			//veSharded[np] = append(veSharded[np], ve[ib])
+			// veSharded[np] = append(veSharded[np], ve[ib])
 			ib++
 			if ib == lve {
 				return
@@ -155,7 +167,7 @@ func (sd *ScalarDissipation) shardEtoV(EtoV utils.Matrix) (ev []utils.Matrix) {
 	var (
 		pm = sd.PMap
 		NP = pm.ParallelDegree
-		//KMax, _ = EtoV.Dims()
+		// KMax, _ = EtoV.Dims()
 	)
 	ev = make([]utils.Matrix, NP)
 	for np := 0; np < NP; np++ {

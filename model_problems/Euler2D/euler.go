@@ -242,8 +242,8 @@ func (rk *RungeKutta4SSP) Step(c *Euler) {
 		wg = sync.WaitGroup{}
 	)
 	for currentStep := 0; currentStep < 26; currentStep++ {
-		//rkStep := getRKStepNumber(currentStep)
-		//initDT                     := (rkStep == 0) // Calculate time step on first RK stage only
+		// rkStep := getRKStepNumber(currentStep)
+		// initDT                     := (rkStep == 0) // Calculate time step on first RK stage only
 		initDT := true // Calculate time step at each stage
 		// Workers are blocked below here until the StepWorker section - make sure significant work done here is abs necessary!
 		if initDT && !c.LocalTimeStepping {
@@ -398,7 +398,7 @@ func (c *Euler) RHSInternalPoints(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4
 			)
 			for i := 0; i < Nint; i++ {
 				ind := k + i*Kmax
-				//data[ind] /= -JdetD[k]
+				// data[ind] /= -JdetD[k]
 				data[ind] *= -oojd
 			}
 		}
@@ -528,6 +528,8 @@ func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [][4]utils.
 			c.PlotQ(pm, 1920, 1080) // wait till we implement time iterative frame updates
 		} else {
 			c.PlotQ(pm, 1920, 1080) // wait till we implement time iterative frame updates
+			c.SavePlotFunction(pm, steps, "functionFile.gcfd")
+			// os.Exit(1)
 		}
 	}
 	if c.LocalTimeStepping {

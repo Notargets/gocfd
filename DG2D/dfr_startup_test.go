@@ -6,6 +6,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/notargets/gocfd/InputParameters"
+
 	"github.com/notargets/gocfd/types"
 
 	utils2 "github.com/notargets/avs/utils"
@@ -21,10 +23,11 @@ import (
 )
 
 func TestDFR2D(t *testing.T) {
+	pm := &InputParameters.PlotMeta{}
 	// Basic test of interpolation matrix
 	{
 		N := 1
-		dfr := NewDFR2D(N, false, false)
+		dfr := NewDFR2D(N, pm, false)
 		el := dfr.SolutionElement
 		fluxEl := dfr.FluxElement
 		s := make([]float64, el.Np)
@@ -45,7 +48,7 @@ func TestDFR2D(t *testing.T) {
 	{
 		Nmax := 7
 		for N := 1; N <= Nmax; N++ {
-			dfr := NewDFR2D(N, false, false)
+			dfr := NewDFR2D(N, pm, false)
 			el := dfr.SolutionElement
 			fluxEl := dfr.FluxElement
 			// Construct a 2D polynomial at the flux element geo locations, the first NpInt of which match the interior
@@ -69,18 +72,18 @@ func TestDFR2D(t *testing.T) {
 	// Test point distribution
 	{
 		N := 1
-		dfr := NewDFR2D(N, false, false)
+		dfr := NewDFR2D(N, pm, false)
 		el := dfr.SolutionElement
 		rt := dfr.FluxElement
 		assert.True(t, nearVec(rt.GetInternalLocations(rt.R.DataP), el.R.DataP, 0.000001))
 		assert.True(t, nearVec(rt.GetInternalLocations(rt.S.DataP), el.S.DataP, 0.000001))
-		//fmt.Printf("Edge R = %v\n", rt.GetEdgeLocations(rt.R))
-		//fmt.Printf("Edge S = %v\n", rt.GetEdgeLocations(rt.S))
+		// fmt.Printf("Edge R = %v\n", rt.GetEdgeLocations(rt.R))
+		// fmt.Printf("Edge S = %v\n", rt.GetEdgeLocations(rt.S))
 	}
 	// Test interpolation from solution points to flux points
 	{
 		N := 1
-		dfr := NewDFR2D(N, false, false)
+		dfr := NewDFR2D(N, pm, false)
 		el := dfr.SolutionElement
 		rt := dfr.FluxElement
 		assert.Equal(t, el.Np, rt.NpInt)
@@ -92,8 +95,8 @@ func TestDFR2D(t *testing.T) {
 		// Interpolate from interior to flux points
 		sV := utils.NewMatrix(rt.NpInt, 1, solution)
 		_ = dfr.FluxEdgeInterp.Mul(sV)
-		//fmt.Printf("%s\n", fluxInterp.Print("fluxInterp"))
-		//fmt.Printf("%s\n", sV.Print("sV"))
+		// fmt.Printf("%s\n", fluxInterp.Print("fluxInterp"))
+		// fmt.Printf("%s\n", sV.Print("sV"))
 	}
 	// Test triangulation
 	{
@@ -119,7 +122,7 @@ func TestDFR2D(t *testing.T) {
 			return
 		}
 		N := 1
-		dfr := NewDFR2D(N, false, false, "test_tris_5.neu")
+		dfr := NewDFR2D(N, pm, false, "test_tris_5.neu")
 		/*
 				Coordinates in test triangle case:
 				1     0.000000000e+000    0.000000000e+000
@@ -208,11 +211,10 @@ func TestDFR2D(t *testing.T) {
 	// Test output of triangulated mesh for plotting
 	{
 		N := 1
-		plotMesh := false
 		plotFunc := false
-		//dfr := NewDFR2D(N, plotMesh, "vortexA04.neu")
-		dfr := NewDFR2D(N, plotMesh, false, "test_tris_6.neu")
-		//dfr := NewDFR2D(N, plotMesh, "test_tris_1.neu")
+		// dfr := NewDFR2D(N, plotMesh, "vortexA04.neu")
+		dfr := NewDFR2D(N, pm, false, "test_tris_6.neu")
+		// dfr := NewDFR2D(N, plotMesh, "test_tris_1.neu")
 		gm := dfr.OutputMesh()
 		if false {
 			PlotTriMesh(*gm)
@@ -234,13 +236,14 @@ func TestDFR2D(t *testing.T) {
 		fs := functions.NewFSurface(gm, [][]float32{fI}, 0)
 		if plotFunc {
 			PlotFS(fs, 0, 1)
-			//PlotFS(fs, 0, 1, chart2d.Solid)
+			// PlotFS(fs, 0, 1, chart2d.Solid)
 			utils.SleepFor(50000)
 		}
 	}
 }
 
 func TestDivergence(t *testing.T) {
+	pm := &InputParameters.PlotMeta{}
 	// Test divergence
 	checkSolution := func(dfr *DFR2D, Order int) (Fx, Fy, divCheck utils.Matrix) {
 		var (
@@ -268,11 +271,11 @@ func TestDivergence(t *testing.T) {
 	}
 	{ // Check Divergence for polynomial vector fields of order < N against analytical solution
 		N := 7 // Order of element
-		//N := 7 // Order of element
-		dfr := NewDFR2D(N, false, false, "test_tris_5.neu")
+		// N := 7 // Order of element
+		dfr := NewDFR2D(N, pm, false, "test_tris_5.neu")
 		rt := dfr.FluxElement
-		//rt.Div.Print("Div")
-		//rt.DivInt.Print("DivInt")
+		// rt.Div.Print("Div")
+		// rt.DivInt.Print("DivInt")
 		for cOrder := 1; cOrder <= N; cOrder++ { // Run a test on polynomial flux vector fields up to Nth order
 			fmt.Printf("checking RT order[%d]...", cOrder+1)
 			Fx, Fy, divCheck := checkSolution(dfr, cOrder)
@@ -284,8 +287,8 @@ func TestDivergence(t *testing.T) {
 					Jdet = dfr.Jdet.Row(k).DataP[0]
 				)
 				divM := rt.Div.Mul(Fpk).Scale(1. / Jdet)
-				//divM.Print("divM")
-				//fmt.Printf("divCheck.Row(k) = %v\n", divCheck.Row(k).DataP)
+				// divM.Print("divM")
+				// fmt.Printf("divCheck.Row(k) = %v\n", divCheck.Row(k).DataP)
 				assert.InDeltaSlicef(t, divCheck.Row(k).DataP, divM.DataP, 0.00001, "")
 			}
 			// Now project flux onto untransformed normals using ||n|| scaling factor, divergence should be the same
@@ -304,8 +307,9 @@ func TestDivergence(t *testing.T) {
 }
 
 func TestGradient(t *testing.T) {
+	pm := &InputParameters.PlotMeta{}
 	// Test gradient on Flux element points, derived from a solution field interpolated from solution pts to Flux pts
-	dfr := NewDFR2D(3, false, false, "test_tris_6.neu")
+	dfr := NewDFR2D(3, pm, false, "test_tris_6.neu")
 	if false {
 		PlotTriMesh(*dfr.OutputMesh())
 		utils.SleepFor(50000)
@@ -318,7 +322,7 @@ func TestGradient(t *testing.T) {
 		Dr     = dfr.FluxDr
 		Ds     = dfr.FluxDs
 		Jinv   = dfr.Jinv
-		//Jdet   = dfr.Jdet
+		// Jdet   = dfr.Jdet
 		// Scalar fields, linear, quadratic, cubic
 		XY1, XY2, XY3 = utils.NewMatrix(NpInt, Kmax), utils.NewMatrix(NpInt, Kmax), utils.NewMatrix(NpInt, Kmax)
 		// Directional derivatives of scalar fields, linear, quadratic, cubic
@@ -392,14 +396,14 @@ func TestGradient(t *testing.T) {
 			DOFXd, DOFYd = DOFX.DataP, DOFY.DataP
 		)
 		// Create DX and DY for each field type in a loop and check against analytic values
-		//var Uint, Uedge utils.Matrix
+		// var Uint, Uedge utils.Matrix
 		fI := dfr.FluxEdgeInterp.Mul
 		Uint := []utils.Matrix{XY1, XY2, XY3}
 		Uedge := []utils.Matrix{fI(Uint[0]), fI(Uint[1]), fI(Uint[2])}
 		DXCheck, DYCheck := []utils.Matrix{DX1, DX2, DX3}, []utils.Matrix{DY1, DY2, DY3}
 		{
 			for n := range Uint {
-				//for n := 0; n < 3; n++ {
+				// for n := 0; n < 3; n++ {
 				var Un float64
 				for k := 0; k < Kmax; k++ {
 					for i := 0; i < NpFlux; i++ {
@@ -456,7 +460,7 @@ func PlotTriMesh(trimesh graphics2D.TriMesh) {
 	box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
 	box = box.Scale(1.5)
 	chart := chart2d.NewChart2D(1920, 1920, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
-	//chart.AddColorMap(colorMap)
+	// chart.AddColorMap(colorMap)
 	go chart.Plot()
 	white := color.RGBA{
 		R: 255,
@@ -472,7 +476,7 @@ func PlotTriMesh(trimesh graphics2D.TriMesh) {
 	}
 	_ = white
 	if err := chart.AddTriMesh("TriMesh", trimesh,
-		chart2d.CrossGlyph, chart2d.Solid, black); err != nil {
+		chart2d.CrossGlyph, 0.1, chart2d.Solid, black); err != nil {
 		panic("unable to add graph series")
 	}
 }

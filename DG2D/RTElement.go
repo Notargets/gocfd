@@ -30,6 +30,7 @@ for the triangle.
 */
 func NewRTBasis2DSimplex(P int, useLagrangeBasis bool) (rtb *RTBasis2DSimplex) {
 	var Rint, Sint utils.Vector
+	fmt.Printf("Order of RT Element %d\n", P)
 	rtb = &RTBasis2DSimplex{
 		P:      P,
 		Np:     (P + 1) * (P + 3),
@@ -604,8 +605,8 @@ func (rtb *RTBasis2DSimplex) getCoreBasisTerm(tt TermType, r, s float64, derivO 
 	case e1:
 		switch deriv {
 		case None:
-			//p0 = sr2 * xi
-			//p1 = sr2 * eta
+			// p0 = sr2 * xi
+			// p1 = sr2 * eta
 			p0 = oosr2 * (r + 1)
 			p1 = oosr2 * (s + 1)
 		case Dr:
@@ -616,8 +617,8 @@ func (rtb *RTBasis2DSimplex) getCoreBasisTerm(tt TermType, r, s float64, derivO 
 	case e2:
 		switch deriv {
 		case None:
-			//p0 = xi - 1
-			//p1 = eta
+			// p0 = xi - 1
+			// p1 = eta
 			p0 = 0.5*r - 0.5
 			p1 = 0.5*s + 0.5
 		case Dr:
@@ -628,8 +629,8 @@ func (rtb *RTBasis2DSimplex) getCoreBasisTerm(tt TermType, r, s float64, derivO 
 	case e3:
 		switch deriv {
 		case None:
-			//p0 = xi
-			//p1 = eta - 1
+			// p0 = xi
+			// p1 = eta - 1
 			p0 = 0.5*r + 0.5
 			p1 = 0.5*s - 0.5
 		case Dr:
@@ -640,8 +641,8 @@ func (rtb *RTBasis2DSimplex) getCoreBasisTerm(tt TermType, r, s float64, derivO 
 	case e4:
 		switch deriv {
 		case None:
-			//p0 = eta * xi
-			//p1 = eta * (eta - 1)
+			// p0 = eta * xi
+			// p1 = eta * (eta - 1)
 			p0 = 0.25 * (r*s + r + s + 1)
 			p1 = 0.25 * (s*s - 1)
 		case Dr:
@@ -653,8 +654,8 @@ func (rtb *RTBasis2DSimplex) getCoreBasisTerm(tt TermType, r, s float64, derivO 
 	case e5:
 		switch deriv {
 		case None:
-			//p0 = xi * (xi - 1)
-			//p1 = xi * eta
+			// p0 = xi * (xi - 1)
+			// p1 = xi * eta
 			p0 = 0.25 * (r*r - 1)
 			p1 = 0.25 * (r*s + r + s + 1)
 		case Dr:

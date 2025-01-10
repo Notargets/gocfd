@@ -179,11 +179,12 @@ func init() {
 }
 
 func Run2D(m2d *Model2D, ip *InputParameters.InputParameters2D, pm *InputParameters.PlotMeta) {
-	//fmt.Printf("m2d: %+v\n", m2d)
-	//fmt.Printf("ip: %+v\n", ip)
-	//fmt.Printf("pm: %+v\n", pm)
-	//os.Exit(1)
+	// fmt.Printf("m2d: %+v\n", m2d)
+	// fmt.Printf("ip: %+v\n", ip)
+	// fmt.Printf("pm: %+v\n", pm)
+	// os.Exit(1)
 	c := Euler2D.NewEuler(ip, pm, m2d.GridFile, m2d.ParallelProcLimit, true, m2d.Profile)
+	c.SaveOutputMesh("meshfile.gcfd")
 	/*
 		if ip.ImplicitSolver {
 			c.SolveImplicit(pm)
