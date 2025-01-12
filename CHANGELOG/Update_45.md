@@ -28,8 +28,12 @@ variables W are:
 
 ![](u45_1.png)
 
-When multiplied by the velocity vector U = {u,v}, we get the Fx and Fy 
-components of vector flux:
+The vector flux {Fx, Fy} isn't simply the product of the velocity vector 
+with the scalar quantities, except for the mass equation. Mass is convected 
+purely via velocity, but the momentum and energy equations feature a 
+pressure term for the flux. This is the embodiment of the physics of the 
+problem we are solving, so we compute the flux vectors using the physical 
+definitions:
 
 ![](u45_2.png)
 
