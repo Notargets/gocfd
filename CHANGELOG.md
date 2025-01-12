@@ -1,4 +1,6 @@
 
+- [Update 45](CHANGELOG/Update_45.md): Restatement of Numerical Method: 
+  Hybrid Elements to Represent Scalar Field and  Coupled Vector Flux Field
 - [Update 44](CHANGELOG/Update_44.md): Return after three-year hiatus.
 - [Update 43](CHANGELOG/Update_43.md): Transonic testing successful for P!=1.
 - [Update 42](CHANGELOG/Update_42.md): Added min/max limiter for values.
