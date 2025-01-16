@@ -95,7 +95,7 @@ func (c *Euler) FluxJacobianTransformed(k, Kmax, i int, Jdet, Jinv utils.Matrix,
 		Fx, Gy         [16]float64
 	)
 	Fx, Gy = c.FluxJacobianCalc(q0, q1, q2, q3)
-	//fmt.Printf("Fx,Gy[%d] = %v,%v\n", i, Fx, Gy)
+	// fmt.Printf("Fx,Gy[%d] = %v,%v\n", i, Fx, Gy)
 	for ii := range Fx { // Transform individual element Flux Jacobian
 		Fr[ii] = JdetD * (JinvD[0]*Fx[ii] + JinvD[1]*Gy[ii])
 		Gs[ii] = JdetD * (JinvD[2]*Fx[ii] + JinvD[3]*Gy[ii])
@@ -219,7 +219,7 @@ func (c *Euler) LaxFlux2(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 
 func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux [][4]float64) {
-	//fmt.Printf("here 1\n")
+	// fmt.Printf("here 1\n")
 	var (
 		Nedge            = c.dfr.FluxElement.NpEdge
 		rhoL, uL, vL, pL float64
@@ -248,8 +248,8 @@ func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		rhoURr, rhoVRr := rotate(Q_FaceR[1].DataP[indR], Q_FaceR[2].DataP[indR], normal[0], normal[1])
 		rhoL, uL, vL = Q_FaceL[0].DataP[indL], rhoULr/Q_FaceL[0].DataP[indL], rhoVLr/Q_FaceL[0].DataP[indL]
 		rhoR, uR, vR = Q_FaceR[0].DataP[indR], rhoURr/Q_FaceR[0].DataP[indR], rhoVRr/Q_FaceR[0].DataP[indR]
-		//rhoL, uL, vL = Q_FaceL[0].DataP[indL], Q_FaceL[1].DataP[indL]/Q_FaceL[0].DataP[indL], Q_FaceL[2].DataP[indL]/Q_FaceL[0].DataP[indL]
-		//rhoR, uR, vR = Q_FaceR[0].DataP[indR], Q_FaceR[1].DataP[indR]/Q_FaceR[0].DataP[indR], Q_FaceR[2].DataP[indR]/Q_FaceR[0].DataP[indR]
+		// rhoL, uL, vL = Q_FaceL[0].DataP[indL], Q_FaceL[1].DataP[indL]/Q_FaceL[0].DataP[indL], Q_FaceL[2].DataP[indL]/Q_FaceL[0].DataP[indL]
+		// rhoR, uR, vR = Q_FaceR[0].DataP[indR], Q_FaceR[1].DataP[indR]/Q_FaceR[0].DataP[indR], Q_FaceR[2].DataP[indR]/Q_FaceR[0].DataP[indR]
 		pL, pR = c.FSFar.GetFlowFunction(Q_FaceL, indL, StaticPressure), c.FSFar.GetFlowFunction(Q_FaceR, indR, StaticPressure)
 		/*
 		   HM = (EnerM+pM).dd(rhoM);  HP = (EnerP+pP).dd(rhoP);
@@ -265,7 +265,7 @@ func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 			v   = (rhoMs.dm(vM) + rhoPs.dm(vP)).dd(rhoMsPs);
 			H   = (rhoMs.dm(HM) + rhoPs.dm(HP)).dd(rhoMsPs);
 			c2 = gm1 * (H - 0.5*(sqr(u)+sqr(v)));
-			c = sqrt(c2);
+			C = sqrt(c2);
 		*/
 		// Compute Roe average variables
 		rhoLs, rhoRs := math.Sqrt(rhoL), math.Sqrt(rhoR)
@@ -276,45 +276,49 @@ func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		v := (rhoLs*vL + rhoRs*vR) / rhoLsRs
 		h := (rhoLs*hL + rhoRs*hR) / rhoLsRs
 		c2 := GM1 * (h - 0.5*(u*u+v*v))
-		c := math.Sqrt(c2)
+		C := math.Sqrt(c2)
 		/*
-		   dW1 = -0.5*(rho.dm(uP-uM)).dd(c) + 0.5*(pP-pM).dd(c2);
+		   dW1 = -0.5*(rho.dm(uP-uM)).dd(C) + 0.5*(pP-pM).dd(c2);
 		   dW2 = (rhoP-rhoM) - (pP-pM).dd(c2);
 		   dW3 = rho.dm(vP-vM);
-		   dW4 = 0.5*(rho.dm(uP-uM)).dd(c) + 0.5*(pP-pM).dd(c2);
+		   dW4 = 0.5*(rho.dm(uP-uM)).dd(C) + 0.5*(pP-pM).dd(c2);
 
-		   dW1 = abs(u-c).dm(dW1);
+		   dW1 = abs(u-C).dm(dW1);
 		   dW2 = abs(u  ).dm(dW2);
 		   dW3 = abs(u  ).dm(dW3);
-		   dW4 = abs(u+c).dm(dW4);
+		   dW4 = abs(u+C).dm(dW4);
 		*/
 		// Riemann fluxes
-		dW1 := -0.5*(rho*(uR-uL))/c + 0.5*(pR-pL)/c2
+		dW1 := -0.5*(rho*(uR-uL))/C + 0.5*(pR-pL)/c2
 		dW2 := (rhoR - rhoL) - (pR-pL)/c2
 		dW3 := rho * (vR - vL)
-		dW4 := 0.5*(rho*(uR-uL))/c + 0.5*(pR-pL)/c2
-		dW1 = math.Abs(u-c) * dW1
+		dW4 := 0.5*(rho*(uR-uL))/C + 0.5*(pR-pL)/c2
+		dW1 = math.Abs(u-C) * dW1
 		dW2 = math.Abs(u) * dW2
 		dW3 = math.Abs(u) * dW3
-		dW4 = math.Abs(u+c) * dW4
+		dW4 = math.Abs(u+C) * dW4
 		/*
 		   DMat fx = (fxQP+fxQM)/2.0;
 		   fx(All,1) -= (dW1               + dW2                                   + dW4              )/2.0;
-		   fx(All,2) -= (dW1.dm(u-c)       + dW2.dm(u)                             + dW4.dm(u+c)      )/2.0;
+		   fx(All,2) -= (dW1.dm(u-C)       + dW2.dm(u)                             + dW4.dm(u+C)      )/2.0;
 		   fx(All,3) -= (dW1.dm(v)         + dW2.dm(v)                 + dW3       + dW4.dm(v)        )/2.0;
-		   fx(All,4) -= (dW1.dm(H-u.dm(c)) + dW2.dm(sqr(u)+sqr(v))/2.0 + dW3.dm(v) + dW4.dm(H+u.dm(c)))/2.0;
+		   fx(All,4) -= (dW1.dm(H-u.dm(C)) + dW2.dm(sqr(u)+sqr(v))/2.0 + dW3.dm(v) + dW4.dm(H+u.dm(C)))/2.0;
 		*/
 		// Form Roe FluxIndex
 		// Ave of normal component of flux
+		// TODO: This is where the direct values of the Left and Right RT face
+		// TODO: fluxes should be used. We should sub the F_L and F_R here
+		// TODO: The dissipation term below is computed as given from the
+		// TODO: scalars
 		normalFlux[i][0] = 0.5 * (rhoULr + rhoURr)
 		normalFlux[i][1] = 0.5 * (rhoULr*uL + rhoURr*uR + +pL + pR)
 		normalFlux[i][2] = 0.5 * (rhoVLr*uL + rhoVRr*uR)
 		normalFlux[i][3] = 0.5 * ((pL+Q_FaceL[3].DataP[indL])*uL + (pR+Q_FaceR[3].DataP[indR])*uR)
 
 		normalFlux[i][0] -= 0.5 * (dW1 + dW2 + dW4)
-		normalFlux[i][1] -= 0.5 * (dW1*(u-c) + dW2*u + dW4*(u+c))
+		normalFlux[i][1] -= 0.5 * (dW1*(u-C) + dW2*u + dW4*(u+C))
 		normalFlux[i][2] -= 0.5 * (dW1*v + dW2*v + dW3 + dW4*v)
-		normalFlux[i][3] -= 0.5 * (dW1*(h-u*c) + 0.5*dW2*(u*u+v*v) + dW3*v + dW4*(h+u*c))
+		normalFlux[i][3] -= 0.5 * (dW1*(h-u*C) + 0.5*dW2*(u*u+v*v) + dW3*v + dW4*(h+u*C))
 		/*
 		   flux = fx;    fx2.borrow(Ngf, fx.pCol(2)); fx3.borrow(Ngf, fx.pCol(3));
 		   flux(All,2) = lnx.dm(fx2) - lny.dm(fx3);
@@ -419,7 +423,7 @@ func (c *Euler) RoeERFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 func (c *Euler) RoeFlux2(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 	Q_FaceL, Q_FaceR [4]utils.Matrix, Flux_FaceL, Flux_FaceR [2][4]utils.Matrix,
 	normal [2]float64, normalFlux [][4]float64) {
-	//fmt.Printf("here 2\n")
+	// fmt.Printf("here 2\n")
 	var (
 		Nedge            = c.dfr.FluxElement.NpEdge
 		rhoL, uL, vL, pL float64
@@ -480,7 +484,7 @@ func (c *Euler) RoeFlux2(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 			nL := normal[0]*Flux_FaceL[0][n].DataP[indL] + normal[1]*Flux_FaceL[1][n].DataP[indL]
 			nR := normal[0]*Flux_FaceR[0][n].DataP[indR] + normal[1]*Flux_FaceR[1][n].DataP[indR]
 			normalFlux[i][n] += 0.5 * (nL + nR)
-			//_, _ = nL, nR
+			// _, _ = nL, nR
 		}
 	}
 }

@@ -270,8 +270,9 @@ func (c *Euler) calculateLocalDT(e *DG2D.Edge, Nedge int,
 func (c *Euler) calculateSharedEdgeFlux(Nedge, kL, KmaxL, edgeNumberL, myThreadL, kR, KmaxR, edgeNumberR, myThreadR int,
 	normalL [2]float64, numericalFluxForEuler [][4]float64, Q_Face [][4]utils.Matrix, Flux_Face [][2][4]utils.Matrix) {
 	var (
-		shiftL, shiftR      = edgeNumberL * Nedge, edgeNumberR * Nedge
-		interpolateFluxNotQ = true
+		shiftL, shiftR = edgeNumberL * Nedge, edgeNumberR * Nedge
+		// interpolateFluxNotQ = true
+		interpolateFluxNotQ = false
 	)
 	switch c.FluxCalcAlgo {
 	case FLUX_Average:
@@ -347,7 +348,7 @@ func (c *Euler) SetRTFluxOnEdges(myThread, Kmax int, F_RT_DOF [4]utils.Matrix) {
 		kGlobal := c.Partitions.GetGlobalK(k, myThread)
 		for edgeNum := 0; edgeNum < 3; edgeNum++ {
 			shift := edgeNum * Nedge
-			//nFlux, sign := c.EdgeStore.GetEdgeNormalFlux(kGlobal, edgeNum, dfr)
+			// nFlux, sign := c.EdgeStore.GetEdgeNormalFlux(kGlobal, edgeNum, dfr)
 			ind2 := kGlobal + KmaxGlobal*edgeNum
 			IInII := dfr.IInII.DataP[ind2]
 			for n := 0; n < 4; n++ {
@@ -378,8 +379,45 @@ func (c *Euler) InterpolateSolutionToEdges(Q, Q_Face [4]utils.Matrix, Flux, Flux
 	// Calculate Flux for interior points
 	for k := 0; k < Kmax; k++ {
 		for i := 0; i < NpInt; i++ {
-			//for i := range Q[0].DataP {
-			//for i := 0; i < c.dfr.SolutionElement.Np*Kmax; i++ {
+			// for i := range Q[0].DataP {
+			// for i := 0; i < c.dfr.SolutionElement.Np*Kmax; i++ {
+			ind := k + Kmax*i
+			Fx, Fy := c.CalculateFlux(Q, ind)
+			for n := 0; n < 4; n++ {
+				Flux[0][n].DataP[ind] = Fx[n]
+				Flux[1][n].DataP[ind] = Fy[n]
+			}
+		}
+	}
+	// Interpolate Flux to the edges
+	for n := 0; n < 4; n++ {
+		c.dfr.FluxEdgeInterp.Mul(Flux[0][n], Flux_Face[0][n])
+		c.dfr.FluxEdgeInterp.Mul(Flux[1][n], Flux_Face[1][n])
+	}
+	return
+}
+
+// TODO: This method is where we calculate the normal flux on all RT edges using
+// TODO: the divergence of the internal solution values. We multiply the
+// TODO: scalar flux values by the inverse of the matrix of divergence of
+// TODO: RT basis functions, which provides the constants of the RT divergence
+// TODO: field, which at the edge points is equal to the value of the vector
+// TODO: normal flux there. We use this to solve the Riemann problem at the
+// TODO: edges.
+func (c *Euler) GetNormalFluxFromDivergence(Q, Q_Face [4]utils.Matrix, Flux,
+	Flux_Face [2][4]utils.Matrix) {
+	var (
+		NpInt, Kmax = Q[0].Dims()
+	)
+	// Interpolate from solution points to edges using precomputed interpolation matrix
+	for n := 0; n < 4; n++ {
+		c.dfr.FluxEdgeInterp.Mul(Q[n], Q_Face[n])
+	}
+	// Calculate Flux for interior points
+	for k := 0; k < Kmax; k++ {
+		for i := 0; i < NpInt; i++ {
+			// for i := range Q[0].DataP {
+			// for i := 0; i < c.dfr.SolutionElement.Np*Kmax; i++ {
 			ind := k + Kmax*i
 			Fx, Fy := c.CalculateFlux(Q, ind)
 			for n := 0; n < 4; n++ {
