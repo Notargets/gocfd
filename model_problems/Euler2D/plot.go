@@ -94,7 +94,7 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 	return
 }
 
-func (c *Euler) PlotQ(pm *InputParameters.PlotMeta, width, height int) {
+func (c *Euler) PlotQ(pm *InputParameters.PlotMeta, width, height, steps int) {
 	var (
 		Q         = c.RecombineShardsKBy4(c.Q)
 		plotField = FlowFunction(pm.Field)
@@ -109,6 +109,7 @@ func (c *Euler) PlotQ(pm *InputParameters.PlotMeta, width, height int) {
 	if c.chart.gm == nil {
 		c.chart.gm = c.dfr.OutputMesh()
 	}
+	c.SavePlotFunction(fI, "solution.gcfd", steps)
 	c.chart.fs = functions.NewFSurface(c.chart.gm, [][]float32{fI}, 0)
 	fmt.Printf(" Plot>%s min,max = %8.5f,%8.5f\n", plotField.String(), oField.Min(), oField.Max())
 	c.PlotFS(width, height,
@@ -170,11 +171,8 @@ func (c *Euler) SaveOutputMesh(fileName string) {
 	var (
 		err     error
 		file    *os.File
-		tris    = c.dfr.Tris
-		etov    = tris.EToV
-		x       = c.dfr.VX.DataP
-		y       = c.dfr.VY.DataP
 		bcEdges = c.dfr.BCEdges
+		gm      = c.dfr.OutputMesh()
 	)
 	file, err = os.Create(fileName)
 	if err != nil {
@@ -182,36 +180,41 @@ func (c *Euler) SaveOutputMesh(fileName string) {
 	}
 	defer file.Close()
 
-	lenTriVerts := int64(len(etov.DataP))
+	lenTriVerts := int64(3 * len(gm.Triangles))
 	triVerts := make([]int64, lenTriVerts)
-	for k := 0; k < c.dfr.K; k++ {
+	for k, tri := range gm.Triangles {
 		elp := 3 * k
-		triVerts[elp] = int64(etov.DataP[elp])
-		triVerts[elp+1] = int64(etov.DataP[elp+1])
-		triVerts[elp+2] = int64(etov.DataP[elp+2])
+		triVerts[elp] = int64(tri.Nodes[0])
+		triVerts[elp+1] = int64(tri.Nodes[1])
+		triVerts[elp+2] = int64(tri.Nodes[2])
 	}
-	lenVerts := int64(len(x))
-	xy := make([]float64, lenVerts*2) // combined X,Y
-	for i := range x {
-		xy[2*i] = x[i]
-		xy[2*i+1] = y[i]
+	lenXYCoords := int64(len(gm.Geometry))
+	xy := make([]float64, lenXYCoords*2) // combined X,Y
+	for i, pt := range gm.Geometry {
+		xy[2*i] = float64(pt.X[0])
+		xy[2*i+1] = float64(pt.X[1])
 	}
-	// for name, bc := range bcEdges {
-	// 	fmt.Printf("BC Name, Number of edges\n%s, %d\n", name,
-	// 		len(bc))
-	// 	for i, e := range bc {
-	// 		inds := e.GetVertices()
-	// 		fmt.Printf("%d[%d,%d]\n", i, inds[0], inds[1])
-	// 	}
-	// }
-	fmt.Printf("Number of Vertices: %d\n", lenVerts)
-	fmt.Printf("Number of Triangle Vertices (3 per tri): %d\n", lenTriVerts)
+	fmt.Printf("Number of Coordinate Pairs: %d\n", lenXYCoords)
+	fmt.Printf("Number of Original Triangle Elements: %d\n", c.dfr.K)
+	fmt.Printf("Number of RT Triangle Elements: %d\n", lenTriVerts/3)
 	nDimensions := int64(2) // 2D
 	binary.Write(file, binary.LittleEndian, nDimensions)
 	binary.Write(file, binary.LittleEndian, lenTriVerts)
 	binary.Write(file, binary.LittleEndian, triVerts)
-	binary.Write(file, binary.LittleEndian, lenVerts)
+	binary.Write(file, binary.LittleEndian, lenXYCoords)
 	binary.Write(file, binary.LittleEndian, xy)
+	// We output the XY coordinates of boundary conditions
+	var nBCs int64
+	for _, name := range bcEdges.ListNames() {
+		bName := types.BCTAG(name)
+		if _, present := bcEdges[bName]; present {
+			nBCs++
+		}
+	}
+	binary.Write(file, binary.LittleEndian, nBCs)
+	X := c.dfr.VX
+	Y := c.dfr.VY
+	var x1, y1, x2, y2 float32
 	for _, name := range bcEdges.ListNames() {
 		bName := types.BCTAG(name)
 		if _, present := bcEdges[bName]; present {
@@ -220,33 +223,60 @@ func (c *Euler) SaveOutputMesh(fileName string) {
 			binary.Write(file, binary.LittleEndian, fString)
 			bcLen := int64(len(bcEdges[bName]))
 			binary.Write(file, binary.LittleEndian, bcLen)
-			binary.Write(file, binary.LittleEndian, bcEdges[bName])
+			for _, edge := range bcEdges[bName] {
+				verts := edge.GetVertices()
+				v1, v2 := verts[0], verts[1]
+				x1, y1 = float32(X.DataP[v1]), float32(Y.DataP[v1])
+				x2, y2 = float32(X.DataP[v2]), float32(Y.DataP[v2])
+				binary.Write(file, binary.LittleEndian, x1)
+				binary.Write(file, binary.LittleEndian, y1)
+				binary.Write(file, binary.LittleEndian, x2)
+				binary.Write(file, binary.LittleEndian, y2)
+			}
 		}
 	}
 	return
 }
 
-func (c *Euler) SavePlotFunction(pm *InputParameters.PlotMeta,
-	steps int, fileName string) {
+func (c *Euler) SavePlotFunction(fI []float32, fileName string, nSteps int) {
 	var (
-		Q         = c.RecombineShardsKBy4(c.Q)
-		plotField = FlowFunction(pm.Field)
-		oField    = c.GetPlotField(Q, plotField)
-		fI        = c.dfr.ConvertScalarToOutputMesh(oField)
-		file      *os.File
-		err       error
+		err error
 	)
-	if steps == 1 {
-		file, err = os.Create(fileName)
+	if nSteps == 1 {
+		c.SolutionOutputFile, err = os.Create(fileName)
 		if err != nil {
 			panic(err)
 		}
-		defer file.Close()
-		binary.Write(file, binary.LittleEndian, int64(len(fI)))
 		fmt.Printf("Length of scalar output field: %d\n", len(fI))
 		fmt.Printf("Solution Element Np = %d\n", c.dfr.SolutionElement.Np)
 		fmt.Printf("RT Element Np = %d\n", c.dfr.FluxElement.Np)
 	}
+	fMin, fMax, fAve := getFRange(fI)
+	fmt.Printf("FMin, FMax, FAve: %f, %f, %f\n", fMin, fMax, fAve)
+	file := c.SolutionOutputFile
+	binary.Write(file, binary.LittleEndian, int64(len(fI)))
 	binary.Write(file, binary.LittleEndian, fI)
+	return
+}
+
+func getFRange(F []float32) (fMin, fMax, fAve float32) {
+	var (
+		fSum  float32
+		count float32
+	)
+	fMin = F[0]
+	fMax = fMin
+	fSum = 0
+	for _, f := range F {
+		if f < fMin {
+			fMin = f
+		}
+		if f > fMax {
+			fMax = f
+		}
+		fSum += f
+		count++
+	}
+	fAve = fSum / count
 	return
 }

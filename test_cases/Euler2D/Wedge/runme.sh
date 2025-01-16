@@ -9,4 +9,4 @@
 #gocfd 2D -I input.yaml -F wedge.su2 -g -s 10 -q 4 -k 1.25 -l 2.1
 #gocfd 2D -I input.yaml -F wedge.su2 -g -s 10 -q 100 -k 0.99 -l 1.0
 #gocfd 2D -I input.yaml -F wedge.su2 -g -s 10 -q 4
-gocfd 2D -I input.yaml -F wedge.su2 -g -s 100 -q 4
+gocfd 2D -I input.yaml -F wedge.su2 -g -s 10 -q 4

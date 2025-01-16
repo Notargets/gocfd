@@ -51,8 +51,9 @@ type Euler struct {
 	Limiter              *SolutionLimiter
 	Dissipation          *ScalarDissipation
 	// Edge number mapped quantities, i.e. Face Normal Flux
-	EdgeStore *EdgeValueStorage
-	ShockTube *sod_shock_tube.SODShockTube
+	EdgeStore          *EdgeValueStorage
+	ShockTube          *sod_shock_tube.SODShockTube
+	SolutionOutputFile *os.File
 }
 
 func NewEuler(ip *InputParameters.InputParameters2D, pm *InputParameters.PlotMeta, meshFile string, ProcLimit int, verbose, profile bool) (c *Euler) {
@@ -525,11 +526,9 @@ func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [][4]utils.
 		if c.ShockTube != nil {
 			Qp := c.RecombineShardsKBy4(Q)
 			c.ShockTube.Plot(Time, pm.FrameTime, Qp)
-			c.PlotQ(pm, 1920, 1080) // wait till we implement time iterative frame updates
+			c.PlotQ(pm, 1920, 1080, steps) // wait till we implement time iterative frame updates
 		} else {
-			c.PlotQ(pm, 1920, 1080) // wait till we implement time iterative frame updates
-			c.SavePlotFunction(pm, steps, "functionFile.gcfd")
-			// os.Exit(1)
+			c.PlotQ(pm, 1920, 1080, steps) // wait till we implement time iterative frame updates
 		}
 	}
 	if c.LocalTimeStepping {
