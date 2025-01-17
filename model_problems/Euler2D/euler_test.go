@@ -911,6 +911,7 @@ func GetStatePoly(x, y float64) (rho, rhoU, rhoV, E float64) {
 	E = ((c*c)*(x*x)+(d*d)*(y*y))*((a*fabs(x))/2.0+(b*fabs(y))/2.0) + pow(a*fabs(x)+b*fabs(y), gamma)/(gamma-1.0)
 	return
 }
+
 func GetDivergencePoly(t, x, y float64) (div [4]float64) {
 	var (
 		gamma      = 1.4

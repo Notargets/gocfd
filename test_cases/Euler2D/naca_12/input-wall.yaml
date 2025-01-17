@@ -6,7 +6,7 @@ CFL: 2.5
 FluxType: Roe
 #FluxType: Lax
 InitType: Freestream # Can be "Freestream" or "IVortex"
-PolynomialOrder: 1
+PolynomialOrder: 2
 FinalTime: 20
 #Minf: 2.0
 Minf: 0.8
@@ -15,7 +15,7 @@ Alpha: 1.5
 #Alpha: 0
 LocalTimeStepping: true
 #LocalTimeStepping: false
-MaxIterations: 800000
+MaxIterations: 1000
 #Limiter: Barth Jesperson
 Limiter: PerssonC0
 #Limiter: ModeFilter
