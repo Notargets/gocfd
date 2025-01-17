@@ -234,13 +234,14 @@ func TestEuler(t *testing.T) {
 				}
 			}
 		}
-		if false { // Test divergence of polynomial initial condition against analytic values
+		if true { // Test divergence of polynomial initial condition against
+			// analytic values
 			/*
 				Note: the Polynomial flux is asymmetric around the X and Y axes - it uses abs(x) and abs(y)
 				Elements should not straddle the axes if a perfect polynomial flux capture is needed
 			*/
 			Nmax := 7
-			for N := 0; N <= Nmax; N++ {
+			for N := 2; N <= Nmax; N++ {
 				// Single triangle test case
 				var c *Euler
 				// c = NewEuler(1, N, "../../DG2D/test_tris_1tri.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, plotMesh, false, false)
@@ -270,63 +271,67 @@ func TestEuler(t *testing.T) {
 	if true {
 		{ // Test divergence of Isentropic Vortex initial condition against analytic values - density equation only
 			N := 1
-			ip.PolynomialOrder = N
-			ip.InitType = "ivortex"
-			// c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, IVORTEX, 1, 0, 1.4, 0, false, 5000, None, plotMesh, false, false)
-			c := NewEuler(&ip, pm, "../../DG2D/test_tris_6.neu", 1, false,
-				false)
-			for _, e := range c.dfr.Tris.Edges {
-				if e.BCType == types.BC_IVortex {
-					e.BCType = types.BC_None
+			{
+				// Nmax := 7
+				// for N := 0; N <= Nmax; N++ {
+				ip.PolynomialOrder = N
+				ip.InitType = "ivortex"
+				// c := NewEuler(1, N, "../../DG2D/test_tris_6.neu", 1, FLUX_Average, IVORTEX, 1, 0, 1.4, 0, false, 5000, None, plotMesh, false, false)
+				c := NewEuler(&ip, pm, "../../DG2D/test_tris_6.neu", 1, false,
+					false)
+				for _, e := range c.dfr.Tris.Edges {
+					if e.BCType == types.BC_IVortex {
+						e.BCType = types.BC_None
+					}
 				}
-			}
-			Kmax := c.dfr.K
-			Nint := c.dfr.FluxElement.NpInt
-			Nedge := c.dfr.FluxElement.NpEdge
-			NpFlux := c.dfr.FluxElement.Np // Np = 2*NpInt+3*NpEdge
-			// Mark the initial state with the element number
-			var Q_Face, F_RT_DOF [4]utils.Matrix
-			var Flux, Flux_Face [2][4]utils.Matrix
-			for n := 0; n < 4; n++ {
-				F_RT_DOF[n] = utils.NewMatrix(NpFlux, Kmax)
-				Q_Face[n] = utils.NewMatrix(3*Nedge, Kmax)
-				Flux_Face[0][n] = utils.NewMatrix(3*Nedge, Kmax)
-				Flux_Face[1][n] = utils.NewMatrix(3*Nedge, Kmax)
-				Flux[0][n] = utils.NewMatrix(Nint, Kmax)
-				Flux[1][n] = utils.NewMatrix(Nint, Kmax)
-			}
-			Q := c.Q[0]
-			X, Y := c.dfr.FluxX, c.dfr.FluxY
-			c.SetRTFluxInternal(Kmax, c.dfr.Jdet, c.dfr.Jinv, F_RT_DOF, Q)
-			c.InterpolateSolutionToEdges(Q, Q_Face, Flux, Flux_Face)
-			EdgeQ1 := make([][4]float64, Nedge)
-			EdgeQ2 := make([][4]float64, Nedge)
-			c.CalculateEdgeFlux(0, false, nil, nil, [][4]utils.Matrix{Q_Face},
-				[][2][4]utils.Matrix{Flux_Face}, c.SortedEdgeKeys[0], EdgeQ1, EdgeQ2)
-			c.SetRTFluxOnEdges(0, Kmax, F_RT_DOF)
-			var div utils.Matrix
-			// Density is the easiest equation to match with a polynomial
-			n := 0
-			// fmt.Printf("component[%d]\n", n)
-			div = c.dfr.FluxElement.DivInt.Mul(F_RT_DOF[n])
-			// c.DivideByJacobian(Kmax, NpInt, c.dfr.Jdet, div.DataP, 1)
-			for k := 0; k < Kmax; k++ {
-				for i := 0; i < Nint; i++ {
-					ind := k + i*Kmax
-					div.DataP[ind] /= -c.dfr.Jdet.DataP[k]
+				Kmax := c.dfr.K
+				Nint := c.dfr.FluxElement.NpInt
+				Nedge := c.dfr.FluxElement.NpEdge
+				NpFlux := c.dfr.FluxElement.Np // Np = 2*NpInt+3*NpEdge
+				// Mark the initial state with the element number
+				var Q_Face, F_RT_DOF [4]utils.Matrix
+				var Flux, Flux_Face [2][4]utils.Matrix
+				for n := 0; n < 4; n++ {
+					F_RT_DOF[n] = utils.NewMatrix(NpFlux, Kmax)
+					Q_Face[n] = utils.NewMatrix(3*Nedge, Kmax)
+					Flux_Face[0][n] = utils.NewMatrix(3*Nedge, Kmax)
+					Flux_Face[1][n] = utils.NewMatrix(3*Nedge, Kmax)
+					Flux[0][n] = utils.NewMatrix(Nint, Kmax)
+					Flux[1][n] = utils.NewMatrix(Nint, Kmax)
 				}
-			}
-			// Get the analytic values of divergence for comparison
-			for k := 0; k < Kmax; k++ {
-				for i := 0; i < Nint; i++ {
-					ind := k + i*Kmax
-					x, y := X.DataP[ind], Y.DataP[ind]
-					qc1, qc2, qc3, qc4 := c.AnalyticSolution.GetStateC(0, x, y)
-					q1, q2, q3, q4 := Q[0].DataP[ind], Q[1].DataP[ind], Q[2].DataP[ind], Q[3].DataP[ind]
-					assert.InDeltaSlicef(t, []float64{q1, q2, q3, q4}, []float64{qc1, qc2, qc3, qc4}, tol, msg)
-					divC := c.AnalyticSolution.GetDivergence(0, x, y)
-					divCalc := div.DataP[ind]
-					assert.InDeltaf(t, divCalc/qc1, divC[n]/qc1, 0.001, msg) // 0.1 percent match
+				Q := c.Q[0]
+				X, Y := c.dfr.FluxX, c.dfr.FluxY
+				c.SetRTFluxInternal(Kmax, c.dfr.Jdet, c.dfr.Jinv, F_RT_DOF, Q)
+				c.InterpolateSolutionToEdges(Q, Q_Face, Flux, Flux_Face)
+				EdgeQ1 := make([][4]float64, Nedge)
+				EdgeQ2 := make([][4]float64, Nedge)
+				c.CalculateEdgeFlux(0, false, nil, nil, [][4]utils.Matrix{Q_Face},
+					[][2][4]utils.Matrix{Flux_Face}, c.SortedEdgeKeys[0], EdgeQ1, EdgeQ2)
+				c.SetRTFluxOnEdges(0, Kmax, F_RT_DOF)
+				var div utils.Matrix
+				// Density is the easiest equation to match with a polynomial
+				n := 0
+				// fmt.Printf("component[%d]\n", n)
+				div = c.dfr.FluxElement.DivInt.Mul(F_RT_DOF[n])
+				// c.DivideByJacobian(Kmax, NpInt, c.dfr.Jdet, div.DataP, 1)
+				for k := 0; k < Kmax; k++ {
+					for i := 0; i < Nint; i++ {
+						ind := k + i*Kmax
+						div.DataP[ind] /= -c.dfr.Jdet.DataP[k]
+					}
+				}
+				// Get the analytic values of divergence for comparison
+				for k := 0; k < Kmax; k++ {
+					for i := 0; i < Nint; i++ {
+						ind := k + i*Kmax
+						x, y := X.DataP[ind], Y.DataP[ind]
+						qc1, qc2, qc3, qc4 := c.AnalyticSolution.GetStateC(0, x, y)
+						q1, q2, q3, q4 := Q[0].DataP[ind], Q[1].DataP[ind], Q[2].DataP[ind], Q[3].DataP[ind]
+						assert.InDeltaSlicef(t, []float64{q1, q2, q3, q4}, []float64{qc1, qc2, qc3, qc4}, tol, msg)
+						divC := c.AnalyticSolution.GetDivergence(0, x, y)
+						divCalc := div.DataP[ind]
+						assert.InDeltaf(t, divCalc/qc1, divC[n]/qc1, 0.001, msg) // 0.1 percent match
+					}
 				}
 			}
 		}

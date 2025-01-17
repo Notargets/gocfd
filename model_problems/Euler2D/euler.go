@@ -406,6 +406,10 @@ func (c *Euler) RHSInternalPoints(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4
 	}
 }
 
+// TODO: This needs to be changed to do this: Calculate solution divergence using
+// TODO: solution internal points (scalar flux); interpolate scalar flux to
+// TODO: RT element points; multiply RT point values by inverse of RT divergence
+// TODO: matrix to compute RT vector divergence coefficients
 func (c *Euler) SetRTFluxInternal(Kmax int, Jdet, Jinv utils.Matrix, F_RT_DOF, Q [4]utils.Matrix) {
 	var (
 		Nint   = c.dfr.FluxElement.NpInt
