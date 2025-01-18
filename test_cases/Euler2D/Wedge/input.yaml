@@ -12,7 +12,7 @@ Minf: 2.0
 Gamma: 1.4
 Alpha: 0.
 LocalTimeStepping: true
-MaxIterations: 500
+MaxIterations: 1000
 
 #Limiter: 
 Limiter: PerssonC0

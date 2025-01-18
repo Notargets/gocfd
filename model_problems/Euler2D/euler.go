@@ -346,7 +346,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		}
 	case 3, 8, 13, 18, 23:
 		if initDT && c.LocalTimeStepping {
-			c.CalculateLocalDT(DT)
+			c.CalculateLocalDT(DT, myThread)
 		}
 		if c.Dissipation != nil {
 			c.Dissipation.CalculateEpsilonGradient(c, C0, myThread, QQQ)
@@ -679,13 +679,21 @@ func (c *Euler) GetSolutionGradient(myThread, varNum int, Q [4]utils.Matrix, Gra
 	}
 }
 
-func (c *Euler) CalculateLocalDT(DT utils.Matrix) {
+func (c *Euler) CalculateLocalDT(DT utils.Matrix, myThread int) {
 	var (
-		_, Kmax = DT.Dims()
+		_, Kmax   = DT.Dims()
+		epsScalar = c.Dissipation.EpsilonScalar[myThread]
 	)
 	// Replicate local time step to the other solution points for each k
-	for k := 0; k < Kmax; k++ {
-		DT.DataP[k] = c.CFL / DT.DataP[k] // Set each element's DT to CFL/(max_wave_speed)
+	if c.Dissipation != nil {
+		for k := 0; k < Kmax; k++ {
+			// Set each element's DT to CFL/(max_wave_speed)
+			DT.DataP[k] = c.CFL / ((1 + epsScalar[k]) * DT.DataP[k])
+		}
+	} else {
+		for k := 0; k < Kmax; k++ {
+			DT.DataP[k] = c.CFL / DT.DataP[k] // Set each element's DT to CFL/(max_wave_speed)
+		}
 	}
 	// Set the DT of all interior points of each element to the element DT
 	for i := 1; i < c.dfr.SolutionElement.Np; i++ {

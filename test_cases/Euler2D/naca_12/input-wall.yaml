@@ -15,7 +15,7 @@ Alpha: 1.5
 #Alpha: 0
 LocalTimeStepping: true
 #LocalTimeStepping: false
-MaxIterations: 1000
+MaxIterations: 10000
 #Limiter: Barth Jesperson
 Limiter: PerssonC0
 #Limiter: ModeFilter
