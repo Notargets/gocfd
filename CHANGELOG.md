@@ -1,4 +1,4 @@
-
+- [Update 46](CHANGELOG/Update_46.md): New Plan: New RT element to remove instability
 - [Update 45](CHANGELOG/Update_45.md): Restatement of Numerical Method: 
   Hybrid Elements to Represent Scalar Field and  Coupled Vector Flux Field
 - [Update 44](CHANGELOG/Update_44.md): Return after three-year hiatus.
