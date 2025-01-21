@@ -152,18 +152,27 @@ func (rt *RTElement) CalculateBasis() {
 			// Unit vector is [0,1]
 			P.M.SetRow(ii, p1)
 		case Edge1:
+			// TODO: This is incorrect, we should be multiplying by the
+			// TODO: monomial term representing the normal vector, in edge 1's
+			// TODO: case that should be [0, -r]
 			for i := range rowEdge {
 				// Edge3: // Unit vector is [0,-1]
 				rowEdge[i] = -p1[i]
 			}
 			P.M.SetRow(ii, rowEdge)
 		case Edge2:
+			// TODO: This is incorrect, we should be multiplying by the
+			// TODO: monomial term representing the normal vector, in edge 2's
+			// TODO: case that should be [s, r]
 			for i := range rowEdge {
 				// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
 				rowEdge[i] = oosr2 * (p0[i] + p1[i])
 			}
 			P.M.SetRow(ii, rowEdge)
 		case Edge3:
+			// TODO: This is incorrect, we should be multiplying by the
+			// TODO: monomial term representing the normal vector, in edge 1's
+			// TODO: case that should be [-s, 0]
 			for i := range rowEdge {
 				// Edge2: Unit vector is [-1,0]
 				rowEdge[i] = -p0[i]
@@ -207,6 +216,7 @@ const (
 )
 
 func (rt *RTElement) EvaluateRTBasis(b1 Basis2D, r, s float64, derivO ...DerivativeDirection) (p0, p1 []float64) {
+	// This function evaluates all of the polynomial terms at one [R,S] location
 	var (
 		N        = rt.N
 		Np       = (N + 1) * (N + 3)
@@ -228,6 +238,11 @@ func (rt *RTElement) EvaluateRTBasis(b1 Basis2D, r, s float64, derivO ...Derivat
 	p0, p1 = make([]float64, Np), make([]float64, Np)
 	// Evaluate the full 2D polynomial basis first, once for each of two components
 	// Vector basis first
+	// TODO: This is a 2D polynomial evaluated at one same r,s location and
+	// TODO: a single value is used to represent each of two vector components
+	// TODO: It should be two 1D functions, one for each vector component
+	// TODO: Replace with [P_A, P_B] where P_A is alpha=0, beta=1 and P_B is
+	// TODO: alpha=1, beta=0
 	var sk int
 	for i := 0; i <= N; i++ {
 		for j := 0; j <= (N - i); j++ {
@@ -237,12 +252,15 @@ func (rt *RTElement) EvaluateRTBasis(b1 Basis2D, r, s float64, derivO ...Derivat
 			sk++
 		}
 	}
+	// TODO: Incorrect: This should be a 1D polynomial of order P
 	// Evaluate the term ([ X ]*(Pk)) at only the top N+1 terms (highest order) of the 2D polynomial
 	sk += N2DBasis // Skip to the beginning of the second polynomial group
 	for i := 0; i <= N; i++ {
 		j := N - i
 		val := tFunc(r, s, i, j)
 		switch deriv {
+		// TODO: This term is incorrect in that it should be selectively
+		// TODO: multiplying each normal vector by a 1D polynomial
 		case None:
 			p0[sk] = val * r
 			p1[sk] = val * s
@@ -268,7 +286,7 @@ func ExtendGeomToRT(N int, rInt, sInt utils.Vector) (r, s utils.Vector) {
 	/*
 		Determine geometric locations of edge points, located at Gauss locations in 1D, projected onto the edges
 	*/
-	//GQR, _ := DG1D.JacobiGQ(1.00, 1.00, N)
+	// GQR, _ := DG1D.JacobiGQ(1.00, 1.00, N)
 	GQR := utils.NewVector(N+1, DG1D.LegendreZeros(N))
 	/*
 		Double the number of interior points to match each direction of the basis
