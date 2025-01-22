@@ -17,6 +17,27 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestRTElementConstruction(t *testing.T) {
+	// Let's define an RT element at order P
+	P := 2 // Form the interior locations
+	rt := NewRTElement(P)
+
+	Print := func(label string, iip *int) {
+		fmt.Printf("%s", label)
+		for i := 0; i < rt.NpEdge; i++ {
+			fmt.Printf("[%f,%f] ", rt.R.DataP[*iip], rt.S.DataP[*iip])
+			*iip++
+		}
+		fmt.Printf("\n")
+	}
+
+	ii := 2 * rt.NpInt
+	Print("Edge 1:", &ii)
+	Print("Edge 2:", &ii)
+	Print("Edge 3:", &ii)
+
+}
+
 func TestLagrangePolynomial(t *testing.T) {
 	numSamples := 100
 	rd := make([]float64, numSamples)
@@ -144,8 +165,7 @@ func TestRTElementLagrange(t *testing.T) {
 	if true { // Check Divergence for polynomial vector fields of order < N against analytical solution
 		Nend := 8
 		for N := 1; N < Nend; N++ {
-			R, S := NodesEpsilon(N - 1)
-			rt := NewRTElement(R, S, N)
+			rt := NewRTElement(N)
 			for cOrder := 0; cOrder <= N; cOrder++ {
 				fmt.Printf("Check Order = %d, ", cOrder)
 				// [s1,s2] values for each location in {R,S}
@@ -240,8 +260,7 @@ func TestRTElement(t *testing.T) {
 	if true { // Check Divergence for polynomial vector fields of order < N against analytical solution
 		Nend := 8
 		for N := 1; N < Nend; N++ {
-			R, S := NodesEpsilon(N - 1)
-			rt := NewRTElement(R, S, N)
+			rt := NewRTElement(N)
 			for cOrder := 0; cOrder <= N; cOrder++ {
 				fmt.Printf("Check Order = %d, ", cOrder)
 				// [s1,s2] values for each location in {R,S}
@@ -261,10 +280,7 @@ func TestRTElement(t *testing.T) {
 	plot := false
 	if plot {
 		N := 2
-		NRT := N + 1
-		R, S := NodesEpsilon(N)
-		// NpInt := R.Len()
-		rt := NewRTElement(R, S, NRT)
+		rt := NewRTElement(N)
 		s1, s2 := make([]float64, rt.R.Len()), make([]float64, rt.R.Len())
 		for i := range rt.R.DataP {
 			s1[i] = 1

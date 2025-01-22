@@ -18,7 +18,7 @@ const (
 )
 
 type RTElement struct {
-	N                                int             // Order of element
+	P                                int             // Order of element
 	Np                               int             // Number of points in element
 	NpEdge, NpInt                    int             // Number of Edge and Interior points
 	A                                utils.Matrix    // Polynomial coefficient matrix, NpxNp
@@ -26,8 +26,9 @@ type RTElement struct {
 	Div, DivInt                      utils.Matrix    // Divergence matrix, NpxNp for all, NintxNp Interior Points
 	R, S                             utils.Vector    // Point locations defining element in [-1,1] Triangle, NpxNp
 	RTPolyBasis2D_A, RTPolyBasis2D_B *JacobiBasis2D
-	RTPolyBasis1D                    *DG1D.Jacobi1D // 1D Jacobi Polynomial
-	RTPolyBasis1D_Edge2              *DG1D.Jacobi1D // 1D Jacobi Polynomial on parameterized edge
+	RTPolyBasis1D_Edge1              []float64 // Edge1 polynomial
+	RTPolyBasis1D_Edge2              []float64 // Edge2 polynomial
+	RTPolyBasis1D_Edge3              []float64 // Edge3 polynomial
 }
 
 /*
@@ -122,7 +123,7 @@ basis functions are only evaluated at each interior position.
    ⎢   0       0       0       0       0       0       0       0       0       0       0       0  φ₁₃(P₁₂) φ₁₄(P₁₂) φ₁₅(P₁₂)⎥   ⎢ c₁₅ ⎥   ⎢ f₁₅ ⎥
 */
 
-func NewRTElement(R, S utils.Vector, NFlux int) (rt *RTElement) {
+func NewRTElement(P int) (rt *RTElement) {
 	// We expect that there are points in R and S to match the dimension of dim(P(NFlux-1))
 	/*
 		<---- NpInt ----><---- NpInt ----><---NpEdge----><---NpEdge----><---NpEdge---->
@@ -130,164 +131,68 @@ func NewRTElement(R, S utils.Vector, NFlux int) (rt *RTElement) {
 		<---- NpInt ----><---- NpInt ----><---NpEdge----><---NpEdge----><---NpEdge---->
 	*/
 	var (
-		NSolution    = NFlux - 1
-		NpInterior   = (NSolution + 1) * (NSolution + 2) / 2
-		RFlux, SFlux utils.Vector
+		RInt, SInt utils.Vector
 	)
-	if R.Len() != NpInterior || S.Len() != NpInterior {
-		panic("incorrect number of interior points supplied")
-	}
 	rt = &RTElement{
-		N:      NFlux,
-		R:      R,
-		S:      S,
-		NpInt:  NFlux * (NFlux + 1) / 2,
-		NpEdge: NFlux + 1,
+		P:      P,
+		Np:     (P + 1) * (P + 3),
+		NpInt:  P * (P + 1) / 2, // Number of interior points is same as the 2D scalar space one order lesser
+		NpEdge: P + 1,           // Each edge is P+1 nodes
 	}
-	if NFlux < 8 {
-		RFlux, SFlux = NodesEpsilon(NFlux)
-	} else {
-		RFlux, SFlux = XYtoRS(Nodes2D(NFlux))
+	if P > 0 {
+		if P < 9 {
+			RInt, SInt = NodesEpsilon(P - 1)
+		} else {
+			RInt, SInt = XYtoRS(Nodes2D(P - 1))
+		}
 	}
-	rt.RTPolyBasis2D_A = NewJacobiBasis2D(NFlux, RFlux, SFlux, 1, 0)
-	rt.RTPolyBasis2D_B = NewJacobiBasis2D(NFlux, RFlux, SFlux, 0, 1)
+	rt.R, rt.S = rt.ExtendGeomToRT(RInt, SInt)
+	rt.RTPolyBasis2D_A = NewJacobiBasis2D(rt.P-1, RInt, SInt, 1, 0)
+	rt.RTPolyBasis2D_B = NewJacobiBasis2D(rt.P-1, RInt, SInt, 0, 1)
 	// For edges 1 and 3, we can use the same definition on R, as S is the same
-	rt.RTPolyBasis1D = DG1D.NewJacobi1D(rt.N, RFlux, 0, 0)
-	SS := utils.NewVector(RFlux.Len())
-	// For edges 2, we need to parameterize the length for each edge point
-	// along the edge by calculating SS along the edge given each value of R, S
-	for i, r := range RFlux.DataP {
-		SS.DataP[i] = (1 - r) * 0.5 // assuming [R,S] coordinate lies on edge 2
-	}
-	rt.RTPolyBasis1D_Edge2 = DG1D.NewJacobi1D(rt.N, SS, 0, 0)
+	rt.RTPolyBasis1D_Edge1 = DG1D.JacobiP(rt.getEdgeCoordinates(1), 0, 0, rt.P)
+	rt.RTPolyBasis1D_Edge2 = DG1D.JacobiP(rt.getEdgeCoordinates(2), 0, 0, rt.P)
+	rt.RTPolyBasis1D_Edge3 = DG1D.JacobiP(rt.getEdgeCoordinates(3), 0, 0, rt.P)
 	rt.CalculateBasis()
 	return
 }
 
-func (rt *RTElement) EvaluateRTBasisFunction(functionNumber int, r, s float64,
-	derivO ...DerivativeDirection) (psi float64) {
-	// This function evaluates all of the terms of a poly for one basis location
-	switch rt.getLocationType(functionNumber) {
-	case InteriorR:
-		psi = rt.RTPolyBasis2D_A.GetPolynomialEvaluation(r, s, derivO...)
-	case InteriorS:
-		psi = rt.RTPolyBasis2D_B.GetPolynomialEvaluation(r, s, derivO...)
-	case Edge1:
-		// TODO:
+func (rt *RTElement) getEdgeCoordinates(edgeNum int) (SS utils.Vector) {
+	// Edge 1 is S=-1 (bottom of tri)
+	// Edge 2 is Hypotenuse
+	// Edge 3 is R=-1 (left side of tri)
+	switch edgeNum {
+	case 1:
+		SS = rt.R.Subset(2*rt.NpInt, 2*rt.NpInt+rt.NpEdge-1)
+	case 2:
+		SS = rt.R.Subset(2*rt.NpInt+rt.NpEdge, 2*rt.NpInt+2*rt.NpEdge-1)
+	case 3:
+		SS = rt.S.Subset(2*rt.NpInt+2*rt.NpEdge, 2*rt.NpInt+3*rt.NpEdge-1)
 	}
 	return
 }
 
-func (rt *RTElement) CalculateBasis() {
+func (rt *RTElement) ExtendGeomToRT(Rint, Sint utils.Vector) (R, S utils.Vector) {
 	var (
-		N    = rt.N
-		R, S = rt.R, rt.S
-		Np   = (N + 1) * (N + 3)
-		Nint = N * (N + 1) / 2
-		P    utils.Matrix
-	)
-	// Add the edge and additional interior (duplicated) points to complete the RT geometry2D
-	rt.R, rt.S = ExtendGeomToRT(N, R, S)
-	/*
-		Form the basis matrix by forming a dot product with unit vectors, matching the coordinate locations in R,S
-	*/
-	P = utils.NewMatrix(Np, Np)
-	rowEdge := make([]float64, Np)
-	oosr2 := 1 / math.Sqrt(2)
-
-	// Evaluate at geometric locations
-	var p0, p1 []float64
-	for ii, rr := range rt.R.DataP {
-		ss := rt.S.DataP[ii]
-		_, _ = rr, ss
-		/*
-			First, evaluate the polynomial at the (r,s) coordinates
-			This is the same set that will be used for all dot products to form the basis matrix
-		*/
-		// p0, p1 = rt.EvaluateRTBasis(basis, rr, ss) // each of p1,p2 stores the polynomial terms for the R and S directions
-		// Implement dot product of (unit vector)_ii with each vector term in the polynomial evaluated at location ii
-		switch rt.getLocationType(ii) {
-		case InteriorR:
-			// Unit vector is [1,0]
-			P.M.SetRow(ii, p0)
-		case InteriorS:
-			// Unit vector is [0,1]
-			P.M.SetRow(ii, p1)
-		case Edge1:
-			// TODO: This is incorrect, we should be multiplying by the
-			// TODO: monomial term representing the normal vector, in edge 1's
-			// TODO: case that should be [0, -r]
-			for i := range rowEdge {
-				// Edge3: // Unit vector is [0,-1]
-				rowEdge[i] = -p1[i]
-			}
-			P.M.SetRow(ii, rowEdge)
-		case Edge2:
-			// TODO: This is incorrect, we should be multiplying by the
-			// TODO: monomial term representing the normal vector, in edge 2's
-			// TODO: case that should be [s, r]
-			for i := range rowEdge {
-				// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
-				rowEdge[i] = oosr2 * (p0[i] + p1[i])
-			}
-			P.M.SetRow(ii, rowEdge)
-		case Edge3:
-			// TODO: This is incorrect, we should be multiplying by the
-			// TODO: monomial term representing the normal vector, in edge 1's
-			// TODO: case that should be [-s, 0]
-			for i := range rowEdge {
-				// Edge2: Unit vector is [-1,0]
-				rowEdge[i] = -p0[i]
-			}
-			P.M.SetRow(ii, rowEdge)
-		}
-	}
-	// Invert [P] = [A] to obtain the coefficients (columns) of polynomials (rows), each row is a polynomial
-	rt.A = P.InverseWithCheck()
-	// Evaluate 2D polynomial basis at geometric locations, also evaluate derivatives Dr and Ds for R and S
-	P0, P1 := utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
-	Pdr0, Pds1 := utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
-	for ii, rr := range rt.R.DataP {
-		ss := rt.S.DataP[ii]
-		_, _ = rr, ss
-		// p0, p1 = rt.EvaluateRTBasis(basis, rr, ss) // each of p1,p2 stores the polynomial terms for the R and S directions
-		P0.M.SetRow(ii, p0)
-		P1.M.SetRow(ii, p1)
-		// p0, _ = rt.EvaluateRTBasis(basis, rr, ss, Dr) // each of p0,p1 stores the polynomial terms for the R and S directions
-		// _, p1 = rt.EvaluateRTBasis(basis, rr, ss, Ds) // each of p0,p1 stores the polynomial terms for the R and S directions
-		Pdr0.M.SetRow(ii, p0)
-		Pds1.M.SetRow(ii, p1)
-	}
-	// Construct the Vandermonde matrices for each direction by multiplying coefficients of constrained basis
-	rt.V[0] = P0.Mul(rt.A)
-	rt.V[1] = P1.Mul(rt.A)
-	rt.Div = Pdr0.Mul(rt.A).Add(Pds1.Mul(rt.A))
-	rt.DivInt = utils.NewMatrix(Nint, Np)
-	for i := 0; i < Nint; i++ {
-		rt.DivInt.M.SetRow(i, rt.Div.Row(i).DataP)
-	}
-	rt.Np = Np
-	return
-}
-
-func ExtendGeomToRT(N int, rInt, sInt utils.Vector) (r, s utils.Vector) {
-	var (
+		N            = rt.P
 		NpEdge       = N + 1
-		rData, sData = rInt.DataP, sInt.DataP
+		rData, sData = Rint.DataP, Sint.DataP
+		Rd, Sd       []float64
 	)
 	/*
 		Determine geometric locations of edge points, located at Gauss locations in 1D, projected onto the edges
 	*/
-	// GQR, _ := DG1D.JacobiGQ(1.00, 1.00, N)
 	GQR := utils.NewVector(N+1, DG1D.LegendreZeros(N))
 	/*
 		Double the number of interior points to match each direction of the basis
 	*/
 	if N == 0 { // Special case: when N=0, the interior of the RT element is empty
-		rData, sData = []float64{}, []float64{}
+		Rd, Sd = []float64{}, []float64{}
 	} else {
-		rData = append(rData, rData...)
-		sData = append(sData, sData...)
+		for i := 0; i < 2; i++ {
+			Rd = append(Rd, rData...)
+			Sd = append(Sd, sData...)
+		}
 	}
 
 	// Calculate the triangle edges
@@ -307,10 +212,30 @@ func ExtendGeomToRT(N int, rInt, sInt utils.Vector) (r, s utils.Vector) {
 		rEdgeData[i+2*NpEdge] = -1
 		sEdgeData[i+2*NpEdge] = -gp
 	}
-	rData = append(rData, rEdgeData...)
-	sData = append(sData, sEdgeData...)
-	r = utils.NewVector(len(rData), rData)
-	s = utils.NewVector(len(sData), sData)
+	Rd = append(Rd, rEdgeData...)
+	Sd = append(Sd, sEdgeData...)
+	nn := len(Rd)
+	R, S = utils.NewVector(nn, Rd), utils.NewVector(nn, Sd)
+	return
+}
+
+func (rt *RTElement) EvaluateRTBasisFunction(functionNumber int, r, s float64,
+	derivO ...DerivativeDirection) (psi float64) {
+	// This function evaluates all of the terms of a poly for one basis location
+	switch rt.getLocationType(functionNumber) {
+	case InteriorR:
+		psi = rt.RTPolyBasis2D_A.GetPolynomialEvaluation(r, s, derivO...)
+	case InteriorS:
+		psi = rt.RTPolyBasis2D_B.GetPolynomialEvaluation(r, s, derivO...)
+	case Edge1:
+		// TODO:
+	}
+	return
+}
+
+func (rt *RTElement) CalculateBasis() {
+	// Invert [P] = [A] to obtain the coefficients (columns) of polynomials (rows), each row is a polynomial
+	// rt.A = P.InverseWithCheck()
 	return
 }
 

@@ -252,28 +252,11 @@ func Vandermonde1D(N int, R utils.Vector) (V utils.Matrix) {
 	return
 }
 
-type Jacobi1D struct {
-	P           int     // Order
-	Alpha, Beta float64 // Jacobi parameters
-	R, Poly     []float64
-}
-
-func NewJacobi1D(P int, r utils.Vector, alpha, beta float64) (jb1d *Jacobi1D) {
-	jb1d = &Jacobi1D{
-		Alpha: alpha,
-		Beta:  beta,
-		P:     P,
-		R:     r.DataP,
-	}
-	// We need P+1 points to define the polynomial, check it
-	if r.Len() != P+1 {
-		panic(fmt.Errorf("not enough points to define polynomial"))
-	}
-	jb1d.Poly = JacobiP(r, alpha, beta, P)
-	return
-}
-
 func JacobiP(r utils.Vector, alpha, beta float64, N int) (p []float64) {
+	// This outputs the Jacobi polynomial of degree N, output at the points R
+	// Each point input generates an output value that is the complete value
+	// of the polynomial,
+	// e.g. the summation of all polynomial terms for that location
 	var (
 		Nc = r.Len()
 	)

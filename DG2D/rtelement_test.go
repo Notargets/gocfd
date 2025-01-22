@@ -183,8 +183,7 @@ func TestRTElement_CalculateBasis(t *testing.T) {
 		P := 2
 		rtb := NewRTBasis2DSimplex(P)
 		assert.Equal(t, rtb.P, P)
-		R, S := NodesEpsilon(P - 1)
-		rt := NewRTElement(R, S, P)
+		rt := NewRTElement(P)
 		assert.InDeltaSlicef(t, rt.V[0].DataP, rtb.V[0].DataP, 0.000001, "")
 		assert.InDeltaSlicef(t, rt.V[1].DataP, rtb.V[1].DataP, 0.000001, "")
 		rtb.DivInt.Print("DivInt")
