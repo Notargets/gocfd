@@ -10,13 +10,14 @@ import (
 )
 
 type RTBasis2DSimplex struct {
-	P             int          // Polynomial Order
-	Np            int          // Number of terms and nodes in basis
-	NpInt, NpEdge int          // Number of nodes in interior and on each edge, Np = 2*NpInt + 3*NpEdge
-	R, S          utils.Vector // Node locations within [-1,1] reference triangle
-	Scalar2DBasis Basis2D      // Basis used for part of the RT basis construction
-	V             [2]utils.Matrix
-	Div, DivInt   utils.Matrix
+	P             int            // Polynomial Order
+	Np            int            // Number of terms and nodes in basis
+	NpInt, NpEdge int            // Number of nodes in interior and on each edge, Np = 2*NpInt + 3*NpEdge
+	R, S          utils.Vector   // Node locations within [-1,1] reference triangle
+	Scalar2DBasis *JacobiBasis2D // Basis used for part of the RT basis
+	// construction
+	V           [2]utils.Matrix
+	Div, DivInt utils.Matrix
 }
 
 /*
@@ -28,7 +29,7 @@ In this approach, edges are specifically addressed with 1D Lagrange polynomials 
 functions, while the interior points are composed of a supplied 2D scalar polynomial multiplied by a barycentric basis
 for the triangle.
 */
-func NewRTBasis2DSimplex(P int, useLagrangeBasis bool) (rtb *RTBasis2DSimplex) {
+func NewRTBasis2DSimplex(P int) (rtb *RTBasis2DSimplex) {
 	var Rint, Sint utils.Vector
 	fmt.Printf("Order of RT Element %d\n", P)
 	rtb = &RTBasis2DSimplex{
@@ -43,11 +44,7 @@ func NewRTBasis2DSimplex(P int, useLagrangeBasis bool) (rtb *RTBasis2DSimplex) {
 		} else {
 			Rint, Sint = XYtoRS(Nodes2D(P - 1))
 		}
-		if useLagrangeBasis {
-			rtb.Scalar2DBasis = NewLagrangeBasis2D(P-1, Rint, Sint) // Basis used as part of non-Normal basis elements
-		} else {
-			rtb.Scalar2DBasis = NewJacobiBasis2D(P-1, Rint, Sint) // Basis used as part of non-Normal basis elements
-		}
+		rtb.Scalar2DBasis = NewJacobiBasis2D(P-1, Rint, Sint, 0, 0) // Basis used as part of non-Normal basis elements
 	}
 	rtb.R, rtb.S = rtb.ExtendGeomToRT(Rint, Sint)
 	rtb.CalculateBasis()

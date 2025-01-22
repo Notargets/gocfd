@@ -50,7 +50,7 @@ func NewLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
 		el.R, el.S = XYtoRS(Nodes2D(el.N))
 	}
 	// Build reference element matrices
-	el.JB2D = NewJacobiBasis2D(el.N, el.R, el.S)
+	el.JB2D = NewJacobiBasis2D(el.N, el.R, el.S, 0, 0)
 	el.MassMatrix = el.JB2D.Vinv.Transpose().Mul(el.JB2D.Vinv)
 	// Initialize the (r,s) differentiation matrices on the simplex, evaluated at (r,s) at order N
 	/*

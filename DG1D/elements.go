@@ -77,7 +77,7 @@ func JacobiGL(alpha, beta float64, N int) (R utils.Vector) {
 	var iter int
 	dataXint := xint.V.RawVector().Data
 	for i := 1; i < N; i++ {
-		//x[i] = xint.AtVec(iter)
+		// x[i] = xint.AtVec(iter)
 		x[i] = dataXint[iter]
 		iter++
 	}
@@ -249,6 +249,27 @@ func Vandermonde1D(N int, R utils.Vector) (V utils.Matrix) {
 	for j := 0; j < N+1; j++ {
 		V.SetCol(j, JacobiP(R, 0, 0, j))
 	}
+	return
+}
+
+type Jacobi1D struct {
+	P           int     // Order
+	Alpha, Beta float64 // Jacobi parameters
+	R, Poly     []float64
+}
+
+func NewJacobi1D(P int, r utils.Vector, alpha, beta float64) (jb1d *Jacobi1D) {
+	jb1d = &Jacobi1D{
+		Alpha: alpha,
+		Beta:  beta,
+		P:     P,
+		R:     r.DataP,
+	}
+	// We need P+1 points to define the polynomial, check it
+	if r.Len() != P+1 {
+		panic(fmt.Errorf("not enough points to define polynomial"))
+	}
+	jb1d.Poly = JacobiP(r, alpha, beta, P)
 	return
 }
 

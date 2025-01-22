@@ -9,18 +9,120 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
+type DerivativeDirection uint8
+
+const (
+	None DerivativeDirection = iota
+	Dr
+	Ds
+)
+
 type RTElement struct {
-	N             int             // Order of element
-	Np            int             // Number of points in element
-	NpEdge, NpInt int             // Number of Edge and Interior points
-	A             utils.Matrix    // Polynomial coefficient matrix, NpxNp
-	V             [2]utils.Matrix // Vandermonde matrix for each direction r and s, [2]xNpxNp
-	Div, DivInt   utils.Matrix    // Divergence matrix, NpxNp for all, NintxNp Interior Points
-	R, S          utils.Vector    // Point locations defining element in [-1,1] Triangle, NpxNp
-	RTPolyBasis   Basis2D
+	N                                int             // Order of element
+	Np                               int             // Number of points in element
+	NpEdge, NpInt                    int             // Number of Edge and Interior points
+	A                                utils.Matrix    // Polynomial coefficient matrix, NpxNp
+	V                                [2]utils.Matrix // Vandermonde matrix for each direction r and s, [2]xNpxNp
+	Div, DivInt                      utils.Matrix    // Divergence matrix, NpxNp for all, NintxNp Interior Points
+	R, S                             utils.Vector    // Point locations defining element in [-1,1] Triangle, NpxNp
+	RTPolyBasis2D_A, RTPolyBasis2D_B *JacobiBasis2D
+	RTPolyBasis1D                    *DG1D.Jacobi1D // 1D Jacobi Polynomial
+	RTPolyBasis1D_Edge2              *DG1D.Jacobi1D // 1D Jacobi Polynomial on parameterized edge
 }
 
-func NewRTElement(R, S utils.Vector, NFlux int, useLagrangeBasis bool) (rt *RTElement) {
+/*
+	Definition:
+		Raviart Thomas element
+		Total of (N+1)(N+3) degrees of freedom. (N)(N+1) interior degrees of
+		freedom split between R and S directions. 3*(N+1) edge degrees of
+		freedom, (N+1) per each of 3 edges on the triangle.
+
+	Inputs:
+		(N)(N+2)/2 [r,s] points from the interior of the [-1,1] triangle
+
+	Outputs:
+		[R,S]: Coordinates of points within element
+
+		First (N)(N+1)/2 points: Interior points, excluding edges in
+			[-1,1] triangle coordinates corresponding to the R
+			direction DOFs
+		Next (N)(N+1)/2 points: Same as above for the S direction
+		Next (N+1) points: Edge 1 locations
+		Next (N+1) points: Edge 2 (Hypotenuse) locations
+		Next (N+1) points: Edge 3 locations
+
+
+	Methods:
+		The evaluation matrix rt.A relates the coefficients of the RT element
+		basis to the solution vectors. For the RT element at degree 1 (RT1),
+		this equation is:
+
+		⎡ φ₁(P₁)  φ₂(P₁)  φ₃(P₁)  φ₄(P₁)  φ₅(P₁)  φ₆(P₁)  φ₇(P₁)  φ₈(P₁) ⎤   ⎡ c₁ ⎤   ⎡ f₁ ⎤
+		⎢ φ₁(P₁)  φ₂(P₁)  φ₃(P₁)  φ₄(P₁)  φ₅(P₁)  φ₆(P₁)  φ₇(P₁)  φ₈(P₁) ⎥   ⎢ c₂ ⎥   ⎢ f₂ ⎥
+		⎢ φ₁(P₂)  φ₂(P₂)  φ₃(P₂)  φ₄(P₂)  φ₅(P₂)  φ₆(P₂)  φ₇(P₂)  φ₈(P₂) ⎥   ⎢ c₃ ⎥   ⎢ f₃ ⎥
+		⎢ φ₁(P₃)  φ₂(P₃)  φ₃(P₃)  φ₄(P₃)  φ₅(P₃)  φ₆(P₃)  φ₇(P₃)  φ₈(P₃) ⎥   ⎢ c₄ ⎥   ⎢ f₄ ⎥
+		⎢ φ₁(P₄)  φ₂(P₄)  φ₃(P₄)  φ₄(P₄)  φ₅(P₄)  φ₆(P₄)  φ₇(P₄)  φ₈(P₄) ⎥ * ⎢ c₅ ⎥ = ⎢ f₅ ⎥
+		⎢ φ₁(P₅)  φ₂(P₅)  φ₃(P₅)  φ₄(P₅)  φ₅(P₅)  φ₆(P₅)  φ₇(P₅)  φ₈(P₅) ⎥   ⎢ c₆ ⎥   ⎢ f₆ ⎥
+		⎢ φ₁(P₆)  φ₂(P₆)  φ₃(P₆)  φ₄(P₆)  φ₅(P₆)  φ₆(P₆)  φ₇(P₆)  φ₈(P₆) ⎥   ⎢ c₇ ⎥   ⎢ f₇ ⎥
+		⎣ φ₁(P₇)  φ₂(P₇)  φ₃(P₇)  φ₄(P₇)  φ₅(P₇)  φ₆(P₇)  φ₇(P₇)  φ₈(P₇) ⎦   ⎢ c₈ ⎥   ⎢ f₈ ⎥
+
+		Notes for RT1:
+		1) there is one internal position in [R,S] shared by the two interior DOFs,
+		one for each of R and S directions.
+		2) there are 6 positions, one for each of the DOFs on the edges, 2
+		per edge.
+		3) each basis function φ is evaluated fully at each position. This
+		amounts to summation of the full polynomial range of each function
+		at the corresponding position.
+
+		Note that (3) above is in contrast to the Vendermonde matrix, which
+		is very different in that each column in a Vandermonde matrix is an
+		evaluation of a single polynomial term. The Vandermonde matrix
+		relates the coefficients of the polynomial terms to the function
+		representation in a polynomial, which is NOT what we are doing here.
+
+		For an RT element, the function is distinct on the interior and the
+		edges. There is no value of the edge basis functions in the
+		interior, and there is no value of the interior functions on the
+		edge. We correct the above evaluation matrix for RT1 to reflect the
+		nature of the RT element:
+*/
+/*
+   ⎡ φ₁(P₁)  φ₂(P₁)    0       0       0       0       0       0    ⎤   ⎡ c₁ ⎤   ⎡ f₁ ⎤
+   ⎢ φ₁(P₁)  φ₂(P₁)    0       0       0       0       0       0    ⎥   ⎢ c₂ ⎥   ⎢ f₂ ⎥
+   ⎢   0       0     φ₃(P₂)  φ₄(P₂)    0       0       0       0    ⎥   ⎢ c₃ ⎥   ⎢ f₃ ⎥
+   ⎢   0       0     φ₃(P₃)  φ₄(P₃)    0       0       0       0    ⎥   ⎢ c₄ ⎥   ⎢ f₄ ⎥
+   ⎢   0       0       0       0     φ₅(P₄)  φ₆(P₄)    0       0    ⎥   ⎢ c₅ ⎥ = ⎢ f₅ ⎥
+   ⎢   0       0       0       0     φ₅(P₅)  φ₆(P₅)    0       0    ⎥   ⎢ c₆ ⎥   ⎢ f₆ ⎥
+   ⎢   0       0       0       0       0       0     φ₇(P₆)  φ₈(P₆) ⎥   ⎢ c₇ ⎥   ⎢ f₇ ⎥
+   ⎢   0       0       0       0       0       0     φ₇(P₇)  φ₈(P₇) ⎥   ⎢ c₈ ⎥   ⎢ f₈ ⎥
+*/
+/* Here is the RT2 evaluation matrix to make the pattern clear.
+Note for RT2:
+1) There are 3 internal positions in [R,S] (N=2, (N)*(N+1)/2 = 3
+2) There are 3 edge DOFs for each edge, total of 9 positions
+3) The edge basis functions are only evaluated on each edge and the interior
+basis functions are only evaluated at each interior position.
+*/
+/*
+   ⎡ φ₁(P₁)  φ₂(P₁)  φ₃(P₁)  φ₄(P₁)  φ₅(P₁)  φ₆(P₁)    0       0       0       0       0       0    0        0        0     ⎤   ⎡ c₁  ⎤   ⎡ f₁  ⎤
+   ⎢ φ₁(P₂)  φ₂(P₂)  φ₃(P₂)  φ₄(P₂)  φ₅(P₂)  φ₆(P₂)    0       0       0       0       0       0    0        0        0     ⎥   ⎢ c₂  ⎥   ⎢ f₂  ⎥
+   ⎢ φ₁(P₃)  φ₂(P₃)  φ₃(P₃)  φ₄(P₃)  φ₅(P₃)  φ₆(P₃)    0       0       0       0       0       0    0        0        0     ⎥   ⎢ c₃  ⎥   ⎢ f₃  ⎥
+   ⎢ φ₁(P₁)  φ₂(P₁)  φ₃(P₁)  φ₄(P₁)  φ₅(P₁)  φ₆(P₁)    0       0       0       0       0       0    0        0        0     ⎥   ⎢ c₄  ⎥   ⎢ f₄  ⎥
+   ⎢ φ₁(P₂)  φ₂(P₂)  φ₃(P₂)  φ₄(P₂)  φ₅(P₂)  φ₆(P₂)    0       0       0       0       0       0    0        0        0     ⎥   ⎢ c₅  ⎥   ⎢ f₅  ⎥
+   ⎢ φ₁(P₃)  φ₂(P₃)  φ₃(P₃)  φ₄(P₃)  φ₅(P₃)  φ₆(P₃)    0       0       0       0       0       0    0        0        0     ⎥   ⎢ c₆  ⎥   ⎢ f₆  ⎥
+   ⎢   0       0       0       0       0       0     φ₇(P₄)  φ₈(P₄)  φ₉(P₄)    0       0       0    0        0        0     ⎥   ⎢ c₇  ⎥   ⎢ f₇  ⎥
+   ⎢   0       0       0       0       0       0     φ₇(P₅)  φ₈(P₅)  φ₉(P₅)    0       0       0    0        0        0     ⎥   ⎢ c₈  ⎥ = ⎢ f₈  ⎥
+   ⎢   0       0       0       0       0       0     φ₇(P₆)  φ₈(P₆)  φ₉(P₆)    0       0       0    0        0        0     ⎥   ⎢ c₉  ⎥   ⎢ f₉  ⎥
+   ⎢   0       0       0       0       0       0       0       0       0 φ₁₀(P₇) φ₁₁(P₇) φ₁₂(P₇)    0        0        0     ⎥   ⎢ c₁₀ ⎥   ⎢ f₁₀ ⎥
+   ⎢   0       0       0       0       0       0       0       0       0 φ₁₀(P₈) φ₁₁(P₈) φ₁₂(P₈)    0        0        0     ⎥   ⎢ c₁₁ ⎥   ⎢ f₁₁ ⎥
+   ⎢   0       0       0       0       0       0       0       0       0 φ₁₀(P₉) φ₁₁(P₉) φ₁₂(P₉)    0        0        0     ⎥   ⎢ c₁₂ ⎥   ⎢ f₁₂ ⎥
+   ⎢   0       0       0       0       0       0       0       0       0       0       0       0  φ₁₃(P₁₀) φ₁₄(P₁₀) φ₁₅(P₁₀)⎥   ⎢ c₁₃ ⎥   ⎢ f₁₃ ⎥
+   ⎢   0       0       0       0       0       0       0       0       0       0       0       0  φ₁₃(P₁₁) φ₁₄(P₁₁) φ₁₅(P₁₁)⎥   ⎢ c₁₄ ⎥   ⎢ f₁₄ ⎥
+   ⎢   0       0       0       0       0       0       0       0       0       0       0       0  φ₁₃(P₁₂) φ₁₄(P₁₂) φ₁₅(P₁₂)⎥   ⎢ c₁₅ ⎥   ⎢ f₁₅ ⎥
+*/
+
+func NewRTElement(R, S utils.Vector, NFlux int) (rt *RTElement) {
 	// We expect that there are points in R and S to match the dimension of dim(P(NFlux-1))
 	/*
 		<---- NpInt ----><---- NpInt ----><---NpEdge----><---NpEdge----><---NpEdge---->
@@ -47,83 +149,42 @@ func NewRTElement(R, S utils.Vector, NFlux int, useLagrangeBasis bool) (rt *RTEl
 	} else {
 		RFlux, SFlux = XYtoRS(Nodes2D(NFlux))
 	}
-	if useLagrangeBasis {
-		rt.RTPolyBasis = NewLagrangeBasis2D(NFlux, RFlux, SFlux)
-	} else {
-		rt.RTPolyBasis = NewJacobiBasis2D(NFlux, RFlux, SFlux)
+	rt.RTPolyBasis2D_A = NewJacobiBasis2D(NFlux, RFlux, SFlux, 1, 0)
+	rt.RTPolyBasis2D_B = NewJacobiBasis2D(NFlux, RFlux, SFlux, 0, 1)
+	// For edges 1 and 3, we can use the same definition on R, as S is the same
+	rt.RTPolyBasis1D = DG1D.NewJacobi1D(rt.N, RFlux, 0, 0)
+	SS := utils.NewVector(RFlux.Len())
+	// For edges 2, we need to parameterize the length for each edge point
+	// along the edge by calculating SS along the edge given each value of R, S
+	for i, r := range RFlux.DataP {
+		SS.DataP[i] = (1 - r) * 0.5 // assuming [R,S] coordinate lies on edge 2
 	}
+	rt.RTPolyBasis1D_Edge2 = DG1D.NewJacobi1D(rt.N, SS, 0, 0)
 	rt.CalculateBasis()
 	return
 }
 
+func (rt *RTElement) EvaluateRTBasisFunction(functionNumber int, r, s float64,
+	derivO ...DerivativeDirection) (psi float64) {
+	// This function evaluates all of the terms of a poly for one basis location
+	switch rt.getLocationType(functionNumber) {
+	case InteriorR:
+		psi = rt.RTPolyBasis2D_A.GetPolynomialEvaluation(r, s, derivO...)
+	case InteriorS:
+		psi = rt.RTPolyBasis2D_B.GetPolynomialEvaluation(r, s, derivO...)
+	case Edge1:
+		// TODO:
+	}
+	return
+}
+
 func (rt *RTElement) CalculateBasis() {
-	/*
-					This is constructed from the defining space of the RT element:
-									 2
-						RT_k = [(P_k) ]   + [ X ] P_k
-							 = [ b1(r,s)_i + r * b3(r,s)_j ]
-							   [ b2(r,s)_i + s * b3(r,s)_j ]
-						i := 1, (K+1)(K+2)/2
-						j := 1, (K+1) (highest order terms in polynomial)
-
-					The dimension of RT_k is (K+1)(K+3) and we can see from the above that the total
-					number of terms in the polynomial will be:
-		                    b1(r,s)        b2(r,s)     b3(r,s)
-		                  (K+1)(K+2)/2 + (K+1)(K+2)/2 + (K+1)
-						  (K+1)(K+2) + K+1 = (K+1)(K+3)
-
-					The explanation for why the b3 polynomial sub-basis is partially consumed:
-					When multiplied by [ X ], the b3 polynomial produces terms redundant with
-					the b1 and b2 sub-bases. The redundancy is removed from the b3 sub-basis to
-					compensate, producing the correct overall dimension.
-
-					Another more physical way to think about it: The [ X ] * P_k term is tracing a
-					1D shell within the 2D space - the [ X ] "pointer vector" is permuted through
-					a 1D polynomial at high order to represent the outer surface of the shape.
-
-					Two groups of bases, two ways, a pair of polynomial types and a pair of geometric types:
-						1) The RT basis consists of two parts, the (P_k)2 basis and a P_k basis with (N+1) terms.
-						The dimension of the first part is 2 * (K+1)(K+2)/2 and the second is (K+1). The total number of terms
-						in the polynomial space is:
-							2*(K+1)(K+2)/2 + (K+1) = (K+3)(K+1)
-
-						2) The RT basis is also composed of two types of geometric bases, interior and exterior
-						points. The number of interior points is (K)(K+1)/2, and the number of edge points is 3*(K+1).
-						For each interior point, we have two basis vectors, [1,0] and [0,1]. The total degrees of freedom are:
-							2*(K)(K+1)/2 + 3(K+1) = (K+3)*(K+1)
-
-					The number of interior points matches a 2D Lagrangian element basis at order (K-1):
-			    		There are (K)(K+1)/2 interior points in this RT element, which matches the point count of a Lagrangian
-						element at order (K-1). This is very convenient and enabling for the DFR method, as it allows us to
-						represent the flux vector function of a solution at degree (K-1) on an RT element of order (K) by
-						simply transferring the values from the (K-1) solution element to the interior of the RT(K) element.
-						We then provide the flux values along the triangle edges of the RT(K) element, after which we can
-						calculate gradient, divergence, and curl using a polynomial of degree (K), yielding a gradient,
-						divergence, curl of order (K-1), which is exactly what we need for the solution at (K-1).
-	*/
-	/*	   			Inputs:
-							(N)(N+2)/2 [r,s] points from the interior of the [-1,1] triangle
-
-		    		Outputs:
-						[R,S]: Coordinates of points within element
-				    	First (N)(N+1)/2 points: Interior points, excluding edges in [-1,1] triangle coordinates
-				    	Next (N)(N+1)/2 points: Duplicate of above
-						Next (N+1) points: Edge 1 locations
-						Next (N+1) points: Edge 2 locations
-						Next (N+1) points: Edge 3 locations
-
-						[V1, V2]: Vandermonde matrix for each of R and S directions:
-	    				V_ij = Psi_j([r,s]_i)
-						Element V_ij of the Vandermonde matrix is the basis function Psi_j evaluated at [r,s]_i
-						Since this is a vector valued element/basis, we have a interpolation matrix for each direction.
-	*/
 	var (
-		N     = rt.N
-		R, S  = rt.R, rt.S
-		Np    = (N + 1) * (N + 3)
-		Nint  = N * (N + 1) / 2
-		P     utils.Matrix
-		basis = rt.RTPolyBasis
+		N    = rt.N
+		R, S = rt.R, rt.S
+		Np   = (N + 1) * (N + 3)
+		Nint = N * (N + 1) / 2
+		P    utils.Matrix
 	)
 	// Add the edge and additional interior (duplicated) points to complete the RT geometry2D
 	rt.R, rt.S = ExtendGeomToRT(N, R, S)
@@ -138,11 +199,12 @@ func (rt *RTElement) CalculateBasis() {
 	var p0, p1 []float64
 	for ii, rr := range rt.R.DataP {
 		ss := rt.S.DataP[ii]
+		_, _ = rr, ss
 		/*
 			First, evaluate the polynomial at the (r,s) coordinates
 			This is the same set that will be used for all dot products to form the basis matrix
 		*/
-		p0, p1 = rt.EvaluateRTBasis(basis, rr, ss) // each of p1,p2 stores the polynomial terms for the R and S directions
+		// p0, p1 = rt.EvaluateRTBasis(basis, rr, ss) // each of p1,p2 stores the polynomial terms for the R and S directions
 		// Implement dot product of (unit vector)_ii with each vector term in the polynomial evaluated at location ii
 		switch rt.getLocationType(ii) {
 		case InteriorR:
@@ -187,11 +249,12 @@ func (rt *RTElement) CalculateBasis() {
 	Pdr0, Pds1 := utils.NewMatrix(Np, Np), utils.NewMatrix(Np, Np)
 	for ii, rr := range rt.R.DataP {
 		ss := rt.S.DataP[ii]
-		p0, p1 = rt.EvaluateRTBasis(basis, rr, ss) // each of p1,p2 stores the polynomial terms for the R and S directions
+		_, _ = rr, ss
+		// p0, p1 = rt.EvaluateRTBasis(basis, rr, ss) // each of p1,p2 stores the polynomial terms for the R and S directions
 		P0.M.SetRow(ii, p0)
 		P1.M.SetRow(ii, p1)
-		p0, _ = rt.EvaluateRTBasis(basis, rr, ss, Dr) // each of p0,p1 stores the polynomial terms for the R and S directions
-		_, p1 = rt.EvaluateRTBasis(basis, rr, ss, Ds) // each of p0,p1 stores the polynomial terms for the R and S directions
+		// p0, _ = rt.EvaluateRTBasis(basis, rr, ss, Dr) // each of p0,p1 stores the polynomial terms for the R and S directions
+		// _, p1 = rt.EvaluateRTBasis(basis, rr, ss, Ds) // each of p0,p1 stores the polynomial terms for the R and S directions
 		Pdr0.M.SetRow(ii, p0)
 		Pds1.M.SetRow(ii, p1)
 	}
@@ -204,77 +267,6 @@ func (rt *RTElement) CalculateBasis() {
 		rt.DivInt.M.SetRow(i, rt.Div.Row(i).DataP)
 	}
 	rt.Np = Np
-	return
-}
-
-type DerivativeDirection uint8
-
-const (
-	None DerivativeDirection = iota
-	Dr
-	Ds
-)
-
-func (rt *RTElement) EvaluateRTBasis(b1 Basis2D, r, s float64, derivO ...DerivativeDirection) (p0, p1 []float64) {
-	// This function evaluates all of the polynomial terms at one [R,S] location
-	var (
-		N        = rt.N
-		Np       = (N + 1) * (N + 3)
-		N2DBasis = (N + 1) * (N + 2) / 2 // Number of polynomial terms for each of R and S directions
-		deriv    = None
-		tFunc    func(r, s float64, i, j int) (val float64)
-	)
-	if len(derivO) != 0 {
-		deriv = derivO[0]
-	}
-	switch deriv {
-	case None:
-		tFunc = b1.PolynomialTerm
-	case Dr:
-		tFunc = b1.PolynomialTermDr
-	case Ds:
-		tFunc = b1.PolynomialTermDs
-	}
-	p0, p1 = make([]float64, Np), make([]float64, Np)
-	// Evaluate the full 2D polynomial basis first, once for each of two components
-	// Vector basis first
-	// TODO: This is a 2D polynomial evaluated at one same r,s location and
-	// TODO: a single value is used to represent each of two vector components
-	// TODO: It should be two 1D functions, one for each vector component
-	// TODO: Replace with [P_A, P_B] where P_A is alpha=0, beta=1 and P_B is
-	// TODO: alpha=1, beta=0
-	var sk int
-	for i := 0; i <= N; i++ {
-		for j := 0; j <= (N - i); j++ {
-			val := tFunc(r, s, i, j)
-			p0[sk] = val
-			p1[sk+N2DBasis] = val
-			sk++
-		}
-	}
-	// TODO: Incorrect: This should be a 1D polynomial of order P
-	// Evaluate the term ([ X ]*(Pk)) at only the top N+1 terms (highest order) of the 2D polynomial
-	sk += N2DBasis // Skip to the beginning of the second polynomial group
-	for i := 0; i <= N; i++ {
-		j := N - i
-		val := tFunc(r, s, i, j)
-		switch deriv {
-		// TODO: This term is incorrect in that it should be selectively
-		// TODO: multiplying each normal vector by a 1D polynomial
-		case None:
-			p0[sk] = val * r
-			p1[sk] = val * s
-		case Dr:
-			val2 := b1.PolynomialTerm(r, s, i, j)
-			p0[sk] = val2 + val*r
-			p1[sk] = val * s
-		case Ds:
-			val2 := b1.PolynomialTerm(r, s, i, j)
-			p0[sk] = val * r
-			p1[sk] = val2 + val*s
-		}
-		sk++
-	}
 	return
 }
 
@@ -436,7 +428,9 @@ func (rt *RTElement) GetEdgeLocations(F []float64) (Fedge []float64) {
 	return
 }
 
-func (rt *RTElement) ProjectFunctionOntoBasis(s1, s2 []float64) (sp []float64) {
+func (rt *RTElement) ProjectFunctionOntoDOF(s1, s2 []float64) (sp []float64) {
+	// For each location in {R,S}, project the input vector function [s1,s2]
+	// on to the degrees of freedom of the element (not the basis)
 	var (
 		Np = len(s1)
 	)
@@ -477,24 +471,23 @@ const (
 
 func (rt *RTElement) getLocationType(i int) (rtt RTPointType) {
 	var (
-		N     = rt.N
-		Nint  = N * (N + 1) / 2 // one order less than RT element in (P_k)2
-		Nedge = (N + 1)
+		NpInt  = rt.NpInt
+		NpEdge = rt.NpEdge
 	)
 	switch {
-	case i < Nint:
+	case i < NpInt:
 		// Unit vector is [1,0]
 		rtt = InteriorR
-	case i >= Nint && i < 2*Nint:
+	case i >= NpInt && i < 2*NpInt:
 		// Unit vector is [0,1]
 		rtt = InteriorS
-	case i >= 2*Nint && i < 2*Nint+Nedge:
+	case i >= 2*NpInt && i < 2*NpInt+NpEdge:
 		// Edge1: Unit vector is [0,-1]
 		rtt = Edge1
-	case i >= 2*Nint+Nedge && i < 2*Nint+2*Nedge:
+	case i >= 2*NpInt+NpEdge && i < 2*NpInt+2*NpEdge:
 		// Edge2: Unit vector is [1/sqrt(2), 1/sqrt(2)]
 		rtt = Edge2
-	case i >= 2*Nint+2*Nedge && i < 2*Nint+3*Nedge:
+	case i >= 2*NpInt+2*NpEdge && i < 2*NpInt+3*NpEdge:
 		// Edge3: Unit vector is [-1,0]
 		rtt = Edge3
 	}

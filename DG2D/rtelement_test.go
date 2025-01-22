@@ -12,7 +12,7 @@ import (
 func TestRTElement_CalculateBasis(t *testing.T) {
 	{
 		P := 1
-		rtb := NewRTBasis2DSimplex(P, false)
+		rtb := NewRTBasis2DSimplex(P)
 		// Lagrange 1D polynomial
 		{
 			g1 := 0.5 - math.Sqrt(3)/6
@@ -181,16 +181,16 @@ func TestRTElement_CalculateBasis(t *testing.T) {
 	}
 	if true {
 		P := 2
-		rtb := NewRTBasis2DSimplex(P, false)
+		rtb := NewRTBasis2DSimplex(P)
 		assert.Equal(t, rtb.P, P)
 		R, S := NodesEpsilon(P - 1)
-		rt := NewRTElement(R, S, P, false)
+		rt := NewRTElement(R, S, P)
 		assert.InDeltaSlicef(t, rt.V[0].DataP, rtb.V[0].DataP, 0.000001, "")
 		assert.InDeltaSlicef(t, rt.V[1].DataP, rtb.V[1].DataP, 0.000001, "")
 		rtb.DivInt.Print("DivInt")
 		rt.DivInt.Print("DivInt rt")
-		//assert.InDeltaSlicef(t, rt.DivInt.DataP, rtb.DivInt.DataP, 0.000001, "")
-		//rtb.Div.Print("Div")
-		//rt.Div.Print("Div rt")
+		// assert.InDeltaSlicef(t, rt.DivInt.DataP, rtb.DivInt.DataP, 0.000001, "")
+		// rtb.Div.Print("Div")
+		// rt.Div.Print("Div rt")
 	}
 }

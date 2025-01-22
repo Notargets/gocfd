@@ -38,7 +38,7 @@ type DFR2D struct {
 	FaceNorm             [2]utils.Matrix // Face normal (normalized), Kx3
 	IInII                utils.Matrix    // Mag face normal divided by unit triangle face norm mag, Kx3 dimension
 	EdgeNumber           []types.EdgeKey // Edge number for each edge, used to index into edge structures, Kx3 dimension
-	SolutionBasis        Basis2D
+	SolutionBasis        *JacobiBasis2D
 }
 
 func NewDFR2D(N int, pm *InputParameters.PlotMeta, verbose bool, meshFileO ...string) (dfr *DFR2D) {
@@ -46,9 +46,7 @@ func NewDFR2D(N int, pm *InputParameters.PlotMeta, verbose bool, meshFileO ...st
 		panic(fmt.Errorf("Polynomial order must be >= 0, have %d", N))
 	}
 	le := NewLagrangeElement2D(N, Epsilon)
-	useLagrangeBasis := false
-	// rt := NewRTElement(le.R, le.S, N+1, useLagrangeBasis)
-	rt := NewRTBasis2DSimplex(N+1, useLagrangeBasis)
+	rt := NewRTBasis2DSimplex(N + 1)
 	RFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.R.DataP)) // For the Interpolation matrix across three edges
 	SFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.S.DataP)) // For the Interpolation matrix across three edges
 	dfr = &DFR2D{
@@ -57,17 +55,10 @@ func NewDFR2D(N int, pm *InputParameters.PlotMeta, verbose bool, meshFileO ...st
 		FluxElement:     rt,
 	}
 	// Get interpolation matrix for edges using a basis on solution points at polynomial degree le.N
-	if useLagrangeBasis {
-		if verbose {
-			fmt.Printf("Using 2D Lagrange Polynomial Basis\n")
-		}
-		dfr.SolutionBasis = NewLagrangeBasis2D(le.N, le.R, le.S)
-	} else {
-		if verbose {
-			fmt.Printf("Using 2D Jacobi OrthoNormal Polynomial Basis\n")
-		}
-		dfr.SolutionBasis = NewJacobiBasis2D(le.N, le.R, le.S)
+	if verbose {
+		fmt.Printf("Using 2D Jacobi OrthoNormal Polynomial Basis\n")
 	}
+	dfr.SolutionBasis = NewJacobiBasis2D(le.N, le.R, le.S, 0, 0)
 	// Get the interpolation matrices that interpolate the whole RT element and just the edges using solution points
 	dfr.FluxInterp = dfr.SolutionBasis.GetInterpMatrix(rt.R, rt.S)       // Interpolation matrix for flux nodes
 	dfr.FluxEdgeInterp = dfr.SolutionBasis.GetInterpMatrix(RFlux, SFlux) // Interpolation matrix across three edges

@@ -8,23 +8,19 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-type Basis2D interface {
-	PolynomialTerm(r, s float64, i, j int) (p float64)
-	PolynomialTermDr(r, s float64, i, j int) (dr float64)
-	PolynomialTermDs(r, s float64, i, j int) (ds float64)
-	GetInterpMatrix(R, S utils.Vector) (Interp utils.Matrix)
-}
-
 type JacobiBasis2D struct {
 	P               int // Order
 	Np              int // Dimension
+	Alpha, Beta     float64
 	V, Vinv, Vr, Vs utils.Matrix
 }
 
-func NewJacobiBasis2D(P int, R, S utils.Vector) (jb2d *JacobiBasis2D) {
+func NewJacobiBasis2D(P int, R, S utils.Vector, Alpha, Beta float64) (jb2d *JacobiBasis2D) {
 	jb2d = &JacobiBasis2D{
-		P:  P,
-		Np: (P + 1) * (P + 2) / 2,
+		P:     P,
+		Np:    (P + 1) * (P + 2) / 2,
+		Alpha: Alpha,
+		Beta:  Beta,
 	}
 	jb2d.V = jb2d.Vandermonde2D(P, R, S)
 	jb2d.Vinv = jb2d.V.InverseWithCheck()
@@ -68,8 +64,8 @@ func (jb2d *JacobiBasis2D) Simplex2DP(R, S utils.Vector, i, j int) (P []float64)
 		Np   = A.Len()
 		bd   = B.DataP
 	)
-	h1 := DG1D.JacobiP(A, 0, 0, i)
-	h2 := DG1D.JacobiP(B, float64(2*i+1), 0, j)
+	h1 := DG1D.JacobiP(A, jb2d.Alpha, jb2d.Beta, i)
+	h2 := DG1D.JacobiP(B, float64(2*i+1), jb2d.Beta, j)
 	P = make([]float64, Np)
 	sq2 := math.Sqrt(2)
 	for ii := range h1 {
@@ -85,10 +81,10 @@ func (jb2d *JacobiBasis2D) GradSimplex2DP(R, S utils.Vector, id, jd int) (ddr, d
 		A, B   = RStoAB(R, S)
 		ad, bd = A.DataP, B.DataP
 	)
-	fa := DG1D.JacobiP(A, 0, 0, id)
-	dfa := DG1D.GradJacobiP(A, 0, 0, id)
-	gb := DG1D.JacobiP(B, 2*float64(id)+1, 0, jd)
-	dgb := DG1D.GradJacobiP(B, 2*float64(id)+1, 0, jd)
+	fa := DG1D.JacobiP(A, jb2d.Alpha, jb2d.Beta, id)
+	dfa := DG1D.GradJacobiP(A, 0, jb2d.Beta, id)
+	gb := DG1D.JacobiP(B, 2*float64(id)+1, jb2d.Beta, jd)
+	dgb := DG1D.GradJacobiP(B, 2*float64(id)+1, jb2d.Beta, jd)
 	// r-derivative
 	// d/dr = da/dr d/da + db/dr d/db = (2/(1-s)) d/da = (2/(1-B)) d/da
 	ddr = make([]float64, len(gb))
@@ -163,6 +159,31 @@ func (jb2d *JacobiBasis2D) GetInterpMatrix(R, S utils.Vector) (Interp utils.Matr
 	return
 }
 
+func (jb2d *JacobiBasis2D) GetPolynomialEvaluation(r, s float64,
+	derivO ...DerivativeDirection) (psi float64) {
+	var (
+		N     = jb2d.P
+		deriv = None
+	)
+	if len(derivO) > 0 {
+		deriv = derivO[0]
+	}
+	// Compute all polynomial terms and sum to form function value
+	for i := 0; i <= N; i++ {
+		for j := 0; j <= (N - i); j++ {
+			switch deriv {
+			case None:
+				psi += jb2d.PolynomialTerm(r, s, i, j)
+			case Dr:
+				psi += jb2d.PolynomialTermDr(r, s, i, j)
+			case Ds:
+				psi += jb2d.PolynomialTermDs(r, s, i, j)
+			}
+		}
+	}
+	return
+}
+
 type LagrangeBasis2D struct {
 	P, Np          int       // Order
 	RNodes, SNodes []float64 // Nodes at which basis is defined
@@ -194,7 +215,7 @@ func NewLagrangeBasis2D(P int, R, S utils.Vector) (lb2d *LagrangeBasis2D) {
 		Np:     Np,
 		RNodes: R.DataP,
 		SNodes: S.DataP,
-		JB2D:   NewJacobiBasis2D(P, R, S),
+		JB2D:   NewJacobiBasis2D(P, R, S, 0, 0),
 	}
 	return
 }
@@ -243,7 +264,7 @@ func (lb2d *LagrangeBasis2D) BasisPolynomial(R, S utils.Vector, i, j int) (P []f
 		R and S are the location to get values from the polynomial
 	*/
 	Interp := lb2d.GetInterpMatrix(R, S)
-	//fmt.Printf("P = %d, term number[%d,%d] = %d\n", lb2d.P, i, j, lb2d.getTermNumber(i, j))
+	// fmt.Printf("P = %d, term number[%d,%d] = %d\n", lb2d.P, i, j, lb2d.getTermNumber(i, j))
 	P = Interp.Col(lb2d.getTermNumber(i, j)).DataP
 	return
 }

@@ -145,11 +145,12 @@ func TestRTElementLagrange(t *testing.T) {
 		Nend := 8
 		for N := 1; N < Nend; N++ {
 			R, S := NodesEpsilon(N - 1)
-			rt := NewRTElement(R, S, N, true)
+			rt := NewRTElement(R, S, N)
 			for cOrder := 0; cOrder <= N; cOrder++ {
 				fmt.Printf("Check Order = %d, ", cOrder)
+				// [s1,s2] values for each location in {R,S}
 				s1, s2, divCheck := checkSolution(rt, cOrder)
-				sp := rt.ProjectFunctionOntoBasis(s1, s2)
+				sp := rt.ProjectFunctionOntoDOF(s1, s2)
 				sm := utils.NewMatrix(rt.Np, 1, sp)
 				divM := rt.Div.Mul(sm)
 				// fmt.Println(divM.Print("divM"))
@@ -168,7 +169,7 @@ func TestRTElement(t *testing.T) {
 		// Check term-wise orthogonal 2D polynomial basis
 		N := 2
 		R, S := NodesEpsilon(N - 1)
-		JB2D := NewJacobiBasis2D(N-1, R, S)
+		JB2D := NewJacobiBasis2D(N-1, R, S, 0, 0)
 		ii, jj := 1, 1
 		p := JB2D.Simplex2DP(R, S, ii, jj)
 		ddr, dds := JB2D.GradSimplex2DP(R, S, ii, jj)
@@ -240,11 +241,12 @@ func TestRTElement(t *testing.T) {
 		Nend := 8
 		for N := 1; N < Nend; N++ {
 			R, S := NodesEpsilon(N - 1)
-			rt := NewRTElement(R, S, N, false)
+			rt := NewRTElement(R, S, N)
 			for cOrder := 0; cOrder <= N; cOrder++ {
 				fmt.Printf("Check Order = %d, ", cOrder)
+				// [s1,s2] values for each location in {R,S}
 				s1, s2, divCheck := checkSolution(rt, cOrder)
-				sp := rt.ProjectFunctionOntoBasis(s1, s2)
+				sp := rt.ProjectFunctionOntoDOF(s1, s2)
 				sm := utils.NewMatrix(rt.Np, 1, sp)
 				divM := rt.Div.Mul(sm)
 				// fmt.Println(divM.Print("divM"))
@@ -262,7 +264,7 @@ func TestRTElement(t *testing.T) {
 		NRT := N + 1
 		R, S := NodesEpsilon(N)
 		// NpInt := R.Len()
-		rt := NewRTElement(R, S, NRT, false)
+		rt := NewRTElement(R, S, NRT)
 		s1, s2 := make([]float64, rt.R.Len()), make([]float64, rt.R.Len())
 		for i := range rt.R.DataP {
 			s1[i] = 1
