@@ -4,6 +4,24 @@ I've reviewed the previous construction and it was wrong in substantial ways.
 Following is a revised definition of the element, consistent with it's 
 purpose and acknowledged attributes.
 
+## Scope of errors in previous declaration(s)
+
+There was a first RT element definition that was very wrong in both how the 
+basis was defined, and how the construction was done.
+
+The second iteration of the RT element was correct in the definition of the 
+basis, but the construction had a major error in how the evaluation matrix 
+was defined. In particular, the basis evaluation matrix was built as a 
+Vendermonde matrix, so instead of evaluating the basis function fully at 
+each column, each column evaluated the component polynomials of the basis 
+function.position
+
+## Revised definition: Jacobi polynomials, evaluated correctly
+
+In this new definition, we'll use the same polynomials used in the scalar 
+element, and we'll build it correctly using a full evaluation of the basis 
+functions at each position for each DOF.
+
 ```
 Definition:
 	Raviart Thomas element
