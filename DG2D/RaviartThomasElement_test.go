@@ -102,6 +102,9 @@ func TestRTElementConstruction(t *testing.T) {
 	edge3 := rt.getEdgeCoordinates(3)
 	assert.True(t, nearVec(DG1D.JacobiP(edge3, 0, 0, rt.P),
 		rt.RTPolyBasis1D_Edge3, 0.00001))
+
+	// Test construction
+
 }
 
 func TestLagrangePolynomial(t *testing.T) {

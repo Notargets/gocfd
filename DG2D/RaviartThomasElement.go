@@ -110,13 +110,25 @@ const (
 )
 
 type RTElement struct {
-	P                                int             // Order of element
-	Np                               int             // Number of points in element
-	NpEdge, NpInt                    int             // Number of Edge and Interior points
-	A                                utils.Matrix    // Polynomial coefficient matrix, NpxNp
-	V                                [2]utils.Matrix // Vandermonde matrix for each direction r and s, [2]xNpxNp
-	Div, DivInt                      utils.Matrix    // Divergence matrix, NpxNp for all, NintxNp Interior Points
-	R, S                             utils.Vector    // Point locations defining element in [-1,1] Triangle, NpxNp
+	P             int // Order of element
+	Np            int // Number of points in element
+	NpEdge, NpInt int // Number of Edge and Interior points
+	// At every point, the sum of basis functions equals the flux vector
+	// Each basis function is multiplied by it's constant, Ci
+	// [A] is the matrix of basis functions, evaluated at each point (row)
+	// [A] relates the constants [C] to the flux vector [F]
+	// [A] x [C] = [F]
+	// ===> [C] = [AInv] x [F]
+	A, AInv utils.Matrix // Basis evaluation matrix, NpxNp
+	// The divergence of [F] at every point is the sum of the basis derivatives
+	// Div([F]) = Dr([F])+Ds([F]) = Dr([A]x[C])+Ds([A]x[C]) = [Dr]x[C]+[Ds]x[C]
+	// Div[F] = ([Dr]+[Ds]) x [C] = ([Dr]+[Ds]) x [AInv] x [F]
+	Dr, Ds utils.Matrix // Derivative of basis functions
+	// Commutation gives a useful matrix we can use to calculate Flux Divergence
+	// [Div] == ([Dr] + [Ds]) x [AInv]
+	// Div[F] = [Div] x [F]
+	Div                              utils.Matrix // Divergence matrix, NpxNp for all, NintxNp Interior Points
+	R, S                             utils.Vector // Point locations defining element in [-1,1] Triangle, NpxNp
 	RTPolyBasis2D_A, RTPolyBasis2D_B *JacobiBasis2D
 	RTPolyBasis1D_Edge1              []float64 // Edge1 polynomial
 	RTPolyBasis1D_Edge2              []float64 // Edge2 polynomial
