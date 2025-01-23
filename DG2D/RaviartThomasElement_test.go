@@ -96,6 +96,12 @@ func TestRTElementConstruction(t *testing.T) {
 		edge1.DataP, 0.000001))
 	assert.True(t, nearVec(DG1D.JacobiP(edge1, 0, 0, rt.P),
 		rt.RTPolyBasis1D_Edge1, 0.00001))
+	edge2 := rt.getEdgeCoordinates(2)
+	assert.True(t, nearVec(DG1D.JacobiP(edge2, 0, 0, rt.P),
+		rt.RTPolyBasis1D_Edge2, 0.00001))
+	edge3 := rt.getEdgeCoordinates(3)
+	assert.True(t, nearVec(DG1D.JacobiP(edge3, 0, 0, rt.P),
+		rt.RTPolyBasis1D_Edge3, 0.00001))
 }
 
 func TestLagrangePolynomial(t *testing.T) {
