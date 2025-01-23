@@ -184,6 +184,39 @@ func (jb2d *JacobiBasis2D) GetPolynomialEvaluation(r, s float64,
 	return
 }
 
+func (jb2d *JacobiBasis2D) GetAllPolynomials(derivO ...DerivativeDirection) (
+	PSI utils.Vector) {
+	var (
+		deriv = None
+		m     utils.Matrix
+	)
+	if len(derivO) > 0 {
+		deriv = derivO[0]
+	}
+	RowSum := func(m utils.Matrix, rowID int) (sum float64) {
+		_, ns := m.Dims()
+		for i := 0; i < ns; i++ {
+			sum += m.At(rowID, i)
+		}
+		return
+	}
+	nr, _ := jb2d.V.Dims()
+	PSI = utils.NewVector(nr)
+
+	switch deriv {
+	case None:
+		m = jb2d.V
+	case Dr:
+		m = jb2d.Vr
+	case Ds:
+		m = jb2d.Vs
+	}
+	for i := 0; i < nr; i++ {
+		PSI.DataP[i] = RowSum(m, i)
+	}
+	return
+}
+
 type LagrangeBasis2D struct {
 	P, Np          int       // Order
 	RNodes, SNodes []float64 // Nodes at which basis is defined

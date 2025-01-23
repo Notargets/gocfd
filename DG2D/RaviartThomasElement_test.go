@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/notargets/gocfd/DG1D"
 	"github.com/notargets/gocfd/utils"
 
 	utils2 "github.com/notargets/avs/utils"
@@ -18,8 +19,8 @@ import (
 )
 
 func TestRTElementConstruction(t *testing.T) {
-	// Let's define an RT element at order P
-	P := 2 // Form the interior locations
+	// Define an RT element at order P
+	P := 2
 	rt := NewRTElement(P)
 
 	Print := func(label string, iip *int) {
@@ -36,6 +37,65 @@ func TestRTElementConstruction(t *testing.T) {
 	Print("Edge 2:", &ii)
 	Print("Edge 3:", &ii)
 
+	// Test polynomial bases
+
+	// TEST1: Demonstrate each of the ways to calculate Polynomial Terms
+	// 2D Interior Polynomials
+	PInt := rt.P - 1
+	RInt, SInt := NodesEpsilon(PInt)
+	BasisTest := func(basis *JacobiBasis2D) (PSI utils.Vector, P_Alt []float64) {
+		PSI = basis.GetAllPolynomials()
+		CalcTerm := func(r, s float64, P int) (psi float64) {
+			for i := 0; i <= P; i++ {
+				for j := 0; j <= (P - i); j++ {
+					pTerm := basis.PolynomialTerm(r, s, i, j)
+					psi += pTerm
+				}
+			}
+			return
+		}
+		r1, s1 := RInt.AtVec(0), SInt.AtVec(0)
+		r2, s2 := RInt.AtVec(1), SInt.AtVec(1)
+		r3, s3 := RInt.AtVec(2), SInt.AtVec(2)
+		P_Alt = []float64{
+			CalcTerm(r1, s1, PInt),
+			CalcTerm(r2, s2, PInt),
+			CalcTerm(r3, s3, PInt),
+		}
+		for i := 0; i < len(P_Alt); i++ {
+			fmt.Printf("P_Alt[%d] = %f\n", i, P_Alt[i])
+		}
+		return
+	}
+	// R direction basis
+	PSI, P_Alt := BasisTest(rt.RTPolyBasis2D_A)
+	P1 := PSI.AtVec(0)
+	assert.True(t, near(-.264298, P1, 0.00001))
+	for i := 0; i < rt.NpInt; i++ {
+		assert.True(t, nearVec(P_Alt, PSI.DataP, 0.00001))
+	}
+
+	// S direction basis
+	PSI, P_Alt = BasisTest(rt.RTPolyBasis2D_B)
+	P1 = PSI.AtVec(0)
+	assert.True(t, near(-3.033715, P1, 0.00001))
+	for i := 0; i < rt.NpInt; i++ {
+		assert.True(t, nearVec(P_Alt, PSI.DataP, 0.00001))
+	}
+
+	// 1D Edge Polynomials
+	// Get the edge values for edge1,2,3
+	assert.Panics(t, func() { rt.getEdgeCoordinates(0) })
+	// The edge distribution of edge2 should be the reverse direction of
+	// edge1, and symmetric, shorthand is to take the neg of edge2 to get edge1
+	edge1 := rt.getEdgeCoordinates(2)
+	for i := range edge1.DataP {
+		edge1.DataP[i] *= -1
+	}
+	assert.True(t, nearVec(rt.getEdgeCoordinates(1).DataP,
+		edge1.DataP, 0.000001))
+	assert.True(t, nearVec(DG1D.JacobiP(edge1, 0, 0, rt.P),
+		rt.RTPolyBasis1D_Edge1, 0.00001))
 }
 
 func TestLagrangePolynomial(t *testing.T) {

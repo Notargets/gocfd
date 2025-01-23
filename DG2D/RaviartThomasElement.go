@@ -9,28 +9,6 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-type DerivativeDirection uint8
-
-const (
-	None DerivativeDirection = iota
-	Dr
-	Ds
-)
-
-type RTElement struct {
-	P                                int             // Order of element
-	Np                               int             // Number of points in element
-	NpEdge, NpInt                    int             // Number of Edge and Interior points
-	A                                utils.Matrix    // Polynomial coefficient matrix, NpxNp
-	V                                [2]utils.Matrix // Vandermonde matrix for each direction r and s, [2]xNpxNp
-	Div, DivInt                      utils.Matrix    // Divergence matrix, NpxNp for all, NintxNp Interior Points
-	R, S                             utils.Vector    // Point locations defining element in [-1,1] Triangle, NpxNp
-	RTPolyBasis2D_A, RTPolyBasis2D_B *JacobiBasis2D
-	RTPolyBasis1D_Edge1              []float64 // Edge1 polynomial
-	RTPolyBasis1D_Edge2              []float64 // Edge2 polynomial
-	RTPolyBasis1D_Edge3              []float64 // Edge3 polynomial
-}
-
 /*
 	Definition:
 		Raviart Thomas element
@@ -123,6 +101,28 @@ basis functions are only evaluated at each interior position.
    ⎢   0       0       0       0       0       0       0       0       0       0       0       0  φ₁₃(P₁₂) φ₁₄(P₁₂) φ₁₅(P₁₂)⎥   ⎢ c₁₅ ⎥   ⎢ f₁₅ ⎥
 */
 
+type DerivativeDirection uint8
+
+const (
+	None DerivativeDirection = iota
+	Dr
+	Ds
+)
+
+type RTElement struct {
+	P                                int             // Order of element
+	Np                               int             // Number of points in element
+	NpEdge, NpInt                    int             // Number of Edge and Interior points
+	A                                utils.Matrix    // Polynomial coefficient matrix, NpxNp
+	V                                [2]utils.Matrix // Vandermonde matrix for each direction r and s, [2]xNpxNp
+	Div, DivInt                      utils.Matrix    // Divergence matrix, NpxNp for all, NintxNp Interior Points
+	R, S                             utils.Vector    // Point locations defining element in [-1,1] Triangle, NpxNp
+	RTPolyBasis2D_A, RTPolyBasis2D_B *JacobiBasis2D
+	RTPolyBasis1D_Edge1              []float64 // Edge1 polynomial
+	RTPolyBasis1D_Edge2              []float64 // Edge2 polynomial
+	RTPolyBasis1D_Edge3              []float64 // Edge3 polynomial
+}
+
 func NewRTElement(P int) (rt *RTElement) {
 	// We expect that there are points in R and S to match the dimension of dim(P(NFlux-1))
 	/*
@@ -168,6 +168,8 @@ func (rt *RTElement) getEdgeCoordinates(edgeNum int) (SS utils.Vector) {
 		SS = rt.R.Subset(2*rt.NpInt+rt.NpEdge, 2*rt.NpInt+2*rt.NpEdge-1)
 	case 3:
 		SS = rt.S.Subset(2*rt.NpInt+2*rt.NpEdge, 2*rt.NpInt+3*rt.NpEdge-1)
+	default:
+		panic("invalid edgeNum")
 	}
 	return
 }
