@@ -104,7 +104,17 @@ func TestRTElementConstruction(t *testing.T) {
 		rt.RTPolyBasis1D_Edge3, 0.00001))
 
 	// Test construction
-
+	// For each basis polynomial (column), evaluate at appropriate positions
+	// Interior block
+	// R side of interior first
+	for j := 0; j < rt.NpInt; j++ {
+		basis := rt.RTPolyBasis2D_A
+		PSI = rt.GetAllPolynomials()
+		for i := 0; i < rt.NpInt; i++ {
+			r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+			rt.A.Set(i, j)
+		}
+	}
 }
 
 func TestLagrangePolynomial(t *testing.T) {

@@ -84,12 +84,12 @@ Note for RT2:
 basis functions are only evaluated at each interior position.
 */
 /*
-   ⎡ φ₁(P₁)  φ₂(P₁)  φ₃(P₁)  φ₄(P₁)  φ₅(P₁)  φ₆(P₁)    0       0       0       0       0       0    0        0        0     ⎤   ⎡ c₁  ⎤   ⎡ f₁  ⎤
-   ⎢ φ₁(P₂)  φ₂(P₂)  φ₃(P₂)  φ₄(P₂)  φ₅(P₂)  φ₆(P₂)    0       0       0       0       0       0    0        0        0     ⎥   ⎢ c₂  ⎥   ⎢ f₂  ⎥
-   ⎢ φ₁(P₃)  φ₂(P₃)  φ₃(P₃)  φ₄(P₃)  φ₅(P₃)  φ₆(P₃)    0       0       0       0       0       0    0        0        0     ⎥   ⎢ c₃  ⎥   ⎢ f₃  ⎥
-   ⎢ φ₁(P₁)  φ₂(P₁)  φ₃(P₁)  φ₄(P₁)  φ₅(P₁)  φ₆(P₁)    0       0       0       0       0       0    0        0        0     ⎥   ⎢ c₄  ⎥   ⎢ f₄  ⎥
-   ⎢ φ₁(P₂)  φ₂(P₂)  φ₃(P₂)  φ₄(P₂)  φ₅(P₂)  φ₆(P₂)    0       0       0       0       0       0    0        0        0     ⎥   ⎢ c₅  ⎥   ⎢ f₅  ⎥
-   ⎢ φ₁(P₃)  φ₂(P₃)  φ₃(P₃)  φ₄(P₃)  φ₅(P₃)  φ₆(P₃)    0       0       0       0       0       0    0        0        0     ⎥   ⎢ c₆  ⎥   ⎢ f₆  ⎥
+   ⎡ φ₁(P₁)  φ₂(P₁)  φ₃(P₁)    0       0       0       0       0       0       0       0       0    0        0        0     ⎤   ⎡ c₁  ⎤   ⎡ f₁  ⎤
+   ⎢ φ₁(P₂)  φ₂(P₂)  φ₃(P₂)    0       0       0       0       0       0       0       0       0    0        0        0     ⎥   ⎢ c₂  ⎥   ⎢ f₂  ⎥
+   ⎢ φ₁(P₃)  φ₂(P₃)  φ₃(P₃)    0       0       0       0       0       0       0       0       0    0        0        0     ⎥   ⎢ c₃  ⎥   ⎢ f₃  ⎥
+   ⎢   0       0       0     φ₄(P₁)  φ₅(P₁)  φ₆(P₁)    0       0       0       0       0       0    0        0        0     ⎥   ⎢ c₄  ⎥   ⎢ f₄  ⎥
+   ⎢   0       0       0     φ₄(P₂)  φ₅(P₂)  φ₆(P₂)    0       0       0       0       0       0    0        0        0     ⎥   ⎢ c₅  ⎥   ⎢ f₅  ⎥
+   ⎢   0       0       0     φ₄(P₃)  φ₅(P₃)  φ₆(P₃)    0       0       0       0       0       0    0        0        0     ⎥   ⎢ c₆  ⎥   ⎢ f₆  ⎥
    ⎢   0       0       0       0       0       0     φ₇(P₄)  φ₈(P₄)  φ₉(P₄)    0       0       0    0        0        0     ⎥   ⎢ c₇  ⎥   ⎢ f₇  ⎥
    ⎢   0       0       0       0       0       0     φ₇(P₅)  φ₈(P₅)  φ₉(P₅)    0       0       0    0        0        0     ⎥   ⎢ c₈  ⎥ = ⎢ f₈  ⎥
    ⎢   0       0       0       0       0       0     φ₇(P₆)  φ₈(P₆)  φ₉(P₆)    0       0       0    0        0        0     ⎥   ⎢ c₉  ⎥   ⎢ f₉  ⎥
@@ -121,7 +121,7 @@ type RTElement struct {
 	// ===> [C] = [AInv] x [F]
 	A, AInv utils.Matrix // Basis evaluation matrix, NpxNp
 	// The divergence of [F] at every point is the sum of the basis derivatives
-	// Div([F]) = Dr([F])+Ds([F]) = Dr([A]x[C])+Ds([A]x[C]) = [Dr]x[C]+[Ds]x[C]
+	// Div[F] = Dr([F])+Ds([F]) = Dr([A]x[C])+Ds([A]x[C]) = [Dr]x[C]+[Ds]x[C]
 	// Div[F] = ([Dr]+[Ds]) x [C] = ([Dr]+[Ds]) x [AInv] x [F]
 	Dr, Ds utils.Matrix // Derivative of basis functions
 	// Commutation gives a useful matrix we can use to calculate Flux Divergence
@@ -144,12 +144,18 @@ func NewRTElement(P int) (rt *RTElement) {
 	*/
 	var (
 		RInt, SInt utils.Vector
+		Np         = (P + 1) * (P + 3)
 	)
 	rt = &RTElement{
 		P:      P,
-		Np:     (P + 1) * (P + 3),
+		Np:     Np,
 		NpInt:  P * (P + 1) / 2, // Number of interior points is same as the 2D scalar space one order lesser
 		NpEdge: P + 1,           // Each edge is P+1 nodes
+		A:      utils.NewMatrix(Np, Np),
+		AInv:   utils.NewMatrix(Np, Np),
+		Dr:     utils.NewMatrix(Np, Np),
+		Ds:     utils.NewMatrix(Np, Np),
+		Div:    utils.NewMatrix(Np, Np),
 	}
 	if P > 0 {
 		if P < 9 {
