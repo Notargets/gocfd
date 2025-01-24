@@ -102,46 +102,71 @@ func TestRTElementConstruction(t *testing.T) {
 	edge3 := rt.getEdgeCoordinates(3)
 	assert.True(t, nearVec(DG1D.JacobiP(edge3, 0, 0, rt.P),
 		rt.RTPolyBasis1D_Edge3, 0.00001))
+}
 
-	// Test construction
-	// For each basis polynomial (column), evaluate at appropriate positions
-	// Interior block
-	// R side of interior first
-	PSI = rt.RTPolyBasis2D_A.GetAllPolynomials()
-	for j := 0; j < rt.NpInt; j++ {
-		for i := 0; i < rt.NpInt; i++ {
-			rt.A.Set(i, j, PSI.AtVec(i))
-		}
+/*
+This follows the development in the V.J. Ervin paper: Computational Bases for
+RTk and BDMk on Triangles
+All are defined in terms of Eta and Xi which go from 0 to 1 compared to here
+where R and S are defined from -1 to 1
+
+	xi = (s + 1)/2.
+	eta = (r + 1)/2.
+
+There are three "Normal" or "edge" functions and on each of the 3 triangle edges
+there are some number of points with a single vector basis function.
+
+For the RT2 element, there are 3 points on each of the 3 edges. The vectors are
+defined below such that each column is one edge, having three rows, each
+defining the basis function for that point on the edge:
+Φ1 (ξ, η) = q1 (η) ê1 (ξ, η) , Φ2 (ξ, η) = q2 (η) ê1 (ξ, η) , Φ3 (ξ, η) = q3 (η) ê1 (ξ, η) ,
+Φ1 (ξ, η) = q3 (η) ê2 (ξ, η) , Φ2 (ξ, η) = q2 (η) ê2 (ξ, η) , Φ3 (ξ, η) = q1 (η) ê2 (ξ, η) ,
+Φ1 (ξ, η) = q1 (ξ) ê3 (ξ, η) , Φ2 (ξ, η) = q2 (ξ) ê3 (ξ, η) , Φ3 (ξ, η) = q3 (ξ) ê3 (ξ, η) .
+
+For the RT2 element, there are 3 interior points, and in the below example, we
+see there are two basis functions (vectors) for each of the 3 points. Each
+point is a column, and each column has two rows defining the basis vectors for
+that point:
+Φ1 (ξ, η) = (1 − ξ − η) ê4 (ξ, η) , Φ2 (ξ, η) = ξ ê4 (ξ, η) , Φ3 (ξ, η) = η ê4 (ξ, η) ,
+Φ1 (ξ, η) = (1 − ξ − η) ê5 (ξ, η) , Φ2 (ξ, η) = ξ ê5 (ξ, η) , Φ3 (ξ, η) = η ê5 (ξ, η) .
+
+Given that the edge functions are only evaluated on the edges, and that the
+lagrange functions multiplying them cause them to vanish on all but their
+defining point, it seems unnecessary to evaluate anything but the e1-e3
+functions in practice.
+
+For the general case of the interior basis functions, they take the form:
+Φj (ξ, η) = bj (ξ, η) ê4 (ξ, η) , j = 1, 2, . . . , k(k + 1)/2 ,
+Φj (ξ, η) = bj (ξ, η) ê5 (ξ, η) , j = 1, 2, . . . , k(k + 1)/2 .
+
+where bj is a 2D polynomial of order P-1
+*/
+func BaseBasisFunctions(r, s float64, fNum int) (ef1, ef2 float64) {
+	var (
+		sr2 = math.Sqrt(2.)
+		xi  = 0.5 * (s + 1)
+		eta = 0.5 * (r + 1)
+	)
+	switch fNum {
+	case 1:
+		ef1 = sr2 * xi
+		ef2 = sr2 * eta
+	case 2:
+		ef1 = xi - 1.
+		ef2 = eta
+	case 3:
+		ef1 = xi
+		ef2 = eta - 1.
+	case 4:
+		ef1 = eta * xi
+		ef2 = eta * (eta - 1.)
+	case 5:
+		ef1 = xi * (xi - 1.)
+		ef2 = xi * eta
+	default:
+		panic("wrong basis function number (1-5)")
 	}
-	PSI = rt.RTPolyBasis2D_B.GetAllPolynomials()
-	offset := rt.NpInt
-	for j := offset; j < offset+rt.NpInt; j++ {
-		for i := offset; i < offset+rt.NpInt; i++ {
-			rt.A.Set(i, j, PSI.AtVec(i-offset))
-		}
-	}
-	offset += rt.NpInt
-	for j := offset; j < offset+rt.NpEdge; j++ {
-		for i := offset; i < offset+rt.NpEdge; i++ {
-			rt.A.Set(i, j, rt.RTPolyBasis1D_Edge1[i-offset])
-		}
-	}
-	offset += rt.NpEdge
-	for j := offset; j < offset+rt.NpEdge; j++ {
-		for i := offset; i < offset+rt.NpEdge; i++ {
-			rt.A.Set(i, j, rt.RTPolyBasis1D_Edge2[i-offset])
-		}
-	}
-	offset += rt.NpEdge
-	for j := offset; j < offset+rt.NpEdge; j++ {
-		for i := offset; i < offset+rt.NpEdge; i++ {
-			rt.A.Set(i, j, rt.RTPolyBasis1D_Edge3[i-offset])
-		}
-	}
-	rt.A.Print("A")
-	var err error
-	rt.AInv, err = rt.A.Inverse()
-	assert.Nil(t, err)
+	return
 }
 
 func TestLagrangePolynomial(t *testing.T) {
