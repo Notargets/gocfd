@@ -179,17 +179,4 @@ func TestRTElement_CalculateBasis(t *testing.T) {
 			assert.InDeltaf(t, 0, p1, 0.000001, "")
 		}
 	}
-	if true {
-		P := 2
-		rtb := NewRTBasis2DSimplex(P)
-		assert.Equal(t, rtb.P, P)
-		rt := NewRTElement(P)
-		assert.InDeltaSlicef(t, rt.V[0].DataP, rtb.V[0].DataP, 0.000001, "")
-		assert.InDeltaSlicef(t, rt.V[1].DataP, rtb.V[1].DataP, 0.000001, "")
-		rtb.DivInt.Print("DivInt")
-		rt.DivInt.Print("DivInt rt")
-		// assert.InDeltaSlicef(t, rt.DivInt.DataP, rtb.DivInt.DataP, 0.000001, "")
-		// rtb.Div.Print("Div")
-		// rt.Div.Print("Div rt")
-	}
 }

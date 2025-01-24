@@ -107,14 +107,41 @@ func TestRTElementConstruction(t *testing.T) {
 	// For each basis polynomial (column), evaluate at appropriate positions
 	// Interior block
 	// R side of interior first
+	PSI = rt.RTPolyBasis2D_A.GetAllPolynomials()
 	for j := 0; j < rt.NpInt; j++ {
-		basis := rt.RTPolyBasis2D_A
-		PSI = rt.GetAllPolynomials()
 		for i := 0; i < rt.NpInt; i++ {
-			r, s := rt.R.AtVec(i), rt.S.AtVec(i)
-			rt.A.Set(i, j)
+			rt.A.Set(i, j, PSI.AtVec(i))
 		}
 	}
+	PSI = rt.RTPolyBasis2D_B.GetAllPolynomials()
+	offset := rt.NpInt
+	for j := offset; j < offset+rt.NpInt; j++ {
+		for i := offset; i < offset+rt.NpInt; i++ {
+			rt.A.Set(i, j, PSI.AtVec(i-offset))
+		}
+	}
+	offset += rt.NpInt
+	for j := offset; j < offset+rt.NpEdge; j++ {
+		for i := offset; i < offset+rt.NpEdge; i++ {
+			rt.A.Set(i, j, rt.RTPolyBasis1D_Edge1[i-offset])
+		}
+	}
+	offset += rt.NpEdge
+	for j := offset; j < offset+rt.NpEdge; j++ {
+		for i := offset; i < offset+rt.NpEdge; i++ {
+			rt.A.Set(i, j, rt.RTPolyBasis1D_Edge2[i-offset])
+		}
+	}
+	offset += rt.NpEdge
+	for j := offset; j < offset+rt.NpEdge; j++ {
+		for i := offset; i < offset+rt.NpEdge; i++ {
+			rt.A.Set(i, j, rt.RTPolyBasis1D_Edge3[i-offset])
+		}
+	}
+	rt.A.Print("A")
+	var err error
+	rt.AInv, err = rt.A.Inverse()
+	assert.Nil(t, err)
 }
 
 func TestLagrangePolynomial(t *testing.T) {
