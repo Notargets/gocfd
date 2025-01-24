@@ -30,20 +30,20 @@ import (
 		Next (N+1) points: Edge 2 (Hypotenuse) locations
 		Next (N+1) points: Edge 3 locations
 
-
 	Methods:
 		The evaluation matrix rt.A relates the coefficients of the RT element
 		basis to the solution vectors. For the RT element at degree 1 (RT1),
 		this equation is:
 
-		⎡ φ₁(P₁)  φ₂(P₁)  φ₃(P₁)  φ₄(P₁)  φ₅(P₁)  φ₆(P₁)  φ₇(P₁)  φ₈(P₁) ⎤   ⎡ c₁ ⎤   ⎡ f₁ ⎤
-		⎢ φ₁(P₁)  φ₂(P₁)  φ₃(P₁)  φ₄(P₁)  φ₅(P₁)  φ₆(P₁)  φ₇(P₁)  φ₈(P₁) ⎥   ⎢ c₂ ⎥   ⎢ f₂ ⎥
-		⎢ φ₁(P₂)  φ₂(P₂)  φ₃(P₂)  φ₄(P₂)  φ₅(P₂)  φ₆(P₂)  φ₇(P₂)  φ₈(P₂) ⎥   ⎢ c₃ ⎥   ⎢ f₃ ⎥
-		⎢ φ₁(P₃)  φ₂(P₃)  φ₃(P₃)  φ₄(P₃)  φ₅(P₃)  φ₆(P₃)  φ₇(P₃)  φ₈(P₃) ⎥   ⎢ c₄ ⎥   ⎢ f₄ ⎥
-		⎢ φ₁(P₄)  φ₂(P₄)  φ₃(P₄)  φ₄(P₄)  φ₅(P₄)  φ₆(P₄)  φ₇(P₄)  φ₈(P₄) ⎥ * ⎢ c₅ ⎥ = ⎢ f₅ ⎥
-		⎢ φ₁(P₅)  φ₂(P₅)  φ₃(P₅)  φ₄(P₅)  φ₅(P₅)  φ₆(P₅)  φ₇(P₅)  φ₈(P₅) ⎥   ⎢ c₆ ⎥   ⎢ f₆ ⎥
-		⎢ φ₁(P₆)  φ₂(P₆)  φ₃(P₆)  φ₄(P₆)  φ₅(P₆)  φ₆(P₆)  φ₇(P₆)  φ₈(P₆) ⎥   ⎢ c₇ ⎥   ⎢ f₇ ⎥
-		⎣ φ₁(P₇)  φ₂(P₇)  φ₃(P₇)  φ₄(P₇)  φ₅(P₇)  φ₆(P₇)  φ₇(P₇)  φ₈(P₇) ⎦   ⎢ c₈ ⎥   ⎢ f₈ ⎥
+⎡ ϕ₁ ⋅ ϕ₁   ϕ₂ ⋅ ϕ₁   ϕ₃ ⋅ ϕ₁   ϕ₄ ⋅ ϕ₁   ϕ₅ ⋅ ϕ₁   ϕ₆ ⋅ ϕ₁   ϕ₇ ⋅ ϕ₁   ϕ₈ ⋅ ϕ₁ ⎤   ⎡ c₁ ⎤   ⎡ ϕ₁ ⋅ f₁ ⎤
+⎢ ϕ₁ ⋅ ϕ₂   ϕ₂ ⋅ ϕ₂   ϕ₃ ⋅ ϕ₂   ϕ₄ ⋅ ϕ₂   ϕ₅ ⋅ ϕ₂   ϕ₆ ⋅ ϕ₂   ϕ₇ ⋅ ϕ₂   ϕ₈ ⋅ ϕ₂ ⎥   ⎢ c₂ ⎥   ⎢ ϕ₂ ⋅ f₂ ⎥
+⎢ ϕ₁ ⋅ ϕ₃   ϕ₂ ⋅ ϕ₃   ϕ₃ ⋅ ϕ₃   ϕ₄ ⋅ ϕ₃   ϕ₅ ⋅ ϕ₃   ϕ₆ ⋅ ϕ₃   ϕ₇ ⋅ ϕ₃   ϕ₈ ⋅ ϕ₃ ⎥   ⎢ c₃ ⎥   ⎢ ϕ₃ ⋅ f₃ ⎥
+⎢ ϕ₁ ⋅ ϕ₄   ϕ₂ ⋅ ϕ₄   ϕ₃ ⋅ ϕ₄   ϕ₄ ⋅ ϕ₄   ϕ₅ ⋅ ϕ₄   ϕ₆ ⋅ ϕ₄   ϕ₇ ⋅ ϕ₄   ϕ₈ ⋅ ϕ₄ ⎥   ⎢ c₄ ⎥   ⎢ ϕ₄ ⋅ f₄ ⎥
+⎢ ϕ₁ ⋅ ϕ₅   ϕ₂ ⋅ ϕ₅   ϕ₃ ⋅ ϕ₅   ϕ₄ ⋅ ϕ₅   ϕ₅ ⋅ ϕ₅   ϕ₆ ⋅ ϕ₅   ϕ₇ ⋅ ϕ₅   ϕ₈ ⋅ ϕ₅ ⎥ * ⎢ c₅ ⎥ = ⎢ ϕ₅ ⋅ f₅ ⎥
+⎢ ϕ₁ ⋅ ϕ₆   ϕ₂ ⋅ ϕ₆   ϕ₃ ⋅ ϕ₆   ϕ₄ ⋅ ϕ₆   ϕ₅ ⋅ ϕ₆   ϕ₆ ⋅ ϕ₆   ϕ₇ ⋅ ϕ₆   ϕ₈ ⋅ ϕ₆ ⎥   ⎢ c₆ ⎥   ⎢ ϕ₆ ⋅ f₆ ⎥
+⎢ ϕ₁ ⋅ ϕ₇   ϕ₂ ⋅ ϕ₇   ϕ₃ ⋅ ϕ₇   ϕ₄ ⋅ ϕ₇   ϕ₅ ⋅ ϕ₇   ϕ₆ ⋅ ϕ₇   ϕ₇ ⋅ ϕ₇   ϕ₈ ⋅ ϕ₇ ⎥   ⎢ c₇ ⎥   ⎢ ϕ₇ ⋅ f₇ ⎥
+⎣ ϕ₁ ⋅ ϕ₈   ϕ₂ ⋅ ϕ₈   ϕ₃ ⋅ ϕ₈   ϕ₄ ⋅ ϕ₈   ϕ₅ ⋅ ϕ₈   ϕ₆ ⋅ ϕ₈   ϕ₇ ⋅ ϕ₈   ϕ₈ ⋅ ϕ₈ ⎦   ⎢ c₈ ⎥   ⎢ ϕ₈ ⋅ f₈ ⎥
+
 
 		Notes for RT1:
 		1) there is one internal position in [R,S] shared by the two interior DOFs,
@@ -63,44 +63,24 @@ import (
 		For an RT element, the function is distinct on the interior and the
 		edges. There is no value of the edge basis functions in the
 		interior, and there is no value of the interior functions on the
-		edge. We correct the above evaluation matrix for RT1 to reflect the
-		nature of the RT element:
+		edge. The definition of the interior basis functions establish that the
+		dot product of the interior basis functions with the edge functions
+		automatically is zero. Additionally, each edge function is implemented
+		using Lagrange basis functions that ensure each edge basis dot product
+		with other edge functions is zero. So the resulting evaluation matrix
+		will feature zeros that enforce orthogonality of the proper parts of
+		the basis.
 */
 /*
-   ⎡ φ₁(P₁)  φ₂(P₁)    0       0       0       0       0       0    ⎤   ⎡ c₁ ⎤   ⎡ f₁ ⎤
-   ⎢ φ₁(P₁)  φ₂(P₁)    0       0       0       0       0       0    ⎥   ⎢ c₂ ⎥   ⎢ f₂ ⎥
-   ⎢   0       0     φ₃(P₂)  φ₄(P₂)    0       0       0       0    ⎥   ⎢ c₃ ⎥   ⎢ f₃ ⎥
-   ⎢   0       0     φ₃(P₃)  φ₄(P₃)    0       0       0       0    ⎥   ⎢ c₄ ⎥   ⎢ f₄ ⎥
-   ⎢   0       0       0       0     φ₅(P₄)  φ₆(P₄)    0       0    ⎥   ⎢ c₅ ⎥ = ⎢ f₅ ⎥
-   ⎢   0       0       0       0     φ₅(P₅)  φ₆(P₅)    0       0    ⎥   ⎢ c₆ ⎥   ⎢ f₆ ⎥
-   ⎢   0       0       0       0       0       0     φ₇(P₆)  φ₈(P₆) ⎥   ⎢ c₇ ⎥   ⎢ f₇ ⎥
-   ⎢   0       0       0       0       0       0     φ₇(P₇)  φ₈(P₇) ⎥   ⎢ c₈ ⎥   ⎢ f₈ ⎥
+⎡ ϕ₁ ⋅ ϕ₁   ϕ₂ ⋅ ϕ₁      0         0         0         0         0         0    ⎤   ⎡ c₁ ⎤   ⎡ ϕ₁ ⋅ f₁ ⎤
+⎢ ϕ₁ ⋅ ϕ₂   ϕ₂ ⋅ ϕ₂      0         0         0         0         0         0    ⎥   ⎢ c₂ ⎥   ⎢ ϕ₂ ⋅ f₂ ⎥
+⎢    0         0      ϕ₃ ⋅ ϕ₃      0         0         0         0         0    ⎥   ⎢ c₃ ⎥   ⎢ ϕ₃ ⋅ f₃ ⎥
+⎢    0         0         0      ϕ₄ ⋅ ϕ₄      0         0         0         0    ⎥   ⎢ c₄ ⎥   ⎢ ϕ₄ ⋅ f₄ ⎥
+⎢    0         0         0         0      ϕ₅ ⋅ ϕ₅      0         0         0    ⎥ * ⎢ c₅ ⎥ = ⎢ ϕ₅ ⋅ f₅ ⎥
+⎢    0         0         0         0         0      ϕ₆ ⋅ ϕ₆      0         0    ⎥   ⎢ c₆ ⎥   ⎢ ϕ₆ ⋅ f₆ ⎥
+⎢    0         0         0         0         0         0      ϕ₇ ⋅ ϕ₇      0    ⎥   ⎢ c₇ ⎥   ⎢ ϕ₇ ⋅ f₇ ⎥
+⎣    0         0         0         0         0         0         0      ϕ₈ ⋅ ϕ₈ ⎦   ⎢ c₈ ⎥   ⎢ ϕ₈ ⋅ f₈ ⎥
 */
-/* Here is the RT2 evaluation matrix to make the pattern clear.
-Note for RT2:
-1) There are 3 internal positions in [R,S] (N=2, (N)*(N+1)/2 = 3
-2) There are 3 edge DOFs for each edge, total of 9 positions
-3) The edge basis functions are only evaluated on each edge and the interior
-basis functions are only evaluated at each interior position.
-*/
-/*
-   ⎡ φ₁(P₁)  φ₂(P₁)  φ₃(P₁)    0       0       0       0       0       0       0       0       0    0        0        0     ⎤   ⎡ c₁  ⎤   ⎡ f₁  ⎤
-   ⎢ φ₁(P₂)  φ₂(P₂)  φ₃(P₂)    0       0       0       0       0       0       0       0       0    0        0        0     ⎥   ⎢ c₂  ⎥   ⎢ f₂  ⎥
-   ⎢ φ₁(P₃)  φ₂(P₃)  φ₃(P₃)    0       0       0       0       0       0       0       0       0    0        0        0     ⎥   ⎢ c₃  ⎥   ⎢ f₃  ⎥
-   ⎢   0       0       0     φ₄(P₁)  φ₅(P₁)  φ₆(P₁)    0       0       0       0       0       0    0        0        0     ⎥   ⎢ c₄  ⎥   ⎢ f₄  ⎥
-   ⎢   0       0       0     φ₄(P₂)  φ₅(P₂)  φ₆(P₂)    0       0       0       0       0       0    0        0        0     ⎥   ⎢ c₅  ⎥   ⎢ f₅  ⎥
-   ⎢   0       0       0     φ₄(P₃)  φ₅(P₃)  φ₆(P₃)    0       0       0       0       0       0    0        0        0     ⎥   ⎢ c₆  ⎥   ⎢ f₆  ⎥
-   ⎢   0       0       0       0       0       0     φ₇(P₄)  φ₈(P₄)  φ₉(P₄)    0       0       0    0        0        0     ⎥   ⎢ c₇  ⎥   ⎢ f₇  ⎥
-   ⎢   0       0       0       0       0       0     φ₇(P₅)  φ₈(P₅)  φ₉(P₅)    0       0       0    0        0        0     ⎥   ⎢ c₈  ⎥ = ⎢ f₈  ⎥
-   ⎢   0       0       0       0       0       0     φ₇(P₆)  φ₈(P₆)  φ₉(P₆)    0       0       0    0        0        0     ⎥   ⎢ c₉  ⎥   ⎢ f₉  ⎥
-   ⎢   0       0       0       0       0       0       0       0       0 φ₁₀(P₇) φ₁₁(P₇) φ₁₂(P₇)    0        0        0     ⎥   ⎢ c₁₀ ⎥   ⎢ f₁₀ ⎥
-   ⎢   0       0       0       0       0       0       0       0       0 φ₁₀(P₈) φ₁₁(P₈) φ₁₂(P₈)    0        0        0     ⎥   ⎢ c₁₁ ⎥   ⎢ f₁₁ ⎥
-   ⎢   0       0       0       0       0       0       0       0       0 φ₁₀(P₉) φ₁₁(P₉) φ₁₂(P₉)    0        0        0     ⎥   ⎢ c₁₂ ⎥   ⎢ f₁₂ ⎥
-   ⎢   0       0       0       0       0       0       0       0       0       0       0       0  φ₁₃(P₁₀) φ₁₄(P₁₀) φ₁₅(P₁₀)⎥   ⎢ c₁₃ ⎥   ⎢ f₁₃ ⎥
-   ⎢   0       0       0       0       0       0       0       0       0       0       0       0  φ₁₃(P₁₁) φ₁₄(P₁₁) φ₁₅(P₁₁)⎥   ⎢ c₁₄ ⎥   ⎢ f₁₄ ⎥
-   ⎢   0       0       0       0       0       0       0       0       0       0       0       0  φ₁₃(P₁₂) φ₁₄(P₁₂) φ₁₅(P₁₂)⎥   ⎢ c₁₅ ⎥   ⎢ f₁₅ ⎥
-*/
-
 type DerivativeDirection uint8
 
 const (
