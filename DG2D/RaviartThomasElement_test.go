@@ -171,6 +171,47 @@ func baseBasisFunctions(r, s float64, fNum int) (ef [2]float64) {
 	return
 }
 
+func TestErvinBasisFunctions2(t *testing.T) {
+	R := []float64{1. / 3., 0.5, 2. / 3.}
+	assert.Equal(t, 1., DG1D.Lagrange1DPoly(1./3., R, 0))
+	assert.Equal(t, 0., DG1D.Lagrange1DPoly(1./3., R, 1))
+	assert.Equal(t, 0., DG1D.Lagrange1DPoly(1./3., R, 2))
+	assert.Panics(t, func() { DG1D.Lagrange1DPoly(1./3., R, 3) })
+	assert.InDeltaf(t, -9., DG1D.Lagrange1DPoly(1./3., R, 0, 1), 0.000001, "")
+	assert.InDeltaf(t, 12., DG1D.Lagrange1DPoly(1./3., R, 1, 1), 0.000001, "")
+	assert.InDeltaf(t, -3., DG1D.Lagrange1DPoly(1./3., R, 2, 1), 0.000001, "")
+
+	// Generate Gauss Lobato points for P=5 to compare with the online article:
+	// https://math.stackexchange.com/questions/1105160/evaluate-derivative-of-lagrange-polynomials-at-construction-points
+	R = DG1D.JacobiGL(0, 0, 6).DataP
+	// One row (i) is the evaluation of the j-th derivative at each i-th point
+	validation_deriv := make([][]float64, len(R))
+	for i := range validation_deriv {
+		validation_deriv[i] = make([]float64, len(R))
+	}
+	validation_deriv[0] = []float64{-10.5, -2.4429, 0.6253, -0.3125, 0.2261,
+		-0.2266, 0.5}
+	validation_deriv[1] = []float64{14.2016, 0, -2.2158, 0.9075, -0.6164,
+		0.6022, -1.3174}
+	validation_deriv[2] = []float64{-5.669, 3.4558, 0, -2.007, 1.0664, -0.9613,
+		2.05}
+	validation_deriv[3] = []float64{3.2, -1.5986, 2.2667, 0, -2.2667, 1.5986,
+		-3.2}
+	validation_deriv[4] = []float64{-2.05, 0.9613, -1.0664, 2.007, 0, -3.4558,
+		5.669}
+	validation_deriv[5] = []float64{1.3174, -0.6022, 0.6164, -0.9075, 2.2158, 0,
+		-14.2016}
+	validation_deriv[6] = []float64{-0.5, 0.2266, -0.2261, 0.3125, -0.6253,
+		2.4429, 10.5}
+	testVec := make([]float64, len(R))
+	for j, validate := range validation_deriv {
+		for i, r := range R {
+			testVec[i] = DG1D.Lagrange1DPoly(r, R, j, 1)
+		}
+		assert.True(t, nearVec(testVec, validate, 0.0001))
+	}
+
+}
 func TestErvinBasisFunctions1(t *testing.T) {
 	// This tests the basic basis functions e1,e2,e3 for edges and e4,
 	// e5 interior
