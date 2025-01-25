@@ -141,32 +141,57 @@ For the general case of the interior basis functions, they take the form:
 
 where bj is a 2D polynomial of order P-1
 */
-func BaseBasisFunctions(r, s float64, fNum int) (ef1, ef2 float64) {
+func baseBasisFunctions(r, s float64, fNum int) (ef [2]float64) {
+	// Mapping:
+	// Ervin Edge 1 => Edge 2 (Hypotenuse)
+	// Ervin Edge 2 => Edge 1 (Left edge)
+	// Ervin Edge 3 => Edge 3 (Bottom edge)
+	// Note: Here we fix an error in Ervin - the midpoint of RT0 edges are now
+	// correctly unit normal
 	var (
 		sr2 = math.Sqrt(2.)
-		xi  = 0.5 * (s + 1)
-		eta = 0.5 * (r + 1)
+		// Transform our unit triangle coords to Ervin:
+		xi  = 0.5 * (r + 1)
+		eta = 0.5 * (s + 1)
 	)
 	switch fNum {
-	case 1:
-		ef1 = sr2 * xi
-		ef2 = sr2 * eta
 	case 2:
-		ef1 = xi - 1.
-		ef2 = eta
+		ef = [2]float64{sr2 * xi, sr2 * eta}
+	case 1:
+		ef = [2]float64{xi - 1, eta - 0.5}
 	case 3:
-		ef1 = xi
-		ef2 = eta - 1.
+		ef = [2]float64{xi - 0.5, eta - 1}
 	case 4:
-		ef1 = eta * xi
-		ef2 = eta * (eta - 1.)
+		ef = [2]float64{eta * xi, eta * (eta - 1)}
 	case 5:
-		ef1 = xi * (xi - 1.)
-		ef2 = xi * eta
+		ef = [2]float64{xi * (xi - 1), xi * eta}
 	default:
 		panic("wrong basis function number (1-5)")
 	}
 	return
+}
+
+func TestErvinBasisFunctions(t *testing.T) {
+	var (
+		sr2   = math.Sqrt(2.)
+		oosr2 = 1. / sr2
+	)
+	conv := func(r, s float64) (xiEta [2]float64) {
+		xiEta = [2]float64{0.5 * (r + 1), 0.5 * (s + 1)}
+		return
+	}
+	assert.Equal(t, conv(-1, -1), [2]float64{0., 0.})
+	assert.Equal(t, conv(-1, 1), [2]float64{0., 1.})
+	assert.Equal(t, conv(1, -1), [2]float64{1., 0.})
+	// Test the midpoint of each edge for values of the base edge functions
+	// Edge midpoints
+	ef1 := baseBasisFunctions(-1, 0, 1)
+	ef2 := baseBasisFunctions(0, 0, 2)
+	ef3 := baseBasisFunctions(0, -1, 3)
+	assert.Equal(t, [2]float64{-1., 0}, ef1)
+	assert.InDeltaf(t, oosr2, ef2[0], 0.0000001, "")
+	assert.InDeltaf(t, oosr2, ef2[1], 0.0000001, "")
+	assert.Equal(t, [2]float64{0, -1}, ef3)
 }
 
 func TestLagrangePolynomial(t *testing.T) {
