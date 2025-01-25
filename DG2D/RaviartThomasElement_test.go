@@ -171,7 +171,9 @@ func baseBasisFunctions(r, s float64, fNum int) (ef [2]float64) {
 	return
 }
 
-func TestErvinBasisFunctions(t *testing.T) {
+func TestErvinBasisFunctions1(t *testing.T) {
+	// This tests the basic basis functions e1,e2,e3 for edges and e4,
+	// e5 interior
 	var (
 		sr2   = math.Sqrt(2.)
 		oosr2 = 1. / sr2
@@ -192,6 +194,60 @@ func TestErvinBasisFunctions(t *testing.T) {
 	assert.InDeltaf(t, oosr2, ef2[0], 0.0000001, "")
 	assert.InDeltaf(t, oosr2, ef2[1], 0.0000001, "")
 	assert.Equal(t, [2]float64{0, -1}, ef3)
+
+	// Test the dot product of the e4 and e5 interior basis vectors against all
+	// edge normals at the edge normal locations. All interior basis functions
+	// should have zero dot product on all edges
+	dot := func(v1, v2 [2]float64) (dp float64) {
+		dp = v1[0]*v2[0] + v1[1]*v2[1]
+		return
+	}
+	// Edge 1 midpoint
+	ef4 := baseBasisFunctions(-1, 0, 4)
+	ef5 := baseBasisFunctions(-1, 0, 5)
+	assert.Equal(t, 0., dot(ef4, ef1))
+	// Edge 1 endpoint 1
+	ef4 = baseBasisFunctions(-1, -1, 4)
+	ef5 = baseBasisFunctions(-1, -1, 5)
+	assert.Equal(t, 0., dot(ef4, ef1))
+	assert.Equal(t, 0., dot(ef5, ef1))
+	// Edge 1 endpoint 2
+	ef4 = baseBasisFunctions(-1, 1, 4)
+	ef5 = baseBasisFunctions(-1, 1, 5)
+	assert.Equal(t, 0., dot(ef4, ef1))
+	assert.Equal(t, 0., dot(ef5, ef1))
+
+	// Edge 2 midpoint
+	ef4 = baseBasisFunctions(0, 0, 4)
+	ef5 = baseBasisFunctions(0, 0, 5)
+	assert.Equal(t, 0., dot(ef4, ef2))
+	assert.Equal(t, 0., dot(ef5, ef2))
+	// Edge 2 endpoint 1
+	ef4 = baseBasisFunctions(1, -1, 4)
+	ef5 = baseBasisFunctions(1, -1, 5)
+	assert.Equal(t, 0., dot(ef4, ef2))
+	assert.Equal(t, 0., dot(ef5, ef2))
+	// Edge 2 endpoint 2
+	ef4 = baseBasisFunctions(-1, 1, 4)
+	ef5 = baseBasisFunctions(-1, 1, 5)
+	assert.Equal(t, 0., dot(ef4, ef2))
+	assert.Equal(t, 0., dot(ef5, ef2))
+
+	// Edge 3 midpoint
+	ef4 = baseBasisFunctions(0, -1, 4)
+	ef5 = baseBasisFunctions(0, -1, 5)
+	assert.Equal(t, 0., dot(ef4, ef3))
+	assert.Equal(t, 0., dot(ef5, ef3))
+	// Edge 3 endpoint 1
+	ef4 = baseBasisFunctions(-1, -1, 4)
+	ef5 = baseBasisFunctions(-1, -1, 5)
+	assert.Equal(t, 0., dot(ef4, ef3))
+	assert.Equal(t, 0., dot(ef5, ef3))
+	// Edge 3 endpoint 2
+	ef4 = baseBasisFunctions(1, -1, 4)
+	ef5 = baseBasisFunctions(1, -1, 5)
+	assert.Equal(t, 0., dot(ef4, ef3))
+	assert.Equal(t, 0., dot(ef5, ef3))
 }
 
 func TestLagrangePolynomial(t *testing.T) {
