@@ -104,73 +104,6 @@ func TestRTElementConstruction(t *testing.T) {
 		rt.RTPolyBasis1D_Edge3, 0.00001))
 }
 
-/*
-This follows the development in the V.J. Ervin paper: Computational Bases for
-RTk and BDMk on Triangles
-All are defined in terms of Eta and Xi which go from 0 to 1 compared to here
-where R and S are defined from -1 to 1
-
-	xi = (s + 1)/2.
-	eta = (r + 1)/2.
-
-There are three "Normal" or "edge" functions and on each of the 3 triangle edges
-there are some number of points with a single vector basis function.
-
-For the RT2 element, there are 3 points on each of the 3 edges. The vectors are
-defined below such that each column is one edge, having three rows, each
-defining the basis function for that point on the edge:
-Φ1 (ξ, η) = q1 (η) ê1 (ξ, η) , Φ2 (ξ, η) = q2 (η) ê1 (ξ, η) , Φ3 (ξ, η) = q3 (η) ê1 (ξ, η) ,
-Φ1 (ξ, η) = q3 (η) ê2 (ξ, η) , Φ2 (ξ, η) = q2 (η) ê2 (ξ, η) , Φ3 (ξ, η) = q1 (η) ê2 (ξ, η) ,
-Φ1 (ξ, η) = q1 (ξ) ê3 (ξ, η) , Φ2 (ξ, η) = q2 (ξ) ê3 (ξ, η) , Φ3 (ξ, η) = q3 (ξ) ê3 (ξ, η) .
-
-For the RT2 element, there are 3 interior points, and in the below example, we
-see there are two basis functions (vectors) for each of the 3 points. Each
-point is a column, and each column has two rows defining the basis vectors for
-that point:
-Φ1 (ξ, η) = (1 − ξ − η) ê4 (ξ, η) , Φ2 (ξ, η) = ξ ê4 (ξ, η) , Φ3 (ξ, η) = η ê4 (ξ, η) ,
-Φ1 (ξ, η) = (1 − ξ − η) ê5 (ξ, η) , Φ2 (ξ, η) = ξ ê5 (ξ, η) , Φ3 (ξ, η) = η ê5 (ξ, η) .
-
-Given that the edge functions are only evaluated on the edges, and that the
-lagrange functions multiplying them cause them to vanish on all but their
-defining point, it seems unnecessary to evaluate anything but the e1-e3
-functions in practice.
-
-For the general case of the interior basis functions, they take the form:
-Φj (ξ, η) = bj (ξ, η) ê4 (ξ, η) , j = 1, 2, . . . , k(k + 1)/2 ,
-Φj (ξ, η) = bj (ξ, η) ê5 (ξ, η) , j = 1, 2, . . . , k(k + 1)/2 .
-
-where bj is a 2D polynomial of order P-1
-*/
-func baseBasisFunctions(r, s float64, fNum int) (ef [2]float64) {
-	// Mapping:
-	// Ervin Edge 1 => Edge 2 (Hypotenuse)
-	// Ervin Edge 2 => Edge 1 (Left edge)
-	// Ervin Edge 3 => Edge 3 (Bottom edge)
-	// Note: Here we fix an error in Ervin - the midpoint of RT0 edges are now
-	// correctly unit normal
-	var (
-		sr2 = math.Sqrt(2.)
-		// Transform our unit triangle coords to Ervin:
-		xi  = 0.5 * (r + 1)
-		eta = 0.5 * (s + 1)
-	)
-	switch fNum {
-	case 2:
-		ef = [2]float64{sr2 * xi, sr2 * eta}
-	case 1:
-		ef = [2]float64{xi - 1, eta - 0.5}
-	case 3:
-		ef = [2]float64{xi - 0.5, eta - 1}
-	case 4:
-		ef = [2]float64{eta * xi, eta * (eta - 1)}
-	case 5:
-		ef = [2]float64{xi * (xi - 1), xi * eta}
-	default:
-		panic("wrong basis function number (1-5)")
-	}
-	return
-}
-
 func TestErvinBasisFunctions2(t *testing.T) {
 	R := []float64{1. / 3., 0.5, 2. / 3.}
 	assert.Equal(t, 1., DG1D.Lagrange1DPoly(1./3., R, 0))
@@ -210,7 +143,6 @@ func TestErvinBasisFunctions2(t *testing.T) {
 		}
 		assert.True(t, nearVec(testVec, validate, 0.0001))
 	}
-
 }
 func TestErvinBasisFunctions1(t *testing.T) {
 	// This tests the basic basis functions e1,e2,e3 for edges and e4,
@@ -227,7 +159,7 @@ func TestErvinBasisFunctions1(t *testing.T) {
 	assert.Equal(t, conv(-1, 1), [2]float64{0., 1.})
 	assert.Equal(t, conv(1, -1), [2]float64{1., 0.})
 	// Test the midpoint of each edge for values of the base edge functions
-	// Edge midpoints
+	// Edge midpoints, they should be the unit normals
 	ef1 := baseBasisFunctions(-1, 0, 1)
 	ef2 := baseBasisFunctions(0, 0, 2)
 	ef3 := baseBasisFunctions(0, -1, 3)
@@ -235,6 +167,59 @@ func TestErvinBasisFunctions1(t *testing.T) {
 	assert.InDeltaf(t, oosr2, ef2[0], 0.0000001, "")
 	assert.InDeltaf(t, oosr2, ef2[1], 0.0000001, "")
 	assert.Equal(t, [2]float64{0, -1}, ef3)
+
+	// ef1 = baseBasisFunctions(-1, -1, 1) // bottom left vertex
+	// ef2 = baseBasisFunctions(1, -1, 2)  // bottom right vertex
+	// ef3 = baseBasisFunctions(-1, 1, 3)  // top left vertex
+	// fmt.Println(ef1)
+	// fmt.Println(ef2)
+	// fmt.Println(ef3)
+
+	// ---------------------------------------------------
+	// the edge basis vector function [v] varies along the edge.
+	// It is the product of a 1D edge function f(xi) and [v], so we have:
+	// div(edgeFunction) = div(f(xi)*[v]) =
+	//       [df(xi)/dr,df(xi)/ds] ⋅ [v] + f(xi) * ([div] ⋅ [v])
+	//
+	// div = df(xi)/dxi * (v1*dxi/dr + v2*dxi/ds) + f(xi) * (dv1/dr + dv2/ds)
+	//
+	// Conversion from Ervin coordinates:
+	// xi  = 0.5 * (r + 1)
+	// eta = 0.5 * (s + 1)
+	// r = 2 * xi  - 1
+	// s = 2 * eta - 1
+	//
+	// Left Edge (1) divergence:
+	// 			[v] = [(r - 1)/2, s/2]
+	// v1 = (r-1)/2, v2 = s/2, dv1/dr = 1/2, dv2/ds = 1/2
+	// The left edge  in a counter-clockwise direction is parameterized:
+	// r = -1 (constant), xi = -s => dxi/dr = 0, dxi/ds = -1,
+	// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
+	//     = df/dxi*(v1*(  0   )+v2*(  -1  )) + f(xi) * (  1/2  +   1/2 )
+	//     = df/dxi*(          v2           ) + f(xi)
+	//         div(edge1) = (df/dxi) * v2 + f(xi)
+	//
+	// Hypotenuse (2) divergence:
+	// 			[v] = [Sqrt2/2 * (r+1), Sqrt2/2 * (s+1)]
+	// v1 = Sqrt2/2 * (r+1), v2 = Sqrt2/2 * (s+1), dv1/dr = Sqrt2/2 = dv2/ds
+	//
+	// The hypotenuse in a counter-clockwise direction is parameterized:
+	// xi = -r = s, => dxi/dr = -1, dxi/ds = 1
+	//
+	// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
+	//     = df/dxi*(v1*( -1   )+v2*(   1  )) + f(xi) * (Sqrt2/2+Sqrt2/2)
+	//     = df/dxi*(         v2-v1         ) + f(xi) * Sqrt2
+	//         div(edge2) = (df/dxi) * (v2-v1) + Sqrt2 * f(xi)
+	//
+	// Bottom Edge (3) divergence:
+	// 			[v] = [r/2, (s - 1)/2]
+	// v1 = r/2, v2 = (s-1)/2, dv1/dr = 1/2, dv2/ds = 1/2
+	// The bottom edge  in a counter-clockwise direction is parameterized:
+	// xi = r, s = -1 (const) => dxi/dr = 1, dxi/ds = 0
+	// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
+	//     = df/dxi*(v1*(  1   )+v2*(   0  )) + f(xi) * (  1/2  +   1/2 )
+	//     = df/dxi*(          v1           ) + f(xi)
+	//        div(edge3) = (df/dxi) * v1 + f(xi)
 
 	// Test the dot product of the e4 and e5 interior basis vectors against all
 	// edge normals at the edge normal locations. All interior basis functions
