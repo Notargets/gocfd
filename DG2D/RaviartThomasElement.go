@@ -22,13 +22,39 @@ import (
 	Outputs:
 		[R,S]: Coordinates of points within element
 
-		First (N)(N+1)/2 points: Interior points, excluding edges in
-			[-1,1] triangle coordinates corresponding to the R
-			direction DOFs
-		Next (N)(N+1)/2 points: Same as above for the S direction
-		Next (N+1) points: Edge 1 locations
+		Each point in this basis corresponds to a basis vector with 2 components
+							e.g. [v]j = [v1,v2]j
+
+		Interior points in [R,S] each have two basis vectors and each basis
+		vector has two components (it's a vector!). That means the interior
+		point indices are duplicated for the interior points, because we need
+		to refer to each basis vector independently.
+
+		Edge points in [R,S] each have one basis vector, and each basis vector
+		has two components (it's a vector!).
+
+		When we evaluate a basis function at a point in [R,S], we will generally
+		take the dot product of that basis function [v]j with the basis vector
+		at that location [v]i. When we project the physical flux [F] at a point
+		i within the element, we'll take the dot product between [F]j and the
+		basis vector [v]j to do the projection: [v]j ⋅ [F]j
+
+		The indexing of the RT element is: first come the "left" basis vectors
+		for each of the interior points, then come the "right" basis vectors for
+		each of the interior points, then come each of the edge basis vectors.
+
+		First (N)(N+1)/2 points:
+            Interior points, excluding edges in [-1,1] triangle coordinates
+            corresponding to the "left" component DOFs
+		Next (N)(N+1)/2 points: Same as above for the "right" component DOFs
+
+		Edges run in counterclockwise order for right hand rule reasons,
+		the indices start at bottom left, run right along edge 1, then up+left
+		along hypotenuse edge 2, then down along edge 3
+
+		Next (N+1) points: Edge 1 (Bottom) locations
 		Next (N+1) points: Edge 2 (Hypotenuse) locations
-		Next (N+1) points: Edge 3 locations
+		Next (N+1) points: Edge 3 (Left) locations
 
 	Methods:
 		The evaluation matrix rt.A relates the coefficients of the RT element
@@ -110,9 +136,6 @@ type RTElement struct {
 	Div                              utils.Matrix // Divergence matrix, NpxNp for all, NintxNp Interior Points
 	R, S                             utils.Vector // Point locations defining element in [-1,1] Triangle, NpxNp
 	RTPolyBasis2D_A, RTPolyBasis2D_B *JacobiBasis2D
-	RTPolyBasis1D_Edge1              []float64 // Edge1 polynomial
-	RTPolyBasis1D_Edge2              []float64 // Edge2 polynomial
-	RTPolyBasis1D_Edge3              []float64 // Edge3 polynomial
 }
 
 func NewRTElement(P int) (rt *RTElement) {
@@ -148,9 +171,6 @@ func NewRTElement(P int) (rt *RTElement) {
 	rt.RTPolyBasis2D_A = NewJacobiBasis2D(rt.P-1, RInt, SInt, 1, 0)
 	rt.RTPolyBasis2D_B = NewJacobiBasis2D(rt.P-1, RInt, SInt, 0, 1)
 	// For edges 1 and 3, we can use the same definition on R, as S is the same
-	rt.RTPolyBasis1D_Edge1 = DG1D.JacobiP(rt.getEdgeCoordinates(1), 0, 0, rt.P)
-	rt.RTPolyBasis1D_Edge2 = DG1D.JacobiP(rt.getEdgeCoordinates(2), 0, 0, rt.P)
-	rt.RTPolyBasis1D_Edge3 = DG1D.JacobiP(rt.getEdgeCoordinates(3), 0, 0, rt.P)
 	rt.CalculateBasis()
 	return
 }
@@ -277,15 +297,12 @@ func (rt *RTElement) onedEdgePolynomialValue(r, s float64,
 	// ******* "j" is taken to be the clockwise coordinate on the edge
 	// The 1D polynomial is referred to as "f(xi)"
 	var (
-		Xi = make([]float64, rt.NpEdge)
+		Xi = rt.getEdgeXiParameter(edgeNum).DataP
 	)
 	switch edgeNum {
 	case 1:
 		if r != -1 {
 			panic("edge 1 polynomial r must be -1")
-		}
-		for i := 0; i < rt.NpEdge; i++ {
-			Xi[i] = -rt.S.DataP[2*rt.NpInt+i] // Xi = -s on edge 1
 		}
 		xi := -s
 		val = DG1D.Lagrange1DPoly(xi, Xi, j, derivO...)
@@ -293,17 +310,11 @@ func (rt *RTElement) onedEdgePolynomialValue(r, s float64,
 		if r+s != 0 {
 			panic("edge 2 polynomial must have s+r = 0")
 		}
-		for i := 0; i < rt.NpEdge; i++ {
-			Xi[i] = -rt.R.DataP[2*rt.NpInt+rt.NpEdge+i] // Xi = -r on edge 2
-		}
 		xi := -r
 		val = DG1D.Lagrange1DPoly(xi, Xi, j, derivO...)
 	case 3:
 		if s != -1 {
 			panic("edge 3 polynomial must have s = -1")
-		}
-		for i := 0; i < rt.NpEdge; i++ {
-			Xi[i] = rt.R.DataP[2*rt.NpInt+2*rt.NpEdge+i] // Xi = r on edge 3
 		}
 		xi := r
 		val = DG1D.Lagrange1DPoly(xi, Xi, j, derivO...)
@@ -313,17 +324,17 @@ func (rt *RTElement) onedEdgePolynomialValue(r, s float64,
 	return
 }
 
-func (rt *RTElement) getEdgeCoordinates(edgeNum int) (SS utils.Vector) {
+func (rt *RTElement) getEdgeXiParameter(edgeNum int) (Xi utils.Vector) {
 	// Edge 1 is S=-1 (bottom of tri)
 	// Edge 2 is Hypotenuse
 	// Edge 3 is R=-1 (left side of tri)
 	switch edgeNum {
 	case 1:
-		SS = rt.R.Subset(2*rt.NpInt, 2*rt.NpInt+rt.NpEdge-1)
+		Xi = rt.R.Subset(2*rt.NpInt, 2*rt.NpInt+rt.NpEdge-1)
 	case 2:
-		SS = rt.R.Subset(2*rt.NpInt+rt.NpEdge, 2*rt.NpInt+2*rt.NpEdge-1)
+		Xi = rt.R.Subset(2*rt.NpInt+rt.NpEdge, 2*rt.NpInt+2*rt.NpEdge-1)
 	case 3:
-		SS = rt.S.Subset(2*rt.NpInt+2*rt.NpEdge, 2*rt.NpInt+3*rt.NpEdge-1)
+		Xi = rt.S.Subset(2*rt.NpInt+2*rt.NpEdge, 2*rt.NpInt+3*rt.NpEdge-1)
 	default:
 		panic("invalid edgeNum")
 	}

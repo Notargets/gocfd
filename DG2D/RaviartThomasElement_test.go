@@ -23,19 +23,52 @@ func TestRTElementConstruction(t *testing.T) {
 	P := 2
 	rt := NewRTElement(P)
 
-	Print := func(label string, iip *int) {
+	// Verify that edges start at the bottom edge (edge 1) and proceed in a
+	// counterclockwise fashion as we increase the index
+	Print := func(label string, iip *int) (edge [2][]float64) {
+		edge[0] = make([]float64, rt.NpEdge)
+		edge[1] = make([]float64, rt.NpEdge)
 		fmt.Printf("%s", label)
 		for i := 0; i < rt.NpEdge; i++ {
 			fmt.Printf("[%f,%f] ", rt.R.DataP[*iip], rt.S.DataP[*iip])
+			edge[0][i] = rt.R.DataP[*iip]
+			edge[1][i] = rt.S.DataP[*iip]
 			*iip++
 		}
 		fmt.Printf("\n")
+		return
 	}
-
+	// Bottom edge (edge 1) - S should be -1, edge runs left to right
 	ii := 2 * rt.NpInt
-	Print("Edge 1:", &ii)
-	Print("Edge 2:", &ii)
-	Print("Edge 3:", &ii)
+	edge1a := Print("Edge 1:", &ii)
+	assert.True(t, nearVec(edge1a[0], []float64{-.774597, 0, 0.774597},
+		0.00001))
+	assert.True(t, nearVec(edge1a[1], []float64{-1, -1, -1}, 0.00001))
+	// Hypotenuse edge (edge 2) - R should go from right to left, opposite for s
+	edge2a := Print("Edge 2:", &ii)
+	assert.True(t, nearVec(edge2a[0], []float64{.774597, 0, -0.774597},
+		0.00001))
+	assert.True(t, nearVec(edge2a[1], []float64{-.774597, 0, 0.774597},
+		0.00001))
+	// Left edge (edge 3) - R should be -1, edge runs right to left
+	edge3a := Print("Edge 3:", &ii)
+	assert.True(t, nearVec(edge3a[0], []float64{-1, -1, -1}, 0.00001))
+	assert.True(t, nearVec(edge3a[1], []float64{.774597, 0, -0.774597},
+		0.00001))
+
+	// 1D Edge Polynomials
+	// Get the edge values for edge1,2,3
+	assert.Panics(t, func() { rt.getEdgeXiParameter(0) })
+	// The edge distribution of edge2 should be the reverse direction of
+	// edge1, and symmetric, shorthand is to take the neg of edge2 to get edge1
+	edge1 := rt.getEdgeXiParameter(2)
+	for i := range edge1.DataP {
+		edge1.DataP[i] *= -1
+	}
+	assert.True(t, nearVec(rt.getEdgeXiParameter(1).DataP,
+		edge1.DataP, 0.000001))
+
+	edge1.Print("Edge1")
 
 	// Test polynomial bases
 
@@ -82,26 +115,6 @@ func TestRTElementConstruction(t *testing.T) {
 	for i := 0; i < rt.NpInt; i++ {
 		assert.True(t, nearVec(P_Alt, PSI.DataP, 0.00001))
 	}
-
-	// 1D Edge Polynomials
-	// Get the edge values for edge1,2,3
-	assert.Panics(t, func() { rt.getEdgeCoordinates(0) })
-	// The edge distribution of edge2 should be the reverse direction of
-	// edge1, and symmetric, shorthand is to take the neg of edge2 to get edge1
-	edge1 := rt.getEdgeCoordinates(2)
-	for i := range edge1.DataP {
-		edge1.DataP[i] *= -1
-	}
-	assert.True(t, nearVec(rt.getEdgeCoordinates(1).DataP,
-		edge1.DataP, 0.000001))
-	assert.True(t, nearVec(DG1D.JacobiP(edge1, 0, 0, rt.P),
-		rt.RTPolyBasis1D_Edge1, 0.00001))
-	edge2 := rt.getEdgeCoordinates(2)
-	assert.True(t, nearVec(DG1D.JacobiP(edge2, 0, 0, rt.P),
-		rt.RTPolyBasis1D_Edge2, 0.00001))
-	edge3 := rt.getEdgeCoordinates(3)
-	assert.True(t, nearVec(DG1D.JacobiP(edge3, 0, 0, rt.P),
-		rt.RTPolyBasis1D_Edge3, 0.00001))
 }
 
 func TestErvinBasisFunctions2(t *testing.T) {
