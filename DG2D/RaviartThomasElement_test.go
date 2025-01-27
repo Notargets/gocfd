@@ -56,6 +56,11 @@ func TestRTElementConstruction(t *testing.T) {
 	assert.True(t, nearVec(edge3a[1], []float64{.774597, 0, -0.774597},
 		0.00001))
 
+	// Note that Ervin's edges are numbered differently:
+	// Ervin's Edge1 => Edge2 (Hypotenuse)
+	// Ervin's Edge2 => Edge3 (Left)
+	// Ervin's Edge3 => Edge1 (Bottom)
+
 	// 1D Edge Polynomials
 	// Get the edge values for edge1,2,3
 	assert.Panics(t, func() { rt.getEdgeXiParameter(0) })
@@ -140,16 +145,41 @@ func TestRTElementConstruction(t *testing.T) {
 	assert.True(t, near(A.At(0, 0), A.At(0, rt.NpInt), 0.00001))
 	assert.True(t, near(A.At(0, 0), A.At(rt.NpInt, 0), 0.00001))
 	// Check the RT2 polynomial (special case for RT2)
-	xi := []float64{rt.RInt.AtVec(0), rt.RInt.AtVec(1), rt.RInt.AtVec(2)}
-	xi = []float64{0.5 * (xi[0] + 1), 0.5 * (xi[1] + 1), 0.5 * (xi[2] + 1)}
-	eta := []float64{rt.SInt.AtVec(0), rt.SInt.AtVec(1), rt.SInt.AtVec(2)}
-	eta = []float64{0.5 * (eta[0] + 1), 0.5 * (eta[1] + 1), 0.5 * (eta[2] + 1)}
-	pp := []float64{1 - xi[0] - eta[0], xi[0], eta[0]}
-	assert.True(t, nearVec(A.Row(0).DataP[0:2], pp, 0.00001))
-	pp = []float64{1 - xi[1] - eta[1], xi[1], eta[1]}
-	assert.True(t, nearVec(A.Row(1).DataP[0:2], pp, 0.00001))
-	pp = []float64{1 - xi[2] - eta[2], xi[2], eta[2]}
-	assert.True(t, nearVec(A.Row(2).DataP[0:2], pp, 0.00001))
+	xi := make([]float64, 3)
+	eta := make([]float64, 3)
+	for i = 0; i < 2; i++ {
+		xi[i] = 0.5 * (rt.RInt.AtVec(i) + 1)
+		eta[i] = 0.5 * (rt.SInt.AtVec(i) + 1)
+	}
+	for i = 0; i < 2; i++ {
+		pp := []float64{1 - xi[i] - eta[i], xi[i], eta[i]}
+		assert.True(t, nearVec(A.Row(i).DataP[0:2], pp, 0.00001))
+	}
+
+	// Build polynomial derivative matrices for polynomials
+	dr := utils.NewMatrix(rt.Np, rt.Np)
+	ds := utils.NewMatrix(rt.Np, rt.Np)
+	for i = 0; i < rt.Np; i++ {
+		r, s = rt.R.AtVec(i), rt.S.AtVec(i)
+		fmt.Printf("[%f,%f]%d\n", r, s, i)
+	}
+	for i = 0; i < rt.Np; i++ {
+		r, s = rt.R.AtVec(i), rt.S.AtVec(i)
+		for j = 0; j < rt.Np; j++ {
+			// fmt.Printf("NpInt, j = %d, %d\n", rt.NpInt, j)
+			if j < 2*rt.NpInt {
+				dr.Set(i, j, rt.basisPolynomialValue(r, s, j, Dr))
+				ds.Set(i, j, rt.basisPolynomialValue(r, s, j, Ds))
+			} else {
+				if i >= 2*rt.NpInt {
+					dr.Set(i, j, rt.basisPolynomialValue(r, s, j, Dr))
+					ds.Set(i, j, rt.basisPolynomialValue(r, s, j, Ds))
+				}
+			}
+		}
+	}
+	dr.Print("Poly Dr")
+	ds.Print("Poly Ds")
 }
 
 func TestErvinBasisFunctions2(t *testing.T) {

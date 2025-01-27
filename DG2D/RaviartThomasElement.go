@@ -211,9 +211,9 @@ where bj is a 2D polynomial of order P-1
 */
 func baseBasisFunctions(r, s float64, edgeNum int) (ef [2]float64) {
 	// Mapping:
-	// Edge 1 (Left edge)   => Ervin Edge 2
+	// Edge 1 (Bottom edge)   => Ervin Edge 2
 	// Edge 2 (Hypotenuse)  => Ervin Edge 1
-	// Edge 3 (Bottom edge) => Ervin Edge 3
+	// Edge 3 (Left edge) => Ervin Edge 3
 	// Note: Here we fix an error in Ervin - the midpoint of RT0 edges are now
 	// correctly unit normal
 	var (
@@ -225,9 +225,9 @@ func baseBasisFunctions(r, s float64, edgeNum int) (ef [2]float64) {
 	switch edgeNum {
 	case 2:
 		ef = [2]float64{sr2 * xi, sr2 * eta}
-	case 1:
-		ef = [2]float64{xi - 1, eta - 0.5}
 	case 3:
+		ef = [2]float64{xi - 1, eta - 0.5}
+	case 1:
 		ef = [2]float64{xi - 0.5, eta - 1}
 	case 4:
 		ef = [2]float64{eta * xi, eta * (eta - 1)}
@@ -289,79 +289,83 @@ func divergenceOfEdgeFunctions(r, s float64, edgeNum, j int) (div float64) {
 
 func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 	derivO ...DerivativeDirection) (val float64) {
-	// This evaluates the j-th polynomial or derivative at r,
-	// s used to multiply each of the 5 base basis vectors in Ervin's RT basis.
+	// This evaluates the j-th polynomial or derivative at r,s used to multiply
+	// each of the 5 base basis vectors in Ervin's RT basis, named
+	//               ℯ̂₁, ℯ̂₂, ℯ̂₃, ℯ̂₄, ℯ̂₅
+	// The first three are the edge basis vectors, but in Ervin's paper
+	// edge 1 is the hypotenuse, edge 2 is left, edge 2 is bottom, where here
+	// edge 1 is bottom, edge 2 is hypotenuse, edge 3 is left
+	//
+	// This function provides the value of the polynomial that multiplies
+	// each basis vector, not including the basis vector values or derivatives.
+	// Note that to compute the derivatives of the full basis including the
+	// base vector and polynomial, you have to use the chain rule. This function
+	// is a helper for that, in that it provides the value and derivative of the
+	// multiplying polynomial for use in calculating the basis or derivatives.
+	//
 	// The input parameter "j" is the function index within the element
 	var (
 		NpInt   = rt.NpInt
 		NpEdge  = rt.NpEdge
 		funcNum int
+		Xi      []float64
+		xi      float64
+		jj      int
+		deriv   = 0
+		jb2d    *JacobiBasis2D
+		eps     = 0.000001
 	)
 	switch {
 	case j >= 0 && j < NpInt:
-		funcNum = 4 // Ervin's polynomial 4 which multiplies the 4th vector
+		// Ervin's polynomial 4 which multiplies the 4th vector
+		funcNum = 4
+		jj = j
 	case j >= NpInt && j < 2*NpInt:
-		funcNum = 5 // Ervin's polynomial 5 which multiplies the 5th vector
+		// Ervin's polynomial 5 which multiplies the 4th vector
+		funcNum = 5
+		jj = j - NpInt
 	case j >= 2*NpInt && j < 2*NpInt+NpEdge:
+		// Edge 1 - Bottom Edge
+		// Ervin's func multiplying e3 (bottom)
 		funcNum = 1
+		if math.Abs(s+1) > eps {
+			val = 0 // Not on the edge, return 0
+			return
+		}
+		xi = -r
+		jj = j - 2*rt.NpInt
 	case j >= 2*NpInt+NpEdge && j < 2*NpInt+2*NpEdge:
-		funcNum = 2
+		// Edge 2 - Hypotenuse
+		funcNum = 2 // Ervin's func multiplying e1 (Hypotenuse)
+		if math.Abs(r+s) > eps {
+			val = 0 // Not on the edge, return 0
+			return
+		}
+		xi = -r
+		jj = j - 2*rt.NpInt - rt.NpEdge
 	case j >= 2*NpInt+2*NpEdge && j < 2*NpInt+3*NpEdge:
+		// Edge 3 - Left Edge
+		// Ervin's func multiplying e2 (Left)
 		funcNum = 3
+		if math.Abs(r+1) > eps {
+			val = 0 // Not on the edge, return 0
+			return
+		}
+		xi = -s
+		jj = j - 2*rt.NpInt - 2*rt.NpEdge
 	default:
 		panic("j polynomial index out of range")
 	}
-	var Xi []float64
-	var deriv = 0
-	var jb2d *JacobiBasis2D
-	if funcNum < 4 {
+
+	switch funcNum {
+	case 1, 2, 3:
 		// Parameterized edge coordinate Xi
 		Xi = rt.getEdgeXiParameter(funcNum).DataP
 		if len(derivO) > 0 {
 			deriv = 1
 		}
-	} else if funcNum <= 5 {
-		// Calculate alpha based on the value of j within NpInt, scaled to run
-		// Beta from -0.5 to 0.5.
-		// j runs from 0 to NpInt-1 for this function
-		var jj int
-		if funcNum == 5 {
-			jj = j - NpInt
-		} else {
-			jj = j
-		}
-		alpha := 0.
-		beta := float64(jj)/(float64(NpInt)-1.) - 0.5
-		jb2d = NewJacobiBasis2D(rt.P-1, rt.RInt, rt.SInt, alpha, beta)
-	}
-	switch funcNum {
-	case 1: // Edge 1
-		if r != -1 {
-			panic("edge 1 polynomial r must be -1")
-		}
-		// jj is the edge local index
-		jj := j - 2*rt.NpInt
-		xi := -s
 		val = DG1D.Lagrange1DPoly(xi, Xi, jj, deriv)
-	case 2: // Edge 2
-		if r+s != 0 {
-			panic("edge 2 polynomial must have s+r = 0")
-		}
-		// jj is the edge local index
-		jj := j - 2*rt.NpInt - rt.NpEdge
-		xi := -r
-		val = DG1D.Lagrange1DPoly(xi, Xi, jj, deriv)
-	case 3: // Edge 3
-		if s != -1 {
-			panic("edge 3 polynomial must have s = -1")
-		}
-		// jj is the edge local index
-		jj := j - 2*rt.NpInt - 2*rt.NpEdge
-		xi := r
-		val = DG1D.Lagrange1DPoly(xi, Xi, jj, deriv)
-	case 4:
-		fallthrough
-	case 5:
+	case 4, 5:
 		// We represent the interior polynomial for the special cases of the
 		// RT1 and RT2 elements. For RT3 and above, we use a Jacobi2D
 		// polynomial, but for RT1 it's a constant and for RT2 it's a basic poly set
@@ -369,22 +373,17 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 		if len(derivO) > 0 {
 			derivA = derivO[0]
 		}
-		switch rt.P {
-		case 0:
+		switch {
+		case rt.P == 0:
 			panic("RT element isn't defined here for RT0")
-		case 1:
+		case rt.P == 1:
+			// No polynomial multiplies the basis vectors - constant
 			if derivA == None {
 				val = 1
 			} else {
 				val = 0
 			}
-		case 2:
-			var jj int
-			if funcNum == 5 {
-				jj = j - NpInt
-			} else {
-				jj = j
-			}
+		case rt.P == 2:
 			switch derivA {
 			case None:
 				xi := 0.5 * (r + 1)
@@ -396,6 +395,8 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 					val = xi
 				case 2:
 					val = eta
+				default:
+					panic("j out of range")
 				}
 			case Dr:
 				switch jj {
@@ -405,6 +406,8 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 					val = 0.5
 				case 2:
 					val = 0
+				default:
+					panic("j out of range")
 				}
 			case Ds:
 				switch jj {
@@ -414,14 +417,24 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 					val = 0
 				case 2:
 					val = 0.5
+				default:
+					panic("j out of range")
 				}
 			}
-		default:
+		case rt.P >= 3: // RT Element Polynomial Order is RT3 or greater
+			// Calculate alpha based on the value of j within NpInt, scaled to run
+			// Beta from -0.5 to 0.5.
+			alpha := 0.
+			beta := float64(jj)/(float64(NpInt)-1.) - 0.5
+			jb2d = NewJacobiBasis2D(rt.P-1, rt.RInt, rt.SInt, alpha, beta)
 			val = jb2d.GetPolynomialEvaluation(r, s, derivO...)
+		default:
+			panic("RT polynomial degree out of range")
 		}
 	default:
-		panic("wrong edge number")
+		panic("j basis function number (1-5)")
 	}
+
 	return
 }
 
