@@ -321,7 +321,7 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 		funcNum = 4
 		jj = j
 	case j >= NpInt && j < 2*NpInt:
-		// Ervin's polynomial 5 which multiplies the 4th vector
+		// Ervin's polynomial 5 which multiplies the 5th vector
 		funcNum = 5
 		jj = j - NpInt
 	case j >= 2*NpInt && j < 2*NpInt+NpEdge:
@@ -386,8 +386,11 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 		case rt.P == 2:
 			switch derivA {
 			case None:
-				xi := 0.5 * (r + 1)
+				xi = 0.5 * (r + 1)
 				eta := 0.5 * (s + 1)
+				// Here JJ runs from 0 to 2, and each of the 3 internal points
+				// corresponds to a distinct polynomial for each point in Ervin
+				// that multiplies either ℯ̂₄ or ℯ̂₅.
 				switch jj {
 				case 0:
 					val = 1. - xi - eta
