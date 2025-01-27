@@ -109,7 +109,47 @@ func TestRTElementConstruction(t *testing.T) {
 	r, s := rt.RInt.AtVec(i), rt.SInt.AtVec(i)
 	fmt.Printf("Poly(%d)[%f,%f] = %f\n", j, r, s,
 		rt.basisPolynomialValue(r, s, j))
-
+	// Build a polynomial matrix for interior polynomials
+	A := utils.NewMatrix(2*rt.NpInt, 2*rt.NpInt)
+	for i = 0; i < 2*rt.NpInt; i++ {
+		r, s = rt.R.AtVec(i), rt.S.AtVec(i)
+		for j = 0; j < 2*rt.NpInt; j++ {
+			// fmt.Printf("NpInt, j = %d, %d\n", rt.NpInt, j)
+			A.Set(i, j, rt.basisPolynomialValue(r, s, j))
+		}
+	}
+	A.Print("Interior Poly")
+	// Let's call out some important features, the polynomial for the first
+	// 0 <= j < NpInt points should be the same as the polynomial for the
+	// NpInt <= j < 2*NpInt points, specifically the Alpha and Beta params
+	// should make that the case. The [r,s] coordinates for 0 <= i < NpInt
+	// are the same as the [r,s] coordinates for NpInt <= i < 2*NpInt, so the
+	// The polynomial matrix should look like this:
+	// a b c a b c
+	// d e f d e f
+	// g h i g h i
+	// a b c a b c
+	// d e f d e f
+	// g h i g h i
+	// The top NpInt terms repeat in the bottom, and the left/right
+	// The terms multiplying the e4 and e5 vectors should be the same.
+	// In the Ervin paper, the 2D polynomial bj[r,s] is distinct over all values
+	// of j from 0 to NpInt (equivalent to 1, k(k+1)/2) which this
+	// construction achieves:
+	// P = 2 = k, NpInt=k(k+1)/2=2(3)/2=3, which is NpInt here (not 2*NpInt)
+	assert.True(t, near(A.At(0, 0), A.At(0, rt.NpInt), 0.00001))
+	assert.True(t, near(A.At(0, 0), A.At(rt.NpInt, 0), 0.00001))
+	// Check the RT2 polynomial (special case for RT2)
+	xi := []float64{rt.RInt.AtVec(0), rt.RInt.AtVec(1), rt.RInt.AtVec(2)}
+	xi = []float64{0.5 * (xi[0] + 1), 0.5 * (xi[1] + 1), 0.5 * (xi[2] + 1)}
+	eta := []float64{rt.SInt.AtVec(0), rt.SInt.AtVec(1), rt.SInt.AtVec(2)}
+	eta = []float64{0.5 * (eta[0] + 1), 0.5 * (eta[1] + 1), 0.5 * (eta[2] + 1)}
+	pp := []float64{1 - xi[0] - eta[0], xi[0], eta[0]}
+	assert.True(t, nearVec(A.Row(0).DataP[0:2], pp, 0.00001))
+	pp = []float64{1 - xi[1] - eta[1], xi[1], eta[1]}
+	assert.True(t, nearVec(A.Row(1).DataP[0:2], pp, 0.00001))
+	pp = []float64{1 - xi[2] - eta[2], xi[2], eta[2]}
+	assert.True(t, nearVec(A.Row(2).DataP[0:2], pp, 0.00001))
 }
 
 func TestErvinBasisFunctions2(t *testing.T) {

@@ -300,13 +300,13 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 	switch {
 	case j >= 0 && j < NpInt:
 		funcNum = 4 // Ervin's polynomial 4 which multiplies the 4th vector
-	case j > NpInt && j < 2*NpInt:
+	case j >= NpInt && j < 2*NpInt:
 		funcNum = 5 // Ervin's polynomial 5 which multiplies the 5th vector
-	case j > 2*NpInt && j < 2*NpInt+NpEdge:
+	case j >= 2*NpInt && j < 2*NpInt+NpEdge:
 		funcNum = 1
-	case j > 2*NpInt+NpEdge && j < 2*NpInt+2*NpEdge:
+	case j >= 2*NpInt+NpEdge && j < 2*NpInt+2*NpEdge:
 		funcNum = 2
-	case j > 2*NpInt+2*NpEdge && j < 2*NpInt+3*NpEdge:
+	case j >= 2*NpInt+2*NpEdge && j < 2*NpInt+3*NpEdge:
 		funcNum = 3
 	default:
 		panic("j polynomial index out of range")
@@ -320,18 +320,16 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 		if len(derivO) > 0 {
 			deriv = 1
 		}
-	} else if funcNum == 4 {
-		// Calculate alpha based on the value of j within NpInt, scaled to run
-		// Alpha from -0.5 to 0.5.
-		// j runs from 0 to NpInt-1 for this function
-		alpha := float64(j)/(float64(NpInt)-1.) - 0.5
-		beta := 0.
-		jb2d = NewJacobiBasis2D(rt.P-1, rt.RInt, rt.SInt, alpha, beta)
-	} else if funcNum == 5 {
+	} else if funcNum <= 5 {
 		// Calculate alpha based on the value of j within NpInt, scaled to run
 		// Beta from -0.5 to 0.5.
-		// jj runs from 0 to NpInt-1 for this function
-		jj := j - NpInt
+		// j runs from 0 to NpInt-1 for this function
+		var jj int
+		if funcNum == 5 {
+			jj = j - NpInt
+		} else {
+			jj = j
+		}
 		alpha := 0.
 		beta := float64(jj)/(float64(NpInt)-1.) - 0.5
 		jb2d = NewJacobiBasis2D(rt.P-1, rt.RInt, rt.SInt, alpha, beta)
@@ -364,7 +362,63 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 	case 4:
 		fallthrough
 	case 5:
-		val = jb2d.GetPolynomialEvaluation(r, s, derivO...)
+		// We represent the interior polynomial for the special cases of the
+		// RT1 and RT2 elements. For RT3 and above, we use a Jacobi2D
+		// polynomial, but for RT1 it's a constant and for RT2 it's a basic poly set
+		var derivA DerivativeDirection
+		if len(derivO) > 0 {
+			derivA = derivO[0]
+		}
+		switch rt.P {
+		case 0:
+			panic("RT element isn't defined here for RT0")
+		case 1:
+			if derivA == None {
+				val = 1
+			} else {
+				val = 0
+			}
+		case 2:
+			var jj int
+			if funcNum == 5 {
+				jj = j - NpInt
+			} else {
+				jj = j
+			}
+			switch derivA {
+			case None:
+				xi := 0.5 * (r + 1)
+				eta := 0.5 * (s + 1)
+				switch jj {
+				case 0:
+					val = 1. - xi - eta
+				case 1:
+					val = xi
+				case 2:
+					val = eta
+				}
+			case Dr:
+				switch jj {
+				case 0:
+					val = -0.5
+				case 1:
+					val = 0.5
+				case 2:
+					val = 0
+				}
+			case Ds:
+				switch jj {
+				case 0:
+					val = -0.5
+				case 1:
+					val = 0
+				case 2:
+					val = 0.5
+				}
+			}
+		default:
+			val = jb2d.GetPolynomialEvaluation(r, s, derivO...)
+		}
 	default:
 		panic("wrong edge number")
 	}
