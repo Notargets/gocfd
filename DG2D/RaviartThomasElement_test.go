@@ -100,21 +100,16 @@ func TestRTElementConstruction(t *testing.T) {
 		}
 		return
 	}
-	// R direction basis
-	PSI, P_Alt := BasisTest(rt.RTPolyBasis2D_A)
-	P1 := PSI.AtVec(0)
-	assert.True(t, near(-.264298, P1, 0.00001))
-	for i := 0; i < rt.NpInt; i++ {
-		assert.True(t, nearVec(P_Alt, PSI.DataP, 0.00001))
-	}
+	jb2d := NewJacobiBasis2D(rt.P-1, rt.RInt, rt.SInt, 0, 0)
+	PSI, P_Alt := BasisTest(jb2d)
+	assert.True(t, nearVec(P_Alt, PSI.DataP, 0.00001))
 
-	// S direction basis
-	PSI, P_Alt = BasisTest(rt.RTPolyBasis2D_B)
-	P1 = PSI.AtVec(0)
-	assert.True(t, near(-3.033715, P1, 0.00001))
-	for i := 0; i < rt.NpInt; i++ {
-		assert.True(t, nearVec(P_Alt, PSI.DataP, 0.00001))
-	}
+	j := 0
+	i := 0
+	r, s := rt.RInt.AtVec(i), rt.SInt.AtVec(i)
+	fmt.Printf("Poly(%d)[%f,%f] = %f\n", j, r, s,
+		rt.basisPolynomialValue(r, s, j))
+
 }
 
 func TestErvinBasisFunctions2(t *testing.T) {

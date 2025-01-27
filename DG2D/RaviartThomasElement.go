@@ -133,9 +133,9 @@ type RTElement struct {
 	// Commutation gives a useful matrix we can use to calculate Flux Divergence
 	// [Div] == ([Dr] + [Ds]) x [AInv]
 	// Div[F] = [Div] x [F]
-	Div                              utils.Matrix // Divergence matrix, NpxNp for all, NintxNp Interior Points
-	R, S                             utils.Vector // Point locations defining element in [-1,1] Triangle, NpxNp
-	RTPolyBasis2D_A, RTPolyBasis2D_B *JacobiBasis2D
+	Div        utils.Matrix // Divergence matrix, NpxNp for all, NintxNp Interior Points
+	R, S       utils.Vector // Point locations defining element in [-1,1] Triangle, NpxNp
+	RInt, SInt utils.Vector
 }
 
 func NewRTElement(P int) (rt *RTElement) {
@@ -146,8 +146,7 @@ func NewRTElement(P int) (rt *RTElement) {
 		<---- NpInt ----><---- NpInt ----><---NpEdge----><---NpEdge----><---NpEdge---->
 	*/
 	var (
-		RInt, SInt utils.Vector
-		Np         = (P + 1) * (P + 3)
+		Np = (P + 1) * (P + 3)
 	)
 	rt = &RTElement{
 		P:      P,
@@ -162,14 +161,12 @@ func NewRTElement(P int) (rt *RTElement) {
 	}
 	if P > 0 {
 		if P < 9 {
-			RInt, SInt = NodesEpsilon(P - 1)
+			rt.RInt, rt.SInt = NodesEpsilon(P - 1)
 		} else {
-			RInt, SInt = XYtoRS(Nodes2D(P - 1))
+			rt.RInt, rt.SInt = XYtoRS(Nodes2D(P - 1))
 		}
 	}
-	rt.R, rt.S = rt.ExtendGeomToRT(RInt, SInt)
-	rt.RTPolyBasis2D_A = NewJacobiBasis2D(rt.P-1, RInt, SInt, 1, 0)
-	rt.RTPolyBasis2D_B = NewJacobiBasis2D(rt.P-1, RInt, SInt, 0, 1)
+	rt.R, rt.S = rt.ExtendGeomToRT(rt.RInt, rt.SInt)
 	// For edges 1 and 3, we can use the same definition on R, as S is the same
 	rt.CalculateBasis()
 	return
@@ -290,34 +287,84 @@ func divergenceOfEdgeFunctions(r, s float64, edgeNum, j int) (div float64) {
 	return
 }
 
-func (rt *RTElement) onedEdgePolynomialValue(r, s float64,
-	edgeNum, j int, derivO ...int) (val float64) {
-	// This evaluates the j-th edge 1D polynomial or derivative at r,
-	// s for edge fNum.
-	// ******* "j" is taken to be the clockwise coordinate on the edge
-	// The 1D polynomial is referred to as "f(xi)"
+func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
+	derivO ...DerivativeDirection) (val float64) {
+	// This evaluates the j-th polynomial or derivative at r,
+	// s used to multiply each of the 5 base basis vectors in Ervin's RT basis.
+	// The input parameter "j" is the function index within the element
 	var (
-		Xi = rt.getEdgeXiParameter(edgeNum).DataP
+		NpInt   = rt.NpInt
+		NpEdge  = rt.NpEdge
+		funcNum int
 	)
-	switch edgeNum {
-	case 1:
+	switch {
+	case j >= 0 && j < NpInt:
+		funcNum = 4 // Ervin's polynomial 4 which multiplies the 4th vector
+	case j > NpInt && j < 2*NpInt:
+		funcNum = 5 // Ervin's polynomial 5 which multiplies the 5th vector
+	case j > 2*NpInt && j < 2*NpInt+NpEdge:
+		funcNum = 1
+	case j > 2*NpInt+NpEdge && j < 2*NpInt+2*NpEdge:
+		funcNum = 2
+	case j > 2*NpInt+2*NpEdge && j < 2*NpInt+3*NpEdge:
+		funcNum = 3
+	default:
+		panic("j polynomial index out of range")
+	}
+	var Xi []float64
+	var deriv = 0
+	var jb2d *JacobiBasis2D
+	if funcNum < 4 {
+		// Parameterized edge coordinate Xi
+		Xi = rt.getEdgeXiParameter(funcNum).DataP
+		if len(derivO) > 0 {
+			deriv = 1
+		}
+	} else if funcNum == 4 {
+		// Calculate alpha based on the value of j within NpInt, scaled to run
+		// Alpha from -0.5 to 0.5.
+		// j runs from 0 to NpInt-1 for this function
+		alpha := float64(j)/(float64(NpInt)-1.) - 0.5
+		beta := 0.
+		jb2d = NewJacobiBasis2D(rt.P-1, rt.RInt, rt.SInt, alpha, beta)
+	} else if funcNum == 5 {
+		// Calculate alpha based on the value of j within NpInt, scaled to run
+		// Beta from -0.5 to 0.5.
+		// jj runs from 0 to NpInt-1 for this function
+		jj := j - NpInt
+		alpha := 0.
+		beta := float64(jj)/(float64(NpInt)-1.) - 0.5
+		jb2d = NewJacobiBasis2D(rt.P-1, rt.RInt, rt.SInt, alpha, beta)
+	}
+	switch funcNum {
+	case 1: // Edge 1
 		if r != -1 {
 			panic("edge 1 polynomial r must be -1")
 		}
+		// jj is the edge local index
+		jj := j - 2*rt.NpInt
 		xi := -s
-		val = DG1D.Lagrange1DPoly(xi, Xi, j, derivO...)
-	case 2:
+		val = DG1D.Lagrange1DPoly(xi, Xi, jj, deriv)
+	case 2: // Edge 2
 		if r+s != 0 {
 			panic("edge 2 polynomial must have s+r = 0")
 		}
+		// jj is the edge local index
+		jj := j - 2*rt.NpInt - rt.NpEdge
 		xi := -r
-		val = DG1D.Lagrange1DPoly(xi, Xi, j, derivO...)
-	case 3:
+		val = DG1D.Lagrange1DPoly(xi, Xi, jj, deriv)
+	case 3: // Edge 3
 		if s != -1 {
 			panic("edge 3 polynomial must have s = -1")
 		}
+		// jj is the edge local index
+		jj := j - 2*rt.NpInt - 2*rt.NpEdge
 		xi := r
-		val = DG1D.Lagrange1DPoly(xi, Xi, j, derivO...)
+		val = DG1D.Lagrange1DPoly(xi, Xi, jj, deriv)
+	case 4:
+		fallthrough
+	case 5:
+		val = jb2d.GetPolynomialEvaluation(r, s, derivO...)
 	default:
 		panic("wrong edge number")
 	}
@@ -393,9 +440,9 @@ func (rt *RTElement) EvaluateRTBasisFunction(functionNumber int, r, s float64,
 	// This function evaluates all of the terms of a poly for one basis location
 	switch rt.getLocationType(functionNumber) {
 	case InteriorR:
-		psi = rt.RTPolyBasis2D_A.GetPolynomialEvaluation(r, s, derivO...)
+		// psi = rt.RTPolyBasis2D_A.GetPolynomialEvaluation(r, s, derivO...)
 	case InteriorS:
-		psi = rt.RTPolyBasis2D_B.GetPolynomialEvaluation(r, s, derivO...)
+		// psi = rt.RTPolyBasis2D_B.GetPolynomialEvaluation(r, s, derivO...)
 	case Edge1:
 		// TODO:
 	}
