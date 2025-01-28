@@ -335,7 +335,7 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 			//    div = (1/4)*P*(3*s+1) + (1/4)*(dP/dr)*(s*r +r+s +1) +
 			//                             (1/4)*(dP/ds)*(s*s -1)
 			//    div = (1/4)*(P*(3*s+1) + (dP/dr)*(s*r +r+s +1) + (dP/ds)*(s*s-1))
-			div = alpha * (1 / 4) * (P*(3*s+1) + dPdr*(s*r+r+s+1) + dPds*(s*s-1))
+			div = alpha * (1. / 4.) * (P*(3*s+1) + dPdr*(s*r+r+s+1) + dPds*(s*s-1))
 			return
 		} else {
 			// E5 Div:
@@ -355,7 +355,7 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 			//    div = (1/4)*P*(3*r+1) + (1/4)*(dP/dr)*(r*r -1) +
 			//                             (1/4)*(dP/ds)*(s*r +r+s +1)
 			// div = (1/4)*(P*(3*r+1) + (dP/dr)*(r*r-1)) + (dP/ds)*(s*r +r+s +1)
-			div = alpha * (1 / 4) * (P*(3*r+1) + dPdr*(r*r-1) + dPds*(s*r+r+s+1))
+			div = alpha * (1. / 4.) * (P*(3*r+1) + dPdr*(r*r-1) + dPds*(s*r+r+s+1))
 			return
 		}
 	//
@@ -510,6 +510,7 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 			} else {
 				val = 0
 			}
+			return
 		case rt.P == 2:
 			switch derivA {
 			case None:

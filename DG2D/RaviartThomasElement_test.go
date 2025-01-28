@@ -18,6 +18,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestRTElementConstruction2(t *testing.T) {
+	P := 1
+	rt := NewRTElement(P)
+	// Build basis divergence conformance matrix
+	DivBasis := utils.NewMatrix(rt.Np, rt.Np)
+	for i := 0; i < rt.Np; i++ {
+		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+		for j := 0; j < rt.Np; j++ {
+			// fmt.Printf("NpInt, j = %d, %d\n", rt.NpInt, j)
+			_, div := rt.basisEvaluation(r, s, j)
+			DivBasis.Set(i, j, div)
+		}
+	}
+	DivBasis.Print("Divergence Conformance Matrix")
+}
+
 func TestRTElementConstruction(t *testing.T) {
 	// Define an RT element at order P
 	P := 2
