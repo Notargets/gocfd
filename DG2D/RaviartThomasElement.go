@@ -115,6 +115,17 @@ const (
 	Ds
 )
 
+type RTFunctionNumber uint8
+
+const (
+	All RTFunctionNumber = iota
+	E4                   // Ervin E4 Interior basis
+	E5                   // Ervin E5 Interior basis
+	E1                   // Bottom Edge, Normal is [0,-1], Ervin E3
+	E2                   // Hypotenuse, Normal is [1/Sqrt2,1/Sqrt2], Ervin E1
+	E3                   // Left Edge, Normal is [-1,0], Ervin E2
+)
+
 type RTElement struct {
 	P             int // Order of element
 	Np            int // Number of points in element
@@ -204,12 +215,12 @@ defining point, it seems unnecessary to evaluate anything but the e1-e3
 functions in practice.
 
 For the general case of the interior basis functions, they take the form:
-Φj (ξ, η) = bj (ξ, η) ê4 (ξ, η) , j = 1, 2, . . . , k(k + 1)/2 ,
-Φj (ξ, η) = bj (ξ, η) ê5 (ξ, η) , j = 1, 2, . . . , k(k + 1)/2 .
+E4:	Φj (r, s) = bj (r, s) * ê4 (r, s) , j = 1, 2, . . . , k(k + 1)/2; {j = 1, NpInt}
+E5:	Φj (r, s) = bj (r, s) * ê5 (r, s) , j = 1, 2, . . . , k(k + 1)/2 .
 
 where bj is a 2D polynomial of order P-1
 */
-func baseBasisFunctions(r, s float64, edgeNum int) (ef [2]float64) {
+func (rt *RTElement) baseBasisVectors(r, s float64, j int) (ef [2]float64) {
 	// Mapping:
 	// Edge 1 (Bottom edge)   => Ervin Edge 2
 	// Edge 2 (Hypotenuse)  => Ervin Edge 1
@@ -222,30 +233,62 @@ func baseBasisFunctions(r, s float64, edgeNum int) (ef [2]float64) {
 		xi  = 0.5 * (r + 1)
 		eta = 0.5 * (s + 1)
 	)
-	switch edgeNum {
-	case 2:
-		ef = [2]float64{sr2 * xi, sr2 * eta}
-	case 3:
-		ef = [2]float64{xi - 1, eta - 0.5}
-	case 1:
+	switch rt.getFunctionNumber(j) {
+	case E1:
 		ef = [2]float64{xi - 0.5, eta - 1}
-	case 4:
+	case E2:
+		ef = [2]float64{sr2 * xi, sr2 * eta}
+	case E3:
+		ef = [2]float64{xi - 1, eta - 0.5}
+	case E4:
 		ef = [2]float64{eta * xi, eta * (eta - 1)}
-	case 5:
+	case E5:
 		ef = [2]float64{xi * (xi - 1), xi * eta}
 	default:
 		panic("wrong basis function number (1-5)")
 	}
 	return
 }
-func divergenceOfEdgeFunctions(r, s float64, edgeNum, j int) (div float64) {
-	// ---------------------------------------------------
+
+func (rt *RTElement) getFunctionNumber(j int) (rtt RTFunctionNumber) {
+	var (
+		NpInt  = rt.NpInt
+		NpEdge = rt.NpEdge
+	)
+	switch {
+	case j >= 0 && j < NpInt:
+		// Unit vector is [1,0]
+		rtt = E4
+	case j >= NpInt && j < 2*NpInt:
+		// Unit vector is [0,1]
+		rtt = E5
+	case j >= 2*NpInt && j < 2*NpInt+NpEdge:
+		// E1: Unit vector is [0,-1]
+		rtt = E1
+	case j >= 2*NpInt+NpEdge && j < 2*NpInt+2*NpEdge:
+		// E2: Unit vector is [1/sqrt(2), 1/sqrt(2)]
+		rtt = E2
+	case j >= 2*NpInt+2*NpEdge && j < 2*NpInt+3*NpEdge:
+		// E3: Unit vector is [-1,0]
+		rtt = E3
+	default:
+		panic("j out of range")
+	}
+	return
+}
+
+func basisEvaluation(r, s float64, j int) (v [2]float64, div float64) {
+	// This routine produces the j-th basis vector and divergence at location
+	// [r,s]
+	//
+	// Edge Divergence
 	// the edge basis vector function [v] varies along the edge.
 	// It is the product of a 1D edge function f(xi) and [v], so we have:
+	// ************************************************************************
 	// div(edgeFunction) = div(f(xi)*[v]) =
-	//       [df(xi)/dr,df(xi)/ds] ⋅ [v] + f(xi) * ([div] ⋅ [v])
-	//
-	// div = df(xi)/dxi * (v1*dxi/dr + v2*dxi/ds) + f(xi) * (dv1/dr + dv2/ds)
+	//     [df(xi)/dr,df(xi)/ds] ⋅ [v]  +  f(xi) * ([div] ⋅ [v])
+	// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
+	// ************************************************************************
 	//
 	// Conversion from Ervin coordinates:
 	// xi  = 0.5 * (r + 1)
@@ -253,37 +296,52 @@ func divergenceOfEdgeFunctions(r, s float64, edgeNum, j int) (div float64) {
 	// r = 2 * xi  - 1
 	// s = 2 * eta - 1
 	//
-	// Left Edge (1) divergence:
-	// 			[v] = [(r - 1)/2, s/2]
-	// v1 = (r-1)/2, v2 = s/2, dv1/dr = 1/2, dv2/ds = 1/2
+	// Bottom Edge (1) divergence:
+	//          [v] = [xi, eta-1] Ervin Edge 3
+	// 			[v] = [(r+1)/2, (s+1)/2-1]
+	// 			[v] = [(r+1)/2, (s-1)/2]
+	// v1 = (r+1)/2, v2 = (s-1)/2, dv1/dr = 1/2, dv2/ds = 1/2
+	// The bottom edge in a counter-clockwise direction is parameterized:
+	// xi = r, s = -1 (const) => dxi/dr = 1, dxi/ds = 0
+	// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
+	//     = df/dxi*(v1*(  1   )+v2*(   0  )) + f(xi) * (  1/2  +   1/2 )
+	//     = df/dxi*(          v1           ) + f(xi)
+	//        div(edge1) = f(xi) + v1 * (df/dxi)
+	//
+	// Hypotenuse (2) divergence:
+	//          [v] = [Sqrt2 * xi, Sqrt2 * eta] Ervin Edge 1
+	// 			[v] = [Sqrt2/2 * (r+1), Sqrt2/2 * (s+1)]
+	// v1 = Sqrt2/2 * (r+1), v2 = Sqrt2/2 * (s+1), dv1/dr = Sqrt2/2 = dv2/ds
+	// The hypotenuse in a counter-clockwise direction is parameterized:
+	// xi = -r = s, => dxi/dr = -1, dxi/ds = 1
+	// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
+	//     = df/dxi*(v1*(  -1  )+v2*(   1  )) + f(xi) * (Sqrt2/2+Sqrt2/2)
+	//     = df/dxi*(         v2-v1         ) + f(xi) * Sqrt2
+	//         div(edge2) = Sqrt2 * f(xi) + (v2-v1) * (df/dxi)
+	//
+	// Left Edge (3) divergence:
+	//          [v] = [xi-1, eta] Ervin Edge 2
+	// 			[v] = [(r+1)/2 - 1, (s+1)/2]
+	// 			[v] = [(r-1)/2, (s+1)/2]
+	// v1 = (r-1)/2, v2 = (s+1)/2, dv1/dr = 1/2, dv2/ds = 1/2
 	// The left edge  in a counter-clockwise direction is parameterized:
 	// r = -1 (constant), xi = -s => dxi/dr = 0, dxi/ds = -1,
 	// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
 	//     = df/dxi*(v1*(  0   )+v2*(  -1  )) + f(xi) * (  1/2  +   1/2 )
 	//     = df/dxi*(          v2           ) + f(xi)
-	//         div(edge1) = (df/dxi) * v2 + f(xi)
+	//         div(edge3) = f(xi) + v2 * (df/dxi)
 	//
-	// Hypotenuse (2) divergence:
-	// 			[v] = [Sqrt2/2 * (r+1), Sqrt2/2 * (s+1)]
-	// v1 = Sqrt2/2 * (r+1), v2 = Sqrt2/2 * (s+1), dv1/dr = Sqrt2/2 = dv2/ds
-	//
-	// The hypotenuse in a counter-clockwise direction is parameterized:
-	// xi = -r = s, => dxi/dr = -1, dxi/ds = 1
-	//
-	// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
-	//     = df/dxi*(v1*( -1   )+v2*(   1  )) + f(xi) * (Sqrt2/2+Sqrt2/2)
-	//     = df/dxi*(         v2-v1         ) + f(xi) * Sqrt2
-	//         div(edge2) = (df/dxi) * (v2-v1) + Sqrt2 * f(xi)
-	//
-	// Bottom Edge (3) divergence:
-	// 			[v] = [r/2, (s - 1)/2]
-	// v1 = r/2, v2 = (s-1)/2, dv1/dr = 1/2, dv2/ds = 1/2
-	// The bottom edge  in a counter-clockwise direction is parameterized:
-	// xi = r, s = -1 (const) => dxi/dr = 1, dxi/ds = 0
-	// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
-	//     = df/dxi*(v1*(  1   )+v2*(   0  )) + f(xi) * (  1/2  +   1/2 )
-	//     = df/dxi*(          v1           ) + f(xi)
-	//        div(edge3) = (df/dxi) * v1 + f(xi)
+	// Interior Basis functions
+	// The first NpInt index positions in the interior correspond to the e4
+	// Ervin basis vectors. The second NpInt index positions correspond to the
+	// e5 Ervin basis vectors.
+	// The RT1 and RT2 elements are treated differently from the RT3+
+	// elements in that they are not multiplied by the same 2D polynomial as
+	// RT3+. This is already factored into the support function
+	// basisPolynomialValue, so that the divergence can be calculated the same
+	// way for all basis functions using the chain rule:
+	//           [v]j = P(r,s)j * [e4]; {0   <= j < NpInt}
+	//           [v]j = P(r,s)j * [e5]; {NpInt <= j < 2*NpInt}
 	return
 }
 
@@ -293,7 +351,7 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 	// each of the 5 base basis vectors in Ervin's RT basis, named
 	//               ℯ̂₁, ℯ̂₂, ℯ̂₃, ℯ̂₄, ℯ̂₅
 	// The first three are the edge basis vectors, but in Ervin's paper
-	// edge 1 is the hypotenuse, edge 2 is left, edge 2 is bottom, where here
+	// e1 is the hypotenuse, e2 is left, e3 is bottom, where here
 	// edge 1 is bottom, edge 2 is hypotenuse, edge 3 is left
 	//
 	// This function provides the value of the polynomial that multiplies
@@ -306,8 +364,7 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 	// The input parameter "j" is the function index within the element
 	var (
 		NpInt   = rt.NpInt
-		NpEdge  = rt.NpEdge
-		funcNum int
+		funcNum = rt.getFunctionNumber(j)
 		Xi      []float64
 		xi      float64
 		jj      int
@@ -315,38 +372,33 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 		jb2d    *JacobiBasis2D
 		eps     = 0.000001
 	)
-	switch {
-	case j >= 0 && j < NpInt:
+	switch funcNum {
+	case E4:
 		// Ervin's polynomial 4 which multiplies the 4th vector
-		funcNum = 4
 		jj = j
-	case j >= NpInt && j < 2*NpInt:
+	case E5:
 		// Ervin's polynomial 5 which multiplies the 5th vector
-		funcNum = 5
 		jj = j - NpInt
-	case j >= 2*NpInt && j < 2*NpInt+NpEdge:
+	case E1:
 		// Edge 1 - Bottom Edge
 		// Ervin's func multiplying e3 (bottom)
-		funcNum = 1
 		if math.Abs(s+1) > eps {
 			val = 0 // Not on the edge, return 0
 			return
 		}
 		xi = -r
 		jj = j - 2*rt.NpInt
-	case j >= 2*NpInt+NpEdge && j < 2*NpInt+2*NpEdge:
+	case E2:
 		// Edge 2 - Hypotenuse
-		funcNum = 2 // Ervin's func multiplying e1 (Hypotenuse)
 		if math.Abs(r+s) > eps {
 			val = 0 // Not on the edge, return 0
 			return
 		}
 		xi = -r
 		jj = j - 2*rt.NpInt - rt.NpEdge
-	case j >= 2*NpInt+2*NpEdge && j < 2*NpInt+3*NpEdge:
+	case E3:
 		// Edge 3 - Left Edge
 		// Ervin's func multiplying e2 (Left)
-		funcNum = 3
 		if math.Abs(r+1) > eps {
 			val = 0 // Not on the edge, return 0
 			return
@@ -358,14 +410,14 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 	}
 
 	switch funcNum {
-	case 1, 2, 3:
+	case E1, E2, E3:
 		// Parameterized edge coordinate Xi
 		Xi = rt.getEdgeXiParameter(funcNum).DataP
 		if len(derivO) > 0 {
 			deriv = 1
 		}
 		val = DG1D.Lagrange1DPoly(xi, Xi, jj, deriv)
-	case 4, 5:
+	case E4, E5:
 		// We represent the interior polynomial for the special cases of the
 		// RT1 and RT2 elements. For RT3 and above, we use a Jacobi2D
 		// polynomial, but for RT1 it's a constant and for RT2 it's a basic poly set
@@ -441,16 +493,16 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 	return
 }
 
-func (rt *RTElement) getEdgeXiParameter(edgeNum int) (Xi utils.Vector) {
+func (rt *RTElement) getEdgeXiParameter(funcNum RTFunctionNumber) (Xi utils.Vector) {
 	// Edge 1 is S=-1 (bottom of tri)
 	// Edge 2 is Hypotenuse
 	// Edge 3 is R=-1 (left side of tri)
-	switch edgeNum {
-	case 1:
+	switch funcNum {
+	case E1:
 		Xi = rt.R.Subset(2*rt.NpInt, 2*rt.NpInt+rt.NpEdge-1)
-	case 2:
+	case E2:
 		Xi = rt.R.Subset(2*rt.NpInt+rt.NpEdge, 2*rt.NpInt+2*rt.NpEdge-1)
-	case 3:
+	case E3:
 		Xi = rt.S.Subset(2*rt.NpInt+2*rt.NpEdge, 2*rt.NpInt+3*rt.NpEdge-1)
 	default:
 		panic("invalid edgeNum")
@@ -502,20 +554,6 @@ func (rt *RTElement) ExtendGeomToRT(Rint, Sint utils.Vector) (R, S utils.Vector)
 	Sd = append(Sd, sEdgeData...)
 	nn := len(Rd)
 	R, S = utils.NewVector(nn, Rd), utils.NewVector(nn, Sd)
-	return
-}
-
-func (rt *RTElement) EvaluateRTBasisFunction(functionNumber int, r, s float64,
-	derivO ...DerivativeDirection) (psi float64) {
-	// This function evaluates all of the terms of a poly for one basis location
-	switch rt.getLocationType(functionNumber) {
-	case InteriorR:
-		// psi = rt.RTPolyBasis2D_A.GetPolynomialEvaluation(r, s, derivO...)
-	case InteriorS:
-		// psi = rt.RTPolyBasis2D_B.GetPolynomialEvaluation(r, s, derivO...)
-	case Edge1:
-		// TODO:
-	}
 	return
 }
 
@@ -648,59 +686,23 @@ func (rt *RTElement) ProjectFunctionOntoDOF(s1, s2 []float64) (sp []float64) {
 	sp = make([]float64, Np)
 	oosr2 := 1 / math.Sqrt(2)
 	for i := range s1 {
-		switch rt.getLocationType(i) {
-		case InteriorR:
+		switch rt.getFunctionNumber(i) {
+		case E4:
 			// Unit vector is [1,0]
 			sp[i] = s1[i]
-		case InteriorS:
+		case E5:
 			// Unit vector is [0,1]
 			sp[i] = s2[i]
-		case Edge1:
-			// Edge1: // Unit vector is [0,-1]
+		case E1:
+			// E1: // Unit vector is [0,-1]
 			sp[i] = -s2[i]
-		case Edge2:
-			// Edge2: Unit vector is [1/sqrt(2), 1/sqrt(2)]
+		case E2:
+			// E2: Unit vector is [1/sqrt(2), 1/sqrt(2)]
 			sp[i] = (s1[i] + s2[i]) * oosr2
-		case Edge3:
-			// Edge3: Unit vector is [-1,0]
+		case E3:
+			// E3: Unit vector is [-1,0]
 			sp[i] = -s1[i]
 		}
-	}
-	return
-}
-
-type RTPointType uint8
-
-const (
-	All       RTPointType = iota
-	InteriorR             // R component of vector field
-	InteriorS             // S component of vector field
-	Edge1                 // Edge from vertex 0-1, Normal is [0,-1]
-	Edge2                 // Edge from vertex 1-2, Normal is [1./sqrt(2),1./sqrt(2)]
-	Edge3                 // Edge from vertex 2-0, Normal is [-1,0]
-)
-
-func (rt *RTElement) getLocationType(i int) (rtt RTPointType) {
-	var (
-		NpInt  = rt.NpInt
-		NpEdge = rt.NpEdge
-	)
-	switch {
-	case i < NpInt:
-		// Unit vector is [1,0]
-		rtt = InteriorR
-	case i >= NpInt && i < 2*NpInt:
-		// Unit vector is [0,1]
-		rtt = InteriorS
-	case i >= 2*NpInt && i < 2*NpInt+NpEdge:
-		// Edge1: Unit vector is [0,-1]
-		rtt = Edge1
-	case i >= 2*NpInt+NpEdge && i < 2*NpInt+2*NpEdge:
-		// Edge2: Unit vector is [1/sqrt(2), 1/sqrt(2)]
-		rtt = Edge2
-	case i >= 2*NpInt+2*NpEdge && i < 2*NpInt+3*NpEdge:
-		// Edge3: Unit vector is [-1,0]
-		rtt = Edge3
 	}
 	return
 }

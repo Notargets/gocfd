@@ -57,23 +57,23 @@ func TestRTElementConstruction(t *testing.T) {
 		0.00001))
 
 	// Note that Ervin's edges are numbered differently:
-	// Ervin's Edge1 => Edge2 (Hypotenuse)
-	// Ervin's Edge2 => Edge3 (Left)
-	// Ervin's Edge3 => Edge1 (Bottom)
+	// Ervin's E1 => E2 (Hypotenuse)
+	// Ervin's E2 => E3 (Left)
+	// Ervin's E3 => E1 (Bottom)
 
 	// 1D Edge Polynomials
 	// Get the edge values for edge1,2,3
 	assert.Panics(t, func() { rt.getEdgeXiParameter(0) })
 	// The edge distribution of edge2 should be the reverse direction of
 	// edge1, and symmetric, shorthand is to take the neg of edge2 to get edge1
-	edge1 := rt.getEdgeXiParameter(2)
+	edge1 := rt.getEdgeXiParameter(E2)
 	for i := range edge1.DataP {
 		edge1.DataP[i] *= -1
 	}
-	assert.True(t, nearVec(rt.getEdgeXiParameter(1).DataP,
+	assert.True(t, nearVec(rt.getEdgeXiParameter(E1).DataP,
 		edge1.DataP, 0.000001))
 
-	edge1.Print("Edge1")
+	edge1.Print("E1")
 
 	// Test polynomial bases
 
@@ -236,22 +236,7 @@ func TestErvinBasisFunctions1(t *testing.T) {
 	assert.Equal(t, conv(-1, -1), [2]float64{0., 0.})
 	assert.Equal(t, conv(-1, 1), [2]float64{0., 1.})
 	assert.Equal(t, conv(1, -1), [2]float64{1., 0.})
-	// Test the midpoint of each edge for values of the base edge functions
-	// Edge midpoints, they should be the unit normals
-	ef1 := baseBasisFunctions(-1, 0, 1)
-	ef2 := baseBasisFunctions(0, 0, 2)
-	ef3 := baseBasisFunctions(0, -1, 3)
-	assert.Equal(t, [2]float64{-1., 0}, ef1)
-	assert.InDeltaf(t, oosr2, ef2[0], 0.0000001, "")
-	assert.InDeltaf(t, oosr2, ef2[1], 0.0000001, "")
-	assert.Equal(t, [2]float64{0, -1}, ef3)
-
-	// ef1 = baseBasisFunctions(-1, -1, 1) // bottom left vertex
-	// ef2 = baseBasisFunctions(1, -1, 2)  // bottom right vertex
-	// ef3 = baseBasisFunctions(-1, 1, 3)  // top left vertex
-	// fmt.Println(ef1)
-	// fmt.Println(ef2)
-	// fmt.Println(ef3)
+	rt := NewRTElement(2)
 
 	// ---------------------------------------------------
 	// the edge basis vector function [v] varies along the edge.
@@ -306,52 +291,83 @@ func TestErvinBasisFunctions1(t *testing.T) {
 		dp = v1[0]*v2[0] + v1[1]*v2[1]
 		return
 	}
-	// Edge 1 midpoint
-	ef4 := baseBasisFunctions(-1, 0, 4)
-	ef5 := baseBasisFunctions(-1, 0, 5)
-	assert.Equal(t, 0., dot(ef4, ef1))
-	// Edge 1 endpoint 1
-	ef4 = baseBasisFunctions(-1, -1, 4)
-	ef5 = baseBasisFunctions(-1, -1, 5)
+
+	getMid := func(start, end [2]float64) (mid [2]float64) {
+		mid[0] = (start[0] + end[0]) / 2
+		mid[1] = (start[1] + end[1]) / 2
+		return
+	}
+
+	offsetEdge1 := 2 * rt.NpInt             // Bottom edge
+	offsetEdge2 := 2*rt.NpInt + rt.NpEdge   // Hypotenuse
+	offsetEdge3 := 2*rt.NpInt + 2*rt.NpEdge // Left edge
+
+	// Edge 1 endpoint 1 (start of path around triangle)
+	e1Nd1 := [2]float64{-1, -1}
+	e1Nd2 := [2]float64{1, -1}
+	e2Nd1 := e1Nd2
+	e2Nd2 := [2]float64{-1, 1}
+	e3Nd1 := e2Nd2
+	e3Nd2 := e1Nd1
+	e1Mid := getMid(e1Nd1, e1Nd2)
+	e2Mid := getMid(e2Nd1, e2Nd2)
+	e3Mid := getMid(e3Nd1, e3Nd2)
+	ef1 := rt.baseBasisVectors(e1Mid[0], e1Mid[1], offsetEdge1)
+	ef2 := rt.baseBasisVectors(e2Mid[0], e2Mid[1], offsetEdge2)
+	ef3 := rt.baseBasisVectors(e3Mid[0], e3Mid[1], offsetEdge3)
+
+	ef4 := rt.baseBasisVectors(e1Nd1[0], e1Nd1[1], 0)
+	ef5 := rt.baseBasisVectors(e1Nd1[0], e1Nd1[1], rt.NpInt)
 	assert.Equal(t, 0., dot(ef4, ef1))
 	assert.Equal(t, 0., dot(ef5, ef1))
+	// Edge 1 midpoint
+	ef4 = rt.baseBasisVectors(e1Mid[0], e1Mid[1], 0)
+	ef5 = rt.baseBasisVectors(e1Mid[0], e1Mid[1], rt.NpInt)
+	assert.Equal(t, 0., dot(ef4, ef1))
 	// Edge 1 endpoint 2
-	ef4 = baseBasisFunctions(-1, 1, 4)
-	ef5 = baseBasisFunctions(-1, 1, 5)
+	ef4 = rt.baseBasisVectors(e1Nd2[0], e1Nd2[1], 0)
+	ef5 = rt.baseBasisVectors(e1Nd2[0], e1Nd2[1], rt.NpInt)
 	assert.Equal(t, 0., dot(ef4, ef1))
 	assert.Equal(t, 0., dot(ef5, ef1))
 
 	// Edge 2 midpoint
-	ef4 = baseBasisFunctions(0, 0, 4)
-	ef5 = baseBasisFunctions(0, 0, 5)
+	ef4 = rt.baseBasisVectors(e2Mid[0], e2Mid[1], 0)
+	ef5 = rt.baseBasisVectors(e2Mid[0], e2Mid[1], rt.NpInt)
 	assert.Equal(t, 0., dot(ef4, ef2))
 	assert.Equal(t, 0., dot(ef5, ef2))
 	// Edge 2 endpoint 1
-	ef4 = baseBasisFunctions(1, -1, 4)
-	ef5 = baseBasisFunctions(1, -1, 5)
+	ef4 = rt.baseBasisVectors(e2Nd1[0], e2Nd1[1], 0)
+	ef5 = rt.baseBasisVectors(e2Nd1[0], e2Nd1[1], rt.NpInt)
 	assert.Equal(t, 0., dot(ef4, ef2))
 	assert.Equal(t, 0., dot(ef5, ef2))
 	// Edge 2 endpoint 2
-	ef4 = baseBasisFunctions(-1, 1, 4)
-	ef5 = baseBasisFunctions(-1, 1, 5)
+	ef4 = rt.baseBasisVectors(e2Nd2[0], e2Nd2[1], 0)
+	ef5 = rt.baseBasisVectors(e2Nd2[0], e2Nd2[1], rt.NpInt)
 	assert.Equal(t, 0., dot(ef4, ef2))
 	assert.Equal(t, 0., dot(ef5, ef2))
 
 	// Edge 3 midpoint
-	ef4 = baseBasisFunctions(0, -1, 4)
-	ef5 = baseBasisFunctions(0, -1, 5)
+	ef4 = rt.baseBasisVectors(e3Mid[0], e3Mid[1], 0)
+	ef5 = rt.baseBasisVectors(e3Mid[0], e3Mid[1], rt.NpInt)
 	assert.Equal(t, 0., dot(ef4, ef3))
 	assert.Equal(t, 0., dot(ef5, ef3))
 	// Edge 3 endpoint 1
-	ef4 = baseBasisFunctions(-1, -1, 4)
-	ef5 = baseBasisFunctions(-1, -1, 5)
+	ef4 = rt.baseBasisVectors(e3Nd1[0], e3Nd1[1], 0)
+	ef5 = rt.baseBasisVectors(e3Nd1[0], e3Nd1[1], rt.NpInt)
 	assert.Equal(t, 0., dot(ef4, ef3))
 	assert.Equal(t, 0., dot(ef5, ef3))
 	// Edge 3 endpoint 2
-	ef4 = baseBasisFunctions(1, -1, 4)
-	ef5 = baseBasisFunctions(1, -1, 5)
+	ef4 = rt.baseBasisVectors(e3Nd2[0], e3Nd2[1], 0)
+	ef5 = rt.baseBasisVectors(e3Nd2[0], e3Nd2[1], rt.NpInt)
 	assert.Equal(t, 0., dot(ef4, ef3))
 	assert.Equal(t, 0., dot(ef5, ef3))
+
+	// Test the midpoint of each edge for values of the base edge functions
+	// Edge midpoints, they should be the unit normals
+	assert.Equal(t, [2]float64{0, -1}, ef1)
+	assert.InDeltaf(t, oosr2, ef2[0], 0.0000001, "")
+	assert.InDeltaf(t, oosr2, ef2[1], 0.0000001, "")
+	assert.Equal(t, [2]float64{-1, 0}, ef3)
 }
 
 func TestLagrangePolynomial(t *testing.T) {

@@ -51,7 +51,7 @@ func NewRTBasis2DSimplex(P int) (rtb *RTBasis2DSimplex) {
 	return
 }
 
-func (rtb *RTBasis2DSimplex) getLocationType(i int) (locationType RTPointType) {
+func (rtb *RTBasis2DSimplex) getLocationType(i int) (locationType RTFunctionNumber) {
 	var (
 		NpInt  = rtb.NpInt
 		NpEdge = rtb.NpEdge
@@ -59,19 +59,19 @@ func (rtb *RTBasis2DSimplex) getLocationType(i int) (locationType RTPointType) {
 	switch {
 	case i < NpInt:
 		// Unit vector is [1,0]
-		locationType = InteriorR
+		locationType = E4
 	case i >= NpInt && i < 2*NpInt:
 		// Unit vector is [0,1]
-		locationType = InteriorS
+		locationType = E5
 	case i >= 2*NpInt && i < 2*NpInt+NpEdge:
-		// Edge1: Unit vector is [0,-1]
-		locationType = Edge1
+		// E1: Unit vector is [0,-1]
+		locationType = E1
 	case i >= 2*NpInt+NpEdge && i < 2*NpInt+2*NpEdge:
-		// Edge2: Unit vector is [1/sqrt(2), 1/sqrt(2)]
-		locationType = Edge2
+		// E2: Unit vector is [1/sqrt(2), 1/sqrt(2)]
+		locationType = E2
 	case i >= 2*NpInt+2*NpEdge && i < 2*NpInt+3*NpEdge:
-		// Edge3: Unit vector is [-1,0]
-		locationType = Edge3
+		// E3: Unit vector is [-1,0]
+		locationType = E3
 	default:
 		fmt.Errorf("unable to match node location for node %d and Np = %d", i, rtb.Np)
 	}
@@ -449,27 +449,27 @@ func (rtb *RTBasis2DSimplex) CalculateBasis() {
 		p0, p1 = rtb.EvaluateBasisAtLocation(rr, ss)
 		// Implement dot product of (unit vector)_ii with each vector term in the polynomial evaluated at location ii
 		switch rtb.getLocationType(ii) {
-		case InteriorR:
+		case E4:
 			// Unit vector is [1,0]
 			P.M.SetRow(ii, p0)
-		case InteriorS:
+		case E5:
 			// Unit vector is [0,1]
 			P.M.SetRow(ii, p1)
-		case Edge1:
+		case E1:
 			for i := range rowEdge {
-				// Edge3: // Unit vector is [0,-1]
+				// E3: // Unit vector is [0,-1]
 				rowEdge[i] = -p1[i]
 			}
 			P.M.SetRow(ii, rowEdge)
-		case Edge2:
+		case E2:
 			for i := range rowEdge {
-				// Edge1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
+				// E1: Unit vector is [1/sqrt(2), 1/sqrt(2)]
 				rowEdge[i] = oosr2 * (p0[i] + p1[i])
 			}
 			P.M.SetRow(ii, rowEdge)
-		case Edge3:
+		case E3:
 			for i := range rowEdge {
-				// Edge2: Unit vector is [-1,0]
+				// E2: Unit vector is [-1,0]
 				rowEdge[i] = -p0[i]
 			}
 			P.M.SetRow(ii, rowEdge)

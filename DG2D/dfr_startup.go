@@ -267,20 +267,20 @@ func (dfr *DFR2D) ProjectFluxOntoRTSpace(Fx, Fy utils.Matrix) (Fp utils.Matrix) 
 			switch rt.getLocationType(n) {
 			case All:
 				panic("bad input")
-			case InteriorR:
+			case E4:
 				// Unit vector is [1,0]
 				fpD[ind] = fT[0]
-			case InteriorS:
+			case E5:
 				// Unit vector is [0,1]
 				fpD[ind] = fT[1]
-			case Edge1:
-				// Edge3:
+			case E1:
+				// E3:
 				fpD[ind] = -fT[1]
-			case Edge2:
-				// Edge1:
+			case E2:
+				// E1:
 				fpD[ind] = oosr2 * (fT[0] + fT[1])
-			case Edge3:
-				// Edge2:
+			case E3:
+				// E2:
 				fpD[ind] = -fT[0]
 			}
 		}
