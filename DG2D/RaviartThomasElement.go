@@ -250,7 +250,7 @@ func (rt *RTElement) baseBasisVectors(r, s float64, j int) (ef [2]float64) {
 	return
 }
 
-func (rt *RTElement) getFunctionNumber(j int) (rtt RTFunctionNumber) {
+func (rt *RTElement) getFunctionNumber(j int) (funcNum RTFunctionNumber) {
 	var (
 		NpInt  = rt.NpInt
 		NpEdge = rt.NpEdge
@@ -258,19 +258,19 @@ func (rt *RTElement) getFunctionNumber(j int) (rtt RTFunctionNumber) {
 	switch {
 	case j >= 0 && j < NpInt:
 		// Unit vector is [1,0]
-		rtt = E4
+		funcNum = E4
 	case j >= NpInt && j < 2*NpInt:
 		// Unit vector is [0,1]
-		rtt = E5
+		funcNum = E5
 	case j >= 2*NpInt && j < 2*NpInt+NpEdge:
 		// E1: Unit vector is [0,-1]
-		rtt = E1
+		funcNum = E1
 	case j >= 2*NpInt+NpEdge && j < 2*NpInt+2*NpEdge:
 		// E2: Unit vector is [1/sqrt(2), 1/sqrt(2)]
-		rtt = E2
+		funcNum = E2
 	case j >= 2*NpInt+2*NpEdge && j < 2*NpInt+3*NpEdge:
 		// E3: Unit vector is [-1,0]
-		rtt = E3
+		funcNum = E3
 	default:
 		panic("j out of range")
 	}
@@ -298,9 +298,11 @@ func basisEvaluation(r, s float64, j int) (v [2]float64, div float64) {
 	//
 	// Bottom Edge (1) divergence:
 	//          [v] = [xi, eta-1] Ervin Edge 3
-	// 			[v] = [(r+1)/2, (s+1)/2-1]
-	// 			[v] = [(r+1)/2, (s-1)/2]
-	// v1 = (r+1)/2, v2 = (s-1)/2, dv1/dr = 1/2, dv2/ds = 1/2
+	//          [v] = [xi-1/2, eta-1] Ervin Edge 3 (fixed errata)
+	// 			[v] = [(r+1)/2-1/2, (s+1)/2-1]
+	// 			[v] = [r/2, (s+1)/2-1]
+	// 			[v] = [r/2, (s-1)/2] (fixed errata)
+	// v1 = r/2, v2 = (s-1)/2, dv1/dr = 1/2, dv2/ds = 1/2
 	// The bottom edge in a counter-clockwise direction is parameterized:
 	// xi = r, s = -1 (const) => dxi/dr = 1, dxi/ds = 0
 	// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
@@ -321,9 +323,10 @@ func basisEvaluation(r, s float64, j int) (v [2]float64, div float64) {
 	//
 	// Left Edge (3) divergence:
 	//          [v] = [xi-1, eta] Ervin Edge 2
-	// 			[v] = [(r+1)/2 - 1, (s+1)/2]
-	// 			[v] = [(r-1)/2, (s+1)/2]
-	// v1 = (r-1)/2, v2 = (s+1)/2, dv1/dr = 1/2, dv2/ds = 1/2
+	//          [v] = [xi-1, eta-1/2] Ervin Edge 2 (fixed errata)
+	// 			[v] = [(r+1)/2 - 1, (s+1)/2-1/2]
+	// 			[v] = [(r-1)/2, s/2] (fixed errata)
+	// v1 = (r-1)/2, v2 = s/2, dv1/dr = 1/2, dv2/ds = 1/2
 	// The left edge  in a counter-clockwise direction is parameterized:
 	// r = -1 (constant), xi = -s => dxi/dr = 0, dxi/ds = -1,
 	// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
