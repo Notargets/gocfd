@@ -100,43 +100,43 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 		return
 	}
 	e1rf := func(r, s float64, deriv DerivativeDirection) (p float64) {
-		p, _ = rtb.getCoreBasisTerm(e1, r, s, deriv)
+		p, _ = rtb.getCoreBasisTerm(E1, r, s, deriv)
 		return
 	}
 	e1sf := func(r, s float64, deriv DerivativeDirection) (p float64) {
-		_, p = rtb.getCoreBasisTerm(e1, r, s, deriv)
+		_, p = rtb.getCoreBasisTerm(E1, r, s, deriv)
 		return
 	}
 	e2rf := func(r, s float64, deriv DerivativeDirection) (p float64) {
-		p, _ = rtb.getCoreBasisTerm(e2, r, s, deriv)
+		p, _ = rtb.getCoreBasisTerm(E2, r, s, deriv)
 		return
 	}
 	e2sf := func(r, s float64, deriv DerivativeDirection) (p float64) {
-		_, p = rtb.getCoreBasisTerm(e2, r, s, deriv)
+		_, p = rtb.getCoreBasisTerm(E2, r, s, deriv)
 		return
 	}
 	e3rf := func(r, s float64, deriv DerivativeDirection) (p float64) {
-		p, _ = rtb.getCoreBasisTerm(e3, r, s, deriv)
+		p, _ = rtb.getCoreBasisTerm(E3, r, s, deriv)
 		return
 	}
 	e3sf := func(r, s float64, deriv DerivativeDirection) (p float64) {
-		_, p = rtb.getCoreBasisTerm(e3, r, s, deriv)
+		_, p = rtb.getCoreBasisTerm(E3, r, s, deriv)
 		return
 	}
 	e4rf := func(r, s float64, deriv DerivativeDirection) (p float64) {
-		p, _ = rtb.getCoreBasisTerm(e4, r, s, deriv)
+		p, _ = rtb.getCoreBasisTerm(E4, r, s, deriv)
 		return
 	}
 	e4sf := func(r, s float64, deriv DerivativeDirection) (p float64) {
-		_, p = rtb.getCoreBasisTerm(e4, r, s, deriv)
+		_, p = rtb.getCoreBasisTerm(E4, r, s, deriv)
 		return
 	}
 	e5rf := func(r, s float64, deriv DerivativeDirection) (p float64) {
-		p, _ = rtb.getCoreBasisTerm(e5, r, s, deriv)
+		p, _ = rtb.getCoreBasisTerm(E5, r, s, deriv)
 		return
 	}
 	e5sf := func(r, s float64, deriv DerivativeDirection) (p float64) {
-		_, p = rtb.getCoreBasisTerm(e5, r, s, deriv)
+		_, p = rtb.getCoreBasisTerm(E5, r, s, deriv)
 		return
 	}
 	l1f := func(r, s float64, deriv DerivativeDirection) (p float64) {
@@ -202,15 +202,15 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 		// No "non-Normal" basis functions
 	case 1:
 		// Two basis functions, basics e4 and e5
-		p0[sk], p1[sk] = rtb.getCoreBasisTerm(e4, r, s, deriv)
+		p0[sk], p1[sk] = rtb.getCoreBasisTerm(E4, r, s, deriv)
 		sk++
-		p0[sk], p1[sk] = rtb.getCoreBasisTerm(e5, r, s, deriv)
+		p0[sk], p1[sk] = rtb.getCoreBasisTerm(E5, r, s, deriv)
 		sk++
 	case 2:
 		// Six "non-Normal" basis functions, use linear 2D polynomial for triangles multiplied by e4 and e5
 		if deriv == None {
-			e4r, e4s := rtb.getCoreBasisTerm(e4, r, s)
-			e5r, e5s := rtb.getCoreBasisTerm(e5, r, s)
+			e4r, e4s := rtb.getCoreBasisTerm(E4, r, s)
+			e5r, e5s := rtb.getCoreBasisTerm(E5, r, s)
 			l1 := rtb.LinearPoly(r, s, 0)
 			l2 := rtb.LinearPoly(r, s, 1)
 			l3 := rtb.LinearPoly(r, s, 2)
@@ -244,14 +244,14 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 			sk++
 		}
 	default:
-		e4r, e4s := rtb.getCoreBasisTerm(e4, r, s)
-		e5r, e5s := rtb.getCoreBasisTerm(e5, r, s)
+		e4r, e4s := rtb.getCoreBasisTerm(E4, r, s)
+		e5r, e5s := rtb.getCoreBasisTerm(E5, r, s)
 		var (
 			e4Rderiv, e4Sderiv, e5Rderiv, e5Sderiv float64
 		)
 		if deriv != None {
-			e4Rderiv, e4Sderiv = rtb.getCoreBasisTerm(e4, r, s, deriv)
-			e5Rderiv, e5Sderiv = rtb.getCoreBasisTerm(e5, r, s, deriv)
+			e4Rderiv, e4Sderiv = rtb.getCoreBasisTerm(E4, r, s, deriv)
+			e5Rderiv, e5Sderiv = rtb.getCoreBasisTerm(E5, r, s, deriv)
 		}
 		Pint := rtb.P - 1
 		for i := 0; i <= Pint; i++ {
@@ -278,17 +278,17 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 	*/
 	switch rtb.P {
 	case 0:
-		p0[sk], p1[sk] = rtb.getCoreBasisTerm(e1, r, s, deriv)
+		p0[sk], p1[sk] = rtb.getCoreBasisTerm(E1, r, s, deriv)
 		sk++
-		p0[sk], p1[sk] = rtb.getCoreBasisTerm(e2, r, s, deriv)
+		p0[sk], p1[sk] = rtb.getCoreBasisTerm(E2, r, s, deriv)
 		sk++
-		p0[sk], p1[sk] = rtb.getCoreBasisTerm(e3, r, s, deriv)
+		p0[sk], p1[sk] = rtb.getCoreBasisTerm(E3, r, s, deriv)
 		sk++
 	case 1:
 		if deriv == None {
-			e1r, e1s := rtb.getCoreBasisTerm(e1, r, s)
-			e2r, e2s := rtb.getCoreBasisTerm(e2, r, s)
-			e3r, e3s := rtb.getCoreBasisTerm(e3, r, s)
+			e1r, e1s := rtb.getCoreBasisTerm(E1, r, s)
+			e2r, e2s := rtb.getCoreBasisTerm(E2, r, s)
+			e3r, e3s := rtb.getCoreBasisTerm(E3, r, s)
 			l1xi := rtb.Lagrange1DPoly(r, RGauss, 0, RDir)
 			l2xi := rtb.Lagrange1DPoly(r, RGauss, 1, RDir)
 			l1eta := rtb.Lagrange1DPoly(s, RGauss, 0, SDir)
@@ -325,9 +325,9 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 		}
 	case 2:
 		if deriv == None {
-			e1r, e1s := rtb.getCoreBasisTerm(e1, r, s)
-			e2r, e2s := rtb.getCoreBasisTerm(e2, r, s)
-			e3r, e3s := rtb.getCoreBasisTerm(e3, r, s)
+			e1r, e1s := rtb.getCoreBasisTerm(E1, r, s)
+			e2r, e2s := rtb.getCoreBasisTerm(E2, r, s)
+			e3r, e3s := rtb.getCoreBasisTerm(E3, r, s)
 			q1xi := rtb.Lagrange1DPoly(r, RGauss, 0, RDir)
 			q2xi := rtb.Lagrange1DPoly(r, RGauss, 1, RDir)
 			q3xi := rtb.Lagrange1DPoly(r, RGauss, 2, RDir)
@@ -377,9 +377,9 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 			sk++
 		}
 	default:
-		e1r, e1s := rtb.getCoreBasisTerm(e1, r, s)
-		e2r, e2s := rtb.getCoreBasisTerm(e2, r, s)
-		e3r, e3s := rtb.getCoreBasisTerm(e3, r, s)
+		e1r, e1s := rtb.getCoreBasisTerm(E1, r, s)
+		e2r, e2s := rtb.getCoreBasisTerm(E2, r, s)
+		e3r, e3s := rtb.getCoreBasisTerm(E3, r, s)
 		if deriv == None {
 			for j := 0; j < rtb.P+1; j++ {
 				leta := rtb.Lagrange1DPoly(s, RGauss, j, SDir)
@@ -397,9 +397,9 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 				sk++
 			}
 		} else {
-			e1Rderiv, e1Sderiv := rtb.getCoreBasisTerm(e1, r, s, deriv)
-			e2Rderiv, e2Sderiv := rtb.getCoreBasisTerm(e2, r, s, deriv)
-			e3Rderiv, e3Sderiv := rtb.getCoreBasisTerm(e3, r, s, deriv)
+			e1Rderiv, e1Sderiv := rtb.getCoreBasisTerm(E1, r, s, deriv)
+			e2Rderiv, e2Sderiv := rtb.getCoreBasisTerm(E2, r, s, deriv)
+			e3Rderiv, e3Sderiv := rtb.getCoreBasisTerm(E3, r, s, deriv)
 			for j := 0; j < rtb.P+1; j++ {
 				leta := rtb.Lagrange1DPoly(s, RGauss, j, SDir)
 				letaDeriv := rtb.Lagrange1DPoly(s, RGauss, j, SDir, deriv)
@@ -574,20 +574,10 @@ func (rtb *RTBasis2DSimplex) GetInternalLocations(F []float64) (Finternal []floa
 }
 
 /*
-	Set up the five core vector basis functions used for all order of terms
+Set up the five core vector basis functions used for all order of terms
 */
-
-type TermType uint8
-
-const (
-	e1 TermType = iota
-	e2
-	e3
-	e4
-	e5
-)
-
-func (rtb *RTBasis2DSimplex) getCoreBasisTerm(tt TermType, r, s float64, derivO ...DerivativeDirection) (p0, p1 float64) {
+func (rtb *RTBasis2DSimplex) getCoreBasisTerm(tt RTFunctionNumber, r, s float64,
+	derivO ...DerivativeDirection) (p0, p1 float64) {
 	var (
 		sr2   = math.Sqrt(2)
 		oosr2 = 1. / sr2
@@ -599,7 +589,7 @@ func (rtb *RTBasis2DSimplex) getCoreBasisTerm(tt TermType, r, s float64, derivO 
 		deriv = None
 	}
 	switch tt {
-	case e1:
+	case E1:
 		switch deriv {
 		case None:
 			// p0 = sr2 * xi
@@ -611,7 +601,7 @@ func (rtb *RTBasis2DSimplex) getCoreBasisTerm(tt TermType, r, s float64, derivO 
 		case Ds:
 			p1 = oosr2
 		}
-	case e2:
+	case E2:
 		switch deriv {
 		case None:
 			// p0 = xi - 1
@@ -623,7 +613,7 @@ func (rtb *RTBasis2DSimplex) getCoreBasisTerm(tt TermType, r, s float64, derivO 
 		case Ds:
 			p1 = 0.5
 		}
-	case e3:
+	case E3:
 		switch deriv {
 		case None:
 			// p0 = xi
@@ -635,7 +625,7 @@ func (rtb *RTBasis2DSimplex) getCoreBasisTerm(tt TermType, r, s float64, derivO 
 		case Ds:
 			p1 = 0.5
 		}
-	case e4:
+	case E4:
 		switch deriv {
 		case None:
 			// p0 = eta * xi
@@ -648,7 +638,7 @@ func (rtb *RTBasis2DSimplex) getCoreBasisTerm(tt TermType, r, s float64, derivO 
 			p0 = 0.25 * (r + 1)
 			p1 = 0.5 * s
 		}
-	case e5:
+	case E5:
 		switch deriv {
 		case None:
 			// p0 = xi * (xi - 1)

@@ -308,6 +308,8 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 		//           divE4 = d/dr(P(r,s)*E4_1) + d/ds(P(r,s)*E4_2)
 		// divE4 = (dP/dr)*(E4_1) + P*(dE4_1/dr) + (dP/ds)*(E4_2) + P*(dE4_2/ds)
 		//	   div_E4 = P*(dE4_1/dr+dE4_2/ds) + E4_1*(dP/dr) + E4_2*(dP/ds)
+		e4 := rt.baseBasisVectors(r, s, j)
+		_ = e4
 		//
 		// Edge Divergence and basis vectors
 		// the edge basis vector function [v] varies along the edge.
