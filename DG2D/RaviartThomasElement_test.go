@@ -19,19 +19,26 @@ import (
 )
 
 func TestRTElementConstruction2(t *testing.T) {
-	P := 1
+	P := 3
 	rt := NewRTElement(P)
 	// Build basis divergence conformance matrix
+	// Note we multiply the divergence of the basis by a test polynomial of
+	// degree P-1 for all locations. It doesn't matter which polynomial, it
+	// just has to be a 2D polynomial of degree P-1
+	testFunction := NewJacobiBasis2D(P-1, rt.RInt, rt.SInt, 0, 0)
 	DivBasis := utils.NewMatrix(rt.Np, rt.Np)
 	for i := 0; i < rt.Np; i++ {
 		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
 		for j := 0; j < rt.Np; j++ {
 			// fmt.Printf("NpInt, j = %d, %d\n", rt.NpInt, j)
+			tF := testFunction.GetPolynomialEvaluation(r, s)
 			_, div := rt.basisEvaluation(r, s, j)
-			DivBasis.Set(i, j, div)
+			DivBasis.Set(i, j, div*tF)
 		}
 	}
 	DivBasis.Print("Divergence Conformance Matrix")
+	InvDivBasis := DivBasis.InverseWithCheck()
+	InvDivBasis.Print("InverseOfDivBasis")
 }
 
 func TestRTElementConstruction(t *testing.T) {
