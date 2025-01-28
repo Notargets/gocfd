@@ -289,9 +289,10 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 	// we use the Alpha constants set to 1 initially to minimize code
 	// duplication.
 	//
-	switch rt.getFunctionNumber(j) {
-	case E4:
-		// Interior Basis functions
+	funcNum := rt.getFunctionNumber(j)
+	switch funcNum {
+	case E4, E5:
+		//		// Interior Basis functions
 		// The first NpInt index positions in the interior correspond to the E4
 		// Ervin basis vectors. The second NpInt index positions correspond to the
 		// E5 Ervin basis vectors.
@@ -304,12 +305,41 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 		//           [v]j = P(r,s)j * [E5]; {NpInt <= j < 2*NpInt}
 		//           [v] = [P(r,s)*E4_1, P(r,s)*E4_2]; {0     <= j < NpInt}
 		//           [v] = [P(r,s)*E5_1, P(r,s)*E5_2]; {NpInt <= j < 2*NpInt}
-		//       Div([v]) = [Div]⋅[v] = [d/dr,d/ds]⋅[v1,v2] = dv1/dr + dv2/ds
-		//           divE4 = d/dr(P(r,s)*E4_1) + d/ds(P(r,s)*E4_2)
-		// divE4 = (dP/dr)*(E4_1) + P*(dE4_1/dr) + (dP/ds)*(E4_2) + P*(dE4_2/ds)
-		//	   div_E4 = P*(dE4_1/dr+dE4_2/ds) + E4_1*(dP/dr) + E4_2*(dP/ds)
-		e4 := rt.baseBasisVectors(r, s, j)
-		_ = e4
+		e := rt.baseBasisVectors(r, s, j)
+		alpha := rt.Alpha.AtVec(j)
+		P := rt.basisPolynomialValue(r, s, j)
+		v = [2]float64{alpha * P * e[0], alpha * P * e[1]}
+		// Conversion from Ervin coordinates:
+		// 					xi  = (r + 1)/2
+		// 					eta = (s + 1)/2
+		// 					r = 2 * xi  - 1
+		// 					s = 2 * eta - 1
+		//     Div([v]) = [Div]⋅[v] = [d/dr,d/ds]⋅[v1,v2] = dv1/dr + dv2/ds
+		if funcNum == E4 {
+			// E4 Div:
+			//         div = d/dr(P(r,s)*E4_1) + d/ds(P(r,s)*E4_2)
+			// div = (dP/dr)*(E4_1) + P*(dE4_1/dr) + (dP/ds)*(E4_2) + P*(dE4_2/ds)
+			//	  div = P*(dE4_1/dr+dE4_2/ds) + E4_1*(dP/dr) + E4_2*(dP/ds)
+			// 			 [E4] = [eta * xi, eta * (eta - 1)]
+			//       = [(s+1)/2 * (r+1)/2   , (s+1)/2 * ((s+1)/2 -1)]
+			//       = [(1/4)*(s+1)*(r+1)   , (s+1)/2 * (s-1)/2
+			//       = [(1/4)*(s*r+r+s+1)   , (1/4) * (s+1) * (s-1)
+			//       = [(1/4)*(s*r +r+s +1) , (1/4) * (s*s - 1)
+			//   E4_1 = (1/4)*(s*r +r+s +1) , E4_2 = (1/4)*(s*s -1)
+			//          dE4_1/dr = (s+1)/4  , dE4_2/ds = s/2
+			//	  div = P*(dE4_1/dr+dE4_2/ds) + E4_1*(dP/dr) + E4_2*(dP/ds)
+			//    div = P*((s+1)/4 + s/2) + (dP/dr)*(1/4)*(s*r +r+s +1) +
+			//                              (dP/ds)*(1/4)*(s*s -1)
+			//    div = (1/4)*P*(3*s+1) + (1/4)*(dP/dr)*(s*r +r+s +1) +
+			//                             (1/4)*(dP/ds)*(s*s -1)
+			//    div = (1/4)*(P*(3*s+1) + (dP/dr)*(s*r +r+s +1) + (dP/ds)*(s*s-1))
+			dPdr := rt.basisPolynomialValue(r, s, j, Dr)
+			dPds := rt.basisPolynomialValue(r, s, j, Ds)
+			div = (1 / 4) * (P*(3*s+1) + dPdr*(s*r+r+s+1) + dPds*(s*s-1))
+			return
+		} else {
+
+		}
 		//
 		// Edge Divergence and basis vectors
 		// the edge basis vector function [v] varies along the edge.
@@ -319,12 +349,6 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 		//     [df(xi)/dr,df(xi)/ds] ⋅ [v]  +  f(xi) * ([div] ⋅ [v])
 		// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
 		// ************************************************************************
-		//
-		// Conversion from Ervin coordinates:
-		// xi  = 0.5 * (r + 1)
-		// eta = 0.5 * (s + 1)
-		// r = 2 * xi  - 1
-		// s = 2 * eta - 1
 		//
 		// Bottom Edge (1) divergence:
 		//          [v] = [xi, eta-1] Ervin Edge 3
