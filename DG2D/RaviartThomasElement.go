@@ -131,7 +131,7 @@ type RTElement struct {
 	Np            int // Number of points in element
 	NpEdge, NpInt int // Number of Edge and Interior points
 	// At every point, the sum of basis functions equals the flux vector
-	// Each basis function is multiplied by it's constant, Ci
+	// Each basis function is multiplied by its constant, Ci
 	// [A] is the matrix of basis functions, evaluated at each point (row)
 	// [A] relates the constants [C] to the flux vector [F]
 	// [A] x [C] = [F]
@@ -147,6 +147,8 @@ type RTElement struct {
 	Div        utils.Matrix // Divergence matrix, NpxNp for all, NintxNp Interior Points
 	R, S       utils.Vector // Point locations defining element in [-1,1] Triangle, NpxNp
 	RInt, SInt utils.Vector
+	// These Alpha are set by calculating divergence conformance for the basis
+	Alpha utils.Vector // Scaling coefficients that multiply basis vectors
 }
 
 func NewRTElement(P int) (rt *RTElement) {
@@ -169,6 +171,7 @@ func NewRTElement(P int) (rt *RTElement) {
 		Dr:     utils.NewMatrix(Np, Np),
 		Ds:     utils.NewMatrix(Np, Np),
 		Div:    utils.NewMatrix(Np, Np),
+		Alpha:  utils.NewVectorConstant(Np, 1), // Initially all 1
 	}
 	if P > 0 {
 		if P < 9 {
@@ -277,74 +280,89 @@ func (rt *RTElement) getFunctionNumber(j int) (funcNum RTFunctionNumber) {
 	return
 }
 
-func basisEvaluation(r, s float64, j int) (v [2]float64, div float64) {
+func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
+	div float64) {
 	// This routine produces the j-th basis vector and divergence at location
-	// [r,s]
+	// [r,s]. Note that the Alpha constants are set after using the basis to
+	// solve the divergence conformance equation,
+	// which sets the constants for each basis vector. For simplicity,
+	// we use the Alpha constants set to 1 initially to minimize code
+	// duplication.
 	//
-	// Edge Divergence
-	// the edge basis vector function [v] varies along the edge.
-	// It is the product of a 1D edge function f(xi) and [v], so we have:
-	// ************************************************************************
-	// div(edgeFunction) = div(f(xi)*[v]) =
-	//     [df(xi)/dr,df(xi)/ds] ⋅ [v]  +  f(xi) * ([div] ⋅ [v])
-	// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
-	// ************************************************************************
-	//
-	// Conversion from Ervin coordinates:
-	// xi  = 0.5 * (r + 1)
-	// eta = 0.5 * (s + 1)
-	// r = 2 * xi  - 1
-	// s = 2 * eta - 1
-	//
-	// Bottom Edge (1) divergence:
-	//          [v] = [xi, eta-1] Ervin Edge 3
-	//          [v] = [xi-1/2, eta-1] Ervin Edge 3 (fixed errata)
-	// 			[v] = [(r+1)/2-1/2, (s+1)/2-1]
-	// 			[v] = [r/2, (s+1)/2-1]
-	// 			[v] = [r/2, (s-1)/2] (fixed errata)
-	// v1 = r/2, v2 = (s-1)/2, dv1/dr = 1/2, dv2/ds = 1/2
-	// The bottom edge in a counter-clockwise direction is parameterized:
-	// xi = r, s = -1 (const) => dxi/dr = 1, dxi/ds = 0
-	// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
-	//     = df/dxi*(v1*(  1   )+v2*(   0  )) + f(xi) * (  1/2  +   1/2 )
-	//     = df/dxi*(          v1           ) + f(xi)
-	//        div(edge1) = f(xi) + v1 * (df/dxi)
-	//
-	// Hypotenuse (2) divergence:
-	//          [v] = [Sqrt2 * xi, Sqrt2 * eta] Ervin Edge 1
-	// 			[v] = [Sqrt2/2 * (r+1), Sqrt2/2 * (s+1)]
-	// v1 = Sqrt2/2 * (r+1), v2 = Sqrt2/2 * (s+1), dv1/dr = Sqrt2/2 = dv2/ds
-	// The hypotenuse in a counter-clockwise direction is parameterized:
-	// xi = -r = s, => dxi/dr = -1, dxi/ds = 1
-	// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
-	//     = df/dxi*(v1*(  -1  )+v2*(   1  )) + f(xi) * (Sqrt2/2+Sqrt2/2)
-	//     = df/dxi*(         v2-v1         ) + f(xi) * Sqrt2
-	//         div(edge2) = Sqrt2 * f(xi) + (v2-v1) * (df/dxi)
-	//
-	// Left Edge (3) divergence:
-	//          [v] = [xi-1, eta] Ervin Edge 2
-	//          [v] = [xi-1, eta-1/2] Ervin Edge 2 (fixed errata)
-	// 			[v] = [(r+1)/2 - 1, (s+1)/2-1/2]
-	// 			[v] = [(r-1)/2, s/2] (fixed errata)
-	// v1 = (r-1)/2, v2 = s/2, dv1/dr = 1/2, dv2/ds = 1/2
-	// The left edge  in a counter-clockwise direction is parameterized:
-	// r = -1 (constant), xi = -s => dxi/dr = 0, dxi/ds = -1,
-	// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
-	//     = df/dxi*(v1*(  0   )+v2*(  -1  )) + f(xi) * (  1/2  +   1/2 )
-	//     = df/dxi*(          v2           ) + f(xi)
-	//         div(edge3) = f(xi) + v2 * (df/dxi)
-	//
-	// Interior Basis functions
-	// The first NpInt index positions in the interior correspond to the e4
-	// Ervin basis vectors. The second NpInt index positions correspond to the
-	// e5 Ervin basis vectors.
-	// The RT1 and RT2 elements are treated differently from the RT3+
-	// elements in that they are not multiplied by the same 2D polynomial as
-	// RT3+. This is already factored into the support function
-	// basisPolynomialValue, so that the divergence can be calculated the same
-	// way for all basis functions using the chain rule:
-	//           [v]j = P(r,s)j * [e4]; {0   <= j < NpInt}
-	//           [v]j = P(r,s)j * [e5]; {NpInt <= j < 2*NpInt}
+	switch rt.getFunctionNumber(j) {
+	case E4:
+		// Interior Basis functions
+		// The first NpInt index positions in the interior correspond to the E4
+		// Ervin basis vectors. The second NpInt index positions correspond to the
+		// E5 Ervin basis vectors.
+		// The RT1 and RT2 elements are treated differently from the RT3+
+		// elements in that they are not multiplied by the same 2D polynomial as
+		// RT3+. This is already factored into the support function
+		// basisPolynomialValue, so that the divergence can be calculated the same
+		// way for all basis functions using the chain rule:
+		//           [v]j = P(r,s)j * [E4]; {0     <= j < NpInt}
+		//           [v]j = P(r,s)j * [E5]; {NpInt <= j < 2*NpInt}
+		//           [v] = [P(r,s)*E4_1, P(r,s)*E4_2]; {0     <= j < NpInt}
+		//           [v] = [P(r,s)*E5_1, P(r,s)*E5_2]; {NpInt <= j < 2*NpInt}
+		//       Div([v]) = [Div]⋅[v] = [d/dr,d/ds]⋅[v1,v2] = dv1/dr + dv2/ds
+		//           divE4 = d/dr(P(r,s)*E4_1) + d/ds(P(r,s)*E4_2)
+		// divE4 = (dP/dr)*(E4_1) + P*(dE4_1/dr) + (dP/ds)*(E4_2) + P*(dE4_2/ds)
+		//	   div_E4 = P*(dE4_1/dr+dE4_2/ds) + E4_1*(dP/dr) + E4_2*(dP/ds)
+		//
+		// Edge Divergence and basis vectors
+		// the edge basis vector function [v] varies along the edge.
+		// It is the product of a 1D edge function f(xi) and [v], so we have:
+		// ************************************************************************
+		// div(edgeFunction) = div(f(xi)*[v]) =
+		//     [df(xi)/dr,df(xi)/ds] ⋅ [v]  +  f(xi) * ([div] ⋅ [v])
+		// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
+		// ************************************************************************
+		//
+		// Conversion from Ervin coordinates:
+		// xi  = 0.5 * (r + 1)
+		// eta = 0.5 * (s + 1)
+		// r = 2 * xi  - 1
+		// s = 2 * eta - 1
+		//
+		// Bottom Edge (1) divergence:
+		//          [v] = [xi, eta-1] Ervin Edge 3
+		//          [v] = [xi-1/2, eta-1] Ervin Edge 3 (fixed errata)
+		// 			[v] = [(r+1)/2-1/2, (s+1)/2-1]
+		// 			[v] = [r/2, (s+1)/2-1]
+		// 			[v] = [r/2, (s-1)/2] (fixed errata)
+		// v1 = r/2, v2 = (s-1)/2, dv1/dr = 1/2, dv2/ds = 1/2
+		// The bottom edge in a counter-clockwise direction is parameterized:
+		// xi = r, s = -1 (const) => dxi/dr = 1, dxi/ds = 0
+		// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
+		//     = df/dxi*(v1*(  1   )+v2*(   0  )) + f(xi) * (  1/2  +   1/2 )
+		//     = df/dxi*(          v1           ) + f(xi)
+		//        div(edge1) = f(xi) + v1 * (df/dxi)
+		//
+		// Hypotenuse (2) divergence:
+		//          [v] = [Sqrt2 * xi, Sqrt2 * eta] Ervin Edge 1
+		// 			[v] = [Sqrt2/2 * (r+1), Sqrt2/2 * (s+1)]
+		// v1 = Sqrt2/2 * (r+1), v2 = Sqrt2/2 * (s+1), dv1/dr = Sqrt2/2 = dv2/ds
+		// The hypotenuse in a counter-clockwise direction is parameterized:
+		// xi = -r = s, => dxi/dr = -1, dxi/ds = 1
+		// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
+		//     = df/dxi*(v1*(  -1  )+v2*(   1  )) + f(xi) * (Sqrt2/2+Sqrt2/2)
+		//     = df/dxi*(         v2-v1         ) + f(xi) * Sqrt2
+		//         div(edge2) = Sqrt2 * f(xi) + (v2-v1) * (df/dxi)
+		//
+		// Left Edge (3) divergence:
+		//          [v] = [xi-1, eta] Ervin Edge 2
+		//          [v] = [xi-1, eta-1/2] Ervin Edge 2 (fixed errata)
+		// 			[v] = [(r+1)/2 - 1, (s+1)/2-1/2]
+		// 			[v] = [(r-1)/2, s/2] (fixed errata)
+		// v1 = (r-1)/2, v2 = s/2, dv1/dr = 1/2, dv2/ds = 1/2
+		// The left edge  in a counter-clockwise direction is parameterized:
+		// r = -1 (constant), xi = -s => dxi/dr = 0, dxi/ds = -1,
+		// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
+		//     = df/dxi*(v1*(  0   )+v2*(  -1  )) + f(xi) * (  1/2  +   1/2 )
+		//     = df/dxi*(          v2           ) + f(xi)
+		//         div(edge3) = f(xi) + v2 * (df/dxi)
+		//
+	}
 	return
 }
 
