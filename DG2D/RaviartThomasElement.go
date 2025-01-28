@@ -315,6 +315,8 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 		// 					r = 2 * xi  - 1
 		// 					s = 2 * eta - 1
 		//     Div([v]) = [Div]⋅[v] = [d/dr,d/ds]⋅[v1,v2] = dv1/dr + dv2/ds
+		dPdr := rt.basisPolynomialValue(r, s, j, Dr)
+		dPds := rt.basisPolynomialValue(r, s, j, Ds)
 		if funcNum == E4 {
 			// E4 Div:
 			//         div = d/dr(P(r,s)*E4_1) + d/ds(P(r,s)*E4_2)
@@ -333,12 +335,28 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 			//    div = (1/4)*P*(3*s+1) + (1/4)*(dP/dr)*(s*r +r+s +1) +
 			//                             (1/4)*(dP/ds)*(s*s -1)
 			//    div = (1/4)*(P*(3*s+1) + (dP/dr)*(s*r +r+s +1) + (dP/ds)*(s*s-1))
-			dPdr := rt.basisPolynomialValue(r, s, j, Dr)
-			dPds := rt.basisPolynomialValue(r, s, j, Ds)
-			div = (1 / 4) * (P*(3*s+1) + dPdr*(s*r+r+s+1) + dPds*(s*s-1))
+			div = alpha * (1 / 4) * (P*(3*s+1) + dPdr*(s*r+r+s+1) + dPds*(s*s-1))
 			return
 		} else {
-
+			// E5 Div:
+			//         div = d/dr(P(r,s)*E5_1) + d/ds(P(r,s)*E5_2)
+			// div = (dP/dr)*(E5_1) + P*(dE5_1/dr) + (dP/ds)*(E5_2) + P*(dE5_2/ds)
+			//	  div = P*(dE5_1/dr+dE5_2/ds) + E5_1*(dP/dr) + E5_2*(dP/ds)
+			// 			 [E5] = [xi * (xi - 1), eta * xi)]
+			//                (1/4)*(r*r -1)  , (s+1)/2 * (r+1)/2]
+			//                                , (1/4)*(s+1)*(r+1)]
+			//                                , (1/4)*(s*r+r+s+1)]
+			//                                , (1/4)*(s*r +r+s +1)]
+			//          E5_1 = (1/4)*(r*r -1) , E5_2 = (1/4)*(s*r +r+s +1)]
+			//                 dE5_1/dr = r/2 , dE5_2/ds = (r+1)/4
+			//	  div = P*(dE5_1/dr+dE5_2/ds) + E5_1*(dP/dr) + E5_2*(dP/ds)
+			//    div = P*((r+1)/4 + r/2) + (dP/dr)*(1/4)*(r*r -1) +
+			//                              (dP/ds)*(1/4)*(s*r +r+s +1)
+			//    div = (1/4)*P*(3*r+1) + (1/4)*(dP/dr)*(r*r -1) +
+			//                             (1/4)*(dP/ds)*(s*r +r+s +1)
+			// div = (1/4)*(P*(3*r+1) + (dP/dr)*(r*r-1)) + (dP/ds)*(s*r +r+s +1)
+			div = alpha * (1 / 4) * (P*(3*r+1) + dPdr*(r*r-1) + dPds*(s*r+r+s+1))
+			return
 		}
 		//
 		// Edge Divergence and basis vectors
