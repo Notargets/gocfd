@@ -80,101 +80,101 @@ func TestRTElement_CalculateBasis(t *testing.T) {
 			sr2 := math.Sqrt(2)
 			// e1
 			r, s = -1., -1.
-			p0, p1 = rtb.getCoreBasisTerm(e1, r, s)
+			p0, p1 = rtb.getCoreBasisTerm(E1, r, s)
 			assert.InDeltaf(t, 0, p0, 0.000001, "")
 			assert.InDeltaf(t, 0, p1, 0.000001, "")
 			r, s = 1., 1.
-			p0, p1 = rtb.getCoreBasisTerm(e1, r, s)
+			p0, p1 = rtb.getCoreBasisTerm(E1, r, s)
 			assert.InDeltaf(t, sr2, p0, 0.000001, "")
 			assert.InDeltaf(t, sr2, p1, 0.000001, "")
 			r, s = 0., 0.
-			p0, p1 = rtb.getCoreBasisTerm(e1, r, s)
+			p0, p1 = rtb.getCoreBasisTerm(E1, r, s)
 			assert.InDeltaf(t, 0.5*sr2, p0, 0.000001, "")
 			assert.InDeltaf(t, 0.5*sr2, p1, 0.000001, "")
 
 			// e2
 			r, s = -1., -1.
-			p0, p1 = rtb.getCoreBasisTerm(e2, r, s)
+			p0, p1 = rtb.getCoreBasisTerm(E2, r, s)
 			assert.InDeltaf(t, -1, p0, 0.000001, "")
 			assert.InDeltaf(t, 0, p1, 0.000001, "")
 			r, s = 1., 1.
-			p0, p1 = rtb.getCoreBasisTerm(e2, r, s)
+			p0, p1 = rtb.getCoreBasisTerm(E2, r, s)
 			assert.InDeltaf(t, 0, p0, 0.000001, "")
 			assert.InDeltaf(t, 1, p1, 0.000001, "")
 			r, s = 0., 0.
-			p0, p1 = rtb.getCoreBasisTerm(e2, r, s)
+			p0, p1 = rtb.getCoreBasisTerm(E2, r, s)
 			assert.InDeltaf(t, -.5, p0, 0.000001, "")
 			assert.InDeltaf(t, .5, p1, 0.000001, "")
 
 			r, s = -1., -1.
-			p0, p1 = rtb.getCoreBasisTerm(e3, r, s)
+			p0, p1 = rtb.getCoreBasisTerm(E3, r, s)
 			assert.InDeltaf(t, 0, p0, 0.000001, "")
 			assert.InDeltaf(t, -1, p1, 0.000001, "")
 			r, s = 1., 1.
-			p0, p1 = rtb.getCoreBasisTerm(e3, r, s)
+			p0, p1 = rtb.getCoreBasisTerm(E3, r, s)
 			assert.InDeltaf(t, 1, p0, 0.000001, "")
 			assert.InDeltaf(t, 0, p1, 0.000001, "")
 			r, s = 0., 0.
-			p0, p1 = rtb.getCoreBasisTerm(e3, r, s)
+			p0, p1 = rtb.getCoreBasisTerm(E3, r, s)
 			assert.InDeltaf(t, .5, p0, 0.000001, "")
 			assert.InDeltaf(t, -.5, p1, 0.000001, "")
 
 			r, s = -1., -1.
-			p0, p1 = rtb.getCoreBasisTerm(e4, r, s)
+			p0, p1 = rtb.getCoreBasisTerm(E4, r, s)
 			assert.InDeltaf(t, 0, p0, 0.000001, "")
 			assert.InDeltaf(t, 0, p1, 0.000001, "")
 			r, s = 1., 1.
-			p0, p1 = rtb.getCoreBasisTerm(e4, r, s)
+			p0, p1 = rtb.getCoreBasisTerm(E4, r, s)
 			assert.InDeltaf(t, 1, p0, 0.000001, "")
 			assert.InDeltaf(t, 0, p1, 0.000001, "")
 			r, s = 0., 0.
-			p0, p1 = rtb.getCoreBasisTerm(e4, r, s)
+			p0, p1 = rtb.getCoreBasisTerm(E4, r, s)
 			assert.InDeltaf(t, .25, p0, 0.000001, "")
 			assert.InDeltaf(t, -.25, p1, 0.000001, "")
 
 			r, s = -1., -1.
-			p0, p1 = rtb.getCoreBasisTerm(e5, r, s)
+			p0, p1 = rtb.getCoreBasisTerm(E5, r, s)
 			assert.InDeltaf(t, 0, p0, 0.000001, "")
 			assert.InDeltaf(t, 0, p1, 0.000001, "")
 			r, s = 1., 1.
-			p0, p1 = rtb.getCoreBasisTerm(e5, r, s)
+			p0, p1 = rtb.getCoreBasisTerm(E5, r, s)
 			assert.InDeltaf(t, 0, p0, 0.000001, "")
 			assert.InDeltaf(t, 1, p1, 0.000001, "")
 			r, s = 0., 0.
-			p0, p1 = rtb.getCoreBasisTerm(e5, r, s)
+			p0, p1 = rtb.getCoreBasisTerm(E5, r, s)
 			assert.InDeltaf(t, -.25, p0, 0.000001, "")
 			assert.InDeltaf(t, .25, p1, 0.000001, "")
 
 			r, s = -1, -1
-			p0, p1 = rtb.getCoreBasisTerm(e1, r, s, Dr)
+			p0, p1 = rtb.getCoreBasisTerm(E1, r, s, Dr)
 			assert.InDeltaf(t, 0.5*sr2, p0, 0.000001, "")
 			assert.InDeltaf(t, 0, p1, 0.000001, "")
-			p0, p1 = rtb.getCoreBasisTerm(e2, r, s, Dr)
+			p0, p1 = rtb.getCoreBasisTerm(E2, r, s, Dr)
 			assert.InDeltaf(t, 0.5, p0, 0.000001, "")
 			assert.InDeltaf(t, 0, p1, 0.000001, "")
-			p0, p1 = rtb.getCoreBasisTerm(e3, r, s, Dr)
+			p0, p1 = rtb.getCoreBasisTerm(E3, r, s, Dr)
 			assert.InDeltaf(t, 0.5, p0, 0.000001, "")
 			assert.InDeltaf(t, 0, p1, 0.000001, "")
-			p0, p1 = rtb.getCoreBasisTerm(e4, r, s, Dr)
+			p0, p1 = rtb.getCoreBasisTerm(E4, r, s, Dr)
 			assert.InDeltaf(t, 0, p0, 0.000001, "")
 			assert.InDeltaf(t, 0, p1, 0.000001, "")
-			p0, p1 = rtb.getCoreBasisTerm(e5, r, s, Dr)
+			p0, p1 = rtb.getCoreBasisTerm(E5, r, s, Dr)
 			assert.InDeltaf(t, -.5, p0, 0.000001, "")
 			assert.InDeltaf(t, 0, p1, 0.000001, "")
 
-			p0, p1 = rtb.getCoreBasisTerm(e1, r, s, Ds)
+			p0, p1 = rtb.getCoreBasisTerm(E1, r, s, Ds)
 			assert.InDeltaf(t, 0, p0, 0.000001, "")
 			assert.InDeltaf(t, 0.5*sr2, p1, 0.000001, "")
-			p0, p1 = rtb.getCoreBasisTerm(e2, r, s, Ds)
+			p0, p1 = rtb.getCoreBasisTerm(E2, r, s, Ds)
 			assert.InDeltaf(t, 0, p0, 0.000001, "")
 			assert.InDeltaf(t, 0.5, p1, 0.000001, "")
-			p0, p1 = rtb.getCoreBasisTerm(e3, r, s, Ds)
+			p0, p1 = rtb.getCoreBasisTerm(E3, r, s, Ds)
 			assert.InDeltaf(t, 0, p0, 0.000001, "")
 			assert.InDeltaf(t, 0.5, p1, 0.000001, "")
-			p0, p1 = rtb.getCoreBasisTerm(e4, r, s, Ds)
+			p0, p1 = rtb.getCoreBasisTerm(E4, r, s, Ds)
 			assert.InDeltaf(t, 0, p0, 0.000001, "")
 			assert.InDeltaf(t, -0.5, p1, 0.000001, "")
-			p0, p1 = rtb.getCoreBasisTerm(e5, r, s, Ds)
+			p0, p1 = rtb.getCoreBasisTerm(E5, r, s, Ds)
 			assert.InDeltaf(t, 0, p0, 0.000001, "")
 			assert.InDeltaf(t, 0, p1, 0.000001, "")
 		}

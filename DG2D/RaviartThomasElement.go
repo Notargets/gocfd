@@ -288,7 +288,13 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 	// which sets the constants for each basis vector. For simplicity,
 	// we use the Alpha constants set to 1 initially to minimize code
 	// duplication.
-	//
+	alpha := rt.Alpha.AtVec(j)
+	e := rt.baseBasisVectors(r, s, j)
+	P := rt.basisPolynomialValue(r, s, j)
+	v = [2]float64{alpha * P * e[0], alpha * P * e[1]}
+	dPdr := rt.basisPolynomialValue(r, s, j, Dr)
+	dPds := rt.basisPolynomialValue(r, s, j, Ds)
+	dPdXi := dPdr // for edge functions, either of the derivatives will do
 	funcNum := rt.getFunctionNumber(j)
 	switch funcNum {
 	case E4, E5:
@@ -305,18 +311,12 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 		//           [v]j = P(r,s)j * [E5]; {NpInt <= j < 2*NpInt}
 		//           [v] = [P(r,s)*E4_1, P(r,s)*E4_2]; {0     <= j < NpInt}
 		//           [v] = [P(r,s)*E5_1, P(r,s)*E5_2]; {NpInt <= j < 2*NpInt}
-		e := rt.baseBasisVectors(r, s, j)
-		alpha := rt.Alpha.AtVec(j)
-		P := rt.basisPolynomialValue(r, s, j)
-		v = [2]float64{alpha * P * e[0], alpha * P * e[1]}
 		// Conversion from Ervin coordinates:
 		// 					xi  = (r + 1)/2
 		// 					eta = (s + 1)/2
 		// 					r = 2 * xi  - 1
 		// 					s = 2 * eta - 1
 		//     Div([v]) = [Div]⋅[v] = [d/dr,d/ds]⋅[v1,v2] = dv1/dr + dv2/ds
-		dPdr := rt.basisPolynomialValue(r, s, j, Dr)
-		dPds := rt.basisPolynomialValue(r, s, j, Ds)
 		if funcNum == E4 {
 			// E4 Div:
 			//         div = d/dr(P(r,s)*E4_1) + d/ds(P(r,s)*E4_2)
@@ -358,30 +358,33 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 			div = alpha * (1 / 4) * (P*(3*r+1) + dPdr*(r*r-1) + dPds*(s*r+r+s+1))
 			return
 		}
-		//
-		// Edge Divergence and basis vectors
-		// the edge basis vector function [v] varies along the edge.
-		// It is the product of a 1D edge function f(xi) and [v], so we have:
-		// ************************************************************************
-		// div(edgeFunction) = div(f(xi)*[v]) =
-		//     [df(xi)/dr,df(xi)/ds] ⋅ [v]  +  f(xi) * ([div] ⋅ [v])
-		// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
-		// ************************************************************************
-		//
-		// Bottom Edge (1) divergence:
-		//          [v] = [xi, eta-1] Ervin Edge 3
-		//          [v] = [xi-1/2, eta-1] Ervin Edge 3 (fixed errata)
-		// 			[v] = [(r+1)/2-1/2, (s+1)/2-1]
-		// 			[v] = [r/2, (s+1)/2-1]
-		// 			[v] = [r/2, (s-1)/2] (fixed errata)
-		// v1 = r/2, v2 = (s-1)/2, dv1/dr = 1/2, dv2/ds = 1/2
+	//
+	// Edge Divergence and basis vectors
+	// the edge basis vector function [v] varies along the edge.
+	// It is the product of a 1D edge function f(xi) and [v], so we have:
+	// ************************************************************************
+	// div(edgeFunction) = div(f(xi)*[v]) =
+	//     [df(xi)/dr,df(xi)/ds] ⋅ [v]  +  f(xi) * ([div] ⋅ [v])
+	// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
+	// ************************************************************************
+	//
+	case E1:
+		// Bottom Edge (1):
+		//          [E1] = [xi, eta-1] Ervin Edge 3
+		//          [E1] = [xi-1/2, eta-1] Ervin Edge 3 (fixed errata)
+		// 			[E1] = [(r+1)/2-1/2, (s+1)/2-1]
+		// 			[E1] = [r/2, (s+1)/2-1]
+		// 			[E1] = [r/2, (s-1)/2] (fixed errata)
+		// E1_1 = r/2, E1_2 = (s-1)/2, dE1_1/dr = 1/2, dE1_2/ds = 1/2
 		// The bottom edge in a counter-clockwise direction is parameterized:
 		// xi = r, s = -1 (const) => dxi/dr = 1, dxi/ds = 0
-		// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
-		//     = df/dxi*(v1*(  1   )+v2*(   0  )) + f(xi) * (  1/2  +   1/2 )
-		//     = df/dxi*(          v1           ) + f(xi)
+		// div = df/dxi*(E1_1*(dxi/dr)+E1_2*(dxi/ds)) + f(xi)*(dv1/dr + dv2/ds)
+		//     = df/dxi*(E1_1*(  1   )+E1_2*(   0  )) + f(xi)*( 1/2  +   1/2 )
+		//     = df/dxi*(         E1_1          ) + f(xi)
 		//        div(edge1) = f(xi) + v1 * (df/dxi)
-		//
+		div = alpha * (P + e[0]*dPdXi)
+		return
+	case E2:
 		// Hypotenuse (2) divergence:
 		//          [v] = [Sqrt2 * xi, Sqrt2 * eta] Ervin Edge 1
 		// 			[v] = [Sqrt2/2 * (r+1), Sqrt2/2 * (s+1)]
@@ -392,7 +395,9 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 		//     = df/dxi*(v1*(  -1  )+v2*(   1  )) + f(xi) * (Sqrt2/2+Sqrt2/2)
 		//     = df/dxi*(         v2-v1         ) + f(xi) * Sqrt2
 		//         div(edge2) = Sqrt2 * f(xi) + (v2-v1) * (df/dxi)
-		//
+		div = alpha * (math.Sqrt(2)*P + (e[1]-e[0])*dPdXi)
+		return
+	case E3:
 		// Left Edge (3) divergence:
 		//          [v] = [xi-1, eta] Ervin Edge 2
 		//          [v] = [xi-1, eta-1/2] Ervin Edge 2 (fixed errata)
@@ -405,7 +410,8 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 		//     = df/dxi*(v1*(  0   )+v2*(  -1  )) + f(xi) * (  1/2  +   1/2 )
 		//     = df/dxi*(          v2           ) + f(xi)
 		//         div(edge3) = f(xi) + v2 * (df/dxi)
-		//
+		div = alpha * (P + e[1]*dPdXi)
+		return
 	}
 	return
 }
@@ -433,7 +439,7 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 		Xi      []float64
 		xi      float64
 		jj      int
-		deriv   = 0
+		deriv   = None
 		jb2d    *JacobiBasis2D
 		eps     = 0.000001
 	)
@@ -479,9 +485,13 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 		// Parameterized edge coordinate Xi
 		Xi = rt.getEdgeXiParameter(funcNum).DataP
 		if len(derivO) > 0 {
-			deriv = 1
+			if derivO[0] != None {
+				deriv = 1
+			} else {
+				deriv = 0
+			}
 		}
-		val = DG1D.Lagrange1DPoly(xi, Xi, jj, deriv)
+		val = DG1D.Lagrange1DPoly(xi, Xi, jj, int(deriv))
 	case E4, E5:
 		// We represent the interior polynomial for the special cases of the
 		// RT1 and RT2 elements. For RT3 and above, we use a Jacobi2D
