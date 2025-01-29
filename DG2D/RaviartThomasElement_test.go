@@ -19,35 +19,29 @@ import (
 )
 
 func TestRTElementConstruction2(t *testing.T) {
+	// Check the edge lagrange polynomials
+	for P := 1; P < 7; P++ {
+		rt := NewRTElement(P)
+		offset := 2 * rt.NpInt
+		for j := offset; j < 4*rt.NpEdge; j++ {
+			for i := offset; i < 4*rt.NpEdge; i++ {
+				r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+				var checkVal float64
+				if i == j {
+					checkVal = 1.
+				} else {
+					checkVal = 0.
+				}
+				val := rt.basisPolynomialValue(r, s, j)
+				assert.InDeltaf(t, val, checkVal, 0.00001, "")
+			}
+		}
+	}
+}
+
+func TestRTElementConstruction3(t *testing.T) {
 	P := 1
 	rt := NewRTElement(P)
-	// Check the edge lagrange polynomials
-	// Edge 1
-	i := 2 * rt.NpInt
-	r, s := rt.R.AtVec(i), rt.S.AtVec(i)
-	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i), 1, 0.00001, "")
-	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i+1), 0, 0.00001, "")
-	i += 1
-	r, s = rt.R.AtVec(i), rt.S.AtVec(i)
-	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i), 1, 0.00001, "")
-	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i-1), 0, 0.00001, "")
-	i += rt.NpEdge - 1
-	r, s = rt.R.AtVec(i), rt.S.AtVec(i)
-	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i), 1, 0.00001, "")
-	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i+1), 0, 0.00001, "")
-	i += 1
-	r, s = rt.R.AtVec(i), rt.S.AtVec(i)
-	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i), 1, 0.00001, "")
-	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i-1), 0, 0.00001, "")
-	i += rt.NpEdge - 1
-	r, s = rt.R.AtVec(i), rt.S.AtVec(i)
-	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i), 1, 0.00001, "")
-	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i+1), 0, 0.00001, "")
-	i += 1
-	r, s = rt.R.AtVec(i), rt.S.AtVec(i)
-	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i), 1, 0.00001, "")
-	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i-1), 0, 0.00001, "")
-
 	BasisVector := [2]utils.Matrix{utils.NewMatrix(rt.Np, 1),
 		utils.NewMatrix(rt.Np, 1)}
 	BasisMatrix := [2]utils.Matrix{utils.NewMatrix(rt.Np, rt.Np),
@@ -77,6 +71,9 @@ func TestRTElementConstruction2(t *testing.T) {
 	BasisMatrix[1].Print("BM1")
 	BasisDot := BasisMatrix[0].Add(BasisMatrix[1])
 	BasisDot.Print("BasisDot")
+	BasisDotInverse, err := BasisDot.Inverse()
+	assert.NoError(t, err)
+	BasisDotInverse.Print("BasisDotInverse")
 
 	// Build basis divergence conformance matrix
 	// Note we multiply the divergence of the basis by a test polynomial of
