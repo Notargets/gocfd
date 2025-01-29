@@ -19,26 +19,79 @@ import (
 )
 
 func TestRTElementConstruction2(t *testing.T) {
-	P := 3
+	P := 1
 	rt := NewRTElement(P)
+	// Check the edge lagrange polynomials
+	// Edge 1
+	i := 2 * rt.NpInt
+	r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i), 1, 0.00001, "")
+	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i+1), 0, 0.00001, "")
+	i += 1
+	r, s = rt.R.AtVec(i), rt.S.AtVec(i)
+	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i), 1, 0.00001, "")
+	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i-1), 0, 0.00001, "")
+	i += rt.NpEdge - 1
+	r, s = rt.R.AtVec(i), rt.S.AtVec(i)
+	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i), 1, 0.00001, "")
+	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i+1), 0, 0.00001, "")
+	i += 1
+	r, s = rt.R.AtVec(i), rt.S.AtVec(i)
+	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i), 1, 0.00001, "")
+	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i-1), 0, 0.00001, "")
+	i += rt.NpEdge - 1
+	r, s = rt.R.AtVec(i), rt.S.AtVec(i)
+	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i), 1, 0.00001, "")
+	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i+1), 0, 0.00001, "")
+	i += 1
+	r, s = rt.R.AtVec(i), rt.S.AtVec(i)
+	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i), 1, 0.00001, "")
+	assert.InDeltaf(t, rt.basisPolynomialValue(r, s, i-1), 0, 0.00001, "")
+
+	BasisVector := [2]utils.Matrix{utils.NewMatrix(rt.Np, 1),
+		utils.NewMatrix(rt.Np, 1)}
+	BasisMatrix := [2]utils.Matrix{utils.NewMatrix(rt.Np, rt.Np),
+		utils.NewMatrix(rt.Np, rt.Np)}
+	var v [2]float64
+	fmt.Printf("RT%d Element Basis\n", P)
+	fmt.Printf("Np:%d; NpInt:%d; NpEdge:%d\n", rt.Np, rt.NpInt, rt.NpEdge)
+	for j := 0; j < rt.Np; j++ {
+		r, s := rt.R.AtVec(j), rt.S.AtVec(j)
+		v, _ = rt.basisEvaluation(r, s, j)
+		// fmt.Printf("v[%f,%f] = [%f,%f]\n", r, s, v[0], v[1])
+		BasisVector[0].Set(j, 0, v[0])
+		BasisVector[1].Set(j, 0, v[1])
+	}
+	// BasisVector[0].Print("BV0")
+	// BasisVector[1].Print("BV1")
+	for i := 0; i < rt.Np; i++ {
+		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+		for j := 0; j < rt.Np; j++ {
+			v = [2]float64{BasisVector[0].At(j, 0), BasisVector[1].At(j, 0)}
+			v2, _ := rt.basisEvaluation(r, s, j)
+			BasisMatrix[0].Set(i, j, v2[0]*v[0])
+			BasisMatrix[1].Set(i, j, v2[1]*v[1])
+		}
+	}
+	BasisMatrix[0].Print("BM0")
+	BasisMatrix[1].Print("BM1")
+	BasisDot := BasisMatrix[0].Add(BasisMatrix[1])
+	BasisDot.Print("BasisDot")
+
 	// Build basis divergence conformance matrix
 	// Note we multiply the divergence of the basis by a test polynomial of
 	// degree P-1 for all locations. It doesn't matter which polynomial, it
 	// just has to be a 2D polynomial of degree P-1
-	testFunction := NewJacobiBasis2D(P-1, rt.RInt, rt.SInt, 0, 0)
 	DivBasis := utils.NewMatrix(rt.Np, rt.Np)
 	for i := 0; i < rt.Np; i++ {
 		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
 		for j := 0; j < rt.Np; j++ {
 			// fmt.Printf("NpInt, j = %d, %d\n", rt.NpInt, j)
-			tF := testFunction.GetPolynomialEvaluation(r, s)
 			_, div := rt.basisEvaluation(r, s, j)
-			DivBasis.Set(i, j, div*tF)
+			DivBasis.Set(i, j, div)
 		}
 	}
-	DivBasis.Print("Divergence Conformance Matrix")
-	InvDivBasis := DivBasis.InverseWithCheck()
-	InvDivBasis.Print("InverseOfDivBasis")
+	DivBasis.Print("Basis Divergence Matrix")
 }
 
 func TestRTElementConstruction(t *testing.T) {

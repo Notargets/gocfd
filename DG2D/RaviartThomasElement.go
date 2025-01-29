@@ -126,6 +126,25 @@ const (
 	E3                   // Left Edge, Normal is [-1,0], Ervin E2
 )
 
+func (fn RTFunctionNumber) String() string {
+	switch fn {
+	case All:
+		return "All"
+	case E4:
+		return "E4"
+	case E5:
+		return "E5"
+	case E1:
+		return "E1"
+	case E2:
+		return "E2"
+	case E3:
+		return "E3"
+	default:
+		return "Unknown"
+	}
+}
+
 type RTElement struct {
 	P             int // Order of element
 	Np            int // Number of points in element
@@ -147,8 +166,6 @@ type RTElement struct {
 	Div        utils.Matrix // Divergence matrix, NpxNp for all, NintxNp Interior Points
 	R, S       utils.Vector // Point locations defining element in [-1,1] Triangle, NpxNp
 	RInt, SInt utils.Vector
-	// These Alpha are set by calculating divergence conformance for the basis
-	Alpha utils.Vector // Scaling coefficients that multiply basis vectors
 }
 
 func NewRTElement(P int) (rt *RTElement) {
@@ -171,7 +188,6 @@ func NewRTElement(P int) (rt *RTElement) {
 		Dr:     utils.NewMatrix(Np, Np),
 		Ds:     utils.NewMatrix(Np, Np),
 		Div:    utils.NewMatrix(Np, Np),
-		Alpha:  utils.NewVectorConstant(Np, 1), // Initially all 1
 	}
 	if P > 0 {
 		if P < 9 {
@@ -288,10 +304,10 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 	// which sets the constants for each basis vector. For simplicity,
 	// we use the Alpha constants set to 1 initially to minimize code
 	// duplication.
-	alpha := rt.Alpha.AtVec(j)
 	e := rt.baseBasisVectors(r, s, j)
 	P := rt.basisPolynomialValue(r, s, j)
-	v = [2]float64{alpha * P * e[0], alpha * P * e[1]}
+	// fmt.Printf("[%f,%f]%d P=%f, e=[%f,%f]\n", r, s, j, P, e[0], e[1])
+	v = [2]float64{P * e[0], P * e[1]}
 	dPdr := rt.basisPolynomialValue(r, s, j, Dr)
 	dPds := rt.basisPolynomialValue(r, s, j, Ds)
 	dPdXi := dPdr // for edge functions, either of the derivatives will do
@@ -335,7 +351,7 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 			//    div = (1/4)*P*(3*s+1) + (1/4)*(dP/dr)*(s*r +r+s +1) +
 			//                             (1/4)*(dP/ds)*(s*s -1)
 			//    div = (1/4)*(P*(3*s+1) + (dP/dr)*(s*r +r+s +1) + (dP/ds)*(s*s-1))
-			div = alpha * (1. / 4.) * (P*(3*s+1) + dPdr*(s*r+r+s+1) + dPds*(s*s-1))
+			div = (1. / 4.) * (P*(3*s+1) + dPdr*(s*r+r+s+1) + dPds*(s*s-1))
 			return
 		} else {
 			// E5 Div:
@@ -355,7 +371,7 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 			//    div = (1/4)*P*(3*r+1) + (1/4)*(dP/dr)*(r*r -1) +
 			//                             (1/4)*(dP/ds)*(s*r +r+s +1)
 			// div = (1/4)*(P*(3*r+1) + (dP/dr)*(r*r-1)) + (dP/ds)*(s*r +r+s +1)
-			div = alpha * (1. / 4.) * (P*(3*r+1) + dPdr*(r*r-1) + dPds*(s*r+r+s+1))
+			div = (1. / 4.) * (P*(3*r+1) + dPdr*(r*r-1) + dPds*(s*r+r+s+1))
 			return
 		}
 	//
@@ -382,7 +398,7 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 		//     = df/dxi*(E1_1*(  1   )+E1_2*(   0  )) + f(xi)*( 1/2  +   1/2 )
 		//     = df/dxi*(         E1_1          ) + f(xi)
 		//        div(edge1) = f(xi) + v1 * (df/dxi)
-		div = alpha * (P + e[0]*dPdXi)
+		div = P + e[0]*dPdXi
 		return
 	case E2:
 		// Hypotenuse (2) divergence:
@@ -395,7 +411,7 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 		//     = df/dxi*(v1*(  -1  )+v2*(   1  )) + f(xi) * (Sqrt2/2+Sqrt2/2)
 		//     = df/dxi*(         v2-v1         ) + f(xi) * Sqrt2
 		//         div(edge2) = Sqrt2 * f(xi) + (v2-v1) * (df/dxi)
-		div = alpha * (math.Sqrt(2)*P + (e[1]-e[0])*dPdXi)
+		div = math.Sqrt(2)*P + (e[1]-e[0])*dPdXi
 		return
 	case E3:
 		// Left Edge (3) divergence:
@@ -410,7 +426,7 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 		//     = df/dxi*(v1*(  0   )+v2*(  -1  )) + f(xi) * (  1/2  +   1/2 )
 		//     = df/dxi*(          v2           ) + f(xi)
 		//         div(edge3) = f(xi) + v2 * (df/dxi)
-		div = alpha * (P + e[1]*dPdXi)
+		div = P + e[1]*dPdXi
 		return
 	}
 	return
@@ -457,7 +473,7 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 			val = 0 // Not on the edge, return 0
 			return
 		}
-		xi = -r
+		xi = r
 		jj = j - 2*rt.NpInt
 	case E2:
 		// Edge 2 - Hypotenuse
@@ -465,7 +481,7 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 			val = 0 // Not on the edge, return 0
 			return
 		}
-		xi = -r
+		xi = s
 		jj = j - 2*rt.NpInt - rt.NpEdge
 	case E3:
 		// Edge 3 - Left Edge
@@ -492,6 +508,8 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 			}
 		}
 		val = DG1D.Lagrange1DPoly(xi, Xi, jj, int(deriv))
+		// fmt.Printf("Edge[%s], Val[%f]jj=%d =%f, Deriv = %v\n",
+		// 	funcNum.String(), xi, jj, val, deriv)
 	case E4, E5:
 		// We represent the interior polynomial for the special cases of the
 		// RT1 and RT2 elements. For RT3 and above, we use a Jacobi2D
@@ -577,9 +595,10 @@ func (rt *RTElement) getEdgeXiParameter(funcNum RTFunctionNumber) (Xi utils.Vect
 	case E1:
 		Xi = rt.R.Subset(2*rt.NpInt, 2*rt.NpInt+rt.NpEdge-1)
 	case E2:
-		Xi = rt.R.Subset(2*rt.NpInt+rt.NpEdge, 2*rt.NpInt+2*rt.NpEdge-1)
+		Xi = rt.S.Subset(2*rt.NpInt+rt.NpEdge, 2*rt.NpInt+2*rt.NpEdge-1)
 	case E3:
 		Xi = rt.S.Subset(2*rt.NpInt+2*rt.NpEdge, 2*rt.NpInt+3*rt.NpEdge-1)
+		Xi.Scale(-1)
 	default:
 		panic("invalid edgeNum")
 	}
