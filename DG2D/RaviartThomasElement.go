@@ -163,9 +163,10 @@ type RTElement struct {
 	// Commutation gives a useful matrix we can use to calculate Flux Divergence
 	// [Div] == ([Dr] + [Ds]) x [AInv]
 	// Div[F] = [Div] x [F]
-	Div        utils.Matrix // Divergence matrix, NpxNp for all, NintxNp Interior Points
-	R, S       utils.Vector // Point locations defining element in [-1,1] Triangle, NpxNp
-	RInt, SInt utils.Vector
+	Div         utils.Matrix // Divergence matrix, NpxNp for all, NintxNp Interior Points
+	R, S        utils.Vector // Point locations defining element in [-1,1] Triangle, NpxNp
+	RInt, SInt  utils.Vector
+	BasisVector [2]utils.Matrix
 }
 
 func NewRTElement(P int) (rt *RTElement) {
@@ -188,7 +189,10 @@ func NewRTElement(P int) (rt *RTElement) {
 		Dr:     utils.NewMatrix(Np, Np),
 		Ds:     utils.NewMatrix(Np, Np),
 		Div:    utils.NewMatrix(Np, Np),
+		BasisVector: [2]utils.Matrix{utils.NewMatrix(Np, 1),
+			utils.NewMatrix(Np, 1)},
 	}
+
 	if P > 0 {
 		if P < 9 {
 			rt.RInt, rt.SInt = NodesEpsilon(P - 1)
@@ -655,8 +659,47 @@ func (rt *RTElement) ExtendGeomToRT(Rint, Sint utils.Vector) (R, S utils.Vector)
 }
 
 func (rt *RTElement) CalculateBasis() {
-	// Invert [P] = [A] to obtain the coefficients (columns) of polynomials (rows), each row is a polynomial
-	// rt.A = P.InverseWithCheck()
+	var (
+		v [2]float64
+	)
+	// fmt.Printf("RT%d Element Basis\n", P)
+	// fmt.Printf("Np:%d; NpInt:%d; NpEdge:%d\n", rt.Np, rt.NpInt, rt.NpEdge)
+	for j := 0; j < rt.Np; j++ {
+		r, s := rt.R.AtVec(j), rt.S.AtVec(j)
+		v, _ = rt.basisEvaluation(r, s, j)
+		rt.BasisVector[0].Set(j, 0, v[0])
+		rt.BasisVector[1].Set(j, 0, v[1])
+	}
+
+	BasisMatrix := [2]utils.Matrix{utils.NewMatrix(rt.Np, rt.Np),
+		utils.NewMatrix(rt.Np, rt.Np)}
+	for i := 0; i < rt.Np; i++ {
+		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+		v := [2]float64{rt.BasisVector[0].At(i, 0), rt.BasisVector[1].At(i, 0)}
+		// fmt.Printf("Base[%d] = [%f,%f]\n", i, v[0], v[1])
+		for j := 0; j < rt.Np; j++ {
+			v2, _ := rt.basisEvaluation(r, s, j)
+			// fmt.Printf("Psi[%d,%d] = [%f,%f]\n", i, j, v2[0], v2[1])
+			BasisMatrix[0].Set(i, j, v[0]*v2[0])
+			BasisMatrix[1].Set(i, j, v[1]*v2[1])
+		}
+	}
+	BasisDot := BasisMatrix[0].Add(BasisMatrix[1])
+	BasisDotInverse := BasisDot.InverseWithCheck()
+	// BasisDotInverse.Print("BasisDotInverse")
+
+	// Build basis divergence matrix
+	DivBasis := utils.NewMatrix(rt.Np, rt.Np)
+	for i := 0; i < rt.Np; i++ {
+		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+		for j := 0; j < rt.Np; j++ {
+			// fmt.Printf("NpInt, j = %d, %d\n", rt.NpInt, j)
+			_, div := rt.basisEvaluation(r, s, j)
+			DivBasis.Set(i, j, div)
+		}
+	}
+	// DivBasis.Print("Basis Divergence Matrix")
+	rt.Div = DivBasis.Mul(BasisDotInverse)
 	return
 }
 

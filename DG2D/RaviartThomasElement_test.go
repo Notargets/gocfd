@@ -24,8 +24,6 @@ func TestRTElementVerifyErvinRT1(t *testing.T) {
 	rt := NewRTElement(P)
 	BasisVector := [2]utils.Matrix{utils.NewMatrix(rt.Np, 1),
 		utils.NewMatrix(rt.Np, 1)}
-	// BasisMatrix := [2]utils.Matrix{utils.NewMatrix(rt.Np, rt.Np),
-	// 	utils.NewMatrix(rt.Np, rt.Np)}
 	var v [2]float64
 	fmt.Printf("RT%d Element Basis\n", P)
 	fmt.Printf("Np:%d; NpInt:%d; NpEdge:%d\n", rt.Np, rt.NpInt, rt.NpEdge)
@@ -199,53 +197,31 @@ func TestRTElementLagrangePolynomials(t *testing.T) {
 func TestRTElementConstruction1(t *testing.T) {
 	P := 1
 	rt := NewRTElement(P)
-	BasisVector := [2]utils.Matrix{utils.NewMatrix(rt.Np, 1),
-		utils.NewMatrix(rt.Np, 1)}
+	j1_1 := rt.BasisVector[0].At(0, 0)
+	j1_2 := rt.BasisVector[1].At(0, 0)
+	j2_1 := rt.BasisVector[0].At(1, 0)
+	j2_2 := rt.BasisVector[1].At(1, 0)
+	// Both basis 1 and 2 are at the same location in RT1, the single interior
+	// point, so we don't need to change the location
+	dot1 := j1_1*j1_1 + j1_2*j1_2                 // Basis1 dotted with itself
+	dot2 := j1_1*j2_1 + j1_2*j2_2                 // Basis1 dotted with Basis2
+	assert.False(t, math.Abs(dot1-dot2) < 0.0001) // Should not be equal
 	BasisMatrix := [2]utils.Matrix{utils.NewMatrix(rt.Np, rt.Np),
 		utils.NewMatrix(rt.Np, rt.Np)}
-	var v [2]float64
-	fmt.Printf("RT%d Element Basis\n", P)
-	fmt.Printf("Np:%d; NpInt:%d; NpEdge:%d\n", rt.Np, rt.NpInt, rt.NpEdge)
-	for j := 0; j < rt.Np; j++ {
-		r, s := rt.R.AtVec(j), rt.S.AtVec(j)
-		v, _ = rt.basisEvaluation(r, s, j)
-		// fmt.Printf("v[%f,%f] = [%f,%f]\n", r, s, v[0], v[1])
-		BasisVector[0].Set(j, 0, v[0])
-		BasisVector[1].Set(j, 0, v[1])
-	}
-	// BasisVector[0].Print("BV0")
-	// BasisVector[1].Print("BV1")
 	for i := 0; i < rt.Np; i++ {
 		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+		v := [2]float64{rt.BasisVector[0].At(i, 0), rt.BasisVector[1].At(i, 0)}
+		// fmt.Printf("Base[%d] = [%f,%f]\n", i, v[0], v[1])
 		for j := 0; j < rt.Np; j++ {
-			v = [2]float64{BasisVector[0].At(j, 0), BasisVector[1].At(j, 0)}
 			v2, _ := rt.basisEvaluation(r, s, j)
-			BasisMatrix[0].Set(i, j, v2[0]*v[0])
-			BasisMatrix[1].Set(i, j, v2[1]*v[1])
+			// fmt.Printf("Psi[%d,%d] = [%f,%f]\n", i, j, v2[0], v2[1])
+			BasisMatrix[0].Set(i, j, v[0]*v2[0])
+			BasisMatrix[1].Set(i, j, v[1]*v2[1])
 		}
 	}
-	BasisMatrix[0].Print("BM0")
-	BasisMatrix[1].Print("BM1")
 	BasisDot := BasisMatrix[0].Add(BasisMatrix[1])
-	BasisDot.Print("BasisDot")
-	BasisDotInverse, err := BasisDot.Inverse()
-	assert.NoError(t, err)
-	BasisDotInverse.Print("BasisDotInverse")
-
-	// Build basis divergence conformance matrix
-	// Note we multiply the divergence of the basis by a test polynomial of
-	// degree P-1 for all locations. It doesn't matter which polynomial, it
-	// just has to be a 2D polynomial of degree P-1
-	DivBasis := utils.NewMatrix(rt.Np, rt.Np)
-	for i := 0; i < rt.Np; i++ {
-		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
-		for j := 0; j < rt.Np; j++ {
-			// fmt.Printf("NpInt, j = %d, %d\n", rt.NpInt, j)
-			_, div := rt.basisEvaluation(r, s, j)
-			DivBasis.Set(i, j, div)
-		}
-	}
-	DivBasis.Print("Basis Divergence Matrix")
+	assert.InDeltaf(t, BasisDot.At(0, 0), dot1, 0.0001, "")
+	assert.InDeltaf(t, BasisDot.At(0, 1), dot2, 0.0001, "")
 }
 
 func TestRTElementConstruction(t *testing.T) {
