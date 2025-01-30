@@ -18,6 +18,7 @@ type RTBasis2DSimplex struct {
 	// construction
 	V           [2]utils.Matrix
 	Div, DivInt utils.Matrix
+	BasisMatrix utils.Matrix
 }
 
 /*
@@ -475,6 +476,7 @@ func (rtb *RTBasis2DSimplex) CalculateBasis() {
 			P.M.SetRow(ii, rowEdge)
 		}
 	}
+	rtb.BasisMatrix = P
 	// Invert [P] = [A] to obtain the coefficients (columns) of polynomials (rows), each row is a polynomial
 	A := P.InverseWithCheck()
 	// Evaluate 2D polynomial basis at geometric locations, also evaluate derivatives Dr and Ds for Rd and Sd
