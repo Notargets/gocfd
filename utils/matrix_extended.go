@@ -881,7 +881,7 @@ func (m Matrix) Inverse2(iPiv []int, RO ...Matrix) (R Matrix, err error) {
 		err = errSingular
 		return
 	}
-	//work := make([]float64, nr*nc)
+	// work := make([]float64, nr*nc)
 	work := WORK.DataP
 	if ok := lapack64.Getri(R.RawMatrix(), iPiv, work, nr*nc); !ok {
 		err = errSingular
@@ -925,7 +925,7 @@ func (m Matrix) Inverse(RO ...Matrix) (R Matrix, err error) {
 		err = errSingular
 		return
 	}
-	//work := make([]float64, nr*nc)
+	// work := make([]float64, nr*nc)
 	work := WORK.DataP
 	if ok := lapack64.Getri(R.RawMatrix(), iPiv, work, nr*nc); !ok {
 		err = errSingular
@@ -1080,7 +1080,7 @@ func (m Matrix) Find(op EvalOp, val float64, abs bool) (I Index) {
 func (m Matrix) SubsetVector(I Index) (V Vector) {
 	var (
 		Mr = m.RawMatrix()
-		//nr, nc = m.Dims()
+		// nr, nc = m.Dims()
 		data = make([]float64, len(I))
 	)
 	for i, ind := range I {
@@ -1195,7 +1195,7 @@ func IndexedAssign(mI interface{}, I Index, ValI interface{}) (err error) { // C
 			data[I[i]] = val
 		}
 	case DOK:
-		//_, nc := m.Dims()
+		// _, nc := m.Dims()
 		nr, _ := m.Dims()
 		for ii, val := range temp {
 			// DOK is stored column major, while the composed Index for the range is row-major, so we convert it
@@ -1228,9 +1228,11 @@ func (m *Matrix) InverseWithCheck() (R Matrix) {
 	for _, val := range InvCheck.DataP {
 		sum += val
 	}
-	if math.Abs(sum-float64(nr)) > 0.000001 {
-		err = fmt.Errorf("Inversion of Vandermonde matrix failed with sum [%5.3f], expected [%5.3f]",
-			sum, float64(nr))
+	tolCheck := math.Abs(sum - float64(nr))
+	if tolCheck > 0.000001 {
+		err = fmt.Errorf("Inversion of Vandermonde matrix failed with sum"+
+			" [%5.3f], expected [%5.3f], tolerance check [%5.3e]",
+			sum, float64(nr), tolCheck)
 		panic(msg + err.Error())
 	}
 	return

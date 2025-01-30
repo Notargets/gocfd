@@ -575,10 +575,28 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 				}
 			}
 		case rt.P >= 3: // RT Element Polynomial Order is RT3 or greater
-			// Calculate alpha based on the value of j within NpInt, scaled to run
-			// Beta from -0.5 to 0.5.
+			// Calculate Alpha and Beta based on the value of j within NpInt
 			alpha := 0.
-			beta := float64(jj)/(float64(NpInt)-1.) - 0.5
+			beta := 0.
+			// alpha := 2*float64(j) + 1.
+			// alpha = float64(j)/(2*float64(NpInt)-1.) - 1.00
+
+			// alpha = -1.5*float64(j)/(2*float64(NpInt)-1.) + 0.75
+			// beta = 1.5*float64(j)/(2*float64(NpInt)-1.) - 0.75
+
+			delta := .90
+			alpha = -2*delta*float64(j)/(2*float64(NpInt)-1.) + delta
+			beta = 2*delta*float64(j)/(2*float64(NpInt)-1.) - delta
+
+			// alpha = -1.8*float64(j)/(2*float64(NpInt)-1.) + 0.9
+			// beta = 1.8*float64(j)/(2*float64(NpInt)-1.) - 0.9
+
+			// fmt.Printf("Beta[%d] = %f\n", j, beta)
+			// beta := 2*float64(j) + 1.
+			// beta := float64(j)/(float64(2*NpInt)-1.) - 0.5
+			// alpha := 2.*float64(j) + 1.
+			// beta := 2.*float64(j) + 1.
+			// beta := 0.
 			jb2d = NewJacobiBasis2D(rt.P-1, rt.RInt, rt.SInt, alpha, beta)
 			val = jb2d.GetPolynomialEvaluation(r, s, derivO...)
 		default:
@@ -712,6 +730,10 @@ func (rt *RTElement) ComputeBasisDotInverse() (BasisDotInverse utils.Matrix) {
 			BasisMatrix[1].Set(i, j, v[1]*v2[1])
 		}
 	}
+	rt.RInt.Print("RInt")
+	rt.SInt.Print("SInt")
+	BasisMatrix[0].Print("Basis Matrix 0")
+	BasisMatrix[1].Print("Basis Matrix 1")
 	BasisDot := BasisMatrix[0].Add(BasisMatrix[1])
 	BasisDotInverse = BasisDot.InverseWithCheck()
 	// BasisDotInverse, err := BasisDot.Inverse()

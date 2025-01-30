@@ -81,37 +81,44 @@ func (jb2d *JacobiBasis2D) GradSimplex2DP(R, S utils.Vector, id, jd int) (ddr, d
 		A, B   = RStoAB(R, S)
 		ad, bd = A.DataP, B.DataP
 	)
+
+	// Compute Jacobi polynomials and their derivatives
 	fa := DG1D.JacobiP(A, jb2d.Alpha, jb2d.Beta, id)
-	dfa := DG1D.GradJacobiP(A, 0, jb2d.Beta, id)
+	dfa := DG1D.GradJacobiP(A, jb2d.Alpha, jb2d.Beta, id) // Correct α use here
 	gb := DG1D.JacobiP(B, 2*float64(id)+1, jb2d.Beta, jd)
 	dgb := DG1D.GradJacobiP(B, 2*float64(id)+1, jb2d.Beta, jd)
-	// r-derivative
-	// d/dr = da/dr d/da + db/dr d/db = (2/(1-s)) d/da = (2/(1-B)) d/da
+
+	// Compute r-derivative: (2 / (1 - B)) d/da
 	ddr = make([]float64, len(gb))
 	for i := range ddr {
-		ddr[i] = dfa[i] * gb[i]
+		ddr[i] = (2 / (1 - bd[i])) * dfa[i] * gb[i] // Include transformation factor
 		if id > 0 {
 			ddr[i] *= utils.POW(0.5*(1-bd[i]), id-1)
 		}
 		// Normalize
 		ddr[i] *= math.Pow(2, float64(id)+0.5)
 	}
-	// s-derivative
-	// d/ds = ((1+A)/2)/((1-B)/2) d/da + d/db
+
+	// Compute s-derivative: ((1 + A) / (1 - B)) d/da + d/db
 	dds = make([]float64, len(gb))
 	for i := range dds {
-		dds[i] = 0.5 * dfa[i] * gb[i] * (1 + ad[i])
+		// First term: ((1+A)/2)/((1-B)/2) * d/da
+		dds[i] = ((1 + ad[i]) / (1 - bd[i])) * 0.5 * dfa[i] * gb[i]
 		if id > 0 {
 			dds[i] *= utils.POW(0.5*(1-bd[i]), id-1)
 		}
+
+		// Second term: d/db with explicit α adjustment
 		tmp := dgb[i] * utils.POW(0.5*(1-bd[i]), id)
 		if id > 0 {
 			tmp -= 0.5 * float64(id) * gb[i] * utils.POW(0.5*(1-bd[i]), id-1)
 		}
 		dds[i] += fa[i] * tmp
+
 		// Normalize
 		dds[i] *= math.Pow(2, float64(id)+0.5)
 	}
+
 	return
 }
 
