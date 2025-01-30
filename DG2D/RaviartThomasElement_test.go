@@ -31,20 +31,13 @@ func TestRTElementVerifyErvinRT1(t *testing.T) {
 	fmt.Printf("Np:%d; NpInt:%d; NpEdge:%d\n", rt.Np, rt.NpInt, rt.NpEdge)
 	for j := 0; j < rt.Np; j++ {
 		r, s := rt.R.AtVec(j), rt.S.AtVec(j)
-		// if j >= 2*rt.NpInt {
-		// 	xi, _ := rt.getEdgeXiParameter(r, s, rt.getFunctionNumber(j))
-		// 	fmt.Printf("xi[%d] = %f\n", j, xi)
-		// }
 		v, _ = rt.basisEvaluation(r, s, j)
-		// fmt.Printf("v[%f,%f] = [%f,%f]\n", r, s, v[0], v[1])
 		BasisVector[0].Set(j, 0, v[0])
 		BasisVector[1].Set(j, 0, v[1])
 	}
-	// BasisVector[0].Print("BV0")
-	// BasisVector[1].Print("BV1")
-	// xi = (r+1)/2, eta = (s+1)/2
-	// r = 2*xi -1, s = 2*eta -1
 	convFrom := func(x float64) (c float64) {
+		// xi = (r+1)/2, eta = (s+1)/2
+		// r = 2*xi -1, s = 2*eta -1
 		c = 2*x - 1
 		return
 	}
@@ -94,10 +87,8 @@ func TestRTElementVerifyErvinRT1(t *testing.T) {
 		switch j {
 		case 0:
 			l = l1(eta)
-			// fmt.Printf("eta = %f, l1e2p1 = %f\n", eta, l)
 		case 1:
 			l = l2(eta)
-			// fmt.Printf("eta = %f, l2e2p2 = %f\n", eta, l)
 		}
 		v = [2]float64{l * e[0], l * e[1]}
 		return
@@ -111,10 +102,8 @@ func TestRTElementVerifyErvinRT1(t *testing.T) {
 		switch j {
 		case 0:
 			l = l2(eta)
-			// fmt.Printf("eta = %f, l2e3p1 = %f\n", eta, l)
 		case 1:
 			l = l1(eta)
-			// fmt.Printf("eta = %f, l1e3p2 = %f\n", eta, l)
 		}
 		v = [2]float64{l * e[0], l * e[1]}
 		return
@@ -128,17 +117,15 @@ func TestRTElementVerifyErvinRT1(t *testing.T) {
 		switch j {
 		case 0:
 			l = l1(xi)
-			// fmt.Printf("xi = %f, l1e1p1 = %f\n", xi, l)
 		case 1:
 			l = l2(xi)
-			// fmt.Printf("xi = %f, l2e1p2 = %f\n", xi, l)
 		}
 		v = [2]float64{l * e[0], l * e[1]}
 		return
 	}
-	// xi = (r+1)/2, eta = (s+1)/2
-	// r = 2*xi -1, s = 2*eta -1
 	convTo := func(r float64) (x float64) {
+		// xi = (r+1)/2, eta = (s+1)/2
+		// r = 2*xi -1, s = 2*eta -1
 		x = (r + 1.) / 2.
 		return
 	}
@@ -189,7 +176,7 @@ func TestRTElementVerifyErvinRT1(t *testing.T) {
 	}
 }
 
-func TestRTElementConstruction3(t *testing.T) {
+func TestRTElementLagrangePolynomials(t *testing.T) {
 	// Check the edge lagrange polynomials
 	for P := 1; P < 7; P++ {
 		rt := NewRTElement(P)
@@ -208,6 +195,8 @@ func TestRTElementConstruction3(t *testing.T) {
 			}
 		}
 	}
+}
+func TestRTElementConstruction1(t *testing.T) {
 	P := 1
 	rt := NewRTElement(P)
 	BasisVector := [2]utils.Matrix{utils.NewMatrix(rt.Np, 1),
