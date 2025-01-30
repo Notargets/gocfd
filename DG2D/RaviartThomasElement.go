@@ -254,10 +254,12 @@ func (rt *RTElement) baseBasisVectors(r, s float64, j int) (ef [2]float64) {
 	)
 	switch rt.getFunctionNumber(j) {
 	case E1:
+		// ef = [2]float64{xi, eta - 1}
 		ef = [2]float64{xi - 0.5, eta - 1}
 	case E2:
 		ef = [2]float64{sr2 * xi, sr2 * eta}
 	case E3:
+		// ef = [2]float64{xi - 1, eta}
 		ef = [2]float64{xi - 1, eta - 0.5}
 	case E4:
 		ef = [2]float64{eta * xi, eta * (eta - 1)}
@@ -473,7 +475,6 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 			val = 0 // Not on the edge, return 0
 			return
 		}
-		xi = r
 		jj = j - 2*rt.NpInt
 	case E2:
 		// Edge 2 - Hypotenuse
@@ -481,7 +482,6 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 			val = 0 // Not on the edge, return 0
 			return
 		}
-		xi = s
 		jj = j - 2*rt.NpInt - rt.NpEdge
 	case E3:
 		// Edge 3 - Left Edge
@@ -490,7 +490,6 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 			val = 0 // Not on the edge, return 0
 			return
 		}
-		xi = -s
 		jj = j - 2*rt.NpInt - 2*rt.NpEdge
 	default:
 		panic("j polynomial index out of range")
@@ -499,7 +498,7 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 	switch funcNum {
 	case E1, E2, E3:
 		// Parameterized edge coordinate Xi
-		Xi = rt.getEdgeXiParameter(funcNum).DataP
+		xi, Xi = rt.getEdgeXiParameter(r, s, funcNum)
 		if len(derivO) > 0 {
 			if derivO[0] != None {
 				deriv = 1
@@ -587,18 +586,21 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 	return
 }
 
-func (rt *RTElement) getEdgeXiParameter(funcNum RTFunctionNumber) (Xi utils.Vector) {
+func (rt *RTElement) getEdgeXiParameter(r, s float64,
+	funcNum RTFunctionNumber) (xi float64, Xi []float64) {
 	// Edge 1 is S=-1 (bottom of tri)
 	// Edge 2 is Hypotenuse
 	// Edge 3 is R=-1 (left side of tri)
 	switch funcNum {
 	case E1:
-		Xi = rt.R.Subset(2*rt.NpInt, 2*rt.NpInt+rt.NpEdge-1)
+		xi = r
+		Xi = rt.R.Subset(2*rt.NpInt, 2*rt.NpInt+rt.NpEdge-1).DataP
 	case E2:
-		Xi = rt.S.Subset(2*rt.NpInt+rt.NpEdge, 2*rt.NpInt+2*rt.NpEdge-1)
+		xi = s
+		Xi = rt.S.Subset(2*rt.NpInt+rt.NpEdge, 2*rt.NpInt+2*rt.NpEdge-1).DataP
 	case E3:
-		Xi = rt.S.Subset(2*rt.NpInt+2*rt.NpEdge, 2*rt.NpInt+3*rt.NpEdge-1)
-		Xi.Scale(-1)
+		xi = -s
+		Xi = rt.S.Subset(2*rt.NpInt+2*rt.NpEdge, 2*rt.NpInt+3*rt.NpEdge-1).Scale(-1).DataP
 	default:
 		panic("invalid edgeNum")
 	}

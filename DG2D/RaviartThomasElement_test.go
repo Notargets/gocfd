@@ -18,7 +18,178 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRTElementConstruction2(t *testing.T) {
+func TestRTElementVerifyErvinRT1(t *testing.T) {
+	// Check the basis vectors for RT1 against Ervin's RT1 construction
+	P := 1
+	rt := NewRTElement(P)
+	BasisVector := [2]utils.Matrix{utils.NewMatrix(rt.Np, 1),
+		utils.NewMatrix(rt.Np, 1)}
+	// BasisMatrix := [2]utils.Matrix{utils.NewMatrix(rt.Np, rt.Np),
+	// 	utils.NewMatrix(rt.Np, rt.Np)}
+	var v [2]float64
+	fmt.Printf("RT%d Element Basis\n", P)
+	fmt.Printf("Np:%d; NpInt:%d; NpEdge:%d\n", rt.Np, rt.NpInt, rt.NpEdge)
+	for j := 0; j < rt.Np; j++ {
+		r, s := rt.R.AtVec(j), rt.S.AtVec(j)
+		// if j >= 2*rt.NpInt {
+		// 	xi, _ := rt.getEdgeXiParameter(r, s, rt.getFunctionNumber(j))
+		// 	fmt.Printf("xi[%d] = %f\n", j, xi)
+		// }
+		v, _ = rt.basisEvaluation(r, s, j)
+		// fmt.Printf("v[%f,%f] = [%f,%f]\n", r, s, v[0], v[1])
+		BasisVector[0].Set(j, 0, v[0])
+		BasisVector[1].Set(j, 0, v[1])
+	}
+	// BasisVector[0].Print("BV0")
+	// BasisVector[1].Print("BV1")
+	// xi = (r+1)/2, eta = (s+1)/2
+	// r = 2*xi -1, s = 2*eta -1
+	convFrom := func(x float64) (c float64) {
+		c = 2*x - 1
+		return
+	}
+	g1, g2 := 0.5-math.Sqrt(3)/6, 0.5+math.Sqrt(3)/6
+	_, Xi := rt.getEdgeXiParameter(0, 0, rt.getFunctionNumber(2*rt.NpInt))
+	assert.InDeltaf(t, convFrom(g1), Xi[0], 0.00001, "")
+	assert.InDeltaf(t, convFrom(g2), Xi[1], 0.00001, "")
+	l1 := func(t float64) (ll float64) {
+		ll = (t - g2) / (g1 - g2)
+		return
+	}
+	l2 := func(t float64) (ll float64) {
+		ll = (t - g1) / (g2 - g1)
+		return
+	}
+	e1 := func(xi, eta float64) (v [2]float64) {
+		var (
+			s2 = math.Sqrt(2)
+		)
+		v = [2]float64{s2 * xi, s2 * eta}
+		return
+	}
+	e2 := func(xi, eta float64) (v [2]float64) {
+		v = [2]float64{xi - 1, eta - 0.5}
+		// v = [2]float64{xi - 1, eta}
+		return
+	}
+	e3 := func(xi, eta float64) (v [2]float64) {
+		v = [2]float64{xi - 0.5, eta - 1}
+		// v = [2]float64{xi, eta - 1}
+		return
+	}
+	e4 := func(xi, eta float64) (v [2]float64) {
+		v = [2]float64{eta * xi, eta * (eta - 1)}
+		return
+	}
+	e5 := func(xi, eta float64) (v [2]float64) {
+		v = [2]float64{xi * (xi - 1), xi * eta}
+		return
+	}
+	edge1Basis := func(xi, eta float64, j int) (v [2]float64) {
+		// Hypotenuse
+		var (
+			l float64
+		)
+		e := e1(xi, eta)
+		switch j {
+		case 0:
+			l = l1(eta)
+			// fmt.Printf("eta = %f, l1e2p1 = %f\n", eta, l)
+		case 1:
+			l = l2(eta)
+			// fmt.Printf("eta = %f, l2e2p2 = %f\n", eta, l)
+		}
+		v = [2]float64{l * e[0], l * e[1]}
+		return
+	}
+	edge2Basis := func(xi, eta float64, j int) (v [2]float64) {
+		// Left Edge
+		var (
+			l float64
+		)
+		e := e2(xi, eta)
+		switch j {
+		case 0:
+			l = l2(eta)
+			// fmt.Printf("eta = %f, l2e3p1 = %f\n", eta, l)
+		case 1:
+			l = l1(eta)
+			// fmt.Printf("eta = %f, l1e3p2 = %f\n", eta, l)
+		}
+		v = [2]float64{l * e[0], l * e[1]}
+		return
+	}
+	edge3Basis := func(xi, eta float64, j int) (v [2]float64) {
+		// Bottom Edge
+		var (
+			l float64
+		)
+		e := e3(xi, eta)
+		switch j {
+		case 0:
+			l = l1(xi)
+			// fmt.Printf("xi = %f, l1e1p1 = %f\n", xi, l)
+		case 1:
+			l = l2(xi)
+			// fmt.Printf("xi = %f, l2e1p2 = %f\n", xi, l)
+		}
+		v = [2]float64{l * e[0], l * e[1]}
+		return
+	}
+	// xi = (r+1)/2, eta = (s+1)/2
+	// r = 2*xi -1, s = 2*eta -1
+	convTo := func(r float64) (x float64) {
+		x = (r + 1.) / 2.
+		return
+	}
+	i := 0
+	r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+	v1 := e4(convTo(r), convTo(s))
+	i = 1
+	r, s = rt.R.AtVec(i), rt.S.AtVec(i)
+	v2 := e5(convTo(r), convTo(s))
+	i = 2
+	r, s = rt.R.AtVec(i), rt.S.AtVec(i)
+	v3 := edge3Basis(convTo(r), convTo(s), 0)
+	i = 3
+	r, s = rt.R.AtVec(i), rt.S.AtVec(i)
+	v4 := edge3Basis(convTo(r), convTo(s), 1)
+	i = 4
+	r, s = rt.R.AtVec(i), rt.S.AtVec(i)
+	v5 := edge1Basis(convTo(r), convTo(s), 0)
+	i = 5
+	r, s = rt.R.AtVec(i), rt.S.AtVec(i)
+	v6 := edge1Basis(convTo(r), convTo(s), 1)
+	i = 6
+	r, s = rt.R.AtVec(i), rt.S.AtVec(i)
+	v7 := edge2Basis(convTo(r), convTo(s), 0)
+	i = 7
+	r, s = rt.R.AtVec(i), rt.S.AtVec(i)
+	v8 := edge2Basis(convTo(r), convTo(s), 1)
+
+	i = 0
+	BV0E := utils.NewVector(8, []float64{
+		v1[i], v2[i], v3[i], v4[i], v5[i], v6[i], v7[i], v8[i],
+	})
+	i = 1
+	BV1E := utils.NewVector(8, []float64{
+		v1[i], v2[i], v3[i], v4[i], v5[i], v6[i], v7[i], v8[i],
+	})
+	// BV0E.Print("BV0E")
+	// BV1E.Print("BV1E")
+	for i := 0; i < 8; i++ {
+		r, s = rt.R.AtVec(i), rt.S.AtVec(i)
+		fmt.Printf("%d;[r,s]=[%5.2f,%5.2f] "+
+			"[xi,eta]=[%5.2f,%5.2f] h:[%5.2f,%5.2f] Ervin:[%5.2f,%5.2f]\n",
+			i+1, r, s, convTo(r), convTo(s),
+			BasisVector[0].At(i, 0), BasisVector[1].At(i, 0),
+			BV0E.AtVec(i), BV1E.AtVec(i))
+		assert.InDeltaf(t, BasisVector[0].At(i, 0), BV0E.AtVec(i), 0.0001, "")
+		assert.InDeltaf(t, BasisVector[1].At(i, 0), BV1E.AtVec(i), 0.0001, "")
+	}
+}
+
+func TestRTElementConstruction3(t *testing.T) {
 	// Check the edge lagrange polynomials
 	for P := 1; P < 7; P++ {
 		rt := NewRTElement(P)
@@ -37,9 +208,6 @@ func TestRTElementConstruction2(t *testing.T) {
 			}
 		}
 	}
-}
-
-func TestRTElementConstruction3(t *testing.T) {
 	P := 1
 	rt := NewRTElement(P)
 	BasisVector := [2]utils.Matrix{utils.NewMatrix(rt.Np, 1),
@@ -136,17 +304,15 @@ func TestRTElementConstruction(t *testing.T) {
 
 	// 1D Edge Polynomials
 	// Get the edge values for edge1,2,3
-	assert.Panics(t, func() { rt.getEdgeXiParameter(0) })
+	assert.Panics(t, func() { rt.getEdgeXiParameter(0, 0, 0) })
 	// The edge distribution of edge2 should be the reverse direction of
 	// edge1, and symmetric, shorthand is to take the neg of edge2 to get edge1
-	edge1 := rt.getEdgeXiParameter(E2)
-	for i := range edge1.DataP {
-		edge1.DataP[i] *= -1
+	_, edge1 := rt.getEdgeXiParameter(0, 0, E2)
+	for i := range edge1 {
+		edge1[i] *= -1
 	}
-	assert.True(t, nearVec(rt.getEdgeXiParameter(E1).DataP,
-		edge1.DataP, 0.000001))
-
-	edge1.Print("E1")
+	_, e1 := rt.getEdgeXiParameter(0, 0, E1)
+	assert.True(t, nearVec(e1, edge1, 0.000001))
 
 	// Test polynomial bases
 
