@@ -18,6 +18,31 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestRTElementConstruction2(t *testing.T) {
+	var rt *RTElement
+	P := 3
+	rt = NewRTElement(P)
+	safeExecute(func() {
+		BasisDotInverse := rt.ComputeBasisDotInverse()
+		BasisDotInverse.Print("BasisDotInverse")
+		rt.Div = rt.ComputeDivergenceMatrix()
+		rt.Div.Print("Div")
+	})
+}
+
+// safeExecute runs a function that may panic and returns whether a panic occurred.
+func safeExecute(fn func()) (panicked bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("Recovered from panic: %v\n", r)
+			panicked = true
+		}
+	}()
+
+	fn()         // Execute the function
+	return false // No panic occurred
+}
+
 func TestRTElementVerifyErvinRT1(t *testing.T) {
 	// Check the basis vectors for RT1 against Ervin's RT1 construction
 	P := 1

@@ -201,8 +201,9 @@ func NewRTElement(P int) (rt *RTElement) {
 		}
 	}
 	rt.R, rt.S = rt.ExtendGeomToRT(rt.RInt, rt.SInt)
-	// For edges 1 and 3, we can use the same definition on R, as S is the same
 	rt.CalculateBasis()
+	// Broken out separately for testing
+	// rt.Div = rt.ComputeDivergenceMatrix()
 	return
 }
 
@@ -670,7 +671,34 @@ func (rt *RTElement) CalculateBasis() {
 		rt.BasisVector[0].Set(j, 0, v[0])
 		rt.BasisVector[1].Set(j, 0, v[1])
 	}
+	return
+}
 
+func (rt *RTElement) ComputeDivergenceMatrix() (Div utils.Matrix) {
+	// This must be called before the element is "finished" - we break this out
+	// separately to allow for testing
+	BasisDotInverse := rt.ComputeBasisDotInverse()
+
+	// Build basis divergence matrix
+	DivBasis := utils.NewMatrix(rt.Np, rt.Np)
+	for i := 0; i < rt.Np; i++ {
+		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+		for j := 0; j < rt.Np; j++ {
+			// fmt.Printf("NpInt, j = %d, %d\n", rt.NpInt, j)
+			_, div := rt.basisEvaluation(r, s, j)
+			DivBasis.Set(i, j, div)
+		}
+	}
+	// DivBasis.Print("Basis Divergence Matrix")
+	Div = DivBasis.Mul(BasisDotInverse)
+	return
+}
+
+func (rt *RTElement) ComputeBasisDotInverse() (BasisDotInverse utils.Matrix) {
+	// This is the Basis Vector dotted with other basis functions per location
+	// The inverse enables the computation of the constants that project a
+	// target vector field onto the element.
+	// If this matrix does not invert, it reflects issues with the basis
 	BasisMatrix := [2]utils.Matrix{utils.NewMatrix(rt.Np, rt.Np),
 		utils.NewMatrix(rt.Np, rt.Np)}
 	for i := 0; i < rt.Np; i++ {
@@ -685,21 +713,11 @@ func (rt *RTElement) CalculateBasis() {
 		}
 	}
 	BasisDot := BasisMatrix[0].Add(BasisMatrix[1])
-	BasisDotInverse := BasisDot.InverseWithCheck()
-	// BasisDotInverse.Print("BasisDotInverse")
-
-	// Build basis divergence matrix
-	DivBasis := utils.NewMatrix(rt.Np, rt.Np)
-	for i := 0; i < rt.Np; i++ {
-		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
-		for j := 0; j < rt.Np; j++ {
-			// fmt.Printf("NpInt, j = %d, %d\n", rt.NpInt, j)
-			_, div := rt.basisEvaluation(r, s, j)
-			DivBasis.Set(i, j, div)
-		}
-	}
-	// DivBasis.Print("Basis Divergence Matrix")
-	rt.Div = DivBasis.Mul(BasisDotInverse)
+	BasisDotInverse = BasisDot.InverseWithCheck()
+	// BasisDotInverse, err := BasisDot.Inverse()
+	// if err != nil {
+	// 	panic(err)
+	// }
 	return
 }
 
