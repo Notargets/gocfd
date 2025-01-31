@@ -722,9 +722,8 @@ func TestRTElement(t *testing.T) {
 				fmt.Printf("Check Order = %d, ", cOrder)
 				// [s1,s2] values for each location in {R,S}
 				s1, s2, divCheck := checkSolution(rt, cOrder)
-				sp := rt.ProjectFunctionOntoDOF(s1, s2)
-				sm := utils.NewMatrix(rt.Np, 1, sp)
-				divM := rt.Div.Mul(sm)
+				rt.ProjectFunctionOntoDOF(s1, s2)
+				divM := rt.Div.Mul(rt.Projection)
 				// fmt.Println(divM.Print("divM"))
 				minerrInt, maxerrInt, minerrEdge, maxerrEdge := errorCheck(N, divM.DataP, divCheck)
 				assert.True(t, near(minerrInt, 0.0, 0.00001))

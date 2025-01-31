@@ -167,6 +167,7 @@ type RTElement struct {
 	R, S        utils.Vector // Point locations defining element in [-1,1] Triangle, NpxNp
 	RInt, SInt  utils.Vector
 	BasisVector [2]utils.Matrix
+	Projection  utils.Matrix
 }
 
 func NewRTElement(P int) (rt *RTElement) {
@@ -191,6 +192,7 @@ func NewRTElement(P int) (rt *RTElement) {
 		Div:    utils.NewMatrix(Np, Np),
 		BasisVector: [2]utils.Matrix{utils.NewMatrix(Np, 1),
 			utils.NewMatrix(Np, 1)},
+		Projection: utils.NewMatrix(Np, 1),
 	}
 
 	if P > 0 {
@@ -857,32 +859,12 @@ func (rt *RTElement) GetEdgeLocations(F []float64) (Fedge []float64) {
 	return
 }
 
-func (rt *RTElement) ProjectFunctionOntoDOF(s1, s2 []float64) (sp []float64) {
+func (rt *RTElement) ProjectFunctionOntoDOF(s1, s2 []float64) {
 	// For each location in {R,S}, project the input vector function [s1,s2]
 	// on to the degrees of freedom of the element (not the basis)
-	var (
-		Np = len(s1)
-	)
-	sp = make([]float64, Np)
-	oosr2 := 1 / math.Sqrt(2)
-	for i := range s1 {
-		switch rt.getFunctionNumber(i) {
-		case E4:
-			// Unit vector is [1,0]
-			sp[i] = s1[i]
-		case E5:
-			// Unit vector is [0,1]
-			sp[i] = s2[i]
-		case E1:
-			// E1: // Unit vector is [0,-1]
-			sp[i] = -s2[i]
-		case E2:
-			// E2: Unit vector is [1/sqrt(2), 1/sqrt(2)]
-			sp[i] = (s1[i] + s2[i]) * oosr2
-		case E3:
-			// E3: Unit vector is [-1,0]
-			sp[i] = -s1[i]
-		}
+	for j := range s1 {
+		v := [2]float64{rt.BasisVector[0].At(j, 0), rt.BasisVector[1].At(j, 0)}
+		rt.Projection.Set(j, 0, v[0]*s1[j]+v[1]*s2[j])
 	}
 	return
 }

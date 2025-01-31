@@ -9,7 +9,7 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-type RTBasis2DSimplex struct {
+type RTBasis2DSimplexLegacy struct {
 	P             int            // Polynomial Order
 	Np            int            // Number of terms and nodes in basis
 	NpInt, NpEdge int            // Number of nodes in interior and on each edge, Np = 2*NpInt + 3*NpEdge
@@ -30,10 +30,10 @@ In this approach, edges are specifically addressed with 1D Lagrange polynomials 
 functions, while the interior points are composed of a supplied 2D scalar polynomial multiplied by a barycentric basis
 for the triangle.
 */
-func NewRTBasis2DSimplex(P int) (rtb *RTBasis2DSimplex) {
+func NewRTBasis2DSimplexLegacy(P int) (rtb *RTBasis2DSimplexLegacy) {
 	var Rint, Sint utils.Vector
 	fmt.Printf("Order of RT Element %d\n", P)
-	rtb = &RTBasis2DSimplex{
+	rtb = &RTBasis2DSimplexLegacy{
 		P:      P,
 		Np:     (P + 1) * (P + 3),
 		NpInt:  P * (P + 1) / 2, // Number of interior points is same as the 2D scalar space one order lesser
@@ -52,7 +52,7 @@ func NewRTBasis2DSimplex(P int) (rtb *RTBasis2DSimplex) {
 	return
 }
 
-func (rtb *RTBasis2DSimplex) getLocationType(i int) (locationType RTFunctionNumber) {
+func (rtb *RTBasis2DSimplexLegacy) getLocationType(i int) (locationType RTFunctionNumber) {
 	var (
 		NpInt  = rtb.NpInt
 		NpEdge = rtb.NpEdge
@@ -79,7 +79,7 @@ func (rtb *RTBasis2DSimplex) getLocationType(i int) (locationType RTFunctionNumb
 	return
 }
 
-func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...DerivativeDirection) (p0, p1 []float64) {
+func (rtb *RTBasis2DSimplexLegacy) EvaluateBasisAtLocation(r, s float64, derivO ...DerivativeDirection) (p0, p1 []float64) {
 	var (
 		deriv  DerivativeDirection
 		RGauss = DG1D.LegendreZeros(rtb.P)
@@ -424,7 +424,7 @@ func (rtb *RTBasis2DSimplex) EvaluateBasisAtLocation(r, s float64, derivO ...Der
 	return
 }
 
-func (rtb *RTBasis2DSimplex) CalculateBasis() {
+func (rtb *RTBasis2DSimplexLegacy) CalculateBasis() {
 	/*
 		We follow the basis function construction of V.J. Ervin "Computational Bases for RTk and BDMk on Triangles"
 	*/
@@ -505,7 +505,7 @@ func (rtb *RTBasis2DSimplex) CalculateBasis() {
 	return
 }
 
-func (rtb *RTBasis2DSimplex) ExtendGeomToRT(Rint, Sint utils.Vector) (R, S utils.Vector) {
+func (rtb *RTBasis2DSimplexLegacy) ExtendGeomToRT(Rint, Sint utils.Vector) (R, S utils.Vector) {
 	var (
 		N            = rtb.P
 		NpEdge       = N + 1
@@ -552,7 +552,7 @@ func (rtb *RTBasis2DSimplex) ExtendGeomToRT(Rint, Sint utils.Vector) (R, S utils
 	return
 }
 
-func (rtb *RTBasis2DSimplex) GetEdgeLocations(F []float64) (Fedge []float64) {
+func (rtb *RTBasis2DSimplexLegacy) GetEdgeLocations(F []float64) (Fedge []float64) {
 	var (
 		Nint     = rtb.NpInt
 		NedgeTot = rtb.NpEdge * 3
@@ -564,7 +564,7 @@ func (rtb *RTBasis2DSimplex) GetEdgeLocations(F []float64) (Fedge []float64) {
 	return
 }
 
-func (rtb *RTBasis2DSimplex) GetInternalLocations(F []float64) (Finternal []float64) {
+func (rtb *RTBasis2DSimplexLegacy) GetInternalLocations(F []float64) (Finternal []float64) {
 	var (
 		Nint = rtb.NpInt
 	)
@@ -578,7 +578,7 @@ func (rtb *RTBasis2DSimplex) GetInternalLocations(F []float64) (Finternal []floa
 /*
 Set up the five core vector basis functions used for all order of terms
 */
-func (rtb *RTBasis2DSimplex) getCoreBasisTerm(tt RTFunctionNumber, r, s float64,
+func (rtb *RTBasis2DSimplexLegacy) getCoreBasisTerm(tt RTFunctionNumber, r, s float64,
 	derivO ...DerivativeDirection) (p0, p1 float64) {
 	var (
 		sr2   = math.Sqrt(2)
@@ -664,7 +664,7 @@ const (
 	SDir
 )
 
-func (rtb *RTBasis2DSimplex) Lagrange1DPoly(r float64, R []float64, j int,
+func (rtb *RTBasis2DSimplexLegacy) Lagrange1DPoly(r float64, R []float64, j int,
 	dir Direction, derivO ...DerivativeDirection) (p float64) {
 	// This is a 1D polynomial, but the nodes are either in the RDir or SDir direction within 2D
 	var (
@@ -720,7 +720,7 @@ func (rtb *RTBasis2DSimplex) Lagrange1DPoly(r float64, R []float64, j int,
 	return
 }
 
-func (rtb *RTBasis2DSimplex) LinearPoly(r, s float64, j int, derivO ...DerivativeDirection) (p float64) {
+func (rtb *RTBasis2DSimplexLegacy) LinearPoly(r, s float64, j int, derivO ...DerivativeDirection) (p float64) {
 	var (
 		deriv DerivativeDirection
 	)

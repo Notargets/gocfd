@@ -22,7 +22,7 @@ import (
 type DFR2D struct {
 	N                  int
 	SolutionElement    *LagrangeElement2D
-	FluxElement        *RTBasis2DSimplex
+	FluxElement        *RTBasis2DSimplexLegacy
 	FluxInterp         utils.Matrix // Interpolates from the interior (solution) points to all of the flux points
 	FluxEdgeInterp     utils.Matrix // Interpolates only from interior to the edge points in the flux element
 	FluxDr, FluxDs     utils.Matrix // Derivatives from the interior (solution) points to all of the flux points
@@ -46,7 +46,7 @@ func NewDFR2D(N int, pm *InputParameters.PlotMeta, verbose bool, meshFileO ...st
 		panic(fmt.Errorf("Polynomial order must be >= 0, have %d", N))
 	}
 	le := NewLagrangeElement2D(N, Epsilon)
-	rt := NewRTBasis2DSimplex(N + 1)
+	rt := NewRTBasis2DSimplexLegacy(N + 1)
 	RFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.R.DataP)) // For the Interpolation matrix across three edges
 	SFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.S.DataP)) // For the Interpolation matrix across three edges
 	dfr = &DFR2D{

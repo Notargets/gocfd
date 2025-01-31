@@ -12,7 +12,7 @@ import (
 func TestRTElement_CalculateBasis(t *testing.T) {
 	{
 		P := 1
-		rtb := NewRTBasis2DSimplex(P)
+		rtb := NewRTBasis2DSimplexLegacy(P)
 		// Lagrange 1D polynomial
 		{
 			g1 := 0.5 - math.Sqrt(3)/6
