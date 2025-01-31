@@ -217,13 +217,77 @@ func (jb2d *JacobiBasis2D) GetAllPolynomials(derivO ...DerivativeDirection) (
 	return
 }
 
-type LagrangeBasis2D struct {
+type LagrangePolynomial2D struct {
+	P      int // Order
+	Np     int // Dimension
+	j      int // j index within the coordinates that define this polynomial
+	R, S   utils.Vector
+	Dr, Ds utils.Matrix
+	jb2d   *JacobiBasis2D
+}
+
+func NewLagrangePolynomialBasis2D(P int, R, S utils.Vector) (lp2d *LagrangePolynomial2D) {
+	var (
+		Np = (P + 1) * (P + 2) / 2
+	)
+	// We establish the Lagrange 2D polynomial located at the j-th position
+	// within the provided R and S coordinates
+	lp2d = &LagrangePolynomial2D{
+		P:  P,
+		Np: Np,
+		R:  R,
+		S:  S,
+	}
+	switch {
+	case R.Len() < Np:
+		panic("Length of R is not equal to Np")
+	case S.Len() < Np:
+		panic("Length of S is not equal to Np")
+	}
+	// Form a monomial basis to use for computation of the Vandermonde matrix
+	// that will enable us to compute the coefficients of a Lagrande basis
+	lp2d.jb2d = NewJacobiBasis2D(P, R, S, 0, 0)
+	lp2d.jb2d.V.Print("V")
+	// Each column of the Vinv matrix corresponds to the vector of coefficients
+	// for the j-th Lagrange polynomial expressed as a power series in the form:
+	// ℓ_j(r, s) = ∑(a = 0, P) ∑(b = 0, P − a) [ c(j, a, b) · r^a · s^b ]
+	lp2d.jb2d.Vinv.Print("V Inverse")
+
+	return
+}
+
+func (lp2d *LagrangePolynomial2D) GetInterpMatrix() (Interp utils.Matrix) {
+	var (
+		Np = lp2d.Np
+		P  = lp2d.P
+		R  = lp2d.R
+		S  = lp2d.S
+	)
+	Interp = utils.NewMatrix(R.Len(), Np) // Will transpose after fill
+	var sk int
+	for I := 0; I <= P; I++ {
+		for J := 0; J <= P-I; J++ {
+			Interp.SetCol(sk, lp2d.jb2d.Simplex2DP(R, S, I, J))
+			sk++
+		}
+	}
+	Interp = lp2d.jb2d.Vinv.Transpose().Mul(Interp.Transpose()).Transpose()
+	return
+}
+
+func (lp2d *LagrangePolynomial2D) GetPolynomialEvaluation(r, s float64,
+	derivO ...DerivativeDirection) (psi float64) {
+	return
+}
+
+type LagrangeBasis2DLegacy struct {
 	P, Np          int       // Order
 	RNodes, SNodes []float64 // Nodes at which basis is defined
 	JB2D           *JacobiBasis2D
 }
 
-func NewLagrangeBasis2D(P int, R, S utils.Vector) (lb2d *LagrangeBasis2D) {
+func NewLagrangeBasis2DLegacy(P int, R,
+	S utils.Vector) (lb2d *LagrangeBasis2DLegacy) {
 	/*
 		From Karniadakis and Sherwin's "Spectral/hp Element Methods for CFD" on page 124:
 		"Since there is not a closed form expression for the Lagrange polynomial through an arbitrary set of points in the
@@ -243,7 +307,7 @@ func NewLagrangeBasis2D(P int, R, S utils.Vector) (lb2d *LagrangeBasis2D) {
 			Np, R.Len(), S.Len())
 		panic(err)
 	}
-	lb2d = &LagrangeBasis2D{
+	lb2d = &LagrangeBasis2DLegacy{
 		P:      P,
 		Np:     Np,
 		RNodes: R.DataP,
@@ -253,7 +317,7 @@ func NewLagrangeBasis2D(P int, R, S utils.Vector) (lb2d *LagrangeBasis2D) {
 	return
 }
 
-func (lb2d *LagrangeBasis2D) GetInterpMatrix(R, S utils.Vector) (Interp utils.Matrix) {
+func (lb2d *LagrangeBasis2DLegacy) GetInterpMatrix(R, S utils.Vector) (Interp utils.Matrix) {
 	var (
 		Np = lb2d.Np
 		N  = lb2d.P
@@ -270,7 +334,7 @@ func (lb2d *LagrangeBasis2D) GetInterpMatrix(R, S utils.Vector) (Interp utils.Ma
 	return
 }
 
-func (lb2d *LagrangeBasis2D) GetGradInterpMatrices(R, S utils.Vector) (InterpDR, InterpDS utils.Matrix) {
+func (lb2d *LagrangeBasis2DLegacy) GetGradInterpMatrices(R, S utils.Vector) (InterpDR, InterpDS utils.Matrix) {
 	var (
 		Np = lb2d.Np
 		N  = lb2d.P
@@ -291,7 +355,7 @@ func (lb2d *LagrangeBasis2D) GetGradInterpMatrices(R, S utils.Vector) (InterpDR,
 	return
 }
 
-func (lb2d *LagrangeBasis2D) BasisPolynomial(R, S utils.Vector, i, j int) (P []float64) {
+func (lb2d *LagrangeBasis2DLegacy) BasisPolynomial(R, S utils.Vector, i, j int) (P []float64) {
 	/*
 		[i,j] are the coordinates of the basis polynomial term
 		R and S are the location to get values from the polynomial
@@ -302,21 +366,21 @@ func (lb2d *LagrangeBasis2D) BasisPolynomial(R, S utils.Vector, i, j int) (P []f
 	return
 }
 
-func (lb2d *LagrangeBasis2D) PolynomialTerm(r, s float64, i, j int) (p float64) {
+func (lb2d *LagrangeBasis2DLegacy) PolynomialTerm(r, s float64, i, j int) (p float64) {
 	return lb2d.BasisPolynomial(utils.NewVector(1, []float64{r}), utils.NewVector(1, []float64{s}), i, j)[0]
 }
 
-func (lb2d *LagrangeBasis2D) PolynomialTermDr(r, s float64, i, j int) (dr float64) {
+func (lb2d *LagrangeBasis2DLegacy) PolynomialTermDr(r, s float64, i, j int) (dr float64) {
 	DR, _ := lb2d.GradBasisPolynomial(utils.NewVector(1, []float64{r}), utils.NewVector(1, []float64{s}), i, j)
 	return DR[0]
 }
 
-func (lb2d *LagrangeBasis2D) PolynomialTermDs(r, s float64, i, j int) (ds float64) {
+func (lb2d *LagrangeBasis2DLegacy) PolynomialTermDs(r, s float64, i, j int) (ds float64) {
 	_, DS := lb2d.GradBasisPolynomial(utils.NewVector(1, []float64{r}), utils.NewVector(1, []float64{s}), i, j)
 	return DS[0]
 }
 
-func (lb2d *LagrangeBasis2D) GradBasisPolynomial(R, S utils.Vector, i, j int) (DrTerms, DsTerms []float64) {
+func (lb2d *LagrangeBasis2DLegacy) GradBasisPolynomial(R, S utils.Vector, i, j int) (DrTerms, DsTerms []float64) {
 	/*
 		[i,j] are the coordinates of the basis polynomial term
 		R and S are the location to get values from the polynomial
@@ -329,7 +393,7 @@ func (lb2d *LagrangeBasis2D) GradBasisPolynomial(R, S utils.Vector, i, j int) (D
 	return
 }
 
-func (lb2d *LagrangeBasis2D) getTermNumber(i, j int) (sk int) {
+func (lb2d *LagrangeBasis2DLegacy) getTermNumber(i, j int) (sk int) {
 	var (
 		N = lb2d.P
 	)

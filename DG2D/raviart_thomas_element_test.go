@@ -18,6 +18,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestRTElementConstruction3(t *testing.T) {
+	P := 1
+	R, S := NodesEpsilon(P)
+	lp2d := NewLagrangePolynomialBasis2D(P, R, S)
+	_ = lp2d
+}
+
 func TestRTElementConstruction2(t *testing.T) {
 	var rt *RTElement
 	P := 3
