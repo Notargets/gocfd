@@ -209,6 +209,16 @@ func NewRTElement(P int) (rt *RTElement) {
 	return
 }
 
+func (rt *RTElement) ProjectFunctionOntoDOF(s1, s2 []float64) {
+	// For each location in {R,S}, project the input vector function [s1,s2]
+	// on to the degrees of freedom of the element
+	for j := range s1 {
+		v := [2]float64{rt.BasisVector[0].At(j, 0), rt.BasisVector[1].At(j, 0)}
+		rt.Projection.Set(j, 0, v[0]*s1[j]+v[1]*s2[j])
+	}
+	return
+}
+
 /*
 This follows the development in the V.J. Ervin paper: Computational Bases for
 RTk and BDMk on Triangles
@@ -468,42 +478,33 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 		jb2d    *JacobiBasis2D
 		eps     = 0.000001
 	)
-	switch funcNum {
-	case E4:
-		// Ervin's polynomial 4 which multiplies the 4th vector
-		jj = j
-	case E5:
-		// Ervin's polynomial 5 which multiplies the 5th vector
-		jj = j - NpInt
-	case E1:
-		// Edge 1 - Bottom Edge
-		// Ervin's func multiplying e3 (bottom)
-		if math.Abs(s+1) > eps {
-			val = 0 // Not on the edge, return 0
-			return
-		}
-		jj = j - 2*rt.NpInt
-	case E2:
-		// Edge 2 - Hypotenuse
-		if math.Abs(r+s) > eps {
-			val = 0 // Not on the edge, return 0
-			return
-		}
-		jj = j - 2*rt.NpInt - rt.NpEdge
-	case E3:
-		// Edge 3 - Left Edge
-		// Ervin's func multiplying e2 (Left)
-		if math.Abs(r+1) > eps {
-			val = 0 // Not on the edge, return 0
-			return
-		}
-		jj = j - 2*rt.NpInt - 2*rt.NpEdge
-	default:
-		panic("j polynomial index out of range")
-	}
 
 	switch funcNum {
 	case E1, E2, E3:
+		jj = j - 2*rt.NpInt
+		if funcNum == E1 {
+			// Edge 1 - Bottom Edge
+			// Ervin's func multiplying e3 (bottom)
+			if math.Abs(s+1) > eps {
+				val = 0 // Not on the edge, return 0
+				return
+			}
+		} else if funcNum == E2 {
+			// Edge 2 - Hypotenuse
+			if math.Abs(r+s) > eps {
+				val = 0 // Not on the edge, return 0
+				return
+			}
+			jj -= rt.NpEdge
+		} else if funcNum == E3 {
+			// Edge 3 - Left Edge
+			// Ervin's func multiplying e2 (Left)
+			if math.Abs(r+1) > eps {
+				val = 0 // Not on the edge, return 0
+				return
+			}
+			jj -= 2 * rt.NpEdge
+		}
 		// Parameterized edge coordinate Xi
 		xi, Xi = rt.getEdgeXiParameter(r, s, funcNum)
 		if len(derivO) > 0 {
@@ -543,6 +544,10 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 				// Here JJ runs from 0 to 2, and each of the 3 internal points
 				// corresponds to a distinct polynomial for each point in Ervin
 				// that multiplies either ℯ̂₄ or ℯ̂₅.
+				jj = j
+				if funcNum == E5 {
+					jj -= rt.NpInt
+				}
 				switch jj {
 				case 0:
 					val = 1. - xi - eta
@@ -833,38 +838,5 @@ func NodesEpsilon(N int) (R, S utils.Vector) {
 	RS := T.Mul(eps)
 	R = RS.Row(0)
 	S = RS.Row(1)
-	return
-}
-
-func (rt *RTElement) GetInternalLocations(F []float64) (Finternal []float64) {
-	var (
-		Nint = rt.NpInt
-	)
-	Finternal = make([]float64, Nint)
-	for i := 0; i < Nint; i++ {
-		Finternal[i] = F[i]
-	}
-	return
-}
-
-func (rt *RTElement) GetEdgeLocations(F []float64) (Fedge []float64) {
-	var (
-		Nint     = rt.NpInt
-		NedgeTot = rt.NpEdge * 3
-	)
-	Fedge = make([]float64, NedgeTot)
-	for i := 0; i < NedgeTot; i++ {
-		Fedge[i] = F[i+2*Nint]
-	}
-	return
-}
-
-func (rt *RTElement) ProjectFunctionOntoDOF(s1, s2 []float64) {
-	// For each location in {R,S}, project the input vector function [s1,s2]
-	// on to the degrees of freedom of the element (not the basis)
-	for j := range s1 {
-		v := [2]float64{rt.BasisVector[0].At(j, 0), rt.BasisVector[1].At(j, 0)}
-		rt.Projection.Set(j, 0, v[0]*s1[j]+v[1]*s2[j])
-	}
 	return
 }
