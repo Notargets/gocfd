@@ -122,7 +122,7 @@ func TestDFR2D(t *testing.T) {
 			return
 		}
 		N := 1
-		dfr := NewDFR2D(N, pm, false, "test_tris_5.neu")
+		dfr := NewDFR2D(N, pm, false, "test_data/test_tris_5.neu")
 		/*
 				Coordinates in test triangle case:
 				1     0.000000000e+000    0.000000000e+000
@@ -213,7 +213,7 @@ func TestDFR2D(t *testing.T) {
 		N := 1
 		plotFunc := false
 		// dfr := NewDFR2D(N, plotMesh, "vortexA04.neu")
-		dfr := NewDFR2D(N, pm, false, "test_tris_6.neu")
+		dfr := NewDFR2D(N, pm, false, "test_data/test_tris_6.neu")
 		// dfr := NewDFR2D(N, plotMesh, "test_tris_1.neu")
 		gm := dfr.OutputMesh()
 		if false {
@@ -278,7 +278,7 @@ func TestDivergence(t *testing.T) {
 	{ // Check Divergence for polynomial vector fields of order < N against analytical solution
 		N := 7 // Order of element
 		// N := 7 // Order of element
-		dfr := NewDFR2D(N, pm, false, "test_tris_5.neu")
+		dfr := NewDFR2D(N, pm, false, "test_data/test_tris_5.neu")
 		rt := dfr.FluxElement
 		// rt.Div.Print("Div")
 		// rt.DivInt.Print("DivInt")
@@ -315,7 +315,7 @@ func TestDivergence(t *testing.T) {
 func TestGradient(t *testing.T) {
 	pm := &InputParameters.PlotMeta{}
 	// Test gradient on Flux element points, derived from a solution field interpolated from solution pts to Flux pts
-	dfr := NewDFR2D(3, pm, false, "test_tris_6.neu")
+	dfr := NewDFR2D(3, pm, false, "test_data/test_tris_6.neu")
 	if false {
 		PlotTriMesh(*dfr.OutputMesh())
 		utils.SleepFor(50000)
