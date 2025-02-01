@@ -73,11 +73,103 @@ func checkIfUnitMatrix(t *testing.T, A utils.Matrix) (isDiag bool) {
 	return
 }
 
-func TestRTElementConstruction2(t *testing.T) {
-	// var rt *RTElement
-	for P := 1; P < 7; P++ {
-		_ = NewRTElement(P)
+type DivTest interface {
+	F(r, s float64, P int) (f1, f2 float64)
+	divF(r, s float64, P int) (div float64)
+}
+
+type SinCosField struct{}
+
+func (scf SinCosField) F(r, s float64, P int) (f1, f2 float64) {
+	var (
+		Pi = math.Pi
+	)
+	conv := func(r float64) (xi float64) {
+		xi = Pi * (r + 1)
+		return
 	}
+	f1, f2 = math.Sin(conv(r)), math.Cos(conv(s))
+	return
+}
+
+func (scf SinCosField) divF(r, s float64, P int) (div float64) {
+	var (
+		Pi = math.Pi
+	)
+	conv := func(r float64) (xi float64) {
+		xi = Pi * (r + 1)
+		return
+	}
+	div = (math.Cos(conv(r)) - math.Sin(conv(s)))
+	div += Pi * (math.Sin(conv(r)) + math.Cos(conv(s)))
+	return
+}
+
+type PolyField struct{}
+
+func (lpf PolyField) F(r, s float64, P int) (f1, f2 float64) {
+	var (
+		Pi = math.Pi
+		p  = float64(P)
+	)
+	conv := func(r float64) (xi float64) {
+		xi = Pi * (r + 1)
+		return
+	}
+	f1, f2 = math.Pow(conv(r), p), math.Pow(conv(s), p)
+	return
+}
+
+func (lpf PolyField) divF(r, s float64, P int) (div float64) {
+	var (
+		Pi = math.Pi
+		p  = float64(P)
+	)
+	conv := func(r float64) (xi float64) {
+		xi = Pi * (r + 1)
+		return
+	}
+	// val1 = (Pi*(r+1))^p
+	// dval1/dr = Pi*p*((Pi*(r+1))^(p-1))
+	// val2 = (Pi*(s+1))^p
+	// dval2/ds = Pi*p*((Pi*(s+1))^(p-1))
+	// div = p*Pi*((Pi*(r+1))^(p-1) + (Pi*(s+1))^(p-1))
+	if P > 0 {
+		div = p * Pi * (math.Pow(conv(r), p-1) + math.Pow(conv(s), p-1))
+	} else {
+		div = 0
+	}
+	return
+}
+
+func TestRTElementPerformance(t *testing.T) {
+	// var rt *RTElement
+	// for P := 1; P < 7; P++ {
+	var (
+		dt DivTest
+	)
+	dt = PolyField{}
+
+	P := 2
+	rt := NewRTElement(P)
+
+	Np := rt.Np
+	dotBasis := make([]float64, Np)
+	divFcalc := make([]float64, Np)
+	for i := 0; i < Np; i++ {
+		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+		f1, f2 := dt.F(r, s, P-1)
+		dF := dt.divF(r, s, P-1)
+		divFcalc[i] = dF
+		// fmt.Printf("F[%f,%f]=[%f,%f], divF[%f,%f]=%f\n", r, s, f1, f2, r, s, dF)
+		b1, b2 := rt.BasisVector[0].At(i, 0), rt.BasisVector[1].At(i, 0)
+		dotBasis[i] = f1*b1 + f2*b2
+	}
+	dFcalc := utils.NewMatrix(Np, 1, divFcalc)
+	dFcalc.Transpose().Print("Calculated Div")
+	dB := utils.NewMatrix(Np, 1, dotBasis)
+	// dB.Transpose().Print("Dot Basis")
+	rt.Div.Mul(dB).Transpose().Print("Div")
 }
 
 func TestRTElementVerifyErvinRT1(t *testing.T) {
