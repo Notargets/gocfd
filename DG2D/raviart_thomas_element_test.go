@@ -19,35 +19,65 @@ import (
 )
 
 func TestRTElementConstruction3(t *testing.T) {
-	P := 1
-	R, S := NodesEpsilon(P)
-	lp2d := NewLagrangePolynomialBasis2D(P, R, S)
-	_ = lp2d
+	// Check the Lagrange Polynomial basis to verify the Lagrange property
+	for P := 1; P < 7; P++ {
+		R, S := NodesEpsilon(P)
+		lp2d := NewLagrangePolynomialBasis2D(P, R, S)
+		A := utils.NewMatrix(lp2d.Np, lp2d.Np)
+		// Evaluate the j-th lagrange polynomial at (r,s)i
+		// It should evaluate to 1 at each (r,s)i=j and 0 at (r,s)i!=j
+		// In other words, this should be the diagonal matrix
+		for j := 0; j < lp2d.Np; j++ {
+			for i := 0; i < lp2d.Np; i++ {
+				r, s := R.AtVec(i), S.AtVec(i)
+				// fmt.Printf("psi[%d][%f,%f] = %f\n", j, r, s,
+				// 	lp2d.GetPolynomialEvaluation(r, s, j))
+				A.Set(i, j, lp2d.GetPolynomialEvaluation(r, s, j))
+			}
+		}
+		checkIfUnitMatrix(t, A)
+	}
+	// P := 1
+	// R, S := NodesEpsilon(P)
+	// lp2d := NewLagrangePolynomialBasis2D(P, R, S)
+	// for j := 0; j < lp2d.Np; j++ {
+	// 	r, s := 0., 0.
+	// 	psi, dpsidr, dpsids := lp2d.GetPolynomialEvaluation(r, s, j),
+	// 		lp2d.GetPolynomialEvaluation(r, s, j, Dr),
+	// 		lp2d.GetPolynomialEvaluation(r, s, j, Ds)
+	// 	fmt.Printf("psi[%d][%f,%f] = %f, %f, %f\n",
+	// 		j, r, s, psi, dpsidr, dpsids)
+	// 	r, s = -1., 0.
+	// 	psi, dpsidr, dpsids = lp2d.GetPolynomialEvaluation(r, s, j),
+	// 		lp2d.GetPolynomialEvaluation(r, s, j, Dr),
+	// 		lp2d.GetPolynomialEvaluation(r, s, j, Ds)
+	// 	fmt.Printf("psi[%d][%f,%f] = %f, %f, %f\n",
+	// 		j, r, s, psi, dpsidr, dpsids)
+	//
+	// }
+}
+
+func checkIfUnitMatrix(t *testing.T, A utils.Matrix) (isDiag bool) {
+	var (
+		Np, _ = A.Dims()
+	)
+	for j := 0; j < Np; j++ {
+		for i := 0; i < Np; i++ {
+			if i == j {
+				assert.InDeltaf(t, 1., A.At(i, j), 0.00001, "")
+			} else {
+				assert.InDeltaf(t, 0., A.At(i, j), 0.00001, "")
+			}
+		}
+	}
+	return
 }
 
 func TestRTElementConstruction2(t *testing.T) {
-	var rt *RTElement
-	P := 3
-	rt = NewRTElement(P)
-	safeExecute(func() {
-		BasisDotInverse := rt.ComputeBasisDotInverse()
-		BasisDotInverse.Print("BasisDotInverse")
-		rt.Div = rt.ComputeDivergenceMatrix()
-		rt.Div.Print("Div")
-	})
-}
-
-// safeExecute runs a function that may panic and returns whether a panic occurred.
-func safeExecute(fn func()) (panicked bool) {
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Printf("Recovered from panic: %v\n", r)
-			panicked = true
-		}
-	}()
-
-	fn()         // Execute the function
-	return false // No panic occurred
+	// var rt *RTElement
+	for P := 1; P < 7; P++ {
+		_ = NewRTElement(P)
+	}
 }
 
 func TestRTElementVerifyErvinRT1(t *testing.T) {

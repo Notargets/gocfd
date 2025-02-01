@@ -168,6 +168,7 @@ type RTElement struct {
 	RInt, SInt  utils.Vector
 	BasisVector [2]utils.Matrix
 	Projection  utils.Matrix
+	lp2d        *LagrangePolynomial2D
 }
 
 func NewRTElement(P int) (rt *RTElement) {
@@ -202,10 +203,71 @@ func NewRTElement(P int) (rt *RTElement) {
 			rt.RInt, rt.SInt = XYtoRS(Nodes2D(P - 1))
 		}
 	}
+	rt.lp2d = NewLagrangePolynomialBasis2D(rt.P-1, rt.RInt, rt.SInt)
+
 	rt.R, rt.S = rt.ExtendGeomToRT(rt.RInt, rt.SInt)
+	// fmt.Printf("RT%d - Calculating Basis...", P)
 	rt.CalculateBasis()
-	// Broken out separately for testing
-	// rt.Div = rt.ComputeDivergenceMatrix()
+	// fmt.Printf("\nRT%d - Calculating Divergence Matrix...", P)
+	rt.Div = rt.ComputeDivergenceMatrix()
+	// fmt.Printf("Done.\n")
+	return
+}
+func (rt *RTElement) CalculateBasis() {
+	var (
+		v [2]float64
+	)
+	// fmt.Printf("RT%d Element Basis\n", P)
+	// fmt.Printf("Np:%d; NpInt:%d; NpEdge:%d\n", rt.Np, rt.NpInt, rt.NpEdge)
+	for j := 0; j < rt.Np; j++ {
+		r, s := rt.R.AtVec(j), rt.S.AtVec(j)
+		v, _ = rt.basisEvaluation(r, s, j)
+		rt.BasisVector[0].Set(j, 0, v[0])
+		rt.BasisVector[1].Set(j, 0, v[1])
+	}
+	return
+}
+
+func (rt *RTElement) ComputeDivergenceMatrix() (Div utils.Matrix) {
+	// This must be called before the element is "finished" - we break this out
+	// separately to allow for testing
+	BasisDotInverse := rt.ComputeBasisDotInverse()
+
+	// Build basis divergence matrix
+	DivBasis := utils.NewMatrix(rt.Np, rt.Np)
+	for i := 0; i < rt.Np; i++ {
+		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+		for j := 0; j < rt.Np; j++ {
+			// fmt.Printf("NpInt, j = %d, %d\n", rt.NpInt, j)
+			_, div := rt.basisEvaluation(r, s, j)
+			DivBasis.Set(i, j, div)
+		}
+	}
+	// DivBasis.Print("Basis Divergence Matrix")
+	Div = DivBasis.Mul(BasisDotInverse)
+	return
+}
+
+func (rt *RTElement) ComputeBasisDotInverse() (BasisDotInverse utils.Matrix) {
+	// This is the Basis Vector dotted with other basis functions per location
+	// The inverse enables the computation of the constants that project a
+	// target vector field onto the element.
+	// If this matrix does not invert, it reflects issues with the basis
+	BasisMatrix := [2]utils.Matrix{utils.NewMatrix(rt.Np, rt.Np),
+		utils.NewMatrix(rt.Np, rt.Np)}
+	for i := 0; i < rt.Np; i++ {
+		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+		v := [2]float64{rt.BasisVector[0].At(i, 0), rt.BasisVector[1].At(i, 0)}
+		// fmt.Printf("Base[%d] = [%f,%f]\n", i, v[0], v[1])
+		for j := 0; j < rt.Np; j++ {
+			v2, _ := rt.basisEvaluation(r, s, j)
+			// fmt.Printf("Psi[%d,%d] = [%f,%f]\n", i, j, v2[0], v2[1])
+			BasisMatrix[0].Set(i, j, v[0]*v2[0])
+			BasisMatrix[1].Set(i, j, v[1]*v2[1])
+		}
+	}
+	BasisDot := BasisMatrix[0].Add(BasisMatrix[1])
+	BasisDotInverse = BasisDot.InverseWithCheck()
 	return
 }
 
@@ -453,6 +515,8 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 
 func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 	derivO ...DerivativeDirection) (val float64) {
+	// TODO: Speed this up, it's super slow,
+	//  likely because a new 2D basis is created for every evaluation for RT3+
 	// This evaluates the j-th polynomial or derivative at r,s used to multiply
 	// each of the 5 base basis vectors in Ervin's RT basis, named
 	//               ℯ̂₁, ℯ̂₂, ℯ̂₃, ℯ̂₄, ℯ̂₅
@@ -469,13 +533,11 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 	//
 	// The input parameter "j" is the function index within the element
 	var (
-		NpInt   = rt.NpInt
 		funcNum = rt.getFunctionNumber(j)
 		Xi      []float64
 		xi      float64
 		jj      int
 		deriv   = None
-		jb2d    *JacobiBasis2D
 		eps     = 0.000001
 	)
 
@@ -582,30 +644,11 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 				}
 			}
 		case rt.P >= 3: // RT Element Polynomial Order is RT3 or greater
-			// Calculate Alpha and Beta based on the value of j within NpInt
-			alpha := 0.
-			beta := 0.
-			// alpha := 2*float64(j) + 1.
-			// alpha = float64(j)/(2*float64(NpInt)-1.) - 1.00
-
-			// alpha = -1.5*float64(j)/(2*float64(NpInt)-1.) + 0.75
-			// beta = 1.5*float64(j)/(2*float64(NpInt)-1.) - 0.75
-
-			delta := .90
-			alpha = -2*delta*float64(j)/(2*float64(NpInt)-1.) + delta
-			beta = 2*delta*float64(j)/(2*float64(NpInt)-1.) - delta
-
-			// alpha = -1.8*float64(j)/(2*float64(NpInt)-1.) + 0.9
-			// beta = 1.8*float64(j)/(2*float64(NpInt)-1.) - 0.9
-
-			// fmt.Printf("Beta[%d] = %f\n", j, beta)
-			// beta := 2*float64(j) + 1.
-			// beta := float64(j)/(float64(2*NpInt)-1.) - 0.5
-			// alpha := 2.*float64(j) + 1.
-			// beta := 2.*float64(j) + 1.
-			// beta := 0.
-			jb2d = NewJacobiBasis2D(rt.P-1, rt.RInt, rt.SInt, alpha, beta)
-			val = jb2d.GetPolynomialEvaluation(r, s, derivO...)
+			jj = j
+			if funcNum == E5 {
+				jj -= rt.NpInt
+			}
+			val = rt.lp2d.GetPolynomialEvaluation(r, s, jj, derivO...)
 		default:
 			panic("RT polynomial degree out of range")
 		}
@@ -681,72 +724,6 @@ func (rt *RTElement) ExtendGeomToRT(Rint, Sint utils.Vector) (R, S utils.Vector)
 	Sd = append(Sd, sEdgeData...)
 	nn := len(Rd)
 	R, S = utils.NewVector(nn, Rd), utils.NewVector(nn, Sd)
-	return
-}
-
-func (rt *RTElement) CalculateBasis() {
-	var (
-		v [2]float64
-	)
-	// fmt.Printf("RT%d Element Basis\n", P)
-	// fmt.Printf("Np:%d; NpInt:%d; NpEdge:%d\n", rt.Np, rt.NpInt, rt.NpEdge)
-	for j := 0; j < rt.Np; j++ {
-		r, s := rt.R.AtVec(j), rt.S.AtVec(j)
-		v, _ = rt.basisEvaluation(r, s, j)
-		rt.BasisVector[0].Set(j, 0, v[0])
-		rt.BasisVector[1].Set(j, 0, v[1])
-	}
-	return
-}
-
-func (rt *RTElement) ComputeDivergenceMatrix() (Div utils.Matrix) {
-	// This must be called before the element is "finished" - we break this out
-	// separately to allow for testing
-	BasisDotInverse := rt.ComputeBasisDotInverse()
-
-	// Build basis divergence matrix
-	DivBasis := utils.NewMatrix(rt.Np, rt.Np)
-	for i := 0; i < rt.Np; i++ {
-		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
-		for j := 0; j < rt.Np; j++ {
-			// fmt.Printf("NpInt, j = %d, %d\n", rt.NpInt, j)
-			_, div := rt.basisEvaluation(r, s, j)
-			DivBasis.Set(i, j, div)
-		}
-	}
-	// DivBasis.Print("Basis Divergence Matrix")
-	Div = DivBasis.Mul(BasisDotInverse)
-	return
-}
-
-func (rt *RTElement) ComputeBasisDotInverse() (BasisDotInverse utils.Matrix) {
-	// This is the Basis Vector dotted with other basis functions per location
-	// The inverse enables the computation of the constants that project a
-	// target vector field onto the element.
-	// If this matrix does not invert, it reflects issues with the basis
-	BasisMatrix := [2]utils.Matrix{utils.NewMatrix(rt.Np, rt.Np),
-		utils.NewMatrix(rt.Np, rt.Np)}
-	for i := 0; i < rt.Np; i++ {
-		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
-		v := [2]float64{rt.BasisVector[0].At(i, 0), rt.BasisVector[1].At(i, 0)}
-		// fmt.Printf("Base[%d] = [%f,%f]\n", i, v[0], v[1])
-		for j := 0; j < rt.Np; j++ {
-			v2, _ := rt.basisEvaluation(r, s, j)
-			// fmt.Printf("Psi[%d,%d] = [%f,%f]\n", i, j, v2[0], v2[1])
-			BasisMatrix[0].Set(i, j, v[0]*v2[0])
-			BasisMatrix[1].Set(i, j, v[1]*v2[1])
-		}
-	}
-	rt.RInt.Print("RInt")
-	rt.SInt.Print("SInt")
-	BasisMatrix[0].Print("Basis Matrix 0")
-	BasisMatrix[1].Print("Basis Matrix 1")
-	BasisDot := BasisMatrix[0].Add(BasisMatrix[1])
-	BasisDotInverse = BasisDot.InverseWithCheck()
-	// BasisDotInverse, err := BasisDot.Inverse()
-	// if err != nil {
-	// 	panic(err)
-	// }
 	return
 }
 
