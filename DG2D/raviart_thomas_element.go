@@ -203,7 +203,9 @@ func NewRTElement(P int) (rt *RTElement) {
 			rt.RInt, rt.SInt = XYtoRS(Nodes2D(P - 1))
 		}
 	}
-	rt.lp2d = NewLagrangePolynomialBasis2D(rt.P-1, rt.RInt, rt.SInt)
+	if P > 2 {
+		rt.lp2d = NewLagrangePolynomialBasis2D(rt.P-1, rt.RInt, rt.SInt)
+	}
 
 	rt.R, rt.S = rt.ExtendGeomToRT(rt.RInt, rt.SInt)
 	// fmt.Printf("RT%d - Calculating Basis...", P)
@@ -325,6 +327,7 @@ func (rt *RTElement) baseBasisVectors(r, s float64, j int) (ef [2]float64) {
 	// Edge 3 (Left edge) => Ervin Edge 3
 	// Note: Here we fix an error in Ervin - the midpoint of RT0 edges are now
 	// correctly unit normal
+	// Note2: The Ervin basis is wrong, edge basis vectors should be unit normal
 	var (
 		sr2 = math.Sqrt2
 		// Transform our unit triangle coords to Ervin:
@@ -334,12 +337,15 @@ func (rt *RTElement) baseBasisVectors(r, s float64, j int) (ef [2]float64) {
 	switch rt.getFunctionNumber(j) {
 	case E1:
 		// ef = [2]float64{xi, eta - 1}
-		ef = [2]float64{xi - 0.5, eta - 1}
+		// ef = [2]float64{xi - 0.5, eta - 1} // Fixed Ervin basis
+		ef = [2]float64{0, -1}
 	case E2:
-		ef = [2]float64{sr2 * xi, sr2 * eta}
+		// ef = [2]float64{sr2 * xi, sr2 * eta} // Ervin basis
+		ef = [2]float64{0.5 * sr2, 0.5 * sr2}
 	case E3:
 		// ef = [2]float64{xi - 1, eta}
-		ef = [2]float64{xi - 1, eta - 0.5}
+		// ef = [2]float64{xi - 1, eta - 0.5} // Ervin basis
+		ef = [2]float64{-1, 0}
 	case E4:
 		ef = [2]float64{eta * xi, eta * (eta - 1)}
 	case E5:
@@ -452,12 +458,15 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 		//     = df/dxi*(E1_1*(  1   )+E1_2*(   0  )) + f(xi)*( 1/2  +   1/2 )
 		//     = df/dxi*(         E1_1          ) + f(xi)
 		//        div(edge1) = f(xi) + v1 * (df/dxi)
-		div = P + e[0]*dPdXi
+		// div = P + e[0]*dPdXi // Ervin basis
+		//          [E1] = [0, -1]  Bottom edge
+		//           div = df/dxi * (0 -1) = -dfdxi
+		div = -dPdXi
 		return
 	case E2:
 		// Hypotenuse (2) divergence:
-		//          [v] = [Sqrt2 * xi, Sqrt2 * eta] Ervin Edge 1
-		// 			[v] = [Sqrt2/2 * (r+1), Sqrt2/2 * (s+1)]
+		//          [E2] = [Sqrt2 * xi, Sqrt2 * eta] Ervin Edge 1
+		// 			[E2] = [Sqrt2/2 * (r+1), Sqrt2/2 * (s+1)]
 		// v1 = Sqrt2/2 * (r+1), v2 = Sqrt2/2 * (s+1), dv1/dr = Sqrt2/2 = dv2/ds
 		// The hypotenuse in a counter-clockwise direction is parameterized:
 		// xi = s, => dxi/dr = 0, dxi/ds = 1
@@ -465,14 +474,17 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 		//     = df/dxi*(v1*(   0  )+v2*(   1  )) + f(xi) * (Sqrt2/2+Sqrt2/2)
 		//     = df/dxi*(          v2           ) + f(xi) * Sqrt2
 		//         div(edge2) = Sqrt2 * f(xi) + (v2-v1) * (df/dxi)
-		div = 0.5*math.Sqrt2*P + e[1]*dPdXi
+		// div = 0.5*math.Sqrt2*P + e[1]*dPdXi // Ervin basis
+		// 			[E2] = [Sqrt2/2, Sqrt2/2]
+		//           div = df/dxi * (Sqrt2/2 + Sqrt2/2) = Sqrt2 * df/dxi
+		div = math.Sqrt2 * dPdXi
 		return
 	case E3:
 		// Left Edge (3) divergence:
-		//          [v] = [xi-1, eta] Ervin Edge 2
-		//          [v] = [xi-1, eta-1/2] Ervin Edge 2 (fixed errata)
-		// 			[v] = [(r+1)/2 - 1, (s+1)/2-1/2]
-		// 			[v] = [(r-1)/2, s/2] (fixed errata)
+		//          [E3] = [xi-1, eta] Ervin Edge 2
+		//          [E3] = [xi-1, eta-1/2] Ervin Edge 2 (fixed errata)
+		// 			[E3] = [(r+1)/2 - 1, (s+1)/2-1/2]
+		// 			[E3] = [(r-1)/2, s/2] (fixed errata)
 		// v1 = (r-1)/2, v2 = s/2, dv1/dr = 1/2, dv2/ds = 1/2
 		// The left edge  in a counter-clockwise direction is parameterized:
 		// r = -1 (constant), xi = -s => dxi/dr = 0, dxi/ds = -1,
@@ -480,7 +492,10 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 		//     = df/dxi*(v1*(  0   )+v2*(  -1  )) + f(xi) * (  1/2  +   1/2 )
 		//     = df/dxi*(         -v2           ) + f(xi)
 		//         div(edge3) = f(xi) - v2 * (df/dxi)
-		div = P - e[1]*dPdXi
+		// div = P - e[1]*dPdXi // Ervin Basis
+		//			[E3] = [-1,0]
+		//           div = df/dxi * (-1 + 0) = -df/dxi
+		div = -dPdXi
 		return
 	}
 	return
@@ -534,6 +549,21 @@ func (rt *RTElement) getFunctionNumber(j int) (funcNum RTFunctionNumber) {
 	return
 }
 
+func (rt *RTElement) locationOnEdge(r, s float64) RTFunctionNumber {
+	var (
+		eps = 0.000001
+	)
+	switch {
+	case math.Abs(s+1) < eps: // s == -1, on bottom edge
+		return E1
+	case math.Abs(r+s) < eps: // Hypotenuse
+		return E2
+	case math.Abs(r+1) < eps: // r == -1, on Left edge
+		return E3
+	}
+	return All
+}
+
 func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 	derivO ...DerivativeDirection) (val float64) {
 	// This evaluates the j-th polynomial or derivative at r,s used to multiply
@@ -557,33 +587,20 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 		xi      float64
 		jj      int
 		deriv   = None
-		eps     = 0.000001
 	)
 
 	switch funcNum {
 	case E1, E2, E3:
+		edgeNum := rt.locationOnEdge(r, s)
+		// Do not calculate edge basis functions when not on own edge
+		if funcNum != edgeNum {
+			val = 0
+			return
+		}
 		jj = j - 2*rt.NpInt
-		if funcNum == E1 {
-			// Edge 1 - Bottom Edge
-			// Ervin's func multiplying e3 (bottom)
-			if math.Abs(s+1) > eps {
-				val = 0 // Not on the edge, return 0
-				return
-			}
-		} else if funcNum == E2 {
-			// Edge 2 - Hypotenuse
-			if math.Abs(r+s) > eps {
-				val = 0 // Not on the edge, return 0
-				return
-			}
+		if edgeNum == E2 {
 			jj -= rt.NpEdge
-		} else if funcNum == E3 {
-			// Edge 3 - Left Edge
-			// Ervin's func multiplying e2 (Left)
-			if math.Abs(r+1) > eps {
-				val = 0 // Not on the edge, return 0
-				return
-			}
+		} else if edgeNum == E3 {
 			jj -= 2 * rt.NpEdge
 		}
 		// Parameterized edge coordinate Xi
@@ -599,6 +616,12 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 		// fmt.Printf("Edge[%s], Val[%f]jj=%d =%f, Deriv = %v\n",
 		// 	funcNum.String(), xi, jj, val, deriv)
 	case E4, E5:
+		// Don't calculate interior basis on edges
+		switch rt.locationOnEdge(r, s) {
+		case E1, E2, E3:
+			val = 0
+			return
+		}
 		// We represent the interior polynomial for the special cases of the
 		// RT1 and RT2 elements. For RT3 and above, we use a Jacobi2D
 		// polynomial, but for RT1 it's a constant and for RT2 it's a basic poly set

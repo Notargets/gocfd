@@ -18,6 +18,75 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestRTElementPerformanceRT2(t *testing.T) {
+	// We test RT2 in isolation because RT:
+	// - uses only the analytic interior basis functions E4 and E5 times the
+	//   analytic polynomial multiplier functions in Ervin
+	var (
+		dt DivTest
+	)
+	dt = PolyField{}
+
+	fmt.Println("Begin Divergence Test")
+	P := 2
+	rt := NewRTElement(P)
+	rt.BasisVector[0].Transpose().Print("Basis Vector 0")
+	rt.BasisVector[1].Transpose().Print("Basis Vector 1")
+	rt.Div.Print("Div")
+
+	Np := rt.Np
+	divFcalc := make([]float64, Np)
+	s1, s2 := make([]float64, Np), make([]float64, Np)
+	for i := 0; i < Np; i++ {
+		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+		f1, f2 := dt.F(r, s, P-1)
+		s1[i], s2[i] = f1, f2
+		dF := dt.divF(r, s, P-1)
+		divFcalc[i] = dF
+		// fmt.Printf("F[%f,%f]=[%f,%f], divF[%f,%f]=%f\n", r, s, f1, f2, r, s, dF)
+	}
+	dFcalc := utils.NewMatrix(Np, 1, divFcalc)
+	dFcalc.Transpose().Print("Reference Div")
+	rt.ProjectFunctionOntoDOF(s1, s2)
+	dB := rt.Projection
+	rt.Div.Mul(dB).Transpose().Print("Calculated Divergence")
+}
+
+func TestRTElementPerformanceRT1(t *testing.T) {
+	// We test RT1 first in isolation because RT1:
+	// - uses only the analytic interior basis functions E4 and E5
+	// - uses the Lagrange 1D polynomial on edges
+	// - is the simplest construction to test divergence
+	var (
+		dt DivTest
+	)
+	dt = PolyField{}
+
+	fmt.Println("Begin Divergence Test")
+	P := 1
+	rt := NewRTElement(P)
+	rt.BasisVector[0].Transpose().Print("Basis Vector 0")
+	rt.BasisVector[1].Transpose().Print("Basis Vector 1")
+	rt.Div.Print("Div")
+
+	Np := rt.Np
+	divFcalc := make([]float64, Np)
+	s1, s2 := make([]float64, Np), make([]float64, Np)
+	for i := 0; i < Np; i++ {
+		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+		f1, f2 := dt.F(r, s, P-1)
+		s1[i], s2[i] = f1, f2
+		dF := dt.divF(r, s, P-1)
+		divFcalc[i] = dF
+		// fmt.Printf("F[%f,%f]=[%f,%f], divF[%f,%f]=%f\n", r, s, f1, f2, r, s, dF)
+	}
+	dFcalc := utils.NewMatrix(Np, 1, divFcalc)
+	dFcalc.Transpose().Print("Reference Div")
+	rt.ProjectFunctionOntoDOF(s1, s2)
+	dB := rt.Projection
+	rt.Div.Mul(dB).Transpose().Print("Calculated Divergence")
+}
+
 func TestRTElementConstruction3(t *testing.T) {
 	// Check the Lagrange Polynomial basis to verify the Lagrange property
 	for P := 1; P < 7; P++ {
@@ -37,145 +106,11 @@ func TestRTElementConstruction3(t *testing.T) {
 		}
 		checkIfUnitMatrix(t, A)
 	}
-	// P := 1
-	// R, S := NodesEpsilon(P)
-	// lp2d := NewLagrangePolynomialBasis2D(P, R, S)
-	// for j := 0; j < lp2d.Np; j++ {
-	// 	r, s := 0., 0.
-	// 	psi, dpsidr, dpsids := lp2d.GetPolynomialEvaluation(r, s, j),
-	// 		lp2d.GetPolynomialEvaluation(r, s, j, Dr),
-	// 		lp2d.GetPolynomialEvaluation(r, s, j, Ds)
-	// 	fmt.Printf("psi[%d][%f,%f] = %f, %f, %f\n",
-	// 		j, r, s, psi, dpsidr, dpsids)
-	// 	r, s = -1., 0.
-	// 	psi, dpsidr, dpsids = lp2d.GetPolynomialEvaluation(r, s, j),
-	// 		lp2d.GetPolynomialEvaluation(r, s, j, Dr),
-	// 		lp2d.GetPolynomialEvaluation(r, s, j, Ds)
-	// 	fmt.Printf("psi[%d][%f,%f] = %f, %f, %f\n",
-	// 		j, r, s, psi, dpsidr, dpsids)
-	//
-	// }
-}
-
-func checkIfUnitMatrix(t *testing.T, A utils.Matrix) (isDiag bool) {
-	var (
-		Np, _ = A.Dims()
-	)
-	for j := 0; j < Np; j++ {
-		for i := 0; i < Np; i++ {
-			if i == j {
-				assert.InDeltaf(t, 1., A.At(i, j), 0.00001, "")
-			} else {
-				assert.InDeltaf(t, 0., A.At(i, j), 0.00001, "")
-			}
-		}
-	}
-	return
-}
-
-type DivTest interface {
-	F(r, s float64, P int) (f1, f2 float64)
-	divF(r, s float64, P int) (div float64)
-}
-
-type SinCosField struct{}
-
-func (scf SinCosField) F(r, s float64, P int) (f1, f2 float64) {
-	var (
-		Pi = math.Pi
-	)
-	conv := func(r float64) (xi float64) {
-		xi = Pi * (r + 1)
-		return
-	}
-	f1, f2 = math.Sin(conv(r)), math.Cos(conv(s))
-	return
-}
-
-func (scf SinCosField) divF(r, s float64, P int) (div float64) {
-	var (
-		Pi = math.Pi
-	)
-	conv := func(r float64) (xi float64) {
-		xi = Pi * (r + 1)
-		return
-	}
-	div = (math.Cos(conv(r)) - math.Sin(conv(s)))
-	div += Pi * (math.Sin(conv(r)) + math.Cos(conv(s)))
-	return
-}
-
-type PolyField struct{}
-
-func (lpf PolyField) F(r, s float64, P int) (f1, f2 float64) {
-	var (
-		Pi = math.Pi
-		p  = float64(P)
-	)
-	conv := func(r float64) (xi float64) {
-		xi = Pi * (r + 1)
-		return
-	}
-	f1, f2 = math.Pow(conv(r), p), math.Pow(conv(s), p)
-	return
-}
-
-func (lpf PolyField) divF(r, s float64, P int) (div float64) {
-	var (
-		Pi = math.Pi
-		p  = float64(P)
-	)
-	conv := func(r float64) (xi float64) {
-		xi = Pi * (r + 1)
-		return
-	}
-	// val1 = (Pi*(r+1))^p
-	// dval1/dr = Pi*p*((Pi*(r+1))^(p-1))
-	// val2 = (Pi*(s+1))^p
-	// dval2/ds = Pi*p*((Pi*(s+1))^(p-1))
-	// div = p*Pi*((Pi*(r+1))^(p-1) + (Pi*(s+1))^(p-1))
-	if P > 0 {
-		div = p * Pi * (math.Pow(conv(r), p-1) + math.Pow(conv(s), p-1))
-	} else {
-		div = 0
-	}
-	return
-}
-
-func TestRTElementPerformance(t *testing.T) {
-	// var rt *RTElement
-	// for P := 1; P < 7; P++ {
-	var (
-		dt DivTest
-	)
-	dt = PolyField{}
-
-	fmt.Println("Begin Divergence Test")
-	P := 1
-	rt := NewRTElement(P)
-
-	Np := rt.Np
-	divFcalc := make([]float64, Np)
-	s1, s2 := make([]float64, Np), make([]float64, Np)
-	for i := 0; i < Np; i++ {
-		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
-		// f1, f2 := dt.F(r, s, P)
-		// dF := dt.divF(r, s, P)
-		f1, f2 := dt.F(r, s, P-1)
-		s1[i], s2[i] = f1, f2
-		dF := dt.divF(r, s, P-1)
-		divFcalc[i] = dF
-		// fmt.Printf("F[%f,%f]=[%f,%f], divF[%f,%f]=%f\n", r, s, f1, f2, r, s, dF)
-	}
-	dFcalc := utils.NewMatrix(Np, 1, divFcalc)
-	dFcalc.Transpose().Print("Calculated Div")
-	rt.ProjectFunctionOntoDOF(s1, s2)
-	dB := rt.Projection
-	rt.Div.Mul(dB).Transpose().Print("Div")
 }
 
 func TestRTElementVerifyErvinRT1(t *testing.T) {
 	// Check the basis vectors for RT1 against Ervin's RT1 construction
+	// Altered to check against edge normal vectors instead of E1,E2,E3 in Ervin
 	P := 1
 	rt := NewRTElement(P)
 	BasisVector := [2]utils.Matrix{utils.NewMatrix(rt.Np, 1),
@@ -211,16 +146,19 @@ func TestRTElementVerifyErvinRT1(t *testing.T) {
 		var (
 			s2 = math.Sqrt(2)
 		)
-		v = [2]float64{s2 * xi, s2 * eta}
+		// v = [2]float64{s2 * xi, s2 * eta} // Ervin
+		v = [2]float64{0.5 * s2, 0.5 * s2} // Unit normal
 		return
 	}
 	e2 := func(xi, eta float64) (v [2]float64) {
-		v = [2]float64{xi - 1, eta - 0.5}
+		v = [2]float64{-1, 0} // Unit normal
+		// v = [2]float64{xi - 1, eta - 0.5} // Ervin
 		// v = [2]float64{xi - 1, eta}
 		return
 	}
 	e3 := func(xi, eta float64) (v [2]float64) {
-		v = [2]float64{xi - 0.5, eta - 1}
+		v = [2]float64{0, -1} // Unit normal
+		// v = [2]float64{xi - 0.5, eta - 1} // Ervin
 		// v = [2]float64{xi, eta - 1}
 		return
 	}
@@ -331,7 +269,7 @@ func TestRTElementVerifyErvinRT1(t *testing.T) {
 }
 
 func TestRTElementLagrangePolynomials(t *testing.T) {
-	// Check the edge lagrange polynomials
+	// Check that the edge lagrange polynomials are zero at i!=j
 	for P := 1; P < 7; P++ {
 		rt := NewRTElement(P)
 		offset := 2 * rt.NpInt
@@ -351,13 +289,13 @@ func TestRTElementLagrangePolynomials(t *testing.T) {
 	}
 }
 func TestRTElementConstruction1(t *testing.T) {
-	P := 1
+	P := 3
 	rt := NewRTElement(P)
 	j1_1 := rt.BasisVector[0].At(0, 0)
 	j1_2 := rt.BasisVector[1].At(0, 0)
-	j2_1 := rt.BasisVector[0].At(1, 0)
-	j2_2 := rt.BasisVector[1].At(1, 0)
-	// Both basis 1 and 2 are at the same location in RT1, the single interior
+	j2_1 := rt.BasisVector[0].At(rt.NpInt, 0)
+	j2_2 := rt.BasisVector[1].At(rt.NpInt, 0)
+	// Both basis 1 and 2 are at the same location in RT, the single interior
 	// point, so we don't need to change the location
 	dot1 := j1_1*j1_1 + j1_2*j1_2                 // Basis1 dotted with itself
 	dot2 := j1_1*j2_1 + j1_2*j2_2                 // Basis1 dotted with Basis2
@@ -377,7 +315,11 @@ func TestRTElementConstruction1(t *testing.T) {
 	}
 	BasisDot := BasisMatrix[0].Add(BasisMatrix[1])
 	assert.InDeltaf(t, BasisDot.At(0, 0), dot1, 0.0001, "")
-	assert.InDeltaf(t, BasisDot.At(0, 1), dot2, 0.0001, "")
+	assert.InDeltaf(t, BasisDot.At(0, rt.NpInt), dot2, 0.0001, "")
+	// BasisMatrix[0].Print("BasisMatrix 0")
+	// BasisMatrix[1].Print("BasisMatrix 1")
+	// BasisDot.Print("BasisDot")
+	// BasisDot.InverseWithCheck().Print("BasisDot Inverse")
 }
 
 func TestRTElementConstruction(t *testing.T) {
@@ -510,7 +452,7 @@ func TestRTElementConstruction(t *testing.T) {
 		assert.True(t, nearVec(A.Row(i).DataP[0:2], pp, 0.00001))
 	}
 
-	// Build polynomial derivative matrices for polynomials
+	// Build polynomial derivative matrices
 	dr := utils.NewMatrix(rt.Np, rt.Np)
 	ds := utils.NewMatrix(rt.Np, rt.Np)
 	for i = 0; i < rt.Np; i++ {
@@ -520,18 +462,11 @@ func TestRTElementConstruction(t *testing.T) {
 	for i = 0; i < rt.Np; i++ {
 		r, s = rt.R.AtVec(i), rt.S.AtVec(i)
 		for j = 0; j < rt.Np; j++ {
-			// fmt.Printf("NpInt, j = %d, %d\n", rt.NpInt, j)
-			if j < 2*rt.NpInt {
-				dr.Set(i, j, rt.basisPolynomialValue(r, s, j, Dr))
-				ds.Set(i, j, rt.basisPolynomialValue(r, s, j, Ds))
-			} else {
-				if i >= 2*rt.NpInt {
-					dr.Set(i, j, rt.basisPolynomialValue(r, s, j, Dr))
-					ds.Set(i, j, rt.basisPolynomialValue(r, s, j, Ds))
-				}
-			}
+			dr.Set(i, j, rt.basisPolynomialValue(r, s, j, Dr))
+			ds.Set(i, j, rt.basisPolynomialValue(r, s, j, Ds))
 		}
 	}
+	fmt.Printf("RT%d\n", P)
 	dr.Print("Poly Dr")
 	ds.Print("Poly Ds")
 }
@@ -917,49 +852,87 @@ func PlotTestTri(plotGeom bool) (chart *chart2d.Chart2D) {
 	return
 }
 
-/*
-	checkSolutionM := func(rt *RTElement, Order int) (s1, s2, divCheck []float64) {
-		var (
-			Npm = rt.Npm
-		)
-		s1, s2 = make([]float64, Npm), make([]float64, Npm)
-		divCheck = make([]float64, Npm)
-		var ss1, ss2 float64
-		for i := 0; i < Npm; i++ {
-			r := rt.Rm.DataP[i]
-			s := rt.Sm.DataP[i]
-			ccf := float64(Order)
-			s1[i] = utils.POW(r, Order)
-			s2[i] = utils.POW(s, Order)
-			ss1, ss2 = ccf*utils.POW(r, Order-1), ccf*utils.POW(s, Order-1)
-			divCheck[i] = ss1 + ss2
-		}
-		return
-	}
-	if false { // Check Divergence for polynomial vector fields of order < N against analytical solution
-		Nend := 2
-		for N := 1; N < Nend; N++ {
-			R, S := NodesEpsilon(N - 1)
-			rt := NewRTElement(N, R, S)
-			fmt.Printf("calculating Dr and Ds...\n")
-			//Dr := rt.Vrm[0].Mul(rt.VmInv[0])
-			//Ds := rt.Vsm[1].Mul(rt.VmInv[1])
-			Dr := rt.Vrm[0].Mul(rt.VmInv[0])
-			Ds := rt.Vsm[1].Mul(rt.VmInv[1])
-			//Dr := rt.Vrm[0]
-			//Ds := rt.Vsm[1]
-			for cOrder := 0; cOrder <= N; cOrder++ {
-				fmt.Printf("Check Order = %d, ", cOrder)
-				s1, s2, divCheck := checkSolutionM(rt, cOrder)
-				s1p, s2p := rt.ProjectFunctionOntoBasis2(s1, s2)
-				s1m, s2m := utils.NewMatrix(rt.Npm, 1, s1p), utils.NewMatrix(rt.Npm, 1, s2p)
-				div := Dr.Mul(s1m).Add(Ds.Mul(s2m)).DataP
-				minerrInt, maxerrInt, minerrEdge, maxerrEdge := errorCheck(N, div, divCheck)
-				assert.True(t, near(minerrInt, 0.0, 0.00001))
-				assert.True(t, near(maxerrInt, 0.0, 0.00001))
-				assert.True(t, near(minerrEdge, 0.0, 0.00001))
-				assert.True(t, near(maxerrEdge, 0.0, 0.00001))
+func checkIfUnitMatrix(t *testing.T, A utils.Matrix) (isDiag bool) {
+	var (
+		Np, _ = A.Dims()
+	)
+	for j := 0; j < Np; j++ {
+		for i := 0; i < Np; i++ {
+			if i == j {
+				assert.InDeltaf(t, 1., A.At(i, j), 0.00001, "")
+			} else {
+				assert.InDeltaf(t, 0., A.At(i, j), 0.00001, "")
 			}
 		}
 	}
-*/
+	return
+}
+
+type DivTest interface {
+	F(r, s float64, P int) (f1, f2 float64)
+	divF(r, s float64, P int) (div float64)
+}
+
+type SinCosField struct{}
+
+func (scf SinCosField) F(r, s float64, P int) (f1, f2 float64) {
+	var (
+		Pi = math.Pi
+	)
+	conv := func(r float64) (xi float64) {
+		xi = Pi * (r + 1)
+		return
+	}
+	f1, f2 = math.Sin(conv(r)), math.Cos(conv(s))
+	return
+}
+
+func (scf SinCosField) divF(r, s float64, P int) (div float64) {
+	var (
+		Pi = math.Pi
+	)
+	conv := func(r float64) (xi float64) {
+		xi = Pi * (r + 1)
+		return
+	}
+	div = (math.Cos(conv(r)) - math.Sin(conv(s)))
+	div += Pi * (math.Sin(conv(r)) + math.Cos(conv(s)))
+	return
+}
+
+type PolyField struct{}
+
+func (lpf PolyField) F(r, s float64, P int) (f1, f2 float64) {
+	var (
+		Pi = math.Pi
+		p  = float64(P)
+	)
+	conv := func(r float64) (xi float64) {
+		xi = Pi * (r + 1)
+		return
+	}
+	f1, f2 = math.Pow(conv(r), p), math.Pow(conv(s), p)
+	return
+}
+
+func (lpf PolyField) divF(r, s float64, P int) (div float64) {
+	var (
+		Pi = math.Pi
+		p  = float64(P)
+	)
+	conv := func(r float64) (xi float64) {
+		xi = Pi * (r + 1)
+		return
+	}
+	// val1 = (Pi*(r+1))^p
+	// dval1/dr = Pi*p*((Pi*(r+1))^(p-1))
+	// val2 = (Pi*(s+1))^p
+	// dval2/ds = Pi*p*((Pi*(s+1))^(p-1))
+	// div = p*Pi*((Pi*(r+1))^(p-1) + (Pi*(s+1))^(p-1))
+	if P > 0 {
+		div = p * Pi * (math.Pow(conv(r), p-1) + math.Pow(conv(s), p-1))
+	} else {
+		div = 0
+	}
+	return
+}
