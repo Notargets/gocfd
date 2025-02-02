@@ -1,3 +1,4 @@
+- [Update 50](CHANGELOG/Update_50.md): Redefinition of RT element part 4
 - [Update 49](CHANGELOG/Update_49.md): Redefinition of RT element part 3
 - [Update 48](CHANGELOG/Update_48.md): Redefinition of RT element part 2
 - [Update 47](CHANGELOG/Update_47.md): Redefinition of the RT element

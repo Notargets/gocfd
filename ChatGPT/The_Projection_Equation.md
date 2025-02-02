@@ -90,8 +90,8 @@ C_N
 $$
 
 Here:
-- Each row \(i\) of the matrix corresponds to the \(i\)‑th RT basis function \(\psi_i\) evaluated at all quadrature points.
-- Each column \(j\) corresponds to the \(j\)‑th RT basis function \(\psi_j\) (evaluated at the same quadrature points).
+- Each row $i$ of the matrix corresponds to the $i$‑th RT basis function $\psi_i$ evaluated at all quadrature points.
+- Each column $j$ corresponds to the $j$‑th RT basis function $\psi_j$ (evaluated at the same quadrature points).
 
 ---
 
