@@ -326,7 +326,7 @@ func (rt *RTElement) baseBasisVectors(r, s float64, j int) (ef [2]float64) {
 	// Note: Here we fix an error in Ervin - the midpoint of RT0 edges are now
 	// correctly unit normal
 	var (
-		sr2 = math.Sqrt(2.)
+		sr2 = math.Sqrt2
 		// Transform our unit triangle coords to Ervin:
 		xi  = 0.5 * (r + 1)
 		eta = 0.5 * (s + 1)
@@ -346,33 +346,6 @@ func (rt *RTElement) baseBasisVectors(r, s float64, j int) (ef [2]float64) {
 		ef = [2]float64{xi * (xi - 1), xi * eta}
 	default:
 		panic("wrong basis function number (1-5)")
-	}
-	return
-}
-
-func (rt *RTElement) getFunctionNumber(j int) (funcNum RTFunctionNumber) {
-	var (
-		NpInt  = rt.NpInt
-		NpEdge = rt.NpEdge
-	)
-	switch {
-	case j >= 0 && j < NpInt:
-		// Unit vector is [1,0]
-		funcNum = E4
-	case j >= NpInt && j < 2*NpInt:
-		// Unit vector is [0,1]
-		funcNum = E5
-	case j >= 2*NpInt && j < 2*NpInt+NpEdge:
-		// E1: Unit vector is [0,-1]
-		funcNum = E1
-	case j >= 2*NpInt+NpEdge && j < 2*NpInt+2*NpEdge:
-		// E2: Unit vector is [1/sqrt(2), 1/sqrt(2)]
-		funcNum = E2
-	case j >= 2*NpInt+2*NpEdge && j < 2*NpInt+3*NpEdge:
-		// E3: Unit vector is [-1,0]
-		funcNum = E3
-	default:
-		panic("j out of range")
 	}
 	return
 }
@@ -487,12 +460,12 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 		// 			[v] = [Sqrt2/2 * (r+1), Sqrt2/2 * (s+1)]
 		// v1 = Sqrt2/2 * (r+1), v2 = Sqrt2/2 * (s+1), dv1/dr = Sqrt2/2 = dv2/ds
 		// The hypotenuse in a counter-clockwise direction is parameterized:
-		// xi = -r = s, => dxi/dr = -1, dxi/ds = 1
+		// xi = s, => dxi/dr = 0, dxi/ds = 1
 		// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
-		//     = df/dxi*(v1*(  -1  )+v2*(   1  )) + f(xi) * (Sqrt2/2+Sqrt2/2)
-		//     = df/dxi*(         v2-v1         ) + f(xi) * Sqrt2
+		//     = df/dxi*(v1*(   0  )+v2*(   1  )) + f(xi) * (Sqrt2/2+Sqrt2/2)
+		//     = df/dxi*(          v2           ) + f(xi) * Sqrt2
 		//         div(edge2) = Sqrt2 * f(xi) + (v2-v1) * (df/dxi)
-		div = math.Sqrt(2)*P + (e[1]-e[0])*dPdXi
+		div = 0.5*math.Sqrt2*P + e[1]*dPdXi
 		return
 	case E3:
 		// Left Edge (3) divergence:
@@ -505,18 +478,64 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 		// r = -1 (constant), xi = -s => dxi/dr = 0, dxi/ds = -1,
 		// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
 		//     = df/dxi*(v1*(  0   )+v2*(  -1  )) + f(xi) * (  1/2  +   1/2 )
-		//     = df/dxi*(          v2           ) + f(xi)
-		//         div(edge3) = f(xi) + v2 * (df/dxi)
-		div = P + e[1]*dPdXi
+		//     = df/dxi*(         -v2           ) + f(xi)
+		//         div(edge3) = f(xi) - v2 * (df/dxi)
+		div = P - e[1]*dPdXi
 		return
+	}
+	return
+}
+
+func (rt *RTElement) getEdgeXiParameter(r, s float64,
+	funcNum RTFunctionNumber) (xi float64, Xi []float64) {
+	// Edge 1 is S=-1 (bottom of tri)
+	// Edge 2 is Hypotenuse
+	// Edge 3 is R=-1 (left side of tri)
+	switch funcNum {
+	case E1:
+		xi = r
+		Xi = rt.R.Subset(2*rt.NpInt, 2*rt.NpInt+rt.NpEdge-1).DataP
+	case E2:
+		xi = s
+		Xi = rt.S.Subset(2*rt.NpInt+rt.NpEdge, 2*rt.NpInt+2*rt.NpEdge-1).DataP
+	case E3:
+		xi = -s
+		Xi = rt.S.Subset(2*rt.NpInt+2*rt.NpEdge, 2*rt.NpInt+3*rt.NpEdge-1).Scale(-1).DataP
+	default:
+		panic("invalid edgeNum")
+	}
+	return
+}
+
+func (rt *RTElement) getFunctionNumber(j int) (funcNum RTFunctionNumber) {
+	var (
+		NpInt  = rt.NpInt
+		NpEdge = rt.NpEdge
+	)
+	switch {
+	case j >= 0 && j < NpInt:
+		// Unit vector is [1,0]
+		funcNum = E4
+	case j >= NpInt && j < 2*NpInt:
+		// Unit vector is [0,1]
+		funcNum = E5
+	case j >= 2*NpInt && j < 2*NpInt+NpEdge:
+		// E1: Unit vector is [0,-1]
+		funcNum = E1
+	case j >= 2*NpInt+NpEdge && j < 2*NpInt+2*NpEdge:
+		// E2: Unit vector is [1/sqrt(2), 1/sqrt(2)]
+		funcNum = E2
+	case j >= 2*NpInt+2*NpEdge && j < 2*NpInt+3*NpEdge:
+		// E3: Unit vector is [-1,0]
+		funcNum = E3
+	default:
+		panic("j out of range")
 	}
 	return
 }
 
 func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 	derivO ...DerivativeDirection) (val float64) {
-	// TODO: Speed this up, it's super slow,
-	//  likely because a new 2D basis is created for every evaluation for RT3+
 	// This evaluates the j-th polynomial or derivative at r,s used to multiply
 	// each of the 5 base basis vectors in Ervin's RT basis, named
 	//               ℯ̂₁, ℯ̂₂, ℯ̂₃, ℯ̂₄, ℯ̂₅
@@ -656,27 +675,6 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 		panic("j basis function number (1-5)")
 	}
 
-	return
-}
-
-func (rt *RTElement) getEdgeXiParameter(r, s float64,
-	funcNum RTFunctionNumber) (xi float64, Xi []float64) {
-	// Edge 1 is S=-1 (bottom of tri)
-	// Edge 2 is Hypotenuse
-	// Edge 3 is R=-1 (left side of tri)
-	switch funcNum {
-	case E1:
-		xi = r
-		Xi = rt.R.Subset(2*rt.NpInt, 2*rt.NpInt+rt.NpEdge-1).DataP
-	case E2:
-		xi = s
-		Xi = rt.S.Subset(2*rt.NpInt+rt.NpEdge, 2*rt.NpInt+2*rt.NpEdge-1).DataP
-	case E3:
-		xi = -s
-		Xi = rt.S.Subset(2*rt.NpInt+2*rt.NpEdge, 2*rt.NpInt+3*rt.NpEdge-1).Scale(-1).DataP
-	default:
-		panic("invalid edgeNum")
-	}
 	return
 }
 

@@ -150,25 +150,27 @@ func TestRTElementPerformance(t *testing.T) {
 	)
 	dt = PolyField{}
 
-	P := 2
+	fmt.Println("Begin Divergence Test")
+	P := 1
 	rt := NewRTElement(P)
 
 	Np := rt.Np
-	dotBasis := make([]float64, Np)
 	divFcalc := make([]float64, Np)
+	s1, s2 := make([]float64, Np), make([]float64, Np)
 	for i := 0; i < Np; i++ {
 		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+		// f1, f2 := dt.F(r, s, P)
+		// dF := dt.divF(r, s, P)
 		f1, f2 := dt.F(r, s, P-1)
+		s1[i], s2[i] = f1, f2
 		dF := dt.divF(r, s, P-1)
 		divFcalc[i] = dF
 		// fmt.Printf("F[%f,%f]=[%f,%f], divF[%f,%f]=%f\n", r, s, f1, f2, r, s, dF)
-		b1, b2 := rt.BasisVector[0].At(i, 0), rt.BasisVector[1].At(i, 0)
-		dotBasis[i] = f1*b1 + f2*b2
 	}
 	dFcalc := utils.NewMatrix(Np, 1, divFcalc)
 	dFcalc.Transpose().Print("Calculated Div")
-	dB := utils.NewMatrix(Np, 1, dotBasis)
-	// dB.Transpose().Print("Dot Basis")
+	rt.ProjectFunctionOntoDOF(s1, s2)
+	dB := rt.Projection
 	rt.Div.Mul(dB).Transpose().Print("Div")
 }
 
@@ -842,26 +844,27 @@ func TestRTElement(t *testing.T) {
 		}
 		return
 	}
-	if false { // Check Divergence for polynomial vector fields of order < N
+	if true { // Check Divergence for polynomial vector fields of order < N
 		// against analytical solution
-		Nend := 8
-		for N := 1; N < Nend; N++ {
-			rt := NewRTElement(N)
-			for cOrder := 0; cOrder <= N; cOrder++ {
-				fmt.Printf("Check Order = %d, ", cOrder)
-				// [s1,s2] values for each location in {R,S}
-				s1, s2, divCheck := checkSolution(rt, cOrder)
-				rt.ProjectFunctionOntoDOF(s1, s2)
-				divM := rt.Div.Mul(rt.Projection)
-				// fmt.Println(divM.Print("divM"))
-				minerrInt, maxerrInt, minerrEdge, maxerrEdge := errorCheck(N, divM.DataP, divCheck)
-				assert.True(t, near(minerrInt, 0.0, 0.00001))
-				assert.True(t, near(maxerrInt, 0.0, 0.00001))
-				assert.True(t, near(minerrEdge, 0.0, 0.00001))
-				assert.True(t, near(maxerrEdge, 0.0, 0.00001))
-			}
+		// Nend := 8
+		// for N := 1; N < Nend; N++ {
+		N := 1
+		rt := NewRTElement(N)
+		for cOrder := 0; cOrder <= N; cOrder++ {
+			fmt.Printf("Check Order = %d, ", cOrder)
+			// [s1,s2] values for each location in {R,S}
+			s1, s2, divCheck := checkSolution(rt, cOrder)
+			rt.ProjectFunctionOntoDOF(s1, s2)
+			divM := rt.Div.Mul(rt.Projection)
+			// fmt.Println(divM.Print("divM"))
+			minerrInt, maxerrInt, minerrEdge, maxerrEdge := errorCheck(N, divM.DataP, divCheck)
+			assert.True(t, near(minerrInt, 0.0, 0.00001))
+			assert.True(t, near(maxerrInt, 0.0, 0.00001))
+			assert.True(t, near(minerrEdge, 0.0, 0.00001))
+			assert.True(t, near(maxerrEdge, 0.0, 0.00001))
 		}
 	}
+	// }
 	plot := false
 	if plot {
 		N := 2
