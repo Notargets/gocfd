@@ -168,7 +168,9 @@ type RTElement struct {
 	RInt, SInt  utils.Vector
 	BasisVector [2]utils.Matrix
 	Projection  utils.Matrix
-	lp2d        *LagrangePolynomial2D
+	// Technically, each edge is
+	lp1d *LagrangePolynomial1D
+	lp2d *LagrangePolynomial2D
 }
 
 func NewRTElement(P int) (rt *RTElement) {
@@ -208,6 +210,11 @@ func NewRTElement(P int) (rt *RTElement) {
 	}
 
 	rt.R, rt.S = rt.ExtendGeomToRT(rt.RInt, rt.SInt)
+	// Each edge is identical WRT point distribution along the edge,
+	// so we just need one lagrange polynomial for each of them
+	edgePoints := rt.R.Subset(2*rt.NpInt, 2*rt.NpInt+rt.NpEdge-1)
+	rt.lp1d = NewLagrangePolynomial1D(edgePoints, rt.P, 0, 0)
+
 	// fmt.Printf("RT%d - Calculating Basis...", P)
 	rt.CalculateBasis()
 	// fmt.Printf("\nRT%d - Calculating Divergence Matrix...", P)
@@ -269,7 +276,9 @@ func (rt *RTElement) ComputeBasisDotInverse() (BasisDotInverse utils.Matrix) {
 		}
 	}
 	BasisDot := BasisMatrix[0].Add(BasisMatrix[1])
+	// BasisDot.Print("BasisDot")
 	BasisDotInverse = BasisDot.InverseWithCheck()
+	// BasisDotInverse.Print("BasisDotInverse")
 	return
 }
 
@@ -461,7 +470,7 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 		// div = P + e[0]*dPdXi // Ervin basis
 		//          [E1] = [0, -1]  Bottom edge
 		//           div = df/dxi * (0 -1) = -dfdxi
-		div = -dPdXi
+		div = -0.5 * dPdXi
 		return
 	case E2:
 		// Hypotenuse (2) divergence:
@@ -495,27 +504,24 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 		// div = P - e[1]*dPdXi // Ervin Basis
 		//			[E3] = [-1,0]
 		//           div = df/dxi * (-1 + 0) = -df/dxi
-		div = -dPdXi
+		div = -0.5 * dPdXi
 		return
 	}
 	return
 }
 
 func (rt *RTElement) getEdgeXiParameter(r, s float64,
-	funcNum RTFunctionNumber) (xi float64, Xi []float64) {
+	funcNum RTFunctionNumber) (xi float64) {
 	// Edge 1 is S=-1 (bottom of tri)
 	// Edge 2 is Hypotenuse
 	// Edge 3 is R=-1 (left side of tri)
 	switch funcNum {
 	case E1:
 		xi = r
-		Xi = rt.R.Subset(2*rt.NpInt, 2*rt.NpInt+rt.NpEdge-1).DataP
 	case E2:
 		xi = s
-		Xi = rt.S.Subset(2*rt.NpInt+rt.NpEdge, 2*rt.NpInt+2*rt.NpEdge-1).DataP
 	case E3:
 		xi = -s
-		Xi = rt.S.Subset(2*rt.NpInt+2*rt.NpEdge, 2*rt.NpInt+3*rt.NpEdge-1).Scale(-1).DataP
 	default:
 		panic("invalid edgeNum")
 	}
@@ -583,10 +589,8 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 	// The input parameter "j" is the function index within the element
 	var (
 		funcNum = rt.getFunctionNumber(j)
-		Xi      []float64
 		xi      float64
 		jj      int
-		deriv   = None
 	)
 
 	switch funcNum {
@@ -603,16 +607,9 @@ func (rt *RTElement) basisPolynomialValue(r, s float64, j int,
 		} else if edgeNum == E3 {
 			jj -= 2 * rt.NpEdge
 		}
-		// Parameterized edge coordinate Xi
-		xi, Xi = rt.getEdgeXiParameter(r, s, funcNum)
-		if len(derivO) > 0 {
-			if derivO[0] != None {
-				deriv = 1
-			} else {
-				deriv = 0
-			}
-		}
-		val = DG1D.Lagrange1DPoly(xi, Xi, jj, int(deriv))
+		// val = DG1D.Lagrange1DPoly(xi, Xi, jj, int(deriv))
+		val = rt.lp1d.getPolynomial(rt.getEdgeXiParameter(r, s, funcNum), jj,
+			derivO...)
 		// fmt.Printf("Edge[%s], Val[%f]jj=%d =%f, Deriv = %v\n",
 		// 	funcNum.String(), xi, jj, val, deriv)
 	case E4, E5:

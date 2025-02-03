@@ -390,55 +390,55 @@ func LagrangePolyAtJ(r float64, R []float64, j int) (s float64) {
 	return
 }
 
-func Lagrange1DPoly(r float64, R []float64, j int, derivO ...int) (p float64) {
-	/*
-		Evaluates the Lagrange polynomial or its derivative, defined on points R,
-		centered on the j-th point R[j], and evaluated at point r
-		The order of the polynomial is P = len(R)-1
-	*/
-	var (
-		deriv = 0
-	)
-	if len(derivO) != 0 {
-		deriv = derivO[0]
-	}
-	switch deriv {
-	case 0:
-		var (
-			Np1D = len(R)
-			XJ   = R[j]
-			XI   = r
-		)
-		if j > Np1D-1 || j < 0 {
-			panic("value of j larger than array or less than zero")
-		}
-		p = 1
-		for m, XM := range R {
-			if m != j {
-				p *= (XI - XM) / (XJ - XM)
-			}
-		}
-	case 1:
-		/*
-			From https://math.stackexchange.com/questions/1105160/evaluate-derivative-of-lagrange-polynomials-at-construction-points
-		*/
-		var (
-			XJ = R[j]
-			x  = r
-		)
-		for l, XL := range R {
-			if l != j {
-				pp := 1.
-				for m, XM := range R {
-					if m != j && m != l {
-						pp *= (x - XM) / (XJ - XM)
-					}
-				}
-				p += pp / (XJ - XL)
-			}
-		}
-	default:
-		panic("invalid derivo")
-	}
-	return
-}
+// func Lagrange1DPoly(r float64, R []float64, j int, derivO ...int) (p float64) {
+// 	/*
+// 		Evaluates the Lagrange polynomial or its derivative, defined on points R,
+// 		centered on the j-th point R[j], and evaluated at point r
+// 		The order of the polynomial is P = len(R)-1
+// 	*/
+// 	var (
+// 		deriv = 0
+// 	)
+// 	if len(derivO) != 0 {
+// 		deriv = derivO[0]
+// 	}
+// 	switch deriv {
+// 	case 0:
+// 		var (
+// 			Np1D = len(R)
+// 			XJ   = R[j]
+// 			XI   = r
+// 		)
+// 		if j > Np1D-1 || j < 0 {
+// 			panic("value of j larger than array or less than zero")
+// 		}
+// 		p = 1
+// 		for m, XM := range R {
+// 			if m != j {
+// 				p *= (XI - XM) / (XJ - XM)
+// 			}
+// 		}
+// 	case 1:
+// 		/*
+// 			From https://math.stackexchange.com/questions/1105160/evaluate-derivative-of-lagrange-polynomials-at-construction-points
+// 		*/
+// 		var (
+// 			XJ = R[j]
+// 			x  = r
+// 		)
+// 		for l, XL := range R {
+// 			if l != j {
+// 				pp := 1.
+// 				for m, XM := range R {
+// 					if m != j && m != l {
+// 						pp *= (x - XM) / (XJ - XM)
+// 					}
+// 				}
+// 				p += pp / (XJ - XL)
+// 			}
+// 		}
+// 	default:
+// 		panic("invalid derivo")
+// 	}
+// 	return
+// }

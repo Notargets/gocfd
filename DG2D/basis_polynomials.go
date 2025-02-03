@@ -219,10 +219,8 @@ func (jb2d *JacobiBasis2D) GetAllPolynomials(derivO ...DerivativeDirection) (
 type LagrangePolynomial2D struct {
 	P      int // Order
 	Np     int // Dimension
-	j      int // j index within the coordinates that define this polynomial
 	R, S   utils.Vector
 	Coeffs utils.Matrix
-	Dr, Ds utils.Matrix
 	jb2d   *JacobiBasis2D
 }
 
@@ -284,5 +282,107 @@ func (lp2d *LagrangePolynomial2D) GetPolynomialEvaluation(r, s float64,
 			sk++
 		}
 	}
+	return
+}
+
+type LagrangePolynomial1D struct {
+	P             int
+	Np            int
+	alpha, beta   float64
+	R             utils.Vector
+	PolyTerms     utils.Matrix
+	PolyTermsGrad utils.Matrix
+	Coeffs        utils.Matrix
+}
+
+// func Lagrange1DPoly(r float64, R []float64, j int, derivO ...int) (p float64) {
+func NewLagrangePolynomial1D(R utils.Vector, P int, alpha, beta float64) (lp1d *LagrangePolynomial1D) {
+	// This provides a 1D Lagrange polynomial using the Jacobi polynomials as
+	// a basis
+	lp1d = &LagrangePolynomial1D{
+		P:  P,
+		Np: P + 1,
+		R:  R,
+	}
+	// Each column of PolyTerms and Grad is the set of Np polynomials evals
+	// of the j-th term at all locations
+	lp1d.PolyTerms = lp1d.Vandermonde1D()
+	lp1d.PolyTermsGrad = lp1d.GradVandermonde1D()
+	// Each j-th row of Coeffs is the set of Np coefficients for the Lagrange
+	// polynomial
+	lp1d.Coeffs = lp1d.PolyTerms.InverseWithCheck().Transpose()
+	return
+}
+
+func (lp1d *LagrangePolynomial1D) getPolynomial(r float64,
+	j int, derivO ...DerivativeDirection) (psi float64) {
+	var (
+		Np = lp1d.Np
+	)
+	// The j-th polynomial is the sum of the coefficients times the terms,
+	// which is the j-th element of a vector derived from multiplying the
+	// Terms column (all Np terms at r) with the coeffs matrix (rows of coeffs)
+	var (
+		deriv = None
+	)
+	if len(derivO) > 0 {
+		deriv = Dr
+	}
+
+	// for j := 0; j < Np; j++ {
+	// V.SetCol(j, lp1d.JacobiP(lp1d.R, lp1d.alpha, lp1d.beta, j))
+	// }
+
+	// We need each Jacobi polynomial (term) for j=0->(Np-1) (
+	// Np = P+1) at each location r
+	p := make([]float64, Np)
+	if deriv == None {
+		for jj := 0; jj < Np; jj++ {
+			p[jj] = lp1d.JacobiP(utils.NewVector(1, []float64{r}), 0, 0, jj)[0]
+		}
+	} else {
+		for jj := 0; jj < Np; jj++ {
+			p[jj] = lp1d.GradJacobiP(utils.NewVector(1, []float64{r}), 0, 0,
+				jj)[0]
+		}
+	}
+	polyTermsAtR := utils.NewMatrix(1, Np, p)
+	// The j-th row of lp1d.Coeffs are the coefficients for the j-th polynomial
+	Coeffs := utils.NewMatrix(Np, 1, lp1d.Coeffs.Row(j).DataP)
+	psi = polyTermsAtR.Mul(Coeffs).At(0, 0)
+	return
+}
+
+func (lp1d *LagrangePolynomial1D) Vandermonde1D() (V utils.Matrix) {
+	var (
+		Np = lp1d.Np
+	)
+	V = utils.NewMatrix(Np, Np)
+	for j := 0; j < Np; j++ {
+		V.SetCol(j, lp1d.JacobiP(lp1d.R, lp1d.alpha, lp1d.beta, j))
+	}
+	return
+}
+
+func (lp1d *LagrangePolynomial1D) GradVandermonde1D() (Vr utils.Matrix) {
+	var (
+		Np = lp1d.Np
+	)
+	Vr = utils.NewMatrix(Np, Np)
+	for j := 0; j < Np; j++ {
+		Vr.SetCol(j, lp1d.GradJacobiP(lp1d.R, lp1d.alpha, lp1d.beta, j))
+	}
+	return
+}
+
+func (lp1d *LagrangePolynomial1D) JacobiP(R utils.Vector, alpha,
+	beta float64, j int) (p []float64) {
+	p = DG1D.JacobiP(R, alpha, beta, j)
+	return
+}
+
+func (lp1d *LagrangePolynomial1D) GradJacobiP(R utils.Vector, alpha,
+	beta float64, j int) (p []float64) {
+	p = DG1D.GradJacobiP(R, alpha, beta, j)
 	return
 }
