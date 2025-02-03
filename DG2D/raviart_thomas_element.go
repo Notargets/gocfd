@@ -252,7 +252,7 @@ func (rt *RTElement) ComputeDivergenceMatrix() (Div utils.Matrix) {
 			DivBasis.Set(i, j, div)
 		}
 	}
-	// DivBasis.Print("Basis Divergence Matrix")
+	DivBasis.Print("Basis Divergence Matrix")
 	Div = DivBasis.Mul(BasisDotInverse)
 	return
 }

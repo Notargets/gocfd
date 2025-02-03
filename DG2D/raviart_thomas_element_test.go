@@ -34,14 +34,17 @@ func TestRTElementPerformanceRT2(t *testing.T) {
 	rt.BasisVector[1].Transpose().Print("Basis Vector 1")
 	rt.Div.Print("Div")
 
+	// First check a constant field - divergence should be zero
 	Np := rt.Np
 	divFcalc := make([]float64, Np)
 	s1, s2 := make([]float64, Np), make([]float64, Np)
 	for i := 0; i < Np; i++ {
 		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
-		f1, f2 := dt.F(r, s, P-1)
+		f1, f2 := dt.F(r, s, 0)
+		// f1, f2 := dt.F(r, s, P-1)
 		s1[i], s2[i] = f1, f2
-		dF := dt.divF(r, s, P-1)
+		dF := dt.divF(r, s, 0)
+		// dF := dt.divF(r, s, P-1)
 		divFcalc[i] = dF
 		// fmt.Printf("F[%f,%f]=[%f,%f], divF[%f,%f]=%f\n", r, s, f1, f2, r, s, dF)
 	}
