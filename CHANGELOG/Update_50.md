@@ -18,18 +18,24 @@ vector in each of two types E4 and E5 that, when a dot product is formed
 with each edge normal, is zero. That ensures that there is no interior 
 contribution to the normal flux on the element edge.
 
-## Researched the proper construction of the Flux projection onto the RT element
-It turns out that in order to properly construct the Divergence relationship 
-with the RT element basis, we need to solve an integral equation that 
-projects the vector flux function onto the element basis. This is described 
-now via a set of prompts to ChatGPT and a nice markup document I've put 
-together in
+## Interpolation of the Flux vector field onto the RT element
+Since we know the values of the Flux vector field at every basis DOF for the RT
+element, we can use interpolation to derive the constants that represent the
+field on the polynomial basis. This is described in a ChatGPT session
+[The_Interpolation_Equation_For_RT.pdf](../ChatGPT/The_Interpolation_Equation_For_RT.pdf)
+
+## Flux projection onto the RT element
+To *project* the flux onto the RT element, we need to solve an integral equation
+that is described via a set of prompts to ChatGPT and a nice markup document
+I've put together in
 [The Projection Equation.pdf](../ChatGPT/The_Projection_Equation.pdf).
 
-The next steps are to put together a set of quadrature weights for the RT 
+To do a projection, we would devise a set of quadrature weights for the RT 
 element to enable solving the integration needed for projection. Then we can 
 construct the basis evaluation equation using the quadrature weights, and 
 then finally solve the equation to determine the coefficients that map the 
 vector flux onto the RT element basis. With the "mass matrix" from this 
 equation, we can construct the divergence matrix that will enable a simple 
 way to calculate divergence using the flux vector from the Lagrange element.
+
+Projection is only needed if interpolation does not suffice.
