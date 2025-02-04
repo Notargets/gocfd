@@ -45,86 +45,134 @@ func TestRTElementErvinRT1(t *testing.T) {
 		val = (tt - g1) / (g2 - g1)
 		return
 	}
-	e1 := func(r, s float64) (v [2]float64) {
+	e1 := func(r, s float64, derivO ...DerivativeDirection) (v [2]float64,
+		div float64) {
 		// Bottom edge
 		var (
 		// xi, eta = conv(r), conv(s)
 		)
+		if len(derivO) > 0 {
+			div = 0
+			return
+		}
 		// v[0] = xi
 		// v[1] = eta - 1
 		v[0] = 0
 		v[1] = -1
 		return
 	}
-	e2 := func(r, s float64) (v [2]float64) {
+	e2 := func(r, s float64, derivO ...DerivativeDirection) (v [2]float64,
+		div float64) {
 		// Hypotenuse
 		var (
 			// xi, eta = conv(r), conv(s)
 			sr2 = math.Sqrt2
 		)
+		if len(derivO) > 0 {
+			div = 0
+			return
+		}
 		// v[0] = sr2 * xi
 		// v[1] = sr2 * eta
 		v[0] = 0.5 * sr2
 		v[1] = 0.5 * sr2
 		return
 	}
-	e3 := func(r, s float64) (v [2]float64) {
+	e3 := func(r, s float64, derivO ...DerivativeDirection) (v [2]float64,
+		div float64) {
 		// Left edge
 		var (
 		// xi, eta = conv(r), conv(s)
 		)
+		if len(derivO) > 0 {
+			div = 0
+			return
+		}
 		// v[0] = xi - 1
 		// v[1] = eta
 		v[0] = -1
 		v[1] = 0
 		return
 	}
-	e4 := func(r, s float64) (v [2]float64) {
+	e4 := func(r, s float64, derivO ...DerivativeDirection) (v [2]float64,
+		div float64) {
 		var (
 			xi, eta = conv(r), conv(s)
 		)
+		if len(derivO) != 0 {
+			// v0 = (r+1)/2 * (s+1)/2
+			// dv0/dr = (1/2) * (s+1)/2 = (s+1)/4
+			// v1 = (s+1)/2 * ((s-1)/2) = (1/4) * (s^2 - 1)
+			// dv1/ds = 2 * s / 4 = s/2
+			// div = (s+1)/4 + s/2 = (s+1)/4 + 2s/4 = (3s+1)/4
+			div = (3.*s + 1.) / 4.
+			return
+		}
 		v[0] = eta * xi
 		v[1] = eta * (eta - 1)
 		return
 	}
-	e5 := func(r, s float64) (v [2]float64) {
+	e5 := func(r, s float64, derivO ...DerivativeDirection) (v [2]float64,
+		div float64) {
 		var (
 			xi, eta = conv(r), conv(s)
 		)
+		if len(derivO) != 0 {
+			// v0 = (r+1)/2 * ((r-1)/2) = (1/4) * (r^2 - 1)
+			// dv0/dr = 2 * r / 4 = r/2
+			// v1 = (r+1)/2 * (s+1)/2
+			// dv1/ds = 1/2 * (r+1)/2 = (r+1)/4
+			// div = (r+1)/4 + r/2 = (r+1)/4 + 2r/4 = (3*r+1)/4
+			div = (3.*r + 1.) / 4.
+			return
+		}
 		v[0] = xi * (xi - 1)
 		v[1] = xi * eta
 		return
 	}
-	psiInt1 := func(r, s float64) (v [2]float64) {
-		v = e4(r, s)
+	psiInt1 := func(r, s float64, derivO ...DerivativeDirection) (
+		v [2]float64, div float64) {
+		v, div = e4(r, s)
 		return
 	}
-	psiInt2 := func(r, s float64) (v [2]float64) {
-		v = e5(r, s)
+	psiInt2 := func(r, s float64, derivO ...DerivativeDirection) (v [2]float64, div float64) {
+		v, div = e5(r, s)
 		return
 	}
-	psiEdge1_1 := func(r, s float64) (v [2]float64) {
-		v = scalarMult(l1(r), e1(r, s))
+	psiEdge1_1 := func(r, s float64, derivO ...DerivativeDirection) (v [2]float64, div float64) {
+		v, div = e1(r, s)
+		// TODO: calculate div contribution from l1
+		v = scalarMult(l1(r), v)
 		return
 	}
-	psiEdge1_2 := func(r, s float64) (v [2]float64) {
-		v = scalarMult(l2(r), e1(r, s))
+	psiEdge1_2 := func(r, s float64, derivO ...DerivativeDirection) (v [2]float64, div float64) {
+		v, div = e1(r, s)
+		// TODO: calculate div contribution from l2
+		v = scalarMult(l2(r), v)
 		return
 	}
-	psiEdge2_1 := func(r, s float64) (v [2]float64) {
-		v = scalarMult(l1(s), e2(r, s))
+	psiEdge2_1 := func(r, s float64, derivO ...DerivativeDirection) (v [2]float64, div float64) {
+		v, div = e2(r, s)
+		// TODO: calculate div contribution from l1
+		v = scalarMult(l1(s), v)
 		return
 	}
-	psiEdge2_2 := func(r, s float64) (v [2]float64) {
-		v = scalarMult(l2(s), e2(r, s))
+	psiEdge2_2 := func(r, s float64, derivO ...DerivativeDirection) (v [2]float64, div float64) {
+		v, div = e2(r, s)
+		// TODO: calculate div contribution from l2
+		v = scalarMult(l2(s), v)
 		return
 	}
-	psiEdge3_1 := func(r, s float64) (v [2]float64) {
-		v = scalarMult(l2(s), e3(r, s))
+	psiEdge3_1 := func(r, s float64, derivO ...DerivativeDirection) (v [2]float64, div float64) {
+		v, div = e3(r, s)
+		// TODO: calculate div contribution from l2
+		v = scalarMult(l2(s), v)
 		return
 	}
-	psiEdge3_2 := func(r, s float64) (v [2]float64) {
-		v = scalarMult(l1(s), e3(r, s))
+	psiEdge3_2 := func(r, s float64, derivO ...DerivativeDirection) (v [2]float64, div float64) {
+		v, div = e3(r, s)
+		// TODO: calculate div contribution from l1
+		v = scalarMult(l1(s), v)
 		return
 	}
 	dot := func(v1, v2 [2]float64) (val float64) {
@@ -132,7 +180,7 @@ func TestRTElementErvinRT1(t *testing.T) {
 		return
 	}
 
-	type psi func(r, s float64) (v [2]float64)
+	type psi func(r, s float64, derivO ...DerivativeDirection) (v [2]float64, div float64)
 
 	psi_j := []psi{psiInt1, psiInt2, psiEdge1_1, psiEdge1_2, psiEdge2_1,
 		psiEdge2_2, psiEdge3_1, psiEdge3_2}
@@ -186,7 +234,7 @@ func TestRTElementErvinRT1(t *testing.T) {
 	V := utils.NewMatrix(Np, Np)
 	for i = 0; i < Np; i++ {
 		r_i, s_i := R.DataP[i], S.DataP[i]
-		v_i := psi_j[i](r_i, s_i)
+		v_i, _ := psi_j[i](r_i, s_i)
 		// fmt.Printf("v_%d[%f,%f] = [%f,%f]\n", i, r_i, s_i, v_i[0], v_i[1])
 		for j := 0; j < Np; j++ {
 			// Don't evaluate edge basis on other edges
@@ -199,7 +247,7 @@ func TestRTElementErvinRT1(t *testing.T) {
 					}
 				}
 			}
-			v_j := psi_j[j](r_i, s_i)
+			v_j, _ := psi_j[j](r_i, s_i)
 			V.Set(i, j, dot(v_j, v_i))
 		}
 	}
