@@ -380,6 +380,11 @@ func (lp1d *LagrangePolynomial1D) JacobiP(R utils.Vector, alpha,
 	p = DG1D.JacobiP(R, alpha, beta, j)
 	return
 }
+func (lp1d *LagrangePolynomial1D) JacobiPTerm(R utils.Vector, alpha,
+	beta float64, j int) (p_j float64) {
+	p_j = lp1d.JacobiP(R, alpha, beta, j)[j]
+	return
+}
 
 func (lp1d *LagrangePolynomial1D) GradJacobiP(R utils.Vector, alpha,
 	beta float64, j int) (p []float64) {

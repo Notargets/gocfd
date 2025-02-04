@@ -169,8 +169,10 @@ type RTElement struct {
 	BasisVector [2]utils.Matrix
 	Projection  utils.Matrix
 	// Technically, each edge is
-	lp1d *LagrangePolynomial1D
-	lp2d *LagrangePolynomial2D
+	lp1d      *LagrangePolynomial1D
+	lp2d      *LagrangePolynomial2D
+	jb2d      *JacobiBasis2D
+	PolyTerms utils.Matrix // Each column is a polynomial term evaluated at rows
 }
 
 func NewRTElement(P int) (rt *RTElement) {
@@ -196,6 +198,7 @@ func NewRTElement(P int) (rt *RTElement) {
 		BasisVector: [2]utils.Matrix{utils.NewMatrix(Np, 1),
 			utils.NewMatrix(Np, 1)},
 		Projection: utils.NewMatrix(Np, 1),
+		PolyTerms:  utils.NewMatrix(Np, Np),
 	}
 
 	if P > 0 {
@@ -244,6 +247,15 @@ func (rt *RTElement) ComputeDivergenceMatrix() (Div utils.Matrix) {
 
 	// Build basis divergence matrix
 	DivBasis := utils.NewMatrix(rt.Np, rt.Np)
+
+	// TODO: Instead of adding the div contribution from all polynomial
+	//  terms, we need instead to just take the single j-th polynomial
+	//  divergence multiplied by the j-th coefficient from the basis
+	//  interpolation. Just one evaluation of (dr + ds) multiplied by one
+	//  coefficient
+	// TODO: So that requires that we compute the coefficient vector C,
+	//  then multiply it element-wise to compute the divergence for each
+	//  position
 	for i := 0; i < rt.Np; i++ {
 		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
 		for j := 0; j < rt.Np; j++ {
@@ -343,6 +355,7 @@ func (rt *RTElement) baseBasisVectors(r, s float64, j int) (ef [2]float64) {
 		xi  = 0.5 * (r + 1)
 		eta = 0.5 * (s + 1)
 	)
+	_, _ = xi, eta
 	switch rt.getFunctionNumber(j) {
 	case E1:
 		// ef = [2]float64{xi, eta - 1}
@@ -355,6 +368,10 @@ func (rt *RTElement) baseBasisVectors(r, s float64, j int) (ef [2]float64) {
 		// ef = [2]float64{xi - 1, eta}
 		// ef = [2]float64{xi - 1, eta - 0.5} // Ervin basis
 		ef = [2]float64{-1, 0}
+	// case E4:
+	// 	ef = [2]float64{1, 0}
+	// case E5:
+	// 	ef = [2]float64{0, 1}
 	case E4:
 		ef = [2]float64{eta * xi, eta * (eta - 1)}
 	case E5:
@@ -362,6 +379,67 @@ func (rt *RTElement) baseBasisVectors(r, s float64, j int) (ef [2]float64) {
 	default:
 		panic("wrong basis function number (1-5)")
 	}
+	return
+}
+
+func (rt *RTElement) basisEvaluation_new(r, s float64, j int) (psi float64) {
+	funcNum := rt.getFunctionNumber(j)
+	switch funcNum {
+	case E4, E5:
+	}
+
+	return
+}
+func (rt *RTElement) basisPolynomialValue_new(r, s float64, j int,
+	derivO ...DerivativeDirection) (val float64) {
+	var (
+		funcNum = rt.getFunctionNumber(j)
+		xi      float64
+		jj      int
+	)
+	if rt.P != 2 {
+		panic("wrong polynomial order - testing")
+	}
+
+	switch funcNum {
+	case E1, E2, E3:
+		edgeNum := rt.locationOnEdge(r, s)
+		// Do not calculate edge basis functions when not on own edge
+		if funcNum != edgeNum {
+			val = 0
+			return
+		}
+		jj = j - 2*rt.NpInt
+		if edgeNum == E2 {
+			jj -= rt.NpEdge
+		} else if edgeNum == E3 {
+			jj -= 2 * rt.NpEdge
+		}
+		// val = DG1D.Lagrange1DPoly(xi, Xi, jj, int(deriv))
+		val = rt.lp1d.getPolynomial(rt.getEdgeXiParameter(r, s, funcNum), jj,
+			derivO...)
+	case E4, E5:
+		xi = 0.5 * (r + 1)
+		eta := 0.5 * (s + 1)
+		// Here JJ runs from 0 to 2, and each of the 3 internal points
+		// corresponds to a distinct polynomial for each point in Ervin
+		// that multiplies either ℯ̂₄ or ℯ̂₅.
+		jj = j
+		if funcNum == E5 {
+			jj -= rt.NpInt
+		}
+		switch jj {
+		case 0:
+			val = 1. - xi - eta
+		case 1:
+			val = xi
+		case 2:
+			val = eta
+		default:
+			panic("j out of range")
+		}
+	}
+
 	return
 }
 
@@ -420,7 +498,8 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 			//    div = (1/4)*P*(3*s+1) + (1/4)*(dP/dr)*(s*r +r+s +1) +
 			//                             (1/4)*(dP/ds)*(s*s -1)
 			//    div = (1/4)*(P*(3*s+1) + (dP/dr)*(s*r +r+s +1) + (dP/ds)*(s*s-1))
-			div = (1. / 4.) * (P*(3*s+1) + dPdr*(s*r+r+s+1) + dPds*(s*s-1))
+			// div = (1. / 4.) * (P*(3*s+1) + dPdr*(s*r+r+s+1) + dPds*(s*s-1))
+			div = dPdr
 			return
 		} else {
 			// E5 Div:
@@ -440,7 +519,8 @@ func (rt *RTElement) basisEvaluation(r, s float64, j int) (v [2]float64,
 			//    div = (1/4)*P*(3*r+1) + (1/4)*(dP/dr)*(r*r -1) +
 			//                             (1/4)*(dP/ds)*(s*r +r+s +1)
 			// div = (1/4)*(P*(3*r+1) + (dP/dr)*(r*r-1)) + (dP/ds)*(s*r +r+s +1)
-			div = (1. / 4.) * (P*(3*r+1) + dPdr*(r*r-1) + dPds*(s*r+r+s+1))
+			// div = (1. / 4.) * (P*(3*r+1) + dPdr*(r*r-1) + dPds*(s*r+r+s+1))
+			div = dPds
 			return
 		}
 	//
