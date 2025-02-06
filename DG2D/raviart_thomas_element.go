@@ -307,6 +307,22 @@ var (
 		normed = [2]float64{v[0] * norm, v[1] * norm}
 		return
 	}
+	e1v = func(r, s float64) (v [2]float64) {
+		xi, eta := conv(r), conv(s)
+		v = [2]float64{xi, eta - 1.}
+		return
+	}
+	e2v = func(r, s float64) (v [2]float64) {
+		sr2 := math.Sqrt2
+		xi, eta := conv(r), conv(s)
+		v = [2]float64{sr2 * xi, sr2 * eta}
+		return
+	}
+	e3v = func(r, s float64) (v [2]float64) {
+		xi, eta := conv(r), conv(s)
+		v = [2]float64{xi - 1., eta}
+		return
+	}
 	e4v = func(r, s float64) (v [2]float64) {
 		xi, eta := conv(r), conv(s)
 		v = [2]float64{eta * xi, eta * (eta - 1.)}
@@ -351,49 +367,39 @@ var (
 	}
 	Edge1NormalVector = BasisVectorStruct{
 		// Bottom edge
-		Eval: func(r, s float64) (v [2]float64) { v[0] = 0; v[1] = -1; return },
+		Eval: func(r, s float64) (v [2]float64) { return e1v(r, s) },
 		Dot: func(r, s float64, f [2]float64) (dot float64) {
-			dot = -f[1]
-			return
+			return Dot(e1v(r, s), f)
 		},
 		Project: func(r, s float64, scale float64) (v [2]float64) {
-			v = [2]float64{0, -scale}
-			return
+			return Scale(e1v(r, s), scale)
 		},
 		Divergence: func(r, s float64) (div float64) { return },
-		Sum:        func(r, s float64) (sum float64) { return -1 },
+		Sum:        func(r, s float64) float64 { return Sum(e1v(r, s)) },
 	}
 	Edge2NormalVector = BasisVectorStruct{
 		// Hypotenuse
-		Eval: func(r, s float64) (v [2]float64) {
-			v[0] = sr2 / 2.
-			v[1] = sr2 / 2.
-			return
-		},
+		Eval: func(r, s float64) (v [2]float64) { return e2v(r, s) },
 		Dot: func(r, s float64, f [2]float64) (dot float64) {
-			dot = (sr2 / 2.) * (f[0] + f[1])
-			return
+			return Dot(e2v(r, s), f)
 		},
 		Project: func(r, s float64, scale float64) (v [2]float64) {
-			v = [2]float64{scale * sr2 / 2., scale * sr2 / 2.}
-			return
+			return Scale(e2v(r, s), scale)
 		},
 		Divergence: func(r, s float64) (div float64) { return },
-		Sum:        func(r, s float64) (sum float64) { return sr2 },
+		Sum:        func(r, s float64) float64 { return Sum(e2v(r, s)) },
 	}
 	Edge3NormalVector = BasisVectorStruct{
 		// Left edge
-		Eval: func(r, s float64) (v [2]float64) { v[0] = -1; v[1] = 0; return },
+		Eval: func(r, s float64) (v [2]float64) { return e3v(r, s) },
 		Dot: func(r, s float64, f [2]float64) (dot float64) {
-			dot = -f[0]
-			return
+			return Dot(e3v(r, s), f)
 		},
 		Project: func(r, s float64, scale float64) (v [2]float64) {
-			v = [2]float64{-scale, 0}
-			return
+			return Scale(e3v(r, s), scale)
 		},
 		Divergence: func(r, s float64) (div float64) { return },
-		Sum:        func(r, s float64) (sum float64) { return -1 },
+		Sum:        func(r, s float64) float64 { return Sum(e3v(r, s)) },
 	}
 )
 
@@ -418,13 +424,13 @@ func (rt *RTElement) ComposeV() (V utils.Matrix) {
 				}
 			}
 			// Don't evaluate Interior basis on edges (likely wrong)
-			switch rt.getFunctionNumber(i) {
-			case E4, E5:
-				switch rt.getFunctionNumber(j) {
-				case E1, E2, E3:
-					continue
-				}
-			}
+			// switch rt.getFunctionNumber(i) {
+			// case E4, E5:
+			// 	switch rt.getFunctionNumber(j) {
+			// 	case E1, E2, E3:
+			// 		continue
+			// 	}
+			// }
 			v_j := rt.Phi[j].Eval(r_i, s_i)
 			V.Set(i, j, b_i.Dot(r_i, s_i, v_j))
 		}
