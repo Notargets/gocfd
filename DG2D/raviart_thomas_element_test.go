@@ -25,7 +25,7 @@ func TestRTElementRT1Interpolation(t *testing.T) {
 	rt.V.Print("V")
 	rt.VInv.Print("VInv")
 	f1, f2 := utils.NewVectorConstant(rt.Np, -2),
-		utils.NewVectorConstant(rt.Np, 2)
+		utils.NewVectorConstant(rt.Np, -2)
 	rt.ProjectFunctionOntoDOF(f1.DataP, f2.DataP)
 
 	C := rt.VInv.Mul(rt.Projection)

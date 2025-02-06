@@ -418,13 +418,13 @@ func (rt *RTElement) ComposeV() (V utils.Matrix) {
 				}
 			}
 			// Don't evaluate Interior basis on edges (likely wrong)
-			// switch rt.getFunctionNumber(i) {
-			// case E4, E5:
-			// 	switch rt.getFunctionNumber(j) {
-			// 	case E1, E2, E3:
-			// 		continue
-			// 	}
-			// }
+			switch rt.getFunctionNumber(i) {
+			case E4, E5:
+				switch rt.getFunctionNumber(j) {
+				case E1, E2, E3:
+					continue
+				}
+			}
 			v_j := rt.Phi[j].Eval(r_i, s_i)
 			V.Set(i, j, b_i.Dot(r_i, s_i, v_j))
 		}
