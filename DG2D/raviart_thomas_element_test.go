@@ -41,15 +41,15 @@ func TestRTElementRT1Interpolation(t *testing.T) {
 		// Sum of the basis polynomials over j, each dotted with basis vector_i
 		for j := 0; j < rt.Np; j++ {
 			// Edges don't contribute to other edges
-			switch rt.getFunctionNumber(j) {
-			case E1, E2, E3:
-				switch rt.getFunctionNumber(j) {
-				case E1, E2, E3:
-					if rt.getFunctionNumber(i) != rt.getFunctionNumber(j) {
-						continue
-					}
-				}
-			}
+			// switch rt.getFunctionNumber(j) {
+			// case E1, E2, E3:
+			// 	switch rt.getFunctionNumber(j) {
+			// 	case E1, E2, E3:
+			// 		if rt.getFunctionNumber(i) != rt.getFunctionNumber(j) {
+			// 			continue
+			// 		}
+			// 	}
+			// }
 			f_rt_dot[i] += rt.Phi[j].Dot(r_i, s_i, b_i)
 		}
 		r, s := rt.R.AtVec(i), rt.S.AtVec(i)

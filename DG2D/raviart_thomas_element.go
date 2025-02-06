@@ -414,15 +414,15 @@ func (rt *RTElement) ComposeV() (V utils.Matrix) {
 		b_i := rt.Phi[i].BasisVector
 		for j := 0; j < Np; j++ {
 			// Don't evaluate edge basis on other edges
-			switch rt.getFunctionNumber(j) {
-			case E1, E2, E3:
-				switch rt.getFunctionNumber(i) {
-				case E1, E2, E3:
-					if rt.getFunctionNumber(i) != rt.getFunctionNumber(j) {
-						continue
-					}
-				}
-			}
+			// switch rt.getFunctionNumber(j) {
+			// case E1, E2, E3:
+			// 	switch rt.getFunctionNumber(i) {
+			// 	case E1, E2, E3:
+			// 		if rt.getFunctionNumber(i) != rt.getFunctionNumber(j) {
+			// 			continue
+			// 		}
+			// 	}
+			// }
 			// Don't evaluate Interior basis on edges (likely wrong)
 			// switch rt.getFunctionNumber(i) {
 			// case E4, E5:
