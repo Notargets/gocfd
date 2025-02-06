@@ -582,9 +582,10 @@ func (rt *RTElement) ProjectFunctionOntoDOF(s1, s2 []float64) {
 	// For each location in {R,S}, project the input vector function [s1,s2]
 	// on to the degrees of freedom of the element
 	for j := range s1 {
-		f := [2]float64{s1[j], s2[j]}
 		r, s := rt.R.AtVec(j), rt.S.AtVec(j)
-		rt.Projection.Set(j, 0, rt.Phi[j].BasisVector.Dot(r, s, f))
+		b_j := rt.Phi[j].BasisVector
+		f := [2]float64{s1[j], s2[j]}
+		rt.Projection.Set(j, 0, b_j.Dot(r, s, f))
 	}
 	return
 }

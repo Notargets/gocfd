@@ -18,32 +18,28 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRTElementRT1(t *testing.T) {
+func TestRTElementRT1Interpolation(t *testing.T) {
 	// Verify the interpolation of a constant vector field onto the element
 	P := 1
 	rt := NewRTElement(P)
-	// rt.V.Print("V")
-	// rt.VInv.Print("VInv")
-	f1, f2 := utils.NewVectorConstant(rt.Np, 1), utils.NewVectorConstant(rt.Np, 1)
+	rt.V.Print("V")
+	rt.VInv.Print("VInv")
+	f1, f2 := utils.NewVectorConstant(rt.Np, -2),
+		utils.NewVectorConstant(rt.Np, 2)
 	rt.ProjectFunctionOntoDOF(f1.DataP, f2.DataP)
-	for i := 0; i < rt.Np; i++ {
-		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
-		b_i := rt.Phi[i].BasisVector.Eval(r, s)
-		fmt.Printf("b_%d[%f,%f], fproj[%f,%f]=%f\n",
-			i, b_i[0], b_i[1], r, s, rt.Projection.At(i, 0))
-	}
+
 	C := rt.VInv.Mul(rt.Projection)
 	for i := 0; i < rt.Np; i++ {
 		rt.Phi[i].Coefficient = C.At(i, 0)
 	}
+
 	// For each polynomial evaluation at (r,s)i
+	f_rt_dot := make([]float64, rt.Np)
 	for i := 0; i < rt.Np; i++ {
 		r_i, s_i := rt.R.AtVec(i), rt.S.AtVec(i)
 		b_i := rt.Phi[i].BasisVector.Eval(r_i, s_i)
 		// Sum of the basis polynomials over j, each dotted with basis vector_i
-		var f_rt_dot float64
 		for j := 0; j < rt.Np; j++ {
-			phi_j := rt.Phi[j]
 			// Edges don't contribute to other edges
 			switch rt.getFunctionNumber(j) {
 			case E1, E2, E3:
@@ -54,12 +50,14 @@ func TestRTElementRT1(t *testing.T) {
 					}
 				}
 			}
-			f_rt_dot += phi_j.Dot(r_i, s_i, b_i)
+			f_rt_dot[i] += rt.Phi[j].Dot(r_i, s_i, b_i)
 		}
 		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
 		fmt.Printf("f_rt[%f,%f]=%f, f_proj=%f\n",
-			r, s, f_rt_dot, rt.Projection.At(i, 0))
+			r, s, f_rt_dot[i], rt.Projection.At(i, 0))
 	}
+	assert.InDeltaSlicef(t, rt.Projection.DataP, f_rt_dot, 0.000001,
+		"Interpolation Check")
 }
 
 func TestRTElementErvinRT1(t *testing.T) {
