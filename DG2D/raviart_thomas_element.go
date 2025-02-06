@@ -155,7 +155,7 @@ type RTElement struct {
 	// [A] relates the constants [C] to the flux vector [F]
 	// [A] x [C] = [F]
 	// ===> [C] = [AInv] x [F]
-	V       utils.Matrix // Vandermonde Matrix
+	V, VInv utils.Matrix // Vandermonde Matrix
 	A, AInv utils.Matrix // Basis evaluation matrix, NpxNp
 	// The divergence of [F] at every point is the sum of the basis derivatives
 	// Div[F] = Dr([F])+Ds([F]) = Dr([A]x[C])+Ds([A]x[C]) = [Dr]x[C]+[Ds]x[C]
@@ -225,6 +225,7 @@ func NewRTElement(P int) (rt *RTElement) {
 	// fmt.Printf("RT%d - Calculating Basis...", P)
 	rt.CalculateBasis()
 	rt.V = rt.ComposeV()
+	rt.VInv = rt.V.InverseWithCheck()
 	// fmt.Printf("\nRT%d - Calculating Divergence Matrix...", P)
 	rt.Div = rt.ComputeDivergenceMatrix()
 	// fmt.Printf("Done.\n")
@@ -246,14 +247,20 @@ type BasisPolynomialMultiplier struct {
 	OrderOfTerm int
 }
 type BasisPolynomialTerm struct {
-	Coefficient    float64 // Initially set to 1. to allow scaling calculations
-	IsScaled       bool    // After scaling, is part of the element polynomial
+	IsScaled       bool // After scaling, is part of the element polynomial
 	PolyMultiplier BasisPolynomialMultiplier
 	BasisVector    BasisVectorStruct
+	Coefficient    float64 // Initially set to 1. to allow scaling calculations
 }
 
 func (pt BasisPolynomialTerm) Eval(r, s float64) (v [2]float64) {
-	v = pt.BasisVector.Project(r, s, pt.PolyMultiplier.Eval(r, s))
+	scale := pt.PolyMultiplier.Eval(r, s) * pt.Coefficient
+	v = pt.BasisVector.Project(r, s, scale)
+	return
+}
+func (pt BasisPolynomialTerm) Dot(r, s float64, b [2]float64) (dot float64) {
+	v := pt.Eval(r, s)
+	dot = b[0]*v[0] + b[1]*v[1]
 	return
 }
 
@@ -303,9 +310,9 @@ var (
 			dot = eta*xi*f[0] + eta*(eta-1.)*f[1]
 			return
 		},
-		Project: func(r, s float64, phi float64) (v [2]float64) {
+		Project: func(r, s float64, scale float64) (v [2]float64) {
 			xi, eta := conv(r), conv(s)
-			v = [2]float64{phi * eta * xi, phi * eta * (eta - 1.)}
+			v = [2]float64{scale * eta * xi, scale * eta * (eta - 1.)}
 			return
 		},
 		Divergence: func(r, s float64) (div float64) {
@@ -331,9 +338,9 @@ var (
 			dot = xi*(xi-1.)*f[0] + eta*xi*f[1]
 			return
 		},
-		Project: func(r, s float64, phi float64) (v [2]float64) {
+		Project: func(r, s float64, scale float64) (v [2]float64) {
 			xi, eta := conv(r), conv(s)
-			v = [2]float64{phi * xi * (xi - 1.), phi * eta * xi}
+			v = [2]float64{scale * xi * (xi - 1.), scale * eta * xi}
 			return
 		},
 		Divergence: func(r, s float64) (div float64) {
@@ -353,8 +360,8 @@ var (
 			dot = -f[1]
 			return
 		},
-		Project: func(r, s float64, phi float64) (v [2]float64) {
-			v = [2]float64{0, -phi}
+		Project: func(r, s float64, scale float64) (v [2]float64) {
+			v = [2]float64{0, -scale}
 			return
 		},
 		Divergence: func(r, s float64) (div float64) { return },
@@ -371,8 +378,8 @@ var (
 			dot = (sr2 / 2.) * (f[0] + f[1])
 			return
 		},
-		Project: func(r, s float64, phi float64) (v [2]float64) {
-			v = [2]float64{phi * sr2 / 2., phi * sr2 / 2.}
+		Project: func(r, s float64, scale float64) (v [2]float64) {
+			v = [2]float64{scale * sr2 / 2., scale * sr2 / 2.}
 			return
 		},
 		Divergence: func(r, s float64) (div float64) { return },
@@ -385,8 +392,8 @@ var (
 			dot = -f[0]
 			return
 		},
-		Project: func(r, s float64, phi float64) (v [2]float64) {
-			v = [2]float64{-phi, 0}
+		Project: func(r, s float64, scale float64) (v [2]float64) {
+			v = [2]float64{-scale, 0}
 			return
 		},
 		Divergence: func(r, s float64) (div float64) { return },
@@ -402,7 +409,7 @@ func (rt *RTElement) ComposeV() (V utils.Matrix) {
 	V = utils.NewMatrix(Np, Np)
 	for i := 0; i < Np; i++ {
 		r_i, s_i := R.DataP[i], S.DataP[i]
-		v_i := rt.Phi[i].BasisVector
+		b_i := rt.Phi[i].BasisVector
 		for j := 0; j < Np; j++ {
 			// Don't evaluate edge basis on other edges
 			switch rt.getFunctionNumber(j) {
@@ -414,8 +421,16 @@ func (rt *RTElement) ComposeV() (V utils.Matrix) {
 					}
 				}
 			}
+			// Don't evaluate Interior basis on edges (likely wrong)
+			// switch rt.getFunctionNumber(i) {
+			// case E4, E5:
+			// 	switch rt.getFunctionNumber(j) {
+			// 	case E1, E2, E3:
+			// 		continue
+			// 	}
+			// }
 			v_j := rt.Phi[j].Eval(r_i, s_i)
-			V.Set(i, j, v_i.Dot(r_i, s_i, v_j))
+			V.Set(i, j, b_i.Dot(r_i, s_i, v_j))
 		}
 	}
 	return
@@ -533,7 +548,7 @@ func (rt *RTElement) ComputeDivergenceMatrix() (Div utils.Matrix) {
 			DivBasis.Set(i, j, rt.Phi[j].Divergence(r, s))
 		}
 	}
-	DivBasis.Print("Basis Divergence Matrix")
+	// DivBasis.Print("Basis Divergence Matrix")
 	Div = DivBasis.Mul(BasisDotInverse)
 	return
 }
@@ -567,8 +582,6 @@ func (rt *RTElement) ProjectFunctionOntoDOF(s1, s2 []float64) {
 	// For each location in {R,S}, project the input vector function [s1,s2]
 	// on to the degrees of freedom of the element
 	for j := range s1 {
-		// v := [2]float64{rt.BasisVector[0].At(j, 0), rt.BasisVector[1].At(j, 0)}
-		// rt.Projection.Set(j, 0, v[0]*s1[j]+v[1]*s2[j])
 		f := [2]float64{s1[j], s2[j]}
 		r, s := rt.R.AtVec(j), rt.S.AtVec(j)
 		rt.Projection.Set(j, 0, rt.Phi[j].BasisVector.Dot(r, s, f))
