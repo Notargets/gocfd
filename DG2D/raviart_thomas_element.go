@@ -295,63 +295,59 @@ func (rt *RTElement) CalculateBasis() {
 }
 
 var (
-	sr2      = math.Sqrt2
-	conv     = func(r float64) float64 { return (r + 1.) / 2. }
+	sr2   = math.Sqrt2
+	conv  = func(r float64) float64 { return (r + 1.) / 2. }
+	Dot   = func(v1, v2 [2]float64) float64 { return v1[0]*v2[0] + v1[1]*v2[1] }
+	Scale = func(v [2]float64, scale float64) [2]float64 {
+		return [2]float64{v[0] * scale, v[1] * scale}
+	}
+	Sum       = func(v [2]float64) float64 { return v[0] + v[1] }
+	normalize = func(v [2]float64) (normed [2]float64) {
+		norm := 1. / math.Sqrt(v[0]*v[0]+v[1]*v[1])
+		normed = [2]float64{v[0] * norm, v[1] * norm}
+		return
+	}
+	e4v = func(r, s float64) (v [2]float64) {
+		xi, eta := conv(r), conv(s)
+		v = [2]float64{eta * xi, eta * (eta - 1.)}
+		// v = normalize(v)
+		return
+	}
+	e5v = func(r, s float64) (v [2]float64) {
+		xi, eta := conv(r), conv(s)
+		v = [2]float64{xi * (xi - 1.), eta * xi}
+		// v = normalize(v)
+		return
+	}
 	E4Vector = BasisVectorStruct{
 		// Interior vector E4
-		Eval: func(r, s float64) (v [2]float64) {
-			xi, eta := conv(r), conv(s)
-			v[0] = eta * xi
-			v[1] = eta * (eta - 1.)
-			return
+		Eval: func(r, s float64) [2]float64 { return e4v(r, s) },
+		Dot: func(r, s float64, f [2]float64) float64 {
+			return Dot(e4v(r, s), f)
 		},
-		Dot: func(r, s float64, f [2]float64) (dot float64) {
-			xi, eta := conv(r), conv(s)
-			dot = eta*xi*f[0] + eta*(eta-1.)*f[1]
-			return
-		},
-		Project: func(r, s float64, scale float64) (v [2]float64) {
-			xi, eta := conv(r), conv(s)
-			v = [2]float64{scale * eta * xi, scale * eta * (eta - 1.)}
-			return
+		Project: func(r, s float64, scale float64) [2]float64 {
+			return Scale(e4v(r, s), scale)
 		},
 		Divergence: func(r, s float64) (div float64) {
 			div = (3.*s + 1.) / 4.
 			return
 		},
-		Sum: func(r, s float64) (sum float64) {
-			xi, eta := conv(r), conv(s)
-			sum = eta * (xi + eta - 1.)
-			return
-		},
+		Sum: func(r, s float64) float64 { return Sum(e4v(r, s)) },
 	}
 	E5Vector = BasisVectorStruct{
 		// Interior vector E5
-		Eval: func(r, s float64) (v [2]float64) {
-			xi, eta := conv(r), conv(s)
-			v[0] = xi * (xi - 1.)
-			v[1] = eta * xi
-			return
-		},
+		Eval: func(r, s float64) [2]float64 { return e5v(r, s) },
 		Dot: func(r, s float64, f [2]float64) (dot float64) {
-			xi, eta := conv(r), conv(s)
-			dot = xi*(xi-1.)*f[0] + eta*xi*f[1]
-			return
+			return Dot(e5v(r, s), f)
 		},
 		Project: func(r, s float64, scale float64) (v [2]float64) {
-			xi, eta := conv(r), conv(s)
-			v = [2]float64{scale * xi * (xi - 1.), scale * eta * xi}
-			return
+			return Scale(e5v(r, s), scale)
 		},
 		Divergence: func(r, s float64) (div float64) {
 			div = (3.*r + 1.) / 4.
 			return
 		},
-		Sum: func(r, s float64) (sum float64) {
-			xi, eta := conv(r), conv(s)
-			sum = xi * (eta + xi - 1.)
-			return
-		},
+		Sum: func(r, s float64) float64 { return Sum(e5v(r, s)) },
 	}
 	Edge1NormalVector = BasisVectorStruct{
 		// Bottom edge
