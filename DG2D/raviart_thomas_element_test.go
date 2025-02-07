@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRTElementRT1Interpolation(t *testing.T) {
+func TestRTElementRTInterpolation(t *testing.T) {
 	// Verify the interpolation of a constant vector field onto the element
 	// P := 1
 	for P := 1; P <= 2; P++ {
@@ -49,7 +49,7 @@ func TestRTElementRT1Interpolation(t *testing.T) {
 	}
 }
 
-func TestRTElementDivergenceRT1(t *testing.T) {
+func TestRTElementDivergence(t *testing.T) {
 	// We test RT1 first in isolation because RT1:
 	// - uses only the analytic interior basis functions E4 and E5
 	// - uses the Lagrange 1D polynomial on edges
@@ -60,27 +60,34 @@ func TestRTElementDivergenceRT1(t *testing.T) {
 	dt = PolyField{}
 
 	fmt.Println("Begin Divergence Test")
-	P := 1
-	rt := NewRTElement(P)
-	rt.Div.Print("Div")
-
-	Np := rt.Np
-	divFcalc := make([]float64, Np)
-	s1, s2 := make([]float64, Np), make([]float64, Np)
-	for i := 0; i < Np; i++ {
-		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
-		f1, f2 := dt.F(r, s, P-1)
-		s1[i], s2[i] = f1, f2
-		dF := dt.divF(r, s, P-1)
-		divFcalc[i] = dF
+	// P := 1
+	for P := 1; P <= 2; P++ {
+		rt := NewRTElement(P)
+		// if P == 2 {
+		// 	rt.V.Print("V RT2")
+		// 	rt.VInv.Print("VInv RT2")
+		// 	rt.Div.Print("Div RT2")
+		// }
+		Np := rt.Np
+		divFcalc := make([]float64, Np)
+		s1, s2 := make([]float64, Np), make([]float64, Np)
+		for PField := 0; PField <= (P - 1); PField++ {
+			for i := 0; i < Np; i++ {
+				r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+				f1, f2 := dt.F(r, s, PField)
+				s1[i], s2[i] = f1, f2
+				dF := dt.divF(r, s, PField)
+				divFcalc[i] = dF
+			}
+			dFReference := utils.NewMatrix(Np, 1, divFcalc)
+			dFReference.Transpose().Print("Reference Div")
+			rt.ProjectFunctionOntoDOF(s1, s2)
+			dB := rt.Projection
+			rt.Div.Mul(dB).Transpose().Print("Calculated Divergence")
+			calcDiv := rt.Div.Mul(dB)
+			assert.InDeltaSlice(t, dFReference.DataP, calcDiv.DataP, 0.0001)
+		}
 	}
-	dFReference := utils.NewMatrix(Np, 1, divFcalc)
-	dFReference.Transpose().Print("Reference Div")
-	rt.ProjectFunctionOntoDOF(s1, s2)
-	dB := rt.Projection
-	rt.Div.Mul(dB).Transpose().Print("Calculated Divergence")
-	calcDiv := rt.Div.Mul(dB)
-	assert.InDeltaSlice(t, dFReference.DataP, calcDiv.DataP, 0.0001)
 }
 
 func TestRTElementErvinRT1(t *testing.T) {
