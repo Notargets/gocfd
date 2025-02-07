@@ -3,11 +3,8 @@ package DG2D
 import (
 	"fmt"
 	"math"
-	"strconv"
 	"testing"
-	"time"
 
-	"github.com/notargets/gocfd/DG1D"
 	"github.com/notargets/gocfd/utils"
 
 	utils2 "github.com/notargets/avs/utils"
@@ -302,7 +299,7 @@ func _TestRTElementPerformanceRT2(t *testing.T) {
 	rt.Div.Mul(dB).Transpose().Print("Calculated Divergence")
 }
 
-func TestRTElementPerformanceRT1(t *testing.T) {
+func TestRTElementDivergenceRT1(t *testing.T) {
 	// We test RT1 first in isolation because RT1:
 	// - uses only the analytic interior basis functions E4 and E5
 	// - uses the Lagrange 1D polynomial on edges
@@ -332,27 +329,6 @@ func TestRTElementPerformanceRT1(t *testing.T) {
 	rt.ProjectFunctionOntoDOF(s1, s2)
 	dB := rt.Projection
 	rt.Div.Mul(dB).Transpose().Print("Calculated Divergence")
-}
-
-func TestRTElementConstruction3(t *testing.T) {
-	// Check the Lagrange Polynomial basis to verify the Lagrange property
-	for P := 1; P < 7; P++ {
-		R, S := NodesEpsilon(P)
-		lp2d := NewLagrangePolynomialBasis2D(P, R, S)
-		A := utils.NewMatrix(lp2d.Np, lp2d.Np)
-		// Evaluate the j-th lagrange polynomial at (r,s)i
-		// It should evaluate to 1 at each (r,s)i=j and 0 at (r,s)i!=j
-		// In other words, this should be the diagonal matrix
-		for j := 0; j < lp2d.Np; j++ {
-			for i := 0; i < lp2d.Np; i++ {
-				r, s := R.AtVec(i), S.AtVec(i)
-				// fmt.Printf("psi[%d][%f,%f] = %f\n", j, r, s,
-				// 	lp2d.GetPolynomialEvaluation(r, s, j))
-				A.Set(i, j, lp2d.GetPolynomialEvaluation(r, s, j))
-			}
-		}
-		checkIfUnitMatrix(t, A)
-	}
 }
 
 func TestRTElementVerifyErvinRT1(t *testing.T) {
@@ -502,95 +478,7 @@ func TestRTElementVerifyErvinRT1(t *testing.T) {
 	}
 }
 
-func TestErvinBasisFunctions2(t *testing.T) {
-	R := []float64{1. / 3., 0.5, 2. / 3.}
-	// assert.Equal(t, 1., DG1D.Lagrange1DPoly(1./3., R, 0))
-	// assert.Equal(t, 0., DG1D.Lagrange1DPoly(1./3., R, 1))
-	// assert.Equal(t, 0., DG1D.Lagrange1DPoly(1./3., R, 2))
-	// assert.Panics(t, func() { DG1D.Lagrange1DPoly(1./3., R, 3) })
-	// assert.InDeltaf(t, -9., DG1D.Lagrange1DPoly(1./3., R, 0, 1), 0.000001, "")
-	// assert.InDeltaf(t, 12., DG1D.Lagrange1DPoly(1./3., R, 1, 1), 0.000001, "")
-	// assert.InDeltaf(t, -3., DG1D.Lagrange1DPoly(1./3., R, 2, 1), 0.000001, "")
-
-	// Generate Gauss Lobato points for P=5 to compare with the online article:
-	// https://math.stackexchange.com/questions/1105160/evaluate-derivative-of-lagrange-polynomials-at-construction-points
-	R = DG1D.JacobiGL(0, 0, 6).DataP
-	// One row (i) is the evaluation of the j-th derivative at each i-th point
-	validation_deriv := make([][]float64, len(R))
-	for i := range validation_deriv {
-		validation_deriv[i] = make([]float64, len(R))
-	}
-	validation_deriv[0] = []float64{-10.5, -2.4429, 0.6253, -0.3125, 0.2261,
-		-0.2266, 0.5}
-	validation_deriv[1] = []float64{14.2016, 0, -2.2158, 0.9075, -0.6164,
-		0.6022, -1.3174}
-	validation_deriv[2] = []float64{-5.669, 3.4558, 0, -2.007, 1.0664, -0.9613,
-		2.05}
-	validation_deriv[3] = []float64{3.2, -1.5986, 2.2667, 0, -2.2667, 1.5986,
-		-3.2}
-	validation_deriv[4] = []float64{-2.05, 0.9613, -1.0664, 2.007, 0, -3.4558,
-		5.669}
-	validation_deriv[5] = []float64{1.3174, -0.6022, 0.6164, -0.9075, 2.2158, 0,
-		-14.2016}
-	validation_deriv[6] = []float64{-0.5, 0.2266, -0.2261, 0.3125, -0.6253,
-		2.4429, 10.5}
-	// testVec := make([]float64, len(R))
-	// for j, validate := range validation_deriv {
-	// 	for i, r := range R {
-	// 		testVec[i] = DG1D.Lagrange1DPoly(r, R, j, 1)
-	// 	}
-	// 	assert.True(t, nearVec(testVec, validate, 0.0001))
-	// }
-}
-
-func TestLagrangePolynomial(t *testing.T) {
-	numSamples := 100
-	rd := make([]float64, numSamples)
-	xmin, xmax := -1., 1.
-	fmin, fmax := -0.5, 1.25
-	inc := (xmax - xmin) / float64(numSamples-1.)
-	for i := 0; i < numSamples; i++ {
-		rd[i] = xmin + float64(i)*inc
-	}
-	SamplesR := utils.NewVector(numSamples, rd)
-	f := make([]float64, SamplesR.Len())
-	var plot bool
-	plot = false
-	if plot {
-		chart := utils.NewLineChart(1920, 1080, xmin, xmax, fmin, fmax)
-		// TODO: Make a pluggable basis underneath the RT (and Lagrange) elements - Lagrange, Hesthaven, Spectral?
-		var delay time.Duration
-		Nmax := 4
-		lineInc := 2. / float64(Nmax-2)
-		lineColor := -1. // colormap goes from -1,1
-		for n := 1; n < Nmax; n++ {
-			Np := n + 1
-			R := utils.NewVector(Np)
-			inc = (xmax - xmin) / float64(Np-1)
-			for i := 0; i < Np; i++ {
-				R.DataP[i] = xmin + float64(i)*inc
-			}
-			lp := NewLagrangeBasis1D(R.DataP)
-			_ = lp
-			for j := 0; j < R.Len(); j++ {
-				for i, r := range SamplesR.DataP {
-					// f[i] = DG1D.JacobiP(utils.NewVector(1, []float64{r}), 0, 0, j)[0]
-					f[i] = lp.BasisPolynomial([]float64{r}, j)[0]
-				}
-				if n == Nmax-1 && j == R.Len()-1 {
-					delay = 120 * time.Second
-				}
-				name := "JacobiP[" + strconv.Itoa(n) + "," + strconv.Itoa(j) + "]"
-				fmt.Printf("Chart Name: [%s], lineColor = %5.3f\n", name, lineColor)
-				chart.Plot(delay, SamplesR.DataP, f, lineColor, name)
-			}
-			lineColor += lineInc
-		}
-	}
-
-}
-
-func _TestRTElement(t *testing.T) {
+func TestRTElement(t *testing.T) {
 	{
 		// Check term-wise orthogonal 2D polynomial basis
 		N := 2
@@ -663,25 +551,23 @@ func _TestRTElement(t *testing.T) {
 		}
 		return
 	}
-	if true { // Check Divergence for polynomial vector fields of order < N
-		// against analytical solution
-		// Nend := 8
-		// for N := 1; N < Nend; N++ {
-		N := 1
-		rt := NewRTElement(N)
-		for cOrder := 0; cOrder <= N; cOrder++ {
-			fmt.Printf("Check Order = %d, ", cOrder)
-			// [s1,s2] values for each location in {R,S}
-			s1, s2, divCheck := checkSolution(rt, cOrder)
-			rt.ProjectFunctionOntoDOF(s1, s2)
-			divM := rt.Div.Mul(rt.Projection)
-			// fmt.Println(divM.Print("divM"))
-			minerrInt, maxerrInt, minerrEdge, maxerrEdge := errorCheck(N, divM.DataP, divCheck)
-			assert.True(t, near(minerrInt, 0.0, 0.00001))
-			assert.True(t, near(maxerrInt, 0.0, 0.00001))
-			assert.True(t, near(minerrEdge, 0.0, 0.00001))
-			assert.True(t, near(maxerrEdge, 0.0, 0.00001))
-		}
+	// against analytical solution
+	// Nend := 8
+	// for N := 1; N < Nend; N++ {
+	N := 1
+	rt := NewRTElement(N)
+	for cOrder := 0; cOrder < N; cOrder++ {
+		fmt.Printf("Check Order = %d, ", cOrder)
+		// [s1,s2] values for each location in {R,S}
+		s1, s2, divCheck := checkSolution(rt, cOrder)
+		rt.ProjectFunctionOntoDOF(s1, s2)
+		divM := rt.Div.Mul(rt.Projection)
+		// fmt.Println(divM.Print("divM"))
+		minerrInt, maxerrInt, minerrEdge, maxerrEdge := errorCheck(N, divM.DataP, divCheck)
+		assert.True(t, near(minerrInt, 0.0, 0.00001))
+		assert.True(t, near(maxerrInt, 0.0, 0.00001))
+		assert.True(t, near(minerrEdge, 0.0, 0.00001))
+		assert.True(t, near(maxerrEdge, 0.0, 0.00001))
 	}
 	// }
 	plot := false
