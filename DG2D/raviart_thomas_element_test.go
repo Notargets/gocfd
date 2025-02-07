@@ -18,31 +18,45 @@ import (
 func TestRTElementRTInterpolation(t *testing.T) {
 	// Verify the interpolation of a constant vector field onto the element
 	// P := 1
+
 	for P := 1; P <= 2; P++ {
+		var (
+			dt DivTest
+		)
+		dt = PolyField{}
+
 		rt := NewRTElement(P)
 		// rt.V.Print("V")
 		// rt.VInv.Print("VInv")
-		f1, f2 := utils.NewVectorConstant(rt.Np, -1),
-			utils.NewVectorConstant(rt.Np, 10)
-		rt.ProjectFunctionOntoDOF(f1.DataP, f2.DataP)
-
-		C := rt.VInv.Mul(rt.Projection)
-
-		// For each polynomial evaluation at (r,s)i
-		f_rt_dot := make([]float64, rt.Np)
-		for i := 0; i < rt.Np; i++ {
-			r_i, s_i := rt.R.AtVec(i), rt.S.AtVec(i)
-			b_i := rt.Phi[i].BasisVector.Eval(r_i, s_i)
-			// Sum of the basis polynomials over j, each dotted with basis vector_i
-			for j := 0; j < rt.Np; j++ {
-				f_rt_dot[i] += rt.Phi[j].Dot(r_i, s_i, b_i) * C.At(j, 0)
+		s1, s2 := make([]float64, rt.Np), make([]float64, rt.Np)
+		for PField := 0; PField <= P; PField++ {
+			for i := 0; i < rt.Np; i++ {
+				r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+				f1, f2 := dt.F(r, s, PField)
+				s1[i], s2[i] = f1, f2
 			}
-			r, s := rt.R.AtVec(i), rt.S.AtVec(i)
-			fmt.Printf("f_rt[%f,%f]=%f, f_proj=%f\n",
-				r, s, f_rt_dot[i], rt.Projection.At(i, 0))
+			rt.ProjectFunctionOntoDOF(s1, s2)
+
+			C := rt.VInv.Mul(rt.Projection)
+
+			// For each polynomial evaluation at (r,s)i
+			f_rt_dot := make([]float64, rt.Np)
+			for i := 0; i < rt.Np; i++ {
+				r_i, s_i := rt.R.AtVec(i), rt.S.AtVec(i)
+				b_i := rt.Phi[i].BasisVector.Eval(r_i, s_i)
+				// Sum of the basis polynomials over j, each dotted with basis vector_i
+				for j := 0; j < rt.Np; j++ {
+					f_rt_dot[i] += rt.Phi[j].Dot(r_i, s_i, b_i) * C.At(j, 0)
+				}
+				if PField >= P+1 {
+					r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+					fmt.Printf("f_rt[%f,%f]=%f, f_proj=%f\n",
+						r, s, f_rt_dot[i], rt.Projection.At(i, 0))
+				}
+			}
+			assert.InDeltaSlicef(t, rt.Projection.DataP, f_rt_dot, 0.000001,
+				"Interpolation Check")
 		}
-		assert.InDeltaSlicef(t, rt.Projection.DataP, f_rt_dot, 0.000001,
-			"Interpolation Check")
 	}
 }
 
@@ -59,6 +73,9 @@ func TestRTElementDivergence(t *testing.T) {
 	fmt.Println("Begin Divergence Test")
 	// P := 1
 	for P := 1; P <= 2; P++ {
+		fmt.Printf("---------------------------------------------\n")
+		fmt.Printf("Checking Divergence for RT%d\n", P)
+		fmt.Printf("---------------------------------------------\n")
 		rt := NewRTElement(P)
 		// if P == 2 {
 		// 	rt.V.Print("V RT2")
@@ -68,7 +85,10 @@ func TestRTElementDivergence(t *testing.T) {
 		Np := rt.Np
 		divFcalc := make([]float64, Np)
 		s1, s2 := make([]float64, Np), make([]float64, Np)
-		for PField := 0; PField <= (P - 1); PField++ {
+		// for PField := 0; PField <= (P - 1); PField++ {
+		for PField := 0; PField <= P; PField++ {
+			fmt.Printf("\nReference Vector Field Order:%d\n", PField)
+			fmt.Printf("-------------------------------\n")
 			for i := 0; i < Np; i++ {
 				r, s := rt.R.AtVec(i), rt.S.AtVec(i)
 				f1, f2 := dt.F(r, s, PField)
@@ -78,8 +98,17 @@ func TestRTElementDivergence(t *testing.T) {
 			}
 			dFReference := utils.NewMatrix(Np, 1, divFcalc)
 			dFReference.Transpose().Print("Reference Div")
+			// if PField == 1 {
+			// 	for i := 0; i < Np; i++ {
+			// 		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+			// 		fmt.Printf("f[%f,%f] = [%f,%f] \n", r, s, s1[i], s2[i])
+			// 	}
+			// 	os.Exit(1)
+			// }
 			rt.ProjectFunctionOntoDOF(s1, s2)
 			dB := rt.Projection
+			// dB.Transpose().Print("F Projection")
+			// rt.VInv.Mul(dB).Print("Coefficients")
 			calcDiv := rt.Div.Mul(dB)
 			calcDiv.Transpose().Print("Calculated Divergence")
 			assert.InDeltaSlice(t, dFReference.DataP, calcDiv.DataP, 0.0001)
@@ -682,33 +711,18 @@ type PolyField struct{}
 
 func (lpf PolyField) F(r, s float64, P int) (f1, f2 float64) {
 	var (
-		Pi = math.Pi
-		p  = float64(P)
+		p = float64(P)
 	)
-	conv := func(r float64) (xi float64) {
-		xi = Pi * (r + 1)
-		return
-	}
-	f1, f2 = math.Pow(conv(r), p), math.Pow(conv(s), p)
+	f1, f2 = math.Pow(s, p), math.Pow(r, p)
 	return
 }
 
 func (lpf PolyField) divF(r, s float64, P int) (div float64) {
 	var (
-		Pi = math.Pi
-		p  = float64(P)
+		p = float64(P)
 	)
-	conv := func(r float64) (xi float64) {
-		xi = Pi * (r + 1)
-		return
-	}
-	// val1 = (Pi*(r+1))^p
-	// dval1/dr = Pi*p*((Pi*(r+1))^(p-1))
-	// val2 = (Pi*(s+1))^p
-	// dval2/ds = Pi*p*((Pi*(s+1))^(p-1))
-	// div = p*Pi*((Pi*(r+1))^(p-1) + (Pi*(s+1))^(p-1))
 	if P > 0 {
-		div = p * Pi * (math.Pow(conv(r), p-1) + math.Pow(conv(s), p-1))
+		div = p * (math.Pow(s, p-1) + math.Pow(r, p-1))
 	} else {
 		div = 0
 	}

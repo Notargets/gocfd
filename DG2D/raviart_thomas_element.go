@@ -366,9 +366,10 @@ func NodesEpsilon(N int) (R, S utils.Vector) {
 		Therefore, only the N=4 points should be used for Viscous solutions, while the N=3 nodes are fine for inviscid
 	*/
 	var (
-		Np       = (N + 1) * (N + 2) / 2
-		epsD     []float64
-		types    = []string{"Linear", "Williams and Shun", "Romero and Jameson(2017)"}
+		Np    = (N + 1) * (N + 2) / 2
+		epsD  []float64
+		types = []string{"Equidistant", "Williams and Shun",
+			"Romero and Jameson(2017)"}
 		nameType string
 	)
 	switch N {
