@@ -24,8 +24,8 @@ func TestRTElementRT1Interpolation(t *testing.T) {
 	rt := NewRTElement(P)
 	rt.V.Print("V")
 	rt.VInv.Print("VInv")
-	f1, f2 := utils.NewVectorConstant(rt.Np, 1),
-		utils.NewVectorConstant(rt.Np, 1)
+	f1, f2 := utils.NewVectorConstant(rt.Np, -1),
+		utils.NewVectorConstant(rt.Np, 10)
 	rt.ProjectFunctionOntoDOF(f1.DataP, f2.DataP)
 
 	C := rt.VInv.Mul(rt.Projection)
@@ -40,16 +40,6 @@ func TestRTElementRT1Interpolation(t *testing.T) {
 		b_i := rt.Phi[i].BasisVector.Eval(r_i, s_i)
 		// Sum of the basis polynomials over j, each dotted with basis vector_i
 		for j := 0; j < rt.Np; j++ {
-			// Edges don't contribute to other edges
-			// switch rt.getFunctionNumber(j) {
-			// case E1, E2, E3:
-			// 	switch rt.getFunctionNumber(j) {
-			// 	case E1, E2, E3:
-			// 		if rt.getFunctionNumber(i) != rt.getFunctionNumber(j) {
-			// 			continue
-			// 		}
-			// 	}
-			// }
 			f_rt_dot[i] += rt.Phi[j].Dot(r_i, s_i, b_i)
 		}
 		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
@@ -87,49 +77,43 @@ func TestRTElementErvinRT1(t *testing.T) {
 		div float64) {
 		// Bottom edge
 		var (
-		// xi, eta = conv(r), conv(s)
+			xi, eta = conv(r), conv(s)
 		)
 		if len(derivO) > 0 {
 			div = 0
 			return
 		}
-		// v[0] = xi
-		// v[1] = eta - 1
-		v[0] = 0
-		v[1] = -1
+		v[0] = xi - 0.5
+		v[1] = eta - 1
 		return
 	}
 	e2 := func(r, s float64, derivO ...DerivativeDirection) (v [2]float64,
 		div float64) {
 		// Hypotenuse
 		var (
-			// xi, eta = conv(r), conv(s)
-			sr2 = math.Sqrt2
+			xi, eta = conv(r), conv(s)
+			sr2     = math.Sqrt2
 		)
 		if len(derivO) > 0 {
 			div = 0
 			return
 		}
-		// v[0] = sr2 * xi
-		// v[1] = sr2 * eta
-		v[0] = 0.5 * sr2
-		v[1] = 0.5 * sr2
+		v[0] = sr2 * xi
+		v[1] = sr2 * eta
 		return
 	}
 	e3 := func(r, s float64, derivO ...DerivativeDirection) (v [2]float64,
 		div float64) {
 		// Left edge
 		var (
-		// xi, eta = conv(r), conv(s)
+			xi, eta = conv(r), conv(s)
 		)
 		if len(derivO) > 0 {
 			div = 0
 			return
 		}
-		// v[0] = xi - 1
-		// v[1] = eta
-		v[0] = -1
-		v[1] = 0
+		v[0] = xi - 1
+		v[1] = eta - 0.5
 		return
 	}
 	e4 := func(r, s float64, derivO ...DerivativeDirection) (v [2]float64,
@@ -271,16 +255,6 @@ func TestRTElementErvinRT1(t *testing.T) {
 		}
 		// fmt.Printf("v_%d[%f,%f] = [%f,%f]\n", i, r_i, s_i, v_i[0], v_i[1])
 		for j := 0; j < Np; j++ {
-			// Don't evaluate edge basis on other edges
-			switch edgeNum(j) {
-			case E1, E2, E3:
-				switch edgeNum(i) {
-				case E1, E2, E3:
-					if edgeNum(i) != edgeNum(j) {
-						continue
-					}
-				}
-			}
 			v_j, _ := phi_j[j](r_i, s_i)
 			V.Set(i, j, dot(v_j, v_i))
 		}

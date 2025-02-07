@@ -308,31 +308,41 @@ var (
 		return
 	}
 	e1v = func(r, s float64) (v [2]float64) {
+		// Bottom edge
 		xi, eta := conv(r), conv(s)
-		v = [2]float64{xi, eta - 1.}
+		// v = [2]float64{xi, eta - 1.}
+		v = [2]float64{xi - 0.5, eta - 1.}
+		// v = [2]float64{0, -1}
 		return
 	}
 	e2v = func(r, s float64) (v [2]float64) {
+		// Hypotenuse
 		sr2 := math.Sqrt2
 		xi, eta := conv(r), conv(s)
 		v = [2]float64{sr2 * xi, sr2 * eta}
+		// v = [2]float64{0.5 * sr2, 0.5 * sr2}
 		return
 	}
 	e3v = func(r, s float64) (v [2]float64) {
+		// Left edge
 		xi, eta := conv(r), conv(s)
-		v = [2]float64{xi - 1., eta}
+		// v = [2]float64{xi - 1., eta}
+		v = [2]float64{xi - 1., eta - 0.5}
+		// v = [2]float64{-1, 0}
 		return
 	}
 	e4v = func(r, s float64) (v [2]float64) {
 		xi, eta := conv(r), conv(s)
 		v = [2]float64{eta * xi, eta * (eta - 1.)}
 		// v = normalize(v)
+		// v = [2]float64{1, 0}
 		return
 	}
 	e5v = func(r, s float64) (v [2]float64) {
 		xi, eta := conv(r), conv(s)
 		v = [2]float64{xi * (xi - 1.), eta * xi}
 		// v = normalize(v)
+		// v = [2]float64{0, 1}
 		return
 	}
 	E4Vector = BasisVectorStruct{
@@ -413,24 +423,6 @@ func (rt *RTElement) ComposeV() (V utils.Matrix) {
 		r_i, s_i := R.DataP[i], S.DataP[i]
 		b_i := rt.Phi[i].BasisVector
 		for j := 0; j < Np; j++ {
-			// Don't evaluate edge basis on other edges
-			// switch rt.getFunctionNumber(j) {
-			// case E1, E2, E3:
-			// 	switch rt.getFunctionNumber(i) {
-			// 	case E1, E2, E3:
-			// 		if rt.getFunctionNumber(i) != rt.getFunctionNumber(j) {
-			// 			continue
-			// 		}
-			// 	}
-			// }
-			// Don't evaluate Interior basis on edges (likely wrong)
-			// switch rt.getFunctionNumber(i) {
-			// case E4, E5:
-			// 	switch rt.getFunctionNumber(j) {
-			// 	case E1, E2, E3:
-			// 		continue
-			// 	}
-			// }
 			v_j := rt.Phi[j].Eval(r_i, s_i)
 			V.Set(i, j, b_i.Dot(r_i, s_i, v_j))
 		}
