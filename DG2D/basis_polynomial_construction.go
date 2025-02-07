@@ -18,12 +18,10 @@ type BasisPolynomialTerm struct {
 	IsScaled       bool // After scaling, is part of the element polynomial
 	PolyMultiplier BasisPolynomialMultiplier
 	BasisVector    BasisVectorStruct
-	Coefficient    float64 // Initially set to 1. to allow scaling calculations
 }
 
 func (pt BasisPolynomialTerm) Eval(r, s float64) (v [2]float64) {
-	scale := pt.PolyMultiplier.Eval(r, s) * pt.Coefficient
-	v = pt.BasisVector.Project(r, s, scale)
+	v = pt.BasisVector.Project(r, s, pt.PolyMultiplier.Eval(r, s))
 	return
 }
 func (pt BasisPolynomialTerm) Dot(r, s float64, b [2]float64) (dot float64) {

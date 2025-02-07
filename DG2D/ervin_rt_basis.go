@@ -325,42 +325,34 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 	case 1:
 		phi = []BasisPolynomialTerm{
 			{
-				Coefficient:    1,
 				PolyMultiplier: constant,
 				BasisVector:    E4Vector,
 			},
 			{
-				Coefficient:    1,
 				PolyMultiplier: constant,
 				BasisVector:    E5Vector,
 			},
 			{
-				Coefficient:    1,
 				PolyMultiplier: l1xi,
 				BasisVector:    Edge1Vector,
 			},
 			{
-				Coefficient:    1,
 				PolyMultiplier: l2xi,
 				BasisVector:    Edge1Vector,
 			},
 			{
-				Coefficient:    1,
 				PolyMultiplier: l1eta,
 				BasisVector:    Edge2Vector,
 			},
 			{
-				Coefficient:    1,
 				PolyMultiplier: l2eta,
 				BasisVector:    Edge2Vector,
 			},
 			{
-				Coefficient:    1,
 				PolyMultiplier: l2eta,
 				BasisVector:    Edge3Vector,
 			},
 			{
-				Coefficient:    1,
 				PolyMultiplier: l1eta,
 				BasisVector:    Edge3Vector,
 			},
@@ -368,77 +360,62 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 	case 2:
 		phi = []BasisPolynomialTerm{
 			{
-				Coefficient:    1,
 				PolyMultiplier: e45mult1,
 				BasisVector:    E4Vector,
 			},
 			{
-				Coefficient:    1,
 				PolyMultiplier: e45mult2,
 				BasisVector:    E4Vector,
 			},
 			{
-				Coefficient:    1,
 				PolyMultiplier: e45mult3,
 				BasisVector:    E4Vector,
 			},
 			{
-				Coefficient:    1,
 				PolyMultiplier: e45mult1,
 				BasisVector:    E5Vector,
 			},
 			{
-				Coefficient:    1,
 				PolyMultiplier: e45mult2,
 				BasisVector:    E5Vector,
 			},
 			{
-				Coefficient:    1,
 				PolyMultiplier: e45mult3,
 				BasisVector:    E5Vector,
 			},
 			{
-				Coefficient:    1,
 				PolyMultiplier: q1xi,
 				BasisVector:    Edge1Vector,
 			},
 			{
-				Coefficient:    1,
 				PolyMultiplier: q2xi,
 				BasisVector:    Edge1Vector,
 			},
 			{
-				Coefficient:    1,
 				PolyMultiplier: q3xi,
 				BasisVector:    Edge1Vector,
 			},
 			{
-				Coefficient:    1,
 				PolyMultiplier: q1eta,
 				BasisVector:    Edge2Vector,
 			},
 			{
-				Coefficient:    1,
 				PolyMultiplier: q2eta,
 				BasisVector:    Edge2Vector,
 			},
 			{
-				Coefficient:    1,
 				PolyMultiplier: q3eta,
 				BasisVector:    Edge2Vector,
 			},
 			{
-				Coefficient:    1,
 				PolyMultiplier: q3eta,
 				BasisVector:    Edge3Vector,
 			},
 			{
-				Coefficient:    1,
 				PolyMultiplier: q2eta,
 				BasisVector:    Edge3Vector,
 			},
 			{
-				Coefficient:    1,
 				PolyMultiplier: q1eta,
 				BasisVector:    Edge3Vector,
 			},

@@ -27,9 +27,6 @@ func TestRTElementRTInterpolation(t *testing.T) {
 		rt.ProjectFunctionOntoDOF(f1.DataP, f2.DataP)
 
 		C := rt.VInv.Mul(rt.Projection)
-		for i := 0; i < rt.Np; i++ {
-			rt.Phi[i].Coefficient = C.At(i, 0)
-		}
 
 		// For each polynomial evaluation at (r,s)i
 		f_rt_dot := make([]float64, rt.Np)
@@ -38,7 +35,7 @@ func TestRTElementRTInterpolation(t *testing.T) {
 			b_i := rt.Phi[i].BasisVector.Eval(r_i, s_i)
 			// Sum of the basis polynomials over j, each dotted with basis vector_i
 			for j := 0; j < rt.Np; j++ {
-				f_rt_dot[i] += rt.Phi[j].Dot(r_i, s_i, b_i)
+				f_rt_dot[i] += rt.Phi[j].Dot(r_i, s_i, b_i) * C.At(j, 0)
 			}
 			r, s := rt.R.AtVec(i), rt.S.AtVec(i)
 			fmt.Printf("f_rt[%f,%f]=%f, f_proj=%f\n",
@@ -83,8 +80,8 @@ func TestRTElementDivergence(t *testing.T) {
 			dFReference.Transpose().Print("Reference Div")
 			rt.ProjectFunctionOntoDOF(s1, s2)
 			dB := rt.Projection
-			rt.Div.Mul(dB).Transpose().Print("Calculated Divergence")
 			calcDiv := rt.Div.Mul(dB)
+			calcDiv.Transpose().Print("Calculated Divergence")
 			assert.InDeltaSlice(t, dFReference.DataP, calcDiv.DataP, 0.0001)
 		}
 	}
