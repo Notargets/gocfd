@@ -63,6 +63,7 @@ func TestRTElementErvinRT1(t *testing.T) {
 		v2 = [2]float64{p * v[0], p * v[1]}
 		return
 	}
+	conv := func(r float64) float64 { return (r + 1.) / 2. }
 	l1 := func(t_rs float64) (val float64) {
 		tt := conv(t_rs)
 		val = (tt - g2) / (g1 - g2)
@@ -276,8 +277,6 @@ func _TestRTElementPerformanceRT2(t *testing.T) {
 	fmt.Println("Begin Divergence Test")
 	P := 2
 	rt := NewRTElement(P)
-	rt.BasisVector[0].Transpose().Print("Basis Vector 0")
-	rt.BasisVector[1].Transpose().Print("Basis Vector 1")
 	rt.Div.Print("Div")
 
 	// First check a constant field - divergence should be zero
@@ -316,8 +315,6 @@ func TestRTElementPerformanceRT1(t *testing.T) {
 	fmt.Println("Begin Divergence Test")
 	P := 1
 	rt := NewRTElement(P)
-	rt.BasisVector[0].Transpose().Print("Basis Vector 0")
-	rt.BasisVector[1].Transpose().Print("Basis Vector 1")
 	rt.Div.Print("Div")
 
 	Np := rt.Np
@@ -329,7 +326,6 @@ func TestRTElementPerformanceRT1(t *testing.T) {
 		s1[i], s2[i] = f1, f2
 		dF := dt.divF(r, s, P-1)
 		divFcalc[i] = dF
-		// fmt.Printf("F[%f,%f]=[%f,%f], divF[%f,%f]=%f\n", r, s, f1, f2, r, s, dF)
 	}
 	dFcalc := utils.NewMatrix(Np, 1, divFcalc)
 	dFcalc.Transpose().Print("Reference Div")
@@ -371,7 +367,7 @@ func TestRTElementVerifyErvinRT1(t *testing.T) {
 	fmt.Printf("Np:%d; NpInt:%d; NpEdge:%d\n", rt.Np, rt.NpInt, rt.NpEdge)
 	for j := 0; j < rt.Np; j++ {
 		r, s := rt.R.AtVec(j), rt.S.AtVec(j)
-		v, _ = rt.basisEvaluation(r, s, j)
+		v = rt.Phi[j].BasisVector.Eval(r, s)
 		BasisVector[0].Set(j, 0, v[0])
 		BasisVector[1].Set(j, 0, v[1])
 	}
@@ -388,20 +384,15 @@ func TestRTElementVerifyErvinRT1(t *testing.T) {
 		var (
 			s2 = math.Sqrt(2)
 		)
-		// v = [2]float64{s2 * xi, s2 * eta} // Ervin
-		v = [2]float64{0.5 * s2, 0.5 * s2} // Unit normal
+		v = [2]float64{s2 * xi, s2 * eta} // Ervin
 		return
 	}
 	e2 := func(xi, eta float64) (v [2]float64) {
-		v = [2]float64{-1, 0} // Unit normal
-		// v = [2]float64{xi - 1, eta - 0.5} // Ervin
-		// v = [2]float64{xi - 1, eta}
+		v = [2]float64{xi - 1, eta - 0.5} // Ervin
 		return
 	}
 	e3 := func(xi, eta float64) (v [2]float64) {
-		v = [2]float64{0, -1} // Unit normal
-		// v = [2]float64{xi - 0.5, eta - 1} // Ervin
-		// v = [2]float64{xi, eta - 1}
+		v = [2]float64{xi - 0.5, eta - 1} // Ervin
 		return
 	}
 	e4 := func(xi, eta float64) (v [2]float64) {
@@ -505,210 +496,10 @@ func TestRTElementVerifyErvinRT1(t *testing.T) {
 			i+1, r, s, convTo(r), convTo(s),
 			BasisVector[0].At(i, 0), BasisVector[1].At(i, 0),
 			BV0E.AtVec(i), BV1E.AtVec(i))
-		assert.InDeltaf(t, BasisVector[0].At(i, 0), BV0E.AtVec(i), 0.0001, "")
-		assert.InDeltaf(t, BasisVector[1].At(i, 0), BV1E.AtVec(i), 0.0001, "")
+		b_i := rt.Phi[i].BasisVector.Eval(r, s)
+		assert.InDeltaf(t, b_i[0], BV0E.AtVec(i), 0.0001, "")
+		assert.InDeltaf(t, b_i[1], BV1E.AtVec(i), 0.0001, "")
 	}
-}
-
-func _TestRTElementLagrangePolynomials(t *testing.T) {
-	// Check that the edge lagrange polynomials are zero at i!=j
-	for P := 1; P < 7; P++ {
-		rt := NewRTElement(P)
-		offset := 2 * rt.NpInt
-		for j := offset; j < 4*rt.NpEdge; j++ {
-			for i := offset; i < 4*rt.NpEdge; i++ {
-				r, s := rt.R.AtVec(i), rt.S.AtVec(i)
-				var checkVal float64
-				if i == j {
-					checkVal = 1.
-				} else {
-					checkVal = 0.
-				}
-				val := rt.basisPolynomialValue(r, s, j)
-				assert.InDeltaf(t, val, checkVal, 0.00001, "")
-			}
-		}
-	}
-}
-func _TestRTElementConstruction1(t *testing.T) {
-	P := 3
-	rt := NewRTElement(P)
-	j1_1 := rt.BasisVector[0].At(0, 0)
-	j1_2 := rt.BasisVector[1].At(0, 0)
-	j2_1 := rt.BasisVector[0].At(rt.NpInt, 0)
-	j2_2 := rt.BasisVector[1].At(rt.NpInt, 0)
-	// Both basis 1 and 2 are at the same location in RT, the single interior
-	// point, so we don't need to change the location
-	dot1 := j1_1*j1_1 + j1_2*j1_2                 // Basis1 dotted with itself
-	dot2 := j1_1*j2_1 + j1_2*j2_2                 // Basis1 dotted with Basis2
-	assert.False(t, math.Abs(dot1-dot2) < 0.0001) // Should not be equal
-	BasisMatrix := [2]utils.Matrix{utils.NewMatrix(rt.Np, rt.Np),
-		utils.NewMatrix(rt.Np, rt.Np)}
-	for i := 0; i < rt.Np; i++ {
-		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
-		v := [2]float64{rt.BasisVector[0].At(i, 0), rt.BasisVector[1].At(i, 0)}
-		// fmt.Printf("Base[%d] = [%f,%f]\n", i, v[0], v[1])
-		for j := 0; j < rt.Np; j++ {
-			v2, _ := rt.basisEvaluation(r, s, j)
-			// fmt.Printf("Psi[%d,%d] = [%f,%f]\n", i, j, v2[0], v2[1])
-			BasisMatrix[0].Set(i, j, v[0]*v2[0])
-			BasisMatrix[1].Set(i, j, v[1]*v2[1])
-		}
-	}
-	BasisDot := BasisMatrix[0].Add(BasisMatrix[1])
-	assert.InDeltaf(t, BasisDot.At(0, 0), dot1, 0.0001, "")
-	assert.InDeltaf(t, BasisDot.At(0, rt.NpInt), dot2, 0.0001, "")
-	// BasisMatrix[0].Print("BasisMatrix 0")
-	// BasisMatrix[1].Print("BasisMatrix 1")
-	// BasisDot.Print("BasisDot")
-	// BasisDot.InverseWithCheck().Print("BasisDot Inverse")
-}
-
-func _TestRTElementConstruction(t *testing.T) {
-	// Define an RT element at order P
-	P := 2
-	rt := NewRTElement(P)
-
-	// Verify that edges start at the bottom edge (edge 1) and proceed in a
-	// counterclockwise fashion as we increase the index
-	Print := func(label string, iip *int) (edge [2][]float64) {
-		edge[0] = make([]float64, rt.NpEdge)
-		edge[1] = make([]float64, rt.NpEdge)
-		fmt.Printf("%s", label)
-		for i := 0; i < rt.NpEdge; i++ {
-			fmt.Printf("[%f,%f] ", rt.R.DataP[*iip], rt.S.DataP[*iip])
-			edge[0][i] = rt.R.DataP[*iip]
-			edge[1][i] = rt.S.DataP[*iip]
-			*iip++
-		}
-		fmt.Printf("\n")
-		return
-	}
-	// Bottom edge (edge 1) - S should be -1, edge runs left to right
-	ii := 2 * rt.NpInt
-	edge1a := Print("Edge 1:", &ii)
-	assert.True(t, nearVec(edge1a[0], []float64{-.774597, 0, 0.774597},
-		0.00001))
-	assert.True(t, nearVec(edge1a[1], []float64{-1, -1, -1}, 0.00001))
-	// Hypotenuse edge (edge 2) - R should go from right to left, opposite for s
-	edge2a := Print("Edge 2:", &ii)
-	assert.True(t, nearVec(edge2a[0], []float64{.774597, 0, -0.774597},
-		0.00001))
-	assert.True(t, nearVec(edge2a[1], []float64{-.774597, 0, 0.774597},
-		0.00001))
-	// Left edge (edge 3) - R should be -1, edge runs right to left
-	edge3a := Print("Edge 3:", &ii)
-	assert.True(t, nearVec(edge3a[0], []float64{-1, -1, -1}, 0.00001))
-	assert.True(t, nearVec(edge3a[1], []float64{.774597, 0, -0.774597},
-		0.00001))
-
-	// Note that Ervin's edges are numbered differently:
-	// Ervin's E1 => E2 (Hypotenuse)
-	// Ervin's E2 => E3 (Left)
-	// Ervin's E3 => E1 (Bottom)
-
-	// 1D Edge Polynomials
-	// Get the edge values for edge1,2,3
-	assert.Panics(t, func() { rt.getEdgeXiParameter(0, 0, 0) })
-
-	// Test polynomial bases
-
-	// TEST1: Demonstrate each of the ways to calculate Polynomial Terms
-	// 2D Interior Polynomials
-	PInt := rt.P - 1
-	RInt, SInt := NodesEpsilon(PInt)
-	BasisTest := func(basis *JacobiBasis2D) (PSI utils.Vector, P_Alt []float64) {
-		PSI = basis.GetAllPolynomials()
-		CalcTerm := func(r, s float64, P int) (psi float64) {
-			for i := 0; i <= P; i++ {
-				for j := 0; j <= (P - i); j++ {
-					pTerm := basis.PolynomialTerm(r, s, i, j)
-					psi += pTerm
-				}
-			}
-			return
-		}
-		r1, s1 := RInt.AtVec(0), SInt.AtVec(0)
-		r2, s2 := RInt.AtVec(1), SInt.AtVec(1)
-		r3, s3 := RInt.AtVec(2), SInt.AtVec(2)
-		P_Alt = []float64{
-			CalcTerm(r1, s1, PInt),
-			CalcTerm(r2, s2, PInt),
-			CalcTerm(r3, s3, PInt),
-		}
-		for i := 0; i < len(P_Alt); i++ {
-			fmt.Printf("P_Alt[%d] = %f\n", i, P_Alt[i])
-		}
-		return
-	}
-	jb2d := NewJacobiBasis2D(rt.P-1, rt.RInt, rt.SInt, 0, 0)
-	PSI, P_Alt := BasisTest(jb2d)
-	assert.True(t, nearVec(P_Alt, PSI.DataP, 0.00001))
-
-	j := 0
-	i := 0
-	r, s := rt.RInt.AtVec(i), rt.SInt.AtVec(i)
-	fmt.Printf("Poly(%d)[%f,%f] = %f\n", j, r, s,
-		rt.basisPolynomialValue(r, s, j))
-	// Build a polynomial matrix for interior polynomials
-	A := utils.NewMatrix(2*rt.NpInt, 2*rt.NpInt)
-	for i = 0; i < 2*rt.NpInt; i++ {
-		r, s = rt.R.AtVec(i), rt.S.AtVec(i)
-		for j = 0; j < 2*rt.NpInt; j++ {
-			// fmt.Printf("NpInt, j = %d, %d\n", rt.NpInt, j)
-			A.Set(i, j, rt.basisPolynomialValue(r, s, j))
-		}
-	}
-	A.Print("Interior Poly")
-	// Let's call out some important features, the polynomial for the first
-	// 0 <= j < NpInt points should be the same as the polynomial for the
-	// NpInt <= j < 2*NpInt points, specifically the Alpha and Beta params
-	// should make that the case. The [r,s] coordinates for 0 <= i < NpInt
-	// are the same as the [r,s] coordinates for NpInt <= i < 2*NpInt, so the
-	// The polynomial matrix should look like this:
-	// a b c a b c
-	// d e f d e f
-	// g h i g h i
-	// a b c a b c
-	// d e f d e f
-	// g h i g h i
-	// The top NpInt terms repeat in the bottom, and the left/right
-	// The terms multiplying the e4 and e5 vectors should be the same.
-	// In the Ervin paper, the 2D polynomial bj[r,s] is distinct over all values
-	// of j from 0 to NpInt (equivalent to 1, k(k+1)/2) which this
-	// construction achieves:
-	// P = 2 = k, NpInt=k(k+1)/2=2(3)/2=3, which is NpInt here (not 2*NpInt)
-	assert.True(t, near(A.At(0, 0), A.At(0, rt.NpInt), 0.00001))
-	assert.True(t, near(A.At(0, 0), A.At(rt.NpInt, 0), 0.00001))
-	// Check the RT2 polynomial (special case for RT2)
-	xi := make([]float64, 3)
-	eta := make([]float64, 3)
-	for i = 0; i < 2; i++ {
-		xi[i] = 0.5 * (rt.RInt.AtVec(i) + 1)
-		eta[i] = 0.5 * (rt.SInt.AtVec(i) + 1)
-	}
-	for i = 0; i < 2; i++ {
-		pp := []float64{1 - xi[i] - eta[i], xi[i], eta[i]}
-		assert.True(t, nearVec(A.Row(i).DataP[0:2], pp, 0.00001))
-	}
-
-	// Build polynomial derivative matrices
-	dr := utils.NewMatrix(rt.Np, rt.Np)
-	ds := utils.NewMatrix(rt.Np, rt.Np)
-	for i = 0; i < rt.Np; i++ {
-		r, s = rt.R.AtVec(i), rt.S.AtVec(i)
-		fmt.Printf("[%f,%f]%d\n", r, s, i)
-	}
-	for i = 0; i < rt.Np; i++ {
-		r, s = rt.R.AtVec(i), rt.S.AtVec(i)
-		for j = 0; j < rt.Np; j++ {
-			dr.Set(i, j, rt.basisPolynomialValue(r, s, j, Dr))
-			ds.Set(i, j, rt.basisPolynomialValue(r, s, j, Ds))
-		}
-	}
-	fmt.Printf("RT%d\n", P)
-	dr.Print("Poly Dr")
-	ds.Print("Poly Ds")
 }
 
 func TestErvinBasisFunctions2(t *testing.T) {
@@ -750,153 +541,6 @@ func TestErvinBasisFunctions2(t *testing.T) {
 	// 	}
 	// 	assert.True(t, nearVec(testVec, validate, 0.0001))
 	// }
-}
-func _TestErvinBasisFunctions1(t *testing.T) {
-	// This tests the basic basis functions e1,e2,e3 for edges and e4,
-	// e5 interior
-	var (
-		sr2   = math.Sqrt(2.)
-		oosr2 = 1. / sr2
-	)
-	conv := func(r, s float64) (xiEta [2]float64) {
-		xiEta = [2]float64{0.5 * (r + 1), 0.5 * (s + 1)}
-		return
-	}
-	assert.Equal(t, conv(-1, -1), [2]float64{0., 0.})
-	assert.Equal(t, conv(-1, 1), [2]float64{0., 1.})
-	assert.Equal(t, conv(1, -1), [2]float64{1., 0.})
-	rt := NewRTElement(2)
-
-	// ---------------------------------------------------
-	// the edge basis vector function [v] varies along the edge.
-	// It is the product of a 1D edge function f(xi) and [v], so we have:
-	// div(edgeFunction) = div(f(xi)*[v]) =
-	//       [df(xi)/dr,df(xi)/ds] ⋅ [v] + f(xi) * ([div] ⋅ [v])
-	//
-	// div = df(xi)/dxi * (v1*dxi/dr + v2*dxi/ds) + f(xi) * (dv1/dr + dv2/ds)
-	//
-	// Conversion from Ervin coordinates:
-	// xi  = 0.5 * (r + 1)
-	// eta = 0.5 * (s + 1)
-	// r = 2 * xi  - 1
-	// s = 2 * eta - 1
-	//
-	// Left Edge (1) divergence:
-	// 			[v] = [(r - 1)/2, s/2]
-	// v1 = (r-1)/2, v2 = s/2, dv1/dr = 1/2, dv2/ds = 1/2
-	// The left edge  in a counter-clockwise direction is parameterized:
-	// r = -1 (constant), xi = -s => dxi/dr = 0, dxi/ds = -1,
-	// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
-	//     = df/dxi*(v1*(  0   )+v2*(  -1  )) + f(xi) * (  1/2  +   1/2 )
-	//     = df/dxi*(          v2           ) + f(xi)
-	//         div(edge1) = (df/dxi) * v2 + f(xi)
-	//
-	// Hypotenuse (2) divergence:
-	// 			[v] = [Sqrt2/2 * (r+1), Sqrt2/2 * (s+1)]
-	// v1 = Sqrt2/2 * (r+1), v2 = Sqrt2/2 * (s+1), dv1/dr = Sqrt2/2 = dv2/ds
-	//
-	// The hypotenuse in a counter-clockwise direction is parameterized:
-	// xi = -r = s, => dxi/dr = -1, dxi/ds = 1
-	//
-	// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
-	//     = df/dxi*(v1*( -1   )+v2*(   1  )) + f(xi) * (Sqrt2/2+Sqrt2/2)
-	//     = df/dxi*(         v2-v1         ) + f(xi) * Sqrt2
-	//         div(edge2) = (df/dxi) * (v2-v1) + Sqrt2 * f(xi)
-	//
-	// Bottom Edge (3) divergence:
-	// 			[v] = [r/2, (s - 1)/2]
-	// v1 = r/2, v2 = (s-1)/2, dv1/dr = 1/2, dv2/ds = 1/2
-	// The bottom edge  in a counter-clockwise direction is parameterized:
-	// xi = r, s = -1 (const) => dxi/dr = 1, dxi/ds = 0
-	// div = df/dxi*(v1*(dxi/dr)+v2*(dxi/ds)) + f(xi) * (dv1/dr + dv2/ds)
-	//     = df/dxi*(v1*(  1   )+v2*(   0  )) + f(xi) * (  1/2  +   1/2 )
-	//     = df/dxi*(          v1           ) + f(xi)
-	//        div(edge3) = (df/dxi) * v1 + f(xi)
-
-	// Test the dot product of the e4 and e5 interior basis vectors against all
-	// edge normals at the edge normal locations. All interior basis functions
-	// should have zero dot product on all edges
-	dot := func(v1, v2 [2]float64) (dp float64) {
-		dp = v1[0]*v2[0] + v1[1]*v2[1]
-		return
-	}
-
-	getMid := func(start, end [2]float64) (mid [2]float64) {
-		mid[0] = (start[0] + end[0]) / 2
-		mid[1] = (start[1] + end[1]) / 2
-		return
-	}
-
-	offsetEdge1 := 2 * rt.NpInt             // Bottom edge
-	offsetEdge2 := 2*rt.NpInt + rt.NpEdge   // Hypotenuse
-	offsetEdge3 := 2*rt.NpInt + 2*rt.NpEdge // Left edge
-
-	// Edge 1 endpoint 1 (start of path around triangle)
-	e1Nd1 := [2]float64{-1, -1}
-	e1Nd2 := [2]float64{1, -1}
-	e2Nd1 := e1Nd2
-	e2Nd2 := [2]float64{-1, 1}
-	e3Nd1 := e2Nd2
-	e3Nd2 := e1Nd1
-	e1Mid := getMid(e1Nd1, e1Nd2)
-	e2Mid := getMid(e2Nd1, e2Nd2)
-	e3Mid := getMid(e3Nd1, e3Nd2)
-	ef1 := rt.baseBasisVectors(e1Mid[0], e1Mid[1], offsetEdge1)
-	ef2 := rt.baseBasisVectors(e2Mid[0], e2Mid[1], offsetEdge2)
-	ef3 := rt.baseBasisVectors(e3Mid[0], e3Mid[1], offsetEdge3)
-
-	ef4 := rt.baseBasisVectors(e1Nd1[0], e1Nd1[1], 0)
-	ef5 := rt.baseBasisVectors(e1Nd1[0], e1Nd1[1], rt.NpInt)
-	assert.Equal(t, 0., dot(ef4, ef1))
-	assert.Equal(t, 0., dot(ef5, ef1))
-	// Edge 1 midpoint
-	ef4 = rt.baseBasisVectors(e1Mid[0], e1Mid[1], 0)
-	ef5 = rt.baseBasisVectors(e1Mid[0], e1Mid[1], rt.NpInt)
-	assert.Equal(t, 0., dot(ef4, ef1))
-	// Edge 1 endpoint 2
-	ef4 = rt.baseBasisVectors(e1Nd2[0], e1Nd2[1], 0)
-	ef5 = rt.baseBasisVectors(e1Nd2[0], e1Nd2[1], rt.NpInt)
-	assert.Equal(t, 0., dot(ef4, ef1))
-	assert.Equal(t, 0., dot(ef5, ef1))
-
-	// Edge 2 midpoint
-	ef4 = rt.baseBasisVectors(e2Mid[0], e2Mid[1], 0)
-	ef5 = rt.baseBasisVectors(e2Mid[0], e2Mid[1], rt.NpInt)
-	assert.Equal(t, 0., dot(ef4, ef2))
-	assert.Equal(t, 0., dot(ef5, ef2))
-	// Edge 2 endpoint 1
-	ef4 = rt.baseBasisVectors(e2Nd1[0], e2Nd1[1], 0)
-	ef5 = rt.baseBasisVectors(e2Nd1[0], e2Nd1[1], rt.NpInt)
-	assert.Equal(t, 0., dot(ef4, ef2))
-	assert.Equal(t, 0., dot(ef5, ef2))
-	// Edge 2 endpoint 2
-	ef4 = rt.baseBasisVectors(e2Nd2[0], e2Nd2[1], 0)
-	ef5 = rt.baseBasisVectors(e2Nd2[0], e2Nd2[1], rt.NpInt)
-	assert.Equal(t, 0., dot(ef4, ef2))
-	assert.Equal(t, 0., dot(ef5, ef2))
-
-	// Edge 3 midpoint
-	ef4 = rt.baseBasisVectors(e3Mid[0], e3Mid[1], 0)
-	ef5 = rt.baseBasisVectors(e3Mid[0], e3Mid[1], rt.NpInt)
-	assert.Equal(t, 0., dot(ef4, ef3))
-	assert.Equal(t, 0., dot(ef5, ef3))
-	// Edge 3 endpoint 1
-	ef4 = rt.baseBasisVectors(e3Nd1[0], e3Nd1[1], 0)
-	ef5 = rt.baseBasisVectors(e3Nd1[0], e3Nd1[1], rt.NpInt)
-	assert.Equal(t, 0., dot(ef4, ef3))
-	assert.Equal(t, 0., dot(ef5, ef3))
-	// Edge 3 endpoint 2
-	ef4 = rt.baseBasisVectors(e3Nd2[0], e3Nd2[1], 0)
-	ef5 = rt.baseBasisVectors(e3Nd2[0], e3Nd2[1], rt.NpInt)
-	assert.Equal(t, 0., dot(ef4, ef3))
-	assert.Equal(t, 0., dot(ef5, ef3))
-
-	// Test the midpoint of each edge for values of the base edge functions
-	// Edge midpoints, they should be the unit normals
-	assert.Equal(t, [2]float64{0, -1}, ef1)
-	assert.InDeltaf(t, oosr2, ef2[0], 0.0000001, "")
-	assert.InDeltaf(t, oosr2, ef2[1], 0.0000001, "")
-	assert.Equal(t, [2]float64{-1, 0}, ef3)
 }
 
 func TestLagrangePolynomial(t *testing.T) {
