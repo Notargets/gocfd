@@ -1,0 +1,6 @@
+Note that the interior and edge nodes in this basis construction are completely distinct.
+They are effectively separate matrices, and so have zero coupling. ChatGPT confidently
+made assertions that the edge and interior should be kept distinct with arguments about
+edges only having "edge support", etc, and convinced itself that the basis shouldn't interact.
+
+Utter garbage - worth looking at to know how it can go astray.
