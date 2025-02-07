@@ -17,11 +17,12 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 	// Compose the basis for the RT1 element based on Ervin
 	var (
 		// Get the two edge points for use in the lagrange terms for RT1
-		g1, g2 = t[0], t[1]
-		sr2    = math.Sqrt2
-		conv   = func(r float64) float64 { return (r + 1.) / 2. }
-		Dot    = func(v1, v2 [2]float64) float64 { return v1[0]*v2[0] + v1[1]*v2[1] }
-		Scale  = func(v [2]float64, scale float64) [2]float64 {
+		g1, g2           = t[0], t[1]
+		g1_q, g2_q, g3_q = t[0], t[1], t[2]
+		sr2              = math.Sqrt2
+		conv             = func(r float64) float64 { return (r + 1.) / 2. }
+		Dot              = func(v1, v2 [2]float64) float64 { return v1[0]*v2[0] + v1[1]*v2[1] }
+		Scale            = func(v [2]float64, scale float64) [2]float64 {
 			return [2]float64{v[0] * scale, v[1] * scale}
 		}
 		Sum = func(v [2]float64) float64 { return v[0] + v[1] }
@@ -167,6 +168,93 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 			},
 			OrderOfTerm: 1,
 		}
+		q1xi = BasisPolynomialMultiplier{
+			Eval: func(r, s float64) float64 {
+				return (r - g2_q) * (r - g3_q) / ((g1_q - g2_q) * (g1_q - g3_q))
+			},
+			Divergence: func(r, s float64) (div float64) {
+				div = ((r - g2_q) + (r - g3_q)) / ((g1_q - g2_q) * (g1_q - g3_q))
+				return
+			},
+			OrderOfTerm: 2,
+		}
+		q1eta = BasisPolynomialMultiplier{
+			Eval: func(r, s float64) float64 {
+				return (s - g2_q) * (s - g3_q) / ((g1_q - g2_q) * (g1_q - g3_q))
+			},
+			Divergence: func(r, s float64) (div float64) {
+				div = ((s - g2_q) + (s - g3_q)) / ((g1_q - g2_q) * (g1_q - g3_q))
+				return
+			},
+			OrderOfTerm: 2,
+		}
+		q2xi = BasisPolynomialMultiplier{
+			Eval: func(r, s float64) float64 {
+				return (r - g1_q) * (r - g3_q) / ((g2_q - g1_q) * (g2_q - g3_q))
+			},
+			Divergence: func(r, s float64) (div float64) {
+				div = ((r - g1_q) + (r - g3_q)) / ((g2_q - g1_q) * (g2_q - g3_q))
+				return
+			},
+			OrderOfTerm: 2,
+		}
+		q2eta = BasisPolynomialMultiplier{
+			Eval: func(r, s float64) float64 {
+				return (s - g1_q) * (s - g3_q) / ((g2_q - g1_q) * (g2_q - g3_q))
+			},
+			Divergence: func(r, s float64) (div float64) {
+				div = ((s - g1_q) + (s - g3_q)) / ((g2_q - g1_q) * (g2_q - g3_q))
+				return
+			},
+			OrderOfTerm: 2,
+		}
+		q3xi = BasisPolynomialMultiplier{
+			Eval: func(r, s float64) float64 {
+				return (r - g1_q) * (r - g2_q) / ((g3_q - g1_q) * (g3_q - g2_q))
+			},
+			Divergence: func(r, s float64) (div float64) {
+				div = ((r - g1_q) + (r - g2_q)) / ((g3_q - g1_q) * (g3_q - g2_q))
+				return
+			},
+			OrderOfTerm: 2,
+		}
+		q3eta = BasisPolynomialMultiplier{
+			Eval: func(r, s float64) float64 {
+				return (s - g1_q) * (s - g2_q) / ((g3_q - g1_q) * (g3_q - g2_q))
+			},
+			Divergence: func(r, s float64) (div float64) {
+				div = ((s - g1_q) + (s - g2_q)) / ((g3_q - g1_q) * (g3_q - g2_q))
+				return
+			},
+			OrderOfTerm: 2,
+		}
+		e45mult1 = BasisPolynomialMultiplier{
+			Eval: func(r, s float64) float64 {
+				return 1. - conv(r) - conv(s)
+			},
+			Divergence: func(r, s float64) (div float64) {
+				return -1.
+			},
+			OrderOfTerm: 1,
+		}
+		e45mult2 = BasisPolynomialMultiplier{
+			Eval: func(r, s float64) float64 {
+				return conv(r)
+			},
+			Divergence: func(r, s float64) (div float64) {
+				return 0.5
+			},
+			OrderOfTerm: 1,
+		}
+		e45mult3 = BasisPolynomialMultiplier{
+			Eval: func(r, s float64) float64 {
+				return conv(s)
+			},
+			Divergence: func(r, s float64) (div float64) {
+				return 0.5
+			},
+			OrderOfTerm: 1,
+		}
 		constant = BasisPolynomialMultiplier{
 			Eval:        func(r, s float64) float64 { return 1. },
 			Divergence:  func(r, s float64) (div float64) { return 0. },
@@ -214,6 +302,84 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 			{
 				Coefficient:    1,
 				PolyMultiplier: l1eta,
+				BasisVector:    Edge3Vector,
+			},
+		}
+	case 2:
+		phi = []BasisPolynomialTerm{
+			{
+				Coefficient:    1,
+				PolyMultiplier: e45mult1,
+				BasisVector:    E4Vector,
+			},
+			{
+				Coefficient:    1,
+				PolyMultiplier: e45mult2,
+				BasisVector:    E4Vector,
+			},
+			{
+				Coefficient:    1,
+				PolyMultiplier: e45mult3,
+				BasisVector:    E4Vector,
+			},
+			{
+				Coefficient:    1,
+				PolyMultiplier: e45mult1,
+				BasisVector:    E5Vector,
+			},
+			{
+				Coefficient:    1,
+				PolyMultiplier: e45mult2,
+				BasisVector:    E5Vector,
+			},
+			{
+				Coefficient:    1,
+				PolyMultiplier: e45mult3,
+				BasisVector:    E5Vector,
+			},
+			{
+				Coefficient:    1,
+				PolyMultiplier: q1xi,
+				BasisVector:    Edge1Vector,
+			},
+			{
+				Coefficient:    1,
+				PolyMultiplier: q2xi,
+				BasisVector:    Edge1Vector,
+			},
+			{
+				Coefficient:    1,
+				PolyMultiplier: q3xi,
+				BasisVector:    Edge1Vector,
+			},
+			{
+				Coefficient:    1,
+				PolyMultiplier: q1eta,
+				BasisVector:    Edge2Vector,
+			},
+			{
+				Coefficient:    1,
+				PolyMultiplier: q2eta,
+				BasisVector:    Edge2Vector,
+			},
+			{
+				Coefficient:    1,
+				PolyMultiplier: q3eta,
+				BasisVector:    Edge2Vector,
+			},
+			{
+				Coefficient:    1,
+				PolyMultiplier: q3eta,
+				BasisVector:    Edge3Vector,
+			},
+			{
+				Coefficient:    1,
+				PolyMultiplier: q2eta,
+				BasisVector:    Edge3Vector,
+			},
+			{
+				Coefficient:    1,
+				PolyMultiplier: q1eta,
 				BasisVector:    Edge3Vector,
 			},
 		}
