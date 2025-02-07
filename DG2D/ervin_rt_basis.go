@@ -1,6 +1,8 @@
 package DG2D
 
-import "math"
+import (
+	"math"
+)
 
 type ErvinRTBasis struct {
 	P int
@@ -17,12 +19,10 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 	// Compose the basis for the RT1 element based on Ervin
 	var (
 		// Get the two edge points for use in the lagrange terms for RT1
-		g1, g2           = t[0], t[1]
-		g1_q, g2_q, g3_q = t[0], t[1], t[2]
-		sr2              = math.Sqrt2
-		conv             = func(r float64) float64 { return (r + 1.) / 2. }
-		Dot              = func(v1, v2 [2]float64) float64 { return v1[0]*v2[0] + v1[1]*v2[1] }
-		Scale            = func(v [2]float64, scale float64) [2]float64 {
+		sr2   = math.Sqrt2
+		conv  = func(r float64) float64 { return (r + 1.) / 2. }
+		Dot   = func(v1, v2 [2]float64) float64 { return v1[0]*v2[0] + v1[1]*v2[1] }
+		Scale = func(v [2]float64, scale float64) [2]float64 {
 			return [2]float64{v[0] * scale, v[1] * scale}
 		}
 		Sum = func(v [2]float64) float64 { return v[0] + v[1] }
@@ -130,9 +130,15 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 		}
 		l1xi = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 {
+				var (
+					g1, g2 = t[0], t[1]
+				)
 				return (r - g2) / (g1 - g2)
 			},
 			Divergence: func(r, s float64) (div float64) {
+				var (
+					g1, g2 = t[0], t[1]
+				)
 				div = 1 / (g1 - g2)
 				return
 			},
@@ -140,9 +146,15 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 		}
 		l1eta = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 {
+				var (
+					g1, g2 = t[0], t[1]
+				)
 				return (s - g2) / (g1 - g2)
 			},
 			Divergence: func(r, s float64) (div float64) {
+				var (
+					g1, g2 = t[0], t[1]
+				)
 				div = 1 / (g1 - g2)
 				return
 			},
@@ -150,9 +162,15 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 		}
 		l2xi = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 {
+				var (
+					g1, g2 = t[0], t[1]
+				)
 				return (r - g1) / (g2 - g1)
 			},
 			Divergence: func(r, s float64) (div float64) {
+				var (
+					g1, g2 = t[0], t[1]
+				)
 				div = 1 / (g2 - g1)
 				return
 			},
@@ -160,9 +178,15 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 		}
 		l2eta = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 {
+				var (
+					g1, g2 = t[0], t[1]
+				)
 				return (s - g1) / (g2 - g1)
 			},
 			Divergence: func(r, s float64) (div float64) {
+				var (
+					g1, g2 = t[0], t[1]
+				)
 				div = 1 / (g2 - g1)
 				return
 			},
@@ -170,9 +194,15 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 		}
 		q1xi = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 {
+				var (
+					g1_q, g2_q, g3_q = t[0], t[1], t[2]
+				)
 				return (r - g2_q) * (r - g3_q) / ((g1_q - g2_q) * (g1_q - g3_q))
 			},
 			Divergence: func(r, s float64) (div float64) {
+				var (
+					g1_q, g2_q, g3_q = t[0], t[1], t[2]
+				)
 				div = ((r - g2_q) + (r - g3_q)) / ((g1_q - g2_q) * (g1_q - g3_q))
 				return
 			},
@@ -180,9 +210,15 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 		}
 		q1eta = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 {
+				var (
+					g1_q, g2_q, g3_q = t[0], t[1], t[2]
+				)
 				return (s - g2_q) * (s - g3_q) / ((g1_q - g2_q) * (g1_q - g3_q))
 			},
 			Divergence: func(r, s float64) (div float64) {
+				var (
+					g1_q, g2_q, g3_q = t[0], t[1], t[2]
+				)
 				div = ((s - g2_q) + (s - g3_q)) / ((g1_q - g2_q) * (g1_q - g3_q))
 				return
 			},
@@ -190,9 +226,15 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 		}
 		q2xi = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 {
+				var (
+					g1_q, g2_q, g3_q = t[0], t[1], t[2]
+				)
 				return (r - g1_q) * (r - g3_q) / ((g2_q - g1_q) * (g2_q - g3_q))
 			},
 			Divergence: func(r, s float64) (div float64) {
+				var (
+					g1_q, g2_q, g3_q = t[0], t[1], t[2]
+				)
 				div = ((r - g1_q) + (r - g3_q)) / ((g2_q - g1_q) * (g2_q - g3_q))
 				return
 			},
@@ -200,9 +242,15 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 		}
 		q2eta = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 {
+				var (
+					g1_q, g2_q, g3_q = t[0], t[1], t[2]
+				)
 				return (s - g1_q) * (s - g3_q) / ((g2_q - g1_q) * (g2_q - g3_q))
 			},
 			Divergence: func(r, s float64) (div float64) {
+				var (
+					g1_q, g2_q, g3_q = t[0], t[1], t[2]
+				)
 				div = ((s - g1_q) + (s - g3_q)) / ((g2_q - g1_q) * (g2_q - g3_q))
 				return
 			},
@@ -210,9 +258,15 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 		}
 		q3xi = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 {
+				var (
+					g1_q, g2_q, g3_q = t[0], t[1], t[2]
+				)
 				return (r - g1_q) * (r - g2_q) / ((g3_q - g1_q) * (g3_q - g2_q))
 			},
 			Divergence: func(r, s float64) (div float64) {
+				var (
+					g1_q, g2_q, g3_q = t[0], t[1], t[2]
+				)
 				div = ((r - g1_q) + (r - g2_q)) / ((g3_q - g1_q) * (g3_q - g2_q))
 				return
 			},
@@ -220,9 +274,15 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 		}
 		q3eta = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 {
+				var (
+					g1_q, g2_q, g3_q = t[0], t[1], t[2]
+				)
 				return (s - g1_q) * (s - g2_q) / ((g3_q - g1_q) * (g3_q - g2_q))
 			},
 			Divergence: func(r, s float64) (div float64) {
+				var (
+					g1_q, g2_q, g3_q = t[0], t[1], t[2]
+				)
 				div = ((s - g1_q) + (s - g2_q)) / ((g3_q - g1_q) * (g3_q - g2_q))
 				return
 			},
