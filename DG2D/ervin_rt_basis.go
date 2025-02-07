@@ -324,101 +324,32 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 	switch e.P {
 	case 1:
 		phi = []BasisPolynomialTerm{
-			{
-				PolyMultiplier: constant,
-				BasisVector:    E4Vector,
-			},
-			{
-				PolyMultiplier: constant,
-				BasisVector:    E5Vector,
-			},
-			{
-				PolyMultiplier: l1xi,
-				BasisVector:    Edge1Vector,
-			},
-			{
-				PolyMultiplier: l2xi,
-				BasisVector:    Edge1Vector,
-			},
-			{
-				PolyMultiplier: l1eta,
-				BasisVector:    Edge2Vector,
-			},
-			{
-				PolyMultiplier: l2eta,
-				BasisVector:    Edge2Vector,
-			},
-			{
-				PolyMultiplier: l2eta,
-				BasisVector:    Edge3Vector,
-			},
-			{
-				PolyMultiplier: l1eta,
-				BasisVector:    Edge3Vector,
-			},
+			{PolyMultiplier: constant, BasisVector: E4Vector},
+			{PolyMultiplier: constant, BasisVector: E5Vector},
+			{PolyMultiplier: l1xi, BasisVector: Edge1Vector},
+			{PolyMultiplier: l2xi, BasisVector: Edge1Vector},
+			{PolyMultiplier: l1eta, BasisVector: Edge2Vector},
+			{PolyMultiplier: l2eta, BasisVector: Edge2Vector},
+			{PolyMultiplier: l2eta, BasisVector: Edge3Vector},
+			{PolyMultiplier: l1eta, BasisVector: Edge3Vector},
 		}
 	case 2:
 		phi = []BasisPolynomialTerm{
-			{
-				PolyMultiplier: e45mult1,
-				BasisVector:    E4Vector,
-			},
-			{
-				PolyMultiplier: e45mult2,
-				BasisVector:    E4Vector,
-			},
-			{
-				PolyMultiplier: e45mult3,
-				BasisVector:    E4Vector,
-			},
-			{
-				PolyMultiplier: e45mult1,
-				BasisVector:    E5Vector,
-			},
-			{
-				PolyMultiplier: e45mult2,
-				BasisVector:    E5Vector,
-			},
-			{
-				PolyMultiplier: e45mult3,
-				BasisVector:    E5Vector,
-			},
-			{
-				PolyMultiplier: q1xi,
-				BasisVector:    Edge1Vector,
-			},
-			{
-				PolyMultiplier: q2xi,
-				BasisVector:    Edge1Vector,
-			},
-			{
-				PolyMultiplier: q3xi,
-				BasisVector:    Edge1Vector,
-			},
-			{
-				PolyMultiplier: q1eta,
-				BasisVector:    Edge2Vector,
-			},
-			{
-				PolyMultiplier: q2eta,
-				BasisVector:    Edge2Vector,
-			},
-			{
-				PolyMultiplier: q3eta,
-				BasisVector:    Edge2Vector,
-			},
-			{
-				PolyMultiplier: q3eta,
-				BasisVector:    Edge3Vector,
-			},
-			{
-				PolyMultiplier: q2eta,
-				BasisVector:    Edge3Vector,
-			},
-			{
-				PolyMultiplier: q1eta,
-				BasisVector:    Edge3Vector,
-			},
+			{PolyMultiplier: e45mult1, BasisVector: E4Vector},
+			{PolyMultiplier: e45mult2, BasisVector: E4Vector},
+			{PolyMultiplier: e45mult3, BasisVector: E4Vector},
+			{PolyMultiplier: e45mult1, BasisVector: E5Vector},
+			{PolyMultiplier: e45mult2, BasisVector: E5Vector},
+			{PolyMultiplier: e45mult3, BasisVector: E5Vector},
+			{PolyMultiplier: q1xi, BasisVector: Edge1Vector},
+			{PolyMultiplier: q2xi, BasisVector: Edge1Vector},
+			{PolyMultiplier: q3xi, BasisVector: Edge1Vector},
+			{PolyMultiplier: q1eta, BasisVector: Edge2Vector},
+			{PolyMultiplier: q2eta, BasisVector: Edge2Vector},
+			{PolyMultiplier: q3eta, BasisVector: Edge2Vector},
+			{PolyMultiplier: q3eta, BasisVector: Edge3Vector},
+			{PolyMultiplier: q2eta, BasisVector: Edge3Vector},
+			{PolyMultiplier: q1eta, BasisVector: Edge3Vector},
 		}
 	default:
 		panic("Order unsupported for Ervin basis methods")
