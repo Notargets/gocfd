@@ -47,6 +47,40 @@ func TestRTElementRT1Interpolation(t *testing.T) {
 		"Interpolation Check")
 }
 
+func TestRTElementDivergenceRT1(t *testing.T) {
+	// We test RT1 first in isolation because RT1:
+	// - uses only the analytic interior basis functions E4 and E5
+	// - uses the Lagrange 1D polynomial on edges
+	// - is the simplest construction to test divergence
+	var (
+		dt DivTest
+	)
+	dt = PolyField{}
+
+	fmt.Println("Begin Divergence Test")
+	P := 1
+	rt := NewRTElement(P)
+	rt.Div.Print("Div")
+
+	Np := rt.Np
+	divFcalc := make([]float64, Np)
+	s1, s2 := make([]float64, Np), make([]float64, Np)
+	for i := 0; i < Np; i++ {
+		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+		f1, f2 := dt.F(r, s, P-1)
+		s1[i], s2[i] = f1, f2
+		dF := dt.divF(r, s, P-1)
+		divFcalc[i] = dF
+	}
+	dFReference := utils.NewMatrix(Np, 1, divFcalc)
+	dFReference.Transpose().Print("Reference Div")
+	rt.ProjectFunctionOntoDOF(s1, s2)
+	dB := rt.Projection
+	rt.Div.Mul(dB).Transpose().Print("Calculated Divergence")
+	calcDiv := rt.Div.Mul(dB)
+	assert.InDeltaSlice(t, dFReference.DataP, calcDiv.DataP, 0.0001)
+}
+
 func TestRTElementErvinRT1(t *testing.T) {
 	var (
 		P      = 1
@@ -291,38 +325,6 @@ func _TestRTElementPerformanceRT2(t *testing.T) {
 		// dF := dt.divF(r, s, P-1)
 		divFcalc[i] = dF
 		// fmt.Printf("F[%f,%f]=[%f,%f], divF[%f,%f]=%f\n", r, s, f1, f2, r, s, dF)
-	}
-	dFcalc := utils.NewMatrix(Np, 1, divFcalc)
-	dFcalc.Transpose().Print("Reference Div")
-	rt.ProjectFunctionOntoDOF(s1, s2)
-	dB := rt.Projection
-	rt.Div.Mul(dB).Transpose().Print("Calculated Divergence")
-}
-
-func TestRTElementDivergenceRT1(t *testing.T) {
-	// We test RT1 first in isolation because RT1:
-	// - uses only the analytic interior basis functions E4 and E5
-	// - uses the Lagrange 1D polynomial on edges
-	// - is the simplest construction to test divergence
-	var (
-		dt DivTest
-	)
-	dt = PolyField{}
-
-	fmt.Println("Begin Divergence Test")
-	P := 1
-	rt := NewRTElement(P)
-	rt.Div.Print("Div")
-
-	Np := rt.Np
-	divFcalc := make([]float64, Np)
-	s1, s2 := make([]float64, Np), make([]float64, Np)
-	for i := 0; i < Np; i++ {
-		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
-		f1, f2 := dt.F(r, s, P-1)
-		s1[i], s2[i] = f1, f2
-		dF := dt.divF(r, s, P-1)
-		divFcalc[i] = dF
 	}
 	dFcalc := utils.NewMatrix(Np, 1, divFcalc)
 	dFcalc.Transpose().Print("Reference Div")
