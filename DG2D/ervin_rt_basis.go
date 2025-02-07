@@ -13,10 +13,10 @@ func NewErvinRTBasis(P int) (e *ErvinRTBasis) {
 	return
 }
 
-func (e *ErvinRTBasis) ComposePhiRT1(t []float64) (phi []BasisPolynomialTerm) {
+func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 	// Compose the basis for the RT1 element based on Ervin
 	var (
-		// Get the two edge points for use in the lagrange terms
+		// Get the two edge points for use in the lagrange terms for RT1
 		g1, g2 = t[0], t[1]
 		sr2    = math.Sqrt2
 		conv   = func(r float64) float64 { return (r + 1.) / 2. }
@@ -91,7 +91,7 @@ func (e *ErvinRTBasis) ComposePhiRT1(t []float64) (phi []BasisPolynomialTerm) {
 			},
 			Sum: func(r, s float64) float64 { return Sum(e5v(r, s)) },
 		}
-		Edge1NormalVector = BasisVectorStruct{
+		Edge1Vector = BasisVectorStruct{
 			// Bottom edge
 			Eval: func(r, s float64) (v [2]float64) { return e1v(r, s) },
 			Dot: func(r, s float64, f [2]float64) (dot float64) {
@@ -103,7 +103,7 @@ func (e *ErvinRTBasis) ComposePhiRT1(t []float64) (phi []BasisPolynomialTerm) {
 			Divergence: func(r, s float64) (div float64) { return },
 			Sum:        func(r, s float64) float64 { return Sum(e1v(r, s)) },
 		}
-		Edge2NormalVector = BasisVectorStruct{
+		Edge2Vector = BasisVectorStruct{
 			// Hypotenuse
 			Eval: func(r, s float64) (v [2]float64) { return e2v(r, s) },
 			Dot: func(r, s float64, f [2]float64) (dot float64) {
@@ -115,7 +115,7 @@ func (e *ErvinRTBasis) ComposePhiRT1(t []float64) (phi []BasisPolynomialTerm) {
 			Divergence: func(r, s float64) (div float64) { return },
 			Sum:        func(r, s float64) float64 { return Sum(e2v(r, s)) },
 		}
-		Edge3NormalVector = BasisVectorStruct{
+		Edge3Vector = BasisVectorStruct{
 			// Left edge
 			Eval: func(r, s float64) (v [2]float64) { return e3v(r, s) },
 			Dot: func(r, s float64, f [2]float64) (dot float64) {
@@ -173,47 +173,52 @@ func (e *ErvinRTBasis) ComposePhiRT1(t []float64) (phi []BasisPolynomialTerm) {
 			OrderOfTerm: 0,
 		}
 	)
-	phi = []BasisPolynomialTerm{
-		{
-			Coefficient:    1,
-			PolyMultiplier: constant,
-			BasisVector:    E4Vector,
-		},
-		{
-			Coefficient:    1,
-			PolyMultiplier: constant,
-			BasisVector:    E5Vector,
-		},
-		{
-			Coefficient:    1,
-			PolyMultiplier: l1xi,
-			BasisVector:    Edge1NormalVector,
-		},
-		{
-			Coefficient:    1,
-			PolyMultiplier: l2xi,
-			BasisVector:    Edge1NormalVector,
-		},
-		{
-			Coefficient:    1,
-			PolyMultiplier: l1eta,
-			BasisVector:    Edge2NormalVector,
-		},
-		{
-			Coefficient:    1,
-			PolyMultiplier: l2eta,
-			BasisVector:    Edge2NormalVector,
-		},
-		{
-			Coefficient:    1,
-			PolyMultiplier: l2eta,
-			BasisVector:    Edge3NormalVector,
-		},
-		{
-			Coefficient:    1,
-			PolyMultiplier: l1eta,
-			BasisVector:    Edge3NormalVector,
-		},
+	switch e.P {
+	case 1:
+		phi = []BasisPolynomialTerm{
+			{
+				Coefficient:    1,
+				PolyMultiplier: constant,
+				BasisVector:    E4Vector,
+			},
+			{
+				Coefficient:    1,
+				PolyMultiplier: constant,
+				BasisVector:    E5Vector,
+			},
+			{
+				Coefficient:    1,
+				PolyMultiplier: l1xi,
+				BasisVector:    Edge1Vector,
+			},
+			{
+				Coefficient:    1,
+				PolyMultiplier: l2xi,
+				BasisVector:    Edge1Vector,
+			},
+			{
+				Coefficient:    1,
+				PolyMultiplier: l1eta,
+				BasisVector:    Edge2Vector,
+			},
+			{
+				Coefficient:    1,
+				PolyMultiplier: l2eta,
+				BasisVector:    Edge2Vector,
+			},
+			{
+				Coefficient:    1,
+				PolyMultiplier: l2eta,
+				BasisVector:    Edge3Vector,
+			},
+			{
+				Coefficient:    1,
+				PolyMultiplier: l1eta,
+				BasisVector:    Edge3Vector,
+			},
+		}
+	default:
+		panic("Order unsupported for Ervin basis methods")
 	}
 	return
 }
