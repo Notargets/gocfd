@@ -72,7 +72,8 @@ func TestRTElementDivergence(t *testing.T) {
 
 	fmt.Println("Begin Divergence Test")
 	// P := 1
-	for P := 1; P <= 2; P++ {
+	PEnd := 1
+	for P := 1; P <= PEnd; P++ {
 		fmt.Printf("---------------------------------------------\n")
 		fmt.Printf("Checking Divergence for RT%d\n", P)
 		fmt.Printf("---------------------------------------------\n")

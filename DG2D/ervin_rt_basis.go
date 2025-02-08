@@ -19,24 +19,19 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 	// Compose the basis for the RT1 element based on Ervin
 	var (
 		// Get the two edge points for use in the lagrange terms for RT1
-		sr2   = math.Sqrt2
-		conv  = func(r float64) float64 { return (r + 1.) / 2. }
-		Dot   = func(v1, v2 [2]float64) float64 { return v1[0]*v2[0] + v1[1]*v2[1] }
-		Scale = func(v [2]float64, scale float64) [2]float64 {
+		sr2      = math.Sqrt2
+		conv     = func(r float64) float64 { return (r + 1.) / 2. }
+		dconvdrs = 1. / 2.
+		Dot      = func(v1, v2 [2]float64) float64 { return v1[0]*v2[0] + v1[1]*v2[1] }
+		Scale    = func(v [2]float64, scale float64) [2]float64 {
 			return [2]float64{v[0] * scale, v[1] * scale}
 		}
 		Sum = func(v [2]float64) float64 { return v[0] + v[1] }
-		// normalize = func(v [2]float64) (normed [2]float64) {
-		// 	norm := 1. / math.Sqrt(v[0]*v[0]+v[1]*v[1])
-		// 	normed = [2]float64{v[0] * norm, v[1] * norm}
-		// 	return
-		// }
 		e1v = func(r, s float64) (v [2]float64) {
 			// Bottom edge
 			xi, eta := conv(r), conv(s)
-			// v = [2]float64{xi, eta - 1.}
-			v = [2]float64{xi - 0.5, eta - 1.}
-			// v = [2]float64{0, -1}
+			v = [2]float64{xi, eta - 1.}
+			// v = [2]float64{xi - 0.5, eta - 1.}
 			return
 		}
 		e2v = func(r, s float64) (v [2]float64) {
@@ -48,8 +43,8 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 		e3v = func(r, s float64) (v [2]float64) {
 			// Left edge
 			xi, eta := conv(r), conv(s)
-			// v = [2]float64{xi - 1., eta}
-			v = [2]float64{xi - 1., eta - 0.5}
+			v = [2]float64{xi - 1., eta}
+			// v = [2]float64{xi - 1., eta - 0.5}
 			return
 		}
 		e4v = func(r, s float64) (v [2]float64) {
@@ -101,7 +96,7 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 			Project: func(r, s float64, scale float64) (v [2]float64) {
 				return Scale(e1v(r, s), scale)
 			},
-			Divergence: func(r, s float64) (div float64) { return },
+			Divergence: func(r, s float64) (div float64) { return 1. },
 			Sum:        func(r, s float64) float64 { return Sum(e1v(r, s)) },
 		}
 		Edge2Vector = BasisVectorStruct{
@@ -113,7 +108,7 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 			Project: func(r, s float64, scale float64) (v [2]float64) {
 				return Scale(e2v(r, s), scale)
 			},
-			Divergence: func(r, s float64) (div float64) { return },
+			Divergence: func(r, s float64) (div float64) { return sr2 },
 			Sum:        func(r, s float64) float64 { return Sum(e2v(r, s)) },
 		}
 		Edge3Vector = BasisVectorStruct{
@@ -125,71 +120,56 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 			Project: func(r, s float64, scale float64) (v [2]float64) {
 				return Scale(e3v(r, s), scale)
 			},
-			Divergence: func(r, s float64) (div float64) { return },
+			Divergence: func(r, s float64) (div float64) { return 1. },
 			Sum:        func(r, s float64) float64 { return Sum(e3v(r, s)) },
 		}
-		l1xi = BasisPolynomialMultiplier{
-			Eval: func(r, s float64) float64 {
-				var (
-					g1, g2 = t[0], t[1]
-				)
-				return (r - g2) / (g1 - g2)
-			},
-			Divergence: func(r, s float64) (div float64) {
-				var (
-					g1, g2 = t[0], t[1]
-				)
-				div = 1 / (g1 - g2)
-				return
-			},
+		l1Func = func(tt float64) float64 {
+			var (
+				g1, g2 = conv(t[0]), conv(t[1])
+			)
+			return (tt - g2) / (g1 - g2)
+		}
+		l1DivFunc = func() float64 {
+			var (
+				g1, g2 = conv(t[0]), conv(t[1])
+			)
+			return dconvdrs / (g1 - g2)
+		}
+		l2Func = func(tt float64) float64 {
+			var (
+				g1, g2 = conv(t[0]), conv(t[1])
+			)
+			return (tt - g1) / (g2 - g1)
+		}
+		l2DivFunc = func() float64 { return -l1DivFunc() }
+		l1xi      = BasisPolynomialMultiplier{
+			Eval:        func(r, s float64) float64 { return l1Func(conv(r)) },
+			Divergence:  func(r, s float64) float64 { return l1DivFunc() },
 			OrderOfTerm: 1,
 		}
 		l1eta = BasisPolynomialMultiplier{
-			Eval: func(r, s float64) float64 {
-				var (
-					g1, g2 = t[0], t[1]
-				)
-				return (s - g2) / (g1 - g2)
-			},
-			Divergence: func(r, s float64) (div float64) {
-				var (
-					g1, g2 = t[0], t[1]
-				)
-				div = 1 / (g1 - g2)
-				return
-			},
+			Eval:        func(r, s float64) float64 { return l1Func(conv(s)) },
+			Divergence:  func(r, s float64) float64 { return l1DivFunc() },
+			OrderOfTerm: 1,
+		}
+		l1etaEdge3 = BasisPolynomialMultiplier{
+			Eval:        func(r, s float64) float64 { return l1Func(conv(-s)) },
+			Divergence:  func(r, s float64) float64 { return -l1DivFunc() },
 			OrderOfTerm: 1,
 		}
 		l2xi = BasisPolynomialMultiplier{
-			Eval: func(r, s float64) float64 {
-				var (
-					g1, g2 = t[0], t[1]
-				)
-				return (r - g1) / (g2 - g1)
-			},
-			Divergence: func(r, s float64) (div float64) {
-				var (
-					g1, g2 = t[0], t[1]
-				)
-				div = 1 / (g2 - g1)
-				return
-			},
+			Eval:        func(r, s float64) float64 { return l2Func(conv(r)) },
+			Divergence:  func(r, s float64) float64 { return l2DivFunc() },
 			OrderOfTerm: 1,
 		}
 		l2eta = BasisPolynomialMultiplier{
-			Eval: func(r, s float64) float64 {
-				var (
-					g1, g2 = t[0], t[1]
-				)
-				return (s - g1) / (g2 - g1)
-			},
-			Divergence: func(r, s float64) (div float64) {
-				var (
-					g1, g2 = t[0], t[1]
-				)
-				div = 1 / (g2 - g1)
-				return
-			},
+			Eval:        func(r, s float64) float64 { return l2Func(conv(s)) },
+			Divergence:  func(r, s float64) float64 { return l2DivFunc() },
+			OrderOfTerm: 1,
+		}
+		l2etaEdge3 = BasisPolynomialMultiplier{
+			Eval:        func(r, s float64) float64 { return l2Func(conv(-s)) },
+			Divergence:  func(r, s float64) float64 { return -l2DivFunc() },
 			OrderOfTerm: 1,
 		}
 		q1xi = BasisPolynomialMultiplier{
@@ -330,8 +310,8 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 			{PolyMultiplier: l2xi, BasisVector: Edge1Vector},
 			{PolyMultiplier: l1eta, BasisVector: Edge2Vector},
 			{PolyMultiplier: l2eta, BasisVector: Edge2Vector},
-			{PolyMultiplier: l2eta, BasisVector: Edge3Vector},
-			{PolyMultiplier: l1eta, BasisVector: Edge3Vector},
+			{PolyMultiplier: l2etaEdge3, BasisVector: Edge3Vector},
+			{PolyMultiplier: l1etaEdge3, BasisVector: Edge3Vector},
 		}
 	case 2:
 		phi = []BasisPolynomialTerm{
