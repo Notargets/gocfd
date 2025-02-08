@@ -231,17 +231,17 @@ func (e *ErvinRTBasis) ComposePhiRT2() (phi []BasisPolynomialTerm) {
 
 		q1Deriv = func(t float64) (deriv float64) {
 			deriv = ((t - e.g2_q) + (t - e.g3_q)) * div1
-			deriv += dconvdrs
+			deriv *= dconvdrs
 			return
 		}
 		q2Deriv = func(t float64) (deriv float64) {
 			deriv = ((t - e.g1_q) + (t - e.g3_q)) * div2
-			deriv += dconvdrs
+			deriv *= dconvdrs
 			return
 		}
 		q3Deriv = func(t float64) (deriv float64) {
 			deriv = ((t - e.g1_q) + (t - e.g2_q)) * div3
-			deriv += dconvdrs
+			deriv *= dconvdrs
 			return
 		}
 
