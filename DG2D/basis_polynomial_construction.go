@@ -5,7 +5,6 @@ type BasisVectorStruct struct {
 	Dot        func(r, s float64, f [2]float64) (dot float64)
 	Project    func(r, s float64, psi float64) (v [2]float64) // scalar mult psi
 	Divergence func(r, s float64) (div float64)               // Div of vector
-	Sum        func(r, s float64) (sum float64)               // Sum of vector
 }
 
 type BasisPolynomialMultiplier struct {

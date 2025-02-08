@@ -24,7 +24,6 @@ func NewErvinRTBasis(P int, SingleEdgePts []float64) (e *ErvinRTBasis) {
 		Scale = func(v [2]float64, scale float64) [2]float64 {
 			return [2]float64{v[0] * scale, v[1] * scale}
 		}
-		Sum = func(v [2]float64) float64 { return v[0] + v[1] }
 		e1v = func(r, s float64) (v [2]float64) {
 			// Bottom edge
 			xi, eta := conv(r), conv(s)
@@ -72,7 +71,6 @@ func NewErvinRTBasis(P int, SingleEdgePts []float64) (e *ErvinRTBasis) {
 				div = (3.*s + 1.) / 4.
 				return
 			},
-			Sum: func(r, s float64) float64 { return Sum(e4v(r, s)) },
 		},
 		E5Vector: BasisVectorStruct{
 			// Interior vector E5
@@ -87,7 +85,6 @@ func NewErvinRTBasis(P int, SingleEdgePts []float64) (e *ErvinRTBasis) {
 				div = (3.*r + 1.) / 4.
 				return
 			},
-			Sum: func(r, s float64) float64 { return Sum(e5v(r, s)) },
 		},
 		Edge1Vector: BasisVectorStruct{
 			// Bottom edge
@@ -99,7 +96,6 @@ func NewErvinRTBasis(P int, SingleEdgePts []float64) (e *ErvinRTBasis) {
 				return Scale(e1v(r, s), scale)
 			},
 			Divergence: func(r, s float64) (div float64) { return 1. },
-			Sum:        func(r, s float64) float64 { return Sum(e1v(r, s)) },
 		},
 		Edge2Vector: BasisVectorStruct{
 			// Hypotenuse
@@ -111,7 +107,6 @@ func NewErvinRTBasis(P int, SingleEdgePts []float64) (e *ErvinRTBasis) {
 				return Scale(e2v(r, s), scale)
 			},
 			Divergence: func(r, s float64) (div float64) { return sr2 },
-			Sum:        func(r, s float64) float64 { return Sum(e2v(r, s)) },
 		},
 		Edge3Vector: BasisVectorStruct{
 			// Left edge
@@ -123,7 +118,6 @@ func NewErvinRTBasis(P int, SingleEdgePts []float64) (e *ErvinRTBasis) {
 				return Scale(e3v(r, s), scale)
 			},
 			Divergence: func(r, s float64) (div float64) { return 1. },
-			Sum:        func(r, s float64) float64 { return Sum(e3v(r, s)) },
 		},
 	}
 	switch e.P {

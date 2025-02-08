@@ -714,7 +714,7 @@ func (lpf PolyField) F(r, s float64, P int) (f1, f2 float64) {
 	var (
 		p = float64(P)
 	)
-	f1, f2 = math.Pow(s, p), math.Pow(r, p)
+	f1, f2 = math.Pow(r, p), math.Pow(s, p)
 	return
 }
 
@@ -723,7 +723,7 @@ func (lpf PolyField) divF(r, s float64, P int) (div float64) {
 		p = float64(P)
 	)
 	if P > 0 {
-		div = p * (math.Pow(s, p-1) + math.Pow(r, p-1))
+		div = p * (math.Pow(r, p-1) + math.Pow(s, p-1))
 	} else {
 		div = 0
 	}
