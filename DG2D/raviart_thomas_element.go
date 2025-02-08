@@ -160,9 +160,6 @@ type RTElement struct {
 	R, S       utils.Vector // Point locations defining element in [-1,1] Triangle, NpxNp
 	RInt, SInt utils.Vector
 	Projection utils.Matrix
-	lp1d       *LagrangePolynomial1D
-	lp2d       *LagrangePolynomial2D
-	jb2d       *JacobiBasis2D
 	Phi        []BasisPolynomialTerm
 }
 
@@ -193,15 +190,15 @@ func NewRTElement(P int) (rt *RTElement) {
 			rt.RInt, rt.SInt = XYtoRS(Nodes2D(P - 1))
 		}
 	}
-	if P > 2 {
-		rt.lp2d = NewLagrangePolynomialBasis2D(rt.P-1, rt.RInt, rt.SInt)
-	}
+	// if P > 2 {
+	// 	rt.lp2d = NewLagrangePolynomialBasis2D(rt.P-1, rt.RInt, rt.SInt)
+	// }
 
 	rt.R, rt.S = rt.ExtendGeomToRT(rt.RInt, rt.SInt)
 	// Each edge is identical WRT point distribution along the edge,
 	// so we just need one lagrange polynomial for each of them
-	edgePoints := rt.R.Subset(2*rt.NpInt, 2*rt.NpInt+rt.NpEdge-1)
-	rt.lp1d = NewLagrangePolynomial1D(edgePoints, rt.P, 0, 0)
+	// edgePoints := rt.R.Subset(2*rt.NpInt, 2*rt.NpInt+rt.NpEdge-1)
+	// rt.lp1d = NewLagrangePolynomial1D(edgePoints, rt.P, 0, 0)
 
 	// fmt.Printf("RT%d - Calculating Basis...", P)
 	rt.CalculateBasis()
