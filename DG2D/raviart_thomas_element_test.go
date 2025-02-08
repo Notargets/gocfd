@@ -15,6 +15,53 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestRTElementDivergence2(t *testing.T) {
+	// We test RT1 first in isolation because RT1:
+	// - uses only the analytic interior basis functions E4 and E5
+	// - uses the Lagrange 1D polynomial on edges
+	// - is the simplest construction to test divergence
+	var (
+		dt DivTest
+	)
+	dt = SinCosField{}
+
+	fmt.Println("Begin Divergence Test")
+	PStart := 1
+	PEnd := 2
+	for P := PStart; P <= PEnd; P++ {
+		fmt.Printf("---------------------------------------------\n")
+		fmt.Printf("Checking Divergence for RT%d\n", P)
+		fmt.Printf("---------------------------------------------\n")
+		rt := NewRTElement(P)
+		Np := rt.Np
+		divFcalc := make([]float64, Np)
+		s1, s2 := make([]float64, Np), make([]float64, Np)
+		// for PField := 0; PField <= (P - 1); PField++ {
+		fmt.Printf("\nReference Vector Field Sin/Cos\n")
+		fmt.Printf("-------------------------------\n")
+		for i := 0; i < Np; i++ {
+			r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+			f1, f2 := dt.F(r, s, 0)
+			s1[i], s2[i] = f1, f2
+			dF := dt.divF(r, s, 0)
+			divFcalc[i] = dF
+		}
+		dFReference := utils.NewMatrix(Np, 1, divFcalc)
+		dFReference.Transpose().Print("Reference Div")
+		rt.ProjectFunctionOntoDOF(s1, s2)
+		dB := rt.Projection
+		calcDiv := rt.Div.Mul(dB)
+		calcDiv.Transpose().Print("Calculated Divergence")
+		var err float64
+		for i := 0; i < Np; i++ {
+			err += math.Pow(calcDiv.At(i, 0)-dFReference.At(i, 0), 2)
+		}
+		rms := math.Sqrt(err) / float64(Np)
+		fmt.Printf("RMS Err = %f\n", rms)
+		// assert.InDeltaSlice(t, dFReference.DataP, calcDiv.DataP, 0.0001)
+	}
+}
+
 func TestRTElementRTInterpolation(t *testing.T) {
 	// Verify the interpolation of a constant vector field onto the element
 	// P := 1
