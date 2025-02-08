@@ -56,7 +56,7 @@ func TestRTElementDivergence2(t *testing.T) {
 		for i := 0; i < Np; i++ {
 			err += math.Pow(calcDiv.At(i, 0)-dFReference.At(i, 0), 2)
 		}
-		rms := math.Sqrt(err) / float64(Np)
+		rms := math.Sqrt(err / float64(Np))
 		fmt.Printf("RMS Err = %f\n", rms)
 		// assert.InDeltaSlice(t, dFReference.DataP, calcDiv.DataP, 0.0001)
 	}
