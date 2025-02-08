@@ -141,34 +141,30 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 			)
 			return (tt - g1) / (g2 - g1)
 		}
-		l2Deriv = func() float64 { return -l1Deriv() }
-		l1xi    = BasisPolynomialMultiplier{
+		l2Deriv   = func() float64 { return -l1Deriv() }
+		l1xiEdge1 = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l1Func(conv(r)) },
 			Gradient: func(r, s float64) [2]float64 {
 				return [2]float64{l1Deriv(), 0}
 			},
-			OrderOfTerm: 1,
 		}
 		l1etaEdge2 = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l1Func(conv(s)) },
 			Gradient: func(r, s float64) [2]float64 {
 				return [2]float64{0, l1Deriv()}
 			},
-			OrderOfTerm: 1,
 		}
 		l1etaEdge3 = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l1Func(conv(-s)) },
 			Gradient: func(r, s float64) [2]float64 {
 				return [2]float64{0, -l1Deriv()}
 			},
-			OrderOfTerm: 1,
 		}
-		l2xi = BasisPolynomialMultiplier{
+		l2xiEdge1 = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l2Func(conv(r)) },
 			Gradient: func(r, s float64) [2]float64 {
 				return [2]float64{l2Deriv(), 0}
 			},
-			OrderOfTerm: 1,
 		}
 		l2etaEdge2 = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l2Func(conv(s)) },
@@ -176,14 +172,12 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 				// return [2]float64{-l2Deriv(), l2Deriv()}
 				return [2]float64{0, l2Deriv()}
 			},
-			OrderOfTerm: 1,
 		}
 		l2etaEdge3 = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l2Func(conv(-s)) },
 			Gradient: func(r, s float64) [2]float64 {
 				return [2]float64{0, -l2Deriv()}
 			},
-			OrderOfTerm: 1,
 		}
 		q1Func = func(tt float64) float64 {
 			var (
@@ -200,13 +194,12 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 			deriv += dconvdrs
 			return
 		}
-		q1xi = BasisPolynomialMultiplier{
+		q1xiEdge1 = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return q1Func(r) },
 			Gradient: func(r, s float64) (grad [2]float64) {
 				grad = [2]float64{q1Deriv(r), 0}
 				return
 			},
-			OrderOfTerm: 2,
 		}
 		q1etaEdge2 = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return q1Func(s) },
@@ -214,7 +207,6 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 				grad = [2]float64{0, q1Deriv(s)}
 				return
 			},
-			OrderOfTerm: 2,
 		}
 		q2Func = func(tt float64) float64 {
 			var (
@@ -230,13 +222,12 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 			deriv += dconvdrs
 			return
 		}
-		q2xi = BasisPolynomialMultiplier{
+		q2xiEdge1 = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return q2Func(r) },
 			Gradient: func(r, s float64) (grad [2]float64) {
 				grad = [2]float64{q2Deriv(r), 0}
 				return
 			},
-			OrderOfTerm: 2,
 		}
 		q2etaEdge2 = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return q2Func(s) },
@@ -244,7 +235,6 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 				grad = [2]float64{0, q2Deriv(s)}
 				return
 			},
-			OrderOfTerm: 2,
 		}
 		q3Func = func(tt float64) float64 {
 			var (
@@ -260,13 +250,12 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 			deriv += dconvdrs
 			return
 		}
-		q3xi = BasisPolynomialMultiplier{
+		q3xiEdge1 = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return q3Func(r) },
 			Gradient: func(r, s float64) (grad [2]float64) {
 				grad = [2]float64{q3Deriv(r), 0}
 				return
 			},
-			OrderOfTerm: 2,
 		}
 		q3etaEdge2 = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return q3Func(s) },
@@ -274,7 +263,6 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 				grad = [2]float64{0, q3Deriv(s)}
 				return
 			},
-			OrderOfTerm: 2,
 		}
 		q1etaEdge3 = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return q1Func(-s) },
@@ -282,7 +270,6 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 				grad = [2]float64{0, -q1Deriv(s)}
 				return
 			},
-			OrderOfTerm: 2,
 		}
 		q2etaEdge3 = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return q2Func(-s) },
@@ -290,7 +277,6 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 				grad = [2]float64{0, -q2Deriv(s)}
 				return
 			},
-			OrderOfTerm: 2,
 		}
 		q3etaEdge3 = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return q3Func(-s) },
@@ -298,7 +284,6 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 				grad = [2]float64{0, -q3Deriv(s)}
 				return
 			},
-			OrderOfTerm: 2,
 		}
 		e45mult1 = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 {
@@ -307,7 +292,6 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 			Gradient: func(r, s float64) (grad [2]float64) {
 				return [2]float64{-0.5, -0.5}
 			},
-			OrderOfTerm: 1,
 		}
 		e45mult2 = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 {
@@ -316,7 +300,6 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 			Gradient: func(r, s float64) (grad [2]float64) {
 				return [2]float64{0.5, 0}
 			},
-			OrderOfTerm: 1,
 		}
 		e45mult3 = BasisPolynomialMultiplier{
 			Eval: func(r, s float64) float64 {
@@ -325,12 +308,10 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 			Gradient: func(r, s float64) (grad [2]float64) {
 				return [2]float64{0, 0.5}
 			},
-			OrderOfTerm: 1,
 		}
 		constant = BasisPolynomialMultiplier{
-			Eval:        func(r, s float64) float64 { return 1. },
-			Gradient:    func(r, s float64) (grad [2]float64) { return },
-			OrderOfTerm: 0,
+			Eval:     func(r, s float64) float64 { return 1. },
+			Gradient: func(r, s float64) (grad [2]float64) { return },
 		}
 	)
 	switch e.P {
@@ -338,8 +319,8 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 		phi = []BasisPolynomialTerm{
 			{PolyMultiplier: constant, BasisVector: E4Vector},
 			{PolyMultiplier: constant, BasisVector: E5Vector},
-			{PolyMultiplier: l1xi, BasisVector: Edge1Vector},
-			{PolyMultiplier: l2xi, BasisVector: Edge1Vector},
+			{PolyMultiplier: l1xiEdge1, BasisVector: Edge1Vector},
+			{PolyMultiplier: l2xiEdge1, BasisVector: Edge1Vector},
 			{PolyMultiplier: l1etaEdge2, BasisVector: Edge2Vector},
 			{PolyMultiplier: l2etaEdge2, BasisVector: Edge2Vector},
 			{PolyMultiplier: l2etaEdge3, BasisVector: Edge3Vector},
@@ -353,9 +334,9 @@ func (e *ErvinRTBasis) ComposePhi(t []float64) (phi []BasisPolynomialTerm) {
 			{PolyMultiplier: e45mult1, BasisVector: E5Vector},
 			{PolyMultiplier: e45mult2, BasisVector: E5Vector},
 			{PolyMultiplier: e45mult3, BasisVector: E5Vector},
-			{PolyMultiplier: q1xi, BasisVector: Edge1Vector},
-			{PolyMultiplier: q2xi, BasisVector: Edge1Vector},
-			{PolyMultiplier: q3xi, BasisVector: Edge1Vector},
+			{PolyMultiplier: q1xiEdge1, BasisVector: Edge1Vector},
+			{PolyMultiplier: q2xiEdge1, BasisVector: Edge1Vector},
+			{PolyMultiplier: q3xiEdge1, BasisVector: Edge1Vector},
 			{PolyMultiplier: q1etaEdge2, BasisVector: Edge2Vector},
 			{PolyMultiplier: q2etaEdge2, BasisVector: Edge2Vector},
 			{PolyMultiplier: q3etaEdge2, BasisVector: Edge2Vector},

@@ -10,9 +10,8 @@ type BasisVectorStruct struct {
 
 type BasisPolynomialMultiplier struct {
 	// This multiplies the BasisVector to produce a term
-	Eval        func(r, s float64) (val float64)
-	Gradient    func(r, s float64) (grad [2]float64)
-	OrderOfTerm int
+	Eval     func(r, s float64) (val float64)
+	Gradient func(r, s float64) (grad [2]float64)
 }
 type BasisPolynomialTerm struct {
 	IsScaled       bool // After scaling, is part of the element polynomial
