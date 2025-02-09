@@ -3,7 +3,6 @@ package DG2D
 import (
 	"fmt"
 	"math"
-	"os"
 	"testing"
 
 	"github.com/notargets/gocfd/utils"
@@ -69,10 +68,10 @@ func TestRTElementRTInterpolation(t *testing.T) {
 	rt := NewRTElement(3)
 	fmt.Println("Np, NpInt, NpEdge = ", rt.Np, rt.NpInt, rt.NpEdge)
 	rt.V.Print("V")
-	os.Exit(1)
+	// os.Exit(1)
 
-	PStart := 3
-	PEnd := 3
+	PStart := 1
+	PEnd := 2
 	for P := PStart; P <= PEnd; P++ {
 		var (
 			dt DivTest

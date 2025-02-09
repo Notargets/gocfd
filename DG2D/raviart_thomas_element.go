@@ -221,7 +221,7 @@ func (rt *RTElement) ComposeV() (V utils.Matrix) {
 		Np   = rt.Np
 		R, S = rt.R, rt.S
 	)
-	fmt.Printf("Length of Phi:%d\n", len(rt.Phi))
+	// fmt.Printf("Length of Phi:%d\n", len(rt.Phi))
 	V = utils.NewMatrix(Np, Np)
 	for i := 0; i < Np; i++ {
 		r_i, s_i := R.DataP[i], S.DataP[i]
