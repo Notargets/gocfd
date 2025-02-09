@@ -1,7 +1,6 @@
 package DG2D
 
 import (
-	"fmt"
 	"image/color"
 	"math"
 	"testing"
@@ -40,8 +39,8 @@ func TestDFR2D(t *testing.T) {
 		interpM := el.JB2D.GetInterpMatrix(fluxEl.R, fluxEl.S)
 		values := interpM.Mul(sM)
 		// Verify the interpolated vals match the input solution values from the same [R,S]
-		assert.True(t, nearVec(s, values.DataP[0:3], 0.0000001))
-		assert.True(t, nearVec(s, values.DataP[3:6], 0.0000001))
+		assert.InDeltaSlicef(t, s, values.DataP[0:3], 0.0000001, "")
+		assert.InDeltaSlicef(t, s, values.DataP[3:6], 0.0000001, "")
 		// After 2*NpInt points, the values have unknown expected interpolated values
 	}
 	// Test accuracy of interpolation
@@ -66,7 +65,7 @@ func TestDFR2D(t *testing.T) {
 			interpM := el.JB2D.GetInterpMatrix(fluxEl.R, fluxEl.S)
 			values := interpM.Mul(sM)
 			// Verify the interpolated values match the input polynomial
-			assert.True(t, nearVec(sFlux, values.DataP, 0.00001))
+			assert.InDeltaSlicef(t, sFlux, values.DataP, 0.00001, "")
 		}
 	}
 	// Test point distribution
@@ -75,10 +74,12 @@ func TestDFR2D(t *testing.T) {
 		dfr := NewDFR2D(N, pm, false)
 		el := dfr.SolutionElement
 		rt := dfr.FluxElement
-		assert.True(t, nearVec(rt.GetInternalLocations(rt.R.DataP), el.R.DataP, 0.000001))
-		assert.True(t, nearVec(rt.GetInternalLocations(rt.S.DataP), el.S.DataP, 0.000001))
-		// fmt.Printf("Edge R = %v\n", rt.GetEdgeLocations(rt.R))
-		// fmt.Printf("Edge S = %v\n", rt.GetEdgeLocations(rt.S))
+		assert.InDeltaSlicef(t, rt.GetInternalLocations(rt.R.DataP),
+			el.R.DataP, 0.000001, "")
+		assert.InDeltaSlicef(t, rt.GetInternalLocations(rt.S.DataP),
+			el.S.DataP, 0.000001, "")
+		// t.Logf("Edge R = %v\n", rt.GetEdgeLocations(rt.R))
+		// t.Logf("Edge S = %v\n", rt.GetEdgeLocations(rt.S))
 	}
 	// Test interpolation from solution points to flux points
 	{
@@ -95,8 +96,8 @@ func TestDFR2D(t *testing.T) {
 		// Interpolate from interior to flux points
 		sV := utils.NewMatrix(rt.NpInt, 1, solution)
 		_ = dfr.FluxEdgeInterp.Mul(sV)
-		// fmt.Printf("%s\n", fluxInterp.Print("fluxInterp"))
-		// fmt.Printf("%s\n", sV.Print("sV"))
+		// t.Logf("%s\n", fluxInterp.Print("fluxInterp"))
+		// t.Logf("%s\n", sV.Print("sV"))
 	}
 	// Test triangulation
 	{
@@ -184,8 +185,8 @@ func TestDFR2D(t *testing.T) {
 						assert.Equal(t, [2]float64{-2, 0}, nxT)
 					}
 					nxTT := multiply(JtInv, 1./Jdet, nxT)
-					assert.True(t, near(normal[0], nxTT[0], 0.00001))
-					assert.True(t, near(normal[1], nxTT[1], 0.00001))
+					assert.InDeltaf(t, normal[0], nxTT[0], 0.00001, "")
+					assert.InDeltaf(t, normal[1], nxTT[1], 0.00001, "")
 				}
 				{ // Check scaling factor ||n||, used in transforming face normals
 					normal = normalize(normal)
@@ -195,14 +196,14 @@ func TestDFR2D(t *testing.T) {
 					oosr2 := 1. / math.Sqrt(2)
 					switch edgeNumber { // The transformed and scaled normal should be unit for each edge direction
 					case First:
-						assert.True(t, near(0, nxT[0], 0.000001))
-						assert.True(t, near(-1, nxT[1], 0.000001))
+						assert.InDeltaf(t, 0, nxT[0], 0.000001, "")
+						assert.InDeltaf(t, -1, nxT[1], 0.000001, "")
 					case Second:
-						assert.True(t, near(oosr2, nxT[0], 0.000001))
-						assert.True(t, near(oosr2, nxT[1], 0.000001))
+						assert.InDeltaf(t, oosr2, nxT[0], 0.000001, "")
+						assert.InDeltaf(t, oosr2, nxT[1], 0.000001, "")
 					case Third:
-						assert.True(t, near(-1, nxT[0], 0.000001))
-						assert.True(t, near(0, nxT[1], 0.000001))
+						assert.InDeltaf(t, -1, nxT[0], 0.000001, "")
+						assert.InDeltaf(t, 0, nxT[1], 0.000001, "")
 					}
 				}
 			}
@@ -245,8 +246,10 @@ func TestDFR2D(t *testing.T) {
 func TestRTElement1(t *testing.T) {
 	P := 2 // Order of element
 	rt := NewRTBasis2DSimplexLegacy(P)
-	rt.BasisMatrix.Print("BasisMatrix")
-	rt.BasisMatrix.InverseWithCheck().Print("InverseWithCheck")
+	if testing.Verbose() {
+		rt.BasisMatrix.Print("BasisMatrix")
+		rt.BasisMatrix.InverseWithCheck().Print("InverseWithCheck")
+	}
 }
 func TestDivergence(t *testing.T) {
 	pm := &InputParameters.PlotMeta{}
@@ -283,7 +286,7 @@ func TestDivergence(t *testing.T) {
 		// rt.Div.Print("Div")
 		// rt.DivInt.Print("DivInt")
 		for cOrder := 1; cOrder <= N; cOrder++ { // Run a test on polynomial flux vector fields up to Nth order
-			fmt.Printf("checking RT order[%d]...", cOrder+1)
+			t.Logf("checking RT order[%d]...", cOrder+1)
 			Fx, Fy, divCheck := checkSolution(dfr, cOrder)
 			// Project the flux onto the RT basis directly
 			Fp := dfr.ProjectFluxOntoRTSpace(Fx, Fy)
@@ -294,7 +297,7 @@ func TestDivergence(t *testing.T) {
 				)
 				divM := rt.Div.Mul(Fpk).Scale(1. / Jdet)
 				// divM.Print("divM")
-				// fmt.Printf("divCheck.Row(k) = %v\n", divCheck.Row(k).DataP)
+				// t.Logf("divCheck.Row(k) = %v\n", divCheck.Row(k).DataP)
 				assert.InDeltaSlicef(t, divCheck.Row(k).DataP, divM.DataP, 0.00001, "")
 			}
 			// Now project flux onto untransformed normals using ||n|| scaling factor, divergence should be the same
@@ -307,7 +310,7 @@ func TestDivergence(t *testing.T) {
 				divM := rt.Div.Mul(Fpk).Scale(1. / Jdet)
 				assert.InDeltaSlicef(t, divCheck.Row(k).DataP, divM.DataP, 0.00001, "")
 			}
-			fmt.Printf("passed.\n")
+			t.Logf("passed.\n")
 		}
 	}
 }
@@ -428,12 +431,12 @@ func TestGradient(t *testing.T) {
 				}
 				DX := dfr.FluxElement.Div.Mul(DOFX) // X Derivative, Divergence x RT_DOF is X derivative for this DOF
 				DY := dfr.FluxElement.Div.Mul(DOFY) // Y Derivative, Divergence x RT_DOF is Y derivative for this DOF
-				fmt.Printf("Order[%d] check ...", n+1)
+				t.Logf("Order[%d] check ...", n+1)
 				assert.Equal(t, len(DX.DataP), len(DXCheck[n].DataP))
 				assert.Equal(t, len(DY.DataP), len(DYCheck[n].DataP))
 				assert.InDeltaSlicef(t, DX.DataP, DXCheck[n].DataP, 0.000001, "err msg %s")
 				assert.InDeltaSlicef(t, DY.DataP, DYCheck[n].DataP, 0.000001, "err msg %s")
-				fmt.Printf("... validates\n")
+				t.Logf("... validates\n")
 			}
 		}
 	}

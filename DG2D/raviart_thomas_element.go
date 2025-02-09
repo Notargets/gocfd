@@ -431,7 +431,8 @@ func NodesEpsilon(N int) (R, S utils.Vector) {
 	default:
 		panic(fmt.Errorf("Epsilon nodes not defined for N = %v\n", N))
 	}
-	fmt.Printf("Node distribution type is: [%s]\n", nameType)
+	_ = nameType
+	// fmt.Printf("Node distribution type is: [%s]\n", nameType)
 	eps := utils.NewMatrix(3, Np, epsD)
 	T := utils.NewMatrix(2, 3, []float64{
 		-1, 1, -1,

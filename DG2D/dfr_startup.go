@@ -378,9 +378,9 @@ func (dfr *DFR2D) OutputMesh() (gm *graphics2D.TriMesh) {
 
 	// Build the X,Y coordinates to support the triangulation index
 	Np := NpFlux - Nint + 3 // Subtract NpInt to remove the dup pts and add 3 for the verts
-	fmt.Printf("Size of constructed element: Np=%d\n", Np)
-	fmt.Printf("Size of original flux element: NpFlux=%d\n", NpFlux)
-	fmt.Printf("Size of original flux element interior: NpInt=%d\n", Nint)
+//	fmt.Printf("Size of constructed element: Np=%d\n", Np)
+//	fmt.Printf("Size of original flux element: NpFlux=%d\n", NpFlux)
+//	fmt.Printf("Size of original flux element interior: NpInt=%d\n", Nint)
 	VX, VY := utils.NewMatrix(Np, Kmax), utils.NewMatrix(Np, Kmax)
 	vxd, vyd := VX.DataP, VY.DataP
 	for k := 0; k < Kmax; k++ {

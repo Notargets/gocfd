@@ -197,8 +197,8 @@ func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt BasisPolynomia
 	}
 	lagrange1D := func(r, s float64) (val float64) {
 		var (
-			div  float64
-			mult float64
+			div  = 1.
+			mult = 1.
 			t_rs float64
 		)
 		switch param {
@@ -218,11 +218,13 @@ func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt BasisPolynomia
 				div *= tb_j - tb_i
 			}
 		}
+		// fmt.Println("mult, div, t_rs, param, jj, r, s = ", mult, div, t_rs,
+		// 	param, jj, r, s)
 		return mult / div
 	}
 	lagrange1DDeriv := func(r, s float64) (deriv float64) {
 		var (
-			div  float64
+			div  = 1.
 			sum  float64
 			t_rs float64
 		)

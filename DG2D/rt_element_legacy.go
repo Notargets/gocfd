@@ -32,7 +32,7 @@ for the triangle.
 */
 func NewRTBasis2DSimplexLegacy(P int) (rtb *RTBasis2DSimplexLegacy) {
 	var Rint, Sint utils.Vector
-	fmt.Printf("Order of RT Element %d\n", P)
+	// fmt.Printf("Order of RT Element %d\n", P)
 	rtb = &RTBasis2DSimplexLegacy{
 		P:      P,
 		Np:     (P + 1) * (P + 3),

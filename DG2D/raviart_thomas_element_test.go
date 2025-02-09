@@ -1,7 +1,6 @@
 package DG2D
 
 import (
-	"fmt"
 	"math"
 	"testing"
 
@@ -25,20 +24,20 @@ func TestRTElementDivergence2(t *testing.T) {
 	)
 	dt = SinCosField{}
 
-	fmt.Println("Begin Divergence Test")
+	t.Log("Begin Divergence Test")
 	PStart := 1
 	PEnd := 2
 	for P := PStart; P <= PEnd; P++ {
-		fmt.Printf("---------------------------------------------\n")
-		fmt.Printf("Checking Divergence for RT%d\n", P)
-		fmt.Printf("---------------------------------------------\n")
+		t.Logf("---------------------------------------------\n")
+		t.Logf("Checking Divergence for RT%d\n", P)
+		t.Logf("---------------------------------------------\n")
 		rt := NewRTElement(P)
 		Np := rt.Np
 		divFcalc := make([]float64, Np)
 		s1, s2 := make([]float64, Np), make([]float64, Np)
 		// for PField := 0; PField <= (P - 1); PField++ {
-		fmt.Printf("\nReference Vector Field Sin/Cos\n")
-		fmt.Printf("-------------------------------\n")
+		t.Logf("\nReference Vector Field Sin/Cos\n")
+		t.Logf("-------------------------------\n")
 		for i := 0; i < Np; i++ {
 			r, s := rt.R.AtVec(i), rt.S.AtVec(i)
 			f1, f2 := dt.F(r, s, 0)
@@ -47,31 +46,29 @@ func TestRTElementDivergence2(t *testing.T) {
 			divFcalc[i] = dF
 		}
 		dFReference := utils.NewMatrix(Np, 1, divFcalc)
-		dFReference.Transpose().Print("Reference Div")
+		if testing.Verbose() {
+			dFReference.Transpose().Print("Reference Div")
+		}
 		rt.ProjectFunctionOntoDOF(s1, s2)
 		dB := rt.Projection
 		calcDiv := rt.Div.Mul(dB)
-		calcDiv.Transpose().Print("Calculated Divergence")
+		if testing.Verbose() {
+			calcDiv.Transpose().Print("Calculated Divergence")
+		}
 		var err float64
 		for i := 0; i < Np; i++ {
 			err += math.Pow(calcDiv.At(i, 0)-dFReference.At(i, 0), 2)
 		}
 		rms := math.Sqrt(err / float64(Np))
-		fmt.Printf("RMS Err = %f\n", rms)
+		t.Logf("RMS Err = %f\n", rms)
 		// assert.InDeltaSlice(t, dFReference.DataP, calcDiv.DataP, 0.0001)
 	}
 }
 
 func TestRTElementRTInterpolation(t *testing.T) {
 	// Verify the interpolation of a constant vector field onto the element
-	// P := 1
-	rt := NewRTElement(3)
-	fmt.Println("Np, NpInt, NpEdge = ", rt.Np, rt.NpInt, rt.NpEdge)
-	rt.V.Print("V")
-	// os.Exit(1)
-
 	PStart := 1
-	PEnd := 2
+	PEnd := 3
 	for P := PStart; P <= PEnd; P++ {
 		var (
 			dt DivTest
@@ -79,8 +76,10 @@ func TestRTElementRTInterpolation(t *testing.T) {
 		dt = PolyField{}
 
 		rt := NewRTElement(P)
-		// rt.V.Print("V")
-		// rt.VInv.Print("VInv")
+		if testing.Verbose() {
+			rt.V.Print("V")
+			rt.VInv.Print("VInv")
+		}
 		s1, s2 := make([]float64, rt.Np), make([]float64, rt.Np)
 		for PField := 0; PField <= P; PField++ {
 			for i := 0; i < rt.Np; i++ {
@@ -103,7 +102,7 @@ func TestRTElementRTInterpolation(t *testing.T) {
 				}
 				if PField >= P+1 {
 					r, s := rt.R.AtVec(i), rt.S.AtVec(i)
-					fmt.Printf("f_rt[%f,%f]=%f, f_proj=%f\n",
+					t.Logf("f_rt[%f,%f]=%f, f_proj=%f\n",
 						r, s, f_rt_dot[i], rt.Projection.At(i, 0))
 				}
 			}
@@ -123,22 +122,22 @@ func TestRTElementDivergence(t *testing.T) {
 	)
 	dt = PolyField{}
 
-	fmt.Println("Begin Divergence Test")
+	t.Log("Begin Divergence Test")
 	// P := 1
 	PStart := 1
-	PEnd := 2
+	PEnd := 3
 	for P := PStart; P <= PEnd; P++ {
-		fmt.Printf("---------------------------------------------\n")
-		fmt.Printf("Checking Divergence for RT%d\n", P)
-		fmt.Printf("---------------------------------------------\n")
+		t.Logf("---------------------------------------------\n")
+		t.Logf("Checking Divergence for RT%d\n", P)
+		t.Logf("---------------------------------------------\n")
 		rt := NewRTElement(P)
 		Np := rt.Np
 		divFcalc := make([]float64, Np)
 		s1, s2 := make([]float64, Np), make([]float64, Np)
 		// for PField := 0; PField <= (P - 1); PField++ {
 		for PField := 0; PField <= P; PField++ {
-			fmt.Printf("\nReference Vector Field Order:%d\n", PField)
-			fmt.Printf("-------------------------------\n")
+			t.Logf("\nReference Vector Field Order:%d\n", PField)
+			t.Logf("-------------------------------\n")
 			for i := 0; i < Np; i++ {
 				r, s := rt.R.AtVec(i), rt.S.AtVec(i)
 				f1, f2 := dt.F(r, s, PField)
@@ -147,13 +146,17 @@ func TestRTElementDivergence(t *testing.T) {
 				divFcalc[i] = dF
 			}
 			dFReference := utils.NewMatrix(Np, 1, divFcalc)
-			dFReference.Transpose().Print("Reference Div")
+			if testing.Verbose() {
+				dFReference.Transpose().Print("Reference Div")
+			}
 			rt.ProjectFunctionOntoDOF(s1, s2)
 			dB := rt.Projection
 			// dB.Transpose().Print("F Projection")
 			// rt.VInv.Mul(dB).Print("Coefficients")
 			calcDiv := rt.Div.Mul(dB)
-			calcDiv.Transpose().Print("Calculated Divergence")
+			if testing.Verbose() {
+				calcDiv.Transpose().Print("Calculated Divergence")
+			}
 			assert.InDeltaSlice(t, dFReference.DataP, calcDiv.DataP, 0.0001)
 		}
 	}
@@ -176,9 +179,9 @@ func TestRTElement(t *testing.T) {
 			ddsCheck[i] = JB2D.PolynomialTermDs(rVal, sVal, ii, jj)
 			pCheck[i] = JB2D.PolynomialTerm(rVal, sVal, ii, jj)
 		}
-		assert.True(t, nearVec(pCheck, p, 0.000001))
-		assert.True(t, nearVec(ddrCheck, ddr, 0.000001))
-		assert.True(t, nearVec(ddsCheck, dds, 0.000001))
+		assert.InDeltaSlicef(t, pCheck, p, 0.000001, "")
+		assert.InDeltaSlicef(t, ddrCheck, ddr, 0.000001, "")
+		assert.InDeltaSlicef(t, ddsCheck, dds, 0.000001, "")
 	}
 	errorCheck := func(N int, div, divCheck []float64) (minInt, maxInt, minEdge, maxEdge float64) {
 		var (
@@ -210,8 +213,8 @@ func TestRTElement(t *testing.T) {
 				maxEdge = errAbs
 			}
 		}
-		fmt.Printf("Order = %d, ", N)
-		fmt.Printf("Min, Max Int Err = %8.5f, %8.5f, Min, Max Edge Err = %8.5f, %8.5f\n", minInt, maxInt, minEdge, maxEdge)
+		t.Logf("Order = %d, ", N)
+		t.Logf("Min, Max Int Err = %8.5f, %8.5f, Min, Max Edge Err = %8.5f, %8.5f\n", minInt, maxInt, minEdge, maxEdge)
 		return
 	}
 	checkSolution := func(rt *RTElement, Order int) (s1, s2, divCheck []float64) {
@@ -238,17 +241,17 @@ func TestRTElement(t *testing.T) {
 	N := 1
 	rt := NewRTElement(N)
 	for cOrder := 0; cOrder < N; cOrder++ {
-		fmt.Printf("Check Order = %d, ", cOrder)
+		t.Logf("Check Order = %d, ", cOrder)
 		// [s1,s2] values for each location in {R,S}
 		s1, s2, divCheck := checkSolution(rt, cOrder)
 		rt.ProjectFunctionOntoDOF(s1, s2)
 		divM := rt.Div.Mul(rt.Projection)
 		// fmt.Println(divM.Print("divM"))
 		minerrInt, maxerrInt, minerrEdge, maxerrEdge := errorCheck(N, divM.DataP, divCheck)
-		assert.True(t, near(minerrInt, 0.0, 0.00001))
-		assert.True(t, near(maxerrInt, 0.0, 0.00001))
-		assert.True(t, near(minerrEdge, 0.0, 0.00001))
-		assert.True(t, near(maxerrEdge, 0.0, 0.00001))
+		assert.InDeltaf(t, minerrInt, 0.0, 0.00001, "")
+		assert.InDeltaf(t, maxerrInt, 0.0, 0.00001, "")
+		assert.InDeltaf(t, minerrEdge, 0.0, 0.00001, "")
+		assert.InDeltaf(t, maxerrEdge, 0.0, 0.00001, "")
 	}
 	// }
 	plot := false

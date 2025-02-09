@@ -1,7 +1,6 @@
 package DG2D
 
 import (
-	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -23,7 +22,7 @@ func TestNewLagrangePolynomial1D(t *testing.T) {
 		for i := 0; i < lp1d.Np; i++ {
 			r := R.AtVec(i)
 			psi := lp1d.getPolynomial(r, j)
-			fmt.Printf("psi[%d,%d,%f]=%f\n", i, j, r, psi)
+			t.Logf("psi[%d,%d,%f]=%f\n", i, j, r, psi)
 			if i == j {
 				assert.InDeltaf(t, psi, 1, 0.000001, "")
 			} else {
@@ -45,7 +44,7 @@ func TestLagrangePolynomial2D(t *testing.T) {
 		for j := 0; j < lp2d.Np; j++ {
 			for i := 0; i < lp2d.Np; i++ {
 				r, s := R.AtVec(i), S.AtVec(i)
-				// fmt.Printf("psi[%d][%f,%f] = %f\n", j, r, s,
+				// t.Logf("psi[%d][%f,%f] = %f\n", j, r, s,
 				// 	lp2d.GetPolynomialEvaluation(r, s, j))
 				A.Set(i, j, lp2d.GetPolynomialEvaluation(r, s, j))
 			}
@@ -92,7 +91,7 @@ func TestLagrangePolynomial(t *testing.T) {
 					delay = 120 * time.Second
 				}
 				name := "JacobiP[" + strconv.Itoa(n) + "," + strconv.Itoa(j) + "]"
-				fmt.Printf("Chart Name: [%s], lineColor = %5.3f\n", name, lineColor)
+				t.Logf("Chart Name: [%s], lineColor = %5.3f\n", name, lineColor)
 				chart.Plot(delay, SamplesR.DataP, f, lineColor, name)
 			}
 			lineColor += lineInc

@@ -1,8 +1,6 @@
 package DG1D
 
 import (
-	"fmt"
-	"math"
 	"testing"
 
 	"github.com/notargets/gocfd/utils"
@@ -28,23 +26,24 @@ func TestElements1D(t *testing.T) {
 
 		var el *Elements1D
 		el = NewElements1D(N, VX, EToV)
+		tol := 0.0000001
 		// Verify X
-		assert.True(t, near(el.X.At(0, 1), 0.5))
-		assert.True(t, near(el.X.At(3, 1), 1.0))
-		assert.True(t, near(el.X.At(3, 2), 1.5))
-		assert.True(t, near(el.X.At(2, 3), 1.8618033988))
-		assert.True(t, near(el.X.At(1, 1), 0.6381966011))
-		assert.True(t, near(el.X.SumCols().AtVec(0), 1))
-		assert.True(t, near(el.X.SumRows().AtVec(0), 3))
-		assert.True(t, near(el.X.SumRows().AtVec(3), 5))
+		assert.InDeltaf(t, el.X.At(0, 1), 0.5, tol, "")
+		assert.InDeltaf(t, el.X.At(3, 1), 1.0, tol, "")
+		assert.InDeltaf(t, el.X.At(3, 2), 1.5, tol, "")
+		assert.InDeltaf(t, el.X.At(2, 3), 1.8618033988, tol, "")
+		assert.InDeltaf(t, el.X.At(1, 1), 0.6381966011, tol, "")
+		assert.InDeltaf(t, el.X.SumCols().AtVec(0), 1, tol, "")
+		assert.InDeltaf(t, el.X.SumRows().AtVec(0), 3, tol, "")
+		assert.InDeltaf(t, el.X.SumRows().AtVec(3), 5, tol, "")
 
 		// Verify LIFT
-		assert.True(t, near(el.LIFT.SumRows().AtVec(0), 6))
-		assert.True(t, near(el.LIFT.SumRows().AtVec(3), 6))
-		assert.True(t, near(el.LIFT.At(2, 0), 0.8944271909))
-		assert.True(t, near(el.LIFT.At(2, 1), -0.8944271909))
-		assert.True(t, near(el.LIFT.At(1, 0), -0.8944271909))
-		assert.True(t, near(el.LIFT.At(1, 1), 0.8944271909))
+		assert.InDeltaf(t, el.LIFT.SumRows().AtVec(0), 6, tol, "")
+		assert.InDeltaf(t, el.LIFT.SumRows().AtVec(3), 6, tol, "")
+		assert.InDeltaf(t, el.LIFT.At(2, 0), 0.8944271909, tol, "")
+		assert.InDeltaf(t, el.LIFT.At(2, 1), -0.8944271909, tol, "")
+		assert.InDeltaf(t, el.LIFT.At(1, 0), -0.8944271909, tol, "")
+		assert.InDeltaf(t, el.LIFT.At(1, 1), 0.8944271909, tol, "")
 
 		// Verify VmapM
 		// Row-major
@@ -62,10 +61,11 @@ func TestElements1D(t *testing.T) {
 			VmapP.Matrix.Data = [0 12 13 14 1 2 3 15]
 		*/
 		/*
-			fmt.Printf("VmapM.Matrix = \n%v\n", mat.Formatted(el.VmapM.ToMatrixReversed(NF, el.K), mat.Squeeze()))
-			fmt.Printf("VmapM.Matrix.Data = %v\n", el.VmapM.ToMatrixReversed(NF, el.K).RawMatrix().Data)
-			fmt.Printf("VmapP.Matrix = \n%v\n", mat.Formatted(el.VmapP.ToMatrixReversed(NF, el.K), mat.Squeeze()))
-			fmt.Printf("VmapP.Matrix.Data = %v\n", el.VmapP.ToMatrixReversed(NF, el.K).RawMatrix().Data)
+				t.Logf("VmapM.Matrix = \n%v\n", mat.Formatted(el.VmapM.
+			ToMatrixReversed(NF, el.K), mat.Squeeze()))
+				fmogft.L("VmapM.Matrix.Data = %v\n", el.VmapM.ToMatrixRevrsed(NF, el.K).RawMatrix().Data)
+				fmogft.L("VmapP.Matrix = \n%v\n", mat.Formatted(el.VmapP.oMatrixReversed(NF, el.K), mat.Squeeze()))
+				fmogft.L("VmapP.Matrix.Data = %v\n", el.VmapP.ToMatrixRevrsed(NF, el.K).RawMatrix().Data)
 		*/
 	}
 	/*
@@ -95,11 +95,12 @@ func TestElements1D(t *testing.T) {
 		tolTight := 1.e-08
 		tolLoose := 1.e-03
 		li_left_edge := el.LagrangeInterpolant(-1)
-		assert.True(t, nearVec(li_left_edge.RawMatrix().Data, []float64{1, 0, 0, 0, 0}, tolTight))
+		assert.InDeltaSlicef(t, li_left_edge.RawMatrix().Data, []float64{1, 0, 0, 0, 0}, tolTight, "")
+		assert.InDeltaSlicef(t, li_left_edge.RawMatrix().Data, []float64{1, 0, 0, 0, 0}, tolTight, "")
 		li_right_edge := el.LagrangeInterpolant(1)
-		assert.True(t, nearVec(li_right_edge.RawMatrix().Data, []float64{0, 0, 0, 0, 1}, tolTight))
-		assert.True(t, nearVec(elS.LagrangeInterpolant(-1).RawMatrix().Data, []float64{1.9304, -1.3333, 0.4029}, tolLoose))
-		assert.True(t, nearVec(elS.LagrangeInterpolant(1).RawMatrix().Data, []float64{0.4029, -1.3333, 1.9304}, tolLoose))
+		assert.InDeltaSlicef(t, li_right_edge.RawMatrix().Data, []float64{0, 0, 0, 0, 1}, tolTight, "")
+		assert.InDeltaSlicef(t, elS.LagrangeInterpolant(-1).RawMatrix().Data, []float64{1.9304, -1.3333, 0.4029}, tolLoose, "")
+		assert.InDeltaSlicef(t, elS.LagrangeInterpolant(1).RawMatrix().Data, []float64{0.4029, -1.3333, 1.9304}, tolLoose, "")
 
 		N = 1
 		VX, EToV = SimpleMesh1D(0, 2, K)
@@ -107,32 +108,7 @@ func TestElements1D(t *testing.T) {
 		elS = NewElements1D(N, VX, EToV, GAUSS)
 		li_left_edge = elS.LagrangeInterpolant(-1)
 		li_right_edge = elS.LagrangeInterpolant(1)
-		assert.True(t, nearVec(li_left_edge.RawMatrix().Data, []float64{1.6180, -0.6180}, tolLoose))
-		assert.True(t, nearVec(li_right_edge.RawMatrix().Data, []float64{-0.6180, 1.6180}, tolLoose))
+		assert.InDeltaSlicef(t, li_left_edge.RawMatrix().Data, []float64{1.6180, -0.6180}, tolLoose, "")
+		assert.InDeltaSlicef(t, li_right_edge.RawMatrix().Data, []float64{-0.6180, 1.6180}, tolLoose, "")
 	}
-}
-
-func nearVec(a, b []float64, tol float64) (l bool) {
-	for i, val := range a {
-		if !near(b[i], val, tol) {
-			fmt.Printf("Diff = %v, Left[%d] = %v, Right[%d] = %v\n", math.Abs(val-b[i]), i, val, i, b[i])
-			return false
-		}
-	}
-	return true
-}
-
-func near(a, b float64, tolI ...float64) (l bool) {
-	var (
-		tol float64
-	)
-	if len(tolI) == 0 {
-		tol = 1.e-08
-	} else {
-		tol = tolI[0]
-	}
-	if math.Abs(a-b) <= tol*math.Abs(a) {
-		l = true
-	}
-	return
 }
