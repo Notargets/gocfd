@@ -183,6 +183,38 @@ func (jb2d *JacobiBasis2D) GetPolynomialEvaluation(r, s float64,
 	return
 }
 
+func (jb2d *JacobiBasis2D) GetPolynomialAtJ(r, s float64, j int,
+	derivO ...DerivativeDirection) (phi float64) {
+	// 2025: This produces the J-th polynomial of the 2D basis, where J is
+	// numbered from 0 - Np, and Np = (P+1)(P+2)/2
+	var (
+		N     = jb2d.P
+		deriv = None
+		sk    int
+	)
+	if len(derivO) > 0 {
+		deriv = derivO[0]
+	}
+	// Compute all polynomial terms and sum to form function value
+	for i := 0; i <= N; i++ {
+		for jj := 0; jj <= (N - i); jj++ {
+			if sk == j {
+				switch deriv {
+				case None:
+					phi = jb2d.PolynomialTerm(r, s, i, jj)
+				case Dr:
+					phi = jb2d.PolynomialTermDr(r, s, i, jj)
+				case Ds:
+					phi = jb2d.PolynomialTermDs(r, s, i, jj)
+				}
+				return
+			}
+			sk++
+		}
+	}
+	return
+}
+
 func (jb2d *JacobiBasis2D) GetAllPolynomials(derivO ...DerivativeDirection) (
 	PSI utils.Vector) {
 	var (

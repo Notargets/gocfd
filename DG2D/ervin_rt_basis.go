@@ -141,6 +141,111 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 	return
 }
 
+func (e *ErvinRTBasis) conv(r float64) float64 { return (r + 1.) / 2. }
+
+func (e *ErvinRTBasis) dconvDrDs() float64 { return 1. / 2. }
+
+type LagrangeParameter uint8
+
+const (
+	R_LP LagrangeParameter = iota
+	S_LP
+	NegS_LP
+)
+
+func (e *ErvinRTBasis) getPolyBasisMultiplierL(j int, param LagrangeParameter,
+	tBasis []float64) (lpm BasisPolynomialMultiplier) {
+	lagrange1D := func(r, s float64) (val float64) {
+		var (
+			div  float64
+			mult float64
+			t_rs float64
+		)
+		switch param {
+		case R_LP:
+			t_rs = r
+		case S_LP:
+			t_rs = s
+		case NegS_LP:
+			t_rs = -s
+		}
+		t := e.conv(t_rs)
+		tb_j := e.conv(tBasis[j])
+		for i := 0; i < e.NpEdge; i++ {
+			if i != j {
+				tb_i := e.conv(tBasis[i])
+				mult *= t - tb_i
+				div *= tb_j - tb_i
+			}
+		}
+		return mult / div
+	}
+	lagrange1DDeriv := func(r, s float64) (deriv float64) {
+		var (
+			div  float64
+			sum  float64
+			t_rs float64
+		)
+		switch param {
+		case R_LP:
+			t_rs = r
+		case S_LP:
+			t_rs = s
+		case NegS_LP:
+			t_rs = -s
+		}
+		t := e.conv(t_rs)
+		tb_j := e.conv(tBasis[j])
+		for i := 0; i < e.NpEdge; i++ {
+			if i != j {
+				tb_i := e.conv(tBasis[i])
+				sum += t - tb_i
+				div *= tb_j - tb_i
+			}
+		}
+		return e.dconvDrDs() * sum / div
+	}
+
+	Eval := func(r, s float64) (val float64) {
+		val = lagrange1D(r, s)
+		return
+	}
+	Gradient := func(r, s float64) (grad [2]float64) {
+		switch param {
+		case R_LP:
+			grad[0] = lagrange1DDeriv(r, s)
+		case S_LP:
+			grad[1] = lagrange1DDeriv(r, s)
+		case NegS_LP:
+			grad[1] = -lagrange1DDeriv(r, s)
+		}
+		return
+	}
+	lpm = BasisPolynomialMultiplier{
+		Eval:     Eval,
+		Gradient: Gradient,
+	}
+	return
+}
+
+func (e *ErvinRTBasis) GetPolyBasisMultiplierBk(j int) (
+	bp_bk BasisPolynomialMultiplier) {
+	Eval := func(r, s float64) (val float64) {
+		val = e.InteriorPolyKBasis.GetPolynomialAtJ(r, s, j)
+		return
+	}
+	Gradient := func(r, s float64) (grad [2]float64) {
+		grad = [2]float64{e.InteriorPolyKBasis.GetPolynomialAtJ(r, s, j, Dr),
+			e.InteriorPolyKBasis.GetPolynomialAtJ(r, s, j, Ds)}
+		return
+	}
+	bp_bk = BasisPolynomialMultiplier{
+		Eval:     Eval,
+		Gradient: Gradient,
+	}
+	return
+}
+
 func (e *ErvinRTBasis) ComposePhiRTK() (phi []BasisPolynomialTerm) {
 	// phi = []BasisPolynomialTerm{
 	// 	{PolyMultiplier: constant, BasisVector: e.E4Vector},
@@ -229,46 +334,6 @@ func (e *ErvinRTBasis) ComposePhiRT1(g1rs,
 	}
 
 	return
-}
-
-func (e *ErvinRTBasis) conv(r float64) float64 { return (r + 1.) / 2. }
-
-func (e *ErvinRTBasis) dconvDrDs() float64 { return 1. / 2. }
-
-func (e *ErvinRTBasis) lagrange1D(t_rs float64, tbasis []float64,
-	j int) (val float64) {
-	var (
-		div  float64
-		mult float64
-		t    = e.conv(t_rs)
-	)
-	tb_j := e.conv(tbasis[j])
-	for i := 0; i < e.NpEdge; i++ {
-		if i != j {
-			tb_i := e.conv(tbasis[i])
-			mult *= t - tb_i
-			div *= tb_j - tb_i
-		}
-	}
-	return mult / div
-}
-
-func (e *ErvinRTBasis) lagrange1DDeriv(t_rs float64, tbasis []float64,
-	j int) (val float64) {
-	var (
-		div float64
-		sum float64
-		t   = e.conv(t_rs)
-	)
-	tb_j := e.conv(tbasis[j])
-	for i := 0; i < e.NpEdge; i++ {
-		if i != j {
-			tb_i := e.conv(tbasis[i])
-			sum += t - tb_i
-			div *= tb_j - tb_i
-		}
-	}
-	return e.dconvDrDs() * sum / div
 }
 
 func (e *ErvinRTBasis) ComposePhiRT2(g1rs, g2rs, g3rs float64) (phi []BasisPolynomialTerm) {
