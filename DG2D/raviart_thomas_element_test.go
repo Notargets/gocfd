@@ -3,6 +3,7 @@ package DG2D
 import (
 	"fmt"
 	"math"
+	"os"
 	"testing"
 
 	"github.com/notargets/gocfd/utils"
@@ -65,8 +66,14 @@ func TestRTElementDivergence2(t *testing.T) {
 func TestRTElementRTInterpolation(t *testing.T) {
 	// Verify the interpolation of a constant vector field onto the element
 	// P := 1
+	rt := NewRTElement(3)
+	fmt.Println("Np, NpInt, NpEdge = ", rt.Np, rt.NpInt, rt.NpEdge)
+	rt.V.Print("V")
+	os.Exit(1)
 
-	for P := 1; P <= 2; P++ {
+	PStart := 3
+	PEnd := 3
+	for P := PStart; P <= PEnd; P++ {
 		var (
 			dt DivTest
 		)

@@ -115,18 +115,18 @@ const (
 	Ds
 )
 
-type RTFunctionNumber uint8
+type RTBasisFunctionType uint8
 
 const (
-	All RTFunctionNumber = iota
-	E4                   // Ervin E4 Interior basis
-	E5                   // Ervin E5 Interior basis
-	E1                   // Bottom Edge, Normal is [0,-1], Ervin E3
-	E2                   // Hypotenuse, Normal is [1/Sqrt2,1/Sqrt2], Ervin E1
-	E3                   // Left Edge, Normal is [-1,0], Ervin E2
+	All RTBasisFunctionType = iota
+	E4                      // Ervin E4 Interior basis
+	E5                      // Ervin E5 Interior basis
+	E1                      // Bottom Edge, Normal is [0,-1], Ervin E3
+	E2                      // Hypotenuse, Normal is [1/Sqrt2,1/Sqrt2], Ervin E1
+	E3                      // Left Edge, Normal is [-1,0], Ervin E2
 )
 
-func (fn RTFunctionNumber) String() string {
+func (fn RTBasisFunctionType) String() string {
 	switch fn {
 	case All:
 		return "All"
@@ -221,11 +221,13 @@ func (rt *RTElement) ComposeV() (V utils.Matrix) {
 		Np   = rt.Np
 		R, S = rt.R, rt.S
 	)
+	fmt.Printf("Length of Phi:%d\n", len(rt.Phi))
 	V = utils.NewMatrix(Np, Np)
 	for i := 0; i < Np; i++ {
 		r_i, s_i := R.DataP[i], S.DataP[i]
 		b_i := rt.Phi[i].BasisVector
 		for j := 0; j < Np; j++ {
+			// fmt.Printf("J = %d\n", j)
 			v_j := rt.Phi[j].Eval(r_i, s_i)
 			V.Set(i, j, b_i.Dot(r_i, s_i, v_j))
 		}
@@ -260,7 +262,7 @@ func (rt *RTElement) ProjectFunctionOntoDOF(s1, s2 []float64) {
 	return
 }
 
-func (rt *RTElement) getFunctionNumber(j int) (funcNum RTFunctionNumber) {
+func (rt *RTElement) getFunctionNumber(j int) (funcNum RTBasisFunctionType) {
 	var (
 		NpInt  = rt.NpInt
 		NpEdge = rt.NpEdge
@@ -287,7 +289,7 @@ func (rt *RTElement) getFunctionNumber(j int) (funcNum RTFunctionNumber) {
 	return
 }
 
-func (rt *RTElement) locationOnEdge(r, s float64) RTFunctionNumber {
+func (rt *RTElement) locationOnEdge(r, s float64) RTBasisFunctionType {
 	var (
 		eps = 0.000001
 	)

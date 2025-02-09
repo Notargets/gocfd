@@ -1,6 +1,7 @@
 package DG2D
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/notargets/gocfd/DG1D"
@@ -20,6 +21,10 @@ func NewJacobiBasis2D(P int, R, S utils.Vector, Alpha, Beta float64) (jb2d *Jaco
 		Np:    (P + 1) * (P + 2) / 2,
 		Alpha: Alpha,
 		Beta:  Beta,
+	}
+	if R.Len() != jb2d.Np {
+		fmt.Printf("Length of R:%d, required length:%d\n", R.Len(), jb2d.Np)
+		panic("Mismatch of length for basis coordinates")
 	}
 	jb2d.V = jb2d.Vandermonde2D(P, R, S)
 	jb2d.Vinv = jb2d.V.InverseWithCheck()

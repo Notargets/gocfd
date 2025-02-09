@@ -13,7 +13,6 @@ type BasisPolynomialMultiplier struct {
 	Gradient func(r, s float64) (grad [2]float64)
 }
 type BasisPolynomialTerm struct {
-	IsScaled       bool // After scaling, is part of the element polynomial
 	PolyMultiplier BasisPolynomialMultiplier
 	BasisVector    BasisVectorStruct
 }

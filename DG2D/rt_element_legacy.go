@@ -52,7 +52,7 @@ func NewRTBasis2DSimplexLegacy(P int) (rtb *RTBasis2DSimplexLegacy) {
 	return
 }
 
-func (rtb *RTBasis2DSimplexLegacy) getLocationType(i int) (locationType RTFunctionNumber) {
+func (rtb *RTBasis2DSimplexLegacy) getLocationType(i int) (locationType RTBasisFunctionType) {
 	var (
 		NpInt  = rtb.NpInt
 		NpEdge = rtb.NpEdge
@@ -578,7 +578,7 @@ func (rtb *RTBasis2DSimplexLegacy) GetInternalLocations(F []float64) (Finternal 
 /*
 Set up the five core vector basis functions used for all order of terms
 */
-func (rtb *RTBasis2DSimplexLegacy) getCoreBasisTerm(tt RTFunctionNumber, r, s float64,
+func (rtb *RTBasis2DSimplexLegacy) getCoreBasisTerm(tt RTBasisFunctionType, r, s float64,
 	derivO ...DerivativeDirection) (p0, p1 float64) {
 	var (
 		sr2   = math.Sqrt(2)
