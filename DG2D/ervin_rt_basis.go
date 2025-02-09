@@ -165,15 +165,15 @@ func (e *ErvinRTBasis) ComposePhiRT1(g1rs,
 			Gradient: func(r, s float64) (grad [2]float64) { return },
 		}
 
-		l1Func = func(t float64) float64 {
-			return (e.conv(t) - g2) / (g1 - g2)
+		l1Func = func(t_rs float64) float64 {
+			return (e.conv(t_rs) - g2) / (g1 - g2)
 		}
 		l1Deriv = func() float64 {
 			return e.dconvDrDs() / (g1 - g2)
 		}
 
-		l2Func = func(t float64) float64 {
-			return (e.conv(t) - g1) / (g2 - g1)
+		l2Func = func(t_rs float64) float64 {
+			return (e.conv(t_rs) - g1) / (g2 - g1)
 		}
 		l2Deriv = func() float64 { return -l1Deriv() }
 
@@ -235,15 +235,40 @@ func (e *ErvinRTBasis) conv(r float64) float64 { return (r + 1.) / 2. }
 
 func (e *ErvinRTBasis) dconvDrDs() float64 { return 1. / 2. }
 
-func (e *ErvinRTBasis) lagrange1D(r, s float64, t []float64, j int) (val float64) {
+func (e *ErvinRTBasis) lagrange1D(t_rs float64, tbasis []float64,
+	j int) (val float64) {
+	var (
+		div  float64
+		mult float64
+		t    = e.conv(t_rs)
+	)
+	tb_j := e.conv(tbasis[j])
+	for i := 0; i < e.NpEdge; i++ {
+		if i != j {
+			tb_i := e.conv(tbasis[i])
+			mult *= t - tb_i
+			div *= tb_j - tb_i
+		}
+	}
+	return mult / div
+}
+
+func (e *ErvinRTBasis) lagrange1DDeriv(t_rs float64, tbasis []float64,
+	j int) (val float64) {
 	var (
 		div float64
+		sum float64
+		t   = e.conv(t_rs)
 	)
+	tb_j := e.conv(tbasis[j])
 	for i := 0; i < e.NpEdge; i++ {
-
+		if i != j {
+			tb_i := e.conv(tbasis[i])
+			sum += t - tb_i
+			div *= tb_j - tb_i
+		}
 	}
-	_ = div
-	return
+	return e.dconvDrDs() * sum / div
 }
 
 func (e *ErvinRTBasis) ComposePhiRT2(g1rs, g2rs, g3rs float64) (phi []BasisPolynomialTerm) {
@@ -255,28 +280,28 @@ func (e *ErvinRTBasis) ComposePhiRT2(g1rs, g2rs, g3rs float64) (phi []BasisPolyn
 		div2 = 1. / ((g2 - g1) * (g2 - g3))
 		div3 = 1. / ((g3 - g1) * (g3 - g2))
 
-		l1func = func(t float64) float64 {
-			return (e.conv(t) - g2) * (e.conv(t) - g3) * div1
+		l1func = func(t_rs float64) float64 {
+			return (e.conv(t_rs) - g2) * (e.conv(t_rs) - g3) * div1
 		}
-		l2Func = func(t float64) float64 {
-			return (e.conv(t) - g1) * (e.conv(t) - g3) * div2
+		l2Func = func(t_rs float64) float64 {
+			return (e.conv(t_rs) - g1) * (e.conv(t_rs) - g3) * div2
 		}
-		l3Func = func(t float64) float64 {
-			return (e.conv(t) - g1) * (e.conv(t) - g2) * div3
+		l3Func = func(t_rs float64) float64 {
+			return (e.conv(t_rs) - g1) * (e.conv(t_rs) - g2) * div3
 		}
 
-		l1Deriv = func(t float64) (deriv float64) {
-			deriv = ((e.conv(t) - g2) + (e.conv(t) - g3)) * div1
+		l1Deriv = func(t_rs float64) (deriv float64) {
+			deriv = ((e.conv(t_rs) - g2) + (e.conv(t_rs) - g3)) * div1
 			deriv *= e.dconvDrDs()
 			return
 		}
-		l2Deriv = func(t float64) (deriv float64) {
-			deriv = ((e.conv(t) - g1) + (e.conv(t) - g3)) * div2
+		l2Deriv = func(t_rs float64) (deriv float64) {
+			deriv = ((e.conv(t_rs) - g1) + (e.conv(t_rs) - g3)) * div2
 			deriv *= e.dconvDrDs()
 			return
 		}
-		l3Deriv = func(t float64) (deriv float64) {
-			deriv = ((e.conv(t) - g1) + (e.conv(t) - g2)) * div3
+		l3Deriv = func(t_rs float64) (deriv float64) {
+			deriv = ((e.conv(t_rs) - g1) + (e.conv(t_rs) - g2)) * div3
 			deriv *= e.dconvDrDs()
 			return
 		}
