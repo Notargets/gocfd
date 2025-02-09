@@ -211,8 +211,7 @@ func NewRTElement(P int) (rt *RTElement) {
 }
 
 func (rt *RTElement) CalculateBasis() {
-	edgeLocation := 2 * rt.NpInt
-	e := NewErvinRTBasis(rt.P, rt.R.DataP[edgeLocation:edgeLocation+rt.NpEdge])
+	e := NewErvinRTBasis(rt.P, rt.R, rt.S)
 	rt.Phi = e.Phi
 	return
 }

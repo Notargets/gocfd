@@ -126,11 +126,6 @@ func TestRTElementDivergence(t *testing.T) {
 		fmt.Printf("Checking Divergence for RT%d\n", P)
 		fmt.Printf("---------------------------------------------\n")
 		rt := NewRTElement(P)
-		// if P == 2 {
-		// 	rt.V.Print("V RT2")
-		// 	rt.VInv.Print("VInv RT2")
-		// 	rt.Div.Print("Div RT2")
-		// }
 		Np := rt.Np
 		divFcalc := make([]float64, Np)
 		s1, s2 := make([]float64, Np), make([]float64, Np)
@@ -147,13 +142,6 @@ func TestRTElementDivergence(t *testing.T) {
 			}
 			dFReference := utils.NewMatrix(Np, 1, divFcalc)
 			dFReference.Transpose().Print("Reference Div")
-			// if PField == 1 {
-			// 	for i := 0; i < Np; i++ {
-			// 		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
-			// 		fmt.Printf("f[%f,%f] = [%f,%f] \n", r, s, s1[i], s2[i])
-			// 	}
-			// 	os.Exit(1)
-			// }
 			rt.ProjectFunctionOntoDOF(s1, s2)
 			dB := rt.Projection
 			// dB.Transpose().Print("F Projection")
