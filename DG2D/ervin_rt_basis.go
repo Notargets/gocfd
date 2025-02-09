@@ -127,9 +127,6 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 	edgeLocation := 2 * e.NpInt
 	switch e.P {
 	case 1:
-		// e.g1, e.g2 = conv(SingleEdgePts[0]), conv(SingleEdgePts[1])
-		// SingleEdgePoints are the P+1 points along each edge, the same for all
-		// rt.R.DataP[edgeLocation:edgeLocation+rt.NpEdge])
 		g1 := R.DataP[edgeLocation]
 		g2 := R.DataP[edgeLocation+1]
 		e.Phi = e.ComposePhiRT1(g1, g2)
@@ -158,47 +155,49 @@ func (e *ErvinRTBasis) ComposePhiRTK() (phi []BasisPolynomialTerm) {
 	return
 }
 
-func (e *ErvinRTBasis) ComposePhiRT1(g1, g2 float64) (phi []BasisPolynomialTerm) {
+func (e *ErvinRTBasis) ComposePhiRT1(g1rs,
+	g2rs float64) (phi []BasisPolynomialTerm) {
 	// Compose the basis for the RT1 element based on Ervin
 	var (
+		g1, g2   = e.conv(g1rs), e.conv(g2rs)
 		constant = BasisPolynomialMultiplier{
 			Eval:     func(r, s float64) float64 { return 1. },
 			Gradient: func(r, s float64) (grad [2]float64) { return },
 		}
 
 		l1Func = func(t float64) float64 {
-			return (t - g2) / (g1 - g2)
+			return (e.conv(t) - g2) / (g1 - g2)
 		}
 		l1Deriv = func() float64 {
 			return e.dconvDrDs() / (g1 - g2)
 		}
 
 		l2Func = func(t float64) float64 {
-			return (t - g1) / (g2 - g1)
+			return (e.conv(t) - g1) / (g2 - g1)
 		}
 		l2Deriv = func() float64 { return -l1Deriv() }
 
 		l1xiEdge1 = BasisPolynomialMultiplier{
-			Eval: func(r, s float64) float64 { return l1Func(e.conv(r)) },
+			Eval: func(r, s float64) float64 { return l1Func(r) },
 			Gradient: func(r, s float64) [2]float64 {
 				return [2]float64{l1Deriv(), 0}
 			},
 		}
 		l2xiEdge1 = BasisPolynomialMultiplier{
-			Eval: func(r, s float64) float64 { return l2Func(e.conv(r)) },
+			Eval: func(r, s float64) float64 { return l2Func(r) },
 			Gradient: func(r, s float64) [2]float64 {
 				return [2]float64{l2Deriv(), 0}
 			},
 		}
 
 		l1etaEdge2 = BasisPolynomialMultiplier{
-			Eval: func(r, s float64) float64 { return l1Func(e.conv(s)) },
+			Eval: func(r, s float64) float64 { return l1Func(s) },
 			Gradient: func(r, s float64) [2]float64 {
 				return [2]float64{0, l1Deriv()}
 			},
 		}
 		l2etaEdge2 = BasisPolynomialMultiplier{
-			Eval: func(r, s float64) float64 { return l2Func(e.conv(s)) },
+			Eval: func(r, s float64) float64 { return l2Func(s) },
 			Gradient: func(r, s float64) [2]float64 {
 				// return [2]float64{-l2Deriv(), l2Deriv()}
 				return [2]float64{0, l2Deriv()}
@@ -206,13 +205,13 @@ func (e *ErvinRTBasis) ComposePhiRT1(g1, g2 float64) (phi []BasisPolynomialTerm)
 		}
 
 		l1etaEdge3 = BasisPolynomialMultiplier{
-			Eval: func(r, s float64) float64 { return l1Func(e.conv(-s)) },
+			Eval: func(r, s float64) float64 { return l1Func(-s) },
 			Gradient: func(r, s float64) [2]float64 {
 				return [2]float64{0, -l1Deriv()}
 			},
 		}
 		l2etaEdge3 = BasisPolynomialMultiplier{
-			Eval: func(r, s float64) float64 { return l2Func(e.conv(-s)) },
+			Eval: func(r, s float64) float64 { return l2Func(-s) },
 			Gradient: func(r, s float64) [2]float64 {
 				return [2]float64{0, -l2Deriv()}
 			},
@@ -247,102 +246,103 @@ func (e *ErvinRTBasis) lagrange1D(r, s float64, t []float64, j int) (val float64
 	return
 }
 
-func (e *ErvinRTBasis) ComposePhiRT2(g1, g2, g3 float64) (phi []BasisPolynomialTerm) {
+func (e *ErvinRTBasis) ComposePhiRT2(g1rs, g2rs, g3rs float64) (phi []BasisPolynomialTerm) {
 	// Compose the basis for the RT1 element based on Ervin
 	var (
+		g1, g2, g3 = e.conv(g1rs), e.conv(g2rs), e.conv(g3rs)
 		// Get the two edge points for use in the lagrange terms for RT1
 		div1 = 1. / ((g1 - g2) * (g1 - g3))
 		div2 = 1. / ((g2 - g1) * (g2 - g3))
 		div3 = 1. / ((g3 - g1) * (g3 - g2))
 
 		l1func = func(t float64) float64 {
-			return (t - g2) * (t - g3) * div1
+			return (e.conv(t) - g2) * (e.conv(t) - g3) * div1
 		}
 		l2Func = func(t float64) float64 {
-			return (t - g1) * (t - g3) * div2
+			return (e.conv(t) - g1) * (e.conv(t) - g3) * div2
 		}
 		l3Func = func(t float64) float64 {
-			return (t - g1) * (t - g2) * div3
+			return (e.conv(t) - g1) * (e.conv(t) - g2) * div3
 		}
 
 		l1Deriv = func(t float64) (deriv float64) {
-			deriv = ((t - g2) + (t - g3)) * div1
+			deriv = ((e.conv(t) - g2) + (e.conv(t) - g3)) * div1
 			deriv *= e.dconvDrDs()
 			return
 		}
 		l2Deriv = func(t float64) (deriv float64) {
-			deriv = ((t - g1) + (t - g3)) * div2
+			deriv = ((e.conv(t) - g1) + (e.conv(t) - g3)) * div2
 			deriv *= e.dconvDrDs()
 			return
 		}
 		l3Deriv = func(t float64) (deriv float64) {
-			deriv = ((t - g1) + (t - g2)) * div3
+			deriv = ((e.conv(t) - g1) + (e.conv(t) - g2)) * div3
 			deriv *= e.dconvDrDs()
 			return
 		}
 
 		l1xiEdge1 = BasisPolynomialMultiplier{
-			Eval: func(r, s float64) float64 { return l1func(e.conv(r)) },
+			Eval: func(r, s float64) float64 { return l1func(r) },
 			Gradient: func(r, s float64) (grad [2]float64) {
-				grad = [2]float64{l1Deriv(e.conv(r)), 0}
+				grad = [2]float64{l1Deriv(r), 0}
 				return
 			},
 		}
 		l2xiEdge1 = BasisPolynomialMultiplier{
-			Eval: func(r, s float64) float64 { return l2Func(e.conv(r)) },
+			Eval: func(r, s float64) float64 { return l2Func(r) },
 			Gradient: func(r, s float64) (grad [2]float64) {
-				grad = [2]float64{l2Deriv(e.conv(r)), 0}
+				grad = [2]float64{l2Deriv(r), 0}
 				return
 			},
 		}
 		l3xiEdge1 = BasisPolynomialMultiplier{
-			Eval: func(r, s float64) float64 { return l3Func(e.conv(r)) },
+			Eval: func(r, s float64) float64 { return l3Func(r) },
 			Gradient: func(r, s float64) (grad [2]float64) {
-				grad = [2]float64{l3Deriv(e.conv(r)), 0}
+				grad = [2]float64{l3Deriv(r), 0}
 				return
 			},
 		}
 
 		l1etaEdge2 = BasisPolynomialMultiplier{
-			Eval: func(r, s float64) float64 { return l1func(e.conv(s)) },
+			Eval: func(r, s float64) float64 { return l1func(s) },
 			Gradient: func(r, s float64) (grad [2]float64) {
-				grad = [2]float64{0, l1Deriv(e.conv(s))}
+				grad = [2]float64{0, l1Deriv(s)}
 				return
 			},
 		}
 		l2etaEdge2 = BasisPolynomialMultiplier{
-			Eval: func(r, s float64) float64 { return l2Func(e.conv(s)) },
+			Eval: func(r, s float64) float64 { return l2Func(s) },
 			Gradient: func(r, s float64) (grad [2]float64) {
-				grad = [2]float64{0, l2Deriv(e.conv(s))}
+				grad = [2]float64{0, l2Deriv(s)}
 				return
 			},
 		}
 		l3etaEdge2 = BasisPolynomialMultiplier{
-			Eval: func(r, s float64) float64 { return l3Func(e.conv(s)) },
+			Eval: func(r, s float64) float64 { return l3Func(s) },
 			Gradient: func(r, s float64) (grad [2]float64) {
-				grad = [2]float64{0, l3Deriv(e.conv(s))}
+				grad = [2]float64{0, l3Deriv(s)}
 				return
 			},
 		}
 
 		l1etaEdge3 = BasisPolynomialMultiplier{
-			Eval: func(r, s float64) float64 { return l1func(e.conv(-s)) },
+			Eval: func(r, s float64) float64 { return l1func(-s) },
 			Gradient: func(r, s float64) (grad [2]float64) {
-				grad = [2]float64{0, -l1Deriv(e.conv(-s))}
+				grad = [2]float64{0, -l1Deriv(-s)}
 				return
 			},
 		}
 		l2etaEdge3 = BasisPolynomialMultiplier{
-			Eval: func(r, s float64) float64 { return l2Func(e.conv(-s)) },
+			Eval: func(r, s float64) float64 { return l2Func(-s) },
 			Gradient: func(r, s float64) (grad [2]float64) {
-				grad = [2]float64{0, -l2Deriv(e.conv(-s))}
+				grad = [2]float64{0, -l2Deriv(-s)}
 				return
 			},
 		}
 		l3etaEdge3 = BasisPolynomialMultiplier{
-			Eval: func(r, s float64) float64 { return l3Func(e.conv(-s)) },
+			Eval: func(r, s float64) float64 { return l3Func(-s) },
 			Gradient: func(r, s float64) (grad [2]float64) {
-				grad = [2]float64{0, -l3Deriv(e.conv(-s))}
+				grad = [2]float64{0, -l3Deriv(-s)}
 				return
 			},
 		}
