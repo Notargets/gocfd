@@ -12,8 +12,10 @@ import (
 func TestRTelementLegacy(t *testing.T) {
 	P := 1
 	rtb := NewRTBasis2DSimplexLegacy(P)
-	rtb.BasisMatrix.Print("Legacy BasisMatrix")
-	rtb.Div.Print("Legacy Div")
+	if testing.Verbose() {
+		rtb.BasisMatrix.Print("Legacy BasisMatrix")
+		rtb.Div.Print("Legacy Div")
+	}
 }
 
 func TestRTElement_CalculateBasis(t *testing.T) {

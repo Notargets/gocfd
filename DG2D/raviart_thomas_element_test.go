@@ -124,8 +124,12 @@ func TestRTElementDivergence(t *testing.T) {
 
 	t.Log("Begin Divergence Test")
 	// P := 1
-	PStart := 1
+	PStart := 3
 	PEnd := 3
+	PFieldStart := 0
+	PFieldEnd := PEnd
+	PFieldStart = 1
+	PFieldEnd = 1
 	for P := PStart; P <= PEnd; P++ {
 		t.Logf("---------------------------------------------\n")
 		t.Logf("Checking Divergence for RT%d\n", P)
@@ -135,7 +139,7 @@ func TestRTElementDivergence(t *testing.T) {
 		divFcalc := make([]float64, Np)
 		s1, s2 := make([]float64, Np), make([]float64, Np)
 		// for PField := 0; PField <= (P - 1); PField++ {
-		for PField := 0; PField <= P; PField++ {
+		for PField := PFieldStart; PField <= PFieldEnd; PField++ {
 			t.Logf("\nReference Vector Field Order:%d\n", PField)
 			t.Logf("-------------------------------\n")
 			for i := 0; i < Np; i++ {
