@@ -45,3 +45,54 @@ func TestJacobiBasis2D_IndividualTerms(t *testing.T) {
 	assert.InDeltaSlicef(t, jb2d.V.DataP, A.DataP, tol, "")
 	assert.InDeltaSlicef(t, jb2d.V.DataP, B.DataP, tol, "")
 }
+
+func TestJacobiBasis2D_Gradient(t *testing.T) {
+	var (
+		scalarPoly = PolyScalarField{}
+		tol        = 0.000001
+	)
+	PStart := 1
+	PEnd := 6
+	for P := PStart; P <= PEnd; P++ {
+		t.Logf("----------------------------------------\n")
+		t.Logf("Testing Order %d\n", P)
+		t.Logf("----------------------------------------\n")
+		R, S := NodesEpsilon(P)
+		jb2d := NewJacobiBasis2D(P, R, S, 0, 0)
+		PTestStart := 0
+		PTestEnd := P
+		// PTestEnd = 1
+		for testP := PTestStart; testP <= PTestEnd; testP++ {
+			t.Logf("Scalar Test Field Order %d\n", testP)
+			t.Logf("----------------------------------------\n")
+			Np := jb2d.Np
+			field := make([]float64, Np)
+			grad := make([][2]float64, Np)
+			grad0 := make([]float64, Np)
+			grad1 := make([]float64, Np)
+			for i := 0; i < Np; i++ {
+				r, s := R.AtVec(i), S.AtVec(i)
+				field[i] = scalarPoly.P(r, s, testP)
+				grad[i] = scalarPoly.Gradient(r, s, testP)
+				grad0[i] = grad[i][0]
+				grad1[i] = grad[i][1]
+				// t.Logf("P[%f,%f]=%f\n", r, s, field[i])
+			}
+			VField := utils.NewMatrix(Np, 1, field)
+			Grad0 := utils.NewVector(Np, grad0)
+			Grad1 := utils.NewVector(Np, grad1)
+			calcGrad0 := jb2d.Vr.Mul(jb2d.Vinv).Mul(VField)
+			calcGrad1 := jb2d.Vs.Mul(jb2d.Vinv).Mul(VField)
+			if testing.Verbose() {
+				VField.Transpose().Print("VField")
+				calcGrad0.Transpose().Print("VField Dr")
+				Grad0.Transpose().Print("VTestField Grad0")
+				calcGrad1.Transpose().Print("VField Ds")
+				Grad1.Transpose().Print("VTestField Grad1")
+			}
+			assert.InDeltaSlicef(t, Grad0.DataP, calcGrad0.DataP, tol, "")
+			assert.InDeltaSlicef(t, Grad1.DataP, calcGrad1.DataP, tol, "")
+		}
+	}
+
+}
