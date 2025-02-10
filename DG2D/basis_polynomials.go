@@ -13,6 +13,7 @@ type JacobiBasis2D struct {
 	Np              int // Dimension
 	Alpha, Beta     float64
 	V, Vinv, Vr, Vs utils.Matrix
+	IJ              [][2]int // I,J coordinates of basis polynomial indexed on j
 }
 
 func NewJacobiBasis2D(P int, R, S utils.Vector, Alpha, Beta float64) (jb2d *JacobiBasis2D) {
@@ -22,6 +23,15 @@ func NewJacobiBasis2D(P int, R, S utils.Vector, Alpha, Beta float64) (jb2d *Jaco
 		Alpha: Alpha,
 		Beta:  Beta,
 	}
+	jb2d.IJ = make([][2]int, jb2d.Np)
+	var sk int
+	for i := 0; i <= jb2d.P; i++ {
+		for j := 0; j <= jb2d.P-i; j++ {
+			jb2d.IJ[sk] = [2]int{i, j}
+			sk++
+		}
+	}
+
 	if R.Len() != jb2d.Np {
 		fmt.Printf("Length of R:%d, required length:%d\n", R.Len(), jb2d.Np)
 		panic("Mismatch of length for basis coordinates")
@@ -193,29 +203,20 @@ func (jb2d *JacobiBasis2D) GetPolynomialAtJ(r, s float64, j int,
 	// 2025: This produces the J-th polynomial of the 2D basis, where J is
 	// numbered from 0 - Np, and Np = (P+1)(P+2)/2
 	var (
-		N     = jb2d.P
 		deriv = None
-		sk    int
 	)
 	if len(derivO) > 0 {
 		deriv = derivO[0]
 	}
-	// Compute all polynomial terms and sum to form function value
-	for i := 0; i <= N; i++ {
-		for jj := 0; jj <= (N - i); jj++ {
-			if sk == j {
-				switch deriv {
-				case None:
-					phi = jb2d.PolynomialTerm(r, s, i, jj)
-				case Dr:
-					phi = jb2d.PolynomialTermDr(r, s, i, jj)
-				case Ds:
-					phi = jb2d.PolynomialTermDs(r, s, i, jj)
-				}
-				return
-			}
-			sk++
-		}
+	i, jj := jb2d.IJ[j][0], jb2d.IJ[j][1]
+	switch deriv {
+	case None:
+		phi = jb2d.PolynomialTerm(r, s, i, jj)
+	case Dr:
+		phi = jb2d.PolynomialTermDr(r, s, i, jj)
+	case Ds:
+		phi = jb2d.PolynomialTermDs(r, s, i, jj)
+		return
 	}
 	return
 }
