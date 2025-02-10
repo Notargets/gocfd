@@ -182,15 +182,20 @@ func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt BasisPolynomia
 		param = e.getFunctionType(j)
 		bv    BasisVectorStruct
 		jj    = j - 2*e.NpInt
+		sr2   = math.Sqrt2
 	)
 	switch param {
 	case E1:
 		bv = e.Edge1Vector
+		// Multiply by 4 for Jacobian
+		bv.Divergence = func(r, s float64) (div float64) { return 1. }
 	case E2:
 		bv = e.Edge2Vector
+		bv.Divergence = func(r, s float64) (div float64) { return sr2 }
 		jj -= e.NpEdge
 	case E3:
 		bv = e.Edge3Vector
+		bv.Divergence = func(r, s float64) (div float64) { return 1. }
 		jj -= 2 * e.NpEdge
 	default:
 		panic("Lagrange polynomial is for edges only")
@@ -284,9 +289,17 @@ func (e *ErvinRTBasis) getBkPolyTerm(j int) (
 	case E4:
 		jj = j
 		bv = e.E4Vector
+		bv.Divergence = func(r, s float64) (div float64) {
+			div = (3.*s + 1.) / 4. // Multiply by 4 for Jacobian
+			return
+		}
 	case E5:
 		jj = j - e.NpInt
 		bv = e.E5Vector
+		bv.Divergence = func(r, s float64) (div float64) {
+			div = (3.*r + 1.) / 4. // Multiply by 4 for Jacobian
+			return
+		}
 	default:
 		panic("Bk polynomial is for interior only")
 	}
