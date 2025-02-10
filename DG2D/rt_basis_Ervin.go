@@ -130,14 +130,12 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 		g1 := R.DataP[edgeLocation]
 		g2 := R.DataP[edgeLocation+1]
 		e.Phi = e.ComposePhiRT1(g1, g2)
-	case 2:
-		g1 := R.DataP[edgeLocation]
-		g2 := R.DataP[edgeLocation+1]
-		g3 := R.DataP[edgeLocation+2]
-		e.Phi = e.ComposePhiRT2(g1, g2, g3)
+	// case 2:
+	// 	g1 := R.DataP[edgeLocation]
+	// 	g2 := R.DataP[edgeLocation+1]
+	// 	g3 := R.DataP[edgeLocation+2]
+	// 	e.Phi = e.ComposePhiRT2(g1, g2, g3)
 	default:
-		// TODO: Figure out how to convert the coordinates to the Ervin
-		// coordinate system for the Jacobi basis, which is in -1 to 1 coords
 		e.InteriorPolyKBasis = NewJacobiBasis2D(e.P-1,
 			R.Copy().Subset(0, e.NpInt-1),
 			S.Copy().Subset(0, e.NpInt-1),
@@ -148,6 +146,8 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 }
 
 func (e *ErvinRTBasis) conv(r float64) float64 { return (r + 1.) / 2. }
+
+func (e *ErvinRTBasis) rconv(xi float64) float64 { return 2.*xi - 1. }
 
 func (e *ErvinRTBasis) dconvDrDs() float64 { return 1. / 2. }
 
@@ -182,20 +182,20 @@ func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt BasisPolynomia
 		param = e.getFunctionType(j)
 		bv    BasisVectorStruct
 		jj    = j - 2*e.NpInt
-		sr2   = math.Sqrt2
+		// sr2   = math.Sqrt2
 	)
 	switch param {
 	case E1:
 		bv = e.Edge1Vector
 		// Multiply by 4 for Jacobian
-		bv.Divergence = func(r, s float64) (div float64) { return 1. }
+		// bv.Divergence = func(r, s float64) (div float64) { return 1. }
 	case E2:
 		bv = e.Edge2Vector
-		bv.Divergence = func(r, s float64) (div float64) { return sr2 }
+		// bv.Divergence = func(r, s float64) (div float64) { return sr2 }
 		jj -= e.NpEdge
 	case E3:
 		bv = e.Edge3Vector
-		bv.Divergence = func(r, s float64) (div float64) { return 1. }
+		// bv.Divergence = func(r, s float64) (div float64) { return 1. }
 		jj -= 2 * e.NpEdge
 	default:
 		panic("Lagrange polynomial is for edges only")
@@ -214,11 +214,11 @@ func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt BasisPolynomia
 		case E3:
 			t_rs = -s
 		}
-		t := t_rs
-		tb_j := tBasis[jj]
+		t := e.conv(t_rs)
+		tb_j := e.conv(tBasis[jj])
 		for i := 0; i < e.NpEdge; i++ {
 			if i != jj {
-				tb_i := tBasis[i]
+				tb_i := e.conv(tBasis[i])
 				mult *= t - tb_i
 				div *= tb_j - tb_i
 			}
@@ -241,16 +241,16 @@ func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt BasisPolynomia
 		case E3:
 			t_rs = -s
 		}
-		t := t_rs
-		tb_j := tBasis[jj]
+		t := e.conv(t_rs)
+		tb_j := e.conv(tBasis[jj])
 		for i := 0; i < e.NpEdge; i++ {
 			if i != jj {
-				tb_i := tBasis[i]
+				tb_i := e.conv(tBasis[i])
 				sum += t - tb_i
 				div *= tb_j - tb_i
 			}
 		}
-		return sum / div
+		return e.dconvDrDs() * sum / div
 	}
 
 	Eval := func(r, s float64) (val float64) {
@@ -289,17 +289,19 @@ func (e *ErvinRTBasis) getBkPolyTerm(j int) (
 	case E4:
 		jj = j
 		bv = e.E4Vector
-		bv.Divergence = func(r, s float64) (div float64) {
-			div = (3.*s + 1.) / 4. // Multiply by 4 for Jacobian
-			return
-		}
+		// bv.Divergence = func(r, s float64) (div float64) {
+		// 	s = e.conv(s)
+		// 	div = (3.*s + 1.) / 4. // Multiply by 4 for Jacobian
+		// 	return
+		// }
 	case E5:
 		jj = j - e.NpInt
 		bv = e.E5Vector
-		bv.Divergence = func(r, s float64) (div float64) {
-			div = (3.*r + 1.) / 4. // Multiply by 4 for Jacobian
-			return
-		}
+		// bv.Divergence = func(r, s float64) (div float64) {
+		// r = e.conv(r)
+		// div = (3.*r + 1.) / 4. // Multiply by 4 for Jacobian
+		// return
+		// }
 	default:
 		panic("Bk polynomial is for interior only")
 	}
@@ -336,6 +338,8 @@ func (e *ErvinRTBasis) ComposePhiRTK(ePts []float64) (phi []BasisPolynomialTerm)
 			phi[j] = e.getLpPolyTerm(j, ePts)
 		case E4, E5:
 			phi[j] = e.getBkPolyTerm(j)
+		default:
+			panic("Bk polynomial wrong j")
 		}
 	}
 	return

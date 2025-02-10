@@ -121,13 +121,11 @@ func TestRTElementDivergence(t *testing.T) {
 
 	t.Log("Begin Divergence Test")
 	// P := 1
-	PStart := 3
+	PStart := 1
 	PEnd := 3
-	PFieldStart := 0
-	PFieldEnd := PEnd
-	PFieldStart = 1
-	PFieldEnd = 1
 	for P := PStart; P <= PEnd; P++ {
+		PFieldStart := PStart
+		PFieldEnd := P
 		t.Logf("---------------------------------------------\n")
 		t.Logf("Checking Divergence for RT%d\n", P)
 		t.Logf("---------------------------------------------\n")
@@ -157,9 +155,9 @@ func TestRTElementDivergence(t *testing.T) {
 			calcDiv := rt.Div.Mul(dB)
 			if testing.Verbose() {
 				calcDiv.Transpose().Print("Calculated Divergence")
-				calcCoeffs := rt.V.Mul(dB)
-				dB.Transpose().Print("Projected Field")
-				calcCoeffs.Transpose().Print("Calculated Coeffs")
+				// calcCoeffs := rt.V.Mul(dB)
+				// dB.Transpose().Print("Projected Field")
+				// calcCoeffs.Transpose().Print("Calculated Coeffs")
 			}
 			assert.InDeltaSlice(t, dFReference.DataP, calcDiv.DataP, 0.0001)
 		}
