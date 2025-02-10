@@ -136,11 +136,11 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 		g3 := R.DataP[edgeLocation+2]
 		e.Phi = e.ComposePhiRT2(g1, g2, g3)
 	default:
-		// R.Subset(0, e.NpInt).Print("R sub")
-		// S.Subset(0, e.NpInt).Print("S sub")
-		// fmt.Println("Np, NpInt = ", e.Np, e.NpInt)
+		// TODO: Figure out how to convert the coordinates to the Ervin
+		// coordinate system for the Jacobi basis, which is in -1 to 1 coords
 		e.InteriorPolyKBasis = NewJacobiBasis2D(e.P-1,
-			R.Subset(0, e.NpInt-1), S.Subset(0, e.NpInt-1),
+			R.Copy().Subset(0, e.NpInt-1),
+			S.Copy().Subset(0, e.NpInt-1),
 			0, 0)
 		e.Phi = e.ComposePhiRTK(R.DataP[edgeLocation : edgeLocation+e.NpEdge])
 	}
@@ -209,11 +209,11 @@ func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt BasisPolynomia
 		case E3:
 			t_rs = -s
 		}
-		t := e.conv(t_rs)
-		tb_j := e.conv(tBasis[jj])
+		t := t_rs
+		tb_j := tBasis[jj]
 		for i := 0; i < e.NpEdge; i++ {
 			if i != jj {
-				tb_i := e.conv(tBasis[i])
+				tb_i := tBasis[i]
 				mult *= t - tb_i
 				div *= tb_j - tb_i
 			}
@@ -236,16 +236,16 @@ func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt BasisPolynomia
 		case E3:
 			t_rs = -s
 		}
-		t := e.conv(t_rs)
-		tb_j := e.conv(tBasis[jj])
+		t := t_rs
+		tb_j := tBasis[jj]
 		for i := 0; i < e.NpEdge; i++ {
 			if i != jj {
-				tb_i := e.conv(tBasis[i])
+				tb_i := tBasis[i]
 				sum += t - tb_i
 				div *= tb_j - tb_i
 			}
 		}
-		return e.dconvDrDs() * sum / div
+		return sum / div
 	}
 
 	Eval := func(r, s float64) (val float64) {
@@ -297,8 +297,10 @@ func (e *ErvinRTBasis) getBkPolyTerm(j int) (
 				return
 			},
 			Gradient: func(r, s float64) (grad [2]float64) {
-				grad = [2]float64{e.InteriorPolyKBasis.GetPolynomialAtJ(r, s, jj, Dr),
-					e.InteriorPolyKBasis.GetPolynomialAtJ(r, s, jj, Ds)}
+				grad = [2]float64{
+					e.InteriorPolyKBasis.GetPolynomialAtJ(r, s, jj, Dr),
+					e.InteriorPolyKBasis.GetPolynomialAtJ(r, s, jj, Ds),
+				}
 				return
 			},
 		},
@@ -308,7 +310,12 @@ func (e *ErvinRTBasis) getBkPolyTerm(j int) (
 }
 
 func (e *ErvinRTBasis) ComposePhiRTK(ePts []float64) (phi []BasisPolynomialTerm) {
-	// fmt.Printf("Length of ePts: %v\n", len(ePts))
+	// TODO: For the RTK to use the Divergence or derivatives from the E1-E5
+	// TODO: vectors within the [0-1] coordinate system,
+	// TODO: we need to multiply them by the Jacobian of the transform which is J=4
+	// TODO: for the xi, eta = (r+1)/2, (s+1)/2 transform.
+	// TODO: Just the derivatives in the [0,1] space need to be multiplied so
+	//  that they are compatible with the derivatives in the [-1,1] space
 	phi = make([]BasisPolynomialTerm, e.Np)
 	for j := 0; j < e.Np; j++ {
 		switch e.getFunctionType(j) {
