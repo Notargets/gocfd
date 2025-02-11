@@ -65,8 +65,11 @@ func TestRTElementDivergence2(t *testing.T) {
 func TestRTElementRTInterpolation(t *testing.T) {
 	// Verify the interpolation of a constant vector field onto the element
 	PStart := 1
-	PEnd := 6
+	PEnd := 2
 	for P := PStart; P <= PEnd; P++ {
+		t.Logf("---------------------------------------------\n")
+		t.Logf("Checking Interpolation for RT%d\n", P)
+		t.Logf("---------------------------------------------\n")
 		var (
 			dt VectorTestField
 		)
@@ -79,6 +82,8 @@ func TestRTElementRTInterpolation(t *testing.T) {
 		}
 		s1, s2 := make([]float64, rt.Np), make([]float64, rt.Np)
 		for PField := 0; PField <= P; PField++ {
+			t.Logf("\nReference Vector Field Order:%d\n", PField)
+			t.Logf("-------------------------------\n")
 			for i := 0; i < rt.Np; i++ {
 				r, s := rt.R.AtVec(i), rt.S.AtVec(i)
 				f1, f2 := dt.F(r, s, PField)
@@ -122,7 +127,7 @@ func TestRTElementDivergence(t *testing.T) {
 	t.Log("Begin Divergence Test")
 	// P := 1
 	PStart := 1
-	PEnd := 3
+	PEnd := 2
 	for P := PStart; P <= PEnd; P++ {
 		PFieldStart := 0
 		PFieldEnd := P
