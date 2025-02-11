@@ -5,7 +5,7 @@ import (
 	"math"
 	"sync"
 
-	"gonum.org/v1/gonum/lapack/lapack64"
+	lapack64 "gonum.org/v1/gonum/lapack/lapack64"
 
 	"gonum.org/v1/gonum/blas/blas64"
 
@@ -931,6 +931,52 @@ func (m Matrix) Inverse(RO ...Matrix) (R Matrix, err error) {
 		err = errSingular
 	}
 	return
+}
+
+// ExtractUpperTriangle returns a new matrix containing only the upper triangular part
+func (m Matrix) ExtractUpperTriangle() Matrix {
+	nr, _ := m.M.Dims()
+	U := m.Copy()
+	for i := 0; i < nr; i++ {
+		for j := 0; j < i; j++ {
+			U.M.Set(i, j, 0) // Zero out lower part
+		}
+	}
+	return U
+}
+
+// QRFactorization computes the QR decomposition of matrix A
+func (m Matrix) QRFactorization() (Q, R Matrix) {
+	nr, nc := m.M.Dims()
+	minDim := min(nr, nc)
+
+	// Step 1: Compute QR factorization in-place in R
+	R = m.Copy()
+	tau := make([]float64, minDim)
+
+	// Query optimal workspace size for Geqrf
+	work := make([]float64, 1)
+	lapack64.Geqrf(R.M.RawMatrix(), tau, work, -1) // Workspace query
+	lwork := int(work[0])
+	work = make([]float64, lwork)
+
+	// Compute QR factorization (stores R in upper triangle, Householders below)
+	lapack64.Geqrf(R.M.RawMatrix(), tau, work, lwork)
+
+	// Step 2: Compute Q using Householder reflectors (apply Orgqr before extracting R)
+	Q = R.Copy() // Copy R before modifying
+	work = make([]float64, 1)
+	lapack64.Orgqr(Q.M.RawMatrix(), tau, work, -1) // Workspace query
+	lwork = int(work[0])
+	work = make([]float64, lwork)
+
+	// Compute Q explicitly
+	lapack64.Orgqr(Q.M.RawMatrix(), tau, work, lwork)
+
+	// Step 3: Extract R (upper triangular part after computing Q)
+	R = R.ExtractUpperTriangle()
+
+	return Q, R
 }
 
 func (m Matrix) Col(j int) Vector {

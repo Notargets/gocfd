@@ -8,6 +8,33 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func Test_QRFactorization(t *testing.T) {
+	tol := 0.000001
+	A := NewMatrix(3, 3, []float64{
+		1, 2, 3,
+		4, 5, 6,
+		7, 8, 10,
+	})
+	if testing.Verbose() {
+		A.Print("A")
+	}
+	AInv, _ := A.Inverse()
+	Q, R := A.QRFactorization()
+	AInvAlt := R.InverseWithCheck().Mul(Q.Transpose())
+	assert.InDeltaSlicef(t, AInv.DataP, AInvAlt.DataP, tol, "")
+	if testing.Verbose() {
+		Q.Print("Q")
+		R.Print("R")
+		AInv.Print("A Inverse")
+		AInvAlt.Print("Alt A Inverse")
+	}
+	AltA := Q.Mul(R)
+	if testing.Verbose() {
+		AltA.Print("A from QR")
+	}
+	assert.InDeltaSlicef(t, A.DataP, AltA.DataP, tol, "")
+}
+
 func TestMatrix(t *testing.T) {
 	// Basic Index utilities
 	{
@@ -53,7 +80,7 @@ func TestMatrix(t *testing.T) {
 		I[0] = 1
 		I[1] = 0
 		A := M.SliceRows(I)
-		//fmt.Printf("Ainv = \n%v\n", mat.Formatted(Ainv, mat.Squeeze()))
+		// fmt.Printf("Ainv = \n%v\n", mat.Formatted(Ainv, mat.Squeeze()))
 		assert.Equal(t, A, NewMatrix(2, 3, []float64{
 			4, 5, 6,
 			1, 2, 3,
@@ -69,7 +96,7 @@ func TestMatrix(t *testing.T) {
 		I[0] = 1
 		I[1] = 0
 		A := M.SliceCols(I)
-		//fmt.Printf("Ainv = \n%v\n", mat.Formatted(Ainv, mat.Squeeze()))
+		// fmt.Printf("Ainv = \n%v\n", mat.Formatted(Ainv, mat.Squeeze()))
 		assert.Equal(t, A, NewMatrix(2, 2, []float64{
 			2, 1,
 			5, 4,
@@ -235,7 +262,7 @@ func TestMatrix(t *testing.T) {
 		assert.Equal(t, B.Mul(A), B.MulParallel(A, 2))
 		assert.Equal(t, B.Mul(A), B.MulParallel(A, 4))
 		assert.Equal(t, B.Mul(A), B.MulParallel(A, 5))
-		//fmt.Println(B.MulParallel(A, 2).Print("BmulA"))
+		// fmt.Println(B.MulParallel(A, 2).Print("BmulA"))
 	}
 	// Matrix x Matrix
 	{
