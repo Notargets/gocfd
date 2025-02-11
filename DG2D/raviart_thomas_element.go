@@ -3,6 +3,7 @@ package DG2D
 import (
 	"fmt"
 	"math"
+	"os"
 
 	"github.com/notargets/gocfd/DG1D"
 
@@ -188,11 +189,12 @@ func NewRTElement(P int) (rt *RTElement) {
 			rt.RInt, rt.SInt = NodesEpsilon(P - 1)
 		} else {
 			rt.RInt, rt.SInt = XYtoRS(Nodes2D(P - 1))
+			rt.RInt.Print("RInt")
+			rt.SInt.Print("SInt")
+			fmt.Printf("This distribution is broken - TODO: find/fix\n")
+			os.Exit(1)
 		}
 	}
-	// if P > 2 {
-	// 	rt.lp2d = NewLagrangePolynomialBasis2D(rt.P-1, rt.RInt, rt.SInt)
-	// }
 
 	rt.R, rt.S = rt.ExtendGeomToRT(rt.RInt, rt.SInt)
 	// Each edge is identical WRT point distribution along the edge,

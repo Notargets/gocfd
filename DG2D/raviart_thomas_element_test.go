@@ -124,7 +124,7 @@ func TestRTElementDivergence(t *testing.T) {
 	PStart := 1
 	PEnd := 3
 	for P := PStart; P <= PEnd; P++ {
-		PFieldStart := PStart
+		PFieldStart := 0
 		PFieldEnd := P
 		t.Logf("---------------------------------------------\n")
 		t.Logf("Checking Divergence for RT%d\n", P)
