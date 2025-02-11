@@ -216,7 +216,6 @@ func (jb2d *JacobiBasis2D) GetPolynomialAtJ(r, s float64, j int,
 		phi = jb2d.PolynomialTermDr(r, s, i, jj)
 	case Ds:
 		phi = jb2d.PolynomialTermDs(r, s, i, jj)
-		return
 	}
 	return
 }
@@ -254,10 +253,25 @@ func (jb2d *JacobiBasis2D) GetAllPolynomials(derivO ...DerivativeDirection) (
 	return
 }
 
-type LagrangePolynomial2D struct {
-	P      int // Order
-	Np     int // Dimension
-	R, S   utils.Vector
-	Coeffs utils.Matrix
-	jb2d   *JacobiBasis2D
+func (jb2d *JacobiBasis2D) GetOrthogonalPolynomialAtJ(r, s float64, j int,
+	derivO ...DerivativeDirection) (phi float64) {
+	// The coefficients of the J-th orthogonal polynomial are columns of Vinv
+	var (
+		deriv = None
+	)
+	if len(derivO) > 0 {
+		deriv = derivO[0]
+	}
+	for i := 0; i < jb2d.Np; i++ {
+		ii, jj := jb2d.IJ[i][0], jb2d.IJ[i][1]
+		switch deriv {
+		case None:
+			phi += jb2d.PolynomialTerm(r, s, ii, jj) * jb2d.Vinv.At(i, j)
+		case Dr:
+			phi += jb2d.PolynomialTermDr(r, s, ii, jj) * jb2d.Vinv.At(i, j)
+		case Ds:
+			phi += jb2d.PolynomialTermDs(r, s, ii, jj) * jb2d.Vinv.At(i, j)
+		}
+	}
+	return
 }

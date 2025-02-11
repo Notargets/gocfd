@@ -3,7 +3,6 @@ package DG2D
 import (
 	"fmt"
 	"math"
-	"os"
 
 	"github.com/notargets/gocfd/DG1D"
 
@@ -189,26 +188,18 @@ func NewRTElement(P int) (rt *RTElement) {
 			rt.RInt, rt.SInt = NodesEpsilon(P - 1)
 		} else {
 			rt.RInt, rt.SInt = XYtoRS(Nodes2D(P - 1))
-			rt.RInt.Print("RInt")
-			rt.SInt.Print("SInt")
-			fmt.Printf("This distribution is broken - TODO: find/fix\n")
-			os.Exit(1)
+			// Weak approach to pull back equidistant distro from the edges
+			rt.RInt.Scale(0.93)
+			rt.SInt.Scale(0.93)
+			panic("This distribution is broken - TODO: fix\n")
 		}
 	}
 
 	rt.R, rt.S = rt.ExtendGeomToRT(rt.RInt, rt.SInt)
-	// Each edge is identical WRT point distribution along the edge,
-	// so we just need one lagrange polynomial for each of them
-	// edgePoints := rt.R.Subset(2*rt.NpInt, 2*rt.NpInt+rt.NpEdge-1)
-	// rt.lp1d = NewLagrangePolynomial1D(edgePoints, rt.P, 0, 0)
-
-	// fmt.Printf("RT%d - Calculating Basis...", P)
 	rt.CalculateBasis()
 	rt.V = rt.ComposeV()
 	rt.VInv = rt.V.InverseWithCheck()
-	// fmt.Printf("\nRT%d - Calculating Divergence Matrix...", P)
 	rt.Div = rt.ComputeDivergenceMatrix()
-	// fmt.Printf("Done.\n")
 	return
 }
 

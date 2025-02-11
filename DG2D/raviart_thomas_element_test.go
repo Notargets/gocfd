@@ -65,7 +65,7 @@ func TestRTElementDivergence2(t *testing.T) {
 func TestRTElementRTInterpolation(t *testing.T) {
 	// Verify the interpolation of a constant vector field onto the element
 	PStart := 1
-	PEnd := 3
+	PEnd := 6
 	for P := PStart; P <= PEnd; P++ {
 		var (
 			dt VectorTestField

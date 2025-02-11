@@ -1,6 +1,7 @@
 package DG2D
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -95,4 +96,37 @@ func TestJacobiBasis2D_Gradient(t *testing.T) {
 		}
 	}
 
+}
+
+func TestJacobiBasis2D_GetOrthogonalPolynomialAtJ(t *testing.T) {
+	tol := 0.000001
+	P := 2
+	R, S := NodesEpsilon(P)
+	jb2d := NewJacobiBasis2D(P, R, S, 0, 0)
+	A := utils.NewMatrix(jb2d.Np, jb2d.Np)
+	for j := 0; j < jb2d.Np; j++ {
+		for i := 0; i < jb2d.Np; i++ {
+			r, s := R.AtVec(i), S.AtVec(i)
+			A.Set(i, j, jb2d.GetOrthogonalPolynomialAtJ(r, s, j))
+		}
+	}
+	if testing.Verbose() {
+		A.Print("A")
+	}
+	assert.True(t, isIdentityMatrix(A, tol))
+}
+
+func isIdentityMatrix(A utils.Matrix, epsilon float64) bool {
+	n, _ := A.Dims()
+	sum := 0.0
+	for i := 0; i < n; i++ {
+		for j := 0; j < n; j++ {
+			diff := A.At(i, j)
+			if i == j {
+				diff -= 1 // A[i][i] - 1
+			}
+			sum += diff * diff
+		}
+	}
+	return math.Sqrt(sum) < epsilon
 }

@@ -308,13 +308,14 @@ func (e *ErvinRTBasis) getBkPolyTerm(j int) (
 	bk = BasisPolynomialTerm{
 		PolyMultiplier: BasisPolynomialMultiplier{
 			Eval: func(r, s float64) (val float64) {
-				val = e.InteriorPolyKBasis.GetPolynomialAtJ(r, s, jj)
+				// val = e.InteriorPolyKBasis.GetPolynomialAtJ(r, s, jj)
+				val = e.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s, jj)
 				return
 			},
 			Gradient: func(r, s float64) (grad [2]float64) {
 				grad = [2]float64{
-					e.InteriorPolyKBasis.GetPolynomialAtJ(r, s, jj, Dr),
-					e.InteriorPolyKBasis.GetPolynomialAtJ(r, s, jj, Ds),
+					e.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s, jj, Dr),
+					e.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s, jj, Ds),
 				}
 				return
 			},
