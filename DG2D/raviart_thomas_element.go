@@ -152,6 +152,16 @@ const (
 	RomeroJamesonBasis
 )
 
+func (fn RTBasisType) String() string {
+	switch fn {
+	case ErvinBasis:
+		return "ErvinBasis"
+	case RomeroJamesonBasis:
+		return "RomeroJamesonBasis"
+	}
+	return "Unknown"
+}
+
 type RTElement struct {
 	P             int // Order of element
 	Np            int // Number of points in element
