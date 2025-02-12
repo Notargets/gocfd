@@ -356,7 +356,7 @@ func (e *ErvinRTBasis) getLpPolyTermUnit(j int, tBasis []float64) (lt BasisPolyn
 			Eval: func(r, s float64) [2]float64 { return [2]float64{-1, 0} },
 			Dot:  func(r, s float64, f [2]float64) float64 { return -f[0] },
 			Project: func(r, s float64, scale float64) [2]float64 {
-				return [2]float64{-scale}
+				return [2]float64{-scale, 0}
 			},
 			Divergence: func(r, s float64) (div float64) { return 0 },
 		}
@@ -488,12 +488,15 @@ func (e *ErvinRTBasis) getBkPolyTermUnit(j int) (bk BasisPolynomialTerm) {
 		PolyMultiplier: BasisPolynomialMultiplier{
 			Eval: func(r, s float64) (val float64) {
 				val = e.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s, jj)
+				// val = e.InteriorPolyKBasis.GetPolynomialAtJ(r, s, jj)
 				return
 			},
 			Gradient: func(r, s float64) (grad [2]float64) {
 				grad = [2]float64{
 					e.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s, jj, Dr),
 					e.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s, jj, Ds),
+					// e.InteriorPolyKBasis.GetPolynomialAtJ(r, s, jj, Dr),
+					// e.InteriorPolyKBasis.GetPolynomialAtJ(r, s, jj, Ds),
 				}
 				return
 			},
@@ -508,11 +511,11 @@ func (e *ErvinRTBasis) ComposePhiRTK(ePts []float64) (phi []BasisPolynomialTerm)
 	for j := 0; j < e.Np; j++ {
 		switch e.getFunctionType(j) {
 		case E1, E2, E3:
-			// phi[j] = e.getLpPolyTerm(j, ePts)
-			phi[j] = e.getLpPolyTermUnit(j, ePts)
+			phi[j] = e.getLpPolyTerm(j, ePts)
+			// phi[j] = e.getLpPolyTermUnit(j, ePts)
 		case E4, E5:
-			// phi[j] = e.getBkPolyTerm(j)
-			phi[j] = e.getBkPolyTermUnit(j)
+			phi[j] = e.getBkPolyTerm(j)
+			// phi[j] = e.getBkPolyTermUnit(j)
 		default:
 			panic("Bk polynomial wrong j")
 		}
