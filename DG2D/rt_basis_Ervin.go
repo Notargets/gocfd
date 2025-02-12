@@ -261,6 +261,7 @@ func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt BasisPolynomia
 	Gradient := func(r, s float64) (grad [2]float64) {
 		switch param {
 		case E1:
+			return
 			grad[0] = lagrange1DDeriv(r, s)
 		case E2:
 			grad[1] = lagrange1DDeriv(r, s)

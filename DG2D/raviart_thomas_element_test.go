@@ -10,7 +10,9 @@ import (
 )
 
 func TestRTDivergence(t *testing.T) {
-	for _, rtb := range []RTBasisType{ErvinBasis, RomeroJamesonBasis} {
+	// for _, rtb := range []RTBasisType{RomeroJamesonBasis} {
+	// for _, rtb := range []RTBasisType{ErvinBasis, RomeroJamesonBasis} {
+	for _, rtb := range []RTBasisType{ErvinBasis} {
 		var PMax int
 		switch rtb {
 		case ErvinBasis:

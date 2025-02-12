@@ -57,7 +57,7 @@ func (rjb *RomeroJamesonRTBasis) getFunctionType(j int) (param RTBasisFunctionTy
 	return
 }
 
-func (rjb *RomeroJamesonRTBasis) getLpPolyTermUnit(j int,
+func (rjb *RomeroJamesonRTBasis) getEdgePolyTermUnit(j int,
 	tBasis []float64) (lt BasisPolynomialTerm) {
 	var (
 		oosr2       = 0.5 * math.Sqrt2
@@ -106,7 +106,7 @@ func (rjb *RomeroJamesonRTBasis) getLpPolyTermUnit(j int,
 		bv = Edge3Vector
 		jj -= 2 * rjb.NpEdge
 	default:
-		panic("Lagrange polynomial is for edges only")
+		panic("1D polynomial is for edges only")
 	}
 	polynomial1D := func(r, s float64) (val float64) {
 		var (
@@ -120,7 +120,8 @@ func (rjb *RomeroJamesonRTBasis) getLpPolyTermUnit(j int,
 		case E3:
 			t = -s
 		}
-		val = DG1D.JacobiP(utils.NewVector(1, []float64{t}), 1., 1., jj)[0]
+		val = DG1D.JacobiP(
+			utils.NewVector(1, []float64{t}), 1., 1., jj+1)[0]
 		return
 	}
 	polynomial1DDeriv := func(r, s float64) (deriv float64) {
@@ -136,7 +137,7 @@ func (rjb *RomeroJamesonRTBasis) getLpPolyTermUnit(j int,
 			t = -s
 		}
 		deriv = DG1D.GradJacobiP(
-			utils.NewVector(1, []float64{t}), 1., 1., jj)[0]
+			utils.NewVector(1, []float64{t}), 1., 1., jj+1)[0]
 		return
 	}
 	edgeMultiplier := func(r, s float64) (val float64) {
@@ -175,13 +176,15 @@ func (rjb *RomeroJamesonRTBasis) getLpPolyTermUnit(j int,
 		return
 	}
 	Gradient := func(r, s float64) (grad [2]float64) {
+		deriv1D := edgeMultiplierDeriv(r, s)*polynomial1D(r, s) +
+			polynomial1DDeriv(r, s)*edgeMultiplier(r, s)
 		switch param {
 		case E1:
-			grad[0] = edgeMultiplierDeriv(r, s)*polynomial1D(r, s) + polynomial1DDeriv(r, s)*edgeMultiplier(r, s)
+			grad[0] = deriv1D
 		case E2:
-			grad[1] = edgeMultiplierDeriv(r, s)*polynomial1D(r, s) + polynomial1DDeriv(r, s)*edgeMultiplier(r, s)
+			grad[1] = deriv1D
 		case E3:
-			grad[1] = edgeMultiplierDeriv(r, s)*polynomial1D(r, s) - polynomial1DDeriv(r, s)*edgeMultiplier(r, s)
+			grad[1] = -deriv1D
 		}
 		return
 	}
@@ -233,15 +236,18 @@ func (rjb *RomeroJamesonRTBasis) getBkPolyTermUnit(j int) (bk BasisPolynomialTer
 		PolyMultiplier: BasisPolynomialMultiplier{
 			Eval: func(r, s float64) (val float64) {
 				val = rjb.InteriorPolyKBasis.GetPolynomialAtJ(r, s, jj)
-				// val = rjb.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s, jj)
+				// val = rjb.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s,
+				// 	jj)
 				return
 			},
 			Gradient: func(r, s float64) (grad [2]float64) {
 				grad = [2]float64{
 					rjb.InteriorPolyKBasis.GetPolynomialAtJ(r, s, jj, Dr),
 					rjb.InteriorPolyKBasis.GetPolynomialAtJ(r, s, jj, Ds),
-					// rjb.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s, jj, Dr),
-					// rjb.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s, jj, Ds),
+					// rjb.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s,
+					// 	jj, Dr),
+					// rjb.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s,
+					// 	jj, Ds),
 				}
 				return
 			},
@@ -256,10 +262,8 @@ func (rjb *RomeroJamesonRTBasis) ComposePhiRTK(ePts []float64) (phi []BasisPolyn
 	for j := 0; j < rjb.Np; j++ {
 		switch rjb.getFunctionType(j) {
 		case E1, E2, E3:
-			// phi[j] = rjb.getLpPolyTerm(j, ePts)
-			phi[j] = rjb.getLpPolyTermUnit(j, ePts)
+			phi[j] = rjb.getEdgePolyTermUnit(j, ePts)
 		case E4, E5:
-			// phi[j] = rjb.getBkPolyTerm(j)
 			phi[j] = rjb.getBkPolyTermUnit(j)
 		default:
 			panic("Bk polynomial wrong j")
