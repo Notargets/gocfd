@@ -154,19 +154,49 @@ func (rjb *RomeroJamesonRTBasis) getLpPolyTermUnit(j int,
 		}
 		return sum / div
 	}
+	edgeMultiplier := func(r, s float64) (val float64) {
+		var (
+			t float64
+		)
+		switch param {
+		case E1:
+			t = r
+		case E2:
+			t = s
+		case E3:
+			t = -s
+		}
+		val = (1 - t*t)
+		return
+	}
+	edgeMultiplierDeriv := func(r, s float64) (deriv float64) {
+		var (
+			t float64
+		)
+		switch param {
+		case E1:
+			t = r
+		case E2:
+			t = s
+		case E3:
+			t = -s
+		}
+		deriv = -2 * t
+		return
+	}
 
 	Eval := func(r, s float64) (val float64) {
-		val = lagrange1D(r, s)
+		val = edgeMultiplier(r, s) * lagrange1D(r, s)
 		return
 	}
 	Gradient := func(r, s float64) (grad [2]float64) {
 		switch param {
 		case E1:
-			grad[0] = lagrange1DDeriv(r, s)
+			grad[0] = edgeMultiplierDeriv(r, s)*lagrange1D(r, s) + lagrange1DDeriv(r, s)*edgeMultiplier(r, s)
 		case E2:
-			grad[1] = lagrange1DDeriv(r, s)
+			grad[1] = edgeMultiplierDeriv(r, s)*lagrange1D(r, s) + lagrange1DDeriv(r, s)*edgeMultiplier(r, s)
 		case E3:
-			grad[1] = -lagrange1DDeriv(r, s)
+			grad[1] = edgeMultiplierDeriv(r, s)*lagrange1D(r, s) - lagrange1DDeriv(r, s)*edgeMultiplier(r, s)
 		}
 		return
 	}
