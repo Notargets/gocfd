@@ -145,6 +145,13 @@ func (fn RTBasisFunctionType) String() string {
 	}
 }
 
+type RTBasisType uint8
+
+const (
+	ErvinBasis = RTBasisType(iota)
+	RomeroJamesonBasis
+)
+
 type RTElement struct {
 	P             int // Order of element
 	Np            int // Number of points in element
@@ -160,10 +167,11 @@ type RTElement struct {
 	R, S       utils.Vector // Point locations defining element in [-1,1] Triangle, NpxNp
 	RInt, SInt utils.Vector
 	Projection utils.Matrix
+	RTBasis    RTBasisType
 	Phi        []BasisPolynomialTerm
 }
 
-func NewRTElement(P int) (rt *RTElement) {
+func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
 	// We expect that there are points in R and S to match the dimension of dim(P(NFlux-1))
 	/*
 		<---- NpInt ----><---- NpInt ----><---NpEdge----><---NpEdge----><---NpEdge---->
@@ -181,6 +189,7 @@ func NewRTElement(P int) (rt *RTElement) {
 		V:          utils.NewMatrix(Np, Np),
 		Div:        utils.NewMatrix(Np, Np),
 		Projection: utils.NewMatrix(Np, 1),
+		RTBasis:    basisType,
 	}
 
 	if P > 0 {
@@ -204,8 +213,16 @@ func NewRTElement(P int) (rt *RTElement) {
 }
 
 func (rt *RTElement) CalculateBasis() {
-	e := NewErvinRTBasis(rt.P, rt.R, rt.S)
-	rt.Phi = e.Phi
+	switch rt.RTBasis {
+	case ErvinBasis:
+		e := NewErvinRTBasis(rt.P, rt.R, rt.S)
+		rt.Phi = e.Phi
+	case RomeroJamesonBasis:
+		rjb := NewRomeroJamesonRTBasis(rt.P, rt.R, rt.S)
+		rt.Phi = rjb.Phi
+	default:
+		panic("No basis chosen")
+	}
 	return
 }
 

@@ -6,16 +6,10 @@ import (
 
 	"github.com/notargets/gocfd/utils"
 
-	"github.com/notargets/avs/chart2d"
-
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRTElementDivergence2(t *testing.T) {
-	// We test RT1 first in isolation because RT1:
-	// - uses only the analytic interior basis functions E4 and E5
-	// - uses the Lagrange 1D polynomial on edges
-	// - is the simplest construction to test divergence
+func TestRTDivergenceSinCos_Ervin(t *testing.T) {
 	var (
 		dt VectorTestField
 	)
@@ -28,7 +22,7 @@ func TestRTElementDivergence2(t *testing.T) {
 		t.Logf("---------------------------------------------\n")
 		t.Logf("Checking Divergence for RT%d\n", P)
 		t.Logf("---------------------------------------------\n")
-		rt := NewRTElement(P)
+		rt := NewRTElement(P, ErvinBasis)
 		Np := rt.Np
 		divFcalc := make([]float64, Np)
 		s1, s2 := make([]float64, Np), make([]float64, Np)
@@ -62,7 +56,7 @@ func TestRTElementDivergence2(t *testing.T) {
 	}
 }
 
-func TestRTElementRTInterpolation(t *testing.T) {
+func TestRTInterpolation_Ervin(t *testing.T) {
 	// Verify the interpolation of a constant vector field onto the element
 	PStart := 1
 	PEnd := 2
@@ -75,7 +69,7 @@ func TestRTElementRTInterpolation(t *testing.T) {
 		)
 		dt = PolyVectorField{}
 
-		rt := NewRTElement(P)
+		rt := NewRTElement(P, ErvinBasis)
 		if testing.Verbose() {
 			rt.V.Print("V")
 			rt.VInv.Print("VInv")
@@ -114,11 +108,7 @@ func TestRTElementRTInterpolation(t *testing.T) {
 	}
 }
 
-func TestRTElementDivergence(t *testing.T) {
-	// We test RT1 first in isolation because RT1:
-	// - uses only the analytic interior basis functions E4 and E5
-	// - uses the Lagrange 1D polynomial on edges
-	// - is the simplest construction to test divergence
+func TestRTDivergencePoly_Ervin(t *testing.T) {
 	var (
 		dt VectorTestField
 	)
@@ -134,7 +124,7 @@ func TestRTElementDivergence(t *testing.T) {
 		t.Logf("---------------------------------------------\n")
 		t.Logf("Checking Divergence for RT%d\n", P)
 		t.Logf("---------------------------------------------\n")
-		rt := NewRTElement(P)
+		rt := NewRTElement(P, ErvinBasis)
 		Np := rt.Np
 		divFcalc := make([]float64, Np)
 		s1, s2 := make([]float64, Np), make([]float64, Np)
@@ -165,117 +155,6 @@ func TestRTElementDivergence(t *testing.T) {
 				// calcCoeffs.Transpose().Print("Calculated Coeffs")
 			}
 			assert.InDeltaSlice(t, dFReference.DataP, calcDiv.DataP, 0.0001)
-		}
-	}
-}
-
-func TestRTElement(t *testing.T) {
-	{
-		// Check term-wise orthogonal 2D polynomial basis
-		N := 2
-		R, S := NodesEpsilon(N - 1)
-		JB2D := NewJacobiBasis2D(N-1, R, S, 0, 0)
-		ii, jj := 1, 1
-		p := JB2D.Simplex2DP(R, S, ii, jj)
-		ddr, dds := JB2D.GradSimplex2DP(R, S, ii, jj)
-		Np := R.Len()
-		pCheck, ddrCheck, ddsCheck := make([]float64, Np), make([]float64, Np), make([]float64, Np)
-		for i, rVal := range R.DataP {
-			sVal := S.DataP[i]
-			ddrCheck[i] = JB2D.PolynomialTermDr(rVal, sVal, ii, jj)
-			ddsCheck[i] = JB2D.PolynomialTermDs(rVal, sVal, ii, jj)
-			pCheck[i] = JB2D.PolynomialTerm(rVal, sVal, ii, jj)
-		}
-		assert.InDeltaSlicef(t, pCheck, p, 0.000001, "")
-		assert.InDeltaSlicef(t, ddrCheck, ddr, 0.000001, "")
-		assert.InDeltaSlicef(t, ddsCheck, dds, 0.000001, "")
-	}
-	errorCheck := func(N int, div, divCheck []float64) (minInt, maxInt, minEdge, maxEdge float64) {
-		var (
-			Npm    = len(div)
-			errors = make([]float64, Npm)
-		)
-		for i := 0; i < Npm; i++ {
-			// var ddr, dds float64
-			errors[i] = div[i] - divCheck[i]
-		}
-		minInt, maxInt = errors[0], errors[0]
-		Nint := N * (N + 1) / 2
-		minEdge, maxEdge = errors[Nint], errors[Nint]
-		for i := 0; i < Nint; i++ {
-			errAbs := math.Abs(errors[i])
-			if minInt > errAbs {
-				minInt = errAbs
-			}
-			if maxInt < errAbs {
-				maxInt = errAbs
-			}
-		}
-		for i := Nint; i < Npm; i++ {
-			errAbs := math.Abs(errors[i])
-			if minEdge > errAbs {
-				minEdge = errAbs
-			}
-			if maxEdge < errAbs {
-				maxEdge = errAbs
-			}
-		}
-		t.Logf("Order = %d, ", N)
-		t.Logf("Min, Max Int Err = %8.5f, %8.5f, Min, Max Edge Err = %8.5f, %8.5f\n", minInt, maxInt, minEdge, maxEdge)
-		return
-	}
-	checkSolution := func(rt *RTElement, Order int) (s1, s2, divCheck []float64) {
-		var (
-			Np = rt.Np
-		)
-		s1, s2 = make([]float64, Np), make([]float64, Np)
-		divCheck = make([]float64, Np)
-		var ss1, ss2 float64
-		for i := 0; i < Np; i++ {
-			r := rt.R.DataP[i]
-			s := rt.S.DataP[i]
-			ccf := float64(Order)
-			s1[i] = utils.POW(r, Order)
-			s2[i] = utils.POW(s, Order)
-			ss1, ss2 = ccf*utils.POW(r, Order-1), ccf*utils.POW(s, Order-1)
-			divCheck[i] = ss1 + ss2
-		}
-		return
-	}
-	// against analytical solution
-	// Nend := 8
-	// for N := 1; N < Nend; N++ {
-	N := 1
-	rt := NewRTElement(N)
-	for cOrder := 0; cOrder < N; cOrder++ {
-		t.Logf("Check Order = %d, ", cOrder)
-		// [s1,s2] values for each location in {R,S}
-		s1, s2, divCheck := checkSolution(rt, cOrder)
-		rt.ProjectFunctionOntoDOF(s1, s2)
-		divM := rt.Div.Mul(rt.Projection)
-		// fmt.Println(divM.Print("divM"))
-		minerrInt, maxerrInt, minerrEdge, maxerrEdge := errorCheck(N, divM.DataP, divCheck)
-		assert.InDeltaf(t, minerrInt, 0.0, 0.00001, "")
-		assert.InDeltaf(t, maxerrInt, 0.0, 0.00001, "")
-		assert.InDeltaf(t, minerrEdge, 0.0, 0.00001, "")
-		assert.InDeltaf(t, maxerrEdge, 0.0, 0.00001, "")
-	}
-	// }
-	plot := false
-	if plot {
-		N := 2
-		rt := NewRTElement(N)
-		s1, s2 := make([]float64, rt.R.Len()), make([]float64, rt.R.Len())
-		for i := range rt.R.DataP {
-			s1[i] = 1
-			s2[i] = 1
-		}
-		if plot {
-			chart := PlotTestTri(true)
-			points := utils.ArraysToPoints(rt.R.DataP, rt.S.DataP)
-			f := utils.ArraysTo2Vector(s1, s2, 0.1)
-			_ = chart.AddVectors("test function", points, f, chart2d.Solid, utils.GetColor(utils.Green))
-			utils.SleepFor(500000)
 		}
 	}
 }
