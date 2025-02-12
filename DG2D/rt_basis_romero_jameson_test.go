@@ -1,7 +1,6 @@
 package DG2D
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -14,7 +13,7 @@ func TestRomeroJamesonRTBasis_ComposePolyBasis(t *testing.T) {
 				JJ++
 			}
 		}
-		fmt.Printf("P = %d, Np = %d, JJ = %d\n", P, Np, JJ)
+		t.Logf("P = %d, Np = %d, JJ = %d\n", P, Np, JJ)
 	}
 
 }

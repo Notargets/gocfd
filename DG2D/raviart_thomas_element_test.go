@@ -11,17 +11,24 @@ import (
 
 func TestRTDivergence(t *testing.T) {
 	for _, rtb := range []RTBasisType{ErvinBasis, RomeroJamesonBasis} {
+		var PMax int
+		switch rtb {
+		case ErvinBasis:
+			PMax = 2
+		case RomeroJamesonBasis:
+			PMax = 2
+		}
 		t.Logf("Testing RT Interpolation for %v\n", rtb.String())
-		RTInterpolation_Test(t, rtb)
+		RTInterpolation_Test(t, rtb, PMax)
 		t.Logf("Testing RT Divergence on Polynomial Fields for %v\n",
 			rtb.String())
-		RTDivergencePolynomial_Test(t, rtb)
+		RTDivergencePolynomial_Test(t, rtb, PMax)
 		t.Logf("Testing RT Divergence on SinCos Fields for %v\n",
 			rtb.String())
-		RTDivergenceSinCos_Test(t, rtb)
+		RTDivergenceSinCos_Test(t, rtb, PMax)
 	}
 }
-func RTDivergenceSinCos_Test(t *testing.T, BasisType RTBasisType) {
+func RTDivergenceSinCos_Test(t *testing.T, BasisType RTBasisType, PMax int) {
 	var (
 		dt VectorTestField
 	)
@@ -29,7 +36,7 @@ func RTDivergenceSinCos_Test(t *testing.T, BasisType RTBasisType) {
 
 	t.Log("Begin Divergence Test")
 	PStart := 1
-	PEnd := 2
+	PEnd := PMax
 	for P := PStart; P <= PEnd; P++ {
 		t.Logf("---------------------------------------------\n")
 		t.Logf("Checking Divergence for RT%d\n", P)
@@ -68,10 +75,10 @@ func RTDivergenceSinCos_Test(t *testing.T, BasisType RTBasisType) {
 	}
 }
 
-func RTInterpolation_Test(t *testing.T, BasisType RTBasisType) {
+func RTInterpolation_Test(t *testing.T, BasisType RTBasisType, PMax int) {
 	// Verify the interpolation of a constant vector field onto the element
 	PStart := 1
-	PEnd := 2
+	PEnd := PMax
 	for P := PStart; P <= PEnd; P++ {
 		t.Logf("---------------------------------------------\n")
 		t.Logf("Checking Interpolation for RT%d\n", P)
@@ -81,7 +88,7 @@ func RTInterpolation_Test(t *testing.T, BasisType RTBasisType) {
 		)
 		dt = PolyVectorField{}
 
-		rt := NewRTElement(P, ErvinBasis)
+		rt := NewRTElement(P, BasisType)
 		if testing.Verbose() {
 			rt.V.Print("V")
 			rt.VInv.Print("VInv")
@@ -120,7 +127,7 @@ func RTInterpolation_Test(t *testing.T, BasisType RTBasisType) {
 	}
 }
 
-func RTDivergencePolynomial_Test(t *testing.T, BasisType RTBasisType) {
+func RTDivergencePolynomial_Test(t *testing.T, BasisType RTBasisType, PMax int) {
 	var (
 		dt VectorTestField
 	)
@@ -129,14 +136,14 @@ func RTDivergencePolynomial_Test(t *testing.T, BasisType RTBasisType) {
 	t.Log("Begin Divergence Test")
 	// P := 1
 	PStart := 1
-	PEnd := 2
+	PEnd := PMax
 	for P := PStart; P <= PEnd; P++ {
 		PFieldStart := 0
 		PFieldEnd := P
 		t.Logf("---------------------------------------------\n")
 		t.Logf("Checking Divergence for RT%d\n", P)
 		t.Logf("---------------------------------------------\n")
-		rt := NewRTElement(P, ErvinBasis)
+		rt := NewRTElement(P, BasisType)
 		Np := rt.Np
 		divFcalc := make([]float64, Np)
 		s1, s2 := make([]float64, Np), make([]float64, Np)

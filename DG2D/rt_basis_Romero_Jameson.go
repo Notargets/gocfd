@@ -3,6 +3,8 @@ package DG2D
 import (
 	"math"
 
+	"github.com/notargets/gocfd/DG1D"
+
 	"github.com/notargets/gocfd/utils"
 )
 
@@ -106,11 +108,9 @@ func (rjb *RomeroJamesonRTBasis) getLpPolyTermUnit(j int,
 	default:
 		panic("Lagrange polynomial is for edges only")
 	}
-	lagrange1D := func(r, s float64) (val float64) {
+	polynomial1D := func(r, s float64) (val float64) {
 		var (
-			div  = 1.
-			mult = 1.
-			t    float64
+			t float64
 		)
 		switch param {
 		case E1:
@@ -120,21 +120,12 @@ func (rjb *RomeroJamesonRTBasis) getLpPolyTermUnit(j int,
 		case E3:
 			t = -s
 		}
-		tb_j := tBasis[jj]
-		for i := 0; i < rjb.NpEdge; i++ {
-			if i != jj {
-				tb_i := tBasis[i]
-				mult *= t - tb_i
-				div *= tb_j - tb_i
-			}
-		}
-		return mult / div
+		val = DG1D.JacobiP(utils.NewVector(1, []float64{t}), 1., 1., jj)[0]
+		return
 	}
-	lagrange1DDeriv := func(r, s float64) (deriv float64) {
+	polynomial1DDeriv := func(r, s float64) (deriv float64) {
 		var (
-			div = 1.
-			sum float64
-			t   float64
+			t float64
 		)
 		switch param {
 		case E1:
@@ -144,15 +135,9 @@ func (rjb *RomeroJamesonRTBasis) getLpPolyTermUnit(j int,
 		case E3:
 			t = -s
 		}
-		tb_j := tBasis[jj]
-		for i := 0; i < rjb.NpEdge; i++ {
-			if i != jj {
-				tb_i := tBasis[i]
-				sum += t - tb_i
-				div *= tb_j - tb_i
-			}
-		}
-		return sum / div
+		deriv = DG1D.GradJacobiP(
+			utils.NewVector(1, []float64{t}), 1., 1., jj)[0]
+		return
 	}
 	edgeMultiplier := func(r, s float64) (val float64) {
 		var (
@@ -186,17 +171,17 @@ func (rjb *RomeroJamesonRTBasis) getLpPolyTermUnit(j int,
 	}
 
 	Eval := func(r, s float64) (val float64) {
-		val = edgeMultiplier(r, s) * lagrange1D(r, s)
+		val = edgeMultiplier(r, s) * polynomial1D(r, s)
 		return
 	}
 	Gradient := func(r, s float64) (grad [2]float64) {
 		switch param {
 		case E1:
-			grad[0] = edgeMultiplierDeriv(r, s)*lagrange1D(r, s) + lagrange1DDeriv(r, s)*edgeMultiplier(r, s)
+			grad[0] = edgeMultiplierDeriv(r, s)*polynomial1D(r, s) + polynomial1DDeriv(r, s)*edgeMultiplier(r, s)
 		case E2:
-			grad[1] = edgeMultiplierDeriv(r, s)*lagrange1D(r, s) + lagrange1DDeriv(r, s)*edgeMultiplier(r, s)
+			grad[1] = edgeMultiplierDeriv(r, s)*polynomial1D(r, s) + polynomial1DDeriv(r, s)*edgeMultiplier(r, s)
 		case E3:
-			grad[1] = edgeMultiplierDeriv(r, s)*lagrange1D(r, s) - lagrange1DDeriv(r, s)*edgeMultiplier(r, s)
+			grad[1] = edgeMultiplierDeriv(r, s)*polynomial1D(r, s) - polynomial1DDeriv(r, s)*edgeMultiplier(r, s)
 		}
 		return
 	}
@@ -247,13 +232,16 @@ func (rjb *RomeroJamesonRTBasis) getBkPolyTermUnit(j int) (bk BasisPolynomialTer
 	bk = BasisPolynomialTerm{
 		PolyMultiplier: BasisPolynomialMultiplier{
 			Eval: func(r, s float64) (val float64) {
-				val = rjb.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s, jj)
+				val = rjb.InteriorPolyKBasis.GetPolynomialAtJ(r, s, jj)
+				// val = rjb.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s, jj)
 				return
 			},
 			Gradient: func(r, s float64) (grad [2]float64) {
 				grad = [2]float64{
-					rjb.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s, jj, Dr),
-					rjb.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s, jj, Ds),
+					rjb.InteriorPolyKBasis.GetPolynomialAtJ(r, s, jj, Dr),
+					rjb.InteriorPolyKBasis.GetPolynomialAtJ(r, s, jj, Ds),
+					// rjb.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s, jj, Dr),
+					// rjb.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s, jj, Ds),
 				}
 				return
 			},
