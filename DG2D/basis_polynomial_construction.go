@@ -24,39 +24,39 @@ func (cv *ConstantVector) Project(psi float64) (v [2]float64) {
 	return
 }
 
-type BasisVectorStruct struct {
+type BaseVector struct {
 	Eval       func(r, s float64) (v [2]float64)
 	Dot        func(r, s float64, f [2]float64) (dot float64)
 	Project    func(r, s float64, psi float64) (v [2]float64) // scalar mult psi
 	Divergence func(r, s float64) (div float64)               // Div of vector
 }
 
-type BasisPolynomialMultiplier struct {
-	// This multiplies the BasisVector to produce a term
+type PolynomialMultiplier struct {
+	// This multiplies the VectorBase to produce a term
 	Eval     func(r, s float64) (val float64)
 	Gradient func(r, s float64) (grad [2]float64)
 }
-type BasisTerm struct {
-	PolyMultiplier BasisPolynomialMultiplier
-	BasisVector    BasisVectorStruct
+type VectorFunction struct {
+	PolyMultiplier PolynomialMultiplier
+	VectorBase     BaseVector
 }
 
-func (pt BasisTerm) Eval(r, s float64) (v [2]float64) {
-	v = pt.BasisVector.Project(r, s, pt.PolyMultiplier.Eval(r, s))
+func (pt VectorFunction) Eval(r, s float64) (v [2]float64) {
+	v = pt.VectorBase.Project(r, s, pt.PolyMultiplier.Eval(r, s))
 	return
 }
-func (pt BasisTerm) Dot(r, s float64, b [2]float64) (dot float64) {
+func (pt VectorFunction) Dot(r, s float64, b [2]float64) (dot float64) {
 	v := pt.Eval(r, s)
 	dot = b[0]*v[0] + b[1]*v[1]
 	return
 }
 
-func (pt BasisTerm) Divergence(r, s float64) (div float64) {
+func (pt VectorFunction) Divergence(r, s float64) (div float64) {
 	var (
 		polyEval    = pt.PolyMultiplier.Eval(r, s)
-		divBasis    = pt.BasisVector.Divergence(r, s)
+		divBasis    = pt.VectorBase.Divergence(r, s)
 		gradPoly    = pt.PolyMultiplier.Gradient(r, s)
-		basisVector = pt.BasisVector
+		basisVector = pt.VectorBase
 	)
 	//    Div dot [P * e1, P * e2]
 	//    =  (dP/dr)*e1 + P*(d(e1)/dr) + (dP/ds)*e2 + P*(d(e2)/ds)

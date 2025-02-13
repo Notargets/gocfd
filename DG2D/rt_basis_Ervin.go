@@ -9,12 +9,12 @@ import (
 type ErvinRTBasis struct {
 	P                  int
 	Np, NpInt, NpEdge  int
-	E4Vector           BasisVectorStruct
-	E5Vector           BasisVectorStruct
-	Edge1Vector        BasisVectorStruct
-	Edge2Vector        BasisVectorStruct
-	Edge3Vector        BasisVectorStruct
-	Phi                []BasisTerm
+	E4Vector           BaseVector
+	E5Vector           BaseVector
+	Edge1Vector        BaseVector
+	Edge2Vector        BaseVector
+	Edge3Vector        BaseVector
+	Phi                []VectorFunction
 	InteriorPolyKBasis *JacobiBasis2D
 }
 
@@ -60,7 +60,7 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 		Np:     (P + 1) * (P + 3),
 		NpInt:  P * (P + 1) / 2,
 		NpEdge: P + 1,
-		E4Vector: BasisVectorStruct{
+		E4Vector: BaseVector{
 			// Interior vector E4
 			Eval: func(r, s float64) [2]float64 { return e4v(r, s) },
 			Dot: func(r, s float64, f [2]float64) float64 {
@@ -74,7 +74,7 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 				return
 			},
 		},
-		E5Vector: BasisVectorStruct{
+		E5Vector: BaseVector{
 			// Interior vector E5
 			Eval: func(r, s float64) [2]float64 { return e5v(r, s) },
 			Dot: func(r, s float64, f [2]float64) (dot float64) {
@@ -88,7 +88,7 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 				return
 			},
 		},
-		Edge1Vector: BasisVectorStruct{
+		Edge1Vector: BaseVector{
 			// Bottom edge
 			Eval: func(r, s float64) (v [2]float64) { return e1v(r, s) },
 			Dot: func(r, s float64, f [2]float64) (dot float64) {
@@ -102,7 +102,7 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 					dconvDrDs() * 2
 			},
 		},
-		Edge2Vector: BasisVectorStruct{
+		Edge2Vector: BaseVector{
 			// Hypotenuse
 			Eval: func(r, s float64) (v [2]float64) { return e2v(r, s) },
 			Dot: func(r, s float64, f [2]float64) (dot float64) {
@@ -116,7 +116,7 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 					dconvDrDs() * 2 * sr2
 			},
 		},
-		Edge3Vector: BasisVectorStruct{
+		Edge3Vector: BaseVector{
 			// Left edge
 			Eval: func(r, s float64) (v [2]float64) { return e3v(r, s) },
 			Dot: func(r, s float64, f [2]float64) (dot float64) {
@@ -185,10 +185,10 @@ func (e *ErvinRTBasis) getFunctionType(j int) (param RTBasisFunctionType) {
 	return
 }
 
-func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt BasisTerm) {
+func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt VectorFunction) {
 	var (
 		param = e.getFunctionType(j)
-		bv    BasisVectorStruct
+		bv    BaseVector
 		jj    = j - 2*e.NpInt
 		// sr2   = math.Sqrt2
 	)
@@ -272,22 +272,22 @@ func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt BasisTerm) {
 		}
 		return
 	}
-	lt = BasisTerm{
-		PolyMultiplier: BasisPolynomialMultiplier{
+	lt = VectorFunction{
+		PolyMultiplier: PolynomialMultiplier{
 			Eval:     Eval,
 			Gradient: Gradient,
 		},
-		BasisVector: bv,
+		VectorBase: bv,
 	}
 	return
 }
 
 func (e *ErvinRTBasis) getBkPolyTerm(j int) (
-	bk BasisTerm) {
+	bk VectorFunction) {
 	var (
 		param = e.getFunctionType(j)
 		jj    int
-		bv    BasisVectorStruct
+		bv    BaseVector
 	)
 	switch param {
 	case E4:
@@ -299,8 +299,8 @@ func (e *ErvinRTBasis) getBkPolyTerm(j int) (
 	default:
 		panic("Bk polynomial is for interior only")
 	}
-	bk = BasisTerm{
-		PolyMultiplier: BasisPolynomialMultiplier{
+	bk = VectorFunction{
+		PolyMultiplier: PolynomialMultiplier{
 			Eval: func(r, s float64) (val float64) {
 				val = e.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s, jj)
 				return
@@ -313,13 +313,13 @@ func (e *ErvinRTBasis) getBkPolyTerm(j int) (
 				return
 			},
 		},
-		BasisVector: bv,
+		VectorBase: bv,
 	}
 	return
 }
 
-func (e *ErvinRTBasis) ComposePhiRTK(ePts []float64) (phi []BasisTerm) {
-	phi = make([]BasisTerm, e.Np)
+func (e *ErvinRTBasis) ComposePhiRTK(ePts []float64) (phi []VectorFunction) {
+	phi = make([]VectorFunction, e.Np)
 	for j := 0; j < e.Np; j++ {
 		switch e.getFunctionType(j) {
 		case E1, E2, E3:
@@ -334,11 +334,11 @@ func (e *ErvinRTBasis) ComposePhiRTK(ePts []float64) (phi []BasisTerm) {
 }
 
 func (e *ErvinRTBasis) ComposePhiRT1(g1rs,
-	g2rs float64) (phi []BasisTerm) {
+	g2rs float64) (phi []VectorFunction) {
 	// Compose the basis for the RT1 element based on Ervin
 	var (
 		g1, g2   = e.conv(g1rs), e.conv(g2rs)
-		constant = BasisPolynomialMultiplier{
+		constant = PolynomialMultiplier{
 			Eval:     func(r, s float64) float64 { return 1. },
 			Gradient: func(r, s float64) (grad [2]float64) { return },
 		}
@@ -355,26 +355,26 @@ func (e *ErvinRTBasis) ComposePhiRT1(g1rs,
 		}
 		l2Deriv = func() float64 { return -l1Deriv() }
 
-		l1xiEdge1 = BasisPolynomialMultiplier{
+		l1xiEdge1 = PolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l1Func(r) },
 			Gradient: func(r, s float64) [2]float64 {
 				return [2]float64{l1Deriv(), 0}
 			},
 		}
-		l2xiEdge1 = BasisPolynomialMultiplier{
+		l2xiEdge1 = PolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l2Func(r) },
 			Gradient: func(r, s float64) [2]float64 {
 				return [2]float64{l2Deriv(), 0}
 			},
 		}
 
-		l1etaEdge2 = BasisPolynomialMultiplier{
+		l1etaEdge2 = PolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l1Func(s) },
 			Gradient: func(r, s float64) [2]float64 {
 				return [2]float64{0, l1Deriv()}
 			},
 		}
-		l2etaEdge2 = BasisPolynomialMultiplier{
+		l2etaEdge2 = PolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l2Func(s) },
 			Gradient: func(r, s float64) [2]float64 {
 				// return [2]float64{-l2Deriv(), l2Deriv()}
@@ -382,34 +382,34 @@ func (e *ErvinRTBasis) ComposePhiRT1(g1rs,
 			},
 		}
 
-		l1etaEdge3 = BasisPolynomialMultiplier{
+		l1etaEdge3 = PolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l1Func(-s) },
 			Gradient: func(r, s float64) [2]float64 {
 				return [2]float64{0, -l1Deriv()}
 			},
 		}
-		l2etaEdge3 = BasisPolynomialMultiplier{
+		l2etaEdge3 = PolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l2Func(-s) },
 			Gradient: func(r, s float64) [2]float64 {
 				return [2]float64{0, -l2Deriv()}
 			},
 		}
 	)
-	phi = []BasisTerm{
-		{PolyMultiplier: constant, BasisVector: e.E4Vector},
-		{PolyMultiplier: constant, BasisVector: e.E5Vector},
-		{PolyMultiplier: l1xiEdge1, BasisVector: e.Edge1Vector},
-		{PolyMultiplier: l2xiEdge1, BasisVector: e.Edge1Vector},
-		{PolyMultiplier: l1etaEdge2, BasisVector: e.Edge2Vector},
-		{PolyMultiplier: l2etaEdge2, BasisVector: e.Edge2Vector},
-		{PolyMultiplier: l2etaEdge3, BasisVector: e.Edge3Vector},
-		{PolyMultiplier: l1etaEdge3, BasisVector: e.Edge3Vector},
+	phi = []VectorFunction{
+		{PolyMultiplier: constant, VectorBase: e.E4Vector},
+		{PolyMultiplier: constant, VectorBase: e.E5Vector},
+		{PolyMultiplier: l1xiEdge1, VectorBase: e.Edge1Vector},
+		{PolyMultiplier: l2xiEdge1, VectorBase: e.Edge1Vector},
+		{PolyMultiplier: l1etaEdge2, VectorBase: e.Edge2Vector},
+		{PolyMultiplier: l2etaEdge2, VectorBase: e.Edge2Vector},
+		{PolyMultiplier: l2etaEdge3, VectorBase: e.Edge3Vector},
+		{PolyMultiplier: l1etaEdge3, VectorBase: e.Edge3Vector},
 	}
 
 	return
 }
 
-func (e *ErvinRTBasis) ComposePhiRT2(g1rs, g2rs, g3rs float64) (phi []BasisTerm) {
+func (e *ErvinRTBasis) ComposePhiRT2(g1rs, g2rs, g3rs float64) (phi []VectorFunction) {
 	// Compose the basis for the RT1 element based on Ervin
 	var (
 		g1, g2, g3 = e.conv(g1rs), e.conv(g2rs), e.conv(g3rs)
@@ -444,21 +444,21 @@ func (e *ErvinRTBasis) ComposePhiRT2(g1rs, g2rs, g3rs float64) (phi []BasisTerm)
 			return
 		}
 
-		l1xiEdge1 = BasisPolynomialMultiplier{
+		l1xiEdge1 = PolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l1func(r) },
 			Gradient: func(r, s float64) (grad [2]float64) {
 				grad = [2]float64{l1Deriv(r), 0}
 				return
 			},
 		}
-		l2xiEdge1 = BasisPolynomialMultiplier{
+		l2xiEdge1 = PolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l2Func(r) },
 			Gradient: func(r, s float64) (grad [2]float64) {
 				grad = [2]float64{l2Deriv(r), 0}
 				return
 			},
 		}
-		l3xiEdge1 = BasisPolynomialMultiplier{
+		l3xiEdge1 = PolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l3Func(r) },
 			Gradient: func(r, s float64) (grad [2]float64) {
 				grad = [2]float64{l3Deriv(r), 0}
@@ -466,21 +466,21 @@ func (e *ErvinRTBasis) ComposePhiRT2(g1rs, g2rs, g3rs float64) (phi []BasisTerm)
 			},
 		}
 
-		l1etaEdge2 = BasisPolynomialMultiplier{
+		l1etaEdge2 = PolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l1func(s) },
 			Gradient: func(r, s float64) (grad [2]float64) {
 				grad = [2]float64{0, l1Deriv(s)}
 				return
 			},
 		}
-		l2etaEdge2 = BasisPolynomialMultiplier{
+		l2etaEdge2 = PolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l2Func(s) },
 			Gradient: func(r, s float64) (grad [2]float64) {
 				grad = [2]float64{0, l2Deriv(s)}
 				return
 			},
 		}
-		l3etaEdge2 = BasisPolynomialMultiplier{
+		l3etaEdge2 = PolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l3Func(s) },
 			Gradient: func(r, s float64) (grad [2]float64) {
 				grad = [2]float64{0, l3Deriv(s)}
@@ -488,21 +488,21 @@ func (e *ErvinRTBasis) ComposePhiRT2(g1rs, g2rs, g3rs float64) (phi []BasisTerm)
 			},
 		}
 
-		l1etaEdge3 = BasisPolynomialMultiplier{
+		l1etaEdge3 = PolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l1func(-s) },
 			Gradient: func(r, s float64) (grad [2]float64) {
 				grad = [2]float64{0, -l1Deriv(-s)}
 				return
 			},
 		}
-		l2etaEdge3 = BasisPolynomialMultiplier{
+		l2etaEdge3 = PolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l2Func(-s) },
 			Gradient: func(r, s float64) (grad [2]float64) {
 				grad = [2]float64{0, -l2Deriv(-s)}
 				return
 			},
 		}
-		l3etaEdge3 = BasisPolynomialMultiplier{
+		l3etaEdge3 = PolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l3Func(-s) },
 			Gradient: func(r, s float64) (grad [2]float64) {
 				grad = [2]float64{0, -l3Deriv(-s)}
@@ -510,7 +510,7 @@ func (e *ErvinRTBasis) ComposePhiRT2(g1rs, g2rs, g3rs float64) (phi []BasisTerm)
 			},
 		}
 
-		e45mult1 = BasisPolynomialMultiplier{
+		e45mult1 = PolynomialMultiplier{
 			Eval: func(r, s float64) float64 {
 				return 1. - e.conv(r) - e.conv(s)
 			},
@@ -518,7 +518,7 @@ func (e *ErvinRTBasis) ComposePhiRT2(g1rs, g2rs, g3rs float64) (phi []BasisTerm)
 				return [2]float64{-0.5, -0.5}
 			},
 		}
-		e45mult2 = BasisPolynomialMultiplier{
+		e45mult2 = PolynomialMultiplier{
 			Eval: func(r, s float64) float64 {
 				return e.conv(r)
 			},
@@ -526,7 +526,7 @@ func (e *ErvinRTBasis) ComposePhiRT2(g1rs, g2rs, g3rs float64) (phi []BasisTerm)
 				return [2]float64{0.5, 0}
 			},
 		}
-		e45mult3 = BasisPolynomialMultiplier{
+		e45mult3 = PolynomialMultiplier{
 			Eval: func(r, s float64) float64 {
 				return e.conv(s)
 			},
@@ -535,22 +535,22 @@ func (e *ErvinRTBasis) ComposePhiRT2(g1rs, g2rs, g3rs float64) (phi []BasisTerm)
 			},
 		}
 	)
-	phi = []BasisTerm{
-		{PolyMultiplier: e45mult1, BasisVector: e.E4Vector},
-		{PolyMultiplier: e45mult2, BasisVector: e.E4Vector},
-		{PolyMultiplier: e45mult3, BasisVector: e.E4Vector},
-		{PolyMultiplier: e45mult1, BasisVector: e.E5Vector},
-		{PolyMultiplier: e45mult2, BasisVector: e.E5Vector},
-		{PolyMultiplier: e45mult3, BasisVector: e.E5Vector},
-		{PolyMultiplier: l1xiEdge1, BasisVector: e.Edge1Vector},
-		{PolyMultiplier: l2xiEdge1, BasisVector: e.Edge1Vector},
-		{PolyMultiplier: l3xiEdge1, BasisVector: e.Edge1Vector},
-		{PolyMultiplier: l1etaEdge2, BasisVector: e.Edge2Vector},
-		{PolyMultiplier: l2etaEdge2, BasisVector: e.Edge2Vector},
-		{PolyMultiplier: l3etaEdge2, BasisVector: e.Edge2Vector},
-		{PolyMultiplier: l3etaEdge3, BasisVector: e.Edge3Vector},
-		{PolyMultiplier: l2etaEdge3, BasisVector: e.Edge3Vector},
-		{PolyMultiplier: l1etaEdge3, BasisVector: e.Edge3Vector},
+	phi = []VectorFunction{
+		{PolyMultiplier: e45mult1, VectorBase: e.E4Vector},
+		{PolyMultiplier: e45mult2, VectorBase: e.E4Vector},
+		{PolyMultiplier: e45mult3, VectorBase: e.E4Vector},
+		{PolyMultiplier: e45mult1, VectorBase: e.E5Vector},
+		{PolyMultiplier: e45mult2, VectorBase: e.E5Vector},
+		{PolyMultiplier: e45mult3, VectorBase: e.E5Vector},
+		{PolyMultiplier: l1xiEdge1, VectorBase: e.Edge1Vector},
+		{PolyMultiplier: l2xiEdge1, VectorBase: e.Edge1Vector},
+		{PolyMultiplier: l3xiEdge1, VectorBase: e.Edge1Vector},
+		{PolyMultiplier: l1etaEdge2, VectorBase: e.Edge2Vector},
+		{PolyMultiplier: l2etaEdge2, VectorBase: e.Edge2Vector},
+		{PolyMultiplier: l3etaEdge2, VectorBase: e.Edge2Vector},
+		{PolyMultiplier: l3etaEdge3, VectorBase: e.Edge3Vector},
+		{PolyMultiplier: l2etaEdge3, VectorBase: e.Edge3Vector},
+		{PolyMultiplier: l1etaEdge3, VectorBase: e.Edge3Vector},
 	}
 	return
 }

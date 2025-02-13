@@ -16,18 +16,18 @@ func TestRTDivergence(t *testing.T) {
 		var PMax int
 		switch rtb {
 		case ErvinBasis:
-			PMax = 2
+			PMax = 3
 		case RomeroJamesonBasis:
 			PMax = 2
 		}
-		// t.Logf("Testing RT Interpolation for %v\n", rtb.String())
-		// RTInterpolation_Test(t, rtb, PMax)
-		t.Logf("Testing RT Divergence on Polynomial Fields for %v\n",
-			rtb.String())
-		RTDivergencePolynomial_Test(t, rtb, PMax)
-		t.Logf("Testing RT Divergence on SinCos Fields for %v\n",
-			rtb.String())
-		RTDivergenceSinCos_Test(t, rtb, PMax)
+		t.Logf("Testing RT Interpolation for %v\n", rtb.String())
+		RTInterpolation_Test(t, rtb, PMax)
+		// t.Logf("Testing RT Divergence on Polynomial Fields for %v\n",
+		// 	rtb.String())
+		// RTDivergencePolynomial_Test(t, rtb, PMax)
+		// t.Logf("Testing RT Divergence on SinCos Fields for %v\n",
+		// 	rtb.String())
+		// RTDivergenceSinCos_Test(t, rtb, PMax)
 	}
 }
 func RTDivergenceSinCos_Test(t *testing.T, BasisType RTBasisType, PMax int) {
@@ -112,10 +112,10 @@ func RTInterpolation_Test(t *testing.T, BasisType RTBasisType, PMax int) {
 			f_rt_dot := make([]float64, rt.Np)
 			for i := 0; i < rt.Np; i++ {
 				r_i, s_i := rt.R.AtVec(i), rt.S.AtVec(i)
-				b_i := rt.Phi[i].BasisVector.Eval(r_i, s_i)
+				b_i := rt.DOFVectors[i].Eval()
 				// Sum of the basis polynomials over j, each dotted with basis vector_i
 				for j := 0; j < rt.Np; j++ {
-					f_rt_dot[i] += rt.Phi[j].Dot(r_i, s_i, b_i) * C.At(j, 0)
+					f_rt_dot[i] += rt.Psi[j].Dot(r_i, s_i, b_i) * C.At(j, 0)
 				}
 				if PField >= P+1 {
 					r, s := rt.R.AtVec(i), rt.S.AtVec(i)

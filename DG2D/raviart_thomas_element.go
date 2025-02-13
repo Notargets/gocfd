@@ -179,7 +179,9 @@ type RTElement struct {
 	Projection utils.Matrix
 	DOFVectors []*ConstantVector // The unit vectors for each DOF
 	RTBasis    RTBasisType
-	Phi        []BasisTerm // Each term of the basis is a vector
+	VCoeffs    utils.Matrix
+	Phi        []VectorFunction // Each term of the basis is a vector
+	Psi        []VectorFunction // These are the interpolation functions
 }
 
 func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
@@ -235,7 +237,11 @@ func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
 
 	rt.R, rt.S = rt.ExtendGeomToRT(rt.RInt, rt.SInt)
 	rt.CalculateBasis()
-	rt.V = rt.ComposeV()
+
+	rt.VCoeffs = rt.ComposeV(rt.Phi)
+	rt.Psi = rt.ComposePsi(rt.VCoeffs) // Compose the interpolation fns
+	rt.V = rt.ComposeV(rt.Psi)
+	rt.V.Print("V (Psi)")
 	rt.VInv = rt.V.InverseWithCheck()
 	// Q, R := rt.V.QRFactorization()
 	// rt.VInv = R.InverseWithCheck().Mul(Q.Transpose())
@@ -257,7 +263,75 @@ func (rt *RTElement) CalculateBasis() {
 	return
 }
 
-func (rt *RTElement) ComposeV() (V utils.Matrix) {
+func (rt *RTElement) ComposePsi(VCoeffs utils.Matrix) (Psi []VectorFunction) {
+	// Using the Vandermonde matrix from the basis Phi,
+	// compose the interpolating functions Psi[Np] to satisfy the equation:
+	//                    ψⱼ(sᵢ) · wᵢ = δᵢⱼ
+	//   wᵢ are the unit vectors for the DOFs at each location i;
+	//   sᵢ is the location of the i-th node in the basis
+	//   ψⱼ is the j-th interpolating function Psi[j]
+	var ()
+	Psi = make([]VectorFunction, rt.Np)
+	for j := 0; j < rt.Np; j++ {
+		coeffs := VCoeffs.Col(j).DataP
+		eval_vecbase := func(r, s float64) (v [2]float64) {
+			for i := 0; i < rt.Np; i++ {
+				vi := rt.Phi[i].VectorBase.Eval(r, s)
+				v[0] += coeffs[i] * vi[0]
+				v[1] += coeffs[i] * vi[1]
+			}
+			return
+		}
+		Psi[j] = VectorFunction{
+			PolyMultiplier: PolynomialMultiplier{
+				Eval: func(r, s float64) (val float64) {
+					for i := 0; i < rt.Np; i++ {
+						val += coeffs[i] * rt.Phi[i].PolyMultiplier.Eval(r, s)
+					}
+					return
+				},
+				Gradient: func(r, s float64) (grad [2]float64) {
+					for i := 0; i < rt.Np; i++ {
+						g := rt.Phi[i].PolyMultiplier.Gradient(r, s)
+						grad[0] += coeffs[i] * g[0]
+						grad[1] += coeffs[i] * g[1]
+					}
+					return
+				},
+			},
+			VectorBase: BaseVector{
+				Eval: func(r, s float64) (v [2]float64) {
+					v = eval_vecbase(r, s)
+					return
+				},
+				Dot: func(r, s float64, f [2]float64) (dot float64) {
+					var (
+						v = eval_vecbase(r, s)
+					)
+					dot = v[0]*f[0] + v[1]*f[1]
+					return
+				},
+				Project: func(r, s float64, psi float64) (v [2]float64) {
+					v = eval_vecbase(r, s)
+					v[0] *= psi
+					v[1] *= psi
+					return
+				},
+				Divergence: func(r, s float64) (div float64) {
+					for i := 0; i < rt.Np; i++ {
+						div += coeffs[i] * rt.Phi[i].VectorBase.Divergence(r, s)
+					}
+					return
+				},
+			},
+		}
+	}
+	return
+}
+
+func (rt *RTElement) ComposeV(Phi []VectorFunction) (V utils.Matrix) {
+	// Computes a Vandermonde matrix from a set of VectorFunction and element
+	// location vectors
 	var (
 		Np   = rt.Np
 		R, S = rt.R, rt.S
@@ -268,7 +342,7 @@ func (rt *RTElement) ComposeV() (V utils.Matrix) {
 		r_i, s_i := R.DataP[i], S.DataP[i]
 		b_i := rt.DOFVectors[i]
 		for j := 0; j < Np; j++ {
-			V.Set(i, j, rt.Phi[j].Dot(r_i, s_i, b_i.Eval()))
+			V.Set(i, j, Phi[j].Dot(r_i, s_i, b_i.Eval()))
 		}
 	}
 	return
