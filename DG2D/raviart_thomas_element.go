@@ -177,8 +177,9 @@ type RTElement struct {
 	R, S       utils.Vector // Point locations defining element in [-1,1] Triangle, NpxNp
 	RInt, SInt utils.Vector
 	Projection utils.Matrix
+	DOFVectors []*ConstantVector // The unit vectors for each DOF
 	RTBasis    RTBasisType
-	Phi        []BasisPolynomialTerm
+	Phi        []BasisTerm // Each term of the basis is a vector
 }
 
 func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
@@ -189,16 +190,20 @@ func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
 		<---- NpInt ----><---- NpInt ----><---NpEdge----><---NpEdge----><---NpEdge---->
 	*/
 	var (
-		Np = (P + 1) * (P + 3)
+		Np     = (P + 1) * (P + 3)
+		NpInt  = P * (P + 1) / 2 // Number of interior points is same as the 2D scalar space one order lesser
+		NpEdge = P + 1           // Each edge is P+1 nodes
+		oosr2  = 0.5 * math.Sqrt2
 	)
 	rt = &RTElement{
 		P:          P,
 		Np:         Np,
-		NpInt:      P * (P + 1) / 2, // Number of interior points is same as the 2D scalar space one order lesser
-		NpEdge:     P + 1,           // Each edge is P+1 nodes
+		NpInt:      NpInt,
+		NpEdge:     NpEdge,
 		V:          utils.NewMatrix(Np, Np),
 		Div:        utils.NewMatrix(Np, Np),
 		Projection: utils.NewMatrix(Np, 1),
+		DOFVectors: make([]*ConstantVector, Np),
 		RTBasis:    basisType,
 	}
 
@@ -212,6 +217,20 @@ func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
 			rt.SInt.Scale(0.93)
 			panic("This distribution is broken - TODO: fix\n")
 		}
+	}
+
+	// Construct the unit vectors for the DOFs
+
+	for i := 0; i < NpInt; i++ {
+		rt.DOFVectors[i] = NewConstantVector(1, 0)
+		rt.DOFVectors[i+NpInt] = NewConstantVector(0, 1)
+	}
+
+	offset := 2 * NpInt
+	for i := 0; i < NpEdge; i++ {
+		rt.DOFVectors[offset+i] = NewConstantVector(0, -1)
+		rt.DOFVectors[offset+i+NpEdge] = NewConstantVector(oosr2, oosr2)
+		rt.DOFVectors[offset+i+2*NpEdge] = NewConstantVector(-1, 0)
 	}
 
 	rt.R, rt.S = rt.ExtendGeomToRT(rt.RInt, rt.SInt)
@@ -247,11 +266,9 @@ func (rt *RTElement) ComposeV() (V utils.Matrix) {
 	V = utils.NewMatrix(Np, Np)
 	for i := 0; i < Np; i++ {
 		r_i, s_i := R.DataP[i], S.DataP[i]
-		b_i := rt.Phi[i].BasisVector
+		b_i := rt.DOFVectors[i]
 		for j := 0; j < Np; j++ {
-			// fmt.Printf("J = %d\n", j)
-			v_j := rt.Phi[j].Eval(r_i, s_i)
-			V.Set(i, j, b_i.Dot(r_i, s_i, v_j))
+			V.Set(i, j, rt.Phi[j].Dot(r_i, s_i, b_i.Eval()))
 		}
 	}
 	return
@@ -276,10 +293,9 @@ func (rt *RTElement) ProjectFunctionOntoDOF(s1, s2 []float64) {
 	// For each location in {R,S}, project the input vector function [s1,s2]
 	// on to the degrees of freedom of the element
 	for j := range s1 {
-		r, s := rt.R.AtVec(j), rt.S.AtVec(j)
-		b_j := rt.Phi[j].BasisVector
+		b_j := rt.DOFVectors[j]
 		f := [2]float64{s1[j], s2[j]}
-		rt.Projection.Set(j, 0, b_j.Dot(r, s, f))
+		rt.Projection.Set(j, 0, b_j.Dot(f))
 	}
 	return
 }

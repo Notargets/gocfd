@@ -14,7 +14,7 @@ type ErvinRTBasis struct {
 	Edge1Vector        BasisVectorStruct
 	Edge2Vector        BasisVectorStruct
 	Edge3Vector        BasisVectorStruct
-	Phi                []BasisPolynomialTerm
+	Phi                []BasisTerm
 	InteriorPolyKBasis *JacobiBasis2D
 }
 
@@ -29,7 +29,6 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 			// Bottom edge
 			xi, eta := e.conv(r), e.conv(s)
 			v = [2]float64{xi, eta - 1.}
-			// v = [2]float64{xi - 0.5, eta - 1.}
 			return
 		}
 		e2v = func(r, s float64) (v [2]float64) {
@@ -42,7 +41,6 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 			// Left edge
 			xi, eta := e.conv(r), e.conv(s)
 			v = [2]float64{xi - 1., eta}
-			// v = [2]float64{xi - 1., eta - 0.5}
 			return
 		}
 		e4v = func(r, s float64) (v [2]float64) {
@@ -99,7 +97,10 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 			Project: func(r, s float64, scale float64) (v [2]float64) {
 				return Scale(e1v(r, s), scale)
 			},
-			Divergence: func(r, s float64) (div float64) { return 1. },
+			Divergence: func(r, s float64) (div float64) {
+				return e.
+					dconvDrDs() * 2
+			},
 		},
 		Edge2Vector: BasisVectorStruct{
 			// Hypotenuse
@@ -110,7 +111,10 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 			Project: func(r, s float64, scale float64) (v [2]float64) {
 				return Scale(e2v(r, s), scale)
 			},
-			Divergence: func(r, s float64) (div float64) { return sr2 },
+			Divergence: func(r, s float64) (div float64) {
+				return e.
+					dconvDrDs() * 2 * sr2
+			},
 		},
 		Edge3Vector: BasisVectorStruct{
 			// Left edge
@@ -121,7 +125,10 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 			Project: func(r, s float64, scale float64) (v [2]float64) {
 				return Scale(e3v(r, s), scale)
 			},
-			Divergence: func(r, s float64) (div float64) { return 1. },
+			Divergence: func(r, s float64) (div float64) {
+				return e.
+					dconvDrDs() * 2
+			},
 		},
 	}
 	edgeLocation := 2 * e.NpInt
@@ -136,12 +143,12 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 		g3 := R.DataP[edgeLocation+2]
 		e.Phi = e.ComposePhiRT2(g1, g2, g3)
 	default:
-		panic("Ervin RT basis is not working with P>2")
-		// e.InteriorPolyKBasis = NewJacobiBasis2D(e.P-1,
-		// 	R.Copy().Subset(0, e.NpInt-1),
-		// 	S.Copy().Subset(0, e.NpInt-1),
-		// 	0, 0)
-		// e.Phi = e.ComposePhiRTK(R.DataP[edgeLocation : edgeLocation+e.NpEdge])
+		// panic("Ervin RT basis is not working with P>2")
+		e.InteriorPolyKBasis = NewJacobiBasis2D(e.P-1,
+			R.Copy().Subset(0, e.NpInt-1),
+			S.Copy().Subset(0, e.NpInt-1),
+			0, 0)
+		e.Phi = e.ComposePhiRTK(R.DataP[edgeLocation : edgeLocation+e.NpEdge])
 	}
 	return
 }
@@ -178,7 +185,7 @@ func (e *ErvinRTBasis) getFunctionType(j int) (param RTBasisFunctionType) {
 	return
 }
 
-func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt BasisPolynomialTerm) {
+func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt BasisTerm) {
 	var (
 		param = e.getFunctionType(j)
 		bv    BasisVectorStruct
@@ -188,15 +195,11 @@ func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt BasisPolynomia
 	switch param {
 	case E1:
 		bv = e.Edge1Vector
-		// Multiply by 4 for Jacobian
-		// bv.Divergence = func(r, s float64) (div float64) { return 1. }
 	case E2:
 		bv = e.Edge2Vector
-		// bv.Divergence = func(r, s float64) (div float64) { return sr2 }
 		jj -= e.NpEdge
 	case E3:
 		bv = e.Edge3Vector
-		// bv.Divergence = func(r, s float64) (div float64) { return 1. }
 		jj -= 2 * e.NpEdge
 	default:
 		panic("Lagrange polynomial is for edges only")
@@ -261,7 +264,6 @@ func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt BasisPolynomia
 	Gradient := func(r, s float64) (grad [2]float64) {
 		switch param {
 		case E1:
-			return
 			grad[0] = lagrange1DDeriv(r, s)
 		case E2:
 			grad[1] = lagrange1DDeriv(r, s)
@@ -270,7 +272,7 @@ func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt BasisPolynomia
 		}
 		return
 	}
-	lt = BasisPolynomialTerm{
+	lt = BasisTerm{
 		PolyMultiplier: BasisPolynomialMultiplier{
 			Eval:     Eval,
 			Gradient: Gradient,
@@ -281,7 +283,7 @@ func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt BasisPolynomia
 }
 
 func (e *ErvinRTBasis) getBkPolyTerm(j int) (
-	bk BasisPolynomialTerm) {
+	bk BasisTerm) {
 	var (
 		param = e.getFunctionType(j)
 		jj    int
@@ -291,23 +293,13 @@ func (e *ErvinRTBasis) getBkPolyTerm(j int) (
 	case E4:
 		jj = j
 		bv = e.E4Vector
-		// bv.Divergence = func(r, s float64) (div float64) {
-		// 	s = e.conv(s)
-		// 	div = (3.*s + 1.) / 4. // Multiply by 4 for Jacobian
-		// 	return
-		// }
 	case E5:
 		jj = j - e.NpInt
 		bv = e.E5Vector
-		// bv.Divergence = func(r, s float64) (div float64) {
-		// r = e.conv(r)
-		// div = (3.*r + 1.) / 4. // Multiply by 4 for Jacobian
-		// return
-		// }
 	default:
 		panic("Bk polynomial is for interior only")
 	}
-	bk = BasisPolynomialTerm{
+	bk = BasisTerm{
 		PolyMultiplier: BasisPolynomialMultiplier{
 			Eval: func(r, s float64) (val float64) {
 				val = e.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s, jj)
@@ -326,8 +318,8 @@ func (e *ErvinRTBasis) getBkPolyTerm(j int) (
 	return
 }
 
-func (e *ErvinRTBasis) ComposePhiRTK(ePts []float64) (phi []BasisPolynomialTerm) {
-	phi = make([]BasisPolynomialTerm, e.Np)
+func (e *ErvinRTBasis) ComposePhiRTK(ePts []float64) (phi []BasisTerm) {
+	phi = make([]BasisTerm, e.Np)
 	for j := 0; j < e.Np; j++ {
 		switch e.getFunctionType(j) {
 		case E1, E2, E3:
@@ -342,7 +334,7 @@ func (e *ErvinRTBasis) ComposePhiRTK(ePts []float64) (phi []BasisPolynomialTerm)
 }
 
 func (e *ErvinRTBasis) ComposePhiRT1(g1rs,
-	g2rs float64) (phi []BasisPolynomialTerm) {
+	g2rs float64) (phi []BasisTerm) {
 	// Compose the basis for the RT1 element based on Ervin
 	var (
 		g1, g2   = e.conv(g1rs), e.conv(g2rs)
@@ -403,7 +395,7 @@ func (e *ErvinRTBasis) ComposePhiRT1(g1rs,
 			},
 		}
 	)
-	phi = []BasisPolynomialTerm{
+	phi = []BasisTerm{
 		{PolyMultiplier: constant, BasisVector: e.E4Vector},
 		{PolyMultiplier: constant, BasisVector: e.E5Vector},
 		{PolyMultiplier: l1xiEdge1, BasisVector: e.Edge1Vector},
@@ -417,7 +409,7 @@ func (e *ErvinRTBasis) ComposePhiRT1(g1rs,
 	return
 }
 
-func (e *ErvinRTBasis) ComposePhiRT2(g1rs, g2rs, g3rs float64) (phi []BasisPolynomialTerm) {
+func (e *ErvinRTBasis) ComposePhiRT2(g1rs, g2rs, g3rs float64) (phi []BasisTerm) {
 	// Compose the basis for the RT1 element based on Ervin
 	var (
 		g1, g2, g3 = e.conv(g1rs), e.conv(g2rs), e.conv(g3rs)
@@ -543,7 +535,7 @@ func (e *ErvinRTBasis) ComposePhiRT2(g1rs, g2rs, g3rs float64) (phi []BasisPolyn
 			},
 		}
 	)
-	phi = []BasisPolynomialTerm{
+	phi = []BasisTerm{
 		{PolyMultiplier: e45mult1, BasisVector: e.E4Vector},
 		{PolyMultiplier: e45mult2, BasisVector: e.E4Vector},
 		{PolyMultiplier: e45mult3, BasisVector: e.E4Vector},

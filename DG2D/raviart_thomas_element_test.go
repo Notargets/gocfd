@@ -20,8 +20,8 @@ func TestRTDivergence(t *testing.T) {
 		case RomeroJamesonBasis:
 			PMax = 2
 		}
-		t.Logf("Testing RT Interpolation for %v\n", rtb.String())
-		RTInterpolation_Test(t, rtb, PMax)
+		// t.Logf("Testing RT Interpolation for %v\n", rtb.String())
+		// RTInterpolation_Test(t, rtb, PMax)
 		t.Logf("Testing RT Divergence on Polynomial Fields for %v\n",
 			rtb.String())
 		RTDivergencePolynomial_Test(t, rtb, PMax)

@@ -1,5 +1,29 @@
 package DG2D
 
+type ConstantVector struct {
+	v [2]float64
+}
+
+func NewConstantVector(v1, v2 float64) *ConstantVector {
+	return &ConstantVector{
+		v: [2]float64{v1, v2},
+	}
+}
+
+func (cv *ConstantVector) Eval() [2]float64 {
+	return cv.v
+}
+
+func (cv *ConstantVector) Dot(f [2]float64) (dot float64) {
+	dot = cv.v[0]*f[0] + cv.v[1]*f[1]
+	return
+}
+
+func (cv *ConstantVector) Project(psi float64) (v [2]float64) {
+	v = [2]float64{psi * cv.v[0], psi * cv.v[1]}
+	return
+}
+
 type BasisVectorStruct struct {
 	Eval       func(r, s float64) (v [2]float64)
 	Dot        func(r, s float64, f [2]float64) (dot float64)
@@ -12,22 +36,22 @@ type BasisPolynomialMultiplier struct {
 	Eval     func(r, s float64) (val float64)
 	Gradient func(r, s float64) (grad [2]float64)
 }
-type BasisPolynomialTerm struct {
+type BasisTerm struct {
 	PolyMultiplier BasisPolynomialMultiplier
 	BasisVector    BasisVectorStruct
 }
 
-func (pt BasisPolynomialTerm) Eval(r, s float64) (v [2]float64) {
+func (pt BasisTerm) Eval(r, s float64) (v [2]float64) {
 	v = pt.BasisVector.Project(r, s, pt.PolyMultiplier.Eval(r, s))
 	return
 }
-func (pt BasisPolynomialTerm) Dot(r, s float64, b [2]float64) (dot float64) {
+func (pt BasisTerm) Dot(r, s float64, b [2]float64) (dot float64) {
 	v := pt.Eval(r, s)
 	dot = b[0]*v[0] + b[1]*v[1]
 	return
 }
 
-func (pt BasisPolynomialTerm) Divergence(r, s float64) (div float64) {
+func (pt BasisTerm) Divergence(r, s float64) (div float64) {
 	var (
 		polyEval    = pt.PolyMultiplier.Eval(r, s)
 		divBasis    = pt.BasisVector.Divergence(r, s)

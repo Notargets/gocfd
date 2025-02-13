@@ -11,7 +11,7 @@ import (
 type RomeroJamesonRTBasis struct {
 	P                  int
 	Np, NpInt, NpEdge  int
-	Phi                []BasisPolynomialTerm
+	Phi                []BasisTerm
 	InteriorPolyKBasis *JacobiBasis2D
 }
 
@@ -58,7 +58,7 @@ func (rjb *RomeroJamesonRTBasis) getFunctionType(j int) (param RTBasisFunctionTy
 }
 
 func (rjb *RomeroJamesonRTBasis) getEdgePolyTermUnit(j int,
-	tBasis []float64) (lt BasisPolynomialTerm) {
+	tBasis []float64) (lt BasisTerm) {
 	var (
 		oosr2       = 0.5 * math.Sqrt2
 		Edge1Vector = BasisVectorStruct{
@@ -188,7 +188,7 @@ func (rjb *RomeroJamesonRTBasis) getEdgePolyTermUnit(j int,
 		}
 		return
 	}
-	lt = BasisPolynomialTerm{
+	lt = BasisTerm{
 		PolyMultiplier: BasisPolynomialMultiplier{
 			Eval:     Eval,
 			Gradient: Gradient,
@@ -198,7 +198,7 @@ func (rjb *RomeroJamesonRTBasis) getEdgePolyTermUnit(j int,
 	return
 }
 
-func (rjb *RomeroJamesonRTBasis) getBkPolyTermUnit(j int) (bk BasisPolynomialTerm) {
+func (rjb *RomeroJamesonRTBasis) getBkPolyTermUnit(j int) (bk BasisTerm) {
 	var (
 		E4Vector = BasisVectorStruct{
 			// Interior vector E4
@@ -232,7 +232,7 @@ func (rjb *RomeroJamesonRTBasis) getBkPolyTermUnit(j int) (bk BasisPolynomialTer
 	default:
 		panic("Bk polynomial is for interior only")
 	}
-	bk = BasisPolynomialTerm{
+	bk = BasisTerm{
 		PolyMultiplier: BasisPolynomialMultiplier{
 			Eval: func(r, s float64) (val float64) {
 				val = rjb.InteriorPolyKBasis.GetPolynomialAtJ(r, s, jj)
@@ -257,8 +257,8 @@ func (rjb *RomeroJamesonRTBasis) getBkPolyTermUnit(j int) (bk BasisPolynomialTer
 	return
 }
 
-func (rjb *RomeroJamesonRTBasis) ComposePhiRTK(ePts []float64) (phi []BasisPolynomialTerm) {
-	phi = make([]BasisPolynomialTerm, rjb.Np)
+func (rjb *RomeroJamesonRTBasis) ComposePhiRTK(ePts []float64) (phi []BasisTerm) {
+	phi = make([]BasisTerm, rjb.Np)
 	for j := 0; j < rjb.Np; j++ {
 		switch rjb.getFunctionType(j) {
 		case E1, E2, E3:
