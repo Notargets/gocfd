@@ -10,14 +10,14 @@ import (
 )
 
 func TestRTElement(t *testing.T) {
-	// for _, rtb := range []RTBasisType{RomeroJamesonBasis} {
-	// for _, rtb := range []RTBasisType{ErvinBasis, RomeroJamesonBasis} {
-	for _, rtb := range []RTBasisType{ErvinBasis} {
+	// for _, rtb := range []RTBasisType{SimplexRTBasis} {
+	// for _, rtb := range []RTBasisType{ErvinBasisRT, SimplexRTBasis} {
+	for _, rtb := range []RTBasisType{ErvinBasisRT} {
 		var PMax int
 		switch rtb {
-		case ErvinBasis:
+		case ErvinBasisRT:
 			PMax = 2
-		case RomeroJamesonBasis:
+		case SimplexRTBasis:
 			PMax = 2
 		}
 		InterpolationFunctions_Test(t, PMax)
@@ -47,7 +47,7 @@ func InterpolationFunctions_Test(t *testing.T, PMax int) {
 		t.Logf("---------------------------------------------\n")
 		t.Logf("Checking Interpolation Functions for RT%d\n", P)
 		t.Logf("---------------------------------------------\n")
-		rt := NewRTElement(P, ErvinBasis)
+		rt := NewRTElement(P, ErvinBasisRT)
 		Np := rt.Np
 		A := utils.NewMatrix(Np, Np)
 		f1, f2 := make([]float64, Np), make([]float64, Np)

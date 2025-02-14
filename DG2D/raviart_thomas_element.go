@@ -148,16 +148,16 @@ func (fn RTBasisFunctionType) String() string {
 type RTBasisType uint8
 
 const (
-	ErvinBasis = RTBasisType(iota)
-	RomeroJamesonBasis
+	ErvinBasisRT = RTBasisType(iota)
+	SimplexRTBasis
 )
 
 func (fn RTBasisType) String() string {
 	switch fn {
-	case ErvinBasis:
-		return "ErvinBasis"
-	case RomeroJamesonBasis:
-		return "RomeroJamesonBasis"
+	case ErvinBasisRT:
+		return "ErvinBasisRT"
+	case SimplexRTBasis:
+		return "SimplexRTBasis"
 	}
 	return "Unknown"
 }
@@ -255,11 +255,11 @@ func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
 
 func (rt *RTElement) CalculateBasis() {
 	switch rt.RTBasis {
-	case ErvinBasis:
+	case ErvinBasisRT:
 		e := NewErvinRTBasis(rt.P, rt.R, rt.S)
 		rt.Phi = e.Phi
-	case RomeroJamesonBasis:
-		rjb := NewRomeroJamesonRTBasis(rt.P, rt.R, rt.S)
+	case SimplexRTBasis:
+		rjb := NewRTBasisSimplex(rt.P, rt.R, rt.S)
 		rt.Phi = rjb.Phi
 	default:
 		panic("No basis chosen")
