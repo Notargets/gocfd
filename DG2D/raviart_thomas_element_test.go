@@ -1,9 +1,7 @@
 package DG2D
 
 import (
-	"fmt"
 	"math"
-	"os"
 	"testing"
 
 	"github.com/notargets/gocfd/utils"
@@ -11,16 +9,38 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestInterpolationFunctions(t *testing.T) {
+func TestRTElement(t *testing.T) {
+	// for _, rtb := range []RTBasisType{RomeroJamesonBasis} {
+	// for _, rtb := range []RTBasisType{ErvinBasis, RomeroJamesonBasis} {
+	for _, rtb := range []RTBasisType{ErvinBasis} {
+		var PMax int
+		switch rtb {
+		case ErvinBasis:
+			PMax = 2
+		case RomeroJamesonBasis:
+			PMax = 2
+		}
+		InterpolationFunctions_Test(t, PMax)
+		// t.Logf("Testing RT Interpolation for %v\n", rtb.String())
+		// RTInterpolation_Test(t, rtb, PMax)
+
+		// t.Logf("Testing RT divergence on SinCos Fields for %v\n",
+		// 	rtb.String())
+		// RTDivergenceSinCos_Test(t, rtb, PMax)
+	}
+}
+
+func InterpolationFunctions_Test(t *testing.T, PMax int) {
 	var (
-		dt VectorTestField
+		dt  VectorTestField
+		tol = 0.0000001
 	)
 	dt = PolyVectorField{}
 
-	t.Log("Begin divergence Test")
+	t.Log("Begin Interpolation Function Test")
 	// P := 1
 	PStart := 1
-	PEnd := 1
+	PEnd := PMax
 	for P := PStart; P <= PEnd; P++ {
 		PFieldStart := 0
 		PFieldEnd := P
@@ -30,20 +50,19 @@ func TestInterpolationFunctions(t *testing.T) {
 		rt := NewRTElement(P, ErvinBasis)
 		Np := rt.Np
 		A := utils.NewMatrix(Np, Np)
-		s1, s2 := make([]float64, Np), make([]float64, Np)
+		f1, f2 := make([]float64, Np), make([]float64, Np)
+		divF := make([]float64, Np)
 		for PField := PFieldStart; PField <= PFieldEnd; PField++ {
 			t.Logf("\nReference Vector Field Order:%d\n", PField)
 			t.Logf("-------------------------------\n")
 			for i := 0; i < Np; i++ {
 				r, s := rt.R.AtVec(i), rt.S.AtVec(i)
-				f1, f2 := dt.F(r, s, PField)
-				s1[i], s2[i] = f1, f2
+				f1[i], f2[i] = dt.F(r, s, PField)
+				divF[i] = dt.Divergence(r, s, PField)
 			}
-			rt.ProjectFunctionOntoDOF(s1, s2)
+			rt.ProjectFunctionOntoDOF(f1, f2)
 			for j := 0; j < Np; j++ {
 				for i := 0; i < Np; i++ {
-					// t.Logf("Psi(r_j," +
-					// 	"s_j)_j dot b_j should equal 1 based on its construction\n")
 					r, s := rt.R.AtVec(i), rt.S.AtVec(i)
 					b_i := rt.DOFVectors[i].Eval(0, 0)
 					dot := rt.Psi[j].dot(r, s, b_i)
@@ -56,36 +75,24 @@ func TestInterpolationFunctions(t *testing.T) {
 					}
 				}
 			}
+			for i := 0; i < Np; i++ {
+				r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+				var div float64
+				for j := 0; j < Np; j++ {
+					div += rt.Projection.At(j, 0) * rt.Psi[j].Divergence(r, s)
+				}
+				// t.Logf("Div[%f,%f] = %f(Ref), %f(Calc)\n",
+				// 	r, s, divF[i], div)
+				assert.InDeltaf(t, divF[i], div, tol, "")
+			}
 		}
-		if testing.Verbose() {
-			A.Print("Should Be Identity")
-		}
+		// if testing.Verbose() {
+		// 	A.Print("Should Be Identity")
+		// }
+		assert.True(t, isIdentityMatrix(A, tol))
 	}
 }
 
-func TestRTDivergence(t *testing.T) {
-	// for _, rtb := range []RTBasisType{RomeroJamesonBasis} {
-	// for _, rtb := range []RTBasisType{ErvinBasis, RomeroJamesonBasis} {
-	for _, rtb := range []RTBasisType{ErvinBasis} {
-		var PMax int
-		switch rtb {
-		case ErvinBasis:
-			PMax = 3
-		case RomeroJamesonBasis:
-			PMax = 2
-		}
-		// t.Logf("Testing RT Interpolation for %v\n", rtb.String())
-		// RTInterpolation_Test(t, rtb, PMax)
-
-		// Todo: Evaluate divergence alternatively as Psi[j] * f[j]
-		t.Logf("Testing RT divergence on Polynomial Fields for %v\n",
-			rtb.String())
-		RTDivergencePolynomial_Test(t, rtb, PMax)
-		// t.Logf("Testing RT divergence on SinCos Fields for %v\n",
-		// 	rtb.String())
-		// RTDivergenceSinCos_Test(t, rtb, PMax)
-	}
-}
 func RTDivergenceSinCos_Test(t *testing.T, BasisType RTBasisType, PMax int) {
 	var (
 		dt VectorTestField
@@ -181,77 +188,6 @@ func RTInterpolation_Test(t *testing.T, BasisType RTBasisType, PMax int) {
 			}
 			assert.InDeltaSlicef(t, rt.Projection.DataP, f_rt_dot, 0.000001,
 				"Interpolation Check")
-		}
-	}
-}
-
-func RTDivergencePolynomial_Test(t *testing.T, BasisType RTBasisType, PMax int) {
-	var (
-		dt VectorTestField
-	)
-	dt = PolyVectorField{}
-
-	t.Log("Begin divergence Test")
-	// P := 1
-	PStart := 1
-	PEnd := PMax
-	for P := PStart; P <= PEnd; P++ {
-		PFieldStart := 0
-		PFieldEnd := P
-		t.Logf("---------------------------------------------\n")
-		t.Logf("Checking divergence for RT%d\n", P)
-		t.Logf("---------------------------------------------\n")
-		rt := NewRTElement(P, BasisType)
-		Np := rt.Np
-		divFcalc := make([]float64, Np)
-		s1, s2 := make([]float64, Np), make([]float64, Np)
-		// for PField := 0; PField <= (P - 1); PField++ {
-		for PField := PFieldStart; PField <= PFieldEnd; PField++ {
-			t.Logf("\nReference Vector Field Order:%d\n", PField)
-			t.Logf("-------------------------------\n")
-			for i := 0; i < Np; i++ {
-				r, s := rt.R.AtVec(i), rt.S.AtVec(i)
-				f1, f2 := dt.F(r, s, PField)
-				fmt.Printf("f1, f2 = %f,%f\n", f1, f2)
-				s1[i], s2[i] = f1, f2
-				dF := dt.Divergence(r, s, PField)
-				divFcalc[i] = dF
-			}
-			dFReference := utils.NewMatrix(Np, 1, divFcalc)
-			if testing.Verbose() {
-				dFReference.Transpose().Print("Reference Div")
-			}
-			rt.ProjectFunctionOntoDOF(s1, s2)
-			dB := rt.Projection
-			var F, Fc [2]float64
-			j := 0
-			r, s := rt.R.AtVec(j), rt.S.AtVec(j)
-			f_j := rt.Projection.At(j, 0)
-			fmt.Printf("f_j=%f\n", f_j)
-			// TODO: Make test to prove this is true after composing Psi (
-			//  it's broken
-			fmt.Printf("Psi(r_j, s_j)_j dot b_j should equal 1\n")
-			b_j := rt.DOFVectors[j].Eval(0, 0)
-			dot := rt.Psi[j].dot(r, s, b_j)
-			fmt.Printf("dot = %f\n", dot)
-			tol := 0.0000001
-			assert.InDeltaf(t, 1., dot, tol, "")
-			v := rt.Psi[j].eval(r, s)
-			Fc[0] += v[0] * f_j
-			Fc[1] += v[1] * f_j
-			F = [2]float64{s1[0], s2[0]}
-			fmt.Println(F, Fc)
-			os.Exit(1)
-			// dB.Transpose().Print("F Projection")
-			// rt.VInv.Mul(dB).Print("Coefficients")
-			calcDiv := rt.Div.Mul(dB)
-			if testing.Verbose() {
-				calcDiv.Transpose().Print("Calculated divergence")
-				// calcCoeffs := rt.V.Mul(dB)
-				// dB.Transpose().Print("Projected Field")
-				// calcCoeffs.Transpose().Print("Calculated Coeffs")
-			}
-			assert.InDeltaSlice(t, dFReference.DataP, calcDiv.DataP, 0.0001)
 		}
 	}
 }

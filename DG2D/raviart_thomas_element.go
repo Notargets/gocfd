@@ -179,7 +179,6 @@ type RTElement struct {
 	Projection utils.Matrix
 	DOFVectors []*ConstantVector // The unit vectors for each DOF
 	RTBasis    RTBasisType
-	VCoeffs    utils.Matrix
 	Phi        []VectorFunction // Each term of the basis is a vector
 	Psi        []BaseVector     // These are the interpolation functions
 }
@@ -238,14 +237,18 @@ func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
 	rt.R, rt.S = rt.ExtendGeomToRT(rt.RInt, rt.SInt)
 	rt.CalculateBasis()
 
+	// Compose basis Vandermonde matrix
 	VC := rt.ComposeV(VectorFunction{}.ConvertToSliceOfVectorI(rt.Phi))
-	rt.VCoeffs = VC.InverseWithCheck()
-	rt.Psi = rt.ComposePsi(rt.VCoeffs) // Compose the interpolation fns
+	// Invert basis Vandermonde to get Coefficients for the Lagrange polynomials
+	VCoeffs := VC.InverseWithCheck()
+	// Compose the Interpolating functions Psi as the Vandermonde polynomials
+	rt.Psi = rt.ComposePsi(VCoeffs) // Compose the interpolation fns
+	// Compose the Vandermonde matrix of the interpolation polynomials
 	rt.V = rt.ComposeV(BaseVector{}.ConvertToSliceOfVectorI(rt.Psi))
 	// rt.V.Print("V (Psi)")
 	rt.VInv = rt.V.InverseWithCheck()
-	// Q, R := rt.V.QRFactorization()
-	// rt.VInv = R.InverseWithCheck().Mul(Q.Transpose())
+	// TODO: This is no longer the way - We need to use the interpolation
+	//  functions
 	rt.Div = rt.ComputeDivergenceMatrix()
 	return
 }
@@ -286,7 +289,7 @@ func (rt *RTElement) ComposePsi(VCoeffs utils.Matrix) (Psi []BaseVector) {
 		}
 		divFunc := func(r, s float64) (div float64) {
 			for i := 0; i < rt.Np; i++ {
-				div += coeffs[i] * rt.Psi[i].divergence(r, s)
+				div += coeffs[i] * rt.Phi[i].Divergence(r, s)
 			}
 			return
 		}
