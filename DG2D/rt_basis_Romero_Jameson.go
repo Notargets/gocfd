@@ -63,34 +63,34 @@ func (rjb *RomeroJamesonRTBasis) getEdgePolyTermUnit(j int,
 		oosr2       = 0.5 * math.Sqrt2
 		Edge1Vector = BaseVector{
 			// Bottom edge
-			Eval: func(r, s float64) [2]float64 { return [2]float64{0, -1} },
-			Dot:  func(r, s float64, f [2]float64) float64 { return -f[1] },
-			Project: func(r, s float64, scale float64) [2]float64 {
+			eval: func(r, s float64) [2]float64 { return [2]float64{0, -1} },
+			dot:  func(r, s float64, f [2]float64) float64 { return -f[1] },
+			project: func(r, s float64, scale float64) [2]float64 {
 				return [2]float64{0, -scale}
 			},
-			Divergence: func(r, s float64) (div float64) { return 0 },
+			divergence: func(r, s float64) (div float64) { return 0 },
 		}
 		Edge2Vector = BaseVector{
 			// Hypotenuse
-			Eval: func(r, s float64) [2]float64 {
+			eval: func(r, s float64) [2]float64 {
 				return [2]float64{oosr2, oosr2}
 			},
-			Dot: func(r, s float64, f [2]float64) float64 {
+			dot: func(r, s float64, f [2]float64) float64 {
 				return oosr2*f[0] + oosr2*f[1]
 			},
-			Project: func(r, s float64, scale float64) [2]float64 {
+			project: func(r, s float64, scale float64) [2]float64 {
 				return [2]float64{scale * oosr2, scale * oosr2}
 			},
-			Divergence: func(r, s float64) (div float64) { return 0 },
+			divergence: func(r, s float64) (div float64) { return 0 },
 		}
 		Edge3Vector = BaseVector{
 			// Left edge
-			Eval: func(r, s float64) [2]float64 { return [2]float64{-1, 0} },
-			Dot:  func(r, s float64, f [2]float64) float64 { return -f[0] },
-			Project: func(r, s float64, scale float64) [2]float64 {
+			eval: func(r, s float64) [2]float64 { return [2]float64{-1, 0} },
+			dot:  func(r, s float64, f [2]float64) float64 { return -f[0] },
+			project: func(r, s float64, scale float64) [2]float64 {
 				return [2]float64{-scale}
 			},
-			Divergence: func(r, s float64) (div float64) { return 0 },
+			divergence: func(r, s float64) (div float64) { return 0 },
 		}
 		param = rjb.getFunctionType(j)
 		bv    BaseVector
@@ -202,21 +202,21 @@ func (rjb *RomeroJamesonRTBasis) getBkPolyTermUnit(j int) (bk VectorFunction) {
 	var (
 		E4Vector = BaseVector{
 			// Interior vector E4
-			Eval: func(r, s float64) [2]float64 { return [2]float64{1, 0} },
-			Dot:  func(r, s float64, f [2]float64) float64 { return f[0] },
-			Project: func(r, s float64, scale float64) [2]float64 {
+			eval: func(r, s float64) [2]float64 { return [2]float64{1, 0} },
+			dot:  func(r, s float64, f [2]float64) float64 { return f[0] },
+			project: func(r, s float64, scale float64) [2]float64 {
 				return [2]float64{scale, 0}
 			},
-			Divergence: func(r, s float64) (div float64) { return 0 },
+			divergence: func(r, s float64) (div float64) { return 0 },
 		}
 		E5Vector = BaseVector{
 			// Interior vector E5
-			Eval: func(r, s float64) [2]float64 { return [2]float64{0, 1} },
-			Dot:  func(r, s float64, f [2]float64) float64 { return f[1] },
-			Project: func(r, s float64, scale float64) [2]float64 {
+			eval: func(r, s float64) [2]float64 { return [2]float64{0, 1} },
+			dot:  func(r, s float64, f [2]float64) float64 { return f[1] },
+			project: func(r, s float64, scale float64) [2]float64 {
 				return [2]float64{0, scale}
 			},
-			Divergence: func(r, s float64) (div float64) { return 0 },
+			divergence: func(r, s float64) (div float64) { return 0 },
 		}
 		param = rjb.getFunctionType(j)
 		jj    int

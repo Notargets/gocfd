@@ -676,8 +676,8 @@ func TestDissipation2(t *testing.T) {
 						DOFYd[ind] = DYmd[ind] * Un
 					}
 				}
-				DX := dfr.FluxElement.Div.Mul(DOFX) // X Derivative, Divergence x RT_DOF is X derivative for this DOF
-				DY := dfr.FluxElement.Div.Mul(DOFY) // Y Derivative, Divergence x RT_DOF is Y derivative for this DOF
+				DX := dfr.FluxElement.Div.Mul(DOFX) // X Derivative, divergence x RT_DOF is X derivative for this DOF
+				DY := dfr.FluxElement.Div.Mul(DOFY) // Y Derivative, divergence x RT_DOF is Y derivative for this DOF
 				fmt.Printf("Order[%d] check ...", n+1)
 				assert.Equal(t, len(DX.DataP), len(QGradXCheck[n].DataP))
 				assert.Equal(t, len(DY.DataP), len(QGradYCheck[n].DataP))
@@ -901,7 +901,7 @@ func GetStatePoly(x, y float64) (rho, rhoU, rhoV, E float64) {
 				F = [ rhou, rho*u^2+p, rho*u*v, u*(E+p) ];
 				G = [ rhov, rho*u*v, rho*v^2+p, v*(E+p) ];
 				div = diff(F,x)+diff(G,y);
-				fprintf('Code for Divergence of F and G FluxIndex\n%s\n',ccode(div));
+				fprintf('Code for divergence of F and G FluxIndex\n%s\n',ccode(div));
 				fprintf('Code for U \n%s\n%s\n%s\n%s\n',ccode(U));
 	*/
 	var (

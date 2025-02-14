@@ -278,7 +278,7 @@ func TestDivergence(t *testing.T) {
 		}
 		return
 	}
-	{ // Check Divergence for polynomial vector fields of order < N against analytical solution
+	{ // Check divergence for polynomial vector fields of order < N against analytical solution
 		N := 7 // Order of element
 		// N := 7 // Order of element
 		dfr := NewDFR2D(N, pm, false, "test_data/test_tris_5.neu")
@@ -288,7 +288,7 @@ func TestDivergence(t *testing.T) {
 		for cOrder := 1; cOrder <= N; cOrder++ { // Run a test on polynomial flux vector fields up to Nth order
 			t.Logf("checking RT order[%d]...", cOrder+1)
 			Fx, Fy, divCheck := checkSolution(dfr, cOrder)
-			// Project the flux onto the RT basis directly
+			// project the flux onto the RT basis directly
 			Fp := dfr.ProjectFluxOntoRTSpace(Fx, Fy)
 			for k := 0; k < dfr.K; k++ {
 				var (
@@ -429,8 +429,8 @@ func TestGradient(t *testing.T) {
 						DOFYd[ind] = DYmd[ind] * Un
 					}
 				}
-				DX := dfr.FluxElement.Div.Mul(DOFX) // X Derivative, Divergence x RT_DOF is X derivative for this DOF
-				DY := dfr.FluxElement.Div.Mul(DOFY) // Y Derivative, Divergence x RT_DOF is Y derivative for this DOF
+				DX := dfr.FluxElement.Div.Mul(DOFX) // X Derivative, divergence x RT_DOF is X derivative for this DOF
+				DY := dfr.FluxElement.Div.Mul(DOFY) // Y Derivative, divergence x RT_DOF is Y derivative for this DOF
 				t.Logf("Order[%d] check ...", n+1)
 				assert.Equal(t, len(DX.DataP), len(DXCheck[n].DataP))
 				assert.Equal(t, len(DY.DataP), len(DYCheck[n].DataP))

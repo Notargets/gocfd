@@ -62,70 +62,70 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 		NpEdge: P + 1,
 		E4Vector: BaseVector{
 			// Interior vector E4
-			Eval: func(r, s float64) [2]float64 { return e4v(r, s) },
-			Dot: func(r, s float64, f [2]float64) float64 {
+			eval: func(r, s float64) [2]float64 { return e4v(r, s) },
+			dot: func(r, s float64, f [2]float64) float64 {
 				return Dot(e4v(r, s), f)
 			},
-			Project: func(r, s float64, scale float64) [2]float64 {
+			project: func(r, s float64, scale float64) [2]float64 {
 				return Scale(e4v(r, s), scale)
 			},
-			Divergence: func(r, s float64) (div float64) {
+			divergence: func(r, s float64) (div float64) {
 				div = (3.*s + 1.) / 4.
 				return
 			},
 		},
 		E5Vector: BaseVector{
 			// Interior vector E5
-			Eval: func(r, s float64) [2]float64 { return e5v(r, s) },
-			Dot: func(r, s float64, f [2]float64) (dot float64) {
+			eval: func(r, s float64) [2]float64 { return e5v(r, s) },
+			dot: func(r, s float64, f [2]float64) (dot float64) {
 				return Dot(e5v(r, s), f)
 			},
-			Project: func(r, s float64, scale float64) (v [2]float64) {
+			project: func(r, s float64, scale float64) (v [2]float64) {
 				return Scale(e5v(r, s), scale)
 			},
-			Divergence: func(r, s float64) (div float64) {
+			divergence: func(r, s float64) (div float64) {
 				div = (3.*r + 1.) / 4.
 				return
 			},
 		},
 		Edge1Vector: BaseVector{
 			// Bottom edge
-			Eval: func(r, s float64) (v [2]float64) { return e1v(r, s) },
-			Dot: func(r, s float64, f [2]float64) (dot float64) {
+			eval: func(r, s float64) (v [2]float64) { return e1v(r, s) },
+			dot: func(r, s float64, f [2]float64) (dot float64) {
 				return Dot(e1v(r, s), f)
 			},
-			Project: func(r, s float64, scale float64) (v [2]float64) {
+			project: func(r, s float64, scale float64) (v [2]float64) {
 				return Scale(e1v(r, s), scale)
 			},
-			Divergence: func(r, s float64) (div float64) {
+			divergence: func(r, s float64) (div float64) {
 				return e.
 					dconvDrDs() * 2
 			},
 		},
 		Edge2Vector: BaseVector{
 			// Hypotenuse
-			Eval: func(r, s float64) (v [2]float64) { return e2v(r, s) },
-			Dot: func(r, s float64, f [2]float64) (dot float64) {
+			eval: func(r, s float64) (v [2]float64) { return e2v(r, s) },
+			dot: func(r, s float64, f [2]float64) (dot float64) {
 				return Dot(e2v(r, s), f)
 			},
-			Project: func(r, s float64, scale float64) (v [2]float64) {
+			project: func(r, s float64, scale float64) (v [2]float64) {
 				return Scale(e2v(r, s), scale)
 			},
-			Divergence: func(r, s float64) (div float64) {
+			divergence: func(r, s float64) (div float64) {
 				return e.
 					dconvDrDs() * 2 * sr2
 			},
 		},
 		Edge3Vector: BaseVector{
 			// Left edge
-			Eval: func(r, s float64) (v [2]float64) { return e3v(r, s) },
-			Dot: func(r, s float64, f [2]float64) (dot float64) {
+			eval: func(r, s float64) (v [2]float64) { return e3v(r, s) },
+			dot: func(r, s float64, f [2]float64) (dot float64) {
 				return Dot(e3v(r, s), f)
 			},
-			Project: func(r, s float64, scale float64) (v [2]float64) {
+			project: func(r, s float64, scale float64) (v [2]float64) {
 				return Scale(e3v(r, s), scale)
 			},
-			Divergence: func(r, s float64) (div float64) {
+			divergence: func(r, s float64) (div float64) {
 				return e.
 					dconvDrDs() * 2
 			},

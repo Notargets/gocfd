@@ -173,7 +173,7 @@ type RTElement struct {
 	// [A] x [C] = [F]
 	// ===> [C] = [AInv] x [F]
 	V, VInv    utils.Matrix // Vandermonde Matrix
-	Div        utils.Matrix // Divergence matrix, NpxNp for all, NintxNp Interior Points
+	Div        utils.Matrix // divergence matrix, NpxNp for all, NintxNp Interior Points
 	R, S       utils.Vector // Point locations defining element in [-1,1] Triangle, NpxNp
 	RInt, SInt utils.Vector
 	Projection utils.Matrix
@@ -181,7 +181,7 @@ type RTElement struct {
 	RTBasis    RTBasisType
 	VCoeffs    utils.Matrix
 	Phi        []VectorFunction // Each term of the basis is a vector
-	Psi        []VectorFunction // These are the interpolation functions
+	Psi        []BaseVector     // These are the interpolation functions
 }
 
 func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
@@ -238,10 +238,11 @@ func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
 	rt.R, rt.S = rt.ExtendGeomToRT(rt.RInt, rt.SInt)
 	rt.CalculateBasis()
 
-	rt.VCoeffs = rt.ComposeV(rt.Phi)
+	VC := rt.ComposeV(VectorFunction{}.ConvertToSliceOfVectorI(rt.Phi))
+	rt.VCoeffs = VC.InverseWithCheck()
 	rt.Psi = rt.ComposePsi(rt.VCoeffs) // Compose the interpolation fns
-	rt.V = rt.ComposeV(rt.Psi)
-	rt.V.Print("V (Psi)")
+	rt.V = rt.ComposeV(BaseVector{}.ConvertToSliceOfVectorI(rt.Psi))
+	// rt.V.Print("V (Psi)")
 	rt.VInv = rt.V.InverseWithCheck()
 	// Q, R := rt.V.QRFactorization()
 	// rt.VInv = R.InverseWithCheck().Mul(Q.Transpose())
@@ -263,7 +264,7 @@ func (rt *RTElement) CalculateBasis() {
 	return
 }
 
-func (rt *RTElement) ComposePsi(VCoeffs utils.Matrix) (Psi []VectorFunction) {
+func (rt *RTElement) ComposePsi(VCoeffs utils.Matrix) (Psi []BaseVector) {
 	// Using the Vandermonde matrix from the basis Phi,
 	// compose the interpolating functions Psi[Np] to satisfy the equation:
 	//                    ψⱼ(sᵢ) · wᵢ = δᵢⱼ
@@ -271,65 +272,41 @@ func (rt *RTElement) ComposePsi(VCoeffs utils.Matrix) (Psi []VectorFunction) {
 	//   sᵢ is the location of the i-th node in the basis
 	//   ψⱼ is the j-th interpolating function Psi[j]
 	var ()
-	Psi = make([]VectorFunction, rt.Np)
+
+	Psi = make([]BaseVector, rt.Np)
 	for j := 0; j < rt.Np; j++ {
 		coeffs := VCoeffs.Col(j).DataP
-		eval_vecbase := func(r, s float64) (v [2]float64) {
+		evalFunc := func(r, s float64) (v [2]float64) {
 			for i := 0; i < rt.Np; i++ {
-				vi := rt.Phi[i].VectorBase.Eval(r, s)
-				v[0] += coeffs[i] * vi[0]
-				v[1] += coeffs[i] * vi[1]
+				psi_i := rt.Phi[i].Eval(r, s)
+				v[0] += coeffs[i] * psi_i[0]
+				v[1] += coeffs[i] * psi_i[1]
 			}
 			return
 		}
-		Psi[j] = VectorFunction{
-			PolyMultiplier: PolynomialMultiplier{
-				Eval: func(r, s float64) (val float64) {
-					for i := 0; i < rt.Np; i++ {
-						val += coeffs[i] * rt.Phi[i].PolyMultiplier.Eval(r, s)
-					}
-					return
-				},
-				Gradient: func(r, s float64) (grad [2]float64) {
-					for i := 0; i < rt.Np; i++ {
-						g := rt.Phi[i].PolyMultiplier.Gradient(r, s)
-						grad[0] += coeffs[i] * g[0]
-						grad[1] += coeffs[i] * g[1]
-					}
-					return
-				},
+		divFunc := func(r, s float64) (div float64) {
+			for i := 0; i < rt.Np; i++ {
+				div += coeffs[i] * rt.Psi[i].divergence(r, s)
+			}
+			return
+		}
+		Psi[j] = BaseVector{
+			eval: func(r, s float64) [2]float64 { return evalFunc(r, s) },
+			dot: func(r, s float64, f [2]float64) float64 {
+				v := evalFunc(r, s)
+				return v[0]*f[0] + v[1]*f[1]
 			},
-			VectorBase: BaseVector{
-				Eval: func(r, s float64) (v [2]float64) {
-					v = eval_vecbase(r, s)
-					return
-				},
-				Dot: func(r, s float64, f [2]float64) (dot float64) {
-					var (
-						v = eval_vecbase(r, s)
-					)
-					dot = v[0]*f[0] + v[1]*f[1]
-					return
-				},
-				Project: func(r, s float64, psi float64) (v [2]float64) {
-					v = eval_vecbase(r, s)
-					v[0] *= psi
-					v[1] *= psi
-					return
-				},
-				Divergence: func(r, s float64) (div float64) {
-					for i := 0; i < rt.Np; i++ {
-						div += coeffs[i] * rt.Phi[i].VectorBase.Divergence(r, s)
-					}
-					return
-				},
+			project: func(r, s float64, psi float64) [2]float64 {
+				v := evalFunc(r, s)
+				return [2]float64{v[0]*psi + v[1]*psi}
 			},
+			divergence: func(r, s float64) float64 { return divFunc(r, s) },
 		}
 	}
 	return
 }
 
-func (rt *RTElement) ComposeV(Phi []VectorFunction) (V utils.Matrix) {
+func (rt *RTElement) ComposeV(Phi []VectorI) (V utils.Matrix) {
 	// Computes a Vandermonde matrix from a set of VectorFunction and element
 	// location vectors
 	var (
@@ -342,7 +319,7 @@ func (rt *RTElement) ComposeV(Phi []VectorFunction) (V utils.Matrix) {
 		r_i, s_i := R.DataP[i], S.DataP[i]
 		b_i := rt.DOFVectors[i]
 		for j := 0; j < Np; j++ {
-			V.Set(i, j, Phi[j].Dot(r_i, s_i, b_i.Eval()))
+			V.Set(i, j, Phi[j].Dot(r_i, s_i, b_i.Eval(0, 0)))
 		}
 	}
 	return
@@ -358,7 +335,7 @@ func (rt *RTElement) ComputeDivergenceMatrix() (Div utils.Matrix) {
 			DivBasis.Set(i, j, rt.Phi[j].Divergence(r, s))
 		}
 	}
-	// DivBasis.Print("Basis Divergence Matrix")
+	// DivBasis.Print("Basis divergence Matrix")
 	Div = DivBasis.Mul(rt.VInv)
 	return
 }
@@ -369,7 +346,7 @@ func (rt *RTElement) ProjectFunctionOntoDOF(s1, s2 []float64) {
 	for j := range s1 {
 		b_j := rt.DOFVectors[j]
 		f := [2]float64{s1[j], s2[j]}
-		rt.Projection.Set(j, 0, b_j.Dot(f))
+		rt.Projection.Set(j, 0, b_j.Dot(0, 0, f))
 	}
 	return
 }
