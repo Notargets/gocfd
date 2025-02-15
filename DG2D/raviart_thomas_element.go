@@ -176,11 +176,9 @@ type RTElement struct {
 	Div        utils.Matrix // divergence matrix, NpxNp for all, NintxNp Interior Points
 	R, S       utils.Vector // Point locations defining element in [-1,1] Triangle, NpxNp
 	RInt, SInt utils.Vector
-	Projection utils.Matrix
 	DOFVectors []*ConstantVector // The unit vectors for each DOF
 	RTBasis    RTBasisType
 	Phi        []VectorFunction // Each term of the basis is a vector
-	Psi        []BaseVector     // These are the interpolation functions
 }
 
 func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
@@ -203,7 +201,6 @@ func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
 		NpEdge:     NpEdge,
 		V:          utils.NewMatrix(Np, Np),
 		Div:        utils.NewMatrix(Np, Np),
-		Projection: utils.NewMatrix(Np, 1),
 		DOFVectors: make([]*ConstantVector, Np),
 		RTBasis:    basisType,
 	}
@@ -238,17 +235,9 @@ func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
 	rt.CalculateBasis()
 
 	// Compose basis Vandermonde matrix
-	VC := rt.ComposeV(VectorFunction{}.ConvertToSliceOfVectorI(rt.Phi))
-	// Invert basis Vandermonde to get Coefficients for the Lagrange polynomials
-	VCoeffs := VC.InverseWithCheck()
-	// Compose the Interpolating functions Psi as the Vandermonde polynomials
-	rt.Psi = rt.ComposePsi(VCoeffs) // Compose the interpolation fns
-	// Compose the Vandermonde matrix of the interpolation polynomials
-	rt.V = rt.ComposeV(BaseVector{}.ConvertToSliceOfVectorI(rt.Psi))
+	rt.V = rt.ComposeV(VectorFunction{}.ConvertToSliceOfVectorI(rt.Phi))
 	// rt.V.Print("V (Psi)")
 	rt.VInv = rt.V.InverseWithCheck()
-	// TODO: This is no longer the way - We need to use the interpolation
-	//  functions
 	rt.Div = rt.ComputeDivergenceMatrix()
 	return
 }
@@ -267,48 +256,6 @@ func (rt *RTElement) CalculateBasis() {
 	return
 }
 
-func (rt *RTElement) ComposePsi(VCoeffs utils.Matrix) (Psi []BaseVector) {
-	// Using the Vandermonde matrix from the basis Phi,
-	// compose the interpolating functions Psi[Np] to satisfy the equation:
-	//                    ψⱼ(sᵢ) · wᵢ = δᵢⱼ
-	//   wᵢ are the unit vectors for the DOFs at each location i;
-	//   sᵢ is the location of the i-th node in the basis
-	//   ψⱼ is the j-th interpolating function Psi[j]
-	var ()
-
-	Psi = make([]BaseVector, rt.Np)
-	for j := 0; j < rt.Np; j++ {
-		coeffs := VCoeffs.Col(j).DataP
-		evalFunc := func(r, s float64) (v [2]float64) {
-			for i := 0; i < rt.Np; i++ {
-				psi_i := rt.Phi[i].Eval(r, s)
-				v[0] += coeffs[i] * psi_i[0]
-				v[1] += coeffs[i] * psi_i[1]
-			}
-			return
-		}
-		divFunc := func(r, s float64) (div float64) {
-			for i := 0; i < rt.Np; i++ {
-				div += coeffs[i] * rt.Phi[i].Divergence(r, s)
-			}
-			return
-		}
-		Psi[j] = BaseVector{
-			eval: func(r, s float64) [2]float64 { return evalFunc(r, s) },
-			dot: func(r, s float64, f [2]float64) float64 {
-				v := evalFunc(r, s)
-				return v[0]*f[0] + v[1]*f[1]
-			},
-			project: func(r, s float64, psi float64) [2]float64 {
-				v := evalFunc(r, s)
-				return [2]float64{v[0]*psi + v[1]*psi}
-			},
-			divergence: func(r, s float64) float64 { return divFunc(r, s) },
-		}
-	}
-	return
-}
-
 func (rt *RTElement) ComposeV(Phi []VectorI) (V utils.Matrix) {
 	// Computes a Vandermonde matrix from a set of VectorFunction and element
 	// location vectors
@@ -322,7 +269,7 @@ func (rt *RTElement) ComposeV(Phi []VectorI) (V utils.Matrix) {
 		r_i, s_i := R.DataP[i], S.DataP[i]
 		b_i := rt.DOFVectors[i]
 		for j := 0; j < Np; j++ {
-			V.Set(i, j, Phi[j].Dot(r_i, s_i, b_i.Eval(0, 0)))
+			V.Set(i, j, Phi[j].Dot(r_i, s_i, b_i.Eval()))
 		}
 	}
 	return
@@ -343,13 +290,14 @@ func (rt *RTElement) ComputeDivergenceMatrix() (Div utils.Matrix) {
 	return
 }
 
-func (rt *RTElement) ProjectFunctionOntoDOF(s1, s2 []float64) {
+func (rt *RTElement) ProjectFunctionOntoDOF(s1, s2 []float64, FProj utils.Matrix) {
 	// For each location in {R,S}, project the input vector function [s1,s2]
 	// on to the degrees of freedom of the element
+	// FProj should already be allocated to size [Np,1]
 	for j := range s1 {
 		b_j := rt.DOFVectors[j]
 		f := [2]float64{s1[j], s2[j]}
-		rt.Projection.Set(j, 0, b_j.Dot(0, 0, f))
+		FProj.DataP[j] = b_j.Dot(f)
 	}
 	return
 }

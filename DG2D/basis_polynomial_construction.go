@@ -17,19 +17,12 @@ func NewConstantVector(v1, v2 float64) *ConstantVector {
 	}
 }
 
-func (cv *ConstantVector) Eval(r float64, s float64) [2]float64 { return cv.v }
+func (cv *ConstantVector) Eval() [2]float64 { return cv.v }
 
-func (cv *ConstantVector) Dot(r float64, s float64, f [2]float64) (dot float64) {
+func (cv *ConstantVector) Dot(f [2]float64) (dot float64) {
 	dot = cv.v[0]*f[0] + cv.v[1]*f[1]
 	return
 }
-
-func (cv *ConstantVector) Project(r, s, psi float64) (v [2]float64) {
-	v = [2]float64{psi * cv.v[0], psi * cv.v[1]}
-	return
-}
-
-func (cv *ConstantVector) Divergence(r, s float64) float64 { return 0 }
 
 type BaseVector struct {
 	eval       func(r, s float64) (v [2]float64)
