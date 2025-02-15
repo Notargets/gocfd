@@ -14,7 +14,7 @@ type ErvinRTBasis struct {
 	Edge1Vector        BaseVector
 	Edge2Vector        BaseVector
 	Edge3Vector        BaseVector
-	Phi                []VectorFunction
+	Phi                []VectorI
 	InteriorPolyKBasis *JacobiBasis2D
 }
 
@@ -318,8 +318,8 @@ func (e *ErvinRTBasis) getBkPolyTerm(j int) (
 	return
 }
 
-func (e *ErvinRTBasis) ComposePhiRTK(ePts []float64) (phi []VectorFunction) {
-	phi = make([]VectorFunction, e.Np)
+func (e *ErvinRTBasis) ComposePhiRTK(ePts []float64) (phi []VectorI) {
+	phi = make([]VectorI, e.Np)
 	for j := 0; j < e.Np; j++ {
 		switch e.getFunctionType(j) {
 		case E1, E2, E3:
@@ -333,8 +333,7 @@ func (e *ErvinRTBasis) ComposePhiRTK(ePts []float64) (phi []VectorFunction) {
 	return
 }
 
-func (e *ErvinRTBasis) ComposePhiRT1(g1rs,
-	g2rs float64) (phi []VectorFunction) {
+func (e *ErvinRTBasis) ComposePhiRT1(g1rs, g2rs float64) (phi []VectorI) {
 	// Compose the basis for the RT1 element based on Ervin
 	var (
 		g1, g2   = e.conv(g1rs), e.conv(g2rs)
@@ -395,7 +394,7 @@ func (e *ErvinRTBasis) ComposePhiRT1(g1rs,
 			},
 		}
 	)
-	phi = []VectorFunction{
+	phiVF := []VectorFunction{
 		{PolyMultiplier: constant, VectorBase: e.E4Vector},
 		{PolyMultiplier: constant, VectorBase: e.E5Vector},
 		{PolyMultiplier: l1xiEdge1, VectorBase: e.Edge1Vector},
@@ -405,11 +404,14 @@ func (e *ErvinRTBasis) ComposePhiRT1(g1rs,
 		{PolyMultiplier: l2etaEdge3, VectorBase: e.Edge3Vector},
 		{PolyMultiplier: l1etaEdge3, VectorBase: e.Edge3Vector},
 	}
-
+	phi = make([]VectorI, len(phiVF))
+	for i := range phi {
+		phi[i] = phiVF[i]
+	}
 	return
 }
 
-func (e *ErvinRTBasis) ComposePhiRT2(g1rs, g2rs, g3rs float64) (phi []VectorFunction) {
+func (e *ErvinRTBasis) ComposePhiRT2(g1rs, g2rs, g3rs float64) (phi []VectorI) {
 	// Compose the basis for the RT1 element based on Ervin
 	var (
 		g1, g2, g3 = e.conv(g1rs), e.conv(g2rs), e.conv(g3rs)
@@ -535,7 +537,7 @@ func (e *ErvinRTBasis) ComposePhiRT2(g1rs, g2rs, g3rs float64) (phi []VectorFunc
 			},
 		}
 	)
-	phi = []VectorFunction{
+	phiVF := []VectorFunction{
 		{PolyMultiplier: e45mult1, VectorBase: e.E4Vector},
 		{PolyMultiplier: e45mult2, VectorBase: e.E4Vector},
 		{PolyMultiplier: e45mult3, VectorBase: e.E4Vector},
@@ -551,6 +553,10 @@ func (e *ErvinRTBasis) ComposePhiRT2(g1rs, g2rs, g3rs float64) (phi []VectorFunc
 		{PolyMultiplier: l3etaEdge3, VectorBase: e.Edge3Vector},
 		{PolyMultiplier: l2etaEdge3, VectorBase: e.Edge3Vector},
 		{PolyMultiplier: l1etaEdge3, VectorBase: e.Edge3Vector},
+	}
+	phi = make([]VectorI, len(phiVF))
+	for i := range phi {
+		phi[i] = phiVF[i]
 	}
 	return
 }

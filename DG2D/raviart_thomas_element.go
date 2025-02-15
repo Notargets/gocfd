@@ -178,7 +178,7 @@ type RTElement struct {
 	RInt, SInt utils.Vector
 	DOFVectors []*ConstantVector // The unit vectors for each DOF
 	RTBasis    RTBasisType
-	Phi        []VectorFunction // Each term of the basis is a vector
+	Phi        []VectorI // Each term of the basis is a vector
 }
 
 func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
@@ -235,7 +235,7 @@ func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
 	rt.CalculateBasis()
 
 	// Compose basis Vandermonde matrix
-	rt.V = rt.ComposeV(VectorFunction{}.ConvertToSliceOfVectorI(rt.Phi))
+	rt.V = rt.ComposeV(rt.Phi)
 	// rt.V.Print("V (Psi)")
 	rt.VInv = rt.V.InverseWithCheck()
 	rt.Div = rt.ComputeDivergenceMatrix()
