@@ -11,15 +11,16 @@ import (
 
 func TestRTElement(t *testing.T) {
 	// for _, rtb := range []RTBasisType{SimplexRTBasis} {
-	// for _, rtb := range []RTBasisType{ErvinBasisRT, SimplexRTBasis} {
-	for _, rtb := range []RTBasisType{ErvinBasisRT} {
+	for _, rtb := range []RTBasisType{ErvinBasisRT, SimplexRTBasis} {
+		// for _, rtb := range []RTBasisType{ErvinBasisRT} {
 		var PMax int
 		switch rtb {
 		case ErvinBasisRT:
 			PMax = 2
 		case SimplexRTBasis:
-			PMax = 2
+			PMax = 3
 		}
+		t.Logf("===================> %s\n", rtb.String())
 		DivergencePolynomialField_Test(t, PMax)
 
 		// t.Logf("Testing RT divergence on SinCos Fields for %v\n",
