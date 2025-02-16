@@ -29,6 +29,7 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 			// Bottom edge
 			xi, eta := e.conv(r), e.conv(s)
 			v = [2]float64{xi, eta - 1.}
+			// v = [2]float64{xi - 0.5, eta - 1.}
 			return
 		}
 		e2v = func(r, s float64) (v [2]float64) {
@@ -41,6 +42,7 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 			// Left edge
 			xi, eta := e.conv(r), e.conv(s)
 			v = [2]float64{xi - 1., eta}
+			// v = [2]float64{xi - 1., eta - 0.5}
 			return
 		}
 		e4v = func(r, s float64) (v [2]float64) {
@@ -70,7 +72,9 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 				return Scale(e4v(r, s), scale)
 			},
 			divergence: func(r, s float64) (div float64) {
-				div = (3.*s + 1.) / 4.
+				// eta + eta -1 + eta = 3 eta -1 = 3*(s+1)/2 -1 = (3s+3)/2 -2/2
+				// = (3s+1)/2
+				div = e.dconvDrDs() * (3.*s + 1.) / 2.
 				return
 			},
 		},
@@ -84,7 +88,7 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 				return Scale(e5v(r, s), scale)
 			},
 			divergence: func(r, s float64) (div float64) {
-				div = (3.*r + 1.) / 4.
+				div = e.dconvDrDs() * (3.*r + 1.) / 2.
 				return
 			},
 		},
@@ -98,8 +102,7 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 				return Scale(e1v(r, s), scale)
 			},
 			divergence: func(r, s float64) (div float64) {
-				return e.
-					dconvDrDs() * 2
+				return e.dconvDrDs() * 2
 			},
 		},
 		Edge2Vector: BaseVector{
@@ -112,8 +115,7 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 				return Scale(e2v(r, s), scale)
 			},
 			divergence: func(r, s float64) (div float64) {
-				return e.
-					dconvDrDs() * 2 * sr2
+				return e.dconvDrDs() * 2 * sr2
 			},
 		},
 		Edge3Vector: BaseVector{
@@ -188,10 +190,10 @@ func (e *ErvinRTBasis) getFunctionType(j int) (param RTBasisFunctionType) {
 func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt VectorFunction) {
 	var (
 		param = e.getFunctionType(j)
-		bv    BaseVector
-		jj    = j - 2*e.NpInt
 		// sr2   = math.Sqrt2
 	)
+	jj := j - 2*e.NpInt
+	bv := BaseVector{}
 	switch param {
 	case E1:
 		bv = e.Edge1Vector
@@ -255,6 +257,7 @@ func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt VectorFunction
 			}
 		}
 		return e.dconvDrDs() * sum / div
+		// return 0.1 * sum / div
 	}
 
 	Eval := func(r, s float64) (val float64) {
@@ -266,7 +269,8 @@ func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt VectorFunction
 		case E1:
 			grad[0] = lagrange1DDeriv(r, s)
 		case E2:
-			grad[1] = math.Sqrt2 * lagrange1DDeriv(r, s)
+			grad[1] = math.Sqrt2 * lagrange1DDeriv(r, s) // Jacobian for edge length
+			// grad[1] = lagrange1DDeriv(r, s)
 		case E3:
 			grad[1] = -lagrange1DDeriv(r, s)
 		}
