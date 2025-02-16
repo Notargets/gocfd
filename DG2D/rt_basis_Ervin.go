@@ -266,7 +266,7 @@ func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt VectorFunction
 		case E1:
 			grad[0] = lagrange1DDeriv(r, s)
 		case E2:
-			grad[1] = lagrange1DDeriv(r, s)
+			grad[1] = math.Sqrt2 * lagrange1DDeriv(r, s)
 		case E3:
 			grad[1] = -lagrange1DDeriv(r, s)
 		}

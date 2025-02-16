@@ -256,6 +256,7 @@ func (jb2d *JacobiBasis2D) GetAllPolynomials(derivO ...DerivativeDirection) (
 func (jb2d *JacobiBasis2D) GetOrthogonalPolynomialAtJ(r, s float64, j int,
 	derivO ...DerivativeDirection) (phi float64) {
 	// The coefficients of the J-th orthogonal polynomial are columns of Vinv
+	// The value of the J-th polynomial evaluated at it's defining point is 1
 	var (
 		deriv = None
 	)

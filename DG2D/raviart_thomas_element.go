@@ -236,7 +236,11 @@ func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
 
 	// Compose basis Vandermonde matrix
 	rt.V = rt.ComposeV(rt.Phi)
-	// rt.V.Print("V (Psi)")
+	if rt.RTBasis == SimplexRTBasis {
+		rt.V.Print("V (Psi)")
+		// rt.VInv.Print("V Inv(Psi)")
+		// os.Exit(1)
+	}
 	rt.VInv = rt.V.InverseWithCheck()
 	rt.Div = rt.ComputeDivergenceMatrix()
 	return

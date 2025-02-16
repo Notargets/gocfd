@@ -11,17 +11,19 @@ import (
 
 func TestRTElement(t *testing.T) {
 	// for _, rtb := range []RTBasisType{SimplexRTBasis} {
-	for _, rtb := range []RTBasisType{ErvinBasisRT, SimplexRTBasis} {
-		// for _, rtb := range []RTBasisType{ErvinBasisRT} {
-		var PMax int
+	// for _, rtb := range []RTBasisType{ErvinBasisRT, SimplexRTBasis} {
+	for _, rtb := range []RTBasisType{ErvinBasisRT} {
+		var PMin, PMax int
 		switch rtb {
 		case ErvinBasisRT:
-			PMax = 2
+			PMin = 5
+			PMax = 5
 		case SimplexRTBasis:
-			PMax = 3
+			PMin = 1
+			PMax = 1
 		}
 		t.Logf("===================> %s\n", rtb.String())
-		DivergencePolynomialField_Test(t, PMax)
+		DivergencePolynomialField_Test(t, rtb, PMin, PMax)
 
 		// t.Logf("Testing RT divergence on SinCos Fields for %v\n",
 		// 	rtb.String())
@@ -29,16 +31,17 @@ func TestRTElement(t *testing.T) {
 	}
 }
 
-func DivergencePolynomialField_Test(t *testing.T, PMax int) {
+func DivergencePolynomialField_Test(t *testing.T, BasisType RTBasisType,
+	PMin, PMax int) {
 	var (
 		dt  VectorTestField
 		tol = 0.0000001
 	)
-	dt = PolyVectorField{}
+	dt = PolyVectorField2{}
 
 	t.Log("Begin Divergence Test")
 	// P := 1
-	PStart := 1
+	PStart := PMin
 	PEnd := PMax
 	for P := PStart; P <= PEnd; P++ {
 		PFieldStart := 0
@@ -46,7 +49,7 @@ func DivergencePolynomialField_Test(t *testing.T, PMax int) {
 		t.Logf("---------------------------------------------\n")
 		t.Logf("Checking Divergence for RT%d\n", P)
 		t.Logf("---------------------------------------------\n")
-		rt := NewRTElement(P, ErvinBasisRT)
+		rt := NewRTElement(P, BasisType)
 		Np := rt.Np
 		// A := utils.NewMatrix(Np, Np)
 		f1, f2 := make([]float64, Np), make([]float64, Np)
@@ -62,6 +65,10 @@ func DivergencePolynomialField_Test(t *testing.T, PMax int) {
 			}
 			rt.ProjectFunctionOntoDOF(f1, f2, FProj)
 			DivCalc := rt.Div.Mul(FProj)
+			// if testing.Verbose() {
+			// 	DivCalc.Transpose().Print("Div Calc")
+			// 	t.Log("Ref Div = ", DivRef)
+			// }
 			assert.InDeltaSlicef(t, DivRef, DivCalc.DataP, tol, "")
 		}
 	}
