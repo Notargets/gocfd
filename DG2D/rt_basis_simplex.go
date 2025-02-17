@@ -9,6 +9,9 @@ type RTBasisSimplex struct {
 	Np, NpInt, NpEdge int
 	Phi               []VectorI
 	PKBasis           *JacobiBasis2D
+	PEdge1Basis       *JacobiBasis1D
+	PEdge2Basis       *JacobiBasis1D
+	PEdge3Basis       *JacobiBasis1D
 }
 
 func NewRTBasisSimplex(P int, R, S utils.Vector) (bs *RTBasisSimplex) {
@@ -24,11 +27,23 @@ func NewRTBasisSimplex(P int, R, S utils.Vector) (bs *RTBasisSimplex) {
 		NpEdge: NpEdge,
 		Phi:    make([]VectorI, Np),
 	}
+	edgeBegin := 2 * NpInt
+	REdge1 := utils.NewVector(NpEdge, R.DataP[edgeBegin:edgeBegin+NpEdge])
+	REdge2 := utils.NewVector(NpEdge, R.DataP[edgeBegin:edgeBegin+NpEdge])
+	REdge3 := utils.NewVector(NpEdge, R.DataP[edgeBegin:edgeBegin+NpEdge])
+	for i := 0; i < bs.NpEdge; i++ {
+		REdge2.DataP[i] = (REdge1.DataP[i] + 1.) / 2. // t = (s+1)/2
+	}
+	for i := 0; i < bs.NpEdge; i++ {
+		REdge3.DataP[NpEdge-1-i] = -REdge1.DataP[i] // t = -s
+	}
+	bs.PEdge1Basis = NewJacobiBasis1D(P, REdge1, 0, 0)
+	bs.PEdge2Basis = NewJacobiBasis1D(P, REdge2, 0, 0)
+	bs.PEdge3Basis = NewJacobiBasis1D(P, REdge3, 0, 0)
 	bs.PKBasis = NewJacobiBasis2D(P-1,
 		R.Copy().Subset(0, NpInt-1),
 		S.Copy().Subset(0, NpInt-1),
 		0, 0)
-	edgeBegin := 2 * NpInt
 	bs.ComposePhi(R.DataP[edgeBegin : edgeBegin+NpEdge])
 	return
 }
@@ -164,7 +179,8 @@ func (bs *RTBasisSimplex) ComposePhi(tBasis []float64) {
 			default:
 				panic("invalid function type")
 			}
-			polyMultiplier = bs.getLpPolyTerm(j, tBasis)
+			// polyMultiplier = bs.getLpPolyTerm(j, tBasis)
+			polyMultiplier = bs.getEdgePolyTerm(j)
 		}
 
 		bs.Phi[j] = VectorFunction{
@@ -211,6 +227,59 @@ func (bs *RTBasisSimplex) getFunctionType(j int) (param RTBasisFunctionType) {
 	case j >= end:
 		panic("j out of range")
 	}
+	return
+}
+
+func (bs *RTBasisSimplex) getEdgePolyTerm(j int) (pm PolynomialMultiplier) {
+	var (
+		param = bs.getFunctionType(j)
+	)
+	polyEval := func(r, s float64) (val float64) { return }
+	polyDeriv := func(r, s float64) (val float64) { return }
+	jj := j - 2*bs.NpInt
+	switch param {
+	case E1:
+		polyEval = func(r, s float64) (val float64) {
+			return bs.PEdge1Basis.GetOrthogonalPolynomialAtJ(r, jj)
+		}
+		polyDeriv = func(r, s float64) (val float64) {
+			return bs.PEdge1Basis.GetOrthogonalPolynomialAtJ(r, jj, Dr)
+		}
+	case E2:
+		jj -= bs.NpEdge
+		polyEval = func(r, s float64) (val float64) {
+			// Parameterization is (s+1)/2
+			return bs.PEdge2Basis.GetOrthogonalPolynomialAtJ((s+1)/2., jj)
+		}
+		polyDeriv = func(r, s float64) (val float64) {
+			// Parameterization is (s+1)/2
+			return bs.PEdge2Basis.GetOrthogonalPolynomialAtJ((s+1)/2., jj, Dr) / 2.
+		}
+	case E3:
+		jj -= 2 * bs.NpEdge
+		polyEval = func(r, s float64) (val float64) {
+			// Parameterization is -s
+			return bs.PEdge3Basis.GetOrthogonalPolynomialAtJ(-s, jj)
+		}
+		polyDeriv = func(r, s float64) (val float64) {
+			return -bs.PEdge3Basis.GetOrthogonalPolynomialAtJ(-s, jj, Dr)
+		}
+	default:
+		panic("Lagrange polynomial is for edges only")
+	}
+	pm = PolynomialMultiplier{
+		Eval: func(r, s float64) float64 { return polyEval(r, s) },
+		Gradient: func(r, s float64) (grad [2]float64) {
+			switch param {
+			case E1:
+				grad[0] = polyDeriv(r, s)
+			case E2:
+				grad[1] = polyDeriv(r, s)
+			case E3:
+				grad[1] = polyDeriv(r, s)
+			}
+			return
+		}}
 	return
 }
 

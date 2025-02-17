@@ -325,7 +325,7 @@ func GradJacobiP(r utils.Vector, alpha, beta float64, N int) (p []float64) {
 	return
 }
 
-func GradVandermonde1D(r utils.Vector, N int) (Vr utils.Matrix) {
+func GradVandermonde1D(N int, r utils.Vector) (Vr utils.Matrix) {
 	Vr = utils.NewMatrix(r.Len(), N+1)
 	for i := 0; i < N+1; i++ {
 		Vr.SetCol(i, GradJacobiP(r, 0, 0, i))

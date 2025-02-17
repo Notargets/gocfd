@@ -24,7 +24,7 @@ func (el *Elements1D) Startup1D(nt NODE_TYPE) {
 		fmt.Println(err)
 		panic("error inverting V")
 	}
-	Vr := GradVandermonde1D(el.R, N)
+	Vr := GradVandermonde1D(N, el.R)
 
 	el.Dr = Vr.Mul(el.Vinv)
 
