@@ -242,7 +242,11 @@ func (bs *RTBasisSimplex) getLpPolyTerm(j int, tBasis []float64) (pm PolynomialM
 		}
 	case E3:
 		jj -= 2 * bs.NpEdge
-		tB = tBasis
+		// tB = tBasis
+		tB = make([]float64, bs.NpEdge)
+		for i := 0; i < bs.NpEdge; i++ {
+			tB[bs.NpEdge-1-i] = -tBasis[i] // t = -s
+		}
 	default:
 		panic("Lagrange polynomial is for edges only")
 	}
@@ -281,7 +285,7 @@ func (bs *RTBasisSimplex) getLpPolyTerm(j int, tBasis []float64) (pm PolynomialM
 		case E2:
 			t = (s + 1.) / 2.
 		case E3:
-			t = s
+			t = -s
 		}
 		tb_j := tB[jj]
 		for i := 0; i < bs.NpEdge; i++ {
@@ -303,7 +307,7 @@ func (bs *RTBasisSimplex) getLpPolyTerm(j int, tBasis []float64) (pm PolynomialM
 			case E2:
 				grad[1] = lagrange1DDeriv(r, s) / 2. // Parameterization is (s+1)/2
 			case E3:
-				grad[1] = lagrange1DDeriv(r, s)
+				grad[1] = -lagrange1DDeriv(r, s)
 			}
 			return
 		}}
