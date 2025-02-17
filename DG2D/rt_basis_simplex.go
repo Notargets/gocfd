@@ -85,16 +85,14 @@ func (bs *RTBasisSimplex) ComposePhi(tBasis []float64) {
 		case E4:
 			jj = j
 			vectorEval = func(r, s float64) (v [2]float64) {
-				// r direction: [p_j,0]
-				// Left normal is: [-1,0], add term: [(r+1),]
-				// Bottom normal is: [0,-1], dot is zero automatically
-				// Hypotenuse add term: [(1-r-s),]
-				// v = [(1-r-s)(r+1),0]
-				h := 1. - r - s
+				// E4 vector is tangent to all three edges:
+				// E4 = [(s+1)(r+1)/4,(s+1)(s-1)/4]
 				rp := r + 1.
-				return [2]float64{h * rp, 0}
+				sp := s + 1.
+				sm := s - 1.
+				return [2]float64{sp * rp / 4., sp * sm / 4.}
 			}
-			vectorDiv = func(r, s float64) (div float64) { return -2.*r - s }
+			vectorDiv = func(r, s float64) (div float64) { return (3.*s + 1) / 4. }
 			evalPoly = func(r, s float64) float64 {
 				return bs.PKBasis.GetOrthogonalPolynomialAtJ(r, s, jj)
 			}
@@ -110,16 +108,14 @@ func (bs *RTBasisSimplex) ComposePhi(tBasis []float64) {
 		case E5:
 			jj = j - bs.NpInt
 			vectorEval = func(r, s float64) (v [2]float64) {
-				// s direction: [0,p_j]
-				// Left normal is: [-1,0], dot is zero automatically
-				// Bottom normal is: [0,-1], add term [,(s+1)]
-				// Hypotenuse add term: [,(1-r-s)]
-				// v = [,(1-r-s)(s+1)]
-				h := 1. - r - s
-				sp := r + 1.
-				return [2]float64{0, h * sp}
+				// E5 vector is tangent to all three edges:
+				// E5 = [(r+1)(r-1)/4,(r+1)(s+1)/4]
+				rp := r + 1.
+				rm := r - 1.
+				sp := s + 1.
+				return [2]float64{rp * rm / 4., rp * sp / 4.}
 			}
-			vectorDiv = func(r, s float64) (div float64) { return -2.*s - r }
+			vectorDiv = func(r, s float64) (div float64) { return (3.*r + 1) / 4. }
 			evalPoly = func(r, s float64) float64 {
 				return bs.PKBasis.GetOrthogonalPolynomialAtJ(r, s, jj)
 			}
