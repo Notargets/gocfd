@@ -66,7 +66,7 @@ func (bs *RTBasisSimplex) ComposePhi(tBasis []float64) {
 	// [(r+1),(s+1)]
 	// ======== Bottom Edge (dot product = 0) constraint ===============
 	// Bottom normal is [0,-1], Edge functional: s = -1
-	// For a vector function to vanish on the Left edge, we multiply an
+	// For a vector function to vanish on the Bottom edge, we multiply an
 	// s direction by [,(s+1)]
 	// ========== Bottom Edge (dim to (-1,1) constraint ===============
 	// Multiply r direction by (r+1) to diminish approaching (-1,s)
@@ -140,15 +140,11 @@ func (bs *RTBasisSimplex) ComposePhi(tBasis []float64) {
 					// Hypotenuse
 					// dot zero with Bottom and Left yields:
 					// [(r+1),(s+1)]
-					// dim toward (-1,1) yields an additional: [(r+1),(s+1)]
-					// [(r+1),(s+1)(s-1)]
-					// Symmetry offers an added: [(r-1),]
-					// v = [(r+1)(r-1),(s+1)(s-1)]
-					rm := r - 1.
+					// dim toward (-1,-1) yields an additional: [(r+1),(s+1)]
+					// [(r+1)*(r+1),(s+1)(s+1)]
 					rp := r + 1.
-					sm := s - 1.
 					sp := s + 1.
-					return [2]float64{rm * rp, sp * sm}
+					return [2]float64{rp * rp, sp * sp}
 				}
 				vectorDiv = func(r, s float64) (div float64) { return 2. * (r + s) }
 			case E3:
@@ -232,6 +228,7 @@ func (bs *RTBasisSimplex) getLpPolyTerm(j int, tBasis []float64) (pm PolynomialM
 		tB = make([]float64, bs.NpEdge)
 		for i := 0; i < bs.NpEdge; i++ {
 			tB[i] = (tBasis[i] + 1.) / 2. // t = (s+1)/2
+			// fmt.Printf("tB[%d,%f] = %f\n", i, tBasis[i], tB[i])
 		}
 	case E3:
 		jj -= 2 * bs.NpEdge
