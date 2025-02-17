@@ -96,30 +96,77 @@ func (bs *RTBasisSimplex) ComposePhi(tBasis []float64) {
 				Gradient: evalPolyGradient,
 			}
 		case E1:
+			// Constraints
+			// ========= Left Edge (dot product = 0) constraint ================
+			// Left normal is [-1,0], Edge functional: r = -1
+			// For a vector function to vanish on the Left edge, we multiply an
+			// r direction by [(r+1),]
+			// ========= Left Edge (dim to (1,-1) constraint ===================
+			// Multiply r direction by (r-1) to diminish approaching (1,s)
+			// Multiply s direction by (s+1) to diminish approaching (r,-1)
+			// [(r-1),(s+1)]
+			// ========= Hypotenuse (dot product = 0) constraint ===============
+			// Hypotenuse normal is [Sqrt2/2,Sqrt2/2], Edge functional: r+s = 1
+			// For a vector function to vanish on the Left edge, we multiply an
+			// [(1-r-s),(1-r-s)] term with the r and s vector components
+			// ========= Hypotenuse (dim to (-1, -1) constraint ================
+			// Multiply r direction by (r+1) to diminish approaching (-1,s)
+			// Multiply s direction by (s+1) to diminish approaching (r,-1)
+			// [(r+1),(s+1)]
+			// ======== Bottom Edge (dot product = 0) constraint ===============
+			// Bottom normal is [0,-1], Edge functional: s = -1
+			// For a vector function to vanish on the Left edge, we multiply an
+			// s direction by [,(s+1)]
+			// ========== Bottom Edge (dim to (-1,1) constraint ===============
+			// Multiply r direction by (r+1) to diminish approaching (-1,s)
+			// Multiply s direction by (s-1) to diminish approaching (r,1)
+			// [(r+1),(s-1)]
 			jj = j - 2*bs.NpInt
 			vectorEval = func(r, s float64) (v [2]float64) {
-				// Diminish away from bottom
-				return [2]float64{r, (1. - s) / 2.}
+				// Bottom edge
+				// dot zero with Left and Hypotenuse yields:
+				// [(1-r-s)(r+1),(1-r-s)]
+				// dim toward (-1,1) yields an additional: [(r+1),(s-1)]
+				// v = [(1-r-s)(r+1),(1-r-s)(s-1)]
+				h := 1. - r - s
+				rp := r + 1.
+				sm := s - 1.
+				return [2]float64{h * rp, h * sm}
 			}
-			divEval = func(r, s float64) (div float64) { return 1 / 2. }
+			divEval = func(r, s float64) (div float64) { return 2. - 3.*(r+s) }
 			polyMultiplier = bs.getLpPolyTerm(j, tBasis)
 		case E2:
 			jj = j - 2*bs.NpInt - bs.NpEdge
-			sr2t2 := 2. * math.Sqrt2
 			vectorEval = func(r, s float64) (v [2]float64) {
-				// Diminish away from Hypotenuse
-				// 1 = r+s, (r+s+2)/3 is the contravariant
-				return [2]float64{(r + s + 2.) / sr2t2, (r + s + 2.) / sr2t2}
+				// Hypotenuse
+				// dot zero with Bottom and Left yields:
+				// [(r+1),(s+1)]
+				// dim toward (-1,1) yields an additional: [(r+1),(s+1)]
+				// [(r+1),(s+1)(s-1)]
+				// Symmetry offers an added: [(r-1),]
+				// v = [(r+1)(r-1),(s+1)(s-1)]
+				rm := r - 1.
+				rp := r + 1.
+				sm := s - 1.
+				sp := s + 1.
+				return [2]float64{rm * rp, sp * sm}
 			}
-			divEval = func(r, s float64) (div float64) { return 2. / sr2t2 }
+			divEval = func(r, s float64) (div float64) { return 2. * (r + s) }
 			polyMultiplier = bs.getLpPolyTerm(j, tBasis)
 		case E3:
 			jj = j - 2*bs.NpInt - 2*bs.NpEdge
 			vectorEval = func(r, s float64) (v [2]float64) {
-				// Diminish away from Left
-				return [2]float64{(1. - r) / 2., s}
+				// Left Edge
+				// dot zero with Hypotenuse and Bottom yields:
+				// [(1-r-s),(1-r-s)(s+1)]
+				// dim toward (1,-1) yields an additional: [(r-1),(s+1)]
+				// v = [(1-r-s)(r-1),(1-r-s)(s+1)]
+				h := 1. - r - s
+				rm := r - 1.
+				sp := s + 1.
+				return [2]float64{h * rm, h * sp}
 			}
-			divEval = func(r, s float64) (div float64) { return 1 / 2. }
+			divEval = func(r, s float64) (div float64) { return 2. - 3.*(r+s) }
 			polyMultiplier = bs.getLpPolyTerm(j, tBasis)
 		default:
 			panic("invalid function type")
