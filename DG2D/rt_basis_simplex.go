@@ -278,7 +278,7 @@ func (bs *RTBasisSimplex) getLpPolyTerm(j int, tBasis []float64) (pm PolynomialM
 		case E2:
 			t = s
 		case E3:
-			t = -s
+			t = s
 		}
 		tb_j := tBasis[jj]
 		for i := 0; i < bs.NpEdge; i++ {
@@ -300,9 +300,12 @@ func (bs *RTBasisSimplex) getLpPolyTerm(j int, tBasis []float64) (pm PolynomialM
 		case E1:
 			grad[0] = lagrange1DDeriv(r, s)
 		case E2:
-			grad[1] = sr2 * lagrange1DDeriv(r, s)
+			// grad[0] = -sr2 * lagrange1DDeriv(r, s)
+			// grad[1] = sr2 * lagrange1DDeriv(r, s)
+			grad[1] = lagrange1DDeriv(r, s)
+			_ = sr2
 		case E3:
-			grad[1] = -lagrange1DDeriv(r, s)
+			grad[1] = lagrange1DDeriv(r, s)
 		}
 		return
 	}
