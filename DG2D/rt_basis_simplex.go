@@ -79,18 +79,33 @@ func (bs *RTBasisSimplex) ComposePhi(tBasis []float64) {
 		evalPoly := func(r, s float64) (val float64) { return }
 		evalPolyGradient := func(r, s float64) (grad [2]float64) { return }
 		var polyMultiplier PolynomialMultiplier
-		switch bs.getFunctionType(j) {
-		case E4:
-			jj = j
-			vectorEval = func(r, s float64) (v [2]float64) {
-				// E4 vector is tangent to all three edges:
-				// E4 = [(s+1)(r+1)/4,(s+1)(s-1)/4]
-				rp := r + 1.
-				sp := s + 1.
-				sm := s - 1.
-				return [2]float64{sp * rp / 4., sp * sm / 4.}
+		ftype := bs.getFunctionType(j)
+		switch ftype {
+		case E4, E5:
+			switch ftype {
+			case E4:
+				jj = j
+				vectorEval = func(r, s float64) (v [2]float64) {
+					// E4 vector is tangent to all three edges:
+					// E4 = [(s+1)(r+1)/4,(s+1)(s-1)/4]
+					rp := r + 1.
+					sp := s + 1.
+					sm := s - 1.
+					return [2]float64{sp * rp / 4., sp * sm / 4.}
+				}
+				vectorDiv = func(r, s float64) (div float64) { return (3.*s + 1) / 4. }
+			case E5:
+				jj = j - bs.NpInt
+				vectorEval = func(r, s float64) (v [2]float64) {
+					// E5 vector is tangent to all three edges:
+					// E5 = [(r+1)(r-1)/4,(r+1)(s+1)/4]
+					rp := r + 1.
+					rm := r - 1.
+					sp := s + 1.
+					return [2]float64{rp * rm / 4., rp * sp / 4.}
+				}
+				vectorDiv = func(r, s float64) (div float64) { return (3.*r + 1) / 4. }
 			}
-			vectorDiv = func(r, s float64) (div float64) { return (3.*s + 1) / 4. }
 			evalPoly = func(r, s float64) float64 {
 				return bs.PKBasis.GetOrthogonalPolynomialAtJ(r, s, jj)
 			}
@@ -103,79 +118,57 @@ func (bs *RTBasisSimplex) ComposePhi(tBasis []float64) {
 				Eval:     evalPoly,
 				Gradient: evalPolyGradient,
 			}
-		case E5:
-			jj = j - bs.NpInt
-			vectorEval = func(r, s float64) (v [2]float64) {
-				// E5 vector is tangent to all three edges:
-				// E5 = [(r+1)(r-1)/4,(r+1)(s+1)/4]
-				rp := r + 1.
-				rm := r - 1.
-				sp := s + 1.
-				return [2]float64{rp * rm / 4., rp * sp / 4.}
+		case E1, E2, E3:
+			switch ftype {
+			case E1:
+				jj = j - 2*bs.NpInt
+				vectorEval = func(r, s float64) (v [2]float64) {
+					// Bottom edge
+					// dot zero with Left and Hypotenuse yields:
+					// [(1-r-s)(r+1),(1-r-s)]
+					// dim toward (-1,1) yields an additional: [(r+1),(s-1)]
+					// v = [(1-r-s)(r+1),(1-r-s)(s-1)]
+					h := 1. - r - s
+					rp := r + 1.
+					sm := s - 1.
+					return [2]float64{h * rp, h * sm}
+				}
+				vectorDiv = func(r, s float64) (div float64) { return 2. - 3.*(r+s) }
+			case E2:
+				jj = j - 2*bs.NpInt - bs.NpEdge
+				vectorEval = func(r, s float64) (v [2]float64) {
+					// Hypotenuse
+					// dot zero with Bottom and Left yields:
+					// [(r+1),(s+1)]
+					// dim toward (-1,1) yields an additional: [(r+1),(s+1)]
+					// [(r+1),(s+1)(s-1)]
+					// Symmetry offers an added: [(r-1),]
+					// v = [(r+1)(r-1),(s+1)(s-1)]
+					rm := r - 1.
+					rp := r + 1.
+					sm := s - 1.
+					sp := s + 1.
+					return [2]float64{rm * rp, sp * sm}
+				}
+				vectorDiv = func(r, s float64) (div float64) { return 2. * (r + s) }
+			case E3:
+				jj = j - 2*bs.NpInt - 2*bs.NpEdge
+				vectorEval = func(r, s float64) (v [2]float64) {
+					// Left Edge
+					// dot zero with Hypotenuse and Bottom yields:
+					// [(1-r-s),(1-r-s)(s+1)]
+					// dim toward (1,-1) yields an additional: [(r-1),(s+1)]
+					// v = [(1-r-s)(r-1),(1-r-s)(s+1)]
+					h := 1. - r - s
+					rm := r - 1.
+					sp := s + 1.
+					return [2]float64{h * rm, h * sp}
+				}
+				vectorDiv = func(r, s float64) (div float64) { return 2. - 3.*(r+s) }
+			default:
+				panic("invalid function type")
 			}
-			vectorDiv = func(r, s float64) (div float64) { return (3.*r + 1) / 4. }
-			evalPoly = func(r, s float64) float64 {
-				return bs.PKBasis.GetOrthogonalPolynomialAtJ(r, s, jj)
-			}
-			evalPolyGradient = func(r, s float64) (grad [2]float64) {
-				grad[0] = bs.PKBasis.GetOrthogonalPolynomialAtJ(r, s, jj, Dr)
-				grad[1] = bs.PKBasis.GetOrthogonalPolynomialAtJ(r, s, jj, Ds)
-				return
-			}
-			polyMultiplier = PolynomialMultiplier{
-				Eval:     evalPoly,
-				Gradient: evalPolyGradient,
-			}
-		case E1:
-			jj = j - 2*bs.NpInt
-			vectorEval = func(r, s float64) (v [2]float64) {
-				// Bottom edge
-				// dot zero with Left and Hypotenuse yields:
-				// [(1-r-s)(r+1),(1-r-s)]
-				// dim toward (-1,1) yields an additional: [(r+1),(s-1)]
-				// v = [(1-r-s)(r+1),(1-r-s)(s-1)]
-				h := 1. - r - s
-				rp := r + 1.
-				sm := s - 1.
-				return [2]float64{h * rp, h * sm}
-			}
-			vectorDiv = func(r, s float64) (div float64) { return 2. - 3.*(r+s) }
 			polyMultiplier = bs.getLpPolyTerm(j, tBasis)
-		case E2:
-			jj = j - 2*bs.NpInt - bs.NpEdge
-			vectorEval = func(r, s float64) (v [2]float64) {
-				// Hypotenuse
-				// dot zero with Bottom and Left yields:
-				// [(r+1),(s+1)]
-				// dim toward (-1,1) yields an additional: [(r+1),(s+1)]
-				// [(r+1),(s+1)(s-1)]
-				// Symmetry offers an added: [(r-1),]
-				// v = [(r+1)(r-1),(s+1)(s-1)]
-				rm := r - 1.
-				rp := r + 1.
-				sm := s - 1.
-				sp := s + 1.
-				return [2]float64{rm * rp, sp * sm}
-			}
-			vectorDiv = func(r, s float64) (div float64) { return 2. * (r + s) }
-			polyMultiplier = bs.getLpPolyTerm(j, tBasis)
-		case E3:
-			jj = j - 2*bs.NpInt - 2*bs.NpEdge
-			vectorEval = func(r, s float64) (v [2]float64) {
-				// Left Edge
-				// dot zero with Hypotenuse and Bottom yields:
-				// [(1-r-s),(1-r-s)(s+1)]
-				// dim toward (1,-1) yields an additional: [(r-1),(s+1)]
-				// v = [(1-r-s)(r-1),(1-r-s)(s+1)]
-				h := 1. - r - s
-				rm := r - 1.
-				sp := s + 1.
-				return [2]float64{h * rm, h * sp}
-			}
-			vectorDiv = func(r, s float64) (div float64) { return 2. - 3.*(r+s) }
-			polyMultiplier = bs.getLpPolyTerm(j, tBasis)
-		default:
-			panic("invalid function type")
 		}
 
 		bs.Phi[j] = VectorFunction{

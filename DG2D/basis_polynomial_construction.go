@@ -74,14 +74,14 @@ func (pt VectorFunction) Project(r, s, psi float64) (v [2]float64) {
 func (pt VectorFunction) Divergence(r, s float64) (div float64) {
 	var (
 		polyEval   = pt.PolyMultiplier.Eval(r, s)
-		divBase    = pt.VectorBase.divergence(r, s)
-		gradPoly   = pt.PolyMultiplier.Gradient(r, s)
+		polyGrad   = pt.PolyMultiplier.Gradient(r, s)
 		baseVector = pt.VectorBase
+		divVector  = pt.VectorBase.Divergence(r, s)
 	)
 	//    Div dot [P * e1, P * e2]
 	//    =  (dP/dr)*e1 + P*(d(e1)/dr) + (dP/ds)*e2 + P*(d(e2)/ds)
 	//    =  P * (d(e1)/dr + d(e2)/ds) + (dP/dr) * e1 + (dP/ds) * e2
 	//    =  P * div([E]) + ([E])_dot_grad(P)
-	div = polyEval*divBase + baseVector.dot(r, s, gradPoly)
+	div = polyEval*divVector + baseVector.Dot(r, s, polyGrad)
 	return
 }
