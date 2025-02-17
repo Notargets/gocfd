@@ -20,7 +20,7 @@ func TestRTElement(t *testing.T) {
 			PMax = 5
 		case SimplexRTBasis:
 			PMin = 1
-			PMax = 1
+			PMax = 5
 		}
 		t.Logf("===================> %s\n", rtb.String())
 		DivergencePolynomialField_Test(t, rtb, PMin, PMax)

@@ -49,10 +49,35 @@ func (bs *RTBasisSimplex) ComposePhi(tBasis []float64) {
 		}
 	}
 
+	// Constraints
+	// ========= Left Edge (dot product = 0) constraint ================
+	// Left normal is [-1,0], Edge functional: r = -1
+	// For a vector function to vanish on the Left edge, we multiply an
+	// r direction by [(r+1),]
+	// ========= Left Edge (dim to (1,-1) constraint ===================
+	// Multiply r direction by (r-1) to diminish approaching (1,s)
+	// Multiply s direction by (s+1) to diminish approaching (r,-1)
+	// [(r-1),(s+1)]
+	// ========= Hypotenuse (dot product = 0) constraint ===============
+	// Hypotenuse normal is [Sqrt2/2,Sqrt2/2], Edge functional: r+s = 1
+	// For a vector function to vanish on the Left edge, we multiply an
+	// [(1-r-s),(1-r-s)] term with the r and s vector components
+	// ========= Hypotenuse (dim to (-1, -1) constraint ================
+	// Multiply r direction by (r+1) to diminish approaching (-1,s)
+	// Multiply s direction by (s+1) to diminish approaching (r,-1)
+	// [(r+1),(s+1)]
+	// ======== Bottom Edge (dot product = 0) constraint ===============
+	// Bottom normal is [0,-1], Edge functional: s = -1
+	// For a vector function to vanish on the Left edge, we multiply an
+	// s direction by [,(s+1)]
+	// ========== Bottom Edge (dim to (-1,1) constraint ===============
+	// Multiply r direction by (r+1) to diminish approaching (-1,s)
+	// Multiply s direction by (s-1) to diminish approaching (r,1)
+	// [(r+1),(s-1)]
 	for j := 0; j < bs.Np; j++ {
 		jj := j
 		vectorEval := func(r, s float64) (v [2]float64) { return }
-		divEval := func(r, s float64) (div float64) { return }
+		vectorDiv := func(r, s float64) (div float64) { return }
 		evalPoly := func(r, s float64) (val float64) { return }
 		evalPolyGradient := func(r, s float64) (grad [2]float64) { return }
 		var polyMultiplier PolynomialMultiplier
@@ -60,10 +85,16 @@ func (bs *RTBasisSimplex) ComposePhi(tBasis []float64) {
 		case E4:
 			jj = j
 			vectorEval = func(r, s float64) (v [2]float64) {
-				// Diminish at s boundaries
-				return [2]float64{r * s, 1. - s*s}
+				// r direction: [p_j,0]
+				// Left normal is: [-1,0], add term: [(r+1),]
+				// Bottom normal is: [0,-1], dot is zero automatically
+				// Hypotenuse add term: [(1-r-s),]
+				// v = [(1-r-s)(r+1),0]
+				h := 1. - r - s
+				rp := r + 1.
+				return [2]float64{h * rp, 0}
 			}
-			divEval = func(r, s float64) (div float64) { return -s }
+			vectorDiv = func(r, s float64) (div float64) { return -2.*r - s }
 			evalPoly = func(r, s float64) float64 {
 				return bs.PKBasis.GetOrthogonalPolynomialAtJ(r, s, jj)
 			}
@@ -79,10 +110,16 @@ func (bs *RTBasisSimplex) ComposePhi(tBasis []float64) {
 		case E5:
 			jj = j - bs.NpInt
 			vectorEval = func(r, s float64) (v [2]float64) {
-				// Diminish at r boundaries
-				return [2]float64{1. - r*r, r * s}
+				// s direction: [0,p_j]
+				// Left normal is: [-1,0], dot is zero automatically
+				// Bottom normal is: [0,-1], add term [,(s+1)]
+				// Hypotenuse add term: [,(1-r-s)]
+				// v = [,(1-r-s)(s+1)]
+				h := 1. - r - s
+				sp := r + 1.
+				return [2]float64{0, h * sp}
 			}
-			divEval = func(r, s float64) (div float64) { return -r }
+			vectorDiv = func(r, s float64) (div float64) { return -2.*s - r }
 			evalPoly = func(r, s float64) float64 {
 				return bs.PKBasis.GetOrthogonalPolynomialAtJ(r, s, jj)
 			}
@@ -96,31 +133,6 @@ func (bs *RTBasisSimplex) ComposePhi(tBasis []float64) {
 				Gradient: evalPolyGradient,
 			}
 		case E1:
-			// Constraints
-			// ========= Left Edge (dot product = 0) constraint ================
-			// Left normal is [-1,0], Edge functional: r = -1
-			// For a vector function to vanish on the Left edge, we multiply an
-			// r direction by [(r+1),]
-			// ========= Left Edge (dim to (1,-1) constraint ===================
-			// Multiply r direction by (r-1) to diminish approaching (1,s)
-			// Multiply s direction by (s+1) to diminish approaching (r,-1)
-			// [(r-1),(s+1)]
-			// ========= Hypotenuse (dot product = 0) constraint ===============
-			// Hypotenuse normal is [Sqrt2/2,Sqrt2/2], Edge functional: r+s = 1
-			// For a vector function to vanish on the Left edge, we multiply an
-			// [(1-r-s),(1-r-s)] term with the r and s vector components
-			// ========= Hypotenuse (dim to (-1, -1) constraint ================
-			// Multiply r direction by (r+1) to diminish approaching (-1,s)
-			// Multiply s direction by (s+1) to diminish approaching (r,-1)
-			// [(r+1),(s+1)]
-			// ======== Bottom Edge (dot product = 0) constraint ===============
-			// Bottom normal is [0,-1], Edge functional: s = -1
-			// For a vector function to vanish on the Left edge, we multiply an
-			// s direction by [,(s+1)]
-			// ========== Bottom Edge (dim to (-1,1) constraint ===============
-			// Multiply r direction by (r+1) to diminish approaching (-1,s)
-			// Multiply s direction by (s-1) to diminish approaching (r,1)
-			// [(r+1),(s-1)]
 			jj = j - 2*bs.NpInt
 			vectorEval = func(r, s float64) (v [2]float64) {
 				// Bottom edge
@@ -133,7 +145,7 @@ func (bs *RTBasisSimplex) ComposePhi(tBasis []float64) {
 				sm := s - 1.
 				return [2]float64{h * rp, h * sm}
 			}
-			divEval = func(r, s float64) (div float64) { return 2. - 3.*(r+s) }
+			vectorDiv = func(r, s float64) (div float64) { return 2. - 3.*(r+s) }
 			polyMultiplier = bs.getLpPolyTerm(j, tBasis)
 		case E2:
 			jj = j - 2*bs.NpInt - bs.NpEdge
@@ -151,7 +163,7 @@ func (bs *RTBasisSimplex) ComposePhi(tBasis []float64) {
 				sp := s + 1.
 				return [2]float64{rm * rp, sp * sm}
 			}
-			divEval = func(r, s float64) (div float64) { return 2. * (r + s) }
+			vectorDiv = func(r, s float64) (div float64) { return 2. * (r + s) }
 			polyMultiplier = bs.getLpPolyTerm(j, tBasis)
 		case E3:
 			jj = j - 2*bs.NpInt - 2*bs.NpEdge
@@ -166,7 +178,7 @@ func (bs *RTBasisSimplex) ComposePhi(tBasis []float64) {
 				sp := s + 1.
 				return [2]float64{h * rm, h * sp}
 			}
-			divEval = func(r, s float64) (div float64) { return 2. - 3.*(r+s) }
+			vectorDiv = func(r, s float64) (div float64) { return 2. - 3.*(r+s) }
 			polyMultiplier = bs.getLpPolyTerm(j, tBasis)
 		default:
 			panic("invalid function type")
@@ -187,7 +199,7 @@ func (bs *RTBasisSimplex) ComposePhi(tBasis []float64) {
 					v[1] *= psi
 					return
 				},
-				divergence: func(r, s float64) float64 { return divEval(r, s) },
+				divergence: func(r, s float64) float64 { return vectorDiv(r, s) },
 			},
 		}
 	}
