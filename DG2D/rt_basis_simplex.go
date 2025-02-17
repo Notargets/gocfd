@@ -141,12 +141,12 @@ func (bs *RTBasisSimplex) ComposePhi(tBasis []float64) {
 					// dot zero with Bottom and Left yields:
 					// [(r+1),(s+1)]
 					// dim toward (-1,-1) yields an additional: [(r+1),(s+1)]
-					// [(r+1)*(r+1),(s+1)(s+1)]
+					// [(r+1)(r+1),(s+1)(s+1)]
 					rp := r + 1.
 					sp := s + 1.
 					return [2]float64{rp * rp, sp * sp}
 				}
-				vectorDiv = func(r, s float64) (div float64) { return 2. * (r + s) }
+				vectorDiv = func(r, s float64) (div float64) { return 2.*(r+s) + 4. }
 			case E3:
 				jj = j - 2*bs.NpInt - 2*bs.NpEdge
 				vectorEval = func(r, s float64) (v [2]float64) {
