@@ -1,8 +1,6 @@
 package DG2D
 
 import (
-	"math"
-
 	"github.com/notargets/gocfd/utils"
 )
 
@@ -230,16 +228,21 @@ func (bs *RTBasisSimplex) getFunctionType(j int) (param RTBasisFunctionType) {
 func (bs *RTBasisSimplex) getLpPolyTerm(j int, tBasis []float64) (pm PolynomialMultiplier) {
 	var (
 		param = bs.getFunctionType(j)
-		sr2   = math.Sqrt2
 	)
 	jj := j - 2*bs.NpInt
+	tB := []float64{}
 	switch param {
 	case E1:
-		// Do nothing
+		tB = tBasis
 	case E2:
 		jj -= bs.NpEdge
+		tB = make([]float64, bs.NpEdge)
+		for i := 0; i < bs.NpEdge; i++ {
+			tB[i] = (tBasis[i] + 1.) / 2. // t = (s+1)/2
+		}
 	case E3:
 		jj -= 2 * bs.NpEdge
+		tB = tBasis
 	default:
 		panic("Lagrange polynomial is for edges only")
 	}
@@ -253,14 +256,14 @@ func (bs *RTBasisSimplex) getLpPolyTerm(j int, tBasis []float64) (pm PolynomialM
 		case E1:
 			t = r
 		case E2:
-			t = s
+			t = (s + 1.) / 2.
 		case E3:
 			t = -s
 		}
-		tb_j := tBasis[jj]
+		tb_j := tB[jj]
 		for i := 0; i < bs.NpEdge; i++ {
 			if i != jj {
-				tb_i := tBasis[i]
+				tb_i := tB[i]
 				mult *= t - tb_i
 				div *= tb_j - tb_i
 			}
@@ -276,14 +279,14 @@ func (bs *RTBasisSimplex) getLpPolyTerm(j int, tBasis []float64) (pm PolynomialM
 		case E1:
 			t = r
 		case E2:
-			t = s
+			t = (s + 1.) / 2.
 		case E3:
 			t = s
 		}
-		tb_j := tBasis[jj]
+		tb_j := tB[jj]
 		for i := 0; i < bs.NpEdge; i++ {
 			if i != jj {
-				tb_i := tBasis[i]
+				tb_i := tB[i]
 				sum += t - tb_i
 				div *= tb_j - tb_i
 			}
@@ -291,28 +294,19 @@ func (bs *RTBasisSimplex) getLpPolyTerm(j int, tBasis []float64) (pm PolynomialM
 		return sum / div
 	}
 
-	Eval := func(r, s float64) (val float64) {
-		val = lagrange1D(r, s)
-		return
-	}
-	Gradient := func(r, s float64) (grad [2]float64) {
-		switch param {
-		case E1:
-			grad[0] = lagrange1DDeriv(r, s)
-		case E2:
-			// grad[0] = -sr2 * lagrange1DDeriv(r, s)
-			// grad[1] = sr2 * lagrange1DDeriv(r, s)
-			grad[1] = lagrange1DDeriv(r, s)
-			_ = sr2
-		case E3:
-			grad[1] = lagrange1DDeriv(r, s)
-		}
-		return
-	}
 	pm = PolynomialMultiplier{
-		Eval:     Eval,
-		Gradient: Gradient,
-	}
+		Eval: func(r, s float64) float64 { return lagrange1D(r, s) },
+		Gradient: func(r, s float64) (grad [2]float64) {
+			switch param {
+			case E1:
+				grad[0] = lagrange1DDeriv(r, s)
+			case E2:
+				grad[1] = lagrange1DDeriv(r, s) / 2. // Parameterization is (s+1)/2
+			case E3:
+				grad[1] = lagrange1DDeriv(r, s)
+			}
+			return
+		}}
 	return
 }
 
