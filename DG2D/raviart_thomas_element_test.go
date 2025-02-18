@@ -21,7 +21,7 @@ func TestRTElement(t *testing.T) {
 			PMax = 2
 		case SimplexRTBasis:
 			PMin = 1
-			PMax = 1
+			PMax = 6
 		}
 		t.Logf("===================> %s\n", rtb.String())
 		DivergencePolynomialField_Test(t, rtb, PMin, PMax)
@@ -57,7 +57,7 @@ func CheckDivergence(t *testing.T, rt *RTElement, dt VectorTestField,
 	PFieldStart, PFieldEnd int) {
 	var (
 		Np  = rt.Np
-		tol = 0.0000001
+		tol = 0.000001
 	)
 	// A := utils.NewMatrix(Np, Np)
 	f1, f2 := make([]float64, Np), make([]float64, Np)
