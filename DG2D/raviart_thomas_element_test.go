@@ -34,22 +34,28 @@ func TestRTElement(t *testing.T) {
 
 func DivergencePolynomialField_Test(t *testing.T, BasisType RTBasisType, PMin, PMax int) {
 	var (
-		dt VectorTestField
+		dt []VectorTestField
 	)
-	dt = PolyVectorField3{}
+	dt = []VectorTestField{
+		PolyVectorField{},
+		PolyVectorField2{},
+		PolyVectorField3{},
+	}
 
-	t.Log("Begin Divergence Test")
-	// P := 1
-	PStart := PMin
-	PEnd := PMax
-	for P := PStart; P <= PEnd; P++ {
-		PFieldStart := 0
-		PFieldEnd := P
-		t.Logf("---------------------------------------------\n")
-		t.Logf("Checking Divergence for RT%d\n", P)
-		t.Logf("---------------------------------------------\n")
-		rt := NewRTElement(P, BasisType)
-		CheckDivergence(t, rt, dt, PFieldStart, PFieldEnd)
+	for _, field := range dt {
+		t.Logf("Begin Divergence Test for [%s]", field.String())
+		// P := 1
+		PStart := PMin
+		PEnd := PMax
+		for P := PStart; P <= PEnd; P++ {
+			PFieldStart := 0
+			PFieldEnd := P
+			t.Logf("---------------------------------------------\n")
+			t.Logf("Checking Divergence for RT%d\n", P)
+			t.Logf("---------------------------------------------\n")
+			rt := NewRTElement(P, BasisType)
+			CheckDivergence(t, rt, field, PFieldStart, PFieldEnd)
+		}
 	}
 }
 
