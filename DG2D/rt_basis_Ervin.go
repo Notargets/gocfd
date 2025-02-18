@@ -208,8 +208,6 @@ func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt VectorFunction
 	}
 	lagrange1D := func(r, s float64) (val float64) {
 		var (
-			div  = 1.
-			mult = 1.
 			t_rs float64
 		)
 		switch param {
@@ -221,22 +219,12 @@ func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt VectorFunction
 			t_rs = -s
 		}
 		t := e.conv(t_rs)
-		tb_j := e.conv(tBasis[jj])
-		for i := 0; i < e.NpEdge; i++ {
-			if i != jj {
-				tb_i := e.conv(tBasis[i])
-				mult *= t - tb_i
-				div *= tb_j - tb_i
-			}
-		}
-		// fmt.Println("mult, div, t_rs, param, jj, r, s = ", mult, div, t_rs,
-		// 	param, jj, r, s)
-		return mult / div
+		val = Lagrange1DPoly(t, tBasis, jj)
+		return
 	}
+
 	lagrange1DDeriv := func(r, s float64) (deriv float64) {
 		var (
-			div  = 1.
-			sum  float64
 			t_rs float64
 		)
 		switch param {
@@ -248,17 +236,8 @@ func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt VectorFunction
 			t_rs = -s
 		}
 		t := e.conv(t_rs)
-		tb_j := e.conv(tBasis[jj])
-		for i := 0; i < e.NpEdge; i++ {
-			if i != jj {
-				tb_i := e.conv(tBasis[i])
-				sum += t - tb_i
-				div *= tb_j - tb_i
-			}
-		}
-		// return e.dconvDrDs() * sum / div
-		return 0
-		// return 0.1 * sum / div
+		deriv = e.dconvDrDs() * Lagrange1DPoly(t, tBasis, jj, Dr)
+		return
 	}
 
 	Eval := func(r, s float64) (val float64) {
@@ -270,8 +249,7 @@ func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt VectorFunction
 		case E1:
 			grad[0] = lagrange1DDeriv(r, s)
 		case E2:
-			grad[1] = lagrange1DDeriv(r, s) / math.Sqrt2 // Jacobian for edge length
-			// grad[1] = lagrange1DDeriv(r, s)
+			grad[1] = lagrange1DDeriv(r, s)
 		case E3:
 			grad[1] = -lagrange1DDeriv(r, s)
 		}
@@ -318,7 +296,7 @@ func (e *ErvinRTBasis) getBkPolyTerm(j int) (
 				// }
 				d1 := e.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s, jj, Dr)
 				d2 := e.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s, jj, Ds)
-				grad = [2]float64{d1 / 2., d2 / 2.} // Jacobian
+				grad = [2]float64{d1, d2}
 				return
 			},
 		},
@@ -329,10 +307,14 @@ func (e *ErvinRTBasis) getBkPolyTerm(j int) (
 
 func (e *ErvinRTBasis) ComposePhiRTK(ePts []float64) (phi []VectorI) {
 	phi = make([]VectorI, e.Np)
+	ePtsConv := make([]float64, len(ePts))
+	for j := range ePts {
+		ePtsConv[j] = e.conv(ePts[j])
+	}
 	for j := 0; j < e.Np; j++ {
 		switch e.getFunctionType(j) {
 		case E1, E2, E3:
-			phi[j] = e.getLpPolyTerm(j, ePts)
+			phi[j] = e.getLpPolyTerm(j, ePtsConv)
 		case E4, E5:
 			phi[j] = e.getBkPolyTerm(j)
 		default:
@@ -355,15 +337,13 @@ func (e *ErvinRTBasis) ComposePhiRT1(g1rs, g2rs float64) (phi []VectorI) {
 			return (e.conv(t_rs) - g2) / (g1 - g2)
 		}
 		l1Deriv = func() float64 {
-			// return e.dconvDrDs() / (g1 - g2)
-			return 0
+			return e.dconvDrDs() / (g1 - g2)
 		}
 
 		l2Func = func(t_rs float64) float64 {
 			return (e.conv(t_rs) - g1) / (g2 - g1)
 		}
-		l2Deriv = func() float64 { return 0 }
-		// l2Deriv = func() float64 { return -l1Deriv() }
+		l2Deriv = func() float64 { return -l1Deriv() }
 
 		l1xiEdge1 = PolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l1Func(r) },
@@ -387,7 +367,6 @@ func (e *ErvinRTBasis) ComposePhiRT1(g1rs, g2rs float64) (phi []VectorI) {
 		l2etaEdge2 = PolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l2Func(s) },
 			Gradient: func(r, s float64) [2]float64 {
-				// return [2]float64{-l2Deriv(), l2Deriv()}
 				return [2]float64{0, l2Deriv()}
 			},
 		}

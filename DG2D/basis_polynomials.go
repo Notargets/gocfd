@@ -332,3 +332,46 @@ func (jb2d *JacobiBasis2D) GetOrthogonalPolynomialAtJ(r, s float64, j int,
 	}
 	return
 }
+
+func Lagrange1DPoly(t float64, R []float64, j int, derivO ...DerivativeDirection) (p float64) {
+	var (
+		deriv = false
+	)
+	// This is a 1D polynomial, but the nodes are either in the RDir or SDir direction within 2D
+	if len(derivO) != 0 {
+		deriv = true
+	}
+	if !deriv {
+		var (
+			Np1D = len(R)
+			XJ   = R[j]
+			XI   = t
+		)
+		if j > Np1D-1 || j < 0 {
+			panic("value of j larger than array or less than zero")
+		}
+		p = 1
+		for m, XM := range R {
+			if m != j {
+				p *= (XI - XM) / (XJ - XM)
+			}
+		}
+	} else {
+		var (
+			XJ = R[j]
+			X  = t
+		)
+		for i, XI := range R {
+			if i != j {
+				pp := 1.
+				for m, XM := range R {
+					if m != i && m != j {
+						pp *= (X - XM) / (XJ - XM)
+					}
+				}
+				p += pp / (XJ - XI)
+			}
+		}
+	}
+	return
+}

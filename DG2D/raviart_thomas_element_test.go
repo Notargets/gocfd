@@ -1,6 +1,7 @@
 package DG2D
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -17,7 +18,7 @@ func TestRTElement(t *testing.T) {
 		switch rtb {
 		case ErvinBasisRT:
 			PMin = 1
-			PMax = 1
+			PMax = 2
 		case SimplexRTBasis:
 			PMin = 1
 			PMax = 1
@@ -31,8 +32,7 @@ func TestRTElement(t *testing.T) {
 	}
 }
 
-func DivergencePolynomialField_Test(t *testing.T, BasisType RTBasisType,
-	PMin, PMax int) {
+func DivergencePolynomialField_Test(t *testing.T, BasisType RTBasisType, PMin, PMax int) {
 	var (
 		dt VectorTestField
 	)
@@ -75,7 +75,11 @@ func CheckDivergence(t *testing.T, rt *RTElement, dt VectorTestField,
 		DivCalc := rt.Div.Mul(FProj)
 		if testing.Verbose() {
 			DivCalc.Transpose().Print("Div Calc")
-			t.Log("Ref Div = ", DivRef)
+			fmt.Printf("Ref Div = \n[ ")
+			for i := 0; i < Np; i++ {
+				fmt.Printf("%6.5f ", DivRef[i])
+			}
+			fmt.Printf("]\n")
 		}
 		assert.InDeltaSlicef(t, DivRef, DivCalc.DataP, tol, "")
 	}

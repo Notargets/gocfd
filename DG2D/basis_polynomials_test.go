@@ -154,6 +154,39 @@ func TestJacobiBasis1D_GetOrthogonalPolynomialAtJ(t *testing.T) {
 	}
 }
 
+func TestLagrangePoly1D(t *testing.T) {
+	tol := 0.000001
+	PStart := 0
+	PEnd := 6
+	for P := PStart; P <= PEnd; P++ {
+		Np := P + 1
+		R := utils.NewVector(P+1, DG1D.LegendreZeros(P))
+		A := utils.NewMatrix(Np, Np)
+		DR := utils.NewMatrix(Np, Np)
+		for j := 0; j < Np; j++ {
+			for i := 0; i < Np; i++ {
+				r := R.AtVec(i)
+				A.Set(i, j, Lagrange1DPoly(r, R.DataP, j))
+				DR.Set(i, j, Lagrange1DPoly(r, R.DataP, j, Dr))
+			}
+		}
+		if testing.Verbose() {
+			A.Print("A")
+			DR.Print("DR")
+		}
+		assert.True(t, isIdentityMatrix(A, tol))
+		F_Ref := Poly1DForTests(R)
+		DR_Ref := Poly1DForTests(R, Dr)
+		DR_Calc := DR.Mul(F_Ref)
+		if testing.Verbose() {
+			F_Ref.Transpose().Print("F_Ref")
+			DR_Ref.Transpose().Print("DR_Ref")
+			DR_Calc.Transpose().Print("DR_Calc")
+		}
+		assert.InDeltaSlicef(t, DR_Ref.DataP, DR_Calc.DataP, tol, "")
+	}
+}
+
 func Poly1DForTests(R utils.Vector, derivO ...DerivativeDirection) (
 	valM utils.Matrix) {
 	var (

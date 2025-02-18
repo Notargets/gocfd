@@ -12,7 +12,7 @@ import (
 func TestErvinBasis(t *testing.T) {
 	var PMin, PMax int
 	PMin = 1
-	PMax = 1
+	PMax = 2
 	DivergencePolynomialField_RT1vsRTK_at1_Test(t, PMin, PMax)
 }
 
@@ -23,6 +23,9 @@ func DivergencePolynomialField_RT1vsRTK_at1_Test(t *testing.T, PMin, PMax int) {
 	// P := 1
 	PStart := PMin
 	PEnd := PMax
+	if PEnd > 1 {
+		PEnd = 1
+	}
 	for P := PStart; P <= PEnd; P++ {
 		// PFieldStart := 0
 		// PFieldEnd := P
@@ -36,17 +39,19 @@ func DivergencePolynomialField_RT1vsRTK_at1_Test(t *testing.T, PMin, PMax int) {
 
 		var label string
 
-		t.Logf("RTK Basis")
-		label = "RTK Basis"
-		RecomputeBasis(1, e, rt)
-		Phi_RTK := e.Phi
-		V_RTK := rt.ComposeV(Phi_RTK)
-
 		t.Logf("Manual Basis")
 		label = "Manual Basis"
-		RecomputeBasis(0, e, rt)
+		RecomputeBasis(P, e, rt)
 		Phi_Manual := e.Phi
 		V_Manual := rt.ComposeV(Phi_Manual)
+		V_Manual.Print("V " + label)
+
+		t.Logf("RTK Basis")
+		label = "RTK Basis"
+		RecomputeBasis(3, e, rt)
+		Phi_RTK := e.Phi
+		V_RTK := rt.ComposeV(Phi_RTK)
+		V_RTK.Print("V " + label)
 
 		assert.InDeltaSlicef(t, V_Manual.DataP, V_RTK.DataP, tol, "")
 
@@ -76,16 +81,16 @@ func DivergencePolynomialField_RT1vsRTK_at1_Test(t *testing.T, PMin, PMax int) {
 func RecomputeBasis(BasisType int, e *ErvinRTBasis, rt *RTElement) {
 	edgeLocation := 2 * e.NpInt
 	switch BasisType {
-	case 0:
+	case 1:
 		g1 := rt.R.DataP[edgeLocation]
 		g2 := rt.R.DataP[edgeLocation+1]
 		e.Phi = e.ComposePhiRT1(g1, g2)
-	// case 2:
-	// 	g1 := rt.R.DataP[edgeLocation]
-	// 	g2 := rt.R.DataP[edgeLocation+1]
-	// 	g3 := rt.R.DataP[edgeLocation+2]
-	// 	e.Phi = e.ComposePhiRT2(g1, g2, g3)
-	case 1:
+	case 2:
+		g1 := rt.R.DataP[edgeLocation]
+		g2 := rt.R.DataP[edgeLocation+1]
+		g3 := rt.R.DataP[edgeLocation+2]
+		e.Phi = e.ComposePhiRT2(g1, g2, g3)
+	case 3:
 		e.InteriorPolyKBasis = NewJacobiBasis2D(e.P-1,
 			rt.R.Copy().Subset(0, e.NpInt-1),
 			rt.S.Copy().Subset(0, e.NpInt-1),
@@ -113,15 +118,7 @@ func SetupRTTest(P int) (rt *RTElement) {
 	}
 
 	if P > 0 {
-		if P < 9 {
-			rt.RInt, rt.SInt = NodesEpsilon(P - 1)
-		} else {
-			rt.RInt, rt.SInt = XYtoRS(Nodes2D(P - 1))
-			// Weak approach to pull back equidistant distro from the edges
-			rt.RInt.Scale(0.93)
-			rt.SInt.Scale(0.93)
-			panic("This distribution is broken - TODO: fix\n")
-		}
+		rt.RInt, rt.SInt = NodesEpsilon(P - 1)
 	}
 
 	// Construct the unit vectors for the DOFs
