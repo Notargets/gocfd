@@ -15,10 +15,6 @@ func TestErvinBasis(t *testing.T) {
 }
 
 func DivergencePolynomialField_RT1vsRTK_at1_Test(t *testing.T, PMin, PMax int) {
-	BasisType := 0 // manual RT1
-	// BasisType := 1 // RTK logic
-
-	t.Log("Begin Divergence Test")
 	// P := 1
 	PStart := PMin
 	PEnd := PMax
@@ -32,33 +28,47 @@ func DivergencePolynomialField_RT1vsRTK_at1_Test(t *testing.T, PMin, PMax int) {
 
 		// Test the manual RT1 versus using the RTK logic
 		e := NewErvinRTBasis(rt.P, rt.R, rt.S)
-		edgeLocation := 2 * e.NpInt
-		switch BasisType {
-		case 0:
-			g1 := rt.R.DataP[edgeLocation]
-			g2 := rt.R.DataP[edgeLocation+1]
-			e.Phi = e.ComposePhiRT1(g1, g2)
-		// case 2:
-		// 	g1 := rt.R.DataP[edgeLocation]
-		// 	g2 := rt.R.DataP[edgeLocation+1]
-		// 	g3 := rt.R.DataP[edgeLocation+2]
-		// 	e.Phi = e.ComposePhiRT2(g1, g2, g3)
-		case 1:
-			e.InteriorPolyKBasis = NewJacobiBasis2D(e.P-1,
-				rt.R.Copy().Subset(0, e.NpInt-1),
-				rt.S.Copy().Subset(0, e.NpInt-1),
-				0, 0)
-			e.Phi = e.ComposePhiRTK(rt.R.DataP[edgeLocation : edgeLocation+e.NpEdge])
+
+		var label string
+		for ii := 0; ii < 2; ii++ {
+			switch ii {
+			case 0:
+				t.Logf("Manual Basis")
+				label = "Manual Basis"
+			case 1:
+				t.Logf("RTK Basis")
+				label = "RTK Basis"
+			}
+			RecomputeBasis(ii, e, rt)
+			rt.V = rt.ComposeV(rt.Phi)
+			// rt.VInv = rt.V.InverseWithCheck()
+			// rt.Div = rt.ComputeDivergenceMatrix()
+			rt.V.Print("V (Psi) " + label)
+			// rt.Div.Print("Div (Psi)")
 		}
-		rt.Phi = e.Phi
-
-		rt.V = rt.ComposeV(rt.Phi)
-		rt.VInv = rt.V.InverseWithCheck()
-		rt.Div = rt.ComputeDivergenceMatrix()
-		rt.V.Print("V (Psi)")
-		rt.Div.Print("Div (Psi)")
-
 	}
+}
+
+func RecomputeBasis(BasisType int, e *ErvinRTBasis, rt *RTElement) {
+	edgeLocation := 2 * e.NpInt
+	switch BasisType {
+	case 0:
+		g1 := rt.R.DataP[edgeLocation]
+		g2 := rt.R.DataP[edgeLocation+1]
+		e.Phi = e.ComposePhiRT1(g1, g2)
+	// case 2:
+	// 	g1 := rt.R.DataP[edgeLocation]
+	// 	g2 := rt.R.DataP[edgeLocation+1]
+	// 	g3 := rt.R.DataP[edgeLocation+2]
+	// 	e.Phi = e.ComposePhiRT2(g1, g2, g3)
+	case 1:
+		e.InteriorPolyKBasis = NewJacobiBasis2D(e.P-1,
+			rt.R.Copy().Subset(0, e.NpInt-1),
+			rt.S.Copy().Subset(0, e.NpInt-1),
+			0, 0)
+		e.Phi = e.ComposePhiRTK(rt.R.DataP[edgeLocation : edgeLocation+e.NpEdge])
+	}
+	rt.Phi = e.Phi
 }
 
 func SetupRTTest(P int) (rt *RTElement) {
