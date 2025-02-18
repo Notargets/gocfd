@@ -1,6 +1,8 @@
 package DG2D
 
 import (
+	"math"
+
 	"github.com/notargets/gocfd/utils"
 )
 
@@ -9,9 +11,7 @@ type RTBasisSimplex struct {
 	Np, NpInt, NpEdge int
 	Phi               []VectorI
 	PKBasis           *JacobiBasis2D
-	PEdge1Basis       *JacobiBasis1D
-	PEdge2Basis       *JacobiBasis1D
-	PEdge3Basis       *JacobiBasis1D
+	PEdgeBasis        *JacobiBasis1D
 }
 
 func NewRTBasisSimplex(P int, R, S utils.Vector) (bs *RTBasisSimplex) {
@@ -27,28 +27,21 @@ func NewRTBasisSimplex(P int, R, S utils.Vector) (bs *RTBasisSimplex) {
 		NpEdge: NpEdge,
 		Phi:    make([]VectorI, Np),
 	}
-	edgeBegin := 2 * NpInt
-	REdge1 := utils.NewVector(NpEdge, R.DataP[edgeBegin:edgeBegin+NpEdge])
-	REdge2 := utils.NewVector(NpEdge, R.DataP[edgeBegin:edgeBegin+NpEdge])
-	REdge3 := utils.NewVector(NpEdge, R.DataP[edgeBegin:edgeBegin+NpEdge])
-	for i := 0; i < bs.NpEdge; i++ {
-		REdge2.DataP[i] = (REdge1.DataP[i] + 1.) / 2. // t = (s+1)/2
-	}
-	for i := 0; i < bs.NpEdge; i++ {
-		REdge3.DataP[NpEdge-1-i] = -REdge1.DataP[i] // t = -s
-	}
-	bs.PEdge1Basis = NewJacobiBasis1D(P, REdge1, 0, 0)
-	bs.PEdge2Basis = NewJacobiBasis1D(P, REdge2, 0, 0)
-	bs.PEdge3Basis = NewJacobiBasis1D(P, REdge3, 0, 0)
+	edge1Begin := 2 * NpInt
+	edge2Begin := edge1Begin + NpEdge
+	REdge := utils.NewVector(NpEdge, R.DataP[edge1Begin:edge2Begin])
+	bs.PEdgeBasis = NewJacobiBasis1D(P, REdge, 0, 0)
 	bs.PKBasis = NewJacobiBasis2D(P-1,
 		R.Copy().Subset(0, NpInt-1),
 		S.Copy().Subset(0, NpInt-1),
 		0, 0)
-	bs.ComposePhi(R.DataP[edgeBegin : edgeBegin+NpEdge])
+	// bs.ComposePhi(R.DataP[edgeBegin : edgeBegin+NpEdge])
+	bs.ComposePhi()
 	return
 }
 
-func (bs *RTBasisSimplex) ComposePhi(tBasis []float64) {
+// func (bs *RTBasisSimplex) ComposePhi(tBasis []float64) {
+func (bs *RTBasisSimplex) ComposePhi() {
 	var (
 		// oosr2   = 0.5 * math.Sqrt2
 		IJMap = make([][2]int, bs.NpInt)
@@ -134,6 +127,8 @@ func (bs *RTBasisSimplex) ComposePhi(tBasis []float64) {
 				Gradient: evalPolyGradient,
 			}
 		case E1, E2, E3:
+			// polyMultiplier = bs.getLpPolyTerm(j, tBasis)
+			polyMultiplier = bs.getEdgePolyTerm(j)
 			switch ftype {
 			case E1:
 				jj = j - 2*bs.NpInt
@@ -179,8 +174,6 @@ func (bs *RTBasisSimplex) ComposePhi(tBasis []float64) {
 			default:
 				panic("invalid function type")
 			}
-			// polyMultiplier = bs.getLpPolyTerm(j, tBasis)
-			polyMultiplier = bs.getEdgePolyTerm(j)
 		}
 
 		bs.Phi[j] = VectorFunction{
@@ -240,29 +233,30 @@ func (bs *RTBasisSimplex) getEdgePolyTerm(j int) (pm PolynomialMultiplier) {
 	switch param {
 	case E1:
 		polyEval = func(r, s float64) (val float64) {
-			return bs.PEdge1Basis.GetOrthogonalPolynomialAtJ(r, jj)
+			// Parameterization is r
+			return bs.PEdgeBasis.GetOrthogonalPolynomialAtJ(r, jj)
 		}
 		polyDeriv = func(r, s float64) (val float64) {
-			return bs.PEdge1Basis.GetOrthogonalPolynomialAtJ(r, jj, Dr)
+			return bs.PEdgeBasis.GetOrthogonalPolynomialAtJ(r, jj, Dr)
 		}
 	case E2:
 		jj -= bs.NpEdge
 		polyEval = func(r, s float64) (val float64) {
-			// Parameterization is (s+1)/2
-			return bs.PEdge2Basis.GetOrthogonalPolynomialAtJ((s+1)/2., jj)
+			// Parameterization is s
+			return bs.PEdgeBasis.GetOrthogonalPolynomialAtJ(s, jj)
 		}
 		polyDeriv = func(r, s float64) (val float64) {
 			// Parameterization is (s+1)/2
-			return bs.PEdge2Basis.GetOrthogonalPolynomialAtJ((s+1)/2., jj, Dr) / 2.
+			return bs.PEdgeBasis.GetOrthogonalPolynomialAtJ(s, jj, Dr)
 		}
 	case E3:
 		jj -= 2 * bs.NpEdge
 		polyEval = func(r, s float64) (val float64) {
 			// Parameterization is -s
-			return bs.PEdge3Basis.GetOrthogonalPolynomialAtJ(-s, jj)
+			return bs.PEdgeBasis.GetOrthogonalPolynomialAtJ(-s, jj)
 		}
 		polyDeriv = func(r, s float64) (val float64) {
-			return -bs.PEdge3Basis.GetOrthogonalPolynomialAtJ(-s, jj, Dr)
+			return bs.PEdgeBasis.GetOrthogonalPolynomialAtJ(-s, jj, Dr)
 		}
 	default:
 		panic("Lagrange polynomial is for edges only")
@@ -274,7 +268,7 @@ func (bs *RTBasisSimplex) getEdgePolyTerm(j int) (pm PolynomialMultiplier) {
 			case E1:
 				grad[0] = polyDeriv(r, s)
 			case E2:
-				grad[1] = polyDeriv(r, s)
+				grad[1] = polyDeriv(r, s) / math.Sqrt2
 			case E3:
 				grad[1] = polyDeriv(r, s)
 			}
