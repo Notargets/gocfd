@@ -10,17 +10,17 @@ import (
 )
 
 func TestRTElement(t *testing.T) {
-	for _, rtb := range []RTBasisType{SimplexRTBasis} {
-		// for _, rtb := range []RTBasisType{ErvinBasisRT, SimplexRTBasis} {
-		// for _, rtb := range []RTBasisType{ErvinBasisRT} {
+	// for _, rtb := range []RTBasisType{SimplexRTBasis} {
+	// for _, rtb := range []RTBasisType{ErvinBasisRT, SimplexRTBasis} {
+	for _, rtb := range []RTBasisType{ErvinBasisRT} {
 		var PMin, PMax int
 		switch rtb {
 		case ErvinBasisRT:
-			PMin = 5
-			PMax = 5
+			PMin = 1
+			PMax = 1
 		case SimplexRTBasis:
 			PMin = 1
-			PMax = 2
+			PMax = 1
 		}
 		t.Logf("===================> %s\n", rtb.String())
 		DivergencePolynomialField_Test(t, rtb, PMin, PMax)
@@ -34,8 +34,7 @@ func TestRTElement(t *testing.T) {
 func DivergencePolynomialField_Test(t *testing.T, BasisType RTBasisType,
 	PMin, PMax int) {
 	var (
-		dt  VectorTestField
-		tol = 0.0000001
+		dt VectorTestField
 	)
 	dt = PolyVectorField2{}
 
@@ -50,27 +49,35 @@ func DivergencePolynomialField_Test(t *testing.T, BasisType RTBasisType,
 		t.Logf("Checking Divergence for RT%d\n", P)
 		t.Logf("---------------------------------------------\n")
 		rt := NewRTElement(P, BasisType)
-		Np := rt.Np
-		// A := utils.NewMatrix(Np, Np)
-		f1, f2 := make([]float64, Np), make([]float64, Np)
-		DivRef := make([]float64, Np)
-		FProj := utils.NewMatrix(Np, 1)
-		for PField := PFieldStart; PField <= PFieldEnd; PField++ {
-			t.Logf("\nReference Vector Field Order:%d\n", PField)
-			t.Logf("-------------------------------\n")
-			for i := 0; i < Np; i++ {
-				r, s := rt.R.AtVec(i), rt.S.AtVec(i)
-				f1[i], f2[i] = dt.F(r, s, PField)
-				DivRef[i] = dt.Divergence(r, s, PField)
-			}
-			rt.ProjectFunctionOntoDOF(f1, f2, FProj)
-			DivCalc := rt.Div.Mul(FProj)
-			// if testing.Verbose() {
-			// 	DivCalc.Transpose().Print("Div Calc")
-			// 	t.Log("Ref Div = ", DivRef)
-			// }
-			assert.InDeltaSlicef(t, DivRef, DivCalc.DataP, tol, "")
+		CheckDivergence(t, rt, dt, PFieldStart, PFieldEnd)
+	}
+}
+
+func CheckDivergence(t *testing.T, rt *RTElement, dt VectorTestField,
+	PFieldStart, PFieldEnd int) {
+	var (
+		Np  = rt.Np
+		tol = 0.0000001
+	)
+	// A := utils.NewMatrix(Np, Np)
+	f1, f2 := make([]float64, Np), make([]float64, Np)
+	DivRef := make([]float64, Np)
+	FProj := utils.NewMatrix(Np, 1)
+	for PField := PFieldStart; PField <= PFieldEnd; PField++ {
+		t.Logf("\nReference Vector Field Order:%d\n", PField)
+		t.Logf("-------------------------------\n")
+		for i := 0; i < Np; i++ {
+			r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+			f1[i], f2[i] = dt.F(r, s, PField)
+			DivRef[i] = dt.Divergence(r, s, PField)
 		}
+		rt.ProjectFunctionOntoDOF(f1, f2, FProj)
+		DivCalc := rt.Div.Mul(FProj)
+		if testing.Verbose() {
+			DivCalc.Transpose().Print("Div Calc")
+			t.Log("Ref Div = ", DivRef)
+		}
+		assert.InDeltaSlicef(t, DivRef, DivCalc.DataP, tol, "")
 	}
 }
 
