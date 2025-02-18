@@ -66,6 +66,20 @@ func (lpf PolyVectorField) Divergence(r, s float64, P int) (div float64) {
 	return
 }
 
+type PolyVectorField3 struct{}
+
+func (lpf PolyVectorField3) F(r, s float64, P int) (f1, f2 float64) {
+	var (
+		p = float64(P)
+	)
+	f1, f2 = math.Pow(s+10, p), math.Pow(10*r, p)
+	return
+}
+
+func (lpf PolyVectorField3) Divergence(r, s float64, P int) (div float64) {
+	return
+}
+
 type PolyVectorField2 struct{}
 
 func (lpf PolyVectorField2) F(r, s float64, P int) (f1, f2 float64) {

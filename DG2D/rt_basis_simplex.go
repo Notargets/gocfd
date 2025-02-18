@@ -444,7 +444,7 @@ func (bs *RTBasisSimplex) getEdgePolyTerm(j int) (pm PolynomialMultiplier) {
 			case E1:
 				grad[0] = polyDeriv(r, s)
 			case E2:
-				grad[1] = polyDeriv(r, s) / math.Sqrt2
+				grad[1] = polyDeriv(r, s)
 			case E3:
 				grad[1] = polyDeriv(r, s)
 			}

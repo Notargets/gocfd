@@ -36,7 +36,7 @@ func DivergencePolynomialField_Test(t *testing.T, BasisType RTBasisType, PMin, P
 	var (
 		dt VectorTestField
 	)
-	dt = PolyVectorField{}
+	dt = PolyVectorField3{}
 
 	t.Log("Begin Divergence Test")
 	// P := 1
