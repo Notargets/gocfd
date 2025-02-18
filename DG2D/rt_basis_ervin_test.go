@@ -40,11 +40,14 @@ func DivergencePolynomialField_RT1vsRTK_at1_Test(t *testing.T, PMin, PMax int) {
 				label = "RTK Basis"
 			}
 			RecomputeBasis(ii, e, rt)
+			rt.Phi = e.Phi
+			_ = e
 			rt.V = rt.ComposeV(rt.Phi)
-			// rt.VInv = rt.V.InverseWithCheck()
-			// rt.Div = rt.ComputeDivergenceMatrix()
+			rt.VInv = rt.V.InverseWithCheck()
+			rt.Div = rt.ComputeDivergenceMatrix()
 			rt.V.Print("V (Psi) " + label)
-			// rt.Div.Print("Div (Psi)")
+			rt.Div.Print("Div (Psi) " + label)
+			CheckDivergence(t, rt, PolyVectorField{}, 1, 1)
 		}
 	}
 }

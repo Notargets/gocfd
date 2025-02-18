@@ -390,15 +390,15 @@ func (e *ErvinRTBasis) ComposePhiRT1(g1rs, g2rs float64) (phi []VectorI) {
 		}
 
 		l1etaEdge3 = PolynomialMultiplier{
-			Eval: func(r, s float64) float64 { return l1Func(-s) },
+			Eval: func(r, s float64) float64 { return l1Func(s) },
 			Gradient: func(r, s float64) [2]float64 {
-				return [2]float64{0, -l1Deriv()}
+				return [2]float64{0, l1Deriv()}
 			},
 		}
 		l2etaEdge3 = PolynomialMultiplier{
-			Eval: func(r, s float64) float64 { return l2Func(-s) },
+			Eval: func(r, s float64) float64 { return l2Func(s) },
 			Gradient: func(r, s float64) [2]float64 {
-				return [2]float64{0, -l2Deriv()}
+				return [2]float64{0, l2Deriv()}
 			},
 		}
 	)
