@@ -238,8 +238,6 @@ func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
 	rt.V = rt.ComposeV(rt.Phi)
 	rt.VInv = rt.V.InverseWithCheck()
 	rt.Div = rt.ComputeDivergenceMatrix()
-	rt.V.Print("V (Psi)")
-	rt.Div.Print("Div (Psi)")
 	return
 }
 

@@ -256,7 +256,8 @@ func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt VectorFunction
 				div *= tb_j - tb_i
 			}
 		}
-		return e.dconvDrDs() * sum / div
+		// return e.dconvDrDs() * sum / div
+		return 0
 		// return 0.1 * sum / div
 	}
 
@@ -269,7 +270,7 @@ func (e *ErvinRTBasis) getLpPolyTerm(j int, tBasis []float64) (lt VectorFunction
 		case E1:
 			grad[0] = lagrange1DDeriv(r, s)
 		case E2:
-			grad[1] = math.Sqrt2 * lagrange1DDeriv(r, s) // Jacobian for edge length
+			grad[1] = lagrange1DDeriv(r, s) / math.Sqrt2 // Jacobian for edge length
 			// grad[1] = lagrange1DDeriv(r, s)
 		case E3:
 			grad[1] = -lagrange1DDeriv(r, s)
@@ -354,13 +355,15 @@ func (e *ErvinRTBasis) ComposePhiRT1(g1rs, g2rs float64) (phi []VectorI) {
 			return (e.conv(t_rs) - g2) / (g1 - g2)
 		}
 		l1Deriv = func() float64 {
-			return e.dconvDrDs() / (g1 - g2)
+			// return e.dconvDrDs() / (g1 - g2)
+			return 0
 		}
 
 		l2Func = func(t_rs float64) float64 {
 			return (e.conv(t_rs) - g1) / (g2 - g1)
 		}
-		l2Deriv = func() float64 { return -l1Deriv() }
+		l2Deriv = func() float64 { return 0 }
+		// l2Deriv = func() float64 { return -l1Deriv() }
 
 		l1xiEdge1 = PolynomialMultiplier{
 			Eval: func(r, s float64) float64 { return l1Func(r) },

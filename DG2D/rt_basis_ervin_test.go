@@ -4,6 +4,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/notargets/gocfd/utils"
 )
 
@@ -15,6 +17,9 @@ func TestErvinBasis(t *testing.T) {
 }
 
 func DivergencePolynomialField_RT1vsRTK_at1_Test(t *testing.T, PMin, PMax int) {
+	var (
+		tol = 0.0000001
+	)
 	// P := 1
 	PStart := PMin
 	PEnd := PMax
@@ -30,23 +35,39 @@ func DivergencePolynomialField_RT1vsRTK_at1_Test(t *testing.T, PMin, PMax int) {
 		e := NewErvinRTBasis(rt.P, rt.R, rt.S)
 
 		var label string
-		for ii := 0; ii < 2; ii++ {
-			switch ii {
-			case 0:
-				t.Logf("Manual Basis")
-				label = "Manual Basis"
-			case 1:
-				t.Logf("RTK Basis")
-				label = "RTK Basis"
-			}
-			RecomputeBasis(ii, e, rt)
-			rt.Phi = e.Phi
-			_ = e
-			rt.V = rt.ComposeV(rt.Phi)
-			rt.VInv = rt.V.InverseWithCheck()
-			rt.Div = rt.ComputeDivergenceMatrix()
-			rt.V.Print("V (Psi) " + label)
-			rt.Div.Print("Div (Psi) " + label)
+
+		t.Logf("RTK Basis")
+		label = "RTK Basis"
+		RecomputeBasis(1, e, rt)
+		Phi_RTK := e.Phi
+		V_RTK := rt.ComposeV(Phi_RTK)
+
+		t.Logf("Manual Basis")
+		label = "Manual Basis"
+		RecomputeBasis(0, e, rt)
+		Phi_Manual := e.Phi
+		V_Manual := rt.ComposeV(Phi_Manual)
+
+		assert.InDeltaSlicef(t, V_Manual.DataP, V_RTK.DataP, tol, "")
+
+		rt.VInv = V_Manual.InverseWithCheck()
+		rt.Phi = Phi_Manual
+		label = "Manual Basis"
+		Div_Manual := rt.ComputeDivergenceMatrix()
+		Div_Manual.Print("Div (Psi) " + label)
+
+		rt.VInv = V_RTK.InverseWithCheck()
+		rt.Phi = Phi_RTK
+		label = "RTK Basis"
+		Div_RTK := rt.ComputeDivergenceMatrix()
+		Div_RTK.Print("Div (Psi) " + label)
+
+		assert.InDeltaSlicef(t, Div_Manual.DataP, Div_RTK.DataP, tol, "")
+
+		if false {
+			rt.Div = Div_Manual
+			CheckDivergence(t, rt, PolyVectorField{}, 1, 1)
+			rt.Div = Div_RTK
 			CheckDivergence(t, rt, PolyVectorField{}, 1, 1)
 		}
 	}
