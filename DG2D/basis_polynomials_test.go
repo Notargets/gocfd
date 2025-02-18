@@ -4,6 +4,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/notargets/gocfd/DG1D"
+
 	"github.com/stretchr/testify/assert"
 
 	"github.com/notargets/gocfd/utils"
@@ -117,6 +119,61 @@ func TestJacobiBasis2D_GetOrthogonalPolynomialAtJ(t *testing.T) {
 		}
 		assert.True(t, isIdentityMatrix(A, tol))
 	}
+}
+
+func TestJacobiBasis1D_GetOrthogonalPolynomialAtJ(t *testing.T) {
+	tol := 0.000001
+	PStart := 0
+	PEnd := 6
+	for P := PStart; P <= PEnd; P++ {
+		R := utils.NewVector(P+1, DG1D.LegendreZeros(P))
+		jb1d := NewJacobiBasis1D(P, R, 0, 0)
+		A := utils.NewMatrix(jb1d.Np, jb1d.Np)
+		DR := utils.NewMatrix(jb1d.Np, jb1d.Np)
+		for j := 0; j < jb1d.Np; j++ {
+			for i := 0; i < jb1d.Np; i++ {
+				r := R.AtVec(i)
+				A.Set(i, j, jb1d.GetOrthogonalPolynomialAtJ(r, j))
+				DR.Set(i, j, jb1d.GetOrthogonalPolynomialAtJ(r, j, Dr))
+			}
+		}
+		if testing.Verbose() {
+			A.Print("A")
+			DR.Print("DR")
+		}
+		assert.True(t, isIdentityMatrix(A, tol))
+		F_Ref := Poly1DForTests(R)
+		DR_Ref := Poly1DForTests(R, Dr)
+		DR_Calc := DR.Mul(F_Ref)
+		if testing.Verbose() {
+			F_Ref.Transpose().Print("F_Ref")
+			DR_Ref.Transpose().Print("DR_Ref")
+			DR_Calc.Transpose().Print("DR_Calc")
+		}
+		assert.InDeltaSlicef(t, DR_Ref.DataP, DR_Calc.DataP, tol, "")
+	}
+}
+
+func Poly1DForTests(R utils.Vector, derivO ...DerivativeDirection) (
+	valM utils.Matrix) {
+	var (
+		Np = R.Len()
+		P  = Np - 1
+	)
+	val := make([]float64, Np)
+	for i := 0; i < Np; i++ {
+		if len(derivO) == 0 {
+			val[i] = math.Pow(R.AtVec(i), float64(P))
+		} else {
+			if P == 0 {
+				val[i] = 0.
+			} else {
+				val[i] = float64(P) * math.Pow(R.AtVec(i), float64(P-1))
+			}
+		}
+	}
+	valM = utils.NewMatrix(Np, 1, val)
+	return
 }
 
 func isIdentityMatrix(A utils.Matrix, epsilon float64) bool {
