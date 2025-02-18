@@ -36,11 +36,187 @@ func NewRTBasisSimplex(P int, R, S utils.Vector) (bs *RTBasisSimplex) {
 		S.Copy().Subset(0, NpInt-1),
 		0, 0)
 	// bs.ComposePhi(R.DataP[edgeBegin : edgeBegin+NpEdge])
-	bs.ComposePhi()
+	// bs.ComposePhi()
+	bs.ComposePhi_Ervin()
 	return
 }
 
-// func (bs *RTBasisSimplex) ComposePhi(tBasis []float64) {
+func (bs *RTBasisSimplex) ComposePhi_Ervin() {
+	var (
+		// oosr2   = 0.5 * math.Sqrt2
+		IJMap = make([][2]int, bs.NpInt)
+	)
+
+	var sk int
+	for i := 0; i <= bs.P-1; i++ {
+		for j := 0; j <= bs.P-1-i; j++ {
+			IJMap[sk] = [2]int{i, j}
+			sk++
+		}
+	}
+
+	// Constraints
+	// ========= Left Edge (dot product = 0) constraint ================
+	// Left normal is [-1,0], Edge functional: r = -1
+	// For a vector function to vanish on the Left edge, we multiply an
+	// r direction by [(r+1),]
+	// ========= Left Edge (dim to (1,-1) constraint ===================
+	// Multiply r direction by (r-1) to diminish approaching (1,s)
+	// Multiply s direction by (s+1) to diminish approaching (r,-1)
+	// [(r-1),(s+1)]
+	// ========= Hypotenuse (dot product = 0) constraint ===============
+	// Hypotenuse normal is [Sqrt2/2,Sqrt2/2], Edge functional: r+s = 1
+	// For a vector function to vanish on the Left edge, we multiply an
+	// [(1-r-s),(1-r-s)] term with the r and s vector components
+	// ========= Hypotenuse (dim to (-1, -1) constraint ================
+	// Multiply r direction by (r+1) to diminish approaching (-1,s)
+	// Multiply s direction by (s+1) to diminish approaching (r,-1)
+	// [(r+1),(s+1)]
+	// ======== Bottom Edge (dot product = 0) constraint ===============
+	// Bottom normal is [0,-1], Edge functional: s = -1
+	// For a vector function to vanish on the Bottom edge, we multiply an
+	// s direction by [,(s+1)]
+	// ========== Bottom Edge (dim to (-1,1) constraint ===============
+	// Multiply r direction by (r+1) to diminish approaching (-1,s)
+	// Multiply s direction by (s-1) to diminish approaching (r,1)
+	// [(r+1),(s-1)]
+	for j := 0; j < bs.Np; j++ {
+		jj := j
+		vectorEval := func(r, s float64) (v [2]float64) { return }
+		vectorDiv := func(r, s float64) (div float64) { return }
+		evalPoly := func(r, s float64) (val float64) { return }
+		evalPolyGradient := func(r, s float64) (grad [2]float64) { return }
+		var polyMultiplier PolynomialMultiplier
+		ftype := bs.getFunctionType(j)
+		switch ftype {
+		case E4, E5:
+			switch ftype {
+			case E4:
+				jj = j
+				vectorEval = func(r, s float64) (v [2]float64) {
+					// v = [ ηξ , η(η −1) ]
+					// η = (r+1)/2, ξ = (s+1)/2
+					// v = [ (r+1)(s+1)/4 , (r+1)((r+1)/4 -1/2) ]
+					// v = [ (r+1)(s+1)/4 , (r-1)(r+1)/4 ]
+					// E4 vector is tangent to all three edges:
+					// E4 = [(s+1)(r+1)/4,(s+1)(s-1)/4]
+					// E4' = [(s+1)(r+1),(s+1)(s-1)]
+					rp := r + 1.
+					sp := s + 1.
+					sm := s - 1.
+					// return [2]float64{sp * rp / 4., sp * sm / 4.}
+					return [2]float64{sp * rp, sp * sm}
+				}
+				vectorDiv = func(r, s float64) (div float64) { return 3.*s + 1. }
+			case E5:
+				jj = j - bs.NpInt
+				vectorEval = func(r, s float64) (v [2]float64) {
+					// E5 vector is tangent to all three edges:
+					// E5 = [(r+1)(r-1)/4,(r+1)(s+1)/4]
+					// E5' = [(r+1)(r-1),(r+1)(s+1)]
+					rp := r + 1.
+					rm := r - 1.
+					sp := s + 1.
+					// return [2]float64{rp * rm / 4., rp * sp / 4.}
+					return [2]float64{rp * rm, rp * sp}
+				}
+				vectorDiv = func(r, s float64) (div float64) { return 3.*r + 1. }
+			}
+			evalPoly = func(r, s float64) float64 {
+				return bs.PKBasis.GetOrthogonalPolynomialAtJ(r, s, jj)
+			}
+			evalPolyGradient = func(r, s float64) (grad [2]float64) {
+				grad[0] = bs.PKBasis.GetOrthogonalPolynomialAtJ(r, s, jj, Dr)
+				grad[1] = bs.PKBasis.GetOrthogonalPolynomialAtJ(r, s, jj, Ds)
+				return
+			}
+			polyMultiplier = PolynomialMultiplier{
+				Eval:     evalPoly,
+				Gradient: evalPolyGradient,
+			}
+		case E1, E2, E3:
+			// polyMultiplier = bs.getLpPolyTerm(j, tBasis)
+			polyMultiplier = bs.getEdgePolyTerm(j)
+			switch ftype {
+			case E1:
+				jj = j - 2*bs.NpInt
+				vectorEval = func(r, s float64) (v [2]float64) {
+					// Bottom edge
+					// dot zero with Left and Hypotenuse yields:
+					// [(1-r-s)(r+1),(1-r-s)]
+					// dim toward (-1,1) yields an additional: [(r+1),(s-1)]
+					// v = [(1-r-s)(r+1),(1-r-s)(s-1)]
+					// h := 1. - r - s
+					// v = [ ξ , η −1 ]
+					// v' = [ (r+1), (s-1) ]
+					rp := r + 1.
+					sm := s - 1.
+					// return [2]float64{h * rp, h * sm}
+					return [2]float64{rp, sm}
+				}
+				vectorDiv = func(r, s float64) (div float64) { return 2. }
+			case E2:
+				jj = j - 2*bs.NpInt - bs.NpEdge
+				sr2 := math.Sqrt2
+				vectorEval = func(r, s float64) (v [2]float64) {
+					// Hypotenuse
+					// dot zero with Bottom and Left yields:
+					// [(r+1),(s+1)]
+					// dim toward (-1,-1) yields an additional: [(r+1),(s+1)]
+					// [(r+1)(r+1),(s+1)(s+1)]
+					// v = [√2 ξ , √2 η ]
+					// v' = [√2 (r+1) , √2 (s+1) ]
+					rp := r + 1.
+					sp := s + 1.
+					// return [2]float64{rp * rp, sp * sp}
+					return [2]float64{sr2 * rp, sr2 * sp}
+				}
+				// vectorDiv = func(r, s float64) (div float64) { return 2.*(r+s) + 4. }
+				vectorDiv = func(r, s float64) (div float64) { return 2. * sr2 }
+			case E3:
+				jj = j - 2*bs.NpInt - 2*bs.NpEdge
+				vectorEval = func(r, s float64) (v [2]float64) {
+					// Left Edge
+					// dot zero with Hypotenuse and Bottom yields:
+					// [(1-r-s),(1-r-s)(s+1)]
+					// dim toward (1,-1) yields an additional: [(r-1),(s+1)]
+					// v = [(1-r-s)(r-1),(1-r-s)(s+1)]
+					// h := 1. - r - s
+					// v = [ ξ -1, η ]
+					// v' = [ (r-1), (s+1) ]
+					rm := r - 1.
+					sp := s + 1.
+					// return [2]float64{h * rm, h * sp}
+					return [2]float64{rm, sp}
+				}
+				// vectorDiv = func(r, s float64) (div float64) { return 2.- 3.*(r+s) }
+				vectorDiv = func(r, s float64) (div float64) { return 2. }
+			default:
+				panic("invalid function type")
+			}
+		}
+
+		bs.Phi[j] = VectorFunction{
+			PolyMultiplier: polyMultiplier,
+			VectorBase: BaseVector{
+				eval: func(r, s float64) [2]float64 { return vectorEval(r, s) },
+				dot: func(r, s float64, f [2]float64) (dot float64) {
+					v := vectorEval(r, s)
+					dot = v[0]*f[0] + v[1]*f[1]
+					return
+				},
+				project: func(r, s, psi float64) (v [2]float64) {
+					v = vectorEval(r, s)
+					v[0] *= psi
+					v[1] *= psi
+					return
+				},
+				divergence: func(r, s float64) float64 { return vectorDiv(r, s) },
+			},
+		}
+	}
+}
+
 func (bs *RTBasisSimplex) ComposePhi() {
 	var (
 		// oosr2   = 0.5 * math.Sqrt2
@@ -256,7 +432,7 @@ func (bs *RTBasisSimplex) getEdgePolyTerm(j int) (pm PolynomialMultiplier) {
 			return bs.PEdgeBasis.GetOrthogonalPolynomialAtJ(-s, jj)
 		}
 		polyDeriv = func(r, s float64) (val float64) {
-			return bs.PEdgeBasis.GetOrthogonalPolynomialAtJ(-s, jj, Dr)
+			return -bs.PEdgeBasis.GetOrthogonalPolynomialAtJ(-s, jj, Dr)
 		}
 	default:
 		panic("Lagrange polynomial is for edges only")

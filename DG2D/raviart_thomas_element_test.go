@@ -11,9 +11,9 @@ import (
 )
 
 func TestRTElement(t *testing.T) {
-	// for _, rtb := range []RTBasisType{SimplexRTBasis} {
-	// for _, rtb := range []RTBasisType{ErvinBasisRT, SimplexRTBasis} {
-	for _, rtb := range []RTBasisType{ErvinBasisRT} {
+	for _, rtb := range []RTBasisType{SimplexRTBasis} {
+		// for _, rtb := range []RTBasisType{ErvinBasisRT, SimplexRTBasis} {
+		// for _, rtb := range []RTBasisType{ErvinBasisRT} {
 		var PMin, PMax int
 		switch rtb {
 		case ErvinBasisRT:
