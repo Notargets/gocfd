@@ -10,6 +10,10 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
+func TestRTElementConvergence(t *testing.T) {
+	DivergenceConvergence_Test(t, SimplexRTBasis, 7)
+}
+
 func TestRTElement(t *testing.T) {
 	for _, rtb := range []RTBasisType{SimplexRTBasis} {
 		// for _, rtb := range []RTBasisType{ErvinBasisRT, SimplexRTBasis} {
@@ -25,10 +29,6 @@ func TestRTElement(t *testing.T) {
 		}
 		t.Logf("===================> %s\n", rtb.String())
 		DivergencePolynomialField_Test(t, rtb, PMin, PMax)
-
-		// t.Logf("Testing RT divergence on SinCos Fields for %v\n",
-		// 	rtb.String())
-		// RTDivergenceSinCos_Test(t, rtb, PMax)
 	}
 }
 
@@ -54,8 +54,10 @@ func DivergencePolynomialField_Test(t *testing.T, BasisType RTBasisType, PMin, P
 			CheckDivergence(t, rt, field, 0, P)
 		}
 	}
+}
 
-	PStart := PMin
+func DivergenceConvergence_Test(t *testing.T, BasisType RTBasisType, PMax int) {
+	PStart := 1
 	PEnd := PMax
 	rmsCheck := make([]float64, PEnd-PStart+1)
 	for P := PStart; P <= PEnd; P++ {
@@ -71,6 +73,28 @@ func DivergencePolynomialField_Test(t *testing.T, BasisType RTBasisType, PMin, P
 		fmt.Printf("Log10 RMS Error(%d) =%f\n", P, math.Log10(rmsCheck[P-1]))
 		// Shows quadratic convergence in Log10 RMS error scaling in P
 	}
+	// Let's do a least squares fit of the Log10 of the error to discover the
+	// polynomial convergence order
+	// l10RMS := make([]float64, len(rmsCheck))
+	// for i := 0; i < len(rmsCheck); i++ {
+	// 	l10RMS[i] = math.Log10(rmsCheck[i])
+	// }
+	// Results := utils.NewVector(PEnd, l10RMS)
+	Results := utils.NewVector(PEnd, rmsCheck)
+	jp1d := NewJacobiBasis1D(PEnd-1, Results, 0, 0)
+	V := jp1d.Vandermonde1D()
+	V.Print("V")
+	VInter, _ := V.Transpose().Mul(V).Inverse()
+	ls := VInter.Mul(V.Transpose()).Mul(Results.ToMatrix())
+	ls.Transpose().Print("Polynomial Coefficients")
+	// Quadratic dominant convergence is expected
+	assert.True(t, ls.DataP[1] > 0.8)
+	for i := 0; i < PEnd; i++ {
+		if i != 1 {
+			assert.True(t, ls.DataP[i] < 0.01)
+		}
+	}
+	assert.True(t, ls.DataP[1] > 0.8)
 }
 
 func CheckDivergenceRMS(t *testing.T, rt *RTElement, dt VectorTestField) (rmsError float64) {
@@ -136,51 +160,5 @@ func CheckDivergence(t *testing.T, rt *RTElement, dt VectorTestField,
 			tol = tolM
 		}
 		assert.InDeltaSlicef(t, DivRef, DivCalc.DataP, tol, "")
-	}
-}
-
-func RTDivergenceSinCos_Test(t *testing.T, BasisType RTBasisType, PMax int) {
-	var (
-		dt VectorTestField
-	)
-	dt = SinCosVectorField{}
-
-	t.Log("Begin divergence Test")
-	PStart := 1
-	PEnd := PMax
-	for P := PStart; P <= PEnd; P++ {
-		t.Logf("---------------------------------------------\n")
-		t.Logf("Checking divergence for RT%d\n", P)
-		t.Logf("---------------------------------------------\n")
-		rt := NewRTElement(P, BasisType)
-		Np := rt.Np
-		divFcalc := make([]float64, Np)
-		f1, f2 := make([]float64, Np), make([]float64, Np)
-		// for PField := 0; PField <= (P - 1); PField++ {
-		t.Logf("\nReference Vector Field Sin/Cos\n")
-		t.Logf("-------------------------------\n")
-		for i := 0; i < Np; i++ {
-			r, s := rt.R.AtVec(i), rt.S.AtVec(i)
-			f1[i], f2[i] = dt.F(r, s, 0)
-			dF := dt.Divergence(r, s, 0)
-			divFcalc[i] = dF
-		}
-		dFReference := utils.NewMatrix(Np, 1, divFcalc)
-		if testing.Verbose() {
-			dFReference.Transpose().Print("Reference Div")
-		}
-		FProj := utils.NewMatrix(Np, 1)
-		rt.ProjectFunctionOntoDOF(f1, f2, FProj)
-		calcDiv := rt.Div.Mul(FProj)
-		if testing.Verbose() {
-			calcDiv.Transpose().Print("Calculated divergence")
-		}
-		var err float64
-		for i := 0; i < Np; i++ {
-			err += math.Pow(calcDiv.At(i, 0)-dFReference.At(i, 0), 2)
-		}
-		rms := math.Sqrt(err / float64(Np))
-		t.Logf("RMS Err = %f\n", rms)
-		// assert.InDeltaSlice(t, dFReference.DataP, calcDiv.DataP, 0.0001)
 	}
 }

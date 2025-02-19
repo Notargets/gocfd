@@ -1259,7 +1259,7 @@ func IndexedAssign(mI interface{}, I Index, ValI interface{}) (err error) { // C
 	return
 }
 
-func (m *Matrix) InverseWithCheck() (R Matrix) {
+func (m Matrix) InverseWithCheck() (R Matrix) {
 	var (
 		err   error
 		nr, _ = m.Dims()
