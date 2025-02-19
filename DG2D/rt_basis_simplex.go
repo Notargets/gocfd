@@ -35,11 +35,11 @@ func NewRTBasisSimplex(P int, R, S utils.Vector) (bs *RTBasisSimplex) {
 		R.Copy().Subset(0, NpInt-1),
 		S.Copy().Subset(0, NpInt-1),
 		0, 0)
-	bs.ComposePhi_Ervin()
+	bs.ComposePhi()
 	return
 }
 
-func (bs *RTBasisSimplex) ComposePhi_Ervin() {
+func (bs *RTBasisSimplex) ComposePhi() {
 	var (
 		// oosr2   = 0.5 * math.Sqrt2
 		IJMap = make([][2]int, bs.NpInt)
@@ -149,7 +149,6 @@ func (bs *RTBasisSimplex) ComposePhi_Ervin() {
 					// v' = [ (r+1), (s-1) ]
 					rp := r + 1.
 					sm := s - 1.
-					// return [2]float64{h * rp, h * sm}
 					return [2]float64{rp, sm}
 				}
 				vectorDiv = func(r, s float64) (div float64) { return 2. }
@@ -166,7 +165,6 @@ func (bs *RTBasisSimplex) ComposePhi_Ervin() {
 					// v' = [√2 (r+1) , √2 (s+1) ]
 					rp := r + 1.
 					sp := s + 1.
-					// return [2]float64{rp * rp, sp * sp}
 					return [2]float64{sr2 * rp, sr2 * sp}
 				}
 				// vectorDiv = func(r, s float64) (div float64) { return 2.*(r+s) + 4. }
@@ -184,7 +182,6 @@ func (bs *RTBasisSimplex) ComposePhi_Ervin() {
 					// v' = [ (r-1), (s+1) ]
 					rm := r - 1.
 					sp := s + 1.
-					// return [2]float64{h * rm, h * sp}
 					return [2]float64{rm, sp}
 				}
 				// vectorDiv = func(r, s float64) (div float64) { return 2.- 3.*(r+s) }
@@ -264,7 +261,6 @@ func (bs *RTBasisSimplex) getEdgePolyTerm(j int) (pm PolynomialMultiplier) {
 			return bs.PEdgeBasis.GetOrthogonalPolynomialAtJ(s, jj)
 		}
 		polyDeriv = func(r, s float64) (val float64) {
-			// Parameterization is (s+1)/2
 			return bs.PEdgeBasis.GetOrthogonalPolynomialAtJ(s, jj, Dr)
 		}
 	case E3:
