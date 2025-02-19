@@ -243,14 +243,6 @@ func TestDFR2D(t *testing.T) {
 	}
 }
 
-func TestRTElement1(t *testing.T) {
-	P := 2 // Order of element
-	rt := NewRTBasis2DSimplexLegacy(P)
-	if testing.Verbose() {
-		rt.BasisMatrix.Print("BasisMatrix")
-		rt.BasisMatrix.InverseWithCheck().Print("InverseWithCheck")
-	}
-}
 func TestDivergence(t *testing.T) {
 	pm := &InputParameters.PlotMeta{}
 	// Test divergence
