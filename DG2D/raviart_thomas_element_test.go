@@ -21,7 +21,7 @@ func TestRTElement(t *testing.T) {
 			PMax = 2
 		case SimplexRTBasis:
 			PMin = 1
-			PMax = 6
+			PMax = 7
 		}
 		t.Logf("===================> %s\n", rtb.String())
 		DivergencePolynomialField_Test(t, rtb, PMin, PMax)
@@ -101,8 +101,8 @@ func CheckDivergenceRMS(t *testing.T, rt *RTElement, dt VectorTestField) (rmsErr
 func CheckDivergence(t *testing.T, rt *RTElement, dt VectorTestField,
 	PFieldStart, PFieldEnd int) {
 	var (
-		Np  = rt.Np
-		tol = 0.000001
+		Np   = rt.Np
+		tolM = 0.000001
 	)
 	// A := utils.NewMatrix(Np, Np)
 	f1, f2 := make([]float64, Np), make([]float64, Np)
@@ -125,6 +125,15 @@ func CheckDivergence(t *testing.T, rt *RTElement, dt VectorTestField,
 				fmt.Printf("%6.5f ", DivRef[i])
 			}
 			fmt.Printf("]\n")
+		}
+		// Calculate appropriate tolerance for check
+		var maxF float64
+		for i := 0; i < Np; i++ {
+			maxF = math.Max(math.Abs(DivRef[i]), maxF)
+		}
+		tol := tolM * maxF
+		if math.Abs(maxF) < tolM {
+			tol = tolM
 		}
 		assert.InDeltaSlicef(t, DivRef, DivCalc.DataP, tol, "")
 	}
