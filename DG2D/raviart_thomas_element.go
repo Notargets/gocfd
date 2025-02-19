@@ -172,8 +172,9 @@ type RTElement struct {
 	// [A] relates the constants [C] to the flux vector [F]
 	// [A] x [C] = [F]
 	// ===> [C] = [AInv] x [F]
-	V, VInv    utils.Matrix // Vandermonde Matrix
-	Div        utils.Matrix // divergence matrix, NpxNp for all, NintxNp Interior Points
+	V, VInv     utils.Matrix // Vandermonde Matrix
+	Div, DivInt utils.Matrix // divergence matrix, NpxNp for all,
+	// NintxNp Interior Points
 	R, S       utils.Vector // Point locations defining element in [-1,1] Triangle, NpxNp
 	RInt, SInt utils.Vector
 	DOFVectors []*ConstantVector // The unit vectors for each DOF
@@ -203,6 +204,7 @@ func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
 		Div:        utils.NewMatrix(Np, Np),
 		DOFVectors: make([]*ConstantVector, Np),
 		RTBasis:    basisType,
+		DivInt:     utils.NewMatrix(NpInt, Np),
 	}
 
 	if P > 0 {
@@ -238,6 +240,11 @@ func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
 	rt.V = rt.ComposeV(rt.Phi)
 	rt.VInv = rt.V.InverseWithCheck()
 	rt.Div = rt.ComputeDivergenceMatrix()
+	for i := 0; i < NpInt; i++ {
+		for j := 0; j < Np; j++ {
+			rt.DivInt.Set(i, j, rt.Div.At(i, j))
+		}
+	}
 	return
 }
 
@@ -301,7 +308,7 @@ func (rt *RTElement) ProjectFunctionOntoDOF(s1, s2 []float64, FProj utils.Matrix
 	return
 }
 
-func (rt *RTElement) getFunctionNumber(j int) (funcNum RTBasisFunctionType) {
+func (rt *RTElement) getLocationType(j int) (funcNum RTBasisFunctionType) {
 	var (
 		NpInt  = rt.NpInt
 		NpEdge = rt.NpEdge
@@ -341,6 +348,31 @@ func (rt *RTElement) locationOnEdge(r, s float64) RTBasisFunctionType {
 		return E3
 	}
 	return All
+}
+
+func (rt *RTElement) GetEdgeLocations(F []float64) (
+	Fedge []float64) {
+	var (
+		Nint     = rt.NpInt
+		NedgeTot = rt.NpEdge * 3
+	)
+	Fedge = make([]float64, NedgeTot)
+	for i := 0; i < NedgeTot; i++ {
+		Fedge[i] = F[i+2*Nint]
+	}
+	return
+}
+
+func (rt *RTElement) GetInternalLocations(F []float64) (
+	Finternal []float64) {
+	var (
+		Nint = rt.NpInt
+	)
+	Finternal = make([]float64, Nint)
+	for i := 0; i < Nint; i++ {
+		Finternal[i] = F[i]
+	}
+	return
 }
 
 func (rt *RTElement) ExtendGeomToRT(Rint, Sint utils.Vector) (R, S utils.Vector) {

@@ -20,9 +20,10 @@ import (
 )
 
 type DFR2D struct {
-	N                  int
-	SolutionElement    *LagrangeElement2D
-	FluxElement        *RTBasis2DSimplexLegacy
+	N               int
+	SolutionElement *LagrangeElement2D
+	// FluxElement        *RTBasis2DSimplexLegacy
+	FluxElement        *RTElement
 	FluxInterp         utils.Matrix // Interpolates from the interior (solution) points to all of the flux points
 	FluxEdgeInterp     utils.Matrix // Interpolates only from interior to the edge points in the flux element
 	FluxDr, FluxDs     utils.Matrix // Derivatives from the interior (solution) points to all of the flux points
@@ -46,7 +47,8 @@ func NewDFR2D(N int, pm *InputParameters.PlotMeta, verbose bool, meshFileO ...st
 		panic(fmt.Errorf("Polynomial order must be >= 0, have %d", N))
 	}
 	le := NewLagrangeElement2D(N, Epsilon)
-	rt := NewRTBasis2DSimplexLegacy(N + 1)
+	// rt := NewRTBasis2DSimplexLegacy(N + 1)
+	rt := NewRTElement(N+1, SimplexRTBasis)
 	RFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.R.DataP)) // For the Interpolation matrix across three edges
 	SFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.S.DataP)) // For the Interpolation matrix across three edges
 	dfr = &DFR2D{
@@ -378,9 +380,9 @@ func (dfr *DFR2D) OutputMesh() (gm *graphics2D.TriMesh) {
 
 	// Build the X,Y coordinates to support the triangulation index
 	Np := NpFlux - Nint + 3 // Subtract NpInt to remove the dup pts and add 3 for the verts
-//	fmt.Printf("Size of constructed element: Np=%d\n", Np)
-//	fmt.Printf("Size of original flux element: NpFlux=%d\n", NpFlux)
-//	fmt.Printf("Size of original flux element interior: NpInt=%d\n", Nint)
+	//	fmt.Printf("Size of constructed element: Np=%d\n", Np)
+	//	fmt.Printf("Size of original flux element: NpFlux=%d\n", NpFlux)
+	//	fmt.Printf("Size of original flux element interior: NpInt=%d\n", Nint)
 	VX, VY := utils.NewMatrix(Np, Kmax), utils.NewMatrix(Np, Kmax)
 	vxd, vyd := VX.DataP, VY.DataP
 	for k := 0; k < Kmax; k++ {
