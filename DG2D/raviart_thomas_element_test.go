@@ -41,22 +41,60 @@ func DivergencePolynomialField_Test(t *testing.T, BasisType RTBasisType, PMin, P
 		PolyVectorField2{},
 		PolyVectorField3{},
 	}
-
 	for _, field := range dt {
 		t.Logf("Begin Divergence Test for [%s]", field.String())
 		// P := 1
 		PStart := PMin
 		PEnd := PMax
 		for P := PStart; P <= PEnd; P++ {
-			PFieldStart := 0
-			PFieldEnd := P
 			t.Logf("---------------------------------------------\n")
 			t.Logf("Checking Divergence for RT%d\n", P)
 			t.Logf("---------------------------------------------\n")
 			rt := NewRTElement(P, BasisType)
-			CheckDivergence(t, rt, field, PFieldStart, PFieldEnd)
+			CheckDivergence(t, rt, field, 0, P)
 		}
 	}
+
+	PStart := PMin
+	PEnd := PMax
+	rmsCheck := make([]float64, PEnd-PStart+1)
+	for P := PStart; P <= PEnd; P++ {
+		t.Logf("---------------------------------------------\n")
+		t.Logf("Checking RMS convergence for RT%d\n", P)
+		t.Logf("---------------------------------------------\n")
+		rt := NewRTElement(P, BasisType)
+		checkField := SinCosVectorField{}
+		rmsCheck[P-1] = CheckDivergenceRMS(t, rt, checkField)
+		fmt.Printf("RMS Error on %s: %f\n", checkField.String(), rmsCheck[P-1])
+	}
+	for P := PStart; P <= PEnd; P++ {
+		fmt.Printf("Log10 RMS Error(%d) =%f\n", P, math.Log10(rmsCheck[P-1]))
+	}
+}
+
+func CheckDivergenceRMS(t *testing.T, rt *RTElement, dt VectorTestField) (rmsError float64) {
+	var (
+		Np = rt.Np
+	)
+	// A := utils.NewMatrix(Np, Np)
+	f1, f2 := make([]float64, Np), make([]float64, Np)
+	DivRef := make([]float64, Np)
+	FProj := utils.NewMatrix(Np, 1)
+	t.Logf("\nReference Vector Field Infinite Order: %s\n", dt.String())
+	t.Logf("-------------------------------\n")
+	for i := 0; i < Np; i++ {
+		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+		f1[i], f2[i] = dt.F(r, s, 0)
+		DivRef[i] = dt.Divergence(r, s, 0)
+	}
+	rt.ProjectFunctionOntoDOF(f1, f2, FProj)
+	DivCalc := rt.Div.Mul(FProj)
+	for i := 0; i < Np; i++ {
+		baseErr := DivRef[i] - DivCalc.DataP[i]
+		rmsError += baseErr * baseErr
+	}
+	rmsError = math.Sqrt(rmsError / float64(Np))
+	return
 }
 
 func CheckDivergence(t *testing.T, rt *RTElement, dt VectorTestField,

@@ -145,12 +145,12 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 		g3 := R.DataP[edgeLocation+2]
 		e.Phi = e.ComposePhiRT2(g1, g2, g3)
 	default:
-		// panic("Ervin RT basis is not working with P>2")
-		e.InteriorPolyKBasis = NewJacobiBasis2D(e.P-1,
-			R.Copy().Subset(0, e.NpInt-1),
-			S.Copy().Subset(0, e.NpInt-1),
-			0, 0)
-		e.Phi = e.ComposePhiRTK(R.DataP[edgeLocation : edgeLocation+e.NpEdge])
+		panic("Ervin RT basis is not working with P>2")
+		// e.InteriorPolyKBasis = NewJacobiBasis2D(e.P-1,
+		// 	R.Copy().Subset(0, e.NpInt-1),
+		// 	S.Copy().Subset(0, e.NpInt-1),
+		// 	0, 0)
+		// e.Phi = e.ComposePhiRTK(R.DataP[edgeLocation : edgeLocation+e.NpEdge])
 	}
 	return
 }

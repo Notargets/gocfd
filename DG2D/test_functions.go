@@ -28,11 +28,7 @@ func (scf SinCosVectorField) F(r, s float64, P int) (f1, f2 float64) {
 	var (
 		Pi = math.Pi
 	)
-	conv := func(r float64) (xi float64) {
-		xi = Pi * (r + 1)
-		return
-	}
-	f1, f2 = math.Sin(conv(r)), math.Cos(conv(s))
+	f1, f2 = math.Sin(Pi*(r+1)), math.Cos(Pi*(s+1))
 	return
 }
 
@@ -40,12 +36,7 @@ func (scf SinCosVectorField) Divergence(r, s float64, P int) (div float64) {
 	var (
 		Pi = math.Pi
 	)
-	conv := func(r float64) (xi float64) {
-		xi = Pi * (r + 1)
-		return
-	}
-	div = (math.Cos(conv(r)) - math.Sin(conv(s)))
-	div += Pi * (math.Sin(conv(r)) + math.Cos(conv(s)))
+	div = Pi * (math.Cos(Pi*(r+1)) - math.Sin(Pi*(s+1)))
 	return
 }
 
