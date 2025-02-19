@@ -69,6 +69,7 @@ func DivergencePolynomialField_Test(t *testing.T, BasisType RTBasisType, PMin, P
 	}
 	for P := PStart; P <= PEnd; P++ {
 		fmt.Printf("Log10 RMS Error(%d) =%f\n", P, math.Log10(rmsCheck[P-1]))
+		// Shows quadratic convergence in Log10 RMS error scaling in P
 	}
 }
 
