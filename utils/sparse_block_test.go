@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"fmt"
 	"math"
 	"testing"
 
@@ -538,32 +537,4 @@ func TestNewMatrixFromData(t *testing.T) {
 		newMat.Print("New with old data")
 	}
 	assert.InDeltaSlicef(t, data, m.DataP, tol, "")
-}
-
-func TestBlockAllocation(t *testing.T) {
-	// Suppose we want to allocate a 5x5 sparse block matrix,
-	// where each block is 2x2, and we have 10 allocated blocks.
-	// For example, we may allocate the diagonal and some off-diagonals.
-	addresses := [][2]int{
-		{0, 0}, {0, 1}, {0, 3}, {0, 4},
-		{1, 1}, {1, 2}, {1, 4}, {1, 0},
-		{2, 2}, {2, 3}, // etc. (for illustration, length must equal numBlocks)
-	}
-	// For this example, let numBlocks = len(addresses)
-	numBlocks := len(addresses)
-	blockRows, blockCols := 2, 2
-	pool := NewBlockPool(numBlocks, blockRows, blockCols, addresses)
-
-	// Now, using the pool, get individual blocks.
-	// For example, to get the block at [0,1]:
-	A := pool.Block(0, 1)
-	// Similarly, to get blocks for multiplication:
-	B := pool.Block(1, 2)
-	C := pool.Block(0, 3)
-	// And now perform a block multiplication using your existing API:
-	// This is conceptually: A.Mul(B) stored in C:
-	result := A.Mul(B, C) // or A.Mul(B) then assign to C, depending on your API
-
-	fmt.Println("Block multiplication result:")
-	result.Print("Result block:")
 }
