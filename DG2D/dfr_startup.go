@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/notargets/gocfd/InputParameters"
 
@@ -47,7 +48,6 @@ func NewDFR2D(N int, pm *InputParameters.PlotMeta, verbose bool, meshFileO ...st
 		panic(fmt.Errorf("Polynomial order must be >= 0, have %d", N))
 	}
 	le := NewLagrangeElement2D(N, Epsilon)
-	// rt := NewRTBasis2DSimplexLegacy(N + 1)
 	rt := NewRTElement(N+1, SimplexRTBasis)
 	RFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.R.DataP)) // For the Interpolation matrix across three edges
 	SFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.S.DataP)) // For the Interpolation matrix across three edges
@@ -88,6 +88,7 @@ func NewDFR2D(N int, pm *InputParameters.PlotMeta, verbose bool, meshFileO ...st
 			fmt.Println("Number of elements in mesh K = ", dfr.K)
 			fmt.Println("Press 'Enter' to exit...")
 			bufio.NewReader(os.Stdin).ReadBytes('\n')
+			time.Sleep(30 * time.Second)
 			os.Exit(0)
 		}
 		// Calculate RT based derivative metrics for use in calculating Dx and Dy using the RT element
