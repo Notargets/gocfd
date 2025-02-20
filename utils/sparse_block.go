@@ -5,9 +5,9 @@ import (
 	"math"
 )
 
-// BlockPool represents a sparse block matrix. Only blocks provided via addresses are allocated;
+// BlockSparse represents a sparse block matrix. Only blocks provided via addresses are allocated;
 // all other blocks are implicitly zero.
-type BlockPool struct {
+type BlockSparse struct {
 	// Global block-matrix dimensions (in block counts).
 	NrBlocks, NcBlocks int
 
@@ -21,11 +21,11 @@ type BlockPool struct {
 	addresses map[[2]int]int
 }
 
-// NewBlockPool creates a new BlockPool for a sparse block matrix.
+// NewBlockSparse creates a new BlockSparse for a sparse block matrix.
 // The input parameter addresses is a slice of [2]int specifying the coordinates
 // of each nonzero block. The total number of allocated blocks is len(addresses).
 // All other blocks (not in addresses) are implicitly zero.
-func NewBlockPool(nrBlocks, ncBlocks, blockRows, blockCols int, addresses [][2]int) *BlockPool {
+func NewBlockSparse(nrBlocks, ncBlocks, blockRows, blockCols int, addresses [][2]int) *BlockSparse {
 	totalBlocks := len(addresses)
 	totalFloats := totalBlocks * blockRows * blockCols
 	data := make([]float64, totalFloats)
@@ -35,7 +35,7 @@ func NewBlockPool(nrBlocks, ncBlocks, blockRows, blockCols int, addresses [][2]i
 		offset := i * blockRows * blockCols
 		addrMap[addr] = offset
 	}
-	return &BlockPool{
+	return &BlockSparse{
 		NrBlocks:  nrBlocks,
 		NcBlocks:  ncBlocks,
 		blockRows: blockRows,
@@ -45,20 +45,20 @@ func NewBlockPool(nrBlocks, ncBlocks, blockRows, blockCols int, addresses [][2]i
 	}
 }
 
-// Block returns a Matrix view for the block at coordinate (i, j).
+// GetBlockView returns a Matrix view for the block at coordinate (i, j).
 // It uses your existing Matrix API (ResetView) so that the returned Matrix
-// wraps the appropriate region of the BlockPool’s contiguous data.
+// wraps the appropriate region of the BlockSparse’s contiguous data.
 // If (i,j) is not allocated in this sparse matrix, the function panics.
-func (bp *BlockPool) Block(i, j int) Matrix {
+func (bs *BlockSparse) GetBlockView(i, j int) Matrix {
 	key := [2]int{i, j}
-	offset, ok := bp.addresses[key]
+	offset, ok := bs.addresses[key]
 	if !ok {
-		panic(fmt.Sprintf("Block (%d,%d) not allocated", i, j))
+		panic(fmt.Sprintf("GetBlockView (%d,%d) not allocated", i, j))
 	}
-	// Create a view over bp.data for this block.
-	subData := bp.data[offset : offset+bp.blockRows*bp.blockCols]
+	// Create a view over bs.data for this block.
+	subData := bs.data[offset : offset+bs.blockRows*bs.blockCols]
 	// Create a dummy Matrix (which will be rebound via ResetView).
-	m := NewMatrix(bp.blockRows, bp.blockCols)
+	m := NewMatrix(bs.blockRows, bs.blockCols)
 	if err := m.ResetView(subData); err != nil {
 		panic(err)
 	}
@@ -71,28 +71,28 @@ func (bp *BlockPool) Block(i, j int) Matrix {
 // into the output block at (i,j).
 //
 // Since the sparsity pattern of the result is not known in advance, we accumulate results
-// in a map and then build a new BlockPool for the result. (For performance, one might eventually
+// in a map and then build a new BlockSparse for the result. (For performance, one might eventually
 // preallocate a workspace and reuse objects.)
-func (bp *BlockPool) Mul(other *BlockPool) *BlockPool {
+func (bs *BlockSparse) Mul(other *BlockSparse) *BlockSparse {
 	// Check block-matrix compatibility.
-	if bp.NcBlocks != other.NrBlocks {
-		panic("block matrix dimensions mismatch: bp.NcBlocks must equal other.NrBlocks")
+	if bs.NcBlocks != other.NrBlocks {
+		panic("block matrix dimensions mismatch: bs.NcBlocks must equal other.NrBlocks")
 	}
-	// Let m = bp.NrBlocks, n = bp.NcBlocks (and other.NrBlocks), p = other.NcBlocks.
-	// m, n, p := bp.NrBlocks, bp.NcBlocks, other.NcBlocks
+	// Let m = bs.NrBlocks, n = bs.NcBlocks (and other.NrBlocks), p = other.NcBlocks.
+	// m, n, p := bs.NrBlocks, bs.NcBlocks, other.NcBlocks
 	// Also check that the inner block dimensions are compatible.
-	if bp.blockCols != other.blockRows {
-		panic("block size mismatch: bp.blockCols must equal other.blockRows")
+	if bs.blockCols != other.blockRows {
+		panic("block size mismatch: bs.blockCols must equal other.blockRows")
 	}
-	// The result's blocks have dimensions: blockRows (from bp) x other.blockCols.
-	resBlockRows := bp.blockRows
+	// The result's blocks have dimensions: blockRows (from bs) x other.blockCols.
+	resBlockRows := bs.blockRows
 	resBlockCols := other.blockCols
 
 	// resultMap will accumulate computed blocks: key [i,j] -> yourmatrix.Matrix.
 	resultMap := make(map[[2]int]Matrix)
 
-	// Iterate over allocated blocks in bp.
-	for key1 := range bp.addresses {
+	// Iterate over allocated blocks in bs.
+	for key1 := range bs.addresses {
 		// key1 = (i,k)
 		i, k := key1[0], key1[1]
 		// For each allocated block in other with row == k.
@@ -101,9 +101,9 @@ func (bp *BlockPool) Mul(other *BlockPool) *BlockPool {
 				continue
 			}
 			j := key2[1]
-			// Multiply bp.Block(i,k) by other.Block(k,j)
-			A := bp.Block(i, k)
-			B := other.Block(k, j)
+			// Multiply bs.GetBlockView(i,k) by other.GetBlockView(k,j)
+			A := bs.GetBlockView(i, k)
+			B := other.GetBlockView(k, j)
 			prod := A.Mul(B) // using your Matrix.Mul API that returns a new Matrix
 			resKey := [2]int{i, j}
 			if existing, ok := resultMap[resKey]; ok {
@@ -138,9 +138,9 @@ func (bp *BlockPool) Mul(other *BlockPool) *BlockPool {
 		copy(resData[offset:offset+resBlockRows*resBlockCols], block.DataP)
 	}
 
-	// Create and return the result BlockPool.
-	return &BlockPool{
-		NrBlocks:  bp.NrBlocks,    // result has the same block row dimension as bp
+	// Create and return the result BlockSparse.
+	return &BlockSparse{
+		NrBlocks:  bs.NrBlocks,    // result has the same block row dimension as bs
 		NcBlocks:  other.NcBlocks, // result has the same block col dimension as other
 		blockRows: resBlockRows,
 		blockCols: resBlockCols,
@@ -154,14 +154,14 @@ func (bp *BlockPool) Mul(other *BlockPool) *BlockPool {
 // -----------------------------------------------------------------------------
 
 // BlockFrobNorm computes the Frobenius norm of a block vector bp.
-// It assumes bp is a BlockPool with NcBlocks == 1.
-func BlockFrobNorm(bp *BlockPool) float64 {
+// It assumes bp is a BlockSparse with NcBlocks == 1.
+func (bp *BlockSparse) FrobNorm() (norm float64) {
 	sum := 0.0
 	// Iterate over all allocated blocks in the dense vector.
 	// For a dense block vector, every block row (i from 0 to NrBlocks-1) is allocated.
 	for i := 0; i < bp.NrBlocks; i++ {
 		// In a dense vector, the block address is (i,0)
-		block := bp.Block(i, 0)
+		block := bp.GetBlockView(i, 0)
 		// Compute the Frobenius norm of the 2x2 block.
 		r, c := block.Dims()
 		for i := 0; i < r; i++ {
@@ -171,19 +171,20 @@ func BlockFrobNorm(bp *BlockPool) float64 {
 			}
 		}
 	}
-	return math.Sqrt(sum)
+	norm = math.Sqrt(sum)
+	return
 }
 
 // BlockInnerProduct computes the inner product between two block vectors x and y.
 // The inner product is defined as the sum over blocks of the Frobenius inner product.
-func BlockInnerProduct(x, y *BlockPool) float64 {
+func (x *BlockSparse) InnerProduct(y *BlockSparse) float64 {
 	if x.NrBlocks != y.NrBlocks {
-		panic("BlockInnerProduct: dimension mismatch")
+		panic("InnerProduct: dimension mismatch")
 	}
 	sum := 0.0
 	for i := 0; i < x.NrBlocks; i++ {
-		xb := x.Block(i, 0)
-		yb := y.Block(i, 0)
+		xb := x.GetBlockView(i, 0)
+		yb := y.GetBlockView(i, 0)
 		r, c := xb.Dims()
 		for i := 0; i < r; i++ {
 			for j := 0; j < c; j++ {
@@ -195,10 +196,10 @@ func BlockInnerProduct(x, y *BlockPool) float64 {
 }
 
 // ScaleBlockPool scales every element of the block vector bp by alpha, in place.
-func ScaleBlockPool(bp *BlockPool, alpha float64) {
+func (bp *BlockSparse) Scale(alpha float64) {
 	for i := 0; i < bp.NrBlocks; i++ {
 		// For dense block vector, column is always 0.
-		block := bp.Block(i, 0)
+		block := bp.GetBlockView(i, 0)
 		r, c := block.Dims()
 		for i := 0; i < r; i++ {
 			for j := 0; j < c; j++ {
@@ -209,24 +210,24 @@ func ScaleBlockPool(bp *BlockPool, alpha float64) {
 	}
 }
 
-// AddBlockPool returns a new block vector equal to x + y.
+// Add returns a new block vector equal to x + y.
 // It assumes x and y are both dense block vectors (NcBlocks==1) with identical dimensions.
-func AddBlockPool(x, y *BlockPool) *BlockPool {
+func (x *BlockSparse) Add(y *BlockSparse) *BlockSparse {
 	if x.NrBlocks != y.NrBlocks || x.blockRows != y.blockRows || x.blockCols != y.blockCols {
-		panic("AddBlockPool: dimension mismatch")
+		panic("Add: dimension mismatch")
 	}
 	// Allocate a new dense block vector with the same dimensions.
 	newAddrs := make([][2]int, x.NrBlocks)
 	for i := 0; i < x.NrBlocks; i++ {
 		newAddrs[i] = [2]int{i, 0}
 	}
-	res := NewBlockPool(x.NrBlocks, 1, x.blockRows, x.blockCols, newAddrs)
+	res := NewBlockSparse(x.NrBlocks, 1, x.blockRows, x.blockCols, newAddrs)
 	// For each block, add corresponding blocks.
 	for i := 0; i < x.NrBlocks; i++ {
-		xb := x.Block(i, 0)
-		yb := y.Block(i, 0)
+		xb := x.GetBlockView(i, 0)
+		yb := y.GetBlockView(i, 0)
 		r, c := xb.Dims()
-		resBlock := res.Block(i, 0)
+		resBlock := res.GetBlockView(i, 0)
 		for i := 0; i < r; i++ {
 			for j := 0; j < c; j++ {
 				sum := xb.M.At(i, j) + yb.M.At(i, j)
@@ -238,20 +239,20 @@ func AddBlockPool(x, y *BlockPool) *BlockPool {
 }
 
 // SubtractBlockPool returns a new block vector equal to x - y.
-func SubtractBlockPool(x, y *BlockPool) *BlockPool {
+func (x *BlockSparse) Subtract(y *BlockSparse) *BlockSparse {
 	if x.NrBlocks != y.NrBlocks || x.blockRows != y.blockRows || x.blockCols != y.blockCols {
-		panic("SubtractBlockPool: dimension mismatch")
+		panic("Subtract: dimension mismatch")
 	}
 	newAddrs := make([][2]int, x.NrBlocks)
 	for i := 0; i < x.NrBlocks; i++ {
 		newAddrs[i] = [2]int{i, 0}
 	}
-	res := NewBlockPool(x.NrBlocks, 1, x.blockRows, x.blockCols, newAddrs)
+	res := NewBlockSparse(x.NrBlocks, 1, x.blockRows, x.blockCols, newAddrs)
 	for i := 0; i < x.NrBlocks; i++ {
-		xb := x.Block(i, 0)
-		yb := y.Block(i, 0)
+		xb := x.GetBlockView(i, 0)
+		yb := y.GetBlockView(i, 0)
 		r, c := xb.Dims()
-		resBlock := res.Block(i, 0)
+		resBlock := res.GetBlockView(i, 0)
 		for i := 0; i < r; i++ {
 			for j := 0; j < c; j++ {
 				diff := xb.M.At(i, j) - yb.M.At(i, j)
@@ -263,16 +264,16 @@ func SubtractBlockPool(x, y *BlockPool) *BlockPool {
 }
 
 // CopyBlockPool makes a deep copy of a dense block vector.
-func CopyBlockPool(bp *BlockPool) *BlockPool {
+func (bp *BlockSparse) Copy() *BlockSparse {
 	newAddrs := make([][2]int, bp.NrBlocks)
 	for i := 0; i < bp.NrBlocks; i++ {
 		newAddrs[i] = [2]int{i, 0}
 	}
-	res := NewBlockPool(bp.NrBlocks, 1, bp.blockRows, bp.blockCols, newAddrs)
+	res := NewBlockSparse(bp.NrBlocks, 1, bp.blockRows, bp.blockCols, newAddrs)
 	// Copy each block.
 	for i := 0; i < bp.NrBlocks; i++ {
-		src := bp.Block(i, 0)
-		dst := res.Block(i, 0)
+		src := bp.GetBlockView(i, 0)
+		dst := res.GetBlockView(i, 0)
 		r, c := src.Dims()
 		for i := 0; i < r; i++ {
 			for j := 0; j < c; j++ {
@@ -299,13 +300,14 @@ func SolveLeastSquares(H [][]float64, rows, cols int, g []float64) []float64 {
 }
 
 // -----------------------------------------------------------------------------
-// GMRES Implementation using the BlockPool API
+// GMRES Implementation using the BlockSparse API
 // -----------------------------------------------------------------------------
 
 // GMRES solves the linear system A x = b using the GMRES algorithm,
-// where A is a block matrix (BlockPool) and b is a dense block vector
-// (a BlockPool with NcBlocks == 1). The output x is a dense block vector.
-func GMRES(A, b *BlockPool, tol float64, maxIter int) *BlockPool {
+// where A is a block matrix (BlockSparse) and b is a dense block vector
+// (a BlockSparse with NcBlocks == 1). The output x is a dense block vector.
+func (A *BlockSparse) GMRES(b *BlockSparse, tol float64,
+	maxIter int) *BlockSparse {
 	// Assume x0 = 0.
 	// For a dense block vector, we require that b.NcBlocks == 1.
 	if b.NcBlocks != 1 {
@@ -313,17 +315,17 @@ func GMRES(A, b *BlockPool, tol float64, maxIter int) *BlockPool {
 	}
 	m := A.NrBlocks // number of block rows in A
 	// x0 = zero vector.
-	x0 := NewBlockPool(m, 1, b.blockRows, b.blockCols, generateDenseAddresses(m))
+	x0 := NewBlockSparse(m, 1, b.blockRows, b.blockCols, generateDenseAddresses(m))
 	// r0 = b - A * x0. Since x0 is zero, r0 = b.
 	r0 := b
-	beta := BlockFrobNorm(r0)
+	beta := r0.FrobNorm()
 	if beta < tol {
 		return x0
 	}
 	// v0 = r0 / beta.
-	v0 := CopyBlockPool(r0)
-	ScaleBlockPool(v0, 1.0/beta)
-	V := make([]*BlockPool, maxIter+1)
+	v0 := r0.Copy()
+	v0.Scale(1.0 / beta)
+	V := make([]*BlockSparse, maxIter+1)
 	V[0] = v0
 	// H will be stored as a (maxIter+1) x maxIter dense matrix.
 	H := make([][]float64, maxIter+1)
@@ -339,31 +341,31 @@ func GMRES(A, b *BlockPool, tol float64, maxIter int) *BlockPool {
 		w := A.Mul(V[j])
 		// Orthogonalize w against V[0] ... V[j].
 		for i := 0; i <= j; i++ {
-			hij := BlockInnerProduct(V[i], w)
+			hij := V[i].InnerProduct(w)
 			H[i][j] = hij
 			// w = w - hij * V[i].
-			temp := CopyBlockPool(V[i])
-			ScaleBlockPool(temp, hij)
-			w = SubtractBlockPool(w, temp)
+			temp := V[i].Copy()
+			temp.Scale(hij)
+			w = w.Subtract(temp)
 		}
-		hj1j := BlockFrobNorm(w)
+		hj1j := w.FrobNorm()
 		H[j+1][j] = hj1j
 		if hj1j < tol {
 			j++
 			break
 		}
-		vNext := CopyBlockPool(w)
-		ScaleBlockPool(vNext, 1.0/hj1j)
+		vNext := w.Copy()
+		vNext.Scale(1.0 / hj1j)
 		V[j+1] = vNext
 	}
 	// Solve the least-squares problem for y.
 	y := SolveLeastSquares(H, j+1, j, g)
 	// x = x0 + sum_{i=0}^{j-1} y[i] * V[i].
-	x := CopyBlockPool(x0)
+	x := x0.Copy()
 	for i := 0; i < j; i++ {
-		temp := CopyBlockPool(V[i])
-		ScaleBlockPool(temp, y[i])
-		x = AddBlockPool(x, temp)
+		temp := V[i].Copy()
+		temp.Scale(y[i])
+		x = x.Add(temp)
 	}
 	return x
 }

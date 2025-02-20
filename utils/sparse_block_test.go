@@ -208,10 +208,10 @@ func TestGMRESIdentity(t *testing.T) {
 	addressesA := [][2]int{
 		{0, 0}, {1, 1}, {2, 2},
 	}
-	A := NewBlockPool(3, 3, 2, 2, addressesA)
+	A := NewBlockSparse(3, 3, 2, 2, addressesA)
 	// Fill the allocated blocks in A with 2×2 identity.
 	for _, addr := range addressesA {
-		block := A.Block(addr[0], addr[1])
+		block := A.GetBlockView(addr[0], addr[1])
 		block.M.Set(0, 0, 1.0)
 		block.M.Set(0, 1, 0.0)
 		block.M.Set(1, 0, 0.0)
@@ -224,7 +224,7 @@ func TestGMRESIdentity(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		addressesB[i] = [2]int{i, 0}
 	}
-	b := NewBlockPool(3, 1, 2, 2, addressesB)
+	b := NewBlockSparse(3, 1, 2, 2, addressesB)
 	// Fill b with known values.
 	// Let block 0 = [1,2;3,4], block 1 = [5,6;7,8], block 2 = [9,10;11,12]
 	valuesB := [][]float64{
@@ -233,7 +233,7 @@ func TestGMRESIdentity(t *testing.T) {
 		{9, 10, 11, 12},
 	}
 	for i := 0; i < 3; i++ {
-		block := b.Block(i, 0)
+		block := b.GetBlockView(i, 0)
 		// Fill in row-major order.
 		for j, v := range valuesB[i] {
 			row := j / 2
@@ -246,12 +246,12 @@ func TestGMRESIdentity(t *testing.T) {
 	// Since A is the identity, the solution should equal b.
 	tol := 1e-6
 	maxIter := 5
-	x := GMRES(A, b, tol, maxIter)
+	x := A.GMRES(b, tol, maxIter)
 
 	// --- Compute the residual: r = b - A*x.
 	Ax := A.Mul(x)
-	rPool := SubtractBlockPool(b, Ax)
-	resNorm := BlockFrobNorm(rPool)
+	rPool := b.Subtract(Ax)
+	resNorm := rPool.FrobNorm()
 
 	// For the identity, the residual should be (nearly) zero.
 	if resNorm > tol {
@@ -273,39 +273,39 @@ func TestSparseBlockMatrixSparseMul(t *testing.T) {
 		{2, 0},
 		{3, 3},
 	}
-	A := NewBlockPool(4, 4, 2, 2, addressesA)
+	A := NewBlockSparse(4, 4, 2, 2, addressesA)
 
 	// Fill A's allocated blocks with known values.
-	// Block (0,0): Identity.
-	block := A.Block(0, 0)
+	// GetBlockView (0,0): Identity.
+	block := A.GetBlockView(0, 0)
 	block.M.Set(0, 0, 1.0)
 	block.M.Set(0, 1, 0.0)
 	block.M.Set(1, 0, 0.0)
 	block.M.Set(1, 1, 1.0)
 
-	// Block (0,2): Constant matrix with all entries = 2.
-	block = A.Block(0, 2)
+	// GetBlockView (0,2): Constant matrix with all entries = 2.
+	block = A.GetBlockView(0, 2)
 	block.M.Set(0, 0, 2.0)
 	block.M.Set(0, 1, 2.0)
 	block.M.Set(1, 0, 2.0)
 	block.M.Set(1, 1, 2.0)
 
-	// Block (1,1): Identity.
-	block = A.Block(1, 1)
+	// GetBlockView (1,1): Identity.
+	block = A.GetBlockView(1, 1)
 	block.M.Set(0, 0, 1.0)
 	block.M.Set(0, 1, 0.0)
 	block.M.Set(1, 0, 0.0)
 	block.M.Set(1, 1, 1.0)
 
-	// Block (2,0): Constant matrix with all entries = 3.
-	block = A.Block(2, 0)
+	// GetBlockView (2,0): Constant matrix with all entries = 3.
+	block = A.GetBlockView(2, 0)
 	block.M.Set(0, 0, 3.0)
 	block.M.Set(0, 1, 3.0)
 	block.M.Set(1, 0, 3.0)
 	block.M.Set(1, 1, 3.0)
 
-	// Block (3,3): Identity.
-	block = A.Block(3, 3)
+	// GetBlockView (3,3): Identity.
+	block = A.GetBlockView(3, 3)
 	block.M.Set(0, 0, 1.0)
 	block.M.Set(0, 1, 0.0)
 	block.M.Set(1, 0, 0.0)
@@ -316,28 +316,28 @@ func TestSparseBlockMatrixSparseMul(t *testing.T) {
 	for i := 0; i < 4; i++ {
 		addressesB[i] = [2]int{i, 0}
 	}
-	b := NewBlockPool(4, 1, 2, 2, addressesB)
+	b := NewBlockSparse(4, 1, 2, 2, addressesB)
 	// Fill b with known values:
-	// Block (0,0): [1,1;1,1]
-	block = b.Block(0, 0)
+	// GetBlockView (0,0): [1,1;1,1]
+	block = b.GetBlockView(0, 0)
 	block.M.Set(0, 0, 1.0)
 	block.M.Set(0, 1, 1.0)
 	block.M.Set(1, 0, 1.0)
 	block.M.Set(1, 1, 1.0)
-	// Block (1,0): [2,2;2,2]
-	block = b.Block(1, 0)
+	// GetBlockView (1,0): [2,2;2,2]
+	block = b.GetBlockView(1, 0)
 	block.M.Set(0, 0, 2.0)
 	block.M.Set(0, 1, 2.0)
 	block.M.Set(1, 0, 2.0)
 	block.M.Set(1, 1, 2.0)
-	// Block (2,0): [3,3;3,3]
-	block = b.Block(2, 0)
+	// GetBlockView (2,0): [3,3;3,3]
+	block = b.GetBlockView(2, 0)
 	block.M.Set(0, 0, 3.0)
 	block.M.Set(0, 1, 3.0)
 	block.M.Set(1, 0, 3.0)
 	block.M.Set(1, 1, 3.0)
-	// Block (3,0): [4,4;4,4]
-	block = b.Block(3, 0)
+	// GetBlockView (3,0): [4,4;4,4]
+	block = b.GetBlockView(3, 0)
 	block.M.Set(0, 0, 4.0)
 	block.M.Set(0, 1, 4.0)
 	block.M.Set(1, 0, 4.0)
@@ -365,7 +365,7 @@ func TestSparseBlockMatrixSparseMul(t *testing.T) {
 	tol := 1e-6
 	// Verify each expected block in the result.
 	for key, expVals := range expected {
-		rblock := result.Block(key[0], key[1])
+		rblock := result.GetBlockView(key[0], key[1])
 		for i := 0; i < 2; i++ {
 			for j := 0; j < 2; j++ {
 				got := rblock.M.At(i, j)
