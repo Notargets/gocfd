@@ -163,40 +163,70 @@ func (sbm *SparseBlockMatrix) SetBlock(blockRow, blockCol int, m Matrix) error {
 	return fmt.Errorf("SetBlock: block at row %d, col %d not found", blockRow, blockCol)
 }
 
-// setDenseData replaces the underlying data slice of a mat.Dense without copying.
-// It uses reflect and unsafe to set the Data field of the internal blas64.General.
+// setDenseData replaces the underlying Data field of m.M with data.
 func setDenseData(m *mat.Dense, data []float64) {
-	// m is a pointer to a mat.Dense which is defined as:
-	//   type Dense struct {
-	//       mat blas64.General
-	//       cap int
-	//   }
-	// We want to write into the "mat" field's "Data" member.
+	// Get the unexported "mat" field.
 	v := reflect.ValueOf(m).Elem().FieldByName("mat")
 	if !v.IsValid() {
 		panic("cannot find field 'mat' in mat.Dense")
 	}
 	dataField := v.FieldByName("Data")
-	if !dataField.CanSet() {
-		// Use unsafe trick to allow writing.
-		// First, get a pointer to the field.
-		ptr := unsafe.Pointer(dataField.UnsafeAddr())
-		// Create a reflect.Value that is writable.
-		dataVal := reflect.NewAt(dataField.Type(), ptr).Elem()
-		dataVal.Set(reflect.ValueOf(data))
+	if !dataField.IsValid() {
+		panic("cannot find field 'Data' in the 'mat' field of mat.Dense")
+	}
+	// Force-set the Data field using unsafe.
+	ptr := unsafe.Pointer(dataField.UnsafeAddr())
+	reflect.NewAt(dataField.Type(), ptr).Elem().Set(reflect.ValueOf(data))
+}
+
+// updateField updates an unexported integer field of an addressable struct.
+func updateField(v reflect.Value, fieldName string, newVal int64) {
+	f := v.FieldByName(fieldName)
+	if !f.IsValid() {
+		panic(fmt.Sprintf("%s field not valid", fieldName))
+	}
+	// Use unsafe to force-set the field.
+	ptr := unsafe.Pointer(f.UnsafeAddr())
+	reflect.NewAt(f.Type(), ptr).Elem().SetInt(newVal)
+}
+
+// updateCapIfExists updates the "cap" field if it exists; otherwise it does nothing.
+func updateCapIfExists(v reflect.Value, newVal int64) {
+	// Check if the field exists.
+	if _, ok := v.Type().FieldByName("cap"); ok {
+		f := v.FieldByName("cap")
+		ptr := unsafe.Pointer(f.UnsafeAddr())
+		reflect.NewAt(f.Type(), ptr).Elem().SetInt(newVal)
 	} else {
-		dataField.Set(reflect.ValueOf(data))
+		// Field not found; skip updating.
 	}
 }
 
-// NewMatrixFromData allocates a new Matrix that uses the provided slice as its underlying storage.
-// This avoids copying and directly "injects" the pointer into the mat.Dense.
-func NewMatrixFromData(nr, nc int, data []float64) Matrix {
-	// Allocate a new Matrix with dummy data.
-	m := NewMatrix(nr, nc)
-	// Replace the underlying data pointer with our provided slice.
+// SetView updates the Matrix m so that its underlying mat.Dense uses the provided data slice
+// and sets its dimensions (Rows, Cols), Stride, and capacity accordingly.
+// The provided data slice must have at least nr*nc elements.
+func (m *Matrix) SetView(nr, nc int, data []float64) string {
+	if len(data) < nr*nc {
+		panic(fmt.Errorf("not enough data: need %d elements, got %d", nr*nc, len(data)))
+	}
+	// Replace the underlying data pointer.
 	setDenseData(m.M, data)
 	// Update DataP to point to the new data.
 	m.DataP = m.M.RawMatrix().Data
-	return m
+
+	// Get the addressable value of the Dense struct.
+	denseVal := reflect.ValueOf(m.M).Elem()
+
+	// Update the inner "mat" field (Rows, Cols, Stride).
+	matField := denseVal.FieldByName("mat")
+	if !matField.IsValid() {
+		panic("cannot find field 'mat' in mat.Dense")
+	}
+	updateField(matField, "Rows", int64(nr))
+	updateField(matField, "Cols", int64(nc))
+	updateField(matField, "Stride", int64(nc)) // assuming contiguous layout
+
+	// Update the capacity field if it exists.
+	updateCapIfExists(denseVal, int64(nr*nc))
+	return "OK"
 }

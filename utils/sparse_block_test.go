@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"fmt"
 	"math"
 	"testing"
 )
@@ -513,12 +512,9 @@ func TestNewMatrixFromData(t *testing.T) {
 	data[3] = 2.2
 
 	// Create a Matrix that uses this buffer.
-	m := NewMatrixFromData(2, 2, data)
-	fmt.Println("Matrix m:")
-	m.M.Apply(func(i, j int, v float64) float64 {
-		return v
-	}, m.M)
-	// You can use your existing Print method instead.
+	m := NewMatrix(1, 1)
+	// m := NewMatrixFromData(2, 2, data)
+	m.SetView(2, 2, data)
 	m.Print("Matrix m")
 
 	// Now modify the underlying slice.
