@@ -115,6 +115,13 @@ func setDenseData(m *mat.Dense, data []float64) {
 	reflect.NewAt(dataField.Type(), ptr).Elem().Set(reflect.ValueOf(data))
 }
 
+// SubMatrix returns a view corresponding to the submatrix of m starting at
+// (row, col) of size (nr x nc). This uses mat.Dense.Slice.
+func (m Matrix) SubMatrix(row, col, nr, nc int) Matrix {
+	sub := m.M.Slice(row, row+nr, col, col+nc).(*mat.Dense)
+	return Matrix{M: sub, DataP: sub.RawMatrix().Data}
+}
+
 // Utility
 func (m *Matrix) IsEmpty() bool {
 	if m.M == nil {

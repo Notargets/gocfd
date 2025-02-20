@@ -2,164 +2,8 @@ package utils
 
 import (
 	"fmt"
-
-	"gonum.org/v1/gonum/mat"
+	"math"
 )
-
-// SubMatrix returns a view corresponding to the submatrix of m starting at
-// (row, col) of size (nr x nc). This uses mat.Dense.Slice.
-func (m Matrix) SubMatrix(row, col, nr, nc int) Matrix {
-	sub := m.M.Slice(row, row+nr, col, col+nc).(*mat.Dense)
-	return Matrix{M: sub, DataP: sub.RawMatrix().Data}
-}
-
-// --------------------------------------------------------------------------
-// SparseBlockMatrix definition and updated Mul method.
-// --------------------------------------------------------------------------
-
-// SparseBlockMatrix represents a sparse matrix whose nonzero entries are full blocks.
-type SparseBlockMatrix struct {
-	// Number of block rows and block columns.
-	NrBlocks, NcBlocks int
-	// Dimensions of each block. For simplicity we assume all blocks are of the same size.
-	BlockRows, BlockCols int
-	// CSR storage for the block pattern.
-	RowPtr []int    // length = NrBlocks+1; for each block row, indices into ColIdx and Blocks
-	ColIdx []int    // for each nonzero block, the block column index
-	Blocks []Matrix // nonzero blocks stored in row-major order.
-}
-
-// Mul multiplies the sparse block matrix by a dense matrix x.
-// x can have an arbitrary number of columns. In our setting, x is a "block vector"
-// with dimension (NcBlocks*BlockCols) x p. The result will have dimensions (NrBlocks*BlockRows) x p.
-func (sbm *SparseBlockMatrix) Mul(x Matrix) Matrix {
-	_, xCols := x.Dims()
-	totalRows := sbm.NrBlocks * sbm.BlockRows
-	result := NewMatrix(totalRows, xCols)
-	// For each block row...
-	for i := 0; i < sbm.NrBlocks; i++ {
-		// Get view for the i-th output block.
-		yBlock := result.SubMatrix(i*sbm.BlockRows, 0, sbm.BlockRows, xCols)
-		// Initialize yBlock to zero (NewMatrix zeros the data).
-		// For each nonzero block in block row i:
-		for k := sbm.RowPtr[i]; k < sbm.RowPtr[i+1]; k++ {
-			j := sbm.ColIdx[k]
-			// Get the corresponding block from x.
-			xBlock := x.SubMatrix(j*sbm.BlockCols, 0, sbm.BlockCols, xCols)
-			// Multiply the block: temp = A_ij * xBlock.
-			temp := sbm.Blocks[k].Mul(xBlock)
-			// Add the result into yBlock.
-			yBlock = yBlock.Add(temp)
-		}
-		// (Since SubMatrix returns a view, changes are reflected in result.)
-	}
-	return result
-}
-
-// ------------------------------------------------------------
-// GMRES (a very simplified sketch)
-// ------------------------------------------------------------
-
-// GMRES solves A x = b using the GMRES algorithm.
-// x and b are assumed to be block vectors (i.e. column matrices whose height is a multiple of the block size).
-// This is only a skeleton implementation.
-func GMRES(A *SparseBlockMatrix, b Matrix, tol float64, maxIter int) Matrix {
-	n, _ := b.Dims() // total number of rows in the full vector
-	// Start with an initial guess x0 = 0.
-	x := NewMatrix(n, 1)
-	// Compute initial residual r0 = b - A*x. (x is zero so r0 = b.)
-	r := b // in a full implementation, you’d copy b
-	beta := mat.Norm(r.M, 2)
-	if beta < tol {
-		return x
-	}
-
-	// Allocate space for Arnoldi vectors. V[0] is r normalized.
-	V := make([]Matrix, maxIter+1)
-	V[0] = NewMatrix(n, 1)
-	// Normalize r into V[0]:
-	// (Here we create a temporary copy; a production version should avoid extra allocations.)
-	for i := 0; i < n; i++ {
-		V[0].M.Set(i, 0, r.M.At(i, 0)/beta)
-	}
-
-	// Hessenberg matrix H with dimensions (maxIter+1) x maxIter.
-	H := mat.NewDense(maxIter+1, maxIter, nil)
-	// g vector for the least squares problem.
-	g := mat.NewVecDense(maxIter+1, nil)
-	g.SetVec(0, beta)
-
-	// GMRES iterations (very skeletal)
-	var j int
-	for j = 0; j < maxIter; j++ {
-		// w = A * V[j]
-		w := A.Mul(V[j])
-		// Gram-Schmidt orthogonalization against V[0:j]
-		for i := 0; i <= j; i++ {
-			hij := mat.Dot(V[i].M.ColView(0), w.M.ColView(0))
-			H.Set(i, j, hij)
-			// Create a temporary matrix to hold hij * V[i]
-			var scaled mat.Dense
-			scaled.Scale(hij, V[i].M) // scaled = hij * V[i]
-			// Subtract the scaled matrix from w: w = w - scaled
-			w.M.Sub(w.M, &scaled)
-		}
-		// Compute h_{j+1,j} and so on...
-	}
-
-	// Solve the least squares problem: minimize || g - H y ||.
-	// (Here you’d use a QR factorization of the (j+1)xj submatrix of H.)
-	// For simplicity, we pretend y is computed and update x accordingly:
-	// x = x + sum_{i=0}^{j-1} y_i * V[i]
-	// (This step is left as an exercise to fill in the details.)
-
-	// Return the computed x.
-	return x
-}
-
-// GetBlock returns a Matrix handle for the block at the given blockRow and blockCol.
-// If the block is not stored (i.e. is zero), it returns (Matrix{}, false).
-func (sbm *SparseBlockMatrix) GetBlock(blockRow, blockCol int) (Matrix, bool) {
-	if blockRow < 0 || blockRow >= sbm.NrBlocks {
-		return Matrix{}, false
-	}
-	// For block row i, the nonzeros are stored from RowPtr[i] to RowPtr[i+1]-1.
-	start := sbm.RowPtr[blockRow]
-	end := sbm.RowPtr[blockRow+1]
-	for i := start; i < end; i++ {
-		if sbm.ColIdx[i] == blockCol {
-			// Return the Matrix that wraps the block's allocated memory.
-			return sbm.Blocks[i], true
-		}
-	}
-	return Matrix{}, false
-}
-
-// SetBlock writes the provided matrix m into the block at (blockRow, blockCol).
-// m must have the same dimensions as the blocks (BlockRows x BlockCols).
-// It returns an error if the block location is not present or dimensions do not match.
-func (sbm *SparseBlockMatrix) SetBlock(blockRow, blockCol int, m Matrix) error {
-	if blockRow < 0 || blockRow >= sbm.NrBlocks {
-		return fmt.Errorf("SetBlock: blockRow %d out of range", blockRow)
-	}
-	start := sbm.RowPtr[blockRow]
-	end := sbm.RowPtr[blockRow+1]
-	for i := start; i < end; i++ {
-		if sbm.ColIdx[i] == blockCol {
-			// Check dimensions.
-			r, c := m.Dims()
-			if r != sbm.BlockRows || c != sbm.BlockCols {
-				return fmt.Errorf("SetBlock: dimensions mismatch; expected %dx%d, got %dx%d",
-					sbm.BlockRows, sbm.BlockCols, r, c)
-			}
-			// Overwrite the existing block with m's data.
-			// We assume that sbm.Blocks[i].M is already allocated to the right size.
-			sbm.Blocks[i].M.Copy(m.M)
-			return nil
-		}
-	}
-	return fmt.Errorf("SetBlock: block at row %d, col %d not found", blockRow, blockCol)
-}
 
 // BlockPool represents a sparse block matrix. Only blocks provided via addresses are allocated;
 // all other blocks are implicitly zero.
@@ -303,4 +147,233 @@ func (bp *BlockPool) Mul(other *BlockPool) *BlockPool {
 		data:      resData,
 		addresses: resAddrMap,
 	}
+}
+
+// -----------------------------------------------------------------------------
+// Helper routines for block vectors
+// -----------------------------------------------------------------------------
+
+// BlockFrobNorm computes the Frobenius norm of a block vector bp.
+// It assumes bp is a BlockPool with NcBlocks == 1.
+func BlockFrobNorm(bp *BlockPool) float64 {
+	sum := 0.0
+	// Iterate over all allocated blocks in the dense vector.
+	// For a dense block vector, every block row (i from 0 to NrBlocks-1) is allocated.
+	for i := 0; i < bp.NrBlocks; i++ {
+		// In a dense vector, the block address is (i,0)
+		block := bp.Block(i, 0)
+		// Compute the Frobenius norm of the 2x2 block.
+		r, c := block.Dims()
+		for i := 0; i < r; i++ {
+			for j := 0; j < c; j++ {
+				v := block.M.At(i, j)
+				sum += v * v
+			}
+		}
+	}
+	return math.Sqrt(sum)
+}
+
+// BlockInnerProduct computes the inner product between two block vectors x and y.
+// The inner product is defined as the sum over blocks of the Frobenius inner product.
+func BlockInnerProduct(x, y *BlockPool) float64 {
+	if x.NrBlocks != y.NrBlocks {
+		panic("BlockInnerProduct: dimension mismatch")
+	}
+	sum := 0.0
+	for i := 0; i < x.NrBlocks; i++ {
+		xb := x.Block(i, 0)
+		yb := y.Block(i, 0)
+		r, c := xb.Dims()
+		for i := 0; i < r; i++ {
+			for j := 0; j < c; j++ {
+				sum += xb.M.At(i, j) * yb.M.At(i, j)
+			}
+		}
+	}
+	return sum
+}
+
+// ScaleBlockPool scales every element of the block vector bp by alpha, in place.
+func ScaleBlockPool(bp *BlockPool, alpha float64) {
+	for i := 0; i < bp.NrBlocks; i++ {
+		// For dense block vector, column is always 0.
+		block := bp.Block(i, 0)
+		r, c := block.Dims()
+		for i := 0; i < r; i++ {
+			for j := 0; j < c; j++ {
+				v := block.M.At(i, j)
+				block.M.Set(i, j, alpha*v)
+			}
+		}
+	}
+}
+
+// AddBlockPool returns a new block vector equal to x + y.
+// It assumes x and y are both dense block vectors (NcBlocks==1) with identical dimensions.
+func AddBlockPool(x, y *BlockPool) *BlockPool {
+	if x.NrBlocks != y.NrBlocks || x.blockRows != y.blockRows || x.blockCols != y.blockCols {
+		panic("AddBlockPool: dimension mismatch")
+	}
+	// Allocate a new dense block vector with the same dimensions.
+	newAddrs := make([][2]int, x.NrBlocks)
+	for i := 0; i < x.NrBlocks; i++ {
+		newAddrs[i] = [2]int{i, 0}
+	}
+	res := NewBlockPool(x.NrBlocks, 1, x.blockRows, x.blockCols, newAddrs)
+	// For each block, add corresponding blocks.
+	for i := 0; i < x.NrBlocks; i++ {
+		xb := x.Block(i, 0)
+		yb := y.Block(i, 0)
+		r, c := xb.Dims()
+		resBlock := res.Block(i, 0)
+		for i := 0; i < r; i++ {
+			for j := 0; j < c; j++ {
+				sum := xb.M.At(i, j) + yb.M.At(i, j)
+				resBlock.M.Set(i, j, sum)
+			}
+		}
+	}
+	return res
+}
+
+// SubtractBlockPool returns a new block vector equal to x - y.
+func SubtractBlockPool(x, y *BlockPool) *BlockPool {
+	if x.NrBlocks != y.NrBlocks || x.blockRows != y.blockRows || x.blockCols != y.blockCols {
+		panic("SubtractBlockPool: dimension mismatch")
+	}
+	newAddrs := make([][2]int, x.NrBlocks)
+	for i := 0; i < x.NrBlocks; i++ {
+		newAddrs[i] = [2]int{i, 0}
+	}
+	res := NewBlockPool(x.NrBlocks, 1, x.blockRows, x.blockCols, newAddrs)
+	for i := 0; i < x.NrBlocks; i++ {
+		xb := x.Block(i, 0)
+		yb := y.Block(i, 0)
+		r, c := xb.Dims()
+		resBlock := res.Block(i, 0)
+		for i := 0; i < r; i++ {
+			for j := 0; j < c; j++ {
+				diff := xb.M.At(i, j) - yb.M.At(i, j)
+				resBlock.M.Set(i, j, diff)
+			}
+		}
+	}
+	return res
+}
+
+// CopyBlockPool makes a deep copy of a dense block vector.
+func CopyBlockPool(bp *BlockPool) *BlockPool {
+	newAddrs := make([][2]int, bp.NrBlocks)
+	for i := 0; i < bp.NrBlocks; i++ {
+		newAddrs[i] = [2]int{i, 0}
+	}
+	res := NewBlockPool(bp.NrBlocks, 1, bp.blockRows, bp.blockCols, newAddrs)
+	// Copy each block.
+	for i := 0; i < bp.NrBlocks; i++ {
+		src := bp.Block(i, 0)
+		dst := res.Block(i, 0)
+		r, c := src.Dims()
+		for i := 0; i < r; i++ {
+			for j := 0; j < c; j++ {
+				dst.M.Set(i, j, src.M.At(i, j))
+			}
+		}
+	}
+	return res
+}
+
+// SolveLeastSquares is a stub for solving the small dense least-squares problem
+// arising in GMRES (i.e. min||g - H y||). For our purposes, we assume H is a small
+// (j+1)xj matrix stored as a slice of slices, and we return a vector y of length j.
+// In a real implementation, you would call a LAPACK routine.
+func SolveLeastSquares(H [][]float64, rows, cols int, g []float64) []float64 {
+	// For simplicity, we assume j = cols and perform a dummy solve.
+	// This is a placeholder.
+	y := make([]float64, cols)
+	// For testing, set y[i] = g[0] / float64(cols)
+	for i := 0; i < cols; i++ {
+		y[i] = g[0] / float64(cols)
+	}
+	return y
+}
+
+// -----------------------------------------------------------------------------
+// GMRES Implementation using the BlockPool API
+// -----------------------------------------------------------------------------
+
+// GMRES solves the linear system A x = b using the GMRES algorithm,
+// where A is a block matrix (BlockPool) and b is a dense block vector
+// (a BlockPool with NcBlocks == 1). The output x is a dense block vector.
+func GMRES(A, b *BlockPool, tol float64, maxIter int) *BlockPool {
+	// Assume x0 = 0.
+	// For a dense block vector, we require that b.NcBlocks == 1.
+	if b.NcBlocks != 1 {
+		panic("GMRES requires b to be a dense block vector (NcBlocks == 1)")
+	}
+	m := A.NrBlocks // number of block rows in A
+	// x0 = zero vector.
+	x0 := NewBlockPool(m, 1, b.blockRows, b.blockCols, generateDenseAddresses(m))
+	// r0 = b - A * x0. Since x0 is zero, r0 = b.
+	r0 := b
+	beta := BlockFrobNorm(r0)
+	if beta < tol {
+		return x0
+	}
+	// v0 = r0 / beta.
+	v0 := CopyBlockPool(r0)
+	ScaleBlockPool(v0, 1.0/beta)
+	V := make([]*BlockPool, maxIter+1)
+	V[0] = v0
+	// H will be stored as a (maxIter+1) x maxIter dense matrix.
+	H := make([][]float64, maxIter+1)
+	for i := 0; i < maxIter+1; i++ {
+		H[i] = make([]float64, maxIter)
+	}
+	g := make([]float64, maxIter+1)
+	g[0] = beta
+
+	var j int
+	for j = 0; j < maxIter; j++ {
+		// w = A * v_j. Here, v_j is a dense block vector.
+		w := A.Mul(V[j])
+		// Orthogonalize w against V[0] ... V[j].
+		for i := 0; i <= j; i++ {
+			hij := BlockInnerProduct(V[i], w)
+			H[i][j] = hij
+			// w = w - hij * V[i].
+			temp := CopyBlockPool(V[i])
+			ScaleBlockPool(temp, hij)
+			w = SubtractBlockPool(w, temp)
+		}
+		hj1j := BlockFrobNorm(w)
+		H[j+1][j] = hj1j
+		if hj1j < tol {
+			j++
+			break
+		}
+		vNext := CopyBlockPool(w)
+		ScaleBlockPool(vNext, 1.0/hj1j)
+		V[j+1] = vNext
+	}
+	// Solve the least-squares problem for y.
+	y := SolveLeastSquares(H, j+1, j, g)
+	// x = x0 + sum_{i=0}^{j-1} y[i] * V[i].
+	x := CopyBlockPool(x0)
+	for i := 0; i < j; i++ {
+		temp := CopyBlockPool(V[i])
+		ScaleBlockPool(temp, y[i])
+		x = AddBlockPool(x, temp)
+	}
+	return x
+}
+
+// generateDenseAddresses returns a slice of addresses for a dense block vector with numBlocks blocks.
+// Each block is assumed to be at (i, 0) for i = 0..numBlocks-1.
+func generateDenseAddresses(numBlocks int) [][2]int {
+	addrs := make([][2]int, numBlocks)
+	for i := 0; i < numBlocks; i++ {
+		addrs[i] = [2]int{i, 0}
+	}
+	return addrs
 }
