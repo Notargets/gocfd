@@ -159,9 +159,9 @@ func (bp *BlockSparse) FrobNorm() (norm float64) {
 	sum := 0.0
 	// Iterate over all allocated blocks in the dense vector.
 	// For a dense block vector, every block row (i from 0 to NrBlocks-1) is allocated.
-	for i := 0; i < bp.NrBlocks; i++ {
+	for b := 0; b < bp.NrBlocks; b++ {
 		// In a dense vector, the block address is (i,0)
-		block := bp.GetBlockView(i, 0)
+		block := bp.GetBlockView(b, 0)
 		// Compute the Frobenius norm of the 2x2 block.
 		r, c := block.Dims()
 		for i := 0; i < r; i++ {
@@ -182,9 +182,9 @@ func (x *BlockSparse) InnerProduct(y *BlockSparse) float64 {
 		panic("InnerProduct: dimension mismatch")
 	}
 	sum := 0.0
-	for i := 0; i < x.NrBlocks; i++ {
-		xb := x.GetBlockView(i, 0)
-		yb := y.GetBlockView(i, 0)
+	for b := 0; b < x.NrBlocks; b++ {
+		xb := x.GetBlockView(b, 0)
+		yb := y.GetBlockView(b, 0)
 		r, c := xb.Dims()
 		for i := 0; i < r; i++ {
 			for j := 0; j < c; j++ {
@@ -197,9 +197,9 @@ func (x *BlockSparse) InnerProduct(y *BlockSparse) float64 {
 
 // ScaleBlockPool scales every element of the block vector bp by alpha, in place.
 func (bp *BlockSparse) Scale(alpha float64) {
-	for i := 0; i < bp.NrBlocks; i++ {
+	for b := 0; b < bp.NrBlocks; b++ {
 		// For dense block vector, column is always 0.
-		block := bp.GetBlockView(i, 0)
+		block := bp.GetBlockView(b, 0)
 		r, c := block.Dims()
 		for i := 0; i < r; i++ {
 			for j := 0; j < c; j++ {
@@ -223,11 +223,11 @@ func (x *BlockSparse) Add(y *BlockSparse) *BlockSparse {
 	}
 	res := NewBlockSparse(x.NrBlocks, 1, x.blockRows, x.blockCols, newAddrs)
 	// For each block, add corresponding blocks.
-	for i := 0; i < x.NrBlocks; i++ {
-		xb := x.GetBlockView(i, 0)
-		yb := y.GetBlockView(i, 0)
+	for b := 0; b < x.NrBlocks; b++ {
+		xb := x.GetBlockView(b, 0)
+		yb := y.GetBlockView(b, 0)
 		r, c := xb.Dims()
-		resBlock := res.GetBlockView(i, 0)
+		resBlock := res.GetBlockView(b, 0)
 		for i := 0; i < r; i++ {
 			for j := 0; j < c; j++ {
 				sum := xb.M.At(i, j) + yb.M.At(i, j)
@@ -248,11 +248,11 @@ func (x *BlockSparse) Subtract(y *BlockSparse) *BlockSparse {
 		newAddrs[i] = [2]int{i, 0}
 	}
 	res := NewBlockSparse(x.NrBlocks, 1, x.blockRows, x.blockCols, newAddrs)
-	for i := 0; i < x.NrBlocks; i++ {
-		xb := x.GetBlockView(i, 0)
-		yb := y.GetBlockView(i, 0)
+	for b := 0; b < x.NrBlocks; b++ {
+		xb := x.GetBlockView(b, 0)
+		yb := y.GetBlockView(b, 0)
 		r, c := xb.Dims()
-		resBlock := res.GetBlockView(i, 0)
+		resBlock := res.GetBlockView(b, 0)
 		for i := 0; i < r; i++ {
 			for j := 0; j < c; j++ {
 				diff := xb.M.At(i, j) - yb.M.At(i, j)
@@ -271,9 +271,9 @@ func (bp *BlockSparse) Copy() *BlockSparse {
 	}
 	res := NewBlockSparse(bp.NrBlocks, 1, bp.blockRows, bp.blockCols, newAddrs)
 	// Copy each block.
-	for i := 0; i < bp.NrBlocks; i++ {
-		src := bp.GetBlockView(i, 0)
-		dst := res.GetBlockView(i, 0)
+	for b := 0; b < bp.NrBlocks; b++ {
+		src := bp.GetBlockView(b, 0)
+		dst := res.GetBlockView(b, 0)
 		r, c := src.Dims()
 		for i := 0; i < r; i++ {
 			for j := 0; j < c; j++ {
