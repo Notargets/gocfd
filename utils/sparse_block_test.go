@@ -1,8 +1,11 @@
 package utils
 
 import (
+	"fmt"
 	"math"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // almostEqual returns true if a and b differ by less than tol.
@@ -503,6 +506,7 @@ func TestAccessHelpers(t *testing.T) {
 }
 
 func TestNewMatrixFromData(t *testing.T) {
+	tol := 0.0000001
 	// Preallocate a large buffer for a 2x2 block.
 	data := make([]float64, 4)
 	// Fill the buffer with known values.
@@ -512,14 +516,54 @@ func TestNewMatrixFromData(t *testing.T) {
 	data[3] = 2.2
 
 	// Create a Matrix that uses this buffer.
-	m := NewMatrix(1, 1)
-	// m := NewMatrixFromData(2, 2, data)
-	m.SetView(2, 2, data)
-	m.Print("Matrix m")
+	m := NewMatrix(2, 2)
+	_ = m.ResetView(data)
+	if testing.Verbose() {
+		m.Print("Matrix m")
+	}
+	assert.InDeltaSlicef(t, data, m.DataP, tol, "")
 
 	// Now modify the underlying slice.
 	data[0] = 9.9
 	data[3] = 8.8
 	// The change is visible in m.
-	m.Print("Matrix m after modifying underlying data")
+	if testing.Verbose() {
+		m.Print("Matrix m after modifying underlying data")
+	}
+	assert.InDeltaSlicef(t, data, m.DataP, tol, "")
+	newMat := NewMatrix(2, 2, data)
+	data[0] = 12
+	data[1] = 13
+	if testing.Verbose() {
+		newMat.Print("New with old data")
+	}
+	assert.InDeltaSlicef(t, data, m.DataP, tol, "")
+}
+
+func TestBlockAllocation(t *testing.T) {
+	// Suppose we want to allocate a 5x5 sparse block matrix,
+	// where each block is 2x2, and we have 10 allocated blocks.
+	// For example, we may allocate the diagonal and some off-diagonals.
+	addresses := [][2]int{
+		{0, 0}, {0, 1}, {0, 3}, {0, 4},
+		{1, 1}, {1, 2}, {1, 4}, {1, 0},
+		{2, 2}, {2, 3}, // etc. (for illustration, length must equal numBlocks)
+	}
+	// For this example, let numBlocks = len(addresses)
+	numBlocks := len(addresses)
+	blockRows, blockCols := 2, 2
+	pool := NewBlockPool(numBlocks, blockRows, blockCols, addresses)
+
+	// Now, using the pool, get individual blocks.
+	// For example, to get the block at [0,1]:
+	A := pool.Block(0, 1)
+	// Similarly, to get blocks for multiplication:
+	B := pool.Block(1, 2)
+	C := pool.Block(0, 3)
+	// And now perform a block multiplication using your existing API:
+	// This is conceptually: A.Mul(B) stored in C:
+	result := A.Mul(B, C) // or A.Mul(B) then assign to C, depending on your API
+
+	fmt.Println("Block multiplication result:")
+	result.Print("Result block:")
 }

@@ -3,7 +3,9 @@ package utils
 import (
 	"fmt"
 	"math"
+	"reflect"
 	"sync"
+	"unsafe"
 
 	lapack64 "gonum.org/v1/gonum/lapack/lapack64"
 
@@ -81,6 +83,36 @@ func (m Matrix) T() mat.Matrix             { return m.T() }
 func (m Matrix) RawMatrix() blas64.General { return m.M.RawMatrix() }
 func (m Matrix) Data() []float64 {
 	return m.RawMatrix().Data
+}
+
+// ResetView updates the underlying data pointer of m so that it uses the provided data slice.
+// It assumes that m’s dimensions remain unchanged; it checks that data has at least r*c elements,
+// where r and c are m’s current row and column counts.
+func (m *Matrix) ResetView(data []float64) error {
+	r, c := m.Dims()
+	if len(data) < r*c {
+		return fmt.Errorf("ResetView: data length (%d) insufficient; need at least %d", len(data), r*c)
+	}
+	// Replace the underlying data pointer without allocating a new Dense.
+	setDenseData(m.M, data)
+	// Update our DataP field to reflect the new pointer.
+	m.DataP = m.M.RawMatrix().Data
+	return nil
+}
+
+// setDenseData uses reflect and unsafe to update the internal data pointer of m to data.
+func setDenseData(m *mat.Dense, data []float64) {
+	// Access the unexported "mat" field of the Dense.
+	v := reflect.ValueOf(m).Elem().FieldByName("mat")
+	if !v.IsValid() {
+		panic("setDenseData: cannot find field 'mat' in mat.Dense")
+	}
+	dataField := v.FieldByName("Data")
+	if !dataField.IsValid() {
+		panic("setDenseData: cannot find field 'Data' in the 'mat' field")
+	}
+	ptr := unsafe.Pointer(dataField.UnsafeAddr())
+	reflect.NewAt(dataField.Type(), ptr).Elem().Set(reflect.ValueOf(data))
 }
 
 // Utility

@@ -2,8 +2,6 @@ package utils
 
 import (
 	"fmt"
-	"reflect"
-	"unsafe"
 
 	"gonum.org/v1/gonum/mat"
 )
@@ -163,70 +161,50 @@ func (sbm *SparseBlockMatrix) SetBlock(blockRow, blockCol int, m Matrix) error {
 	return fmt.Errorf("SetBlock: block at row %d, col %d not found", blockRow, blockCol)
 }
 
-// setDenseData replaces the underlying Data field of m.M with data.
-func setDenseData(m *mat.Dense, data []float64) {
-	// Get the unexported "mat" field.
-	v := reflect.ValueOf(m).Elem().FieldByName("mat")
-	if !v.IsValid() {
-		panic("cannot find field 'mat' in mat.Dense")
-	}
-	dataField := v.FieldByName("Data")
-	if !dataField.IsValid() {
-		panic("cannot find field 'Data' in the 'mat' field of mat.Dense")
-	}
-	// Force-set the Data field using unsafe.
-	ptr := unsafe.Pointer(dataField.UnsafeAddr())
-	reflect.NewAt(dataField.Type(), ptr).Elem().Set(reflect.ValueOf(data))
+// BlockPool allocates a contiguous pool of float64 values that will back a set of block matrices.
+// Each block is of size (blockRows x blockCols) and the pool holds 'numBlocks' such blocks.
+// The addresses slice indicates which [i,j] locations (block addresses) are allocated,
+// and its length must equal numBlocks.
+type BlockPool struct {
+	data      []float64
+	blockRows int
+	blockCols int
+	// addresses maps a block address (i,j) to the offset (in floats) of that block within data.
+	addresses map[[2]int]int
 }
 
-// updateField updates an unexported integer field of an addressable struct.
-func updateField(v reflect.Value, fieldName string, newVal int64) {
-	f := v.FieldByName(fieldName)
-	if !f.IsValid() {
-		panic(fmt.Sprintf("%s field not valid", fieldName))
+// NewBlockPool allocates a new BlockPool. The addresses slice contains each allocated block’s address.
+func NewBlockPool(numBlocks, blockRows, blockCols int, addresses [][2]int) *BlockPool {
+	if len(addresses) != numBlocks {
+		panic("number of addresses must equal numBlocks")
 	}
-	// Use unsafe to force-set the field.
-	ptr := unsafe.Pointer(f.UnsafeAddr())
-	reflect.NewAt(f.Type(), ptr).Elem().SetInt(newVal)
-}
-
-// updateCapIfExists updates the "cap" field if it exists; otherwise it does nothing.
-func updateCapIfExists(v reflect.Value, newVal int64) {
-	// Check if the field exists.
-	if _, ok := v.Type().FieldByName("cap"); ok {
-		f := v.FieldByName("cap")
-		ptr := unsafe.Pointer(f.UnsafeAddr())
-		reflect.NewAt(f.Type(), ptr).Elem().SetInt(newVal)
-	} else {
-		// Field not found; skip updating.
+	totalFloats := numBlocks * blockRows * blockCols
+	data := make([]float64, totalFloats)
+	addrMap := make(map[[2]int]int, numBlocks)
+	// Each block gets a contiguous slice of length blockRows*blockCols.
+	for i, addr := range addresses {
+		offset := i * blockRows * blockCols
+		addrMap[addr] = offset
+	}
+	return &BlockPool{
+		data:      data,
+		blockRows: blockRows,
+		blockCols: blockCols,
+		addresses: addrMap,
 	}
 }
 
-// SetView updates the Matrix m so that its underlying mat.Dense uses the provided data slice
-// and sets its dimensions (Rows, Cols), Stride, and capacity accordingly.
-// The provided data slice must have at least nr*nc elements.
-func (m *Matrix) SetView(nr, nc int, data []float64) string {
-	if len(data) < nr*nc {
-		panic(fmt.Errorf("not enough data: need %d elements, got %d", nr*nc, len(data)))
+// Block returns a Matrix view for the block at the given address (i, j).
+func (bp *BlockPool) Block(i, j int) Matrix {
+	offset, ok := bp.addresses[[2]int{i, j}]
+	if !ok {
+		panic(fmt.Sprintf("Block (%d,%d) not allocated", i, j))
 	}
-	// Replace the underlying data pointer.
-	setDenseData(m.M, data)
-	// Update DataP to point to the new data.
-	m.DataP = m.M.RawMatrix().Data
-
-	// Get the addressable value of the Dense struct.
-	denseVal := reflect.ValueOf(m.M).Elem()
-
-	// Update the inner "mat" field (Rows, Cols, Stride).
-	matField := denseVal.FieldByName("mat")
-	if !matField.IsValid() {
-		panic("cannot find field 'mat' in mat.Dense")
-	}
-	updateField(matField, "Rows", int64(nr))
-	updateField(matField, "Cols", int64(nc))
-	updateField(matField, "Stride", int64(nc)) // assuming contiguous layout
-
-	// Update the capacity field if it exists.
-	updateCapIfExists(denseVal, int64(nr*nc))
-	return "OK"
+	// Create a subslice of the pool's data corresponding to this block.
+	subData := bp.data[offset : offset+bp.blockRows*bp.blockCols]
+	// Create a new Matrix that wraps subData.
+	// This does not copy subData.
+	m := NewMatrix(2, 2) // dummy allocation
+	_ = m.ResetView(subData)
+	return m
 }
