@@ -2,6 +2,7 @@ package utils
 
 import (
 	"math"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -472,6 +473,8 @@ func TestGMRESBlockTridiagonalKnownSolution(t *testing.T) {
 	for i := 0; i < numBlockRows; i++ {
 		x_trueBlock := x_true.GetBlockView(i, 0)
 		x_approxBlock := x_approx.GetBlockView(i, 0)
+		assert.InDeltaSlicef(t, x_trueBlock.DataP, x_approxBlock.DataP, tol,
+			"Solution Block"+strconv.Itoa(i))
 		r, c := x_trueBlock.Dims()
 		for p := 0; p < r; p++ {
 			for q := 0; q < c; q++ {
