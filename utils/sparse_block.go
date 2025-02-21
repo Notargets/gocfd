@@ -284,17 +284,64 @@ func (bp *BlockSparse) Copy() *BlockSparse {
 	return res
 }
 
-// SolveLeastSquares is a stub for solving the small dense least-squares problem
-// arising in GMRES (i.e. min||g - H y||). For our purposes, we assume H is a small
-// (j+1)xj matrix stored as a slice of slices, and we return a vector y of length j.
-// In a real implementation, you would call a LAPACK routine.
-func SolveLeastSquares(H [][]float64, rows, cols int, g []float64) []float64 {
-	// For simplicity, we assume j = cols and perform a dummy solve.
-	// This is a placeholder.
-	y := make([]float64, cols)
-	// For testing, set y[i] = g[0] / float64(cols)
+// SolveLeastSquaresQR solves the least-squares problem min||g - H y||
+// using your library's QR factorization. The matrix H is provided as a [][]float64
+// (assumed to be in row-major order) with dimensions (rows x cols), and g is a vector
+// of length rows. It returns the solution vector y (length cols).
+func SolveLeastSquaresQR(H [][]float64, rows, cols int, g []float64) []float64 {
+	// Convert H ([][]float64) to a single []float64 in row-major order.
+	data := flatten(H, rows, cols)
+	// Create a new Matrix A from this data.
+	A := NewMatrix(rows, cols, data)
+	// Perform QR factorization using your library's routine.
+	Q, R := A.QRFactorization()
+	// Compute Q^T * g.
+	// First, create a Matrix view for g.
+	gMat := NewMatrix(rows, 1, g)
+	Qt := Q.Transpose()  // Assume this returns a Matrix.
+	bMat := Qt.Mul(gMat) // bMat is a (rows x 1) Matrix.
+	// Extract the first 'cols' entries of bMat (since R is m x cols with m = cols in our least-squares solve).
+	bSlice := make([]float64, cols)
 	for i := 0; i < cols; i++ {
-		y[i] = g[0] / float64(cols)
+		bSlice[i] = bMat.M.At(i, 0)
+	}
+	// Extract the upper square part of R: the top 'cols' rows, which should form an upper triangular matrix.
+	Rsq := R.SubMatrix(0, 0, cols, cols)
+	// Solve R y = bSlice using back substitution.
+	y := solveUpperTriangular(Rsq, bSlice)
+	return y
+}
+
+// flatten converts a 2D slice (with dimensions rows x cols) into a single slice in row-major order.
+func flatten(matrix [][]float64, rows, cols int) []float64 {
+	result := make([]float64, rows*cols)
+	for i := 0; i < rows; i++ {
+		if len(matrix[i]) < cols {
+			panic(fmt.Sprintf("row %d has insufficient length", i))
+		}
+		for j := 0; j < cols; j++ {
+			result[i*cols+j] = matrix[i][j]
+		}
+	}
+	return result
+}
+
+// solveUpperTriangular solves the system R*y = b where R is an upper triangular Matrix
+// of dimensions n x n and b is a vector of length n. It returns y.
+func solveUpperTriangular(R Matrix, b []float64) []float64 {
+	n, _ := R.Dims() // Assume square system.
+	y := make([]float64, n)
+	// Back substitution.
+	for i := n - 1; i >= 0; i-- {
+		sum := 0.0
+		for j := i + 1; j < n; j++ {
+			sum += R.M.At(i, j) * y[j]
+		}
+		diag := R.M.At(i, i)
+		if math.Abs(diag) < 1e-12 {
+			panic("solveUpperTriangular: zero diagonal encountered")
+		}
+		y[i] = (b[i] - sum) / diag
 	}
 	return y
 }
@@ -306,8 +353,7 @@ func SolveLeastSquares(H [][]float64, rows, cols int, g []float64) []float64 {
 // GMRES solves the linear system A x = b using the GMRES algorithm,
 // where A is a block matrix (BlockSparse) and b is a dense block vector
 // (a BlockSparse with NcBlocks == 1). The output x is a dense block vector.
-func (A *BlockSparse) GMRES(b *BlockSparse, tol float64,
-	maxIter int) *BlockSparse {
+func (A *BlockSparse) GMRES(b *BlockSparse, tol float64, maxIter int) *BlockSparse {
 	// Assume x0 = 0.
 	// For a dense block vector, we require that b.NcBlocks == 1.
 	if b.NcBlocks != 1 {
@@ -359,7 +405,7 @@ func (A *BlockSparse) GMRES(b *BlockSparse, tol float64,
 		V[j+1] = vNext
 	}
 	// Solve the least-squares problem for y.
-	y := SolveLeastSquares(H, j+1, j, g)
+	y := SolveLeastSquaresQR(H, j+1, j, g)
 	// x = x0 + sum_{i=0}^{j-1} y[i] * V[i].
 	x := x0.Copy()
 	for i := 0; i < j; i++ {

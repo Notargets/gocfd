@@ -377,3 +377,112 @@ func TestSparseBlockMatrixSparseMul(t *testing.T) {
 		}
 	}
 }
+
+// TestGMRESBlockTridiagonalKnownSolution creates a 5x5 block tridiagonal system where:
+//   - Each block of A is 2x2.
+//   - Diagonal blocks are 4·I and off-diagonals (immediately above and below) are –I.
+//
+// The true solution x_true is chosen as a block vector with every block equal to a 2x1 vector of ones.
+// Then b = A*x_true is computed, GMRES is used to solve A*x = b, and the computed x is compared against x_true.
+func TestGMRESBlockTridiagonalKnownSolution(t *testing.T) {
+	// --- Dimensions ---
+	numBlockRows := 5 // A is 5x5 in block dimensions.
+	numBlockCols := 5
+	// A's blocks are 2x2.
+	A_blockRows, A_blockCols := 2, 2
+	// We want the dense vector x_true (and b) to be block vectors with blocks of size 2x1.
+	x_blockRows, x_blockCols := 2, 1
+
+	// --- Build addresses for A's nonzero blocks in a block-tridiagonal pattern.
+	// For block row i, allocate:
+	//    if i == 0: (0,0) and (0,1)
+	//    if 0 < i < numBlockRows-1: (i,i-1), (i,i), (i,i+1)
+	//    if i == numBlockRows-1: (i,i-1) and (i,i)
+	var addressesA [][2]int
+	for i := 0; i < numBlockRows; i++ {
+		if i == 0 {
+			addressesA = append(addressesA, [2]int{i, i})     // diagonal
+			addressesA = append(addressesA, [2]int{i, i + 1}) // upper
+		} else if i == numBlockRows-1 {
+			addressesA = append(addressesA, [2]int{i, i - 1}) // lower
+			addressesA = append(addressesA, [2]int{i, i})     // diagonal
+		} else {
+			addressesA = append(addressesA, [2]int{i, i - 1}) // lower
+			addressesA = append(addressesA, [2]int{i, i})     // diagonal
+			addressesA = append(addressesA, [2]int{i, i + 1}) // upper
+		}
+	}
+
+	// Create A as a BlockPool.
+	A := NewBlockSparse(numBlockRows, numBlockCols, A_blockRows, A_blockCols,
+		addressesA)
+
+	// Fill in A's allocated blocks.
+	// For each allocated block at (i,j):
+	//   if i == j (diagonal): 4*I.
+	//   if |i - j| == 1 (off-diagonal): -I.
+	for _, addr := range addressesA {
+		i, j := addr[0], addr[1]
+		block := A.GetBlockView(i, j)
+		if i == j {
+			// Diagonal: 4*I.
+			block.M.Set(0, 0, 4)
+			block.M.Set(0, 1, 0)
+			block.M.Set(1, 0, 0)
+			block.M.Set(1, 1, 4)
+		} else {
+			// Off-diagonal: -I.
+			block.M.Set(0, 0, -1)
+			block.M.Set(0, 1, 0)
+			block.M.Set(1, 0, 0)
+			block.M.Set(1, 1, -1)
+		}
+	}
+
+	// --- Create x_true as a dense block vector.
+	// x_true is represented as a BlockPool with numBlockRows block rows and 1 block column.
+	// Each block has dimensions x_blockRows x x_blockCols (2x1).
+	var addressesX [][2]int
+	for i := 0; i < numBlockRows; i++ {
+		addressesX = append(addressesX, [2]int{i, 0})
+	}
+	x_true := NewBlockSparse(numBlockRows, 1, x_blockRows, x_blockCols, addressesX)
+	// Fill each block of x_true with ones.
+	for i := 0; i < numBlockRows; i++ {
+		block := x_true.GetBlockView(i, 0)
+		// For a 2x1 block.
+		block.M.Set(0, 0, 1)
+		block.M.Set(1, 0, 1)
+	}
+
+	// --- Compute b = A * x_true.
+	// Note: Multiplication here involves A (5x5, blocks 2x2) times x_true (5x1, blocks 2x1).
+	// The result b will be a BlockPool representing a dense block vector with block size 2x1.
+	b := A.Mul(x_true)
+
+	// --- Run GMRES to solve A * x = b.
+	tol := 1e-6
+	maxIter := 50
+	x_approx := A.GMRES(b, tol, maxIter)
+
+	// --- Compare x_approx to x_true.
+	// We can compute the block-wise error.
+	errSum := 0.0
+	totalElements := 0
+	for i := 0; i < numBlockRows; i++ {
+		x_trueBlock := x_true.GetBlockView(i, 0)
+		x_approxBlock := x_approx.GetBlockView(i, 0)
+		r, c := x_trueBlock.Dims()
+		for p := 0; p < r; p++ {
+			for q := 0; q < c; q++ {
+				diff := x_trueBlock.M.At(p, q) - x_approxBlock.M.At(p, q)
+				errSum += diff * diff
+				totalElements++
+			}
+		}
+	}
+	avgErr := math.Sqrt(errSum / float64(totalElements))
+	if avgErr > tol {
+		t.Errorf("GMRES solution error too high: avg error %v, tol %v", avgErr, tol)
+	}
+}
