@@ -2,7 +2,6 @@ package Burgers2D
 
 import (
 	"github.com/notargets/gocfd/DG2D"
-	"github.com/notargets/gocfd/InputParameters"
 	"github.com/notargets/gocfd/utils"
 )
 
@@ -88,7 +87,6 @@ type Burgers2D struct {
 
 func NewBurgers2D(P int) (b2d *Burgers2D) {
 	b2d = &Burgers2D{}
-	pm := &InputParameters.PlotMeta{}
-	b2d.DFR = DG2D.NewDFR2D(P, pm, true)
+	b2d.DFR = DG2D.NewDFR2D(P, true)
 	return
 }

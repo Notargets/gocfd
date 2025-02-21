@@ -3,9 +3,6 @@ package InputParameters
 import (
 	"fmt"
 	"sort"
-	"time"
-
-	"github.com/notargets/avs/chart2d"
 
 	"github.com/ghodss/yaml"
 )
@@ -50,16 +47,4 @@ func (ip *InputParameters2D) Print() {
 	for _, key := range keys {
 		fmt.Printf("BCs[%s] = %v\n", key, ip.BCs[key])
 	}
-}
-
-type PlotMeta struct {
-	Plot                   bool
-	PlotMesh               bool
-	Scale                  float64
-	TranslateX, TranslateY float64
-	Field                  uint16
-	FieldMinP, FieldMaxP   *float64 // nil if no forced min, max
-	FrameTime              time.Duration
-	StepsBeforePlot        int
-	LineType               chart2d.LineType
 }

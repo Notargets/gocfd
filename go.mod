@@ -8,7 +8,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/james-bowman/sparse v0.0.0-20200204164517-b588421ac5da
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/notargets/avs v0.0.7-0.20241207233657-731169a9b6fa
+	github.com/notargets/avs v0.0.7
 	github.com/pkg/profile v1.5.0
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/viper v1.7.0

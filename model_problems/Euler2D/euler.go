@@ -34,7 +34,6 @@ type Euler struct {
 	CFL, FinalTime     float64
 	FSFar, FSIn, FSOut *FreeStream
 	dfr                *DG2D.DFR2D
-	chart              ChartState
 	profile            bool // Generate a CPU profile of the solver
 	FluxCalcAlgo       FluxType
 	Case               InitType
@@ -56,7 +55,7 @@ type Euler struct {
 	SolutionOutputFile *os.File
 }
 
-func NewEuler(ip *InputParameters.InputParameters2D, pm *InputParameters.PlotMeta, meshFile string, ProcLimit int, verbose, profile bool) (c *Euler) {
+func NewEuler(ip *InputParameters.InputParameters2D, meshFile string, ProcLimit int, verbose, profile bool) (c *Euler) {
 	c = &Euler{
 		MeshFile:          meshFile,
 		CFL:               ip.CFL,
@@ -75,7 +74,7 @@ func NewEuler(ip *InputParameters.InputParameters2D, pm *InputParameters.PlotMet
 	}
 
 	// Read mesh file, initialize geometry and finite elements
-	c.dfr = DG2D.NewDFR2D(ip.PolynomialOrder, pm, verbose, meshFile)
+	c.dfr = DG2D.NewDFR2D(ip.PolynomialOrder, verbose, meshFile)
 
 	c.SetParallelDegree(ProcLimit, c.dfr.K) // Must occur after determining the number of elements
 	c.PartitionEdgesByK()                   // Setup the key for edge calculations, useful for parallelizing the process
@@ -87,12 +86,6 @@ func NewEuler(ip *InputParameters.InputParameters2D, pm *InputParameters.PlotMet
 
 	// Allocate a solution limiter
 	lt := NewLimiterType(ip.Limiter)
-	if FlowFunction(pm.Field) == ShockFunction {
-		if lt != BarthJespersonT {
-			fmt.Println("Plotting shock function requires the use of the Barth Jespersen limiter type")
-			os.Exit(1)
-		}
-	}
 	c.Limiter = NewSolutionLimiter(lt, ip.Kappa, c.dfr, c.Partitions, c.FSFar)
 
 	// Initiate Artificial Dissipation
@@ -122,12 +115,11 @@ func NewEuler(ip *InputParameters.InputParameters2D, pm *InputParameters.PlotMet
 	return
 }
 
-func (c *Euler) Solve(pm *InputParameters.PlotMeta) {
+func (c *Euler) Solve() {
 	var (
 		FinalTime = c.FinalTime
 		steps     int
 		finished  bool
-		plotQ     = pm.Plot
 	)
 	if c.profile {
 		defer profile.Start().Stop()
@@ -147,13 +139,12 @@ func (c *Euler) Solve(pm *InputParameters.PlotMeta) {
 		rk.Time += rk.GlobalDT
 		rk.StepCount++
 		finished = c.CheckIfFinished(rk.Time, FinalTime, steps)
-		if finished || steps%pm.StepsBeforePlot == 0 || steps == 1 {
+		if finished || steps == 1 || steps%100 == 0 {
 			var printMem bool
 			if steps%100 == 0 {
 				printMem = true
 			}
-			c.PrintUpdate(rk.Time, rk.GlobalDT, steps, c.Q, rk.Residual, plotQ, pm, printMem,
-				rk.LimitedPoints)
+			c.PrintUpdate(rk.Time, rk.GlobalDT, steps, c.Q, rk.Residual, printMem, rk.LimitedPoints)
 		}
 	}
 	c.PrintFinal(elapsed, steps)
@@ -519,18 +510,8 @@ func (c *Euler) PrintInitialization(FinalTime float64) {
 	fmt.Printf("       Res0       Res1       Res2")
 	fmt.Printf("       Res3         L1         L2\n")
 }
-func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [][4]utils.Matrix, plotQ bool, pm *InputParameters.PlotMeta,
-	printMem bool, limitedPoints []int) {
+func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [][4]utils.Matrix, printMem bool, limitedPoints []int) {
 	format := "%11.4e"
-	if plotQ {
-		if c.ShockTube != nil {
-			Qp := c.RecombineShardsKBy4(Q)
-			c.ShockTube.Plot(Time, pm.FrameTime, Qp)
-			c.PlotQ(pm, 1920, 1080, steps) // wait till we implement time iterative frame updates
-		} else {
-			c.PlotQ(pm, 1920, 1080, steps) // wait till we implement time iterative frame updates
-		}
-	}
 	if c.LocalTimeStepping {
 		fmt.Printf("%10d              ", steps)
 	} else {
@@ -565,6 +546,7 @@ func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [][4]utils.
 	}
 	fmt.Printf("\n")
 }
+
 func (c *Euler) PrintFinal(elapsed time.Duration, steps int) {
 	rate := float64(elapsed.Microseconds()) / (float64(c.dfr.K * steps))
 	fmt.Printf("\nRate of execution = %8.5f us/(element*iteration) over %d iterations\n", rate, steps)

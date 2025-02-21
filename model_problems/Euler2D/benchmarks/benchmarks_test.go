@@ -28,7 +28,6 @@ var ipDefault = &InputParameters.InputParameters2D{
 
 func BenchmarkEulerSolve(b *testing.B) {
 	var (
-		pm        = &InputParameters.PlotMeta{Plot: false, StepsBeforePlot: 100}
 		Nmax      = 2
 		FinalTime = 0.1
 		c         = make([]*Euler2D.Euler, Nmax+1)
@@ -39,15 +38,14 @@ func BenchmarkEulerSolve(b *testing.B) {
 	for n := 1; n <= Nmax; n++ {
 		ip.PolynomialOrder = n
 		// c[n] = Euler2D.NewEuler(FinalTime, n, "../../../DG2D/vortex-new.su2", 1.00, Euler2D.FLUX_LaxFriedrichs, Euler2D.IVORTEX, 0, 0, 1.4, 0, false, 5000, Euler2D.None, plotMesh, false, false)
-		c[n] = Euler2D.NewEuler(ip, pm, "../../../DG2D/vortex-new.su2", 0,
-			false, false)
+		c[n] = Euler2D.NewEuler(ip, "../../../DG2D/vortex-new.su2", 0, false, false)
 	}
 	b.ResetTimer()
 	// The benchmark loop
 	for i := 0; i < b.N; i++ {
 		// This is separate to enable easy performance and memory profiling
 		for n := 1; n <= Nmax; n++ {
-			c[n].Solve(pm)
+			c[n].Solve()
 		}
 	}
 }
@@ -58,7 +56,7 @@ func BenchmarkEulerGetFlowFunction(b *testing.B) {
 	var (
 		q = [4]float64{1, 1, 1, 1}
 		// c   = Euler2D.NewEuler(1, 1, "", 1, Euler2D.FLUX_LaxFriedrichs, Euler2D.FREESTREAM, 1, 1, 1.4, 0, true, 1, Euler2D.None, false, false, false)
-		c   = Euler2D.NewEuler(ip, nil, "", 1, false, false)
+		c   = Euler2D.NewEuler(ip, "", 1, false, false)
 		GM1 = c.FSFar.Gamma - 1
 	)
 	var p float64
