@@ -2,11 +2,6 @@ package DG2D
 
 import (
 	"math"
-
-	"github.com/notargets/avs/chart2d"
-	graphics2D "github.com/notargets/avs/geometry"
-	utils2 "github.com/notargets/avs/utils"
-	"github.com/notargets/gocfd/utils"
 )
 
 type ScalarTestField interface {
@@ -118,39 +113,6 @@ func (lpf PolyScalarField) Gradient(r, s float64, P int) (grad [2]float64) {
 		grad = [2]float64{
 			10. * p * math.Pow(10*r+s+10, p-1.),
 			p * math.Pow(10*r+s+10, p-1.),
-		}
-	}
-	return
-}
-
-func PlotTestTri(plotGeom bool) (chart *chart2d.Chart2D) {
-	var (
-		points  []graphics2D.Point
-		trimesh graphics2D.TriMesh
-		K       = 1
-	)
-
-	points = make([]graphics2D.Point, 3)
-	points[0].X[0], points[0].X[1] = -1, -1
-	points[1].X[0], points[1].X[1] = 1, -1
-	points[2].X[0], points[2].X[1] = -1, 1
-
-	trimesh.Triangles = make([]graphics2D.Triangle, K)
-	colorMap := utils2.NewColorMap(0, 1, 1)
-	trimesh.Triangles[0].Nodes[0] = 0
-	trimesh.Triangles[0].Nodes[1] = 1
-	trimesh.Triangles[0].Nodes[2] = 2
-	trimesh.Geometry = points
-	box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
-	chart = chart2d.NewChart2D(1024, 1024, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
-	chart.AddColorMap(colorMap)
-	go chart.Plot()
-
-	if plotGeom {
-		if err := chart.AddTriMesh("TriMesh", trimesh,
-			chart2d.CrossGlyph, 0.1, chart2d.Solid,
-			utils.GetColor(utils.Black)); err != nil {
-			panic("unable to add graph series")
 		}
 	}
 	return

@@ -206,38 +206,6 @@ func TestDFR2D(t *testing.T) {
 			}
 		}
 	}
-	// Test output of triangulated mesh for plotting
-	{
-		N := 1
-		plotFunc := false
-		// dfr := NewDFR2D(N, plotMesh, "vortexA04.neu")
-		dfr := NewDFR2D(N, false, "test_data/test_tris_6.neu")
-		// dfr := NewDFR2D(N, plotMesh, "test_tris_1.neu")
-		gm := dfr.OutputMesh()
-		if false {
-			PlotTriMesh(*gm)
-			utils.SleepFor(50000)
-		}
-		// Generate a test function for plotting, on the RT element coordinates
-		NpFlux := dfr.FluxElement.Np
-		Kmax := dfr.K
-		f := utils.NewMatrix(NpFlux, Kmax)
-		fD := f.DataP
-		xmin, xmax := dfr.FluxX.Min(), dfr.FluxX.Max()
-		norm := 1. / (xmax - xmin)
-		for i := 0; i < NpFlux*Kmax; i++ {
-			x := (dfr.FluxX.DataP[i] - xmin) * norm
-			fD[i] = math.Sin(0.5 * x * math.Pi)
-		}
-		fI := dfr.ConvertScalarToOutputMesh(f)
-		assert.Equal(t, len(fI), len(gm.Geometry))
-		fs := functions.NewFSurface(gm, [][]float32{fI}, 0)
-		if plotFunc {
-			PlotFS(fs, 0, 1)
-			// PlotFS(fs, 0, 1, chart2d.Solid)
-			utils.SleepFor(50000)
-		}
-	}
 }
 
 func TestDivergence(t *testing.T) {
@@ -306,10 +274,6 @@ func TestDivergence(t *testing.T) {
 func TestGradient(t *testing.T) {
 	// Test gradient on Flux element points, derived from a solution field interpolated from solution pts to Flux pts
 	dfr := NewDFR2D(3, false, "test_data/test_tris_6.neu")
-	if false {
-		PlotTriMesh(*dfr.OutputMesh())
-		utils.SleepFor(50000)
-	}
 	var (
 		Kmax   = dfr.K
 		NpInt  = dfr.SolutionElement.Np

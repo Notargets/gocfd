@@ -4,13 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/notargets/gocfd/utils"
-
 	"github.com/stretchr/testify/assert"
-
-	"github.com/notargets/avs/chart2d"
-	graphics2D "github.com/notargets/avs/geometry"
-	utils2 "github.com/notargets/avs/utils"
 )
 
 func TestTriangulate(t *testing.T) {
@@ -85,20 +79,6 @@ func TestTriangulate(t *testing.T) {
 		}
 		fmt.Printf("Number of edges with tris: %d, Immovable edges with tris: %d\n",
 			withTris, withTrisAndImmovable)
-		plot := false
-		if plot {
-			if false {
-				gm := tm.ToGraphMesh()
-				for i, tri := range gm.Triangles {
-					fmt.Printf("tri[%d] = %v\n", i, tri)
-					for _, atts := range gm.Attributes[i] {
-						fmt.Printf("atts[%d] = %v\n", i, atts)
-					}
-				}
-			}
-			plotTriangles(tm.ToGraphMesh())
-			utils.SleepFor(100000)
-		}
 	}
 	{ // Test Legal Edge test
 		R := []float64{-0.9600, 0.9201, -0.9600, -0.7366, 0.4731, -0.7366, -0.3333, -0.0297, -0.9405, -0.0297, 0.7358, -0.9517, -0.7841, -0.7841, -0.9517, 0.7358, 0.4017, -0.9434, -0.4583, -0.4583, -0.9434, 0.4017, 0.0733, -0.7064, -0.3669, -0.3669, -0.7064, 0.0733, -0.9600, 0.9201, -0.9600, -0.7366, 0.4731, -0.7366, -0.3333, -0.0297, -0.9405, -0.0297, 0.7358, -0.9517, -0.7841, -0.7841, -0.9517, 0.7358, 0.4017, -0.9434, -0.4583, -0.4583, -0.9434, 0.4017, 0.0733, -0.7064, -0.3669, -0.3669, -0.7064, 0.0733, 0.9195, 0.7388, 0.4779, 0.1653, -0.1653, -0.4779, -0.7388, -0.9195, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -1.0000, -0.9195, -0.7388, -0.4779, -0.1653, 0.1653, 0.4779, 0.7388, 0.9195}
@@ -134,24 +114,5 @@ func TestTriangulate(t *testing.T) {
 				fmt.Printf("is outside, legal\n")
 			}
 		}
-	}
-}
-
-func plotTriangles(triMesh graphics2D.TriMesh) (chart *chart2d.Chart2D) {
-	colorMap := utils2.NewColorMap(0, 1, 1)
-	box := graphics2D.NewBoundingBox(triMesh.GetGeometry())
-	chart = chart2d.NewChart2D(1024, 1024, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
-	chart.AddColorMap(colorMap)
-	go chart.Plot()
-
-	updateTriMesh(chart, triMesh)
-	return
-}
-
-func updateTriMesh(chart *chart2d.Chart2D, triMesh graphics2D.TriMesh) {
-	if err := chart.AddTriMesh("TriMesh", triMesh,
-		chart2d.CrossGlyph, 0.1, chart2d.Solid,
-		utils.GetColor(utils.White)); err != nil {
-		panic("unable to add graph series")
 	}
 }

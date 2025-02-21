@@ -2,11 +2,8 @@ package sod_shock_tube
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/notargets/gocfd/DG2D"
-
-	"github.com/notargets/gocfd/model_problems/Euler1D"
 
 	"github.com/notargets/gocfd/utils"
 )
@@ -23,7 +20,6 @@ type SODShockTube struct {
 	Rho, RhoU, E        []float64 // Interpolated values from solution, used for validation
 	Npts                int       // Npts = # Xlocations, Np = Interior solution polynomial nodes
 	DFR2D               *DG2D.DFR2D
-	LineChart           *utils.LineChart
 }
 
 func NewSODShockTube(nPts int, dfr *DG2D.DFR2D) (st *SODShockTube) {
@@ -35,7 +31,6 @@ func NewSODShockTube(nPts int, dfr *DG2D.DFR2D) (st *SODShockTube) {
 		RhoU:                make([]float64, nPts),
 		E:                   make([]float64, nPts),
 		DFR2D:               dfr,
-		LineChart:           utils.NewLineChart(1920, 1080, 0, 1, -.1, 2.6),
 	}
 	xfrac := 1. / float64(nPts-1) // Equal spaced samples across [0->1]
 	for i := range st.XLocations {
@@ -135,14 +130,4 @@ func (st *SODShockTube) interpolateFields(Q [4]utils.Matrix) {
 		fM = it.InterpolationMatrix.Mul(SolPts)
 		st.E[i] = fM.DataP[0]
 	}
-}
-
-func (st *SODShockTube) Plot(timeT float64, graphDelay time.Duration, Q [4]utils.Matrix) (iRho float64) {
-	st.interpolateFields(Q)
-	st.LineChart.Plot(0, st.XLocations, st.Rho, -.7, "Rho")
-	st.LineChart.Plot(0, st.XLocations, st.RhoU, 0., "RhoU")
-	st.LineChart.Plot(graphDelay, st.XLocations, st.E, 0.7, "E")
-	iRho = Euler1D.AddAnalyticSod(st.LineChart.Chart, st.LineChart.ColorMap, timeT)
-	time.Sleep(graphDelay)
-	return
 }
