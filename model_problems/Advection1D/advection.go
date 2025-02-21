@@ -6,8 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/notargets/avs/chart2d"
-	utils2 "github.com/notargets/avs/utils"
 	"github.com/notargets/gocfd/DG1D"
 	"github.com/notargets/gocfd/utils"
 )
@@ -18,8 +16,6 @@ type Advection struct {
 	El                *DG1D.Elements1D
 	UFlux, F          utils.Matrix
 	RHSOnce, PlotOnce sync.Once
-	chart             *chart2d.Chart2D
-	colorMap          *utils2.ColorMap
 	model             ModelType
 }
 
@@ -76,7 +72,6 @@ func (c *Advection) Run(showGraph bool, graphDelay ...time.Duration) {
 
 	var Time, timelocal float64
 	for tstep := 0; tstep < Nsteps; tstep++ {
-		c.Plot(showGraph, graphDelay, U)
 		for INTRK := 0; INTRK < 5; INTRK++ {
 			timelocal = Time + dt*utils.RK4c[INTRK]
 			RHSU := rhs(U, timelocal)
@@ -85,7 +80,7 @@ func (c *Advection) Run(showGraph bool, graphDelay ...time.Duration) {
 			// u += rk4b(INTRK) * resid;
 			U.Add(resid.Copy().Scale(utils.RK4b[INTRK]))
 		}
-		//c.Plot(showGraph, graphDelay, c.F)
+		// c.Plot(showGraph, graphDelay, c.F)
 		Time += dt
 		if tstep%logFrequency == 0 {
 			fmt.Printf("Time = %8.4f, max_resid[%d] = %8.4f, umin = %8.4f, umax = %8.4f\n", Time, tstep, resid.Max(), U.Col(0).Min(), U.Col(0).Max())
@@ -107,7 +102,7 @@ func (c *Advection) RHS_DFR(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 	})
 	// Global Flux
 	uin = -math.Sin(c.a * Time)
-	//U.AssignScalar(el.MapI, uin)
+	// U.AssignScalar(el.MapI, uin)
 	c.F = U.Copy().Scale(c.a)
 
 	// Face fluxes
@@ -181,27 +176,4 @@ func (c *Advection) RHS_GK(U utils.Matrix, time float64) (RHSU utils.Matrix) {
 	// Important: must change the order from Fscale.dm(du) to du.dm(Fscale) here because the dm overwrites the target
 	RHSU = el.Rx.Copy().Scale(-c.a).ElMul(el.Dr.Mul(U)).Add(el.LIFT.Mul(dU.ElMul(el.FScale)))
 	return
-}
-
-func (c *Advection) Plot(showGraph bool, graphDelay []time.Duration, U utils.Matrix) {
-	var (
-		el         = c.El
-		pMin, pMax = float32(-1), float32(1)
-	)
-	if !showGraph {
-		return
-	}
-	c.PlotOnce.Do(func() {
-		c.chart = chart2d.NewChart2D(1280, 1024, float32(el.X.Min()), float32(el.X.Max()), pMin, pMax)
-		c.colorMap = utils2.NewColorMap(-1, 1, 1)
-		go c.chart.Plot()
-	})
-
-	if err := c.chart.AddSeries("U", el.X.Transpose().RawMatrix().Data, U.Transpose().RawMatrix().Data,
-		chart2d.NoGlyph, 0.01, chart2d.Solid, c.colorMap.GetRGB(0)); err != nil {
-		panic("unable to add graph series")
-	}
-	if len(graphDelay) != 0 {
-		time.Sleep(graphDelay[0])
-	}
 }

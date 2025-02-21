@@ -9,7 +9,6 @@ import (
 
 	"github.com/notargets/gocfd/readfiles"
 
-	graphics2D "github.com/notargets/avs/geometry"
 	"github.com/notargets/gocfd/geometry2D"
 
 	"github.com/notargets/gocfd/utils"
@@ -325,7 +324,7 @@ func (dfr *DFR2D) ConvertScalarToOutputMesh(f utils.Matrix) (fI []float32) {
 	return
 }
 
-func (dfr *DFR2D) OutputMesh() (gm *graphics2D.TriMesh) {
+func (dfr *DFR2D) OutputMesh() (gm *geometry2D.TriMesh) {
 	/*
 				For each of K elements, the layout of the output mesh is:
 				Indexed geometry:
@@ -391,21 +390,21 @@ func (dfr *DFR2D) OutputMesh() (gm *graphics2D.TriMesh) {
 
 	// Now replicate the triangle mesh for all triangles
 	baseTris := gm.Triangles
-	gm.Triangles = make([]graphics2D.Triangle, Kmax*len(baseTris))
+	gm.Triangles = make([]geometry2D.Triangle, Kmax*len(baseTris))
 	for k := 0; k < Kmax; k++ {
 		for i, tri := range baseTris {
-			newTri := graphics2D.Triangle{Nodes: tri.Nodes}
+			newTri := geometry2D.Triangle{Nodes: tri.Nodes}
 			for ii := 0; ii < 3; ii++ {
 				newTri.Nodes[ii] = int32(Ind(k, int(newTri.Nodes[ii]), Kmax))
 			}
 			gm.Triangles[Ind(k, i, Kmax)] = newTri
 		}
 	}
-	gm.BaseGeometryClass.Geometry = make([]graphics2D.Point, Kmax*Np)
+	gm.BaseGeometryClass.Geometry = make([]geometry2D.Point, Kmax*Np)
 	for k := 0; k < Kmax; k++ {
 		for ii := 0; ii < Np; ii++ {
 			ind := Ind(k, ii, Kmax)
-			gm.BaseGeometryClass.Geometry[ind] = graphics2D.Point{X: [2]float32{float32(vxd[ind]), float32(vyd[ind])}}
+			gm.BaseGeometryClass.Geometry[ind] = geometry2D.Point{X: [2]float32{float32(vxd[ind]), float32(vyd[ind])}}
 		}
 	}
 	// gm.Attributes = make([][]float32, len(gm.Triangles)) // Empty attributes

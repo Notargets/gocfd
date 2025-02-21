@@ -3,10 +3,10 @@ package readfiles
 import (
 	"fmt"
 
-	graphics2D "github.com/notargets/avs/geometry"
+	"github.com/notargets/gocfd/geometry2D"
 )
 
-func PrintTriMesh(trimesh *graphics2D.TriMesh) {
+func PrintTriMesh(trimesh *geometry2D.TriMesh) {
 	fmt.Println("Geometry, X, Y for each vertex:")
 	for _, pt := range trimesh.Geometry {
 		fmt.Printf("%5.2f %5.2f\n", pt.X[0], pt.X[1])

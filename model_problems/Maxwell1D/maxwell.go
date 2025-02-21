@@ -6,9 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/notargets/avs/chart2d"
-	utils2 "github.com/notargets/avs/utils"
-
 	"github.com/notargets/gocfd/DG1D"
 	"github.com/notargets/gocfd/utils"
 )
@@ -22,8 +19,6 @@ type Maxwell struct {
 	Epsilon, Mu                      utils.Matrix
 	Zimp, ZimPM, ZimPP, YimPM, YimPP utils.Matrix
 	ZimpDenom, YimpDenom             utils.Matrix
-	chart                            *chart2d.Chart2D
-	colorMap                         *utils2.ColorMap
 	model                            ModelType
 }
 
@@ -110,7 +105,6 @@ func (c *Maxwell) Run(showGraph bool, graphDelay ...time.Duration) {
 			c.E.Add(resE.Copy().Scale(utils.RK4b[INTRK]))
 			c.H.Add(resH.Copy().Scale(utils.RK4b[INTRK]))
 		}
-		c.Plot(showGraph, graphDelay, c.E, c.H)
 		Time += dt
 		if tstep%logFrequency == 0 {
 			fmt.Printf("Time = %8.4f, max_resid[%d] = %8.4f, emin = %8.6f, emax = %8.6f\n", Time, tstep, resE.Max(), c.E.Min(), c.E.Max())
@@ -123,7 +117,7 @@ func (c *Maxwell) RHS_DFR() (RHSE, RHSH utils.Matrix) {
 	var (
 		el       = c.El
 		nrF, ncF = el.Nfp * el.NFaces, el.K
-		//FluxE, FluxH = c.E.Copy(), c.H.Copy()
+		// FluxE, FluxH = c.E.Copy(), c.H.Copy()
 		FluxE, FluxH = c.E, c.H
 		// Field flux differerence across faces
 		dE                   = FluxE.Subset(el.VmapM, nrF, ncF).Subtract(FluxE.Subset(el.VmapP, nrF, ncF))
@@ -135,7 +129,7 @@ func (c *Maxwell) RHS_DFR() (RHSE, RHSH utils.Matrix) {
 		c.ZimpDenom = c.ZimPM.Copy().Add(c.ZimPP).POW(-1)
 		c.YimpDenom = c.YimPM.Copy().Add(c.YimPP).POW(-1)
 	})
-	//FluxE, FluxH = el.SlopeLimitN(FluxE, 20), el.SlopeLimitN(FluxH, 20)
+	// FluxE, FluxH = el.SlopeLimitN(FluxE, 20), el.SlopeLimitN(FluxH, 20)
 	// Homogeneous boundary conditions at the inflow faces, Ez = 0
 	// Reflection BC - Metal boundary - E is zero at shell face, H passes through (Neumann)
 	// E on the boundary face is negative of E inside, so the diff in E at the boundary face is 2E of the interior
@@ -209,31 +203,4 @@ func (c *Maxwell) RHS_GK() (RHSE, RHSH utils.Matrix) {
 	RHSH = el.Rx.Copy().Scale(-1).ElMul(el.Dr.Mul(c.E)).Add(el.LIFT.Mul(fluxH.ElMul(el.FScale))).ElDiv(c.Mu)
 
 	return
-}
-
-func (c *Maxwell) Plot(showGraph bool, graphDelay []time.Duration, E, H utils.Matrix) {
-	var (
-		el         = c.El
-		pMin, pMax = float32(-1), float32(1)
-	)
-	if !showGraph {
-		return
-	}
-	c.PlotOnce.Do(func() {
-		c.chart = chart2d.NewChart2D(1280, 1024, float32(el.X.Min()), float32(el.X.Max()), pMin, pMax)
-		c.colorMap = utils2.NewColorMap(-1, 1, 1)
-		go c.chart.Plot()
-	})
-
-	if err := c.chart.AddSeries("E", el.X.Transpose().RawMatrix().Data, E.Transpose().RawMatrix().Data,
-		chart2d.NoGlyph, 0.001, chart2d.Solid, c.colorMap.GetRGB(0)); err != nil {
-		panic("unable to add graph series")
-	}
-	if err := c.chart.AddSeries("H", el.X.Transpose().RawMatrix().Data, H.Transpose().RawMatrix().Data,
-		chart2d.NoGlyph, 0.001, chart2d.Solid, c.colorMap.GetRGB(0.7)); err != nil {
-		panic("unable to add graph series")
-	}
-	if len(graphDelay) != 0 {
-		time.Sleep(graphDelay[0])
-	}
 }

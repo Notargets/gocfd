@@ -31,23 +31,19 @@ var OneDCmd = &cobra.Command{
 	Use:   "1D",
 	Short: "One Dimensional Model Problem Solutions",
 	Long: `
-Executes the Nodal Discontinuous Galerkin solver for a variety of model problems, with
-optional live plots of the solutions. For example:
+Executes the Nodal Discontinuous Galerkin solver for a variety of model problems,
 
-gocfd 1D -graph`,
+gocfd 1D `,
 	Run: func(cmd *cobra.Command, args []string) {
 		m1d := &Model1D{}
 		fmt.Println("1D called")
 		mr, _ := cmd.Flags().GetInt("model")
 		m1d.ModelRun = ModelType1D(mr)
-		dr, _ := cmd.Flags().GetInt("delay")
-		m1d.Delay = time.Duration(dr)
 		Casep, _ := cmd.Flags().GetInt("case")
 		m1d.Case = Euler1D.CaseType(Casep)
 		m1d.XMax, _ = cmd.Flags().GetFloat64("xMax")
 		m1d.FinalTime, _ = cmd.Flags().GetFloat64("finalTime")
 		m1d.CFL, _ = cmd.Flags().GetFloat64("CFL")
-		m1d.Graph, _ = cmd.Flags().GetBool("graph")
 		m1d.N, _ = cmd.Flags().GetInt("n")
 		m1d.K, _ = cmd.Flags().GetInt("k")
 		m1d.CFL = LimitCFL(m1d.ModelRun, m1d.CFL)
@@ -72,7 +68,6 @@ func init() {
 	OneDCmd.Flags().IntP("n", "n", N, "polynomial degree")
 	OneDCmd.Flags().IntP("delay", "d", 0, "milliseconds of delay for plotting")
 	OneDCmd.Flags().IntP("case", "c", int(CaseInt), "Case to run, for Euler: 0 = SOD Shock Tube, 1 = Density Wave")
-	OneDCmd.Flags().BoolP("graph", "g", false, "display a graph while computing solution")
 	OneDCmd.Flags().Float64("CFL", CFL, "CFL - increase for speedup, decrease for stability")
 	OneDCmd.Flags().Float64("finalTime", FinalTime, "FinalTime - the target end time for the sim")
 	OneDCmd.Flags().Float64("xMax", XMax, "Maximum X coordinate (for Euler) - make sure to increase K with XMax")

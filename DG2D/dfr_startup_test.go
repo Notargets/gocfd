@@ -1,19 +1,10 @@
 package DG2D
 
 import (
-	"image/color"
 	"math"
 	"testing"
 
 	"github.com/notargets/gocfd/types"
-
-	utils2 "github.com/notargets/avs/utils"
-
-	"github.com/notargets/avs/functions"
-
-	"github.com/notargets/avs/chart2d"
-
-	graphics2D "github.com/notargets/avs/geometry"
 
 	"github.com/notargets/gocfd/utils"
 	"github.com/stretchr/testify/assert"
@@ -390,54 +381,6 @@ func TestGradient(t *testing.T) {
 				t.Logf("... validates\n")
 			}
 		}
-	}
-}
-
-func PlotFS(fs *functions.FSurface, fmin, fmax float64, ltO ...chart2d.LineType) {
-	var (
-		trimesh = fs.Tris
-		lt      = chart2d.NoLine
-	)
-	if len(ltO) != 0 {
-		lt = ltO[0]
-	}
-	box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
-	box = box.Scale(1.5)
-	chart := chart2d.NewChart2D(1920, 1920, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
-
-	colorMap := utils2.NewColorMap(float32(fmin), float32(fmax), 1.)
-	chart.AddColorMap(colorMap)
-	go chart.Plot()
-	white := color.RGBA{R: 255, G: 255, B: 255, A: 1}
-	black := color.RGBA{R: 0, G: 0, B: 0, A: 1}
-	_, _ = white, black
-	if err := chart.AddFunctionSurface("FSurface", *fs, lt, black); err != nil {
-		panic("unable to add function surface series")
-	}
-}
-
-func PlotTriMesh(trimesh graphics2D.TriMesh) {
-	box := graphics2D.NewBoundingBox(trimesh.GetGeometry())
-	box = box.Scale(1.5)
-	chart := chart2d.NewChart2D(1920, 1920, box.XMin[0], box.XMax[0], box.XMin[1], box.XMax[1])
-	// chart.AddColorMap(colorMap)
-	go chart.Plot()
-	white := color.RGBA{
-		R: 255,
-		G: 255,
-		B: 255,
-		A: 0,
-	}
-	black := color.RGBA{
-		R: 0,
-		G: 0,
-		B: 0,
-		A: 0,
-	}
-	_ = white
-	if err := chart.AddTriMesh("TriMesh", trimesh,
-		chart2d.CrossGlyph, 0.1, chart2d.Solid, black); err != nil {
-		panic("unable to add graph series")
 	}
 }
 

@@ -8,9 +8,6 @@ import (
 
 	"github.com/notargets/gocfd/model_problems/Euler1D/sod_shock_tube"
 
-	"github.com/notargets/avs/chart2d"
-	utils2 "github.com/notargets/avs/utils"
-
 	"github.com/notargets/gocfd/DG1D"
 	"github.com/notargets/gocfd/utils"
 )
@@ -23,9 +20,6 @@ type Euler struct {
 	State           *FieldState
 	Rho, RhoU, Ener utils.Matrix
 	In, Out         *State
-	plotOnce        sync.Once
-	chart           *chart2d.Chart2D
-	colorMap        *utils2.ColorMap
 	model           ModelType
 	bc              BC_TYPE
 	Case            CaseType
@@ -208,7 +202,7 @@ func (c *Euler) Run(showGraph bool, graphDelay ...time.Duration) {
 		el           = c.El
 		elS          = c.El_S
 		logFrequency = 50
-		//s             = c.State
+		// s             = c.State
 		rhs  func(rho, rhou, ener *utils.Matrix) (rhsRho, rhsRhoU, rhsEner utils.Matrix)
 		iRho float64
 	)
@@ -227,7 +221,6 @@ func (c *Euler) Run(showGraph bool, graphDelay ...time.Duration) {
 		*/
 		// SSP RK Stage 1
 		rhsRho, rhsRhoU, rhsEner := rhs(&c.Rho, &c.RhoU, &c.Ener)
-		iRho = c.Plot(Time, showGraph, graphDelay)
 		dt = c.CalculateDT(xmin, Time)
 		update1 := func(u0, rhs float64) (u1 float64) {
 			u1 = u0 + dt*rhs
@@ -494,74 +487,12 @@ func (c *Euler) RiemannBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix, 
 	bFunc_dfr(dEnerF, Ener, EnerF, lmO, nxO, Out.Ener, Out.EnerF, el.MapO, elS.VmapO, el.VmapO)
 }
 
-func (c *Euler) Plot(timeT float64, showGraph bool, graphDelay []time.Duration) (iRho float64) {
-	var (
-		el         = c.El
-		elS        = c.El_S
-		fmin, fmax float32
-	)
-	switch c.Case {
-	case SOD_TUBE, COLLISION:
-		fmin, fmax = float32(-0.1), float32(2.6)
-	case DENSITY_WAVE:
-		fmin, fmax = float32(1.0), float32(4.0)
-	case FREESTREAM:
-		fmin, fmax = float32(-0.1), float32(2.6)
-	}
-	if !showGraph {
-		return
-	}
-	c.plotOnce.Do(func() {
-		c.chart = chart2d.NewChart2D(1920, 1280, float32(el.X.Min()), float32(el.X.Max()), fmin, fmax)
-		c.colorMap = utils2.NewColorMap(-1, 1, 1)
-		go c.chart.Plot()
-	})
-	pSeries := func(field utils.Matrix, name string, color float32, glyphType chart2d.GlyphType) {
-		var (
-			x utils.Matrix
-		)
-		x = el.X
-		if elS.Np != el.Np {
-			x = elS.X
-		}
-		if err := c.chart.AddSeries(name, x.Transpose().RawMatrix().Data, field.Transpose().RawMatrix().Data,
-			glyphType, 0.001, chart2d.Solid, c.colorMap.GetRGB(color)); err != nil {
-			panic("unable to add graph series")
-		}
-	}
-	pSeries(c.Rho, "Rho", -0.7, chart2d.NoGlyph)
-	pSeries(c.RhoU, "RhoU", 0.0, chart2d.NoGlyph)
-	pSeries(c.Ener, "Ener", 0.7, chart2d.NoGlyph)
-	c.frameCount++
-	check := int(math.Log10(float64(el.K * el.Np / 5)))
-	if c.frameCount%check == 0 || math.Abs(timeT-c.FinalTime) < 0.001 {
-		switch c.Case {
-		case SOD_TUBE:
-			iRho = AddAnalyticSod(c.chart, c.colorMap, timeT)
-		case DENSITY_WAVE:
-			AddAnalyticDWave(c.chart, c.colorMap, elS.X, timeT)
-		}
-	}
-	if len(graphDelay) != 0 {
-		time.Sleep(graphDelay[0])
-	}
-	return
-}
-
 func DWaveCalc(X utils.Matrix, timeT float64) (x, rho []float64) {
 	Rho := X.Copy().Apply(func(x float64) (rho float64) {
 		rho = 2 + math.Sin(math.Pi*(x-timeT))
 		return
 	})
 	x, rho = X.RawMatrix().Data, Rho.RawMatrix().Data
-	return
-}
-
-func AddAnalyticDWave(chart *chart2d.Chart2D, colorMap *utils2.ColorMap, X utils.Matrix, timeT float64) {
-	x, rho := DWaveCalc(X, timeT)
-	if err := chart.AddSeries("ExactRho", x, rho, chart2d.XGlyph, 0.01, chart2d.NoLine, colorMap.GetRGB(-0.7)); err != nil {
-		panic("unable to add exact solution Rho")
-	}
 	return
 }
 
@@ -577,22 +508,6 @@ func dwaveErrorCalc(X, Rho utils.Matrix, t float64) (rms_rho, max_rho float64) {
 		max_rho = math.Max(rho_err, max_rho)
 	}
 	rms_rho = math.Sqrt(rms_rho / float64(len(RhoData)))
-	return
-}
-
-func AddAnalyticSod(chart *chart2d.Chart2D, colorMap *utils2.ColorMap, timeT float64) (iRho float64) {
-	sod := sod_shock_tube.NewSOD(timeT)
-	X, Rho, _, RhoU, E := sod.Get()
-	if err := chart.AddSeries("ExactRho", X, Rho, chart2d.XGlyph, 0.01, chart2d.NoLine, colorMap.GetRGB(-0.7)); err != nil {
-		panic("unable to add exact solution Rho")
-	}
-	if err := chart.AddSeries("ExactRhoU", X, RhoU, chart2d.XGlyph, 0.01, chart2d.NoLine, colorMap.GetRGB(0.0)); err != nil {
-		panic("unable to add exact solution RhoU")
-	}
-	if err := chart.AddSeries("ExactE", X, E, chart2d.XGlyph, 0.01, chart2d.NoLine, colorMap.GetRGB(0.7)); err != nil {
-		panic("unable to add exact solution E")
-	}
-	iRho = integrate(X, Rho)
 	return
 }
 
@@ -931,7 +846,7 @@ func bFunc_dfr(dUF *utils.Matrix, U, UF utils.Matrix, lm, nx utils.Vector, uIO, 
 	)
 	dUFVec = nx.Outer(UF.SubsetVector(vmap).Subtract(utils.NewVectorConstant(len(vmap), ufIO))).Scale(0.5)
 	dUFVec.Subtract(lm.Outer(U.SubsetVector(vmaps).Subtract(utils.NewVectorConstant(len(vmaps), uIO))))
-	//dUF.AssignVector(mapi, dUFVec)
+	// dUF.AssignVector(mapi, dUFVec)
 	nxI := nx.AtVec(0)
 	dUF.AssignVector(mapi, dUFVec.Scale(-nxI*0.5).Add(UF.Subset(vmap, 1, 1)))
 	return
