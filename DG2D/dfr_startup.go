@@ -70,28 +70,37 @@ func NewDFR2D(N int, verbose bool, meshFileO ...string) (dfr *DFR2D) {
 			dfr.K, dfr.VX, dfr.VY, EToV, dfr.BCEdges =
 				readfiles.ReadSU2(meshFileO[0], verbose)
 		}
-		// dfr.BCEdges.Print()
-		dfr.Tris = NewTriangulation(dfr.VX, dfr.VY, EToV, dfr.BCEdges)
-		// Build connectivity matrices
-		dfr.FluxX, dfr.FluxY =
-			CalculateElementLocalGeometry(dfr.Tris.EToV, dfr.VX, dfr.VY, dfr.FluxElement.R, dfr.FluxElement.S)
-		dfr.SolutionX, dfr.SolutionY =
-			CalculateElementLocalGeometry(dfr.Tris.EToV, dfr.VX, dfr.VY, dfr.SolutionElement.R, dfr.SolutionElement.S)
-		// Calculate RT based derivative metrics for use in calculating Dx and Dy using the RT element
-		dfr.CalculateJacobian()
-		dfr.CalculateFaceNorms()
-		dfr.CalculateRTBasedDerivativeMetrics()
-		dfr.DXMetric.SetReadOnly("DXMetric")
-		dfr.DYMetric.SetReadOnly("DYMetric")
-		dfr.J.SetReadOnly("GeometricJacobian")
-		dfr.Jdet.SetReadOnly("GeometricJacobianDeterminant")
-		dfr.Jinv.SetReadOnly("GeometricJacobianInverse")
-		dfr.FluxX.SetReadOnly("FluxX")
-		dfr.FluxY.SetReadOnly("FluxY")
-		dfr.SolutionX.SetReadOnly("SolutionX")
-		dfr.SolutionY.SetReadOnly("SolutionY")
+		dfr.ProcessGeometry(dfr.VX, dfr.VY, EToV, dfr.BCEdges)
 	}
 	return
+}
+
+func (dfr *DFR2D) ProcessGeometry(VX, VY utils.Vector,
+	EToV utils.Matrix, BCEdges types.BCMAP) {
+	// dfr.BCEdges.Print()
+	dfr.Tris = NewTriangulation(VX, VY, EToV, BCEdges)
+	// Build connectivity matrices
+	dfr.FluxX, dfr.FluxY =
+		CalculateElementLocalGeometry(EToV, VX, VY,
+			dfr.FluxElement.R, dfr.FluxElement.S)
+	dfr.SolutionX, dfr.SolutionY =
+		CalculateElementLocalGeometry(EToV, VX, VY,
+			dfr.SolutionElement.R, dfr.SolutionElement.S)
+	// Calculate RT based derivative metrics for use in calculating Dx and Dy
+	// using the RT element
+	dfr.CalculateJacobian()
+	dfr.CalculateFaceNorms()
+	dfr.CalculateRTBasedDerivativeMetrics()
+
+	dfr.DXMetric.SetReadOnly("DXMetric")
+	dfr.DYMetric.SetReadOnly("DYMetric")
+	dfr.J.SetReadOnly("GeometricJacobian")
+	dfr.Jdet.SetReadOnly("GeometricJacobianDeterminant")
+	dfr.Jinv.SetReadOnly("GeometricJacobianInverse")
+	dfr.FluxX.SetReadOnly("FluxX")
+	dfr.FluxY.SetReadOnly("FluxY")
+	dfr.SolutionX.SetReadOnly("SolutionX")
+	dfr.SolutionY.SetReadOnly("SolutionY")
 }
 
 type MeshFileType uint8

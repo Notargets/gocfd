@@ -1,9 +1,14 @@
 package DG2D
 
 import (
+	"fmt"
 	"math"
 	"testing"
+	"time"
 
+	"github.com/notargets/avs/chart2d"
+	"github.com/notargets/avs/screen"
+	utils2 "github.com/notargets/avs/utils"
 	"github.com/notargets/gocfd/types"
 
 	"github.com/notargets/gocfd/utils"
@@ -199,7 +204,74 @@ func TestDFR2D(t *testing.T) {
 	}
 }
 
-func TestDivergence(t *testing.T) {
+func _TestPlotEquiTri(t *testing.T) {
+	dfr := CreateEquiTriMesh(1, 47)
+	if testing.Verbose() {
+		PlotDFRElements(dfr)
+	}
+}
+
+func CreateEquiTriMesh(N int, angle float64) (dfr *DFR2D) {
+	dfr = NewDFR2D(N, false)
+	dfr.K = 1
+	vx, vy := []float64{-0.5, 0.5, 0.}, []float64{0, 0, math.Sqrt2 / 2.}
+	dfr.VX, dfr.VY = utils.NewVector(3), utils.NewVector(3)
+	for i := 0; i < dfr.VX.Len(); i++ {
+		dfr.VX.DataP[i] = vx[i]*math.Cos(2.*math.Pi*angle/360.) +
+			vy[i]*math.Sin(2.*math.Pi*angle/360.)
+		dfr.VY.DataP[i] = vx[i]*math.Sin(2.*math.Pi*angle/360.) +
+			vy[i]*math.Cos(2.*math.Pi*angle/360.)
+	}
+	EToV := utils.NewMatrix(dfr.K, 3, []float64{0, 1, 2})
+	dfr.ProcessGeometry(dfr.VX, dfr.VY, EToV, nil)
+	return
+}
+
+func PlotDFRElements(dfr *DFR2D) {
+	var Line []float32
+	addVertex := func(x, y, width float64) {
+		wo2 := float32(width / 2.)
+		xl, yl := float32(x), float32(y)
+		Line = append(Line, xl-wo2, yl, xl+wo2, yl)
+		Line = append(Line, xl, yl-wo2, xl, yl+wo2)
+	}
+	addLineSegment := func(x1, y1, x2, y2 float64) {
+		x1l, y1l := float32(x1), float32(y1)
+		x2l, y2l := float32(x2), float32(y2)
+		Line = append(Line, x1l, y1l, x2l, y2l)
+	}
+
+	ch := chart2d.NewChart2D(-1, 1, -1, 1, 1024, 1024, utils2.WHITE,
+		utils2.BLACK, 0.8)
+	Np := dfr.FluxElement.Np
+	for k := 0; k < dfr.K; k++ {
+		for i := 0; i < Np; i++ {
+			addVertex(dfr.FluxX.At(i, k), dfr.FluxY.At(i, k), 0.025)
+		}
+	}
+	for k := 0; k < dfr.K; k++ {
+		verts := dfr.Tris.GetTriVerts(uint32(k))
+		for ii := 0; ii < 3; ii++ {
+			x1, y1 := dfr.VX.DataP[verts[ii]], dfr.VY.DataP[verts[ii]]
+			ip := ii + 1
+			if ii == 2 {
+				ip = 0
+			}
+			x2, y2 := dfr.VX.DataP[verts[ip]], dfr.VY.DataP[verts[ip]]
+			addLineSegment(x1, y1, x2, y2)
+		}
+	}
+	ch.AddLine(Line, utils2.WHITE)
+	ch.NewWindow("Unit Triangle", 0.9, screen.AUTO)
+	Line = []float32{}
+	addLineSegment(-1, -1, 1, -1)
+	addLineSegment(1, -1, -1, 1)
+	addLineSegment(-1, 1, -1, -1)
+	ch.AddLine(Line, utils2.WHITE)
+	time.Sleep(30 * time.Second)
+}
+
+func DivergenceCheck(t *testing.T, dfr *DFR2D) {
 	// Test divergence
 	checkSolution := func(dfr *DFR2D, Order int) (Fx, Fy, divCheck utils.Matrix) {
 		var (
@@ -226,9 +298,8 @@ func TestDivergence(t *testing.T) {
 		return
 	}
 	{ // Check divergence for polynomial vector fields of order < N against analytical solution
-		N := 7 // Order of element
-		// N := 7 // Order of element
-		dfr := NewDFR2D(N, false, "test_data/test_tris_5.neu")
+		// dfr := NewDFR2D(N, false, "test_data/test_tris_5.neu")
+		N := dfr.N
 		rt := dfr.FluxElement
 		// rt.Div.Print("Div")
 		// rt.DivInt.Print("DivInt")
@@ -260,6 +331,14 @@ func TestDivergence(t *testing.T) {
 			t.Logf("passed.\n")
 		}
 	}
+}
+
+func TestDivergence(t *testing.T) {
+	for _, ang := range []float64{0, 15, 25, 43, 47, 90, 180, 210, 270, 310} {
+		fmt.Printf("Checking angle:%f ==================\n", ang)
+		DivergenceCheck(t, CreateEquiTriMesh(2, ang))
+	}
+	DivergenceCheck(t, NewDFR2D(7, false, "test_data/test_tris_5.neu"))
 }
 
 func TestGradient(t *testing.T) {
