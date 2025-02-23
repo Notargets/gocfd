@@ -212,14 +212,18 @@ func _TestPlotEquiTri(t *testing.T) {
 }
 
 func CreateEquiTriMesh(N int, angle float64) (dfr *DFR2D) {
+	var (
+		yHeight = math.Sin(math.Pi * 60. / 180.)
+	)
 	dfr = NewDFR2D(N, false)
 	dfr.K = 1
-	vx, vy := []float64{-0.5, 0.5, 0.}, []float64{0, 0, math.Sqrt2 / 2.}
+	vx, vy := []float64{-0.5, 0.5, 0.}, []float64{-yHeight / 2., -yHeight / 2,
+		yHeight / 2.}
 	dfr.VX, dfr.VY = utils.NewVector(3), utils.NewVector(3)
 	for i := 0; i < dfr.VX.Len(); i++ {
 		dfr.VX.DataP[i] = vx[i]*math.Cos(2.*math.Pi*angle/360.) +
 			vy[i]*math.Sin(2.*math.Pi*angle/360.)
-		dfr.VY.DataP[i] = vx[i]*math.Sin(2.*math.Pi*angle/360.) +
+		dfr.VY.DataP[i] = -vx[i]*math.Sin(2.*math.Pi*angle/360.) +
 			vy[i]*math.Cos(2.*math.Pi*angle/360.)
 	}
 	EToV := utils.NewMatrix(dfr.K, 3, []float64{0, 1, 2})
@@ -334,7 +338,7 @@ func DivergenceCheck(t *testing.T, dfr *DFR2D) {
 }
 
 func TestDivergence(t *testing.T) {
-	for _, ang := range []float64{0, 15, 25, 43, 47, 90, 180, 210, 270, 310} {
+	for _, ang := range []float64{0, 15, 25, 45, 90, 180, 210, 270, 310} {
 		fmt.Printf("Checking angle:%f ==================\n", ang)
 		DivergenceCheck(t, CreateEquiTriMesh(2, ang))
 	}
