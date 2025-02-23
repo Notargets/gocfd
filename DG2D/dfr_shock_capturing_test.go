@@ -4,14 +4,78 @@ import (
 	"fmt"
 	"math"
 	"testing"
+
+	"github.com/notargets/gocfd/utils"
 )
 
 func TestPlotEquiTri(t *testing.T) {
-	dfr := CreateEquiTriMesh(1, 50)
+	dfr := CreateEquiTriMesh(1, 0.15)
 	_ = dfr
-	if testing.Verbose() {
-		PlotDFRElements(dfr)
+	// if testing.Verbose() {
+	// 	PlotDFRElements(dfr)
+	// }
+	Mach := 1.6
+	Alpha := 10.
+	fmt.Printf("Testing Mach %5.2f, Shock Angle:%5.2f\n", Mach, Alpha)
+	U1, U2 := ShockConditions(Mach, Alpha)
+	PrintU("U1", U1)
+	PrintU("U2", U2)
+	K := 1
+	Np := dfr.SolutionElement.Np
+	Q := utils.NewMatrix(Np, 4*K)
+	for i := 0; i < Np; i++ {
+		x, _ := dfr.SolutionX.At(i, 0), dfr.SolutionY.At(i, 0)
+		// fmt.Printf("x,y[%d] = [%5.2f,%5.2f]\n", i, x, y)
+		for n := 0; n < 4; n++ {
+			if x < 0 {
+				Q.DataP[n+i*4*K] = U1[n]
+			} else {
+				Q.DataP[n+i*4*K] = U2[n]
+			}
+		}
 	}
+	// Q.Print("Q1")
+	// dfr.FluxEdgeInterp.Print("FluxEdgeInterp")
+	QEdge := dfr.FluxEdgeInterp.Mul(Q)
+	// QEdge.Print("QEdge")
+	// dfr.FluxElement.ProjectFunctionOntoDOF()
+	NpFluxEdge := dfr.FluxElement.NpEdge
+	var CorrectU [4]float64
+	var RMS, Max, MaxPercent [4]float64
+	for i := 0; i < NpFluxEdge*3; i++ {
+		x, _ := dfr.FluxX.At(i, 0), dfr.FluxY.At(i, 0)
+		// fmt.Printf("x,y[%d] = [%5.2f,%5.2f]\n", i, x, y)
+		if x < 0 {
+			CorrectU = U1
+		} else {
+			CorrectU = U2
+		}
+		for n := 0; n < 4; n++ {
+			err := QEdge.At(i, n) - CorrectU[n]
+			RMS[n] += err * err
+			if math.Abs(err) > Max[n] {
+				Max[n] = err
+				if math.Abs(CorrectU[n]) < 0.00001 {
+					MaxPercent[n] = 100. * err
+				} else {
+					MaxPercent[n] = 100. * err / CorrectU[n]
+				}
+			}
+		}
+	}
+	for n := 0; n < 4; n++ {
+		RMS[n] = math.Sqrt(RMS[n] / float64(NpFluxEdge*3))
+		fmt.Printf("Error[%d]:RMS%+5.2f, Max:%+5.2f,%+5.1f%%\n",
+			n, RMS[n], Max[n], MaxPercent[n])
+	}
+}
+
+func PrintU(label string, U [4]float64) {
+	fmt.Printf("%s:", label)
+	for i := 0; i < 4; i++ {
+		fmt.Printf("%0.2f ", U[i])
+	}
+	fmt.Printf("\n")
 }
 
 func TestMachConditions(t *testing.T) {
@@ -52,6 +116,12 @@ func ShockConditions(M1, alpha float64) (U1, U2 [4]float64) {
 	u1 := M1    // Freestream velocity (assumed normalized so that a1 = 1).
 	v1 := 0.0   // No initial vertical velocity.
 
+	En1 := p1/(gamma-1) + 0.5*rho1*(u1*u1+v1*v1)
+	U1 = [4]float64{rho1, u1, v1, En1}
+	if M1 < 1. {
+		U2 = U1
+		return
+	}
 	// Define an inline Newton solver to compute u2n.
 	NewtonSolver := func(rho1, u1n, p1, rho2, p2, tol float64, maxIter int) float64 {
 		u2n := u1n / 2.0 // Initial guess.
@@ -88,11 +158,9 @@ func ShockConditions(M1, alpha float64) (U1, U2 [4]float64) {
 	v2 := u2n*math.Cos(betaRad) - u1t*math.Sin(betaRad)
 
 	// Compute total energy (using post-shock pressure and velocity).
-	En1 := p1/(gamma-1) + 0.5*rho1*(u1*u1+v1*v1)
 	En2 := p2/(gamma-1) + 0.5*rho2*(u2*u2+v2*v2)
 
 	// Pack pre- and post-shock states into U1 and U2.
-	U1 = [4]float64{rho1, u1, v1, En1}
 	U2 = [4]float64{rho2, u2, v2, En2}
 	return
 }
