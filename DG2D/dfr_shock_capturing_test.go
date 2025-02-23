@@ -4,17 +4,224 @@ import (
 	"fmt"
 	"math"
 	"testing"
+	"time"
+
+	"github.com/notargets/avs/chart2d"
+	utils2 "github.com/notargets/avs/utils"
 
 	"github.com/notargets/gocfd/utils"
 )
 
+func TestEdgeInterpolation(t *testing.T) {
+	NMin := 7
+	NMax := 7
+	for N := NMin; N <= NMax; N++ {
+		dfr := CreateEquiTriMesh(N, 0.15)
+		NpInt := dfr.FluxElement.NpInt
+		NEdge := dfr.FluxElement.NpEdge
+		fmt.Printf("NInt[%d] = %d, NInt/3 = %d, Remainder=%d, NEdge=%d\n",
+			N, NpInt, NpInt/3, NpInt%3, NEdge)
+		edgeGroups := groupInteriorPoints(dfr.FluxX.DataP, dfr.FluxY.DataP,
+			NpInt, NEdge)
+		fmt.Println(edgeGroups)
+		if testing.Verbose() {
+			PlotEdgeGroups(dfr, edgeGroups)
+		}
+	}
+}
+
+func PlotEdgeGroups(dfr *DFR2D, edgeGroups [3][]int) {
+	var Line []float32
+	addVertex := func(x, y, width float64) {
+		wo2 := float32(width / 2.)
+		xl, yl := float32(x), float32(y)
+		Line = append(Line, xl-wo2, yl, xl+wo2, yl)
+		Line = append(Line, xl, yl-wo2, xl, yl+wo2)
+	}
+	addLineSegment := func(x1, y1, x2, y2 float64) {
+		x1l, y1l := float32(x1), float32(y1)
+		x2l, y2l := float32(x2), float32(y2)
+		Line = append(Line, x1l, y1l, x2l, y2l)
+	}
+
+	ch := chart2d.NewChart2D(-1, 1, -1, 1, 1024, 1024, utils2.WHITE,
+		utils2.BLACK, 0.8)
+	// Np := dfr.FluxElement.Np
+	for k := 0; k < dfr.K; k++ {
+		for ii, edge := range edgeGroups {
+			for _, pt := range edge {
+				addVertex(dfr.FluxX.At(pt, k), dfr.FluxY.At(pt, k), 0.025)
+			}
+			switch ii {
+			case 0:
+				ch.AddLine(Line, utils2.RED)
+			case 1:
+				ch.AddLine(Line, utils2.GREEN)
+			case 2:
+				ch.AddLine(Line, utils2.BLUE)
+			}
+			Line = []float32{}
+		}
+		// for i := 0; i < Np; i++ {
+		// 	addVertex(dfr.FluxX.At(i, k), dfr.FluxY.At(i, k), 0.025)
+		// }
+	}
+	for k := 0; k < dfr.K; k++ {
+		verts := dfr.Tris.GetTriVerts(uint32(k))
+		for ii := 0; ii < 3; ii++ {
+			x1, y1 := dfr.VX.DataP[verts[ii]], dfr.VY.DataP[verts[ii]]
+			ip := ii + 1
+			if ii == 2 {
+				ip = 0
+			}
+			x2, y2 := dfr.VX.DataP[verts[ip]], dfr.VY.DataP[verts[ip]]
+			addLineSegment(x1, y1, x2, y2)
+			switch ii {
+			case 0:
+				ch.AddLine(Line, utils2.RED)
+			case 1:
+				ch.AddLine(Line, utils2.GREEN)
+			case 2:
+				ch.AddLine(Line, utils2.BLUE)
+			}
+			Line = []float32{}
+		}
+	}
+	// ch.NewWindow("Unit Triangle", 0.9, screen.AUTO)
+	// Line = []float32{}
+	// addLineSegment(-1, -1, 1, -1)
+	// addLineSegment(1, -1, -1, 1)
+	// addLineSegment(-1, 1, -1, -1)
+	// ch.AddLine(Line, utils2.WHITE)
+	time.Sleep(30 * time.Second)
+}
+
+// candidate holds per‐interior point distance info.
+type candidate struct {
+	index     int
+	distances [3]float64 // min distance to each edge group.
+	primary   int        // index of closest edge.
+	secondary int        // index of next closest edge.
+	delta     float64    // difference between secondary and primary distance.
+}
+
+// groupInteriorPoints first assigns each interior point (indices 0..NpInt-1)
+// to the edge with the minimum distance, then rebalances if any group exceeds its target.
+// The edges are at:
+//
+//	Edge 1: indices [2*NpInt, 2*NpInt+NpEdge)
+//	Edge 2: indices [2*NpInt+NpEdge, 2*NpInt+2*NpEdge)
+//	Edge 3: indices [2*NpInt+2*NpEdge, 2*NpInt+3*NpEdge)
+func groupInteriorPoints(x, y []float64, NpInt, NpEdge int) [3][]int {
+	cands := make([]candidate, NpInt)
+	// squaredDistance returns the squared Euclidean distance.
+	squaredDistance := func(x1, y1, x2, y2 float64) float64 {
+		dx := x1 - x2
+		dy := y1 - y2
+		return dx*dx + dy*dy
+	}
+	// For each interior point, compute its distance to each edge.
+	for i := 0; i < NpInt; i++ {
+		best := math.MaxFloat64
+		second := math.MaxFloat64
+		bestEdge := -1
+		secondEdge := -1
+
+		// For each of the three edges.
+		for e := 0; e < 3; e++ {
+			start := 2*NpInt + e*NpEdge
+			end := start + NpEdge
+			distE := math.MaxFloat64
+			for j := start; j < end; j++ {
+				d := squaredDistance(x[i], y[i], x[j], y[j])
+				if d < distE {
+					distE = d
+				}
+			}
+			cands[i].distances[e] = distE
+			// Determine best and second best edges.
+			if distE < best {
+				second = best
+				secondEdge = bestEdge
+				best = distE
+				bestEdge = e
+			} else if distE < second {
+				second = distE
+				secondEdge = e
+			}
+		}
+		cands[i].index = i
+		cands[i].primary = bestEdge
+		cands[i].secondary = secondEdge
+		cands[i].delta = second - best
+	}
+
+	// Initial assignment: each interior point goes to its primary edge.
+	assigned := make([]int, NpInt)
+	for i := 0; i < NpInt; i++ {
+		assigned[i] = cands[i].primary
+	}
+
+	// Count assignments per edge.
+	counts := [3]int{}
+	for i := 0; i < NpInt; i++ {
+		counts[assigned[i]]++
+	}
+
+	// Determine target counts.
+	base := NpInt / 3
+	rem := NpInt % 3
+	targets := [3]int{}
+	for e := 0; e < 3; e++ {
+		if e < rem {
+			targets[e] = base + 1
+		} else {
+			targets[e] = base
+		}
+	}
+
+	// Rebalancing: for any point in an over-target group, if its secondary candidate is under-target,
+	// reassign it. We do a simple greedy pass.
+	for {
+		moved := false
+		for i := 0; i < NpInt; i++ {
+			curGroup := assigned[i]
+			// Only consider points in groups that have too many points.
+			if counts[curGroup] > targets[curGroup] {
+				sec := cands[i].secondary
+				// If the secondary candidate exists and is under target, reassign.
+				if sec >= 0 && counts[sec] < targets[sec] {
+					assigned[i] = sec
+					counts[curGroup]--
+					counts[sec]++
+					moved = true
+					// Break out to restart the loop after a move.
+					break
+				}
+			}
+		}
+		if !moved {
+			break
+		}
+	}
+
+	// Build final groups.
+	var groups [3][]int
+	for i, grp := range assigned {
+		groups[grp] = append(groups[grp], i)
+	}
+	return groups
+}
+
 func TestPlotEquiTri(t *testing.T) {
-	dfr := CreateEquiTriMesh(1, 0.15)
+	// dfr := CreateEquiTriMesh(1, 0.15)
+	// dfr := CreateEquiTriMesh(2, 0.15)
+	dfr := CreateEquiTriMesh(2, 0.15)
 	_ = dfr
 	// if testing.Verbose() {
 	// 	PlotDFRElements(dfr)
 	// }
-	Mach := 1.6
+	Mach := 1.8
 	Alpha := 10.
 	fmt.Printf("Testing Mach %5.2f, Shock Angle:%5.2f\n", Mach, Alpha)
 	U1, U2 := ShockConditions(Mach, Alpha)
