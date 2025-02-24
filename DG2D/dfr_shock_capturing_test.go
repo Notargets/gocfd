@@ -13,21 +13,221 @@ import (
 )
 
 func TestEdgeInterpolation(t *testing.T) {
-	NMin := 7
-	NMax := 7
+	NMin := 5
+	NMax := 5
+	// for N := NMin; N <= NMax; N++ {
 	for N := NMin; N <= NMax; N++ {
-		dfr := CreateEquiTriMesh(N, 0.15)
+		angle := 140.
+		dfr := CreateEquiTriMesh(N, angle)
 		NpInt := dfr.FluxElement.NpInt
-		NEdge := dfr.FluxElement.NpEdge
-		fmt.Printf("NInt[%d] = %d, NInt/3 = %d, Remainder=%d, NEdge=%d\n",
-			N, NpInt, NpInt/3, NpInt%3, NEdge)
-		edgeGroups := groupInteriorPoints(dfr.FluxX.DataP, dfr.FluxY.DataP,
-			NpInt, NEdge)
-		fmt.Println(edgeGroups)
+		// NEdge := dfr.FluxElement.NpEdge
+		// fmt.Printf("NInt[%d] = %d, NInt/3 = %d, Remainder=%d, NEdge=%d\n",
+		// 	N, NpInt, NpInt/3, NpInt%3, NEdge)
+		M := GradientMassMatrix(dfr)
+		_ = M
+		U1, U2 := ShockConditions(2, 0)
+		QSol, QFlux := SetShockConditions(dfr, U1, U2)
+		// QSol.Print("QSol")
+		// QFlux.Print("QFlux")
+		MInv := M.Transpose().Mul(M).InverseWithCheck().Mul(M.Transpose())
+		// MInv.Print("MInv")
+		Dens := CopyDensityFromQAndEdges(dfr, QSol, QFlux)
+		Grad := MInv.Mul(Dens)
+		// Grad.Print("Grad")
+		GradA, GradB, GradC := Grad.DataP[0], Grad.DataP[1], Grad.DataP[2]
+		n1, n2 := GradB, GradC
+		norm := math.Sqrt(n1*n1 + n2*n2)
+		n1 /= norm
+		n2 /= norm
+		fmt.Printf("Order[%d] - Shock normal vector: [%5.2f,%5.2f]\n",
+			N, n1, n2)
+		// Now compute an estimate of the shock threshold rho_thresh as the
+		// average of min/max density in the element
+		rhoMin, rhoMax := Dens.Min(), Dens.Max()
+		rho_thresh := (rhoMin + rhoMax) / 2.
+		RhoGrad := func(x, y float64) (RhoFit float64) {
+			// Quickly determines which side of the shock surface we are on
+			RhoFit = GradA + GradB*x + GradC*y
+			return
+		}
+		// If RhoGrad > rho_thresh, we're on the post shock side
+		_, _ = rho_thresh, RhoGrad
+		var leftRight [2][]int
+		for i := 0; i < NpInt; i++ {
+			x, y := dfr.SolutionX.At(i, 0), dfr.SolutionY.At(i, 0)
+			rhoFit := RhoGrad(x, y)
+			var label string
+			if rhoFit > rho_thresh {
+				label = "post"
+				leftRight[1] = append(leftRight[1], i)
+			} else {
+				label = "pre"
+				leftRight[0] = append(leftRight[0], i)
+			}
+			fmt.Printf("Solution Point[%d][%5.2f,"+
+				"%5.2f] %s shock rho=[%5.2f], rhoFit=[%5.2f]\n",
+				i, x, y, label, QSol.At(i, 0), rhoFit)
+		}
 		if testing.Verbose() {
-			PlotEdgeGroups(dfr, edgeGroups)
+			PlotShockPoints(dfr, leftRight, 30*time.Second)
+		}
+		// edgeGroups := groupInteriorPoints(dfr.FluxX.DataP, dfr.FluxY.DataP,
+		// 	NpInt, NEdge)
+		// fmt.Println(edgeGroups)
+		// if testing.Verbose() {
+		// 	PlotEdgeGroups(dfr, edgeGroups)
+		// }
+	}
+}
+
+func PlotShockPoints(dfr *DFR2D, leftRight [2][]int, delay time.Duration) {
+	var Line []float32
+	addVertex := func(x, y, width float64) {
+		wo2 := float32(width / 2.)
+		xl, yl := float32(x), float32(y)
+		Line = append(Line, xl-wo2, yl, xl+wo2, yl)
+		Line = append(Line, xl, yl-wo2, xl, yl+wo2)
+	}
+	addLineSegment := func(x1, y1, x2, y2 float64) {
+		x1l, y1l := float32(x1), float32(y1)
+		x2l, y2l := float32(x2), float32(y2)
+		Line = append(Line, x1l, y1l, x2l, y2l)
+	}
+
+	ch := chart2d.NewChart2D(-1, 1, -1, 1, 1024, 1024, utils2.WHITE,
+		utils2.BLACK, 0.8)
+	Line = append(Line, 0, -1, 0, 1)
+	ch.AddLine(Line, utils2.WHITE)
+	Line = []float32{}
+	// Np := dfr.FluxElement.Np
+	for k := 0; k < dfr.K; k++ {
+		for ii, position := range leftRight {
+			for _, pt := range position {
+				addVertex(dfr.SolutionX.At(pt, k), dfr.SolutionY.At(pt, k), 0.025)
+			}
+			switch ii {
+			case 0:
+				ch.AddLine(Line, utils2.RED)
+			case 1:
+				ch.AddLine(Line, utils2.GREEN)
+			}
+			Line = []float32{}
+		}
+		// for i := 0; i < Np; i++ {
+		// 	addVertex(dfr.FluxX.At(i, k), dfr.FluxY.At(i, k), 0.025)
+		// }
+	}
+	for k := 0; k < dfr.K; k++ {
+		verts := dfr.Tris.GetTriVerts(uint32(k))
+		for ii := 0; ii < 3; ii++ {
+			x1, y1 := dfr.VX.DataP[verts[ii]], dfr.VY.DataP[verts[ii]]
+			ip := ii + 1
+			if ii == 2 {
+				ip = 0
+			}
+			x2, y2 := dfr.VX.DataP[verts[ip]], dfr.VY.DataP[verts[ip]]
+			addLineSegment(x1, y1, x2, y2)
+			ch.AddLine(Line, utils2.WHITE)
+			Line = []float32{}
 		}
 	}
+	// ch.NewWindow("Unit Triangle", 0.9, screen.AUTO)
+	// Line = []float32{}
+	// addLineSegment(-1, -1, 1, -1)
+	// addLineSegment(1, -1, -1, 1)
+	// addLineSegment(-1, 1, -1, -1)
+	// ch.AddLine(Line, utils2.WHITE)
+	time.Sleep(delay)
+}
+
+func CopyDensityFromQAndEdges(dfr *DFR2D, QSol, QFlux utils.Matrix) (Dens utils.Matrix) {
+	var (
+		// Np     = dfr.SolutionElement.Np
+		// NpFlux = dfr.FluxElement.Np
+		NpInt  = dfr.FluxElement.NpInt
+		NpEdge = dfr.FluxElement.NpEdge
+		K      = 1
+	)
+	Dens = utils.NewMatrix(NpInt+3*NpEdge, K)
+	for i := 0; i < NpInt; i++ {
+		Dens.Set(i, 0, QSol.At(i, 0))
+	}
+	for i := NpInt; i < NpInt+3*NpEdge; i++ {
+		Dens.Set(i, 0, QFlux.At(i+NpInt, 0))
+	}
+	return
+}
+
+func SetShockConditions(dfr *DFR2D, U1, U2 [4]float64) (QSol, QFlux utils.Matrix) {
+	var (
+		Np     = dfr.SolutionElement.Np
+		NpFlux = dfr.FluxElement.Np
+		// NpInt  = dfr.FluxElement.NpInt
+		// NpEdge = dfr.FluxElement.NpEdge
+		K = 1
+	)
+	QSol = utils.NewMatrix(Np, 4*K)
+	QFlux = utils.NewMatrix(NpFlux, 4*K)
+	var x float64
+	for i := 0; i < NpFlux; i++ {
+		if i < Np {
+			x, _ = dfr.SolutionX.At(i, 0), dfr.SolutionY.At(i, 0)
+		} else {
+			x, _ = dfr.FluxX.At(i, 0), dfr.FluxY.At(i, 0)
+		}
+		// fmt.Printf("x,y[%d] = [%5.2f,%5.2f]\n", i, x, y)
+		for n := 0; n < 4; n++ {
+			if x < 0 {
+				if i < Np {
+					QSol.DataP[n+i*4*K] = U1[n]
+				}
+				QFlux.DataP[n+i*4*K] = U1[n]
+			} else {
+				if i < Np {
+					QSol.DataP[n+i*4*K] = U2[n]
+				}
+				QFlux.DataP[n+i*4*K] = U2[n]
+			}
+		}
+	}
+	return
+}
+
+func GradientMassMatrix(dfr *DFR2D) (M utils.Matrix) {
+	var (
+		// NpFlux = dfr.FluxElement.Np
+		NpInt  = dfr.FluxElement.NpInt
+		NpEdge = dfr.FluxElement.NpEdge
+	)
+	// Compute gradient using all points in flux element with density
+	// First compose a mass matrix with all of the point locations
+	M = utils.NewMatrix(NpInt+3*NpEdge, 3) // Points x (1:X:Y)
+	for i := 0; i < NpInt; i++ {
+		M.Set(i, 0, 1.)
+		M.Set(i, 1, dfr.FluxX.DataP[i])
+		M.Set(i, 2, dfr.FluxY.DataP[i])
+	}
+	for i := NpInt; i < NpInt+3*NpEdge; i++ {
+		M.Set(i, 0, 1.)
+		M.Set(i, 1, dfr.FluxX.DataP[i+NpInt])
+		M.Set(i, 2, dfr.FluxY.DataP[i+NpInt])
+	}
+	// M.Print("M")
+	return
+}
+
+// projectToEdge projects a 2D point (x, y) onto the edge defined by (x0, y0) to (x1, y1)
+// using the edge’s tangent direction.
+func projectToEdge(x, y, x0, y0, x1, y1 float64) float64 {
+	// Compute the unit tangent vector of the edge.
+	tanX := x1 - x0
+	tanY := y1 - y0
+	length := math.Hypot(tanX, tanY)
+	tanX /= length
+	tanY /= length
+
+	// The 1D coordinate is the dot product of (x-x0, y-y0) with the tangent.
+	return (x-x0)*tanX + (y-y0)*tanY
 }
 
 func PlotEdgeGroups(dfr *DFR2D, edgeGroups [3][]int) {
