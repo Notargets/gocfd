@@ -148,3 +148,31 @@ L = \sqrt{(r_1 - r_0)^2 + (s_1 - s_0)^2}
 $$
 
 for an edge between endpoints $$ (r_0, s_0) $$ and $$ (r_1, s_1) $$.
+
+---
+
+Given:
+- A point $$ (r, s) $$ in the plane.
+- A reference point $$ (r_0, s_0) $$ on the line.
+- A **unit tangent vector** $$ \mathbf{t} = (t_1, t_2) $$, defining the line direction.
+
+### **Projection Formula**
+The **scalar parameter** \( \lambda \) measuring displacement along the tangent is:
+
+$$
+\lambda = (r - r_0) t_1 + (s - s_0) t_2
+$$
+
+Using this, the **projected point** $$ (r_{\text{proj}}, s_{\text{proj}}) $$ is:
+
+$$
+r_{\text{proj}} = r_0 + \lambda t_1
+$$
+
+$$
+s_{\text{proj}} = s_0 + \lambda t_2
+$$
+
+### **Why This Works**
+- This **projects** \( (r, s) \) **orthogonally onto the line**, preserving alignment with the tangent.
+- The computed $$ (r_{\text{proj}}, s_{\text{proj}}) $$ **lies directly on the line** defined by $$ (r_0, s_0) $$ and $$ \mathbf{t} $$.
