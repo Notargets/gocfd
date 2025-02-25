@@ -109,3 +109,42 @@ you obtain the **edge nodal values** needed for flux calculations.
    $$
    U_{\text{edge, nodes}} = \mathbf{V} \mathbf{c}.
    $$
+
+---
+
+### Projection of values from Interior nodes to parameterized edge
+
+A **convenient expression** for projecting values from **(r, s) space** to a **tangential parameter $$ s' $$** along an edge originating at $$ (r_0, s_0) $$ can be derived as follows:
+
+### **General Form for Projection to a Tangential Parameter $$ s' $$**
+
+Given:
+- A reference point $$ (r_0, s_0) $$ on the edge.
+- A **tangential direction vector** $$ \mathbf{t} = (t_r, t_s) $$, which is the **unit tangent** along the edge.
+- A general interior point $$ (r, s) $$.
+
+We define the **tangential projection** as:
+
+$$
+s' = (r - r_0) t_r + (s - s_0) t_s
+$$
+
+where:
+- $$ s' $$ is the **scalar parameter** measuring displacement **along the edge tangent** starting from $$ (r_0, s_0) $$.
+- $$ \mathbf{t} = (t_r, t_s) $$ is the **unit tangent vector** of the edge.
+
+### **Alternative Expression Using a Normalized Tangent**
+
+If the edge is parameterized by an arc-length parameterization, we can normalize $$ s' $$ so that it lies in a canonical range (e.g., $$ [-1,1] $$) by dividing by the edge length $$ L $$:
+
+$$
+s' = \frac{(r - r_0) t_r + (s - s_0) t_s}{L}
+$$
+
+where:
+
+$$
+L = \sqrt{(r_1 - r_0)^2 + (s_1 - s_0)^2}
+$$
+
+for an edge between endpoints $$ (r_0, s_0) $$ and $$ (r_1, s_1) $$.
