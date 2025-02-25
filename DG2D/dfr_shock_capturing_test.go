@@ -3,6 +3,7 @@ package DG2D
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"testing"
 	"time"
 
@@ -12,9 +13,79 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
+func TestEdgeProjection(t *testing.T) {
+	NMin := 1
+	NMax := 1
+	for N := NMin; N <= NMax; N++ {
+		angle := 140.
+		dfr := CreateEquiTriMesh(N, angle)
+		NpInt := dfr.FluxElement.NpInt
+		NpEdge := dfr.FluxElement.NpEdge
+		// fmt.Printf("NInt[%d] = %d, NInt/3 = %d, Remainder=%d, NEdge=%d\n",
+		// 	N, NpInt, NpInt/3, NpInt%3, NEdge)
+		// U1, U2 := ShockConditions(2, 0)
+		// QSol, QFlux := SetShockConditions(dfr, U1, U2)
+		// QSol.Print("QSol")
+		// QFlux.Print("QFlux")
+		// The Edge Basis Vandermonde matrices are all diagonal,
+		// as the edge basis is Lagrange. The diagonal element is 2
+		tangentNeg := func(v [2]float64) (tt [2]float64) {
+			// Left hand rule tangent to follow counter-clockwise edge traversal
+			tt = [2]float64{-v[1], v[0]}
+			tNorm := math.Sqrt(tt[0]*tt[0] + tt[1]*tt[1])
+			tt[0] /= tNorm
+			tt[1] /= tNorm
+			return
+		}
+		rsFromTangentProj := func(r, s float64,
+			normal, origin [2]float64) (rP, sP float64) {
+			tt := tangentNeg(normal)
+			dot := tt[0]*(r-origin[0]) + tt[1]*(s-origin[1])
+			rP = tt[0]*dot + origin[0]
+			sP = tt[1]*dot + origin[1]
+			return
+		}
+		var AProj [3]utils.Matrix
+		for i := 0; i < 3; i++ {
+			AProj[i] = utils.NewMatrix(NpInt, NpEdge)
+		}
+		var origin [2]float64
+		for nEdge := 0; nEdge < 3; nEdge++ {
+			switch nEdge {
+			case 0:
+				origin = [2]float64{-1, -1}
+			case 1:
+				origin = [2]float64{1, -1}
+			case 2:
+				origin = [2]float64{-1, 1}
+			}
+			// fmt.Printf("nEdge: %d\n", nEdge)
+			offset := 2*NpInt + nEdge*NpEdge
+			for j := offset; j < offset+NpEdge; j++ {
+				b_j := dfr.FluxElement.DOFVectors[j] // Edge normal vector
+				// fmt.Printf("b_j: [%5.2f,%5.2f]\n", b_j.Eval()[0], b_j.Eval()[1])
+				jj := j - offset
+				for i := 0; i < NpInt; i++ {
+					r, s := dfr.FluxElement.R.AtVec(i), dfr.FluxElement.S.AtVec(i)
+					rP, sP := rsFromTangentProj(r, s, b_j.Eval(), origin)
+					// fmt.Printf("Proj(%5.2f,%5.2f)=[%5.2f,%5.2f]\n", r, s, rP, sP)
+					AProj[nEdge].Set(i, jj, dfr.FluxElement.Phi[j].Dot(rP, sP, b_j.Eval()))
+				}
+			}
+			AProj[nEdge].Print("Edge" + strconv.Itoa(nEdge))
+		}
+		// Dens := CopyDensityFromQAndEdges(dfr, QSol, QFlux)
+		// var leftRight [2][]int
+		// for i := 0; i < NpInt; i++ {
+		// 	x, y := dfr.SolutionX.At(i, 0), dfr.SolutionY.At(i, 0)
+		// 	var label string
+		// }
+	}
+}
+
 func TestEdgeInterpolation(t *testing.T) {
-	NMin := 5
-	NMax := 5
+	NMin := 7
+	NMax := 7
 	// for N := NMin; N <= NMax; N++ {
 	for N := NMin; N <= NMax; N++ {
 		angle := 140.
