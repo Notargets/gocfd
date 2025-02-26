@@ -15,6 +15,9 @@ import (
 )
 
 func TestEdgeProjection(t *testing.T) {
+	// TODO: It looks like the Edge 2 (Left edge) basis may be goofy for N=2
+	// TODO: The interpolation matrix is producing wild numbers for density only
+	// TODO: on that edge
 	NMin := 2
 	NMax := 2
 	for N := NMin; N <= NMax; N++ {
@@ -113,6 +116,7 @@ func TestEdgeProjection(t *testing.T) {
 			for ii, i := range indices[nEdge] {
 				EdgeSubset[nEdge].Set(ii, 0, Dens.AtVec(i))
 			}
+			EdgeSubset[nEdge].Transpose().Print("Edge Density Subset" + strconv.Itoa(nEdge))
 			// EdgeProj := AProj[i].Mul(Dens.ToMatrix()).Scale(0.5)
 			EdgeProj := AProj[nEdge].Mul(EdgeSubset[nEdge])
 			EdgeProj.Transpose().Print("EdgeProj" + strconv.Itoa(nEdge))
