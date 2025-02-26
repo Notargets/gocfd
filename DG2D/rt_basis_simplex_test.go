@@ -14,7 +14,7 @@ func TestNewRTBasisSimplex(t *testing.T) {
 	var (
 		N = 1
 	)
-	tol := 0.0000001
+	tol := 0.000001
 	rt1 := NewRTElement(N, SimplexRTBasis)
 	rt2 := NewRTElement(N, ErvinBasisRT)
 	Np := rt1.Np

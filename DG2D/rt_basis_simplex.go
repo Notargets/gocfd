@@ -99,26 +99,26 @@ func (bs *RTBasisSimplex) ComposePhi() {
 					// E4 vector is tangent to all three edges:
 					// E4 = [(s+1)(r+1)/4,(s+1)(s-1)/4]
 					// E4' = [(s+1)(r+1),(s+1)(s-1)]
-					rp := r + 1.
-					sp := s + 1.
-					sm := s - 1.
+					rp := 0.5 * (r + 1.)
+					sp := 0.5 * (s + 1.)
+					sm := 0.5 * (s - 1.)
 					// return [2]float64{sp * rp / 4., sp * sm / 4.}
 					return [2]float64{sp * rp, sp * sm}
 				}
-				vectorDiv = func(r, s float64) (div float64) { return 3.*s + 1. }
+				vectorDiv = func(r, s float64) (div float64) { return (3.*s + 1.) / 4. }
 			case E5:
 				jj = j - bs.NpInt
 				vectorEval = func(r, s float64) (v [2]float64) {
 					// E5 vector is tangent to all three edges:
 					// E5 = [(r+1)(r-1)/4,(r+1)(s+1)/4]
 					// E5' = [(r+1)(r-1),(r+1)(s+1)]
-					rp := r + 1.
-					rm := r - 1.
-					sp := s + 1.
+					rp := 0.5 * (r + 1.)
+					rm := 0.5 * (r - 1.)
+					sp := 0.5 * (s + 1.)
 					// return [2]float64{rp * rm / 4., rp * sp / 4.}
 					return [2]float64{rp * rm, rp * sp}
 				}
-				vectorDiv = func(r, s float64) (div float64) { return 3.*r + 1. }
+				vectorDiv = func(r, s float64) (div float64) { return (3.*r + 1.) / 4. }
 			}
 			evalPoly = func(r, s float64) float64 {
 				return bs.PKBasis.GetOrthogonalPolynomialAtJ(r, s, jj)
@@ -147,11 +147,11 @@ func (bs *RTBasisSimplex) ComposePhi() {
 					// h := 1. - r - s
 					// v = [ ξ , η −1 ]
 					// v' = [ (r+1), (s-1) ]
-					rp := r + 1.
-					sm := s - 1.
+					rp := 0.5 * (r + 1.)
+					sm := 0.5 * (s - 1.)
 					return [2]float64{rp, sm}
 				}
-				vectorDiv = func(r, s float64) (div float64) { return 2. }
+				vectorDiv = func(r, s float64) (div float64) { return 1. }
 			case E2:
 				jj = j - 2*bs.NpInt - bs.NpEdge
 				sr2 := math.Sqrt2
@@ -163,12 +163,12 @@ func (bs *RTBasisSimplex) ComposePhi() {
 					// [(r+1)(r+1),(s+1)(s+1)]
 					// v = [√2 ξ , √2 η ]
 					// v' = [√2 (r+1) , √2 (s+1) ]
-					rp := r + 1.
-					sp := s + 1.
+					rp := 0.5 * (r + 1.)
+					sp := 0.5 * (s + 1.)
 					return [2]float64{sr2 * rp, sr2 * sp}
 				}
 				// vectorDiv = func(r, s float64) (div float64) { return 2.*(r+s) + 4. }
-				vectorDiv = func(r, s float64) (div float64) { return 2. * sr2 }
+				vectorDiv = func(r, s float64) (div float64) { return 1. * sr2 }
 			case E3:
 				jj = j - 2*bs.NpInt - 2*bs.NpEdge
 				vectorEval = func(r, s float64) (v [2]float64) {
@@ -180,12 +180,12 @@ func (bs *RTBasisSimplex) ComposePhi() {
 					// h := 1. - r - s
 					// v = [ ξ -1, η ]
 					// v' = [ (r-1), (s+1) ]
-					rm := r - 1.
-					sp := s + 1.
+					rm := 0.5 * (r - 1.)
+					sp := 0.5 * (s + 1.)
 					return [2]float64{rm, sp}
 				}
 				// vectorDiv = func(r, s float64) (div float64) { return 2.- 3.*(r+s) }
-				vectorDiv = func(r, s float64) (div float64) { return 2. }
+				vectorDiv = func(r, s float64) (div float64) { return 1. }
 			default:
 				panic("invalid function type")
 			}
