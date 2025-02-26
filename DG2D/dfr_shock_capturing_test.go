@@ -3,6 +3,7 @@ package DG2D
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -13,12 +14,14 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-func _TestEdgeProjection(t *testing.T) {
-	NMin := 1
-	NMax := 1
+func TestEdgeProjection(t *testing.T) {
+	NMin := 2
+	NMax := 2
 	for N := NMin; N <= NMax; N++ {
 		angle := 140.
 		dfr := CreateEquiTriMesh(N, angle)
+		// dfr.FluxElement.V.Print("V")
+		// os.Exit(1)
 		NpInt := dfr.FluxElement.NpInt
 		NpEdge := dfr.FluxElement.NpEdge
 		// fmt.Printf("NInt[%d] = %d, NInt/3 = %d, Remainder=%d, NEdge=%d\n",
@@ -43,12 +46,12 @@ func _TestEdgeProjection(t *testing.T) {
 			return
 		}
 		var AProj [3]utils.Matrix
-		var A utils.Matrix
-		for i := 0; i < 3; i++ {
-			A = utils.NewMatrix(NpInt, NpEdge)
-		}
 
+		fmt.Printf("Number of edge points: %d, Interior Points: %d\n",
+			NpEdge, NpInt)
 		var origin [2]float64
+		// Indices used for projection of interior points, filtered from total
+		var indices [3][]int
 		for nEdge := 0; nEdge < 3; nEdge++ {
 			switch nEdge {
 			case 0:
@@ -58,41 +61,61 @@ func _TestEdgeProjection(t *testing.T) {
 			case 2:
 				origin = [2]float64{-1, 1}
 			}
-			// fmt.Printf("nEdge: %d\n", nEdge)
+			fmt.Printf("nEdge: %d\n", nEdge)
 			offset := 2*NpInt + nEdge*NpEdge
-			for j := offset; j < offset+NpEdge; j++ {
-				b_j := dfr.FluxElement.DOFVectors[j] // Edge normal vector
-				// fmt.Printf("b_j: [%5.2f,%5.2f]\n", b_j.Eval()[0], b_j.Eval()[1])
-				jj := j - offset
-				for i := 0; i < NpInt; i++ {
-					r, s := dfr.FluxElement.R.AtVec(i), dfr.FluxElement.S.AtVec(i)
-					rP, sP := rsFromTangentProj(r, s, b_j.Eval(), origin)
-					// fmt.Printf("Proj(%5.2f,%5.2f)=[%5.2f,%5.2f]\n", r, s, rP, sP)
-					A.Set(i, jj, dfr.FluxElement.Phi[j].Dot(rP, sP, b_j.Eval()))
+			// Compose a set of interior points, then filter them to find the
+			// optimal group for projection
+			var points [][2]float64
+			for i := 0; i < NpInt; i++ {
+				r, s := dfr.FluxElement.R.AtVec(i), dfr.FluxElement.S.AtVec(i)
+				points = append(points, [2]float64{r, s})
+			}
+			edgeNormal := dfr.FluxElement.DOFVectors[offset] // Edge normal vector
+			indices[nEdge] = filterInteriorPointIndices(points, edgeNormal.Eval(), origin)
+			fmt.Println("indices: ", indices[nEdge])
+			A := utils.NewMatrix(len(indices[nEdge]), NpEdge)
+			for ii, i := range indices[nEdge] {
+				r, s := dfr.FluxElement.R.AtVec(i), dfr.FluxElement.S.AtVec(i)
+				b_j := dfr.FluxElement.DOFVectors[offset] // Edge normal vector
+				rP, sP := rsFromTangentProj(r, s, b_j.Eval(), origin)
+				fmt.Printf("IntPt:%d Proj(%5.2f,%5.2f)=[%5.2f,%5.2f]\n",
+					i, r, s, rP, sP)
+				for j := offset; j < offset+NpEdge; j++ {
+					jj := j - offset
+					A.Set(ii, jj, dfr.FluxElement.Phi[j].Dot(rP, sP, b_j.Eval()))
 				}
 			}
 			A.Print("A")
 			// B := A.Transpose().Mul(A)
 			// B.Print("B")
 			// B.InverseWithCheck().Print("BInv")
+			Q, R := A.Transpose().Mul(A).QRFactorization()
+			Q.Print("Q")
+			R.Print("R")
 			AProj[nEdge] = A.Transpose().Mul(A).InverseWithCheck().Mul(A.Transpose())
-			// AProj[nEdge].Print("Edge" + strconv.Itoa(nEdge))
+			AProj[nEdge].Print("Edge" + strconv.Itoa(nEdge))
 		}
 		_ = AProj
 		U1, U2 := ShockConditions(1.1, 0)
 		QSol, QFlux := SetShockConditions(dfr, U1, U2)
 		QSol.Transpose().Print("QSol")
 		_ = QFlux
-		fmt.Printf("Number of edge points is: %d\n", NpEdge)
-		Dens := QSol.Col(0)
 		// for i := 0; i < NpInt; i++ {
 		// 	Dens.Set(2.7)
 		// }
+		Dens := QSol.Col(0)
 		Dens.Transpose().Print("Dens")
-		for i := 0; i < 3; i++ {
+		var EdgeSubset [3]utils.Matrix
+		for nEdge := 0; nEdge < 3; nEdge++ {
+			// Select the set of points used for the edge projection for each
+			// edge
+			EdgeSubset[nEdge] = utils.NewMatrix(len(indices[nEdge]), 1)
+			for ii, i := range indices[nEdge] {
+				EdgeSubset[nEdge].Set(ii, 0, Dens.AtVec(i))
+			}
 			// EdgeProj := AProj[i].Mul(Dens.ToMatrix()).Scale(0.5)
-			EdgeProj := AProj[i].Mul(Dens.ToMatrix()).Scale(2.)
-			EdgeProj.Transpose().Print("EdgeProj" + strconv.Itoa(i))
+			EdgeProj := AProj[nEdge].Mul(EdgeSubset[nEdge])
+			EdgeProj.Transpose().Print("EdgeProj" + strconv.Itoa(nEdge))
 		}
 		// QFlux.Print("QFlux")
 		// Dens := CopyDensityFromQAndEdges(dfr, QSol, QFlux)
@@ -102,6 +125,88 @@ func _TestEdgeProjection(t *testing.T) {
 		// 	var label string
 		// }
 		// Dens.Print("Dens")
+	}
+}
+
+func filterInteriorPointIndices(points [][2]float64, normal, origin [2]float64) []int {
+	// Tolerance for considering projected points as colocated.
+	tol := 0.01
+
+	// Pre-compute the tangent (using the left-hand rule) once.
+	tangent := [2]float64{-normal[1], normal[0]}
+	tNorm := math.Sqrt(tangent[0]*tangent[0] + tangent[1]*tangent[1])
+	tangent[0] /= tNorm
+	tangent[1] /= tNorm
+
+	// rsFromTangentProj projects a point (r,s) along the tangent direction.
+	rsFromTangentProj := func(r, s float64) (rP, sP float64) {
+		// dot product with the tangent (shifted by origin)
+		dot := tangent[0]*(r-origin[0]) + tangent[1]*(s-origin[1])
+		rP = tangent[0]*dot + origin[0]
+		sP = tangent[1]*dot + origin[1]
+		return
+	}
+
+	// Compute the perpendicular (normal) distance of a point from the edge.
+	normalDistance := func(r, s float64) float64 {
+		return (r-origin[0])*normal[0] + (s-origin[1])*normal[1]
+	}
+
+	// Start with every point indexed.
+	indices := make([]int, len(points))
+	for i := range points {
+		indices[i] = i
+	}
+
+	for {
+		// Map from the quantized projected coordinate to the list of indices that share it.
+		projMap := make(map[[2]float64][]int)
+		for _, idx := range indices {
+			p := points[idx]
+			rP, sP := rsFromTangentProj(p[0], p[1])
+			// Quantize the projection using the tolerance
+			key := [2]float64{math.Round(rP/tol) * tol, math.Round(sP/tol) * tol}
+			projMap[key] = append(projMap[key], idx)
+		}
+
+		// From each group, select the point that is closest to the edge (in absolute distance).
+		newIndices := make([]int, 0, len(indices))
+		for _, group := range projMap {
+			if len(group) == 1 {
+				newIndices = append(newIndices, group[0])
+			} else {
+				bestIdx := group[0]
+				bestDist := math.Abs(normalDistance(points[bestIdx][0], points[bestIdx][1]))
+				for _, idx := range group[1:] {
+					d := math.Abs(normalDistance(points[idx][0], points[idx][1]))
+					if d < bestDist {
+						bestIdx = idx
+						bestDist = d
+					}
+				}
+				newIndices = append(newIndices, bestIdx)
+			}
+		}
+
+		// Check for stability: if the set of indices is unchanged (both in count and content), we're done.
+		if len(newIndices) == len(indices) {
+			sort.Ints(newIndices)
+			sortedOld := make([]int, len(indices))
+			copy(sortedOld, indices)
+			sort.Ints(sortedOld)
+			equal := true
+			for i := range newIndices {
+				if newIndices[i] != sortedOld[i] {
+					equal = false
+					break
+				}
+			}
+			if equal {
+				return newIndices
+			}
+		}
+		// Otherwise, continue filtering with the new set.
+		indices = newIndices
 	}
 }
 
