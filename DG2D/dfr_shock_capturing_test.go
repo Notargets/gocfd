@@ -13,7 +13,7 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-func TestEdgeProjection(t *testing.T) {
+func _TestEdgeProjection(t *testing.T) {
 	NMin := 1
 	NMax := 1
 	for N := NMin; N <= NMax; N++ {
@@ -23,10 +23,7 @@ func TestEdgeProjection(t *testing.T) {
 		NpEdge := dfr.FluxElement.NpEdge
 		// fmt.Printf("NInt[%d] = %d, NInt/3 = %d, Remainder=%d, NEdge=%d\n",
 		// 	N, NpInt, NpInt/3, NpInt%3, NEdge)
-		// U1, U2 := ShockConditions(2, 0)
-		// QSol, QFlux := SetShockConditions(dfr, U1, U2)
-		// QSol.Print("QSol")
-		// QFlux.Print("QFlux")
+
 		// The Edge Basis Vandermonde matrices are all diagonal,
 		// as the edge basis is Lagrange. The diagonal element is 2
 		tangentNeg := func(v [2]float64) (tt [2]float64) {
@@ -46,9 +43,11 @@ func TestEdgeProjection(t *testing.T) {
 			return
 		}
 		var AProj [3]utils.Matrix
+		var A utils.Matrix
 		for i := 0; i < 3; i++ {
-			AProj[i] = utils.NewMatrix(NpInt, NpEdge)
+			A = utils.NewMatrix(NpInt, NpEdge)
 		}
+
 		var origin [2]float64
 		for nEdge := 0; nEdge < 3; nEdge++ {
 			switch nEdge {
@@ -69,17 +68,40 @@ func TestEdgeProjection(t *testing.T) {
 					r, s := dfr.FluxElement.R.AtVec(i), dfr.FluxElement.S.AtVec(i)
 					rP, sP := rsFromTangentProj(r, s, b_j.Eval(), origin)
 					// fmt.Printf("Proj(%5.2f,%5.2f)=[%5.2f,%5.2f]\n", r, s, rP, sP)
-					AProj[nEdge].Set(i, jj, dfr.FluxElement.Phi[j].Dot(rP, sP, b_j.Eval()))
+					A.Set(i, jj, dfr.FluxElement.Phi[j].Dot(rP, sP, b_j.Eval()))
 				}
 			}
-			AProj[nEdge].Print("Edge" + strconv.Itoa(nEdge))
+			A.Print("A")
+			// B := A.Transpose().Mul(A)
+			// B.Print("B")
+			// B.InverseWithCheck().Print("BInv")
+			AProj[nEdge] = A.Transpose().Mul(A).InverseWithCheck().Mul(A.Transpose())
+			// AProj[nEdge].Print("Edge" + strconv.Itoa(nEdge))
 		}
+		_ = AProj
+		U1, U2 := ShockConditions(1.1, 0)
+		QSol, QFlux := SetShockConditions(dfr, U1, U2)
+		QSol.Transpose().Print("QSol")
+		_ = QFlux
+		fmt.Printf("Number of edge points is: %d\n", NpEdge)
+		Dens := QSol.Col(0)
+		// for i := 0; i < NpInt; i++ {
+		// 	Dens.Set(2.7)
+		// }
+		Dens.Transpose().Print("Dens")
+		for i := 0; i < 3; i++ {
+			// EdgeProj := AProj[i].Mul(Dens.ToMatrix()).Scale(0.5)
+			EdgeProj := AProj[i].Mul(Dens.ToMatrix()).Scale(2.)
+			EdgeProj.Transpose().Print("EdgeProj" + strconv.Itoa(i))
+		}
+		// QFlux.Print("QFlux")
 		// Dens := CopyDensityFromQAndEdges(dfr, QSol, QFlux)
 		// var leftRight [2][]int
 		// for i := 0; i < NpInt; i++ {
 		// 	x, y := dfr.SolutionX.At(i, 0), dfr.SolutionY.At(i, 0)
 		// 	var label string
 		// }
+		// Dens.Print("Dens")
 	}
 }
 
