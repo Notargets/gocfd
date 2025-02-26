@@ -12,7 +12,7 @@ import (
 
 func TestNewRTBasisSimplex(t *testing.T) {
 	var (
-		N = 1
+		N = 2
 	)
 	tol := 0.000001
 	rt1 := NewRTElement(N, SimplexRTBasis)
