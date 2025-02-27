@@ -40,19 +40,6 @@ func NewRTBasisSimplex(P int, R, S utils.Vector) (bs *RTBasisSimplex) {
 }
 
 func (bs *RTBasisSimplex) ComposePhi() {
-	var (
-		// oosr2   = 0.5 * math.Sqrt2
-		IJMap = make([][2]int, bs.NpInt)
-	)
-
-	var sk int
-	for i := 0; i <= bs.P-1; i++ {
-		for j := 0; j <= bs.P-1-i; j++ {
-			IJMap[sk] = [2]int{i, j}
-			sk++
-		}
-	}
-
 	// Constraints
 	// ========= Left Edge (dot product = 0) constraint ================
 	// Left normal is [-1,0], Edge functional: r = -1
@@ -137,7 +124,6 @@ func (bs *RTBasisSimplex) ComposePhi() {
 			polyMultiplier = bs.getEdgePolyTerm(j)
 			switch ftype {
 			case E1:
-				jj = j - 2*bs.NpInt
 				vectorEval = func(r, s float64) (v [2]float64) {
 					// Bottom edge
 					// dot zero with Left and Hypotenuse yields:
@@ -153,7 +139,6 @@ func (bs *RTBasisSimplex) ComposePhi() {
 				}
 				vectorDiv = func(r, s float64) (div float64) { return 1. }
 			case E2:
-				jj = j - 2*bs.NpInt - bs.NpEdge
 				sr2 := math.Sqrt2
 				vectorEval = func(r, s float64) (v [2]float64) {
 					// Hypotenuse
@@ -170,7 +155,6 @@ func (bs *RTBasisSimplex) ComposePhi() {
 				// vectorDiv = func(r, s float64) (div float64) { return 2.*(r+s) + 4. }
 				vectorDiv = func(r, s float64) (div float64) { return 1. * sr2 }
 			case E3:
-				jj = j - 2*bs.NpInt - 2*bs.NpEdge
 				vectorEval = func(r, s float64) (v [2]float64) {
 					// Left Edge
 					// dot zero with Hypotenuse and Bottom yields:
