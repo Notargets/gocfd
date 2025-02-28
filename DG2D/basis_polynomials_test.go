@@ -11,6 +11,23 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
+func TestInterpolation1D(t *testing.T) {
+	// We have density on 6 interior points:
+	// Interior point index:       0       1       2       3       4       5
+	// Density values:        1.1691  1.0000  1.1691  1.0000  1.1691  1.0000
+	// Interior point R:     -0.8168  0.6337 -0.8168 -0.1081 -0.7838 -0.1081
+	// Interior point S:     -0.8168 -0.8168  0.6337 -0.7838 -0.1081 -0.1081
+	// In a test case, we have the projected Edge2 (Left) projected distribution
+	// of points on the edge from the RT3 interior as:
+	// Interior point index:       0       1       3       4
+	// Edge mapped locations:-0.8168  0.6337 -0.1081 -0.7838	      Edge 0 R
+	// Interior point index:       1       2       3       4       5
+	// Edge mapped locations: 0.7253 -0.7253  0.3378 -0.3378  0.0000  Edge 1 R
+	// Edge mapped locations:-0.7253  0.7253 -0.3378  0.3378  0.0000  Edge 1 S
+	// Interior point index:       0       2       3       4
+	// Edge mapped locations:-0.8168  0.6337 -0.7838 -0.1081	      Edge 2 S
+}
+
 func TestJacobiBasis2D_IndividualTerms(t *testing.T) {
 	tol := 0.000001
 	P := 2

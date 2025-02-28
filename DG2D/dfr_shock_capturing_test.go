@@ -15,97 +15,69 @@ import (
 )
 
 func TestEdgeProjection(t *testing.T) {
-	// TODO: It looks like the Edge 2 (Left edge) basis may be goofy for N=2
-	// TODO: The interpolation matrix is producing wild numbers for density only
-	// TODO: on that edge
 	NMin := 2
 	NMax := 2
 	for N := NMin; N <= NMax; N++ {
 		angle := 140.
 		dfr := CreateEquiTriMesh(N, angle)
-		// dfr.FluxElement.V.Print("V")
-		// os.Exit(1)
-		NpInt := dfr.FluxElement.NpInt
-		NpEdge := dfr.FluxElement.NpEdge
-		// fmt.Printf("NInt[%d] = %d, NInt/3 = %d, Remainder=%d, NEdge=%d\n",
-		// 	N, NpInt, NpInt/3, NpInt%3, NEdge)
-
-		// The Edge Basis Vandermonde matrices are all diagonal,
-		// as the edge basis is Lagrange. The diagonal element is 2
-		tangentNeg := func(v [2]float64) (tt [2]float64) {
-			// Left hand rule tangent to follow counter-clockwise edge traversal
-			tt = [2]float64{-v[1], v[0]}
-			tNorm := math.Sqrt(tt[0]*tt[0] + tt[1]*tt[1])
-			tt[0] /= tNorm
-			tt[1] /= tNorm
-			return
+		ep := dfr.FluxElement.projectInteriorToEdges()
+		fmt.Println(ep.indices[2])
+		fmt.Println(ep.s[2])
+		// Let's use edge 2 to test the edge interpolator
+		ei := NewEdgeInterpolator(ep.s[2], 2., 5.5)
+		vMin, vMax := 1., 1.1691
+		samples := []float64{vMax, vMax, vMax, vMin} // Mach 1.2 density
+		p := ei.FitAndBoundPolynomial(samples, vMin, vMax)
+		for i, c := range p.Coeffs {
+			fmt.Printf("Coeff[%d]:%.2f\n", i, c)
 		}
-		rsFromTangentProj := func(r, s float64,
-			normal, origin [2]float64) (rP, sP float64) {
-			tt := tangentNeg(normal)
-			dot := tt[0]*(r-origin[0]) + tt[1]*(s-origin[1])
-			rP = tt[0]*dot + origin[0]
-			sP = tt[1]*dot + origin[1]
-			return
+		for i, s := range ep.s[2] {
+			fmt.Printf("%d: [s,Sample]:[%5.4f,%5.4f]:p:%5.4f\n",
+				i, s, samples[i], p.Evaluate(s))
 		}
-		var AProj [3]utils.Matrix
 
-		fmt.Printf("Number of edge points: %d, Interior Points: %d\n",
-			NpEdge, NpInt)
-		var origin [2]float64
-		// Indices used for projection of interior points, filtered from total
-		var indices [3][]int
+		samples = []float64{vMax, vMin, vMax, vMax} // Mach 1.2 density
+		p = ei.FitAndBoundPolynomial(samples, vMin, vMax)
+		for i, c := range p.Coeffs {
+			fmt.Printf("Coeff[%d]:%.2f\n", i, c)
+		}
+		for i, s := range ep.s[2] {
+			fmt.Printf("%d: [s,Sample]:[%5.4f,%5.4f]:p:%5.4f\n",
+				i, s, samples[i], p.Evaluate(s))
+		}
+	}
+}
+
+func calcAproj() {
+	NMin := 2
+	NMax := 2
+	for N := NMin; N <= NMax; N++ {
+		angle := 140.
+		dfr := CreateEquiTriMesh(N, angle)
+		var (
+			NpInt           = dfr.FluxElement.NpInt
+			NpEdge          = dfr.FluxElement.NpEdge
+			offset          = 2 * NpInt
+			AProj           [3]utils.Matrix
+			ep              = dfr.FluxElement.projectInteriorToEdges()
+			indices, rE, sE = ep.indices, ep.r, ep.s
+		)
 		for nEdge := 0; nEdge < 3; nEdge++ {
-			switch nEdge {
-			case 0:
-				origin = [2]float64{-1, -1}
-			case 1:
-				origin = [2]float64{1, -1}
-			case 2:
-				origin = [2]float64{-1, 1}
-			}
-			fmt.Printf("nEdge: %d\n", nEdge)
-			offset := 2*NpInt + nEdge*NpEdge
-			// Compose a set of interior points, then filter them to find the
-			// optimal group for projection
-			var points [][2]float64
-			for i := 0; i < NpInt; i++ {
-				r, s := dfr.FluxElement.R.AtVec(i), dfr.FluxElement.S.AtVec(i)
-				points = append(points, [2]float64{r, s})
-			}
-			edgeNormal := dfr.FluxElement.DOFVectors[offset] // Edge normal vector
-			indices[nEdge] = filterInteriorPointIndices(points, edgeNormal.Eval(), origin)
-			fmt.Println("indices: ", indices[nEdge])
 			A := utils.NewMatrix(len(indices[nEdge]), NpEdge)
-			for ii, i := range indices[nEdge] {
-				r, s := dfr.FluxElement.R.AtVec(i), dfr.FluxElement.S.AtVec(i)
+			for ii := range indices[nEdge] {
 				b_j := dfr.FluxElement.DOFVectors[offset] // Edge normal vector
-				rP, sP := rsFromTangentProj(r, s, b_j.Eval(), origin)
-				fmt.Printf("IntPt:%d Proj(%5.2f,%5.2f)=[%5.2f,%5.2f]\n",
-					i, r, s, rP, sP)
+				rP, sP := rE[nEdge][ii], sE[nEdge][ii]
 				for j := offset; j < offset+NpEdge; j++ {
 					jj := j - offset
 					A.Set(ii, jj, dfr.FluxElement.Phi[j].Dot(rP, sP, b_j.Eval()))
 				}
 			}
-			A.Print("A")
-			// B := A.Transpose().Mul(A)
-			// B.Print("B")
-			// B.InverseWithCheck().Print("BInv")
-			Q, R := A.Transpose().Mul(A).QRFactorization()
-			Q.Print("Q")
-			R.Print("R")
 			AProj[nEdge] = A.Transpose().Mul(A).InverseWithCheck().Mul(A.Transpose())
-			AProj[nEdge].Print("Edge" + strconv.Itoa(nEdge))
 		}
 		_ = AProj
 		U1, U2 := ShockConditions(1.1, 0)
 		QSol, QFlux := SetShockConditions(dfr, U1, U2)
-		QSol.Transpose().Print("QSol")
 		_ = QFlux
-		// for i := 0; i < NpInt; i++ {
-		// 	Dens.Set(2.7)
-		// }
 		Dens := QSol.Col(0)
 		Dens.Transpose().Print("Dens")
 		var EdgeSubset [3]utils.Matrix
@@ -130,6 +102,124 @@ func TestEdgeProjection(t *testing.T) {
 		// }
 		// Dens.Print("Dens")
 	}
+}
+
+type EdgeProjection struct {
+	indices [3][]int
+	r, s    [3][]float64
+}
+
+// Sort sorts the three fields together for each of the three groups.
+// The sorting key is chosen as follows:
+//   - For group 0 and group 1, sort by r.
+//   - For group 2, sort by s.
+func (ep *EdgeProjection) Sort() {
+	// Loop over each of the 3 groups.
+	for group := 0; group < 3; group++ {
+		n := len(ep.indices[group])
+		// Build a temporary slice of entries holding the three values.
+		type entry struct {
+			idx int
+			r   float64
+			s   float64
+		}
+		tmp := make([]entry, n)
+		for i := 0; i < n; i++ {
+			tmp[i] = entry{
+				idx: ep.indices[group][i],
+				r:   ep.r[group][i],
+				s:   ep.s[group][i],
+			}
+		}
+		// Choose the key based on group:
+		// Group 2 sorts by s; groups 0 and 1 sort by r.
+		if group == 2 {
+			sort.Slice(tmp, func(i, j int) bool {
+				return tmp[i].s < tmp[j].s
+			})
+		} else {
+			sort.Slice(tmp, func(i, j int) bool {
+				return tmp[i].r < tmp[j].r
+			})
+		}
+		// Copy sorted entries back into the three fields.
+		for i := 0; i < n; i++ {
+			ep.indices[group][i] = tmp[i].idx
+			ep.r[group][i] = tmp[i].r
+			ep.s[group][i] = tmp[i].s
+		}
+	}
+}
+
+func (rt *RTElement) projectInteriorToEdges() (ep EdgeProjection) {
+	ep = EdgeProjection{}
+	NpInt := rt.NpInt
+	NpEdge := rt.NpEdge
+	tangentNeg := func(v [2]float64) (tt [2]float64) {
+		// Left hand rule tangent to follow counter-clockwise edge traversal
+		tt = [2]float64{-v[1], v[0]}
+		tNorm := math.Sqrt(tt[0]*tt[0] + tt[1]*tt[1])
+		tt[0] /= tNorm
+		tt[1] /= tNorm
+		return
+	}
+	rsFromTangentProj := func(r, s float64,
+		normal, origin [2]float64) (rP, sP float64) {
+		tt := tangentNeg(normal)
+		dot := tt[0]*(r-origin[0]) + tt[1]*(s-origin[1])
+		rP = tt[0]*dot + origin[0]
+		sP = tt[1]*dot + origin[1]
+		return
+	}
+	fmt.Printf("Number of edge points: %d, Interior Points: %d\n",
+		NpEdge, NpInt)
+	var origin [2]float64
+	// Indices used for projection of interior points, filtered from total
+	for nEdge := 0; nEdge < 3; nEdge++ {
+		switch nEdge {
+		case 0:
+			origin = [2]float64{-1, -1}
+		case 1:
+			origin = [2]float64{1, -1}
+		case 2:
+			origin = [2]float64{-1, 1}
+		}
+		fmt.Printf("nEdge: %d\n", nEdge)
+		offset := 2*NpInt + nEdge*NpEdge
+		// Compose a set of interior points, then filter them to find the
+		// optimal group for projection
+		var points [][2]float64
+		for i := 0; i < NpInt; i++ {
+			r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+			// fmt.Printf("point%d = [%5.4f,%5.4f]\n", i, r, s)
+			points = append(points, [2]float64{r, s})
+		}
+		// for i := 2 * NpInt; i < 2*NpInt+3*NpEdge; i++ {
+		// 	r, s := rt.R.AtVec(i), rt.S.AtVec(i)
+		// fmt.Printf("edge point%d = [%5.4f,%5.4f]\n", i, r, s)
+		// }
+		edgeNormal := rt.DOFVectors[offset] // Edge normal vector
+		ep.indices[nEdge] = filterInteriorPointIndices(points,
+			edgeNormal.Eval(), origin)
+		// fmt.Println("indices: ", indices[nEdge])
+		var rP, sP float64
+		for _, i := range ep.indices[nEdge] {
+			rr, ss := rt.R.AtVec(i), rt.S.AtVec(i)
+			b_j := rt.DOFVectors[offset] // Edge normal vector
+			rP, sP = rsFromTangentProj(rr, ss, b_j.Eval(), origin)
+			ep.r[nEdge] = append(ep.r[nEdge], rP)
+			ep.s[nEdge] = append(ep.s[nEdge], sP)
+		}
+		ep.Sort()
+		for ii, i := range ep.indices[nEdge] {
+			rr, ss := rt.R.AtVec(i), rt.S.AtVec(i)
+			rP = ep.r[nEdge][ii]
+			sP = ep.s[nEdge][ii]
+			fmt.Printf("IntPt:%d Proj(%5.4f,%5.4f)=[%5.4f,%5.4f]\n",
+				i, rr, ss, rP, sP)
+		}
+	}
+	return
 }
 
 func filterInteriorPointIndices(points [][2]float64, normal, origin [2]float64) []int {
