@@ -8,33 +8,23 @@ import (
 
 type IVortex struct {
 	Beta, X0, Y0, Gamma float64
+	Ufs                 float64
 }
 
-func NewIVortex(Beta, X0, Y0, Gamma float64) (iv *IVortex) {
+func NewIVortex(Beta, X0, Y0, Gamma float64, UfsO ...float64) (iv *IVortex) {
+	var (
+		Ufs = 1.0
+	)
+	if len(UfsO) > 0 {
+		Ufs = UfsO[0]
+	}
 	iv = &IVortex{
 		Beta:  Beta,
 		X0:    X0,
 		Y0:    Y0,
 		Gamma: Gamma,
+		Ufs:   Ufs,
 	}
-	return
-}
-
-func (iv *IVortex) GetStateOld(t, x, y float64) (u, v, rho, p float64) {
-	var (
-		oo2pi  = 0.5 * (1. / math.Pi)
-		r2     = utils.POW(x-t-iv.X0, 2) + utils.POW(y-iv.Y0, 2)
-		omr2   = 1. - r2
-		bt     = oo2pi * iv.Beta * math.Exp(omr2)
-		bt2    = bt * bt
-		Gamma  = iv.Gamma
-		GM1    = Gamma - 1
-		GM1OGM = GM1 / Gamma
-	)
-	u = 1. - bt*(y-iv.Y0)
-	v = bt * (x - iv.X0)
-	rho = math.Pow(1.-bt2*GM1OGM/4., 1./GM1)
-	p = math.Pow(rho, Gamma)
 	return
 }
 
@@ -69,7 +59,7 @@ func (iv *IVortex) GetState(t, x, y float64) (u, v, rho, p float64) {
 		beta2 = beta * beta
 		fac   = 16 * Gamma * pi2
 	)
-	u, v = 1., 0.              // start with freestream values, perturb them later
+	u, v = iv.Ufs, 0.          // start with freestream values, perturb them later
 	xmut, ymvt := x-u*t, y-v*t // vortex center location at time t
 	r2 := utils.POW(xmut-iv.X0, 2) + utils.POW(ymvt-iv.Y0, 2)
 	ex1r := math.Exp(1 - r2)

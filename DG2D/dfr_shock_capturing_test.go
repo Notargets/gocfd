@@ -8,13 +8,58 @@ import (
 	"testing"
 	"time"
 
+	"github.com/notargets/gocfd/model_problems/Euler2D/isentropic_vortex"
+
 	"github.com/notargets/avs/chart2d"
 	utils2 "github.com/notargets/avs/utils"
 
 	"github.com/notargets/gocfd/utils"
 )
 
-func TestEdgeProjection(t *testing.T) {
+func TestEdgeProjectionIsentropicVortex(t *testing.T) {
+	iv := isentropic_vortex.NewIVortex(5, 0, 0, 1.4, 0)
+	NMin := 2
+	NMax := 2
+	for N := NMin; N <= NMax; N++ {
+		angle := 140.
+		dfr := CreateEquiTriMesh(N, angle)
+		var (
+			Np = dfr.FluxElement.Np
+		)
+		ep := dfr.FluxElement.projectInteriorToEdges()
+		// Q := utils.NewMatrix(Np, 4)
+		for i := 0; i < Np; i++ {
+			x, y := dfr.FluxX.DataP[i], dfr.FluxY.DataP[i]
+			rho, rhoU, rhoV, rhoE := iv.GetStateC(0, x, y)
+			fmt.Printf("Q[%.2f,%.2f] = [%.2f,%.2f,%.2f,%.2f]\n",
+				x, y, rho, rhoU, rhoV, rhoE)
+		}
+		// Let's use edge 2 to test the edge interpolator
+		ei := NewEdgeInterpolator(ep.s[2], 2., 5.5)
+		vMin, vMax := 1., 1.1691
+		samples := []float64{vMax, vMax, vMax, vMin} // Mach 1.2 density
+		p := ei.FitAndBoundPolynomial(samples, vMin, vMax)
+		for i, c := range p.Coeffs {
+			fmt.Printf("Coeff[%d]:%.2f\n", i, c)
+		}
+		for i, s := range ep.s[2] {
+			fmt.Printf("%d: [s,Sample]:[%5.4f,%5.4f]:p:%5.4f\n",
+				i, s, samples[i], p.Evaluate(s))
+		}
+
+		samples = []float64{vMax, vMin, vMax, vMax} // Mach 1.2 density
+		p = ei.FitAndBoundPolynomial(samples, vMin, vMax)
+		for i, c := range p.Coeffs {
+			fmt.Printf("Coeff[%d]:%.2f\n", i, c)
+		}
+		for i, s := range ep.s[2] {
+			fmt.Printf("%d: [s,Sample]:[%5.4f,%5.4f]:p:%5.4f\n",
+				i, s, samples[i], p.Evaluate(s))
+		}
+	}
+}
+
+func TestEdgeProjectionShockCapture(t *testing.T) {
 	NMin := 2
 	NMax := 2
 	for N := NMin; N <= NMax; N++ {
