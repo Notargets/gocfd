@@ -16,6 +16,55 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
+type TestField uint8
+
+const (
+	NORMALSHOCKTESTM2 = TestField(iota)
+	NORMALSHOCKTESTM12
+	FIXEDVORTEXTEST
+	MOVINGVORTEXTEST
+)
+
+func setTestField(dfr *DFR2D, tf TestField) (QFlux utils.Matrix) {
+	switch tf {
+	case NORMALSHOCKTESTM12:
+		U1, U2 := ShockConditions(1.2, 0)
+		_, QFlux = setShockConditions(dfr, U1, U2)
+	case NORMALSHOCKTESTM2:
+		U1, U2 := ShockConditions(2, 0)
+		_, QFlux = setShockConditions(dfr, U1, U2)
+	case FIXEDVORTEXTEST:
+		iv := isentropic_vortex.NewIVortex(5, 0, 0, 1.4, 0)
+		QFlux = setIsoVortexConditions(dfr, iv)
+	case MOVINGVORTEXTEST:
+		iv := isentropic_vortex.NewIVortex(5, 0, 0, 1.4)
+		QFlux = setIsoVortexConditions(dfr, iv)
+	}
+	return
+}
+
+func TestInterpolationVortex(t *testing.T) {
+	NMin := 2
+	NMax := 2
+	for N := NMin; N <= NMax; N++ {
+		angle := 140.
+		dfr := CreateEquiTriMesh(N, angle)
+		QFlux := setTestField(dfr, FIXEDVORTEXTEST)
+		var (
+			Np = dfr.FluxElement.Np
+		)
+		for i := 0; i < Np; i++ {
+			x, y := dfr.FluxX.DataP[i], dfr.FluxY.DataP[i]
+			rho, rhoU, rhoV, rhoE := QFlux.DataP[0+4*i],
+				QFlux.DataP[1+4*i],
+				QFlux.DataP[2+4*i],
+				QFlux.DataP[3+4*i]
+			fmt.Printf("Q[%.2f,%.2f] = [%.2f,%.2f,%.2f,%.2f]\n",
+				x, y, rho, rhoU, rhoV, rhoE)
+		}
+	}
+}
+
 func TestEdgeProjectionIsentropicVortex(t *testing.T) {
 	iv := isentropic_vortex.NewIVortex(5, 0, 0, 1.4, 0)
 	NMin := 2
@@ -121,7 +170,7 @@ func calcAproj() {
 		}
 		_ = AProj
 		U1, U2 := ShockConditions(1.1, 0)
-		QSol, QFlux := SetShockConditions(dfr, U1, U2)
+		QSol, QFlux := setShockConditions(dfr, U1, U2)
 		_ = QFlux
 		Dens := QSol.Col(0)
 		Dens.Transpose().Print("Dens")
@@ -363,7 +412,7 @@ func TestEdgeInterpolation(t *testing.T) {
 		M := GradientMassMatrix(dfr)
 		_ = M
 		U1, U2 := ShockConditions(2, 0)
-		QSol, QFlux := SetShockConditions(dfr, U1, U2)
+		QSol, QFlux := setShockConditions(dfr, U1, U2)
 		// QSol.Print("QSol")
 		// QFlux.Print("QFlux")
 		MInv := M.Transpose().Mul(M).InverseWithCheck().Mul(M.Transpose())
@@ -495,13 +544,12 @@ func CopyDensityFromQAndEdges(dfr *DFR2D, QSol, QFlux utils.Matrix) (Dens utils.
 	return
 }
 
-func SetShockConditions(dfr *DFR2D, U1, U2 [4]float64) (QSol, QFlux utils.Matrix) {
+func setShockConditions(dfr *DFR2D, U1, U2 [4]float64) (QSol,
+	QFlux utils.Matrix) {
 	var (
 		Np     = dfr.SolutionElement.Np
 		NpFlux = dfr.FluxElement.Np
-		// NpInt  = dfr.FluxElement.NpInt
-		// NpEdge = dfr.FluxElement.NpEdge
-		K = 1
+		K      = 1
 	)
 	QSol = utils.NewMatrix(Np, 4*K)
 	QFlux = utils.NewMatrix(NpFlux, 4*K)
@@ -526,6 +574,25 @@ func SetShockConditions(dfr *DFR2D, U1, U2 [4]float64) (QSol, QFlux utils.Matrix
 				QFlux.DataP[n+i*4*K] = U2[n]
 			}
 		}
+	}
+	return
+}
+
+func setIsoVortexConditions(dfr *DFR2D, iv *isentropic_vortex.IVortex) (QFlux utils.Matrix) {
+	var (
+		NpFlux = dfr.FluxElement.Np
+		K      = 1
+	)
+	QFlux = utils.NewMatrix(NpFlux, 4*K)
+	var x, y float64
+	for i := 0; i < NpFlux; i++ {
+		x, y = dfr.FluxX.At(i, 0), dfr.FluxY.At(i, 0)
+		// fmt.Printf("x,y[%d] = [%5.2f,%5.2f]\n", i, x, y)
+		rho, rhoU, rhoV, rhoE := iv.GetStateC(0, x, y)
+		QFlux.DataP[0+i*4*K] = rho
+		QFlux.DataP[1+i*4*K] = rhoU
+		QFlux.DataP[2+i*4*K] = rhoV
+		QFlux.DataP[3+i*4*K] = rhoE
 	}
 	return
 }
@@ -861,7 +928,7 @@ func ShockConditions(M1, alpha float64) (U1, U2 [4]float64) {
 	v1 := 0.0   // No initial vertical velocity.
 
 	En1 := p1/(gamma-1) + 0.5*rho1*(u1*u1+v1*v1)
-	U1 = [4]float64{rho1, u1, v1, En1}
+	U1 = [4]float64{rho1, rho1 * u1, rho1 * v1, rho1 * En1}
 	if M1 < 1. {
 		U2 = U1
 		return
@@ -905,6 +972,6 @@ func ShockConditions(M1, alpha float64) (U1, U2 [4]float64) {
 	En2 := p2/(gamma-1) + 0.5*rho2*(u2*u2+v2*v2)
 
 	// Pack pre- and post-shock states into U1 and U2.
-	U2 = [4]float64{rho2, u2, v2, En2}
+	U2 = [4]float64{rho2, rho2 * u2, rho2 * v2, rho2 * En2}
 	return
 }
