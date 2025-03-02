@@ -213,12 +213,13 @@ func _TestPlotEquiTri(t *testing.T) {
 
 func CreateEquiTriMesh(N int, angle float64) (dfr *DFR2D) {
 	var (
-		yHeight = math.Sin(math.Pi * 60. / 180.)
+		scale   = float64(5)
+		yHeight = scale * math.Sin(math.Pi*60./180.)
 	)
 	dfr = NewDFR2D(N, false)
 	dfr.K = 1
-	vx, vy := []float64{-0.5, 0.5, 0.}, []float64{-yHeight / 2., -yHeight / 2,
-		yHeight / 2.}
+	vx, vy := []float64{-scale * 0.5, scale * 0.5, 0.},
+		[]float64{-yHeight / 3., -yHeight / 3, 2. * yHeight / 3.}
 	dfr.VX, dfr.VY = utils.NewVector(3), utils.NewVector(3)
 	for i := 0; i < dfr.VX.Len(); i++ {
 		dfr.VX.DataP[i] = vx[i]*math.Cos(2.*math.Pi*angle/360.) +

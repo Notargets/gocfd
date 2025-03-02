@@ -147,7 +147,7 @@ func ReadGoCFDMesh(path string, verbose bool) (tMesh geometry.TriMesh,
 		verts[i][1] = triVerts[3*i+1]
 		verts[i][2] = triVerts[3*i+2]
 	}
-	tMesh = *geometry.NewTriMesh(xy32, verts)
+	tMesh = geometry.NewTriMesh(xy32, verts)
 
 	var nBCs int64
 	binary.Read(file, binary.LittleEndian, &nBCs)

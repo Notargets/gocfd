@@ -371,7 +371,7 @@ func (dfr *DFR2D) OutputMesh() (gm *geometry2D.TriMesh) {
 		s := dfr.FluxElement.S.DataP[i]
 		tm.AddPoint(r, s)
 	}
-	gmB := tm.ToGraphMesh()
+	gmB := tm.ToGraphMeshLegacy()
 	gm = &gmB
 
 	// Build the X,Y coordinates to support the triangulation index

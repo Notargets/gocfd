@@ -64,7 +64,7 @@ func TestTriangulate(t *testing.T) {
 				fmt.Printf("%d:%s\n", i, pt.Print())
 			}
 		*/
-		// gm := tm.ToGraphMesh()
+		// gm := tm.ToGraphMeshLegacy()
 		// fmt.Println("number of finished tris = ", len(gm.Triangles))
 		var withTris, withTrisAndImmovable int
 		for _, ee := range tm.Edges {

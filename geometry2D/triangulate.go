@@ -3,6 +3,8 @@ package geometry2D
 import (
 	"fmt"
 	"math"
+
+	"github.com/notargets/avs/geometry"
 )
 
 type PointG struct {
@@ -794,7 +796,7 @@ func (tm *TriMeshG) extractFinishedTris() {
 	}
 }
 
-func (tm *TriMeshG) ToGraphMesh() (trisOut TriMesh) {
+func (tm *TriMeshG) ToGraphMeshLegacy() (trisOut TriMesh) {
 	if len(tm.Tris) == 0 {
 		tm.extractFinishedTris()
 		if len(tm.Tris) == 0 {
@@ -826,6 +828,29 @@ func (tm *TriMeshG) ToGraphMesh() (trisOut TriMesh) {
 		Triangles:  tris,
 		Attributes: Attributes,
 	}
+	return
+}
+
+func (tm *TriMeshG) ToGraphMesh() (trisOut geometry.TriMesh) {
+	if len(tm.Tris) == 0 {
+		tm.extractFinishedTris()
+		if len(tm.Tris) == 0 {
+			return
+		}
+	}
+	verts := make([][3]int64, len(tm.Tris))
+	for i, tri := range tm.Tris {
+		v, _ := tri.GetVertices()
+		for ii := 0; ii < 3; ii++ {
+			verts[i][ii] = int64(v[ii])
+		}
+	}
+	xy := make([]float32, len(tm.Points)*2)
+	for i, pt := range tm.Points {
+		xy[2*i] = float32(pt.X[0])
+		xy[2*i+1] = float32(pt.X[1])
+	}
+	trisOut = geometry.NewTriMesh(xy, verts)
 	return
 }
 

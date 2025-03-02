@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"strconv"
 	"testing"
 	"time"
+
+	"github.com/notargets/avs/geometry"
+
+	"github.com/notargets/gocfd/geometry2D"
 
 	"github.com/notargets/gocfd/model_problems/Euler2D/isentropic_vortex"
 
@@ -23,46 +26,154 @@ const (
 	NORMALSHOCKTESTM12
 	FIXEDVORTEXTEST
 	MOVINGVORTEXTEST
+	RADIALTEST
 )
 
-func setTestField(dfr *DFR2D, tf TestField) (QFlux utils.Matrix) {
+func setTestField(X, Y []float64, tf TestField) (field []float64) {
 	switch tf {
 	case NORMALSHOCKTESTM12:
-		U1, U2 := ShockConditions(1.2, 0)
-		_, QFlux = setShockConditions(dfr, U1, U2)
+		field = setShockConditions(X, 1.2, 0)
 	case NORMALSHOCKTESTM2:
-		U1, U2 := ShockConditions(2, 0)
-		_, QFlux = setShockConditions(dfr, U1, U2)
+		field = setShockConditions(X, 2, 0)
 	case FIXEDVORTEXTEST:
 		iv := isentropic_vortex.NewIVortex(5, 0, 0, 1.4, 0)
-		QFlux = setIsoVortexConditions(dfr, iv)
+		field = setIsoVortexConditions(X, Y, iv)
 	case MOVINGVORTEXTEST:
 		iv := isentropic_vortex.NewIVortex(5, 0, 0, 1.4)
-		QFlux = setIsoVortexConditions(dfr, iv)
+		field = setIsoVortexConditions(X, Y, iv)
+	case RADIALTEST:
+		field = setRadial(X, Y)
+	}
+	return
+}
+
+func convXYtoXandY(XY []float32) (X, Y []float64) {
+	for i := 0; i < len(XY)/2; i++ {
+		X = append(X, float64(XY[2*i]))
+		Y = append(Y, float64(XY[2*i+1]))
+	}
+	return
+}
+
+func setRadial(X, Y []float64) (field []float64) {
+	var (
+		Np = len(X)
+	)
+	field = make([]float64, Np*4)
+	var x, y float64
+	for i := 0; i < Np; i++ {
+		x, y = X[i], Y[i]
+		for n := 0; n < 4; n++ {
+			field[i+n*Np] = x*x + y*y
+		}
+	}
+	return
+}
+
+func setShockConditions(X []float64, Mach, Alpha float64) (field []float64) {
+	var (
+		U1, U2 = ShockConditions(Mach, Alpha)
+		Np     = len(X)
+	)
+	field = make([]float64, Np*4)
+	var x float64
+	for i := 0; i < Np; i++ {
+		x = X[i]
+		for n := 0; n < 4; n++ {
+			if x < 0 {
+				field[i+n*Np] = U1[n]
+			} else {
+				field[i+n*Np] = U2[n]
+			}
+		}
+	}
+	return
+}
+
+func setIsoVortexConditions(X, Y []float64,
+	iv *isentropic_vortex.IVortex) (field []float64) {
+	var (
+		Np = len(X)
+	)
+	field = make([]float64, Np*4)
+	var x, y float64
+	for i := 0; i < Np; i++ {
+		x, y = X[i], Y[i]
+		rho, rhoU, rhoV, rhoE := iv.GetStateC(0, x, y)
+		field[i+0*Np] = rho
+		field[i+1*Np] = rhoU
+		field[i+2*Np] = rhoV
+		field[i+3*Np] = rhoE
 	}
 	return
 }
 
 func TestInterpolationVortex(t *testing.T) {
-	NMin := 2
-	NMax := 2
+	NMin := 7
+	NMax := 7
+	if !testing.Verbose() {
+		return
+	}
 	for N := NMin; N <= NMax; N++ {
 		angle := 140.
 		dfr := CreateEquiTriMesh(N, angle)
-		QFlux := setTestField(dfr, FIXEDVORTEXTEST)
-		var (
-			Np = dfr.FluxElement.Np
-		)
-		for i := 0; i < Np; i++ {
-			x, y := dfr.FluxX.DataP[i], dfr.FluxY.DataP[i]
-			rho, rhoU, rhoV, rhoE := QFlux.DataP[0+4*i],
-				QFlux.DataP[1+4*i],
-				QFlux.DataP[2+4*i],
-				QFlux.DataP[3+4*i]
-			fmt.Printf("Q[%.2f,%.2f] = [%.2f,%.2f,%.2f,%.2f]\n",
-				x, y, rho, rhoU, rhoV, rhoE)
+		gm := CreateGraphMesh(dfr)
+		X, Y := convXYtoXandY(gm.XY)
+		// field := setTestField(X, Y, FIXEDVORTEXTEST)
+		field := setTestField(X, Y, RADIALTEST)
+		ch := chart2d.NewChart2D(-1, 1, -1, 1, 1024, 1024, utils2.WHITE,
+			utils2.BLACK)
+		// ch.AddTriMesh(gm)
+		// Create a vector field including the three vertices
+		var plotField []float32
+		vertsLen := len(field) / 4
+		var fMin, fMax float32
+		fMin, fMax = math.MaxFloat32, -math.MaxFloat32
+		n := 0 // Density
+		n = 1  // U momentum
+		n = 2  // V momentum
+		n = 3  // rho*E energy
+		for i := 0; i < vertsLen; i++ {
+			plotField = append(plotField, float32(field[i+n*vertsLen]))
+			fmt.Printf("F[%d] = %.2f\n", i, plotField[i])
+			if plotField[i] < fMin {
+				fMin = plotField[i]
+			}
+			if plotField[i] > fMax {
+				fMax = plotField[i]
+			}
+		}
+		vs := geometry.VertexScalar{
+			TMesh:       &gm,
+			FieldValues: plotField,
+		}
+		// ch.AddContourVertexScalar(&vs, fMin, fMax, 20)
+		ch.AddShadedVertexScalar(&vs, fMin, fMax)
+		for {
 		}
 	}
+}
+
+func CreateGraphMesh(dfr *DFR2D) (gm geometry.TriMesh) {
+	var (
+		NpInt  = dfr.FluxElement.NpInt
+		NpFlux = dfr.FluxElement.Np
+	)
+	tm := geometry2D.NewTriMesh(dfr.VX.DataP, dfr.VY.DataP)
+	tri := &geometry2D.Tri{}
+	tri.AddEdge(tm.NewEdge([2]int{0, 1}, true))
+	e2 := tm.NewEdge([2]int{1, 2}, true)
+	tri.AddEdge(e2)
+	tri.AddEdge(tm.NewEdge([2]int{2, 0}, true))
+	tm.AddBoundingTriangle(tri)
+	// Now we add points to incrementally define the triangulation
+	for i := NpInt; i < NpFlux; i++ {
+		r := dfr.FluxX.DataP[i]
+		s := dfr.FluxY.DataP[i]
+		tm.AddPoint(r, s)
+	}
+	gm = tm.ToGraphMesh()
+	return
 }
 
 func TestEdgeProjectionIsentropicVortex(t *testing.T) {
@@ -139,62 +250,6 @@ func TestEdgeProjectionShockCapture(t *testing.T) {
 			fmt.Printf("%d: [s,Sample]:[%5.4f,%5.4f]:p:%5.4f\n",
 				i, s, samples[i], p.Evaluate(s))
 		}
-	}
-}
-
-func calcAproj() {
-	NMin := 2
-	NMax := 2
-	for N := NMin; N <= NMax; N++ {
-		angle := 140.
-		dfr := CreateEquiTriMesh(N, angle)
-		var (
-			NpInt           = dfr.FluxElement.NpInt
-			NpEdge          = dfr.FluxElement.NpEdge
-			offset          = 2 * NpInt
-			AProj           [3]utils.Matrix
-			ep              = dfr.FluxElement.projectInteriorToEdges()
-			indices, rE, sE = ep.indices, ep.r, ep.s
-		)
-		for nEdge := 0; nEdge < 3; nEdge++ {
-			A := utils.NewMatrix(len(indices[nEdge]), NpEdge)
-			for ii := range indices[nEdge] {
-				b_j := dfr.FluxElement.DOFVectors[offset] // Edge normal vector
-				rP, sP := rE[nEdge][ii], sE[nEdge][ii]
-				for j := offset; j < offset+NpEdge; j++ {
-					jj := j - offset
-					A.Set(ii, jj, dfr.FluxElement.Phi[j].Dot(rP, sP, b_j.Eval()))
-				}
-			}
-			AProj[nEdge] = A.Transpose().Mul(A).InverseWithCheck().Mul(A.Transpose())
-		}
-		_ = AProj
-		U1, U2 := ShockConditions(1.1, 0)
-		QSol, QFlux := setShockConditions(dfr, U1, U2)
-		_ = QFlux
-		Dens := QSol.Col(0)
-		Dens.Transpose().Print("Dens")
-		var EdgeSubset [3]utils.Matrix
-		for nEdge := 0; nEdge < 3; nEdge++ {
-			// Select the set of points used for the edge projection for each
-			// edge
-			EdgeSubset[nEdge] = utils.NewMatrix(len(indices[nEdge]), 1)
-			for ii, i := range indices[nEdge] {
-				EdgeSubset[nEdge].Set(ii, 0, Dens.AtVec(i))
-			}
-			EdgeSubset[nEdge].Transpose().Print("Edge Density Subset" + strconv.Itoa(nEdge))
-			// EdgeProj := AProj[i].Mul(Dens.ToMatrix()).Scale(0.5)
-			EdgeProj := AProj[nEdge].Mul(EdgeSubset[nEdge])
-			EdgeProj.Transpose().Print("EdgeProj" + strconv.Itoa(nEdge))
-		}
-		// QFlux.Print("QFlux")
-		// Dens := CopyDensityFromQAndEdges(dfr, QSol, QFlux)
-		// var leftRight [2][]int
-		// for i := 0; i < NpInt; i++ {
-		// 	x, y := dfr.SolutionX.At(i, 0), dfr.SolutionY.At(i, 0)
-		// 	var label string
-		// }
-		// Dens.Print("Dens")
 	}
 }
 
@@ -406,13 +461,22 @@ func TestEdgeInterpolation(t *testing.T) {
 		angle := 140.
 		dfr := CreateEquiTriMesh(N, angle)
 		NpInt := dfr.FluxElement.NpInt
+		NpFlux := dfr.FluxElement.Np
 		// NEdge := dfr.FluxElement.NpEdge
 		// fmt.Printf("NInt[%d] = %d, NInt/3 = %d, Remainder=%d, NEdge=%d\n",
 		// 	N, NpInt, NpInt/3, NpInt%3, NEdge)
 		M := GradientMassMatrix(dfr)
-		_ = M
-		U1, U2 := ShockConditions(2, 0)
-		QSol, QFlux := setShockConditions(dfr, U1, U2)
+		QSol := utils.NewMatrix(NpInt, 4)
+		QFlux := utils.NewMatrix(NpFlux, 4)
+		field := setShockConditions(dfr.FluxX.DataP, 2, 0)
+		for n := 0; n < 4; n++ {
+			for i := 0; i < NpFlux; i++ {
+				if i < NpInt {
+					QSol.Set(i, n, field[i+n*NpFlux])
+				}
+				QFlux.Set(i, n, field[i+n*NpFlux])
+			}
+		}
 		// QSol.Print("QSol")
 		// QFlux.Print("QFlux")
 		MInv := M.Transpose().Mul(M).InverseWithCheck().Mul(M.Transpose())
@@ -482,7 +546,7 @@ func PlotShockPoints(dfr *DFR2D, leftRight [2][]int, delay time.Duration) {
 
 	ch := chart2d.NewChart2D(-1, 1, -1, 1, 1024, 1024, utils2.WHITE,
 		utils2.BLACK, 0.8)
-	Line = append(Line, 0, -1, 0, 1)
+	Line = append(Line, 0, -10, 0, 10)
 	ch.AddLine(Line, utils2.WHITE)
 	Line = []float32{}
 	// Np := dfr.FluxElement.Np
@@ -526,7 +590,8 @@ func PlotShockPoints(dfr *DFR2D, leftRight [2][]int, delay time.Duration) {
 	time.Sleep(delay)
 }
 
-func CopyDensityFromQAndEdges(dfr *DFR2D, QSol, QFlux utils.Matrix) (Dens utils.Matrix) {
+func CopyDensityFromQAndEdges(dfr *DFR2D, QSol,
+	QFlux utils.Matrix) (Dens utils.Matrix) {
 	var (
 		// Np     = dfr.SolutionElement.Np
 		// NpFlux = dfr.FluxElement.Np
@@ -540,59 +605,6 @@ func CopyDensityFromQAndEdges(dfr *DFR2D, QSol, QFlux utils.Matrix) (Dens utils.
 	}
 	for i := NpInt; i < NpInt+3*NpEdge; i++ {
 		Dens.Set(i, 0, QFlux.At(i+NpInt, 0))
-	}
-	return
-}
-
-func setShockConditions(dfr *DFR2D, U1, U2 [4]float64) (QSol,
-	QFlux utils.Matrix) {
-	var (
-		Np     = dfr.SolutionElement.Np
-		NpFlux = dfr.FluxElement.Np
-		K      = 1
-	)
-	QSol = utils.NewMatrix(Np, 4*K)
-	QFlux = utils.NewMatrix(NpFlux, 4*K)
-	var x float64
-	for i := 0; i < NpFlux; i++ {
-		if i < Np {
-			x, _ = dfr.SolutionX.At(i, 0), dfr.SolutionY.At(i, 0)
-		} else {
-			x, _ = dfr.FluxX.At(i, 0), dfr.FluxY.At(i, 0)
-		}
-		// fmt.Printf("x,y[%d] = [%5.2f,%5.2f]\n", i, x, y)
-		for n := 0; n < 4; n++ {
-			if x < 0 {
-				if i < Np {
-					QSol.DataP[n+i*4*K] = U1[n]
-				}
-				QFlux.DataP[n+i*4*K] = U1[n]
-			} else {
-				if i < Np {
-					QSol.DataP[n+i*4*K] = U2[n]
-				}
-				QFlux.DataP[n+i*4*K] = U2[n]
-			}
-		}
-	}
-	return
-}
-
-func setIsoVortexConditions(dfr *DFR2D, iv *isentropic_vortex.IVortex) (QFlux utils.Matrix) {
-	var (
-		NpFlux = dfr.FluxElement.Np
-		K      = 1
-	)
-	QFlux = utils.NewMatrix(NpFlux, 4*K)
-	var x, y float64
-	for i := 0; i < NpFlux; i++ {
-		x, y = dfr.FluxX.At(i, 0), dfr.FluxY.At(i, 0)
-		// fmt.Printf("x,y[%d] = [%5.2f,%5.2f]\n", i, x, y)
-		rho, rhoU, rhoV, rhoE := iv.GetStateC(0, x, y)
-		QFlux.DataP[0+i*4*K] = rho
-		QFlux.DataP[1+i*4*K] = rhoU
-		QFlux.DataP[2+i*4*K] = rhoV
-		QFlux.DataP[3+i*4*K] = rhoE
 	}
 	return
 }

@@ -8,6 +8,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/james-bowman/sparse v0.0.0-20200204164517-b588421ac5da
 	github.com/mitchellh/go-homedir v1.1.0
+	github.com/notargets/avs v0.0.8-0.20250301163939-3d7704630871
 	github.com/pkg/profile v1.5.0
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/viper v1.7.0
@@ -28,7 +29,6 @@ require (
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/magiconair/properties v1.8.1 // indirect
 	github.com/mitchellh/mapstructure v1.3.2 // indirect
-	github.com/notargets/avs v0.0.8-0.20250116180827-ede1da557836 // indirect
 	github.com/pelletier/go-toml v1.8.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/afero v1.2.2 // indirect
