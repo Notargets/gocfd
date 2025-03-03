@@ -211,6 +211,16 @@ func _TestPlotEquiTri(t *testing.T) {
 	}
 }
 
+func TestDFRP3(t *testing.T) {
+	dfr := CreateEquiTriMesh(3, 0)
+	dfr.VX.Transpose().Print("VX")
+	dfr.VY.Transpose().Print("VY")
+	dfr.FluxX.Transpose().Print("FluxX")
+	dfr.FluxY.Transpose().Print("FluxY")
+	// gm := CreateGraphMesh(dfr)
+	// _ = gm
+}
+
 func CreateEquiTriMesh(N int, angle float64) (dfr *DFR2D) {
 	var (
 		scale   = float64(5)

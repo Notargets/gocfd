@@ -138,8 +138,8 @@ func setIsoVortexConditions(X, Y []float64,
 
 func TestInterpolationVortex(t *testing.T) {
 	var (
-		NMin = 4
-		NMax = 4
+		NMin = 2
+		NMax = 2
 		tol  = 1.e-6
 	)
 	if !testing.Verbose() {
