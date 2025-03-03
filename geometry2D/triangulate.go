@@ -862,3 +862,19 @@ func (tm *TriMeshG) addTriToGraph(tri *Tri, leaf *TriGraphNode) {
 		leaf.Children = append(leaf.Children, tri.TGN)
 	}
 }
+
+func TriangulateTriangle(VX, VY, X, Y []float64) (triMesh geometry.TriMesh) {
+	// Given three vertices in VX and VY and points inside,
+	// generate a triangulation for the triangle
+	tm := NewTriMesh(VX, VY)
+	tri := &Tri{}
+	tri.AddEdge(tm.NewEdge([2]int{0, 1}, true))
+	tri.AddEdge(tm.NewEdge([2]int{1, 2}, true))
+	tri.AddEdge(tm.NewEdge([2]int{2, 0}, true))
+	tm.AddBoundingTriangle(tri)
+	for i := range X {
+		tm.AddPoint(X[i], Y[i])
+	}
+	triMesh = tm.ToGraphMesh()
+	return
+}

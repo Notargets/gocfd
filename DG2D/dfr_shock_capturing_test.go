@@ -28,7 +28,8 @@ const (
 	NORMALSHOCKTESTM12
 	FIXEDVORTEXTEST
 	MOVINGVORTEXTEST
-	RADIALTEST
+	RADIAL1TEST
+	RADIAL2TEST
 	RADIAL3TEST
 	RADIAL4TEST
 )
@@ -43,8 +44,10 @@ func (tf TestField) String() string {
 		return "FIXEDVORTEXTEST"
 	case MOVINGVORTEXTEST:
 		return "MOVINGVORTEXTEST"
-	case RADIALTEST:
-		return "RADIALTEST"
+	case RADIAL1TEST:
+		return "RADIAL1TEST"
+	case RADIAL2TEST:
+		return "RADIAL2TEST"
 	case RADIAL3TEST:
 		return "RADIAL3TEST"
 	case RADIAL4TEST:
@@ -65,7 +68,9 @@ func setTestField(X, Y []float64, tf TestField) (field []float64) {
 	case MOVINGVORTEXTEST:
 		iv := isentropic_vortex.NewIVortex(5, 0, 0, 1.4)
 		field = setIsoVortexConditions(X, Y, iv)
-	case RADIALTEST:
+	case RADIAL1TEST:
+		field = setRadial(X, Y, 1)
+	case RADIAL2TEST:
 		field = setRadial(X, Y, 2)
 	case RADIAL3TEST:
 		field = setRadial(X, Y, 3)
@@ -138,8 +143,8 @@ func setIsoVortexConditions(X, Y []float64,
 
 func TestInterpolationVortex(t *testing.T) {
 	var (
-		NMin = 2
-		NMax = 2
+		NMin = 1
+		NMax = 1
 		tol  = 1.e-6
 	)
 	if !testing.Verbose() {
@@ -156,7 +161,7 @@ func TestInterpolationVortex(t *testing.T) {
 		assert.InDeltaSlicef(t, X[3:], dfr.FluxX.DataP[NpInt:], tol, "")
 		// field := setTestField(X, Y, FIXEDVORTEXTEST)
 		field := setTestField(X, Y, NORMALSHOCKTESTM2)
-		// field := setTestField(X, Y, RADIALTEST)
+		// field := setTestField(X, Y, RADIAL2TEST)
 		n := 0 // Density
 		n = 1  // U momentum
 		n = 2  // V momentum
@@ -167,7 +172,7 @@ func TestInterpolationVortex(t *testing.T) {
 		edgeX := dfr.FluxX.DataP[2*NpInt:]
 		edgeY := dfr.FluxY.DataP[2*NpInt:]
 		for _, tf := range []TestField{NORMALSHOCKTESTM12, NORMALSHOCKTESTM2,
-			FIXEDVORTEXTEST, RADIALTEST, RADIAL3TEST,
+			FIXEDVORTEXTEST, RADIAL1TEST, RADIAL2TEST, RADIAL3TEST,
 			RADIAL4TEST} {
 			fmt.Printf("%s Interpolation\n", tf.String())
 			QSol := QFromField(setTestField(dfr.SolutionX.DataP, dfr.SolutionY.DataP,
@@ -311,23 +316,10 @@ func plotField(field []float64, fieldNum int, gm geometry.TriMesh,
 
 func CreateGraphMesh(dfr *DFR2D) (gm geometry.TriMesh) {
 	var (
-		NpInt  = dfr.FluxElement.NpInt
-		NpFlux = dfr.FluxElement.Np
+		NpInt = dfr.FluxElement.NpInt
 	)
-	tm := geometry2D.NewTriMesh(dfr.VX.DataP, dfr.VY.DataP)
-	tri := &geometry2D.Tri{}
-	tri.AddEdge(tm.NewEdge([2]int{0, 1}, true))
-	e2 := tm.NewEdge([2]int{1, 2}, true)
-	tri.AddEdge(e2)
-	tri.AddEdge(tm.NewEdge([2]int{2, 0}, true))
-	tm.AddBoundingTriangle(tri)
-	// Now we add points to incrementally define the triangulation
-	for i := NpInt; i < NpFlux; i++ {
-		r := dfr.FluxX.DataP[i]
-		s := dfr.FluxY.DataP[i]
-		tm.AddPoint(r, s)
-	}
-	gm = tm.ToGraphMesh()
+	gm = geometry2D.TriangulateTriangle(dfr.VX.DataP, dfr.VY.DataP,
+		dfr.FluxX.DataP[NpInt:], dfr.FluxY.DataP[NpInt:])
 	return
 }
 

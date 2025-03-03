@@ -23,7 +23,9 @@ func TestTriangulateOrder3(t *testing.T) {
 		-1.44338, -1.44338, -1.44338, -1.44338, -1.44338, -1.24025, -0.44413,
 		0.72169, 1.88751, 2.68362, 2.68362, 1.88751, 0.72169, -0.44413,
 		-1.24025}
-	_, _, _, _ = VX, VY, FluxX, FluxY
+
+	gm := TriangulateTriangle(VX, VY, FluxX, FluxY)
+	_ = gm
 }
 
 func TestTriangulate(t *testing.T) {
