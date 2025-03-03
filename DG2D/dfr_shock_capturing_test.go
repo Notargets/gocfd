@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/notargets/avs/geometry"
 
 	"github.com/notargets/gocfd/geometry2D"
@@ -109,48 +111,111 @@ func setIsoVortexConditions(X, Y []float64,
 }
 
 func TestInterpolationVortex(t *testing.T) {
-	NMin := 7
-	NMax := 7
+	var (
+		NMin = 1
+		NMax = 1
+		tol  = 1.e-6
+	)
 	if !testing.Verbose() {
 		return
 	}
 	for N := NMin; N <= NMax; N++ {
 		angle := 140.
 		dfr := CreateEquiTriMesh(N, angle)
+		NpInt := dfr.FluxElement.NpInt
 		gm := CreateGraphMesh(dfr)
 		X, Y := convXYtoXandY(gm.XY)
+		// The geometry is offset by 3 for the vertices,
+		// and the first NpInt points in the flux element are duplicated
+		assert.InDeltaSlicef(t, X[3:], dfr.FluxX.DataP[NpInt:], tol, "")
 		// field := setTestField(X, Y, FIXEDVORTEXTEST)
-		field := setTestField(X, Y, RADIALTEST)
-		ch := chart2d.NewChart2D(-1, 1, -1, 1, 1024, 1024, utils2.WHITE,
-			utils2.BLACK)
-		// ch.AddTriMesh(gm)
-		// Create a vector field including the three vertices
-		var plotField []float32
-		vertsLen := len(field) / 4
-		var fMin, fMax float32
-		fMin, fMax = math.MaxFloat32, -math.MaxFloat32
+		field := setTestField(X, Y, NORMALSHOCKTESTM2)
+		// field := setTestField(X, Y, RADIALTEST)
 		n := 0 // Density
 		n = 1  // U momentum
 		n = 2  // V momentum
 		n = 3  // rho*E energy
-		for i := 0; i < vertsLen; i++ {
-			plotField = append(plotField, float32(field[i+n*vertsLen]))
-			fmt.Printf("F[%d] = %.2f\n", i, plotField[i])
-			if plotField[i] < fMin {
-				fMin = plotField[i]
-			}
-			if plotField[i] > fMax {
-				fMax = plotField[i]
-			}
+		_ = n
+		_ = field
+		// plotField(field, n, gm)
+		QSol := QFromField(setTestField(dfr.SolutionX.DataP,
+			dfr.SolutionY.DataP,
+			NORMALSHOCKTESTM2), dfr.SolutionElement.Np)
+		// QSol.Print("QSol")
+		QMin0, QMqx0 := QSol.Col(0).Min(), QSol.Col(0).Max()
+		QMin1, QMqx1 := QSol.Col(1).Min(), QSol.Col(1).Max()
+		QMin2, QMqx2 := QSol.Col(2).Min(), QSol.Col(2).Max()
+		QMin3, QMqx3 := QSol.Col(3).Min(), QSol.Col(3).Max()
+		fmt.Printf("Dens Min/Max:%.2f,%.2f\n", QMin0, QMqx0)
+		dfr.FluxEdgeInterp.Mul(QSol.Col(0).ToMatrix()).Transpose().Print(
+			"Interpolated Density")
+		fmt.Printf("U Mom Min/Max:%.2f,%.2f\n", QMin1, QMqx1)
+		dfr.FluxEdgeInterp.Mul(QSol.Col(1).ToMatrix()).Transpose().Print(
+			"Interpolated U Momentum")
+		fmt.Printf("V Mom Min/Max:%.2f,%.2f\n", QMin2, QMqx2)
+		dfr.FluxEdgeInterp.Mul(QSol.Col(2).ToMatrix()).Transpose().Print(
+			"Interpolated V Momentum")
+		fmt.Printf("Energy Min/Max:%.2f,%.2f\n", QMin3, QMqx3)
+		dfr.FluxEdgeInterp.Mul(QSol.Col(3).ToMatrix()).Transpose().Print(
+			"Interpolated Energy")
+	}
+}
+
+func QFromField(field []float64, Np int) (Q utils.Matrix) {
+	Q = utils.NewMatrix(Np, 4)
+	for n := 0; n < 4; n++ {
+		for i := 0; i < Np; i++ {
+			Q.Set(i, n, field[i+Np*n])
 		}
-		vs := geometry.VertexScalar{
-			TMesh:       &gm,
-			FieldValues: plotField,
+	}
+	return
+}
+
+func plotField(field []float64, fieldNum int, gm geometry.TriMesh,
+	xMM ...float64) {
+	var xMin, xMax, yMin, yMax float32
+
+	if len(xMM) == 4 {
+		xMin, xMax = float32(xMM[0]), float32(xMM[1])
+		yMin, yMax = float32(xMM[2]), float32(xMM[3])
+	} else {
+		xMin, xMax = -1, 1
+		yMin, yMax = -1, 1
+	}
+	ch := chart2d.NewChart2D(xMin, xMax, yMin, yMax,
+		1024, 1024, utils2.WHITE, utils2.BLACK)
+	// Create a vector field including the three vertices
+	var pField []float32
+	vertsLen := len(field) / 4
+	var fMin, fMax float32
+	fMin, fMax = math.MaxFloat32, -math.MaxFloat32
+	n := 0 // Density
+	n = 2  // V momentum
+	n = 3  // rho*E energy
+	n = 0  // Density
+	n = 1  // U momentum
+	n = 3  // rho*E energy
+	n = 0  // Density
+	for i := 0; i < vertsLen; i++ {
+		pField = append(pField, float32(field[i+n*vertsLen]))
+		// fmt.Printf("F[%d] = %.2f\n", i, pField[i])
+		if pField[i] < fMin {
+			fMin = pField[i]
 		}
-		// ch.AddContourVertexScalar(&vs, fMin, fMax, 20)
-		ch.AddShadedVertexScalar(&vs, fMin, fMax)
-		for {
+		if pField[i] > fMax {
+			fMax = pField[i]
 		}
+	}
+	vs := geometry.VertexScalar{
+		TMesh:       &gm,
+		FieldValues: pField,
+	}
+	_ = vs
+	_ = ch
+	// ch.AddContourVertexScalar(&vs, fMin, fMax, 100)
+	ch.AddShadedVertexScalar(&vs, fMin, fMax)
+	ch.AddTriMesh(gm)
+	for {
 	}
 }
 
