@@ -138,27 +138,41 @@ func TestInterpolationVortex(t *testing.T) {
 		_ = n
 		_ = field
 		// plotField(field, n, gm)
-		QSol := QFromField(setTestField(dfr.SolutionX.DataP,
-			dfr.SolutionY.DataP,
+		fmt.Printf("Mach 2 Interpolation\n")
+		QSol := QFromField(setTestField(dfr.SolutionX.DataP, dfr.SolutionY.DataP,
 			NORMALSHOCKTESTM2), dfr.SolutionElement.Np)
-		// QSol.Print("QSol")
-		QMin0, QMqx0 := QSol.Col(0).Min(), QSol.Col(0).Max()
-		QMin1, QMqx1 := QSol.Col(1).Min(), QSol.Col(1).Max()
-		QMin2, QMqx2 := QSol.Col(2).Min(), QSol.Col(2).Max()
-		QMin3, QMqx3 := QSol.Col(3).Min(), QSol.Col(3).Max()
-		fmt.Printf("Dens Min/Max:%.2f,%.2f\n", QMin0, QMqx0)
-		dfr.FluxEdgeInterp.Mul(QSol.Col(0).ToMatrix()).Transpose().Print(
-			"Interpolated Density")
-		fmt.Printf("U Mom Min/Max:%.2f,%.2f\n", QMin1, QMqx1)
-		dfr.FluxEdgeInterp.Mul(QSol.Col(1).ToMatrix()).Transpose().Print(
-			"Interpolated U Momentum")
-		fmt.Printf("V Mom Min/Max:%.2f,%.2f\n", QMin2, QMqx2)
-		dfr.FluxEdgeInterp.Mul(QSol.Col(2).ToMatrix()).Transpose().Print(
-			"Interpolated V Momentum")
-		fmt.Printf("Energy Min/Max:%.2f,%.2f\n", QMin3, QMqx3)
-		dfr.FluxEdgeInterp.Mul(QSol.Col(3).ToMatrix()).Transpose().Print(
-			"Interpolated Energy")
+		edges := printoutQandInterpolation(QSol, dfr, "print")
+		fmt.Printf("Mach 1.2 Interpolation\n")
+		QSol = QFromField(setTestField(dfr.SolutionX.DataP, dfr.SolutionY.DataP,
+			NORMALSHOCKTESTM12), dfr.SolutionElement.Np)
+		edges = printoutQandInterpolation(QSol, dfr, "print")
+		fmt.Printf("Fixed Vortex Interpolation\n")
+		QSol = QFromField(setTestField(dfr.SolutionX.DataP, dfr.SolutionY.DataP,
+			FIXEDVORTEXTEST), dfr.SolutionElement.Np)
+		edges = printoutQandInterpolation(QSol, dfr, "print")
+		_ = edges
 	}
+}
+
+func printoutQandInterpolation(QSol utils.Matrix,
+	dfr *DFR2D, printO ...interface{}) (edges [4][]float64) {
+	var MinMax [2][4]float64
+	for n := 0; n < 4; n++ {
+		edges[n] = dfr.FluxEdgeInterp.Mul(QSol.Col(n).ToMatrix()).DataP
+		MinMax[0][n] = QSol.Col(n).Min()
+		MinMax[1][n] = QSol.Col(n).Max()
+	}
+	if len(printO) != 0 {
+		for n := 0; n < 4; n++ {
+			fmt.Printf("Field[%d]\tMin:%+.1f\tMax:+%.1f\t", n,
+				MinMax[0][n], MinMax[1][n])
+			for _, f := range edges[n] {
+				fmt.Printf(" %.1f ", f)
+			}
+			fmt.Printf("\n")
+		}
+	}
+	return
 }
 
 func QFromField(field []float64, Np int) (Q utils.Matrix) {
