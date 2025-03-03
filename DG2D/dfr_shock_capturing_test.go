@@ -31,6 +31,22 @@ const (
 	RADIALTEST
 )
 
+func (tf TestField) String() string {
+	switch tf {
+	case NORMALSHOCKTESTM2:
+		return "NORMALSHOCKTESTM2"
+	case NORMALSHOCKTESTM12:
+		return "NORMALSHOCKTESTM12"
+	case FIXEDVORTEXTEST:
+		return "FIXEDVORTEXTEST"
+	case MOVINGVORTEXTEST:
+		return "MOVINGVORTEXTEST"
+	case RADIALTEST:
+		return "RADIALTEST"
+	}
+	return ""
+}
+
 func setTestField(X, Y []float64, tf TestField) (field []float64) {
 	switch tf {
 	case NORMALSHOCKTESTM12:
@@ -138,31 +154,28 @@ func TestInterpolationVortex(t *testing.T) {
 		_ = n
 		_ = field
 		// plotField(field, n, gm)
-		fmt.Printf("Mach 2 Interpolation\n")
-		QSol := QFromField(setTestField(dfr.SolutionX.DataP, dfr.SolutionY.DataP,
-			NORMALSHOCKTESTM2), dfr.SolutionElement.Np)
-		edges := printoutQandInterpolation(QSol, dfr, "print")
-		fmt.Printf("Mach 1.2 Interpolation\n")
-		QSol = QFromField(setTestField(dfr.SolutionX.DataP, dfr.SolutionY.DataP,
-			NORMALSHOCKTESTM12), dfr.SolutionElement.Np)
-		edges = printoutQandInterpolation(QSol, dfr, "print")
-		fmt.Printf("Fixed Vortex Interpolation\n")
-		QSol = QFromField(setTestField(dfr.SolutionX.DataP, dfr.SolutionY.DataP,
-			FIXEDVORTEXTEST), dfr.SolutionElement.Np)
-		edges = printoutQandInterpolation(QSol, dfr, "print")
-		fmt.Printf("Radial Interpolation\n")
-		QSol = QFromField(setTestField(dfr.SolutionX.DataP, dfr.SolutionY.DataP,
-			RADIALTEST), dfr.SolutionElement.Np)
-		edges = printoutQandInterpolation(QSol, dfr, "print")
-		_ = edges
+		edgeX := dfr.FluxX.DataP[2*NpInt:]
+		edgeY := dfr.FluxY.DataP[2*NpInt:]
+		for _, tf := range []TestField{NORMALSHOCKTESTM12, NORMALSHOCKTESTM2,
+			FIXEDVORTEXTEST, RADIALTEST} {
+			fmt.Printf("%s Interpolation\n", tf.String())
+			QSol := QFromField(setTestField(dfr.SolutionX.DataP, dfr.SolutionY.DataP,
+				tf), dfr.SolutionElement.Np)
+			trueEdges := setTestField(edgeX, edgeY, tf)
+			edges := printoutQandInterpolation(QSol, dfr, trueEdges, "print")
+			_ = edges
+		}
 	}
 }
 
 func printoutQandInterpolation(QSol utils.Matrix,
-	dfr *DFR2D, printO ...interface{}) (edges [4][]float64) {
+	dfr *DFR2D, trueVals []float64, printO ...interface{}) (
+	edges [4][]float64) {
 	var (
-		MinMaxSol [2][4]float64
-		MinMaxInt [2][4]float64
+		MinMaxSol  [4][2]float64
+		MinMaxInt  [4][2]float64
+		MinMaxTrue [4][2]float64
+		lenField   = len(trueVals) / 4
 	)
 	minmax := func(f []float64) (min, max float64) {
 		min, max = f[0], f[0]
@@ -178,20 +191,31 @@ func printoutQandInterpolation(QSol utils.Matrix,
 	}
 	for n := 0; n < 4; n++ {
 		edges[n] = dfr.FluxEdgeInterp.Mul(QSol.Col(n).ToMatrix()).DataP
-		MinMaxSol[0][n] = QSol.Col(n).Min()
-		MinMaxSol[1][n] = QSol.Col(n).Max()
-		MinMaxInt[0][n], MinMaxInt[1][n] = minmax(edges[n])
+		MinMaxSol[n][0] = QSol.Col(n).Min()
+		MinMaxSol[n][1] = QSol.Col(n).Max()
+		MinMaxInt[n][0], MinMaxInt[n][1] = minmax(edges[n])
+		MinMaxTrue[n][0], MinMaxTrue[n][1] = minmax(trueVals[n*lenField : (n+1)*lenField])
+	}
+	printField := func(field []float64, n int, label string,
+		minmax [2]float64) {
+		label2 := label[0:1]
+		fmt.Printf("%s[%d]\tMin:%+.1f\tMax:%+.1f\t"+
+			"%sMin:%+.1f\t%sMax:%+.1f\t",
+			label, n, MinMaxSol[n][0], MinMaxSol[n][1],
+			label2, minmax[0], label2, minmax[1])
+		for _, f := range field {
+			if math.Abs(f) < 0.0001 {
+				f = 0.
+			}
+			fmt.Printf(" %.1f ", f)
+		}
+		fmt.Printf("\n")
 	}
 	if len(printO) != 0 {
 		for n := 0; n < 4; n++ {
-			fmt.Printf("Field[%d]\tMin:%+.1f\tMax:%+.1f\t"+
-				"IMin:%+.1f\tIMax:%+.1f\t",
-				n, MinMaxSol[0][n], MinMaxSol[1][n],
-				MinMaxInt[0][n], MinMaxInt[1][n])
-			for _, f := range edges[n] {
-				fmt.Printf(" %.1f ", f)
-			}
-			fmt.Printf("\n")
+			printField(edges[n], n, "Interp", MinMaxInt[n])
+			printField(trueVals[n*lenField:(n+1)*lenField], n, "True  ",
+				MinMaxTrue[n])
 		}
 	}
 	return
