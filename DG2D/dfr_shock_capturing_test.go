@@ -128,8 +128,8 @@ func setIsoVortexConditions(X, Y []float64,
 
 func TestInterpolationVortex(t *testing.T) {
 	var (
-		NMin = 7
-		NMax = 7
+		NMin = 2
+		NMax = 2
 		tol  = 1.e-6
 	)
 	if !testing.Verbose() {
@@ -175,6 +175,8 @@ func printoutQandInterpolation(QSol utils.Matrix,
 		MinMaxSol  [4][2]float64
 		MinMaxInt  [4][2]float64
 		MinMaxTrue [4][2]float64
+		RMSErr     [4]float64
+		MEAN       [4]float64
 		lenField   = len(trueVals) / 4
 	)
 	minmax := func(f []float64) (min, max float64) {
@@ -190,16 +192,28 @@ func printoutQandInterpolation(QSol utils.Matrix,
 		return
 	}
 	for n := 0; n < 4; n++ {
+		tField := trueVals[n*lenField : (n+1)*lenField]
 		edges[n] = dfr.FluxEdgeInterp.Mul(QSol.Col(n).ToMatrix()).DataP
 		MinMaxSol[n][0] = QSol.Col(n).Min()
 		MinMaxSol[n][1] = QSol.Col(n).Max()
 		MinMaxInt[n][0], MinMaxInt[n][1] = minmax(edges[n])
-		MinMaxTrue[n][0], MinMaxTrue[n][1] = minmax(trueVals[n*lenField : (n+1)*lenField])
+		MinMaxTrue[n][0], MinMaxTrue[n][1] = minmax(tField)
+		for i := 0; i < lenField; i++ {
+			e := edges[n][i] - tField[i]
+			RMSErr[n] += e * e
+			MEAN[n] += tField[i]
+		}
+		RMSErr[n] /= float64(lenField)
+		RMSErr[n] = math.Sqrt(RMSErr[n])
+		MEAN[n] /= float64(lenField)
+		if math.Abs(MEAN[n]) < 0.001 {
+			MEAN[n] = 1
+		}
 	}
 	printField := func(field []float64, n int, label string,
-		minmax [2]float64) {
+		minmax [2]float64, rms ...float64) {
 		label2 := label[0:1]
-		fmt.Printf("%s[%d]\tMin:%+.1f\tMax:%+.1f\t"+
+		fmt.Printf("%s[%d]\tQMin:%+.1f\tQMax:%+.1f\t"+
 			"%sMin:%+.1f\t%sMax:%+.1f\t",
 			label, n, MinMaxSol[n][0], MinMaxSol[n][1],
 			label2, minmax[0], label2, minmax[1])
@@ -209,13 +223,18 @@ func printoutQandInterpolation(QSol utils.Matrix,
 			}
 			fmt.Printf(" %.1f ", f)
 		}
-		fmt.Printf("\n")
+		if len(rms) > 0 {
+			fmt.Printf(" RMSErr = %.2f, %%RMS/MEAN = %.2f%%\n",
+				RMSErr[n], 100*RMSErr[n]/MEAN[n])
+		} else {
+			fmt.Printf("\n")
+		}
 	}
 	if len(printO) != 0 {
 		for n := 0; n < 4; n++ {
 			printField(edges[n], n, "Interp", MinMaxInt[n])
 			printField(trueVals[n*lenField:(n+1)*lenField], n, "True  ",
-				MinMaxTrue[n])
+				MinMaxTrue[n], RMSErr[n])
 		}
 	}
 	return
