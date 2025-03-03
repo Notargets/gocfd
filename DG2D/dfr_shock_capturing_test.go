@@ -112,8 +112,8 @@ func setIsoVortexConditions(X, Y []float64,
 
 func TestInterpolationVortex(t *testing.T) {
 	var (
-		NMin = 1
-		NMax = 1
+		NMin = 7
+		NMax = 7
 		tol  = 1.e-6
 	)
 	if !testing.Verbose() {
@@ -150,22 +150,44 @@ func TestInterpolationVortex(t *testing.T) {
 		QSol = QFromField(setTestField(dfr.SolutionX.DataP, dfr.SolutionY.DataP,
 			FIXEDVORTEXTEST), dfr.SolutionElement.Np)
 		edges = printoutQandInterpolation(QSol, dfr, "print")
+		fmt.Printf("Radial Interpolation\n")
+		QSol = QFromField(setTestField(dfr.SolutionX.DataP, dfr.SolutionY.DataP,
+			RADIALTEST), dfr.SolutionElement.Np)
+		edges = printoutQandInterpolation(QSol, dfr, "print")
 		_ = edges
 	}
 }
 
 func printoutQandInterpolation(QSol utils.Matrix,
 	dfr *DFR2D, printO ...interface{}) (edges [4][]float64) {
-	var MinMax [2][4]float64
+	var (
+		MinMaxSol [2][4]float64
+		MinMaxInt [2][4]float64
+	)
+	minmax := func(f []float64) (min, max float64) {
+		min, max = f[0], f[0]
+		for _, ff := range f[1:] {
+			if min > ff {
+				min = ff
+			}
+			if max < ff {
+				max = ff
+			}
+		}
+		return
+	}
 	for n := 0; n < 4; n++ {
 		edges[n] = dfr.FluxEdgeInterp.Mul(QSol.Col(n).ToMatrix()).DataP
-		MinMax[0][n] = QSol.Col(n).Min()
-		MinMax[1][n] = QSol.Col(n).Max()
+		MinMaxSol[0][n] = QSol.Col(n).Min()
+		MinMaxSol[1][n] = QSol.Col(n).Max()
+		MinMaxInt[0][n], MinMaxInt[1][n] = minmax(edges[n])
 	}
 	if len(printO) != 0 {
 		for n := 0; n < 4; n++ {
-			fmt.Printf("Field[%d]\tMin:%+.1f\tMax:+%.1f\t", n,
-				MinMax[0][n], MinMax[1][n])
+			fmt.Printf("Field[%d]\tMin:%+.1f\tMax:%+.1f\t"+
+				"IMin:%+.1f\tIMax:%+.1f\t",
+				n, MinMaxSol[0][n], MinMaxSol[1][n],
+				MinMaxInt[0][n], MinMaxInt[1][n])
 			for _, f := range edges[n] {
 				fmt.Printf(" %.1f ", f)
 			}
