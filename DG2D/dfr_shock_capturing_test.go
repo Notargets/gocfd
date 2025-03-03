@@ -29,6 +29,8 @@ const (
 	FIXEDVORTEXTEST
 	MOVINGVORTEXTEST
 	RADIALTEST
+	RADIAL3TEST
+	RADIAL4TEST
 )
 
 func (tf TestField) String() string {
@@ -43,6 +45,10 @@ func (tf TestField) String() string {
 		return "MOVINGVORTEXTEST"
 	case RADIALTEST:
 		return "RADIALTEST"
+	case RADIAL3TEST:
+		return "RADIAL3TEST"
+	case RADIAL4TEST:
+		return "RADIAL4TEST"
 	}
 	return ""
 }
@@ -60,7 +66,11 @@ func setTestField(X, Y []float64, tf TestField) (field []float64) {
 		iv := isentropic_vortex.NewIVortex(5, 0, 0, 1.4)
 		field = setIsoVortexConditions(X, Y, iv)
 	case RADIALTEST:
-		field = setRadial(X, Y)
+		field = setRadial(X, Y, 2)
+	case RADIAL3TEST:
+		field = setRadial(X, Y, 3)
+	case RADIAL4TEST:
+		field = setRadial(X, Y, 4)
 	}
 	return
 }
@@ -73,7 +83,7 @@ func convXYtoXandY(XY []float32) (X, Y []float64) {
 	return
 }
 
-func setRadial(X, Y []float64) (field []float64) {
+func setRadial(X, Y []float64, order float64) (field []float64) {
 	var (
 		Np = len(X)
 	)
@@ -82,7 +92,7 @@ func setRadial(X, Y []float64) (field []float64) {
 	for i := 0; i < Np; i++ {
 		x, y = X[i], Y[i]
 		for n := 0; n < 4; n++ {
-			field[i+n*Np] = x*x + y*y
+			field[i+n*Np] = math.Pow(x, order) + math.Pow(y, order)
 		}
 	}
 	return
@@ -128,8 +138,8 @@ func setIsoVortexConditions(X, Y []float64,
 
 func TestInterpolationVortex(t *testing.T) {
 	var (
-		NMin = 2
-		NMax = 2
+		NMin = 4
+		NMax = 4
 		tol  = 1.e-6
 	)
 	if !testing.Verbose() {
@@ -157,7 +167,8 @@ func TestInterpolationVortex(t *testing.T) {
 		edgeX := dfr.FluxX.DataP[2*NpInt:]
 		edgeY := dfr.FluxY.DataP[2*NpInt:]
 		for _, tf := range []TestField{NORMALSHOCKTESTM12, NORMALSHOCKTESTM2,
-			FIXEDVORTEXTEST, RADIALTEST} {
+			FIXEDVORTEXTEST, RADIALTEST, RADIAL3TEST,
+			RADIAL4TEST} {
 			fmt.Printf("%s Interpolation\n", tf.String())
 			QSol := QFromField(setTestField(dfr.SolutionX.DataP, dfr.SolutionY.DataP,
 				tf), dfr.SolutionElement.Np)
