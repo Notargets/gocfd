@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/notargets/avs/geometry"
 
 	"github.com/notargets/gocfd/geometry2D"
@@ -63,10 +61,10 @@ func setTestField(X, Y []float64, tf TestField) (field []float64) {
 	case NORMALSHOCKTESTM2:
 		field = setShockConditions(X, 2, 0)
 	case FIXEDVORTEXTEST:
-		iv := isentropic_vortex.NewIVortex(5, 0, 0, 1.4, 0)
+		iv := isentropic_vortex.NewIVortex(20, 0, 0, 1.4, 0)
 		field = setIsoVortexConditions(X, Y, iv)
 	case MOVINGVORTEXTEST:
-		iv := isentropic_vortex.NewIVortex(5, 0, 0, 1.4)
+		iv := isentropic_vortex.NewIVortex(20, 0, 0, 1.4)
 		field = setIsoVortexConditions(X, Y, iv)
 	case RADIAL1TEST:
 		field = setRadial(X, Y, 1)
@@ -143,32 +141,30 @@ func setIsoVortexConditions(X, Y []float64,
 
 func TestInterpolationVortex(t *testing.T) {
 	var (
-		NMin = 1
-		NMax = 1
-		tol  = 1.e-6
+		NMin = 7
+		NMax = 7
 	)
 	if !testing.Verbose() {
 		return
 	}
 	for N := NMin; N <= NMax; N++ {
 		angle := 140.
+		// angle := 0.
 		dfr := CreateEquiTriMesh(N, angle)
 		NpInt := dfr.FluxElement.NpInt
 		gm := CreateGraphMesh(dfr)
 		X, Y := convXYtoXandY(gm.XY)
-		// The geometry is offset by 3 for the vertices,
-		// and the first NpInt points in the flux element are duplicated
-		assert.InDeltaSlicef(t, X[3:], dfr.FluxX.DataP[NpInt:], tol, "")
-		// field := setTestField(X, Y, FIXEDVORTEXTEST)
-		field := setTestField(X, Y, NORMALSHOCKTESTM2)
+		field := setTestField(X, Y, FIXEDVORTEXTEST)
+		// field := setTestField(X, Y, NORMALSHOCKTESTM2)
 		// field := setTestField(X, Y, RADIAL2TEST)
 		n := 0 // Density
 		n = 1  // U momentum
 		n = 2  // V momentum
 		n = 3  // rho*E energy
+		n = 0  // Density
 		_ = n
 		_ = field
-		// plotField(field, n, gm)
+		plotField(field, n, gm)
 		edgeX := dfr.FluxX.DataP[2*NpInt:]
 		edgeY := dfr.FluxY.DataP[2*NpInt:]
 		for _, tf := range []TestField{NORMALSHOCKTESTM12, NORMALSHOCKTESTM2,
@@ -316,10 +312,26 @@ func plotField(field []float64, fieldNum int, gm geometry.TriMesh,
 
 func CreateGraphMesh(dfr *DFR2D) (gm geometry.TriMesh) {
 	var (
-		NpInt = dfr.FluxElement.NpInt
+		NpInt        = dfr.FluxElement.NpInt
+		NpEdge       = dfr.FluxElement.NpEdge
+		TriNp        = 3 + 3*NpEdge
+		EdgeX, EdgeY = make([]float64, TriNp), make([]float64, TriNp)
 	)
-	gm = geometry2D.TriangulateTriangle(dfr.VX.DataP, dfr.VY.DataP,
-		dfr.FluxX.DataP[NpInt:], dfr.FluxY.DataP[NpInt:])
+	// Compose the edges of the triangle,
+	// they include the vertices and the edge nodes on the RT element,
+	// in counter-clockwise progression
+	var ii int
+	for n := 0; n < 3; n++ {
+		EdgeX[ii], EdgeY[ii] = dfr.VX.DataP[n], dfr.VY.DataP[n]
+		ii++
+		offset := 2*NpInt + n*NpEdge
+		for i := 0; i < NpEdge; i++ {
+			EdgeX[ii], EdgeY[ii] = dfr.FluxX.DataP[offset+i], dfr.FluxY.DataP[offset+i]
+			ii++
+		}
+	}
+	gm = geometry2D.TriangulateTriangle(EdgeX, EdgeY,
+		dfr.FluxX.DataP[:NpInt], dfr.FluxY.DataP[:NpInt])
 	return
 }
 

@@ -863,7 +863,9 @@ func (tm *TriMeshG) addTriToGraph(tri *Tri, leaf *TriGraphNode) {
 	}
 }
 
-func TriangulateTriangle(VX, VY, X, Y []float64) (triMesh geometry.TriMesh) {
+func TriangulateTriangleLegacy(VX, VY, X, Y []float64) (triMesh geometry.
+	TriMesh) {
+	// THIS WHOLE LIBRARY REQUIRES NO POINTS ON TRIANGLE BOUNDARIES
 	// Given three vertices in VX and VY and points inside,
 	// generate a triangulation for the triangle
 	tm := NewTriMesh(VX, VY)

@@ -356,24 +356,8 @@ func (dfr *DFR2D) OutputMesh() (gm *geometry2D.TriMesh) {
 		ind = k + i*Kmax
 		return
 	}
-	R := []float64{-1, 1, -1} // Vertices of unit triangle
-	S := []float64{-1, -1, 1}
-	tm := geometry2D.NewTriMesh(R, S)
-	tri := &geometry2D.Tri{}
-	tri.AddEdge(tm.NewEdge([2]int{0, 1}, true))
-	e2 := tm.NewEdge([2]int{1, 2}, true)
-	tri.AddEdge(e2)
-	tri.AddEdge(tm.NewEdge([2]int{2, 0}, true))
-	tm.AddBoundingTriangle(tri)
-	// Now we add points to incrementally define the triangulation
-	for i := Nint; i < NpFlux; i++ {
-		r := dfr.FluxElement.R.DataP[i]
-		s := dfr.FluxElement.S.DataP[i]
-		tm.AddPoint(r, s)
-	}
-	gmB := tm.ToGraphMeshLegacy()
-	gm = &gmB
-
+	// TODO:implement the new triangulation API here
+	panic("unimplemented")
 	// Build the X,Y coordinates to support the triangulation index
 	Np := NpFlux - Nint + 3 // Subtract NpInt to remove the dup pts and add 3 for the verts
 	//	fmt.Printf("Size of constructed element: Np=%d\n", Np)
