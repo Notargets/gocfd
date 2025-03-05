@@ -57,12 +57,17 @@ c_k \leftarrow \left(1 - \nu \left(\frac{k}{N}\right)^{2p} \right) c_k
 $$
 
 where:
-- $$ k $$ is the modal index,
-- $$ N $$ is the highest polynomial order,
-- $$ \nu $$ is a user-defined dissipation strength,
-- $$ p $$ controls the steepness of attenuation.
+- $$ k $$ indexes the modal "degree," not the node number.
+- $$ N $$ is the max polynomial degree in the basis.
+- $$ \nu $$ is a user-defined dissipation strength (tunable),
+- $$ p $$ controls sharpness (typically 1 to 4 — sharper if you only want to hit the highest modes).
 
-For RT elements, consider different attenuation levels for edge and interior modes.
+For RT, you may want to split this by **type**:
+
+- Edge modes may need lighter filtering (they interact with neighbors directly).
+- Interior modes could get heavier filtering.
+
+This is flexible, but the basic form holds.
 
 ## Step 5: Reconstruct Nodal Values
 
@@ -74,7 +79,7 @@ $$
 
 ## Step 6: (Optional) Interpolate to Quadrature Points
 
-To examine how the smoothed shock projects onto flux evaluation points, interpolate to quadrature points:
+If you want to check how this looks at quadrature points (for flux projection, edge flux reconstruction, etc.), you can do:
 
 $$
 \mathbf{u}_{\text{quad}} = V_{\text{quad}} \mathbf{c}_{\text{filtered}}
@@ -84,11 +89,11 @@ where $$ V_{\text{quad}} $$ is the Vandermonde matrix evaluated at quadrature po
 
 ## Summary Table
 
-| Step | Description                                          |
-| ---- | ---------------------------------------------------- |
-| 1    | Define shock profile in $$ (r,s) $$                  |
-| 2    | Evaluate at RT nodes                                 |
-| 3    | Compute modal coefficients via Vandermonde inversion |
-| 4    | Apply modal filtering to high-order modes            |
-| 5    | Reconstruct filtered nodal values                    |
-| 6    | (Optional) Interpolate to quadrature points          |
+| Step | Description                                            |
+| ---- | ------------------------------------------------------ |
+| 1    | Define shock profile in $$ (r,s) $$                    |
+| 2    | Evaluate at RT nodes                                   |
+| 3    | Project to RT modal coefficients (Vandermonde inverse) |
+| 4    | Apply Persson modal filter to coefficients             |
+| 5    | Reconstruct filtered nodal values                      |
+| 6    | (Optional) Interpolate to quadrature points            |

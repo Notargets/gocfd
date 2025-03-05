@@ -144,7 +144,30 @@ func setIsoVortexConditions(X, Y []float64,
 	return
 }
 
-func TestInterpolationVortex(t *testing.T) {
+func TestPlotVariousFields(t *testing.T) {
+	var (
+		N = 2
+	)
+	if !testing.Verbose() {
+		return
+	}
+	angle := 210.
+	// angle := 0.
+	dfr := CreateEquiTriMesh(N, angle)
+	gm := CreateGraphMesh(dfr)
+	X, Y := convXYtoXandY(gm.XY)
+	field := setTestField(X, Y, FIXEDVORTEXTEST)
+	// field := setTestField(X, Y, NORMALSHOCKTESTM2)
+	// field := setTestField(X, Y, RADIAL2TEST)
+	n := 0 // Density
+	n = 1  // U momentum
+	n = 2  // V momentum
+	n = 3  // rho*E energy
+	n = 0  // Density
+	plotField(field, n, gm)
+}
+
+func TestInterpolationVariousFields(t *testing.T) {
 	var (
 		NMin = 2
 		NMax = 2
@@ -154,60 +177,62 @@ func TestInterpolationVortex(t *testing.T) {
 	}
 	for N := NMin; N <= NMax; N++ {
 		angle := 210.
-		// angle := 0.
 		dfr := CreateEquiTriMesh(N, angle)
-		NpInt := dfr.FluxElement.NpInt
-		gm := CreateGraphMesh(dfr)
-		X, Y := convXYtoXandY(gm.XY)
-		field := setTestField(X, Y, FIXEDVORTEXTEST)
-		// field := setTestField(X, Y, NORMALSHOCKTESTM2)
-		// field := setTestField(X, Y, RADIAL2TEST)
-		n := 0 // Density
-		n = 1  // U momentum
-		n = 2  // V momentum
-		n = 3  // rho*E energy
-		n = 0  // Density
-		_ = n
-		_ = field
-		// plotField(field, n, gm)
-		edgeX := dfr.FluxX.DataP[2*NpInt:]
-		edgeY := dfr.FluxY.DataP[2*NpInt:]
-		for _, tf := range []TestField{NORMALSHOCKTESTM12, NORMALSHOCKTESTM2,
-			NORMALSHOCKTESTM5, FIXEDVORTEXTEST, RADIAL1TEST, RADIAL2TEST,
-			RADIAL3TEST, RADIAL4TEST} {
-			// for _, tf := range []TestField{NORMALSHOCKTESTM5} {
-			// for _, tf := range []TestField{FIXEDVORTEXTEST} {
+		// for _, tf := range []TestField{NORMALSHOCKTESTM12, NORMALSHOCKTESTM2,
+		// 	NORMALSHOCKTESTM5, FIXEDVORTEXTEST, RADIAL1TEST, RADIAL2TEST,
+		// 	RADIAL3TEST, RADIAL4TEST} {
+		for _, tf := range []TestField{FIXEDVORTEXTEST} {
 			fmt.Printf("%s Interpolation\n", tf.String())
-			QSol := QFromField(setTestField(dfr.SolutionX.DataP, dfr.SolutionY.DataP,
-				tf), dfr.SolutionElement.Np)
-			trueEdges := setTestField(edgeX, edgeY, tf)
-			// edges, RMSErr := printoutQandInterpolation(QSol, dfr, trueEdges, "print")
-			edges, RMSErr := printoutQandInterpolation(QSol, dfr, trueEdges)
-			_, _ = edges, RMSErr
-			fmt.Printf("Order:%d RMS: ", N)
-			for nn := 0; nn < 4; nn++ {
-				fmt.Printf(" %.2f,", RMSErr[nn])
-			}
-			fmt.Printf("RMS%%: ")
-			for nn := 0; nn < 4; nn++ {
-				var mean float64
-				for i := 0; i < len(edges[n]); i++ {
-					mean += edges[n][i]
-				}
-				mean /= float64(len(edges))
-				if math.Abs(mean) < 0.0001 {
-					mean = 1.
-				}
-				fmt.Printf(" %.2f%%,", 100.*RMSErr[nn]/mean)
-			}
-			fmt.Printf("\n")
+			RMSErr, Mean, trueEdges, interpEdges := GetInterpolationAccuracy(
+				dfr, dfr.FluxEdgeInterp, tf)
+			printRMSError(RMSErr, Mean, N)
+			_, _ = trueEdges, interpEdges
 		}
 	}
 }
 
-func printoutQandInterpolation(QSol utils.Matrix,
-	dfr *DFR2D, trueVals []float64, printO ...interface{}) (
-	edges [4][]float64, RMSErr [4]float64) {
+func GetInterpolationAccuracy(dfr *DFR2D, EdgeInterpolation utils.Matrix,
+	tf TestField) (RMSErr, Mean [4]float64, trueEdges, interpEdges [4][]float64) {
+	NpInt := dfr.FluxElement.NpInt
+	edgeX := dfr.FluxX.DataP[2*NpInt:]
+	edgeY := dfr.FluxY.DataP[2*NpInt:]
+	QSol := QFromField(setTestField(dfr.SolutionX.DataP, dfr.SolutionY.DataP,
+		tf), dfr.SolutionElement.Np)
+	trueEdgesField := setTestField(edgeX, edgeY, tf)
+	interpEdges, RMSErr = evaluateInterpolation(QSol, EdgeInterpolation,
+		trueEdgesField)
+	fieldLen := len(trueEdgesField) / 4
+	for n := 0; n < 4; n++ {
+		trueEdges[n] = make([]float64, fieldLen)
+		for i := 0; i < fieldLen; i++ {
+			trueEdges[n][i] = trueEdgesField[i+n*fieldLen]
+		}
+		for _, f := range trueEdges[n] {
+			Mean[n] += f
+		}
+		Mean[n] /= float64(len(trueEdges[n]))
+		if math.Abs(Mean[n]) < 0.0001 {
+			Mean[n] = 1.
+		}
+	}
+	return
+}
+
+func printRMSError(RMSErr, Mean [4]float64, N int) {
+	fmt.Printf("Order:%d RMS: ", N)
+	for nn := 0; nn < 4; nn++ {
+		fmt.Printf(" %.2f,", RMSErr[nn])
+	}
+	fmt.Printf("\tRMS%%: ")
+	for nn := 0; nn < 4; nn++ {
+		fmt.Printf(" %.2f%%,", 100.*RMSErr[nn]/Mean[nn])
+	}
+	fmt.Printf("\n")
+}
+
+func evaluateInterpolation(QSol utils.Matrix, EdgeInterpolation utils.Matrix,
+	trueVals []float64,
+	printO ...interface{}) (edges [4][]float64, RMSErr [4]float64) {
 	var (
 		MinMaxSol  [4][2]float64
 		MinMaxInt  [4][2]float64
@@ -229,7 +254,8 @@ func printoutQandInterpolation(QSol utils.Matrix,
 	}
 	for n := 0; n < 4; n++ {
 		tField := trueVals[n*lenField : (n+1)*lenField]
-		edges[n] = dfr.FluxEdgeInterp.Mul(QSol.Col(n).ToMatrix()).DataP
+		// edges[n] = dfr.FluxEdgeInterp.Mul(QSol.Col(n).ToMatrix()).DataP
+		edges[n] = EdgeInterpolation.Mul(QSol.Col(n).ToMatrix()).DataP
 		MinMaxSol[n][0] = QSol.Col(n).Min()
 		MinMaxSol[n][1] = QSol.Col(n).Max()
 		MinMaxInt[n][0], MinMaxInt[n][1] = minmax(edges[n])
