@@ -23,6 +23,7 @@ type TestField uint8
 
 const (
 	NORMALSHOCKTESTM2 = TestField(iota)
+	NORMALSHOCKTESTM5 = TestField(iota)
 	NORMALSHOCKTESTM12
 	FIXEDVORTEXTEST
 	MOVINGVORTEXTEST
@@ -36,6 +37,8 @@ func (tf TestField) String() string {
 	switch tf {
 	case NORMALSHOCKTESTM2:
 		return "NORMALSHOCKTESTM2"
+	case NORMALSHOCKTESTM5:
+		return "NORMALSHOCKTESTM5"
 	case NORMALSHOCKTESTM12:
 		return "NORMALSHOCKTESTM12"
 	case FIXEDVORTEXTEST:
@@ -60,11 +63,13 @@ func setTestField(X, Y []float64, tf TestField) (field []float64) {
 		field = setShockConditions(X, 1.2, 0)
 	case NORMALSHOCKTESTM2:
 		field = setShockConditions(X, 2, 0)
+	case NORMALSHOCKTESTM5:
+		field = setShockConditions(X, 5, 0)
 	case FIXEDVORTEXTEST:
-		iv := isentropic_vortex.NewIVortex(20, 0, 0, 1.4, 0)
+		iv := isentropic_vortex.NewIVortex(5, 0, 0, 1.4, 0)
 		field = setIsoVortexConditions(X, Y, iv)
 	case MOVINGVORTEXTEST:
-		iv := isentropic_vortex.NewIVortex(20, 0, 0, 1.4)
+		iv := isentropic_vortex.NewIVortex(5, 0, 0, 1.4)
 		field = setIsoVortexConditions(X, Y, iv)
 	case RADIAL1TEST:
 		field = setRadial(X, Y, 1)
@@ -141,14 +146,14 @@ func setIsoVortexConditions(X, Y []float64,
 
 func TestInterpolationVortex(t *testing.T) {
 	var (
-		NMin = 7
-		NMax = 7
+		NMin = 2
+		NMax = 2
 	)
 	if !testing.Verbose() {
 		return
 	}
 	for N := NMin; N <= NMax; N++ {
-		angle := 140.
+		angle := 210.
 		// angle := 0.
 		dfr := CreateEquiTriMesh(N, angle)
 		NpInt := dfr.FluxElement.NpInt
@@ -164,30 +169,49 @@ func TestInterpolationVortex(t *testing.T) {
 		n = 0  // Density
 		_ = n
 		_ = field
-		plotField(field, n, gm)
+		// plotField(field, n, gm)
 		edgeX := dfr.FluxX.DataP[2*NpInt:]
 		edgeY := dfr.FluxY.DataP[2*NpInt:]
 		for _, tf := range []TestField{NORMALSHOCKTESTM12, NORMALSHOCKTESTM2,
-			FIXEDVORTEXTEST, RADIAL1TEST, RADIAL2TEST, RADIAL3TEST,
-			RADIAL4TEST} {
+			NORMALSHOCKTESTM5, FIXEDVORTEXTEST, RADIAL1TEST, RADIAL2TEST,
+			RADIAL3TEST, RADIAL4TEST} {
+			// for _, tf := range []TestField{NORMALSHOCKTESTM5} {
+			// for _, tf := range []TestField{FIXEDVORTEXTEST} {
 			fmt.Printf("%s Interpolation\n", tf.String())
 			QSol := QFromField(setTestField(dfr.SolutionX.DataP, dfr.SolutionY.DataP,
 				tf), dfr.SolutionElement.Np)
 			trueEdges := setTestField(edgeX, edgeY, tf)
-			edges := printoutQandInterpolation(QSol, dfr, trueEdges, "print")
-			_ = edges
+			// edges, RMSErr := printoutQandInterpolation(QSol, dfr, trueEdges, "print")
+			edges, RMSErr := printoutQandInterpolation(QSol, dfr, trueEdges)
+			_, _ = edges, RMSErr
+			fmt.Printf("Order:%d RMS: ", N)
+			for nn := 0; nn < 4; nn++ {
+				fmt.Printf(" %.2f,", RMSErr[nn])
+			}
+			fmt.Printf("RMS%%: ")
+			for nn := 0; nn < 4; nn++ {
+				var mean float64
+				for i := 0; i < len(edges[n]); i++ {
+					mean += edges[n][i]
+				}
+				mean /= float64(len(edges))
+				if math.Abs(mean) < 0.0001 {
+					mean = 1.
+				}
+				fmt.Printf(" %.2f%%,", 100.*RMSErr[nn]/mean)
+			}
+			fmt.Printf("\n")
 		}
 	}
 }
 
 func printoutQandInterpolation(QSol utils.Matrix,
 	dfr *DFR2D, trueVals []float64, printO ...interface{}) (
-	edges [4][]float64) {
+	edges [4][]float64, RMSErr [4]float64) {
 	var (
 		MinMaxSol  [4][2]float64
 		MinMaxInt  [4][2]float64
 		MinMaxTrue [4][2]float64
-		RMSErr     [4]float64
 		MEAN       [4]float64
 		lenField   = len(trueVals) / 4
 	)
@@ -1073,76 +1097,66 @@ func TestMachConditions(t *testing.T) {
 // where alpha = 0 corresponds to a normal shock.
 func ShockConditions(M1, alpha float64) (U1, U2 [4]float64) {
 	// Alpha = 0 for a normal shock.
-	// Alpha can be used to determine oblique shock results in inviscid flow
-	// accurately
-	// For normal shock, set beta = alpha + 90 degrees.
-	// Here, beta is the shock angle relative to the incoming flow.
+	// Beta is the shock angle relative to the incoming flow.
 	var (
 		gamma   = 1.4
 		beta    = alpha + 90.
-		betaRad = beta * math.Pi / 180.0 // Convert beta to radians
+		betaRad = beta * math.Pi / 180.0
 	)
 
-	// Compute normal component of Mach number.
+	// Compute normal component of Mach number
 	M1n := M1 * math.Sin(betaRad)
 
-	// Compute density ratio from normal shock relations.
-	rhoRatio := ((gamma + 1) * M1n * M1n) / ((gamma-1)*M1n*M1n + 2)
+	// Pre-shock conditions (non-dimensional)
+	rho1 := 1.0
+	p1 := 1.0
+	u1 := M1
+	v1 := 0.0
 
-	// Compute pressure ratio from normal shock relations.
-	pRatio := 1 + (2*gamma/(gamma+1))*(M1n*M1n-1)
-
-	// Pre-shock conditions (assumed non-dimensional for testing).
-	rho1 := 1.0 // Reference density.
-	p1 := 1.0   // Reference pressure.
-	u1 := M1    // Freestream velocity (assumed normalized so that a1 = 1).
-	v1 := 0.0   // No initial vertical velocity.
-
-	En1 := p1/(gamma-1) + 0.5*rho1*(u1*u1+v1*v1)
-	U1 = [4]float64{rho1, rho1 * u1, rho1 * v1, rho1 * En1}
-	if M1 < 1. {
+	// If subsonic, no shock forms
+	if M1n < 1.0 {
+		En1 := p1/(gamma-1) + 0.5*rho1*(u1*u1+v1*v1)
+		U1 = [4]float64{rho1, rho1 * u1, rho1 * v1, En1}
 		U2 = U1
 		return
 	}
-	// Define an inline Newton solver to compute u2n.
-	NewtonSolver := func(rho1, u1n, p1, rho2, p2, tol float64, maxIter int) float64 {
-		u2n := u1n / 2.0 // Initial guess.
-		for i := 0; i < maxIter; i++ {
-			// Correct residual: F = (rho2*u2n^2 + p2) - (rho1*u1n^2 + p1)
-			F := (rho2*u2n*u2n + p2) - (rho1*u1n*u1n + p1)
-			// Derivative: F' = 2 * rho2 * u2n.
-			Fprime := 2.0 * rho2 * u2n
 
-			// Newton update.
-			u2nNew := u2n - F/Fprime
+	// Calculate normal components
+	u1n := u1 * math.Sin(betaRad)
+	u1t := u1 * math.Cos(betaRad) // Tangential component (unchanged across shock)
 
-			// Check convergence.
-			if math.Abs(u2nNew-u2n) < tol {
-				return u2nNew
-			}
-			u2n = u2nNew
-		}
-		fmt.Println("Warning: Newton solver did not converge!")
-		return u2n
-	}
+	// DIRECT CALCULATION using analytical Rankine-Hugoniot relations
+	// These are exact - no need for Newton iteration for normal shock relations
 
-	// Compute post-shock properties.
+	// Density ratio
+	rhoRatio := ((gamma + 1) * M1n * M1n) / ((gamma-1)*M1n*M1n + 2)
+
+	// Pressure ratio
+	pRatio := 1 + (2*gamma/(gamma+1))*(M1n*M1n-1)
+
+	// Normal velocity ratio (this is the key calculation that was failing)
+	u2n_to_u1n := ((gamma-1)*M1n*M1n + 2) / ((gamma + 1) * M1n * M1n)
+
+	// Post-shock values
 	rho2 := rho1 * rhoRatio
 	p2 := p1 * pRatio
-	// Tangential component remains unchanged.
-	u1t := u1 * math.Cos(betaRad)
+	u2n := u1n * u2n_to_u1n
 
-	// Solve for post-shock normal velocity using the Newton solver.
-	u2n := NewtonSolver(rho1, M1n, p1, rho2, p2, 1e-6, 50)
+	// Debug output for verification
+	// fmt.Printf("M1=%.2f: Normal Mach=%.4f, rho ratio=%.4f, pressure ratio=%.4f, velocity ratio=%.4f\n",
+	// 	M1, M1n, rhoRatio, pRatio, u2n_to_u1n)
 
-	// Compute full post-shock velocity components.
+	// Reconstruct post-shock velocity components
 	u2 := u2n*math.Sin(betaRad) + u1t*math.Cos(betaRad)
 	v2 := u2n*math.Cos(betaRad) - u1t*math.Sin(betaRad)
 
-	// Compute total energy (using post-shock pressure and velocity).
+	// Compute total energy
+	En1 := p1/(gamma-1) + 0.5*rho1*(u1*u1+v1*v1)
 	En2 := p2/(gamma-1) + 0.5*rho2*(u2*u2+v2*v2)
 
-	// Pack pre- and post-shock states into U1 and U2.
-	U2 = [4]float64{rho2, rho2 * u2, rho2 * v2, rho2 * En2}
+	// Pack pre- and post-shock states
+	U1 = [4]float64{rho1, rho1 * u1, rho1 * v1, En1}
+	U2 = [4]float64{rho2, rho2 * u2, rho2 * v2, En2}
+
 	return
 }
