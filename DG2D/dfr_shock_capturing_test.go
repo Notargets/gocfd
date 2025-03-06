@@ -180,11 +180,12 @@ func TestPlotVariousFields(t *testing.T) {
 
 func TestInterpolationVariousFields(t *testing.T) {
 	var (
-		NMin  = 2
-		NMax  = 2
+		NMin  = 1
+		NMax  = 7
 		Nu, p = 0.2, 3.
 	)
 	for N := NMin; N <= NMax; N++ {
+		fmt.Printf("ORDER: %d Element Test\n-----------------------\n", N)
 		// angle := 210.
 		angle := 0.
 		dfr := CreateEquiTriMesh(N, angle)
@@ -193,10 +194,10 @@ func TestInterpolationVariousFields(t *testing.T) {
 		SFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.S.DataP)) // For the Interpolation matrix across three edges
 		EdgeInterpMod := dfr.SolutionElement.JB2D.GetModInterpMatrix(RFlux,
 			SFlux, Nu, p)
-		// for _, tf := range []TestField{NORMALSHOCKTESTM12, NORMALSHOCKTESTM2,
-		// 	NORMALSHOCKTESTM5, FIXEDVORTEXTEST, RADIAL1TEST, RADIAL2TEST,
-		// 	RADIAL3TEST, RADIAL4TEST} {
-		for _, tf := range []TestField{NORMALSHOCKTESTM5} {
+		for _, tf := range []TestField{NORMALSHOCKTESTM12, NORMALSHOCKTESTM2,
+			NORMALSHOCKTESTM5, FIXEDVORTEXTEST, RADIAL1TEST, RADIAL2TEST,
+			RADIAL3TEST, RADIAL4TEST} {
+			// for _, tf := range []TestField{NORMALSHOCKTESTM12} {
 			Np := dfr.SolutionElement.Np
 			X, Y := dfr.SolutionX.DataP, dfr.SolutionY.DataP
 			QSol := QFromField(setTestField(X, Y, tf), Np)
@@ -216,6 +217,7 @@ func TestInterpolationVariousFields(t *testing.T) {
 				GetInterpolationAccuracy(dfr, QSolMod, EdgeInterpMod, tf)
 			printRMSError(RMSErr, Mean, N)
 			_, _ = trueEdges, interpEdges
+			fmt.Printf("---------------------\n\n\n")
 			// Coeffs := GetRTCoefficients(dfr, tf)
 			// QSol.Print("QSol Orig")
 			// for _, iterCount := range []int{10, 100, 1000} {
