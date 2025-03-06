@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"strconv"
 	"testing"
 	"time"
 
@@ -189,32 +188,41 @@ func TestInterpolationVariousFields(t *testing.T) {
 		// angle := 210.
 		angle := 0.
 		dfr := CreateEquiTriMesh(N, angle)
+		rt := dfr.FluxElement
+		RFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.R.DataP)) // For the Interpolation matrix across three edges
+		SFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.S.DataP)) // For the Interpolation matrix across three edges
+		EdgeInterpMod := dfr.SolutionElement.JB2D.GetModInterpMatrix(RFlux,
+			SFlux, Nu, p)
 		// for _, tf := range []TestField{NORMALSHOCKTESTM12, NORMALSHOCKTESTM2,
 		// 	NORMALSHOCKTESTM5, FIXEDVORTEXTEST, RADIAL1TEST, RADIAL2TEST,
 		// 	RADIAL3TEST, RADIAL4TEST} {
 		for _, tf := range []TestField{NORMALSHOCKTESTM5} {
-			fmt.Printf("%s Interpolation\n", tf.String())
-			RMSErr, Mean, trueEdges, interpEdges :=
-				GetInterpolationAccuracy(dfr, dfr.FluxEdgeInterp, tf)
-			printRMSError(RMSErr, Mean, N)
-			_, _ = trueEdges, interpEdges
-			// Coeffs := GetRTCoefficients(dfr, tf)
 			Np := dfr.SolutionElement.Np
 			X, Y := dfr.SolutionX.DataP, dfr.SolutionY.DataP
 			QSol := QFromField(setTestField(X, Y, tf), Np)
-			QSol.Print("QSol Orig")
-			for _, iterCount := range []int{10, 100, 1000} {
-				QSolMod := ModulateInternalField(dfr, QSol, Nu, p, iterCount)
-				QSolMod.Print("QSolMod." + strconv.Itoa(iterCount))
-			}
+			fmt.Printf("%s Interpolation\n", tf.String())
+			RMSErr, Mean, trueEdges, interpEdges :=
+				GetInterpolationAccuracy(dfr, QSol, dfr.FluxEdgeInterp, tf)
+			printRMSError(RMSErr, Mean, N)
+
+			fmt.Printf("Modulated Field\n")
+			QSolMod := ModulateInternalField(dfr, QSol, Nu, p, 5)
+			RMSErr, Mean, trueEdges, interpEdges =
+				GetInterpolationAccuracy(dfr, QSolMod, dfr.FluxEdgeInterp, tf)
+			printRMSError(RMSErr, Mean, N)
+
+			fmt.Printf("Modulated Field and Modulated Interpolation\n")
+			RMSErr, Mean, trueEdges, interpEdges =
+				GetInterpolationAccuracy(dfr, QSolMod, EdgeInterpMod, tf)
+			printRMSError(RMSErr, Mean, N)
+			_, _ = trueEdges, interpEdges
+			// Coeffs := GetRTCoefficients(dfr, tf)
+			// QSol.Print("QSol Orig")
+			// for _, iterCount := range []int{10, 100, 1000} {
+			// 	QSolMod := ModulateInternalField(dfr, QSol, Nu, p, iterCount)
+			// 	QSolMod.Print("QSolMod." + strconv.Itoa(iterCount))
+			// }
 		}
-		rt := dfr.FluxElement
-		RFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.R.DataP)) // For the Interpolation matrix across three edges
-		SFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.S.DataP)) // For the Interpolation matrix across three edges
-		EdgeInterp := dfr.SolutionElement.JB2D.GetModInterpMatrix(RFlux, SFlux, Nu, p)
-		_ = EdgeInterp
-		// dfr.FluxEdgeInterp.Print("Orig Interp")
-		// EdgeInterp.Print("Mod Interp")
 	}
 }
 
@@ -354,14 +362,12 @@ func GetFluxVectors(QFlux utils.Matrix) (F, G utils.Matrix) {
 	return
 }
 
-func GetInterpolationAccuracy(dfr *DFR2D, EdgeInterpolation utils.Matrix,
+func GetInterpolationAccuracy(dfr *DFR2D, QSol, EdgeInterpolation utils.Matrix,
 	tf TestField) (RMSErr, Mean [4]float64, trueEdges, interpEdges [4][]float64) {
 	var (
-		NpInt = dfr.FluxElement.NpInt
-		edgeX = dfr.FluxX.DataP[2*NpInt:]
-		edgeY = dfr.FluxY.DataP[2*NpInt:]
-		QSol  = QFromField(setTestField(dfr.SolutionX.DataP, dfr.SolutionY.DataP,
-			tf), dfr.SolutionElement.Np)
+		NpInt          = dfr.FluxElement.NpInt
+		edgeX          = dfr.FluxX.DataP[2*NpInt:]
+		edgeY          = dfr.FluxY.DataP[2*NpInt:]
 		trueEdgesField = setTestField(edgeX, edgeY, tf)
 		fieldLen       = len(trueEdgesField) / 4
 	)
