@@ -112,7 +112,7 @@ func CheckDivergenceRMS(t *testing.T, rt *RTElement, dt VectorTestField) (rmsErr
 		f1[i], f2[i] = dt.F(r, s, 0)
 		DivRef[i] = dt.Divergence(r, s, 0)
 	}
-	rt.ProjectFunctionOntoDOF(f1, f2, FProj)
+	rt.ProjectFunctionOntoDOF(f1, f2, FProj.DataP)
 	DivCalc := rt.Div.Mul(FProj)
 	for i := 0; i < Np; i++ {
 		baseErr := DivRef[i] - DivCalc.DataP[i]
@@ -140,7 +140,7 @@ func CheckDivergence(t *testing.T, rt *RTElement, dt VectorTestField,
 			f1[i], f2[i] = dt.F(r, s, PField)
 			DivRef[i] = dt.Divergence(r, s, PField)
 		}
-		rt.ProjectFunctionOntoDOF(f1, f2, FProj)
+		rt.ProjectFunctionOntoDOF(f1, f2, FProj.DataP)
 		DivCalc := rt.Div.Mul(FProj)
 		if testing.Verbose() {
 			DivCalc.Transpose().Print("Div Calc")

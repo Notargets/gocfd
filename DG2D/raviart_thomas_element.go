@@ -297,14 +297,14 @@ func (rt *RTElement) ComputeDivergenceMatrix() (Div utils.Matrix) {
 	return
 }
 
-func (rt *RTElement) ProjectFunctionOntoDOF(s1, s2 []float64, FProj utils.Matrix) {
+func (rt *RTElement) ProjectFunctionOntoDOF(s1, s2, FProj []float64) {
 	// For each location in {R,S}, project the input vector function [s1,s2]
 	// on to the degrees of freedom of the element
 	// FProj should already be allocated to size [Np,1]
 	for j := range s1 {
 		b_j := rt.DOFVectors[j]
 		f := [2]float64{s1[j], s2[j]}
-		FProj.DataP[j] = b_j.Dot(f)
+		FProj[j] = b_j.Dot(f)
 	}
 	return
 }

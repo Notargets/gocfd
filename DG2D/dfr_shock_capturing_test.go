@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 
@@ -111,6 +112,17 @@ func setShockConditions(X []float64, Mach, Alpha float64) (field []float64) {
 		U1, U2 = ShockConditions(Mach, Alpha)
 		Np     = len(X)
 	)
+	// fmt.Printf("Mach: %.2f\n", Mach)
+	// fmt.Printf("U1: ")
+	// for n := 0; n < 4; n++ {
+	// 	fmt.Printf(" %.2f ", U1[n])
+	// }
+	// fmt.Printf("\n")
+	// fmt.Printf("U2: ")
+	// for n := 0; n < 4; n++ {
+	// 	fmt.Printf(" %.2f ", U2[n])
+	// }
+	// fmt.Printf("\n")
 	field = make([]float64, Np*4)
 	var x float64
 	for i := 0; i < Np; i++ {
@@ -169,39 +181,192 @@ func TestPlotVariousFields(t *testing.T) {
 
 func TestInterpolationVariousFields(t *testing.T) {
 	var (
-		NMin = 2
-		NMax = 2
+		NMin  = 2
+		NMax  = 2
+		Nu, p = 0.2, 3.
 	)
-	if !testing.Verbose() {
-		return
-	}
 	for N := NMin; N <= NMax; N++ {
-		angle := 210.
+		// angle := 210.
+		angle := 0.
 		dfr := CreateEquiTriMesh(N, angle)
 		// for _, tf := range []TestField{NORMALSHOCKTESTM12, NORMALSHOCKTESTM2,
 		// 	NORMALSHOCKTESTM5, FIXEDVORTEXTEST, RADIAL1TEST, RADIAL2TEST,
 		// 	RADIAL3TEST, RADIAL4TEST} {
-		for _, tf := range []TestField{FIXEDVORTEXTEST} {
+		for _, tf := range []TestField{NORMALSHOCKTESTM5} {
 			fmt.Printf("%s Interpolation\n", tf.String())
-			RMSErr, Mean, trueEdges, interpEdges := GetInterpolationAccuracy(
-				dfr, dfr.FluxEdgeInterp, tf)
+			RMSErr, Mean, trueEdges, interpEdges :=
+				GetInterpolationAccuracy(dfr, dfr.FluxEdgeInterp, tf)
 			printRMSError(RMSErr, Mean, N)
 			_, _ = trueEdges, interpEdges
+			// Coeffs := GetRTCoefficients(dfr, tf)
+			Np := dfr.SolutionElement.Np
+			X, Y := dfr.SolutionX.DataP, dfr.SolutionY.DataP
+			QSol := QFromField(setTestField(X, Y, tf), Np)
+			QSol.Print("QSol Orig")
+			for _, iterCount := range []int{10, 100, 1000} {
+				QSolMod := ModulateInternalField(dfr, QSol, Nu, p, iterCount)
+				QSolMod.Print("QSolMod." + strconv.Itoa(iterCount))
+			}
+		}
+		rt := dfr.FluxElement
+		RFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.R.DataP)) // For the Interpolation matrix across three edges
+		SFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.S.DataP)) // For the Interpolation matrix across three edges
+		EdgeInterp := dfr.SolutionElement.JB2D.GetModInterpMatrix(RFlux, SFlux, Nu, p)
+		_ = EdgeInterp
+		// dfr.FluxEdgeInterp.Print("Orig Interp")
+		// EdgeInterp.Print("Mod Interp")
+	}
+}
+
+func (jb2d *JacobiBasis2D) GetModInterpMatrix(R, S utils.Vector,
+	Nu, p float64) (Interp utils.Matrix) {
+	/*
+		Uses Jacobi polynomials as the basis function
+
+		Compose a matrix of interpolating polynomials where each row represents one [r,s] location to be interpolated
+		This matrix can then be multiplied by a single vector of function values at the polynomial nodes to produce a
+		vector of interpolated values, one for each interpolation location
+	*/
+	var (
+		N  = jb2d.P
+		Np = jb2d.Np
+	)
+	CoefMods := ModalFilter2D(Nu, p, N)
+	// First compute polynomial terms, used by all polynomials
+	polyTerms := make([]float64, R.Len()*Np)
+	var sk int
+	for ii, r := range R.DataP {
+		s := S.DataP[ii]
+		var sk2 int
+		for i := 0; i <= N; i++ {
+			for j := 0; j <= (N - i); j++ {
+				polyTerms[sk] = CoefMods[sk2] * jb2d.PolynomialTerm(r, s, i, j)
+				sk++
+				sk2++
+			}
 		}
 	}
+	ptV := utils.NewMatrix(R.Len(), Np, polyTerms).Transpose()
+	Interp = jb2d.Vinv.Transpose().Mul(ptV).Transpose()
+	return
+}
+
+func ModulateInternalField(dfr *DFR2D, QSol utils.Matrix, Nu,
+	p float64, iterCount int) (QSolMod utils.Matrix) {
+	var (
+		Np = dfr.SolutionElement.Np
+	)
+	QSolMod = utils.NewMatrix(Np, 4)
+	CoeffModifier := ModalFilter2D(Nu, p, dfr.N)
+	for iter := 0; iter < iterCount; iter++ {
+		for n := 0; n < 4; n++ {
+			Coeffs := dfr.SolutionElement.JB2D.Vinv.Mul(QSol.Col(n).ToMatrix())
+			for i := 0; i < Np; i++ {
+				Coeffs.DataP[i] *= CoeffModifier[i]
+			}
+			QSolModE := dfr.SolutionElement.JB2D.V.Mul(Coeffs)
+			for i := 0; i < Np; i++ {
+				QSolMod.Set(i, n, QSolModE.DataP[i])
+			}
+		}
+		QSol = QSolMod.Copy(QSol)
+	}
+	return
+}
+
+func ModalFilter2D(Nu, p float64, P int) (CoeffModifier []float64) {
+	// Tunables:
+	// - Nu is a user-defined dissipation strength (tunable),
+	// 0.1 to 0.5	Higher = stronger overall dissipation (aggressiveness)
+	// - p controls sharpness (typically 1 to 4 — sharper if you only want to hit the highest modes).
+	// 1 to 4	Higher = sharper cutoff (more selective to highest modes)
+	var (
+		degree = ModalDegree2D(P)
+		Np     = len(degree)
+	)
+	CoeffModifier = make([]float64, Np)
+	for i := 0; i < Np; i++ {
+		CoeffModifier[i] = 1. - Nu*(math.Pow(degree[i]/float64(P), 2.*p))
+	}
+	return
+}
+
+func ModalDegree2D(P int) (degree []float64) {
+	var (
+		Np = (P + 1) * (P + 2) / 2
+	)
+	degree = make([]float64, Np)
+	var sk int
+	for i := 0; i <= P; i++ {
+		for j := 0; j <= P-i; j++ {
+			degree[sk] = math.Max(float64(i), float64(j))
+			sk++
+		}
+	}
+	return
+}
+
+func GetRTCoefficients(dfr *DFR2D, tf TestField) (Coeffs [4]utils.Matrix) {
+	var (
+		Np            = dfr.FluxElement.Np
+		X, Y          = dfr.FluxX.DataP, dfr.FluxY.DataP
+		QFlux         = QFromField(setTestField(X, Y, tf), Np)
+		F, G          = GetFluxVectors(QFlux)
+		ProjectedFlux = utils.NewMatrix(Np, 4)
+	)
+	for n := 0; n < 4; n++ {
+		b, e := n*Np, (n+1)*Np
+		dfr.FluxElement.ProjectFunctionOntoDOF(F.DataP[b:e], G.DataP[b:e],
+			ProjectedFlux.DataP[b:e])
+		Coeffs[n] = dfr.FluxElement.VInv.Mul(ProjectedFlux.Col(n).ToMatrix())
+	}
+	return
+}
+
+func GetFluxVectors(QFlux utils.Matrix) (F, G utils.Matrix) {
+	var (
+		gamma = 1.4
+		Np, _ = QFlux.Dims()
+	)
+	F, G = utils.NewMatrix(Np, 4), utils.NewMatrix(Np, 4)
+	P := func(rho, u, v, E float64) (p float64) {
+		// p=(γ−1)(E−(ρ/2)(u^2+v^2))
+		p = (gamma - 1.) * (E - (rho/2.)*(u*u+v*v))
+		return
+	}
+	for i := 0; i < Np; i++ {
+		rho, rhou, rhov, E := QFlux.At(i, 0), QFlux.At(i, 1), QFlux.At(i, 2),
+			QFlux.At(i, 3)
+		u, v := rhou/rho, rhov/rho
+		p := P(rho, u, v, E)
+		F.Set(i, 0, rhou)
+		G.Set(i, 0, rhov)
+
+		F.Set(i, 1, u*rhou+p)
+		G.Set(i, 1, u*rhov)
+
+		F.Set(i, 2, v*rhou)
+		G.Set(i, 2, v*rhov+p)
+
+		F.Set(i, 3, u*(E+p))
+		G.Set(i, 3, v*(E+p))
+	}
+	return
 }
 
 func GetInterpolationAccuracy(dfr *DFR2D, EdgeInterpolation utils.Matrix,
 	tf TestField) (RMSErr, Mean [4]float64, trueEdges, interpEdges [4][]float64) {
-	NpInt := dfr.FluxElement.NpInt
-	edgeX := dfr.FluxX.DataP[2*NpInt:]
-	edgeY := dfr.FluxY.DataP[2*NpInt:]
-	QSol := QFromField(setTestField(dfr.SolutionX.DataP, dfr.SolutionY.DataP,
-		tf), dfr.SolutionElement.Np)
-	trueEdgesField := setTestField(edgeX, edgeY, tf)
+	var (
+		NpInt = dfr.FluxElement.NpInt
+		edgeX = dfr.FluxX.DataP[2*NpInt:]
+		edgeY = dfr.FluxY.DataP[2*NpInt:]
+		QSol  = QFromField(setTestField(dfr.SolutionX.DataP, dfr.SolutionY.DataP,
+			tf), dfr.SolutionElement.Np)
+		trueEdgesField = setTestField(edgeX, edgeY, tf)
+		fieldLen       = len(trueEdgesField) / 4
+	)
 	interpEdges, RMSErr = evaluateInterpolation(QSol, EdgeInterpolation,
 		trueEdgesField)
-	fieldLen := len(trueEdgesField) / 4
 	for n := 0; n < 4; n++ {
 		trueEdges[n] = make([]float64, fieldLen)
 		for i := 0; i < fieldLen; i++ {
@@ -1122,24 +1287,28 @@ func TestMachConditions(t *testing.T) {
 // ShockConditions computes post-shock properties given pre-shock Mach number (M1) and shock angle (alpha)
 // where alpha = 0 corresponds to a normal shock.
 func ShockConditions(M1, alpha float64) (U1, U2 [4]float64) {
-	// Alpha = 0 for a normal shock.
-	// Beta is the shock angle relative to the incoming flow.
+	// Alpha = angle of incoming flow relative to the shock front (0 = normal shock).
 	var (
-		gamma   = 1.4
-		beta    = alpha + 90.
-		betaRad = beta * math.Pi / 180.0
+		gamma = 1.4
 	)
 
-	// Compute normal component of Mach number
-	M1n := M1 * math.Sin(betaRad)
+	// Convert angles to radians
+	alphaRad := alpha * math.Pi / 180.0
 
 	// Pre-shock conditions (non-dimensional)
 	rho1 := 1.0
 	p1 := 1.0
 	u1 := M1
-	v1 := 0.0
+	v1 := 0.0 // Flow is initially aligned along x (free stream)
 
-	// If subsonic, no shock forms
+	// Resolve incoming velocity into normal/tangential components relative to the shock
+	u1n := u1*math.Cos(alphaRad) + v1*math.Sin(alphaRad)  // Normal velocity component
+	u1t := -u1*math.Sin(alphaRad) + v1*math.Cos(alphaRad) // Tangential component (unchanged)
+
+	// Normal Mach number
+	M1n := u1n / math.Sqrt(gamma*p1/rho1)
+
+	// If subsonic normal component, no shock forms
 	if M1n < 1.0 {
 		En1 := p1/(gamma-1) + 0.5*rho1*(u1*u1+v1*v1)
 		U1 = [4]float64{rho1, rho1 * u1, rho1 * v1, En1}
@@ -1147,40 +1316,28 @@ func ShockConditions(M1, alpha float64) (U1, U2 [4]float64) {
 		return
 	}
 
-	// Calculate normal components
-	u1n := u1 * math.Sin(betaRad)
-	u1t := u1 * math.Cos(betaRad) // Tangential component (unchanged across shock)
-
-	// DIRECT CALCULATION using analytical Rankine-Hugoniot relations
-	// These are exact - no need for Newton iteration for normal shock relations
-
-	// Density ratio
+	// Rankine-Hugoniot relations (normal direction)
 	rhoRatio := ((gamma + 1) * M1n * M1n) / ((gamma-1)*M1n*M1n + 2)
-
-	// Pressure ratio
 	pRatio := 1 + (2*gamma/(gamma+1))*(M1n*M1n-1)
-
-	// Normal velocity ratio (this is the key calculation that was failing)
 	u2n_to_u1n := ((gamma-1)*M1n*M1n + 2) / ((gamma + 1) * M1n * M1n)
 
-	// Post-shock values
+	// Post-shock normal values
 	rho2 := rho1 * rhoRatio
 	p2 := p1 * pRatio
 	u2n := u1n * u2n_to_u1n
 
-	// Debug output for verification
-	// fmt.Printf("M1=%.2f: Normal Mach=%.4f, rho ratio=%.4f, pressure ratio=%.4f, velocity ratio=%.4f\n",
-	// 	M1, M1n, rhoRatio, pRatio, u2n_to_u1n)
+	// Tangential velocity is unchanged across the shock (slip condition for inviscid flow)
+	u2t := u1t
 
-	// Reconstruct post-shock velocity components
-	u2 := u2n*math.Sin(betaRad) + u1t*math.Cos(betaRad)
-	v2 := u2n*math.Cos(betaRad) - u1t*math.Sin(betaRad)
+	// Now transform back to x,y coordinates (undo rotation)
+	u2 := u2n*math.Cos(alphaRad) - u2t*math.Sin(alphaRad)
+	v2 := u2n*math.Sin(alphaRad) + u2t*math.Cos(alphaRad)
 
-	// Compute total energy
+	// Total energy (consistent with post-shock pressure and velocity)
 	En1 := p1/(gamma-1) + 0.5*rho1*(u1*u1+v1*v1)
 	En2 := p2/(gamma-1) + 0.5*rho2*(u2*u2+v2*v2)
 
-	// Pack pre- and post-shock states
+	// Pack conservative variables into U1 and U2
 	U1 = [4]float64{rho1, rho1 * u1, rho1 * v1, En1}
 	U2 = [4]float64{rho2, rho2 * u2, rho2 * v2, En2}
 
