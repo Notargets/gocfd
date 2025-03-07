@@ -229,6 +229,83 @@ func (jb2d *JacobiBasis2D) GetInterpMatrix(R, S utils.Vector) (Interp utils.Matr
 	return
 }
 
+func (jb2d *JacobiBasis2D) GetModInterpMatrix(R, S utils.Vector,
+	Nu, p float64) (Interp utils.Matrix) {
+	/*
+		Uses Jacobi polynomials as the basis function
+
+		Compose a matrix of interpolating polynomials where each row represents one [r,s] location to be interpolated
+		This matrix can then be multiplied by a single vector of function values at the polynomial nodes to produce a
+		vector of interpolated values, one for each interpolation location
+	*/
+	var (
+		N  = jb2d.P
+		Np = jb2d.Np
+	)
+	CoefMods := jb2d.ModalFilter2D(Nu, p)
+	// First compute polynomial terms, used by all polynomials
+	polyTerms := make([]float64, R.Len()*Np)
+	var sk int
+	for ii, r := range R.DataP {
+		s := S.DataP[ii]
+		var sk2 int
+		for i := 0; i <= N; i++ {
+			for j := 0; j <= (N - i); j++ {
+				polyTerms[sk] = CoefMods[sk2] * jb2d.PolynomialTerm(r, s, i, j)
+				sk++
+				sk2++
+			}
+		}
+	}
+	ptV := utils.NewMatrix(R.Len(), Np, polyTerms).Transpose()
+	Interp = jb2d.Vinv.Transpose().Mul(ptV).Transpose()
+	return
+}
+
+func (jb2d *JacobiBasis2D) GetModulationMatrix(Nu, p float64) (ModMat utils.Matrix) {
+	// This returns a ModMat matrix that will filter high modes out of an
+	// existing field on Np nodal points in one matrix multiplication
+	var (
+		Np = jb2d.Np
+		F  = utils.NewDiagMatrix(Np, jb2d.ModalFilter2D(Nu, p))
+	)
+	ModMat = jb2d.V.Mul(F).Mul(jb2d.Vinv)
+	return
+}
+
+func (jb2d *JacobiBasis2D) ModalFilter2D(Nu, p float64) (CoeffModifier []float64) {
+	// Tunables:
+	// - Nu is a user-defined dissipation strength (tunable),
+	// 0.1 to 0.5	Higher = stronger overall dissipation (aggressiveness)
+	// - p controls sharpness (typically 1 to 4 — sharper if you only want to hit the highest modes).
+	// 1 to 4	Higher = sharper cutoff (more selective to highest modes)
+	var (
+		P      = jb2d.P
+		degree = jb2d.ModalDegree2D(P)
+		Np     = len(degree)
+	)
+	CoeffModifier = make([]float64, Np)
+	for i := 0; i < Np; i++ {
+		CoeffModifier[i] = 1. - Nu*(math.Pow(degree[i]/float64(P), 2.*p))
+	}
+	return
+}
+
+func (jb2d *JacobiBasis2D) ModalDegree2D(P int) (degree []float64) {
+	var (
+		Np = (P + 1) * (P + 2) / 2
+	)
+	degree = make([]float64, Np)
+	var sk int
+	for i := 0; i <= P; i++ {
+		for j := 0; j <= P-i; j++ {
+			degree[sk] = math.Max(float64(i), float64(j))
+			sk++
+		}
+	}
+	return
+}
+
 func (jb2d *JacobiBasis2D) GetPolynomialEvaluation(r, s float64,
 	derivO ...DerivativeDirection) (psi float64) {
 	var (

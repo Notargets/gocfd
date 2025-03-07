@@ -235,15 +235,30 @@ func TestOptimizeInterpolation(t *testing.T) {
 	if !testing.Verbose() {
 		return
 	}
+	/*
+		Results of a 10 minute test centered on Nu:.1-.2, p:3-4:
+		=== RUN   TestOptimizeInterpolation
+		There are 10000 elements in the group
+		MinHigh
+		 Field:NORMALSHOCKTESTM12 N:1 Nu:0.10 p:3.29 Angle:0.00
+		MinLow
+		 Field:FIXEDVORTEXTEST N:7 Nu:0.20 p:3.99 Angle:176.40
+		MinErr
+		 Field:NORMALSHOCKTESTM12 N:1 Nu:0.10 p:3.29 Angle:0.00
+		--- PASS: TestOptimizeInterpolation (629.96s)
+		PASS
+
+	*/
 	wg := &sync.WaitGroup{}
-	NuCount, pCount := 10, 10
+	NuCount, pCount := 100, 100
 	statChan := make(chan []ElementTestStats, NuCount*pCount)
 	evalNup := func(Nu, p float64) {
 		statChan <- GetInterpolationResults(Nu, p)
 		wg.Done()
 	}
-	NuStart, NuEnd := 0.1, 0.5
-	pStart, pEnd := 1., 4.
+	// Nu,p = 0.1, 3.4 seems somewhat promising
+	NuStart, NuEnd := 0.1, 0.2
+	pStart, pEnd := 3., 4.
 	for i := 0; i < NuCount; i++ {
 		Nu := NuStart + float64(i)*(NuEnd-NuStart)/float64(NuCount)
 		for j := 0; j < pCount; j++ {
@@ -392,9 +407,9 @@ func GetInterpolationResults(Nu, p float64) (aggStats []ElementTestStats) {
 
 func TestInterpolationVariousFields(t *testing.T) {
 	var (
-		NMin  = 1
+		NMin  = 7
 		NMax  = 7
-		Nu, p = 0.1, 3.4
+		Nu, p = 0.1, 3.29
 	)
 	for N := NMin; N <= NMax; N++ {
 		fmt.Printf("ORDER: %d Element Test\n-----------------------\n", N)
@@ -409,7 +424,7 @@ func TestInterpolationVariousFields(t *testing.T) {
 		// for _, tf := range []TestField{NORMALSHOCKTESTM12, NORMALSHOCKTESTM2,
 		// 	NORMALSHOCKTESTM5, FIXEDVORTEXTEST, RADIAL1TEST, RADIAL2TEST,
 		// 	RADIAL3TEST, RADIAL4TEST} {
-		for _, tf := range []TestField{NORMALSHOCKTESTM5} {
+		for _, tf := range []TestField{FIXEDVORTEXTEST, NORMALSHOCKTESTM5} {
 			Np := dfr.SolutionElement.Np
 			X, Y := dfr.SolutionX.DataP, dfr.SolutionY.DataP
 			QSol := QFromField(setTestField(X, Y, tf), Np)
@@ -419,6 +434,7 @@ func TestInterpolationVariousFields(t *testing.T) {
 			printRMSError(stats)
 
 			fmt.Printf("Modulated Field\n")
+			// QSolMod := ModulateInternalField(dfr, QSol, Nu, p, 5)
 			QSolMod := ModulateInternalField(dfr, QSol, Nu, p, 5)
 			stats = GetInterpolationAccuracy(dfr, QSolMod, dfr.FluxEdgeInterp, tf)
 			printRMSError(stats)
@@ -442,90 +458,23 @@ func TestInterpolationVariousFields(t *testing.T) {
 		}
 	}
 }
-func (jb2d *JacobiBasis2D) GetModInterpMatrix(R, S utils.Vector,
-	Nu, p float64) (Interp utils.Matrix) {
-	/*
-		Uses Jacobi polynomials as the basis function
-
-		Compose a matrix of interpolating polynomials where each row represents one [r,s] location to be interpolated
-		This matrix can then be multiplied by a single vector of function values at the polynomial nodes to produce a
-		vector of interpolated values, one for each interpolation location
-	*/
-	var (
-		N  = jb2d.P
-		Np = jb2d.Np
-	)
-	CoefMods := ModalFilter2D(Nu, p, N)
-	// First compute polynomial terms, used by all polynomials
-	polyTerms := make([]float64, R.Len()*Np)
-	var sk int
-	for ii, r := range R.DataP {
-		s := S.DataP[ii]
-		var sk2 int
-		for i := 0; i <= N; i++ {
-			for j := 0; j <= (N - i); j++ {
-				polyTerms[sk] = CoefMods[sk2] * jb2d.PolynomialTerm(r, s, i, j)
-				sk++
-				sk2++
-			}
-		}
-	}
-	ptV := utils.NewMatrix(R.Len(), Np, polyTerms).Transpose()
-	Interp = jb2d.Vinv.Transpose().Mul(ptV).Transpose()
-	return
-}
 
 func ModulateInternalField(dfr *DFR2D, QSol utils.Matrix, Nu,
 	p float64, iterCount int) (QSolMod utils.Matrix) {
 	var (
-		Np = dfr.SolutionElement.Np
+		se     = dfr.SolutionElement
+		Np     = se.Np
+		ModMat = se.JB2D.GetModulationMatrix(Nu, p)
 	)
 	QSolMod = utils.NewMatrix(Np, 4)
-	CoeffModifier := ModalFilter2D(Nu, p, dfr.N)
 	for iter := 0; iter < iterCount; iter++ {
 		for n := 0; n < 4; n++ {
-			Coeffs := dfr.SolutionElement.JB2D.Vinv.Mul(QSol.Col(n).ToMatrix())
-			for i := 0; i < Np; i++ {
-				Coeffs.DataP[i] *= CoeffModifier[i]
-			}
-			QSolModE := dfr.SolutionElement.JB2D.V.Mul(Coeffs)
+			QSolModE := ModMat.Mul(QSol.Col(n).ToMatrix())
 			for i := 0; i < Np; i++ {
 				QSolMod.Set(i, n, QSolModE.DataP[i])
 			}
 		}
 		QSol = QSolMod.Copy(QSol)
-	}
-	return
-}
-
-func ModalFilter2D(Nu, p float64, P int) (CoeffModifier []float64) {
-	// Tunables:
-	// - Nu is a user-defined dissipation strength (tunable),
-	// 0.1 to 0.5	Higher = stronger overall dissipation (aggressiveness)
-	// - p controls sharpness (typically 1 to 4 — sharper if you only want to hit the highest modes).
-	// 1 to 4	Higher = sharper cutoff (more selective to highest modes)
-	var (
-		degree = ModalDegree2D(P)
-		Np     = len(degree)
-	)
-	CoeffModifier = make([]float64, Np)
-	for i := 0; i < Np; i++ {
-		CoeffModifier[i] = 1. - Nu*(math.Pow(degree[i]/float64(P), 2.*p))
-	}
-	return
-}
-
-func ModalDegree2D(P int) (degree []float64) {
-	var (
-		Np = (P + 1) * (P + 2) / 2
-	)
-	degree = make([]float64, Np)
-	var sk int
-	for i := 0; i <= P; i++ {
-		for j := 0; j <= P-i; j++ {
-			degree[sk] = math.Max(float64(i), float64(j))
-			sk++
-		}
 	}
 	return
 }
