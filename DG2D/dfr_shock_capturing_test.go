@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -157,17 +158,16 @@ func setIsoVortexConditions(X, Y []float64,
 
 func TestPlotVariousFields(t *testing.T) {
 	var (
-		N = 2
+		N = 3
 	)
 	if !testing.Verbose() {
 		return
 	}
-	angle := 210.
-	// angle := 0.
+	angle := 82.8
 	dfr := CreateEquiTriMesh(N, angle)
 	gm := CreateGraphMesh(dfr)
 	X, Y := convXYtoXandY(gm.XY)
-	field := setTestField(X, Y, FIXEDVORTEXTEST)
+	field := setTestField(X, Y, NORMALSHOCKTESTM5)
 	// field := setTestField(X, Y, NORMALSHOCKTESTM2)
 	// field := setTestField(X, Y, RADIAL2TEST)
 	n := 0 // Density
@@ -178,46 +178,261 @@ func TestPlotVariousFields(t *testing.T) {
 	plotField(field, n, gm)
 }
 
+type ElementTestStats struct {
+	N                      int
+	Nu, p                  float64
+	Angle                  float64
+	FieldName              string
+	RMSErr, Mean           [4]float64
+	Extrema                [4][2]float64
+	trueEdges, interpEdges [4][]float64
+}
+
+type StatGroup struct {
+	MaxLow, MaxHigh, MaxErr ElementTestStats
+	MinLow, MinHigh, MinErr ElementTestStats
+}
+
+type KeyStat struct {
+	Nu, p float64
+	Stat  float64
+	TStat ElementTestStats
+}
+
+func (sg StatGroup) Print() {
+	for _, as := range []ElementTestStats{sg.MaxHigh, sg.MaxLow,
+		sg.MaxErr, sg.MinHigh, sg.MinLow, sg.MinErr} {
+		printStats(as, fmt.Sprintf("Nu,p:[%.1f:%.1f]", as.Nu, as.p))
+	}
+}
+
+func (sg StatGroup) GetKeyStats() (MinHigh, MinLow, MinErr KeyStat) {
+	MinErr.TStat = sg.MinErr
+	MinErr.Nu, MinErr.p = sg.MinErr.Nu, sg.MinErr.p
+	for n, f := range sg.MinErr.RMSErr {
+		if math.Abs(f) > MinErr.Stat {
+			MinErr.Stat = f / sg.MinErr.Mean[n]
+		}
+	}
+	MinHigh.TStat = sg.MinHigh
+	MinHigh.Nu, MinHigh.p = sg.MinHigh.Nu, sg.MinHigh.p
+	for n, f := range sg.MinHigh.RMSErr {
+		if math.Abs(f) > MinHigh.Stat {
+			MinHigh.Stat = f / sg.MinHigh.Mean[n]
+		}
+	}
+	MinLow.TStat = sg.MinLow
+	MinLow.Nu, MinLow.p = sg.MinLow.Nu, sg.MinLow.p
+	for n, f := range sg.MinLow.RMSErr {
+		if math.Abs(f) > MinLow.Stat {
+			MinLow.Stat = f / sg.MinLow.Mean[n]
+		}
+	}
+	return
+}
+
+func TestOptimizeInterpolation(t *testing.T) {
+	if !testing.Verbose() {
+		return
+	}
+	wg := &sync.WaitGroup{}
+	NuCount, pCount := 10, 10
+	statChan := make(chan []ElementTestStats, NuCount*pCount)
+	evalNup := func(Nu, p float64) {
+		statChan <- GetInterpolationResults(Nu, p)
+		wg.Done()
+	}
+	NuStart, NuEnd := 0.1, 0.5
+	pStart, pEnd := 1., 4.
+	for i := 0; i < NuCount; i++ {
+		Nu := NuStart + float64(i)*(NuEnd-NuStart)/float64(NuCount)
+		for j := 0; j < pCount; j++ {
+			p := pStart + float64(j)*(pEnd-pStart)/float64(pCount)
+			wg.Add(1)
+			go evalNup(Nu, p)
+		}
+	}
+	go func() {
+		wg.Wait()
+		close(statChan)
+	}()
+
+	var sGroupExp []StatGroup
+	for aggStats := range statChan {
+		sGroupExp = append(sGroupExp, processAggStats(aggStats))
+	}
+	fmt.Printf("There are %d elements in the group\n", len(sGroupExp))
+	nGroups := len(sGroupExp)
+
+	// Calculate the maximums among the group,
+	// later we'll pick the min of the maximums
+	High, Low, Err := make([]KeyStat, nGroups), make([]KeyStat, nGroups), make([]KeyStat, nGroups)
+	for i, sg := range sGroupExp {
+		MaxHigh, MaxLow, MaxErr := sg.GetKeyStats()
+		if math.Abs(MaxHigh.Stat) > High[i].Stat {
+			High[i] = MaxHigh
+		}
+		if math.Abs(MaxLow.Stat) > Low[i].Stat {
+			Low[i] = MaxLow
+		}
+		if math.Abs(MaxErr.Stat) > Err[i].Stat {
+			Err[i] = MaxErr
+		}
+	}
+	// Find the minimum of the highs,
+	// this is the optimum in the group - the "least worst"
+
+	var OHigh, OLow, OErr KeyStat
+	for i := 0; i < nGroups; i++ {
+		if math.Abs(High[i].Stat) > OHigh.Stat {
+			OHigh = High[i]
+		}
+		if math.Abs(Low[i].Stat) > OLow.Stat {
+			OLow = Low[i]
+		}
+		if math.Abs(Err[i].Stat) > OErr.Stat {
+			OErr = Err[i]
+		}
+	}
+	printStats(OHigh.TStat, "MinHigh")
+	printStats(OLow.TStat, "MinLow")
+	printStats(OErr.TStat, "MinErr")
+}
+
+func processAggStats(aggStats []ElementTestStats) (sGroup StatGroup) {
+	var (
+		maxHigh, maxLow, maxErr    float64
+		iMaxHigh, iMaxLow, iMaxErr int
+		minHigh, minLow, minErr    float64
+		iMinHigh, iMinLow, iMinErr int
+	)
+	for i, stats := range aggStats {
+		for n := 0; n < 4; n++ {
+			high := stats.Extrema[n][0] / stats.Mean[n]
+			low := stats.Extrema[n][1] / stats.Mean[n]
+			err := stats.RMSErr[n] / stats.Mean[n]
+			if high > maxHigh {
+				maxHigh = high
+				iMaxHigh = i
+			}
+			if low < maxLow {
+				maxLow = low
+				iMaxLow = i
+			}
+			if high < minHigh {
+				minHigh = high
+				iMinHigh = i
+			}
+			if low < math.Abs(minLow) {
+				minLow = low
+				iMinLow = i
+			}
+			if err < minErr {
+				minErr = err
+				iMinErr = i
+			}
+			if err > maxErr {
+				maxErr = err
+				iMaxErr = i
+			}
+		}
+	}
+	sGroup = StatGroup{
+		MaxErr:  aggStats[iMaxErr],
+		MinErr:  aggStats[iMinErr],
+		MaxHigh: aggStats[iMaxHigh],
+		MinHigh: aggStats[iMinHigh],
+		MinLow:  aggStats[iMinLow],
+		MaxLow:  aggStats[iMaxLow],
+	}
+	return
+}
+
+func printStats(stats ElementTestStats, label string) {
+	fmt.Printf("%s\n Field:%s N:%d Nu:%.2f p:%.2f Angle:%.2f\n",
+		label, stats.FieldName, stats.N, stats.Nu, stats.p, stats.Angle)
+}
+
+func GetInterpolationResults(Nu, p float64) (aggStats []ElementTestStats) {
+	var (
+		NMin    = 1
+		NMax    = 7
+		NAngles = 50
+		// Nu, p         = 0.2, 3.
+		EdgeInterpMod [8]utils.Matrix
+	)
+	for N := NMin; N <= NMax; N++ {
+		// Get the modulated interpolation matrices once
+		dfr := NewDFR2D(N, false)
+		rt := dfr.FluxElement
+		RFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.R.DataP)) // For the Interpolation matrix across three edges
+		SFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.S.DataP)) // For the Interpolation matrix across three edges
+		EdgeInterpMod[N] = dfr.SolutionElement.JB2D.GetModInterpMatrix(RFlux, SFlux, Nu, p)
+		for ii := 0; ii < NAngles; ii++ {
+			angle := (float64(ii) / float64(NAngles)) * 180.
+			CreateEquiTriMesh(N, angle, dfr)
+			for _, tf := range []TestField{
+				NORMALSHOCKTESTM12,
+				NORMALSHOCKTESTM2,
+				NORMALSHOCKTESTM5,
+				FIXEDVORTEXTEST} {
+				Np := dfr.SolutionElement.Np
+				X, Y := dfr.SolutionX.DataP, dfr.SolutionY.DataP
+				QSol := QFromField(setTestField(X, Y, tf), Np)
+				stats := GetInterpolationAccuracy(dfr, QSol, EdgeInterpMod[N], tf)
+				stats.Nu = Nu
+				stats.p = p
+				stats.Angle = angle
+				aggStats = append(aggStats, stats)
+			}
+		}
+	}
+	return
+}
+
 func TestInterpolationVariousFields(t *testing.T) {
 	var (
 		NMin  = 1
 		NMax  = 7
-		Nu, p = 0.2, 3.
+		Nu, p = 0.1, 3.4
 	)
 	for N := NMin; N <= NMax; N++ {
 		fmt.Printf("ORDER: %d Element Test\n-----------------------\n", N)
 		// angle := 210.
-		angle := 0.
+		angle := 82.8
 		dfr := CreateEquiTriMesh(N, angle)
 		rt := dfr.FluxElement
 		RFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.R.DataP)) // For the Interpolation matrix across three edges
 		SFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.S.DataP)) // For the Interpolation matrix across three edges
 		EdgeInterpMod := dfr.SolutionElement.JB2D.GetModInterpMatrix(RFlux,
 			SFlux, Nu, p)
-		for _, tf := range []TestField{NORMALSHOCKTESTM12, NORMALSHOCKTESTM2,
-			NORMALSHOCKTESTM5, FIXEDVORTEXTEST, RADIAL1TEST, RADIAL2TEST,
-			RADIAL3TEST, RADIAL4TEST} {
-			// for _, tf := range []TestField{NORMALSHOCKTESTM12} {
+		// for _, tf := range []TestField{NORMALSHOCKTESTM12, NORMALSHOCKTESTM2,
+		// 	NORMALSHOCKTESTM5, FIXEDVORTEXTEST, RADIAL1TEST, RADIAL2TEST,
+		// 	RADIAL3TEST, RADIAL4TEST} {
+		for _, tf := range []TestField{NORMALSHOCKTESTM5} {
 			Np := dfr.SolutionElement.Np
 			X, Y := dfr.SolutionX.DataP, dfr.SolutionY.DataP
 			QSol := QFromField(setTestField(X, Y, tf), Np)
+			QSolOrig := QSol.Copy()
 			fmt.Printf("%s Interpolation\n", tf.String())
-			RMSErr, Mean, trueEdges, interpEdges :=
-				GetInterpolationAccuracy(dfr, QSol, dfr.FluxEdgeInterp, tf)
-			printRMSError(RMSErr, Mean, N)
+			stats := GetInterpolationAccuracy(dfr, QSol, dfr.FluxEdgeInterp, tf)
+			printRMSError(stats)
 
 			fmt.Printf("Modulated Field\n")
 			QSolMod := ModulateInternalField(dfr, QSol, Nu, p, 5)
-			RMSErr, Mean, trueEdges, interpEdges =
-				GetInterpolationAccuracy(dfr, QSolMod, dfr.FluxEdgeInterp, tf)
-			printRMSError(RMSErr, Mean, N)
+			stats = GetInterpolationAccuracy(dfr, QSolMod, dfr.FluxEdgeInterp, tf)
+			printRMSError(stats)
+
+			fmt.Printf("Modulated Interpolation\n")
+			stats = GetInterpolationAccuracy(dfr, QSolOrig, EdgeInterpMod, tf)
+			// tf, "print")
+			printRMSError(stats)
 
 			fmt.Printf("Modulated Field and Modulated Interpolation\n")
-			RMSErr, Mean, trueEdges, interpEdges =
-				GetInterpolationAccuracy(dfr, QSolMod, EdgeInterpMod, tf)
-			printRMSError(RMSErr, Mean, N)
-			_, _ = trueEdges, interpEdges
-			fmt.Printf("---------------------\n\n\n")
+			stats = GetInterpolationAccuracy(dfr, QSolMod, EdgeInterpMod, tf)
+			// "print")
+			printRMSError(stats)
+			fmt.Printf("---------------------\n\n")
 			// Coeffs := GetRTCoefficients(dfr, tf)
 			// QSol.Print("QSol Orig")
 			// for _, iterCount := range []int{10, 100, 1000} {
@@ -227,7 +442,6 @@ func TestInterpolationVariousFields(t *testing.T) {
 		}
 	}
 }
-
 func (jb2d *JacobiBasis2D) GetModInterpMatrix(R, S utils.Vector,
 	Nu, p float64) (Interp utils.Matrix) {
 	/*
@@ -365,7 +579,8 @@ func GetFluxVectors(QFlux utils.Matrix) (F, G utils.Matrix) {
 }
 
 func GetInterpolationAccuracy(dfr *DFR2D, QSol, EdgeInterpolation utils.Matrix,
-	tf TestField) (RMSErr, Mean [4]float64, trueEdges, interpEdges [4][]float64) {
+	tf TestField, printO ...interface{}) (stats ElementTestStats) {
+	// tf TestField) (RMSErr, Mean [4]float64, trueEdges, interpEdges [4][]float64) {
 	var (
 		NpInt          = dfr.FluxElement.NpInt
 		edgeX          = dfr.FluxX.DataP[2*NpInt:]
@@ -373,25 +588,45 @@ func GetInterpolationAccuracy(dfr *DFR2D, QSol, EdgeInterpolation utils.Matrix,
 		trueEdgesField = setTestField(edgeX, edgeY, tf)
 		fieldLen       = len(trueEdgesField) / 4
 	)
-	interpEdges, RMSErr = evaluateInterpolation(QSol, EdgeInterpolation,
-		trueEdgesField)
+	extrema := func(f, trueF []float64) (high, low float64) {
+		for i, fT := range trueF {
+			variance := f[i] - fT
+			if variance > high { // exceeded true and high
+				high = variance
+			}
+			if -variance > math.Abs(low) {
+				low = variance
+			}
+		}
+		return
+	}
+	stats = ElementTestStats{N: dfr.SolutionElement.N}
+	stats.interpEdges, stats.RMSErr =
+		evaluateInterpolation(QSol, EdgeInterpolation, trueEdgesField,
+			printO...)
 	for n := 0; n < 4; n++ {
-		trueEdges[n] = make([]float64, fieldLen)
+		stats.trueEdges[n] = make([]float64, fieldLen)
 		for i := 0; i < fieldLen; i++ {
-			trueEdges[n][i] = trueEdgesField[i+n*fieldLen]
+			stats.trueEdges[n][i] = trueEdgesField[i+n*fieldLen]
 		}
-		for _, f := range trueEdges[n] {
-			Mean[n] += f
+		for _, f := range stats.trueEdges[n] {
+			stats.Mean[n] += f
 		}
-		Mean[n] /= float64(len(trueEdges[n]))
-		if math.Abs(Mean[n]) < 0.0001 {
-			Mean[n] = 1.
+		stats.Mean[n] /= float64(len(stats.trueEdges[n]))
+		if math.Abs(stats.Mean[n]) < 0.0001 {
+			stats.Mean[n] = 1.
 		}
+		stats.Extrema[n][0], stats.Extrema[n][1] =
+			extrema(stats.interpEdges[n], stats.trueEdges[n])
+		stats.FieldName = tf.String()
 	}
 	return
 }
 
-func printRMSError(RMSErr, Mean [4]float64, N int) {
+func printRMSError(stats ElementTestStats) {
+	var (
+		RMSErr, Mean, N = stats.RMSErr, stats.Mean, stats.N
+	)
 	fmt.Printf("Order:%d RMS: ", N)
 	for nn := 0; nn < 4; nn++ {
 		fmt.Printf(" %.2f,", RMSErr[nn])
@@ -404,8 +639,7 @@ func printRMSError(RMSErr, Mean [4]float64, N int) {
 }
 
 func evaluateInterpolation(QSol utils.Matrix, EdgeInterpolation utils.Matrix,
-	trueVals []float64,
-	printO ...interface{}) (edges [4][]float64, RMSErr [4]float64) {
+	trueVals []float64, printO ...interface{}) (edges [4][]float64, RMSErr [4]float64) {
 	var (
 		MinMaxSol  [4][2]float64
 		MinMaxInt  [4][2]float64

@@ -221,12 +221,16 @@ func TestDFRP3(t *testing.T) {
 	// _ = gm
 }
 
-func CreateEquiTriMesh(N int, angle float64) (dfr *DFR2D) {
+func CreateEquiTriMesh(N int, angle float64, dfrO ...*DFR2D) (dfr *DFR2D) {
 	var (
 		scale   = float64(5)
 		yHeight = scale * math.Sin(math.Pi*60./180.)
 	)
-	dfr = NewDFR2D(N, false)
+	if len(dfrO) > 0 {
+		dfr = dfrO[0]
+	} else {
+		dfr = NewDFR2D(N, false)
+	}
 	dfr.K = 1
 	vx, vy := []float64{-scale * 0.5, scale * 0.5, 0.},
 		[]float64{-yHeight / 3., -yHeight / 3, 2. * yHeight / 3.}
