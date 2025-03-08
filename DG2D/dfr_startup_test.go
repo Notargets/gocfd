@@ -217,7 +217,7 @@ func TestDFRP3(t *testing.T) {
 	dfr.VY.Transpose().Print("VY")
 	dfr.FluxX.Transpose().Print("FluxX")
 	dfr.FluxY.Transpose().Print("FluxY")
-	// gm := CreateGraphMesh(dfr)
+	// gm := CreateAVSGraphMesh(dfr)
 	// _ = gm
 }
 

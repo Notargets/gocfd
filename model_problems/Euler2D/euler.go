@@ -94,6 +94,10 @@ func NewEuler(ip *InputParameters.InputParameters2D, meshFile string, ProcLimit 
 		//		c.Limiter = NewSolutionLimiter(ModeFilterT, ip.Kappa, c.dfr, c.Partitions, c.FSFar)
 	}
 
+	// Save graph mesh
+	// c.dfr.OutputMesh("meshfile.gcfd")
+	// c.AppendBCsToMeshFile("meshfile.gcfd")
+
 	if verbose {
 		fmt.Printf("Euler Equations in 2 Dimensions\n")
 		fmt.Printf("Using %d go routines in parallel\n", c.Partitions.ParallelDegree)
@@ -145,6 +149,7 @@ func (c *Euler) Solve() {
 				printMem = true
 			}
 			c.PrintUpdate(rk.Time, rk.GlobalDT, steps, c.Q, rk.Residual, printMem, rk.LimitedPoints)
+
 		}
 	}
 	c.PrintFinal(elapsed, steps)

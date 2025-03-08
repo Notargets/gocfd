@@ -10,8 +10,6 @@ import (
 
 	"github.com/notargets/avs/geometry"
 
-	"github.com/notargets/gocfd/geometry2D"
-
 	"github.com/notargets/gocfd/model_problems/Euler2D/isentropic_vortex"
 
 	"github.com/notargets/avs/chart2d"
@@ -165,7 +163,7 @@ func TestPlotVariousFields(t *testing.T) {
 	}
 	angle := 82.8
 	dfr := CreateEquiTriMesh(N, angle)
-	gm := CreateGraphMesh(dfr)
+	gm := CreateAVSGraphMesh(dfr)
 	X, Y := convXYtoXandY(gm.XY)
 	field := setTestField(X, Y, NORMALSHOCKTESTM5)
 	// field := setTestField(X, Y, NORMALSHOCKTESTM2)
@@ -714,31 +712,6 @@ func plotField(field []float64, fieldNum int, gm geometry.TriMesh,
 	ch.AddTriMesh(gm)
 	for {
 	}
-}
-
-func CreateGraphMesh(dfr *DFR2D) (gm geometry.TriMesh) {
-	var (
-		NpInt        = dfr.FluxElement.NpInt
-		NpEdge       = dfr.FluxElement.NpEdge
-		TriNp        = 3 + 3*NpEdge
-		EdgeX, EdgeY = make([]float64, TriNp), make([]float64, TriNp)
-	)
-	// Compose the edges of the triangle,
-	// they include the vertices and the edge nodes on the RT element,
-	// in counter-clockwise progression
-	var ii int
-	for n := 0; n < 3; n++ {
-		EdgeX[ii], EdgeY[ii] = dfr.VX.DataP[n], dfr.VY.DataP[n]
-		ii++
-		offset := 2*NpInt + n*NpEdge
-		for i := 0; i < NpEdge; i++ {
-			EdgeX[ii], EdgeY[ii] = dfr.FluxX.DataP[offset+i], dfr.FluxY.DataP[offset+i]
-			ii++
-		}
-	}
-	gm = geometry2D.TriangulateTriangle(EdgeX, EdgeY,
-		dfr.FluxX.DataP[:NpInt], dfr.FluxY.DataP[:NpInt])
-	return
 }
 
 func TestEdgeProjectionIsentropicVortex(t *testing.T) {

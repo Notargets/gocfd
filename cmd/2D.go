@@ -113,6 +113,5 @@ func init() {
 
 func Run2D(m2d *Model2D, ip *InputParameters.InputParameters2D) {
 	c := Euler2D.NewEuler(ip, m2d.GridFile, m2d.ParallelProcLimit, true, m2d.Profile)
-	c.SaveOutputMesh("meshfile.gcfd")
 	c.Solve()
 }

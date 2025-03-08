@@ -333,74 +333,7 @@ func (dfr *DFR2D) ConvertScalarToOutputMesh(f utils.Matrix) (fI []float32) {
 	return
 }
 
-func (dfr *DFR2D) OutputMesh() (gm *geometry2D.TriMesh) {
-	/*
-				For each of K elements, the layout of the output mesh is:
-				Indexed geometry:
-					Three vertices of the base triangle, followed by RT node points, excluding duplicated NpInt pts
-		    	Triangles:
-					Some number of triangles, defined by indexing into the Indexed Geometry / function values
-
-				******************************************************************************************************
-				Given there is no function data for the corners of the RT element, these will have to be supplied when
-				constructing the indexed function data to complement this output mesh
-	*/
-	// Triangulate the unit RT triangle: start with the bounding triangle, which includes the corners to constrain
-	// the Delaunay triangulation
-	var (
-		Kmax   = dfr.K
-		Nint   = dfr.FluxElement.NpInt
-		NpFlux = dfr.FluxElement.Np
-	)
-	Ind := func(k, i, Kmax int) (ind int) {
-		ind = k + i*Kmax
-		return
-	}
-	// TODO:implement the new triangulation API here
-	panic("unimplemented")
-	// Build the X,Y coordinates to support the triangulation index
-	Np := NpFlux - Nint + 3 // Subtract NpInt to remove the dup pts and add 3 for the verts
-	//	fmt.Printf("Size of constructed element: Np=%d\n", Np)
-	//	fmt.Printf("Size of original flux element: NpFlux=%d\n", NpFlux)
-	//	fmt.Printf("Size of original flux element interior: NpInt=%d\n", Nint)
-	VX, VY := utils.NewMatrix(Np, Kmax), utils.NewMatrix(Np, Kmax)
-	vxd, vyd := VX.DataP, VY.DataP
-	for k := 0; k < Kmax; k++ {
-		verts := dfr.Tris.GetTriVerts(uint32(k))
-		for ii := 0; ii < Np; ii++ {
-			ind := Ind(k, ii, Kmax)
-			switch {
-			case ii < 3:
-				vxd[ind], vyd[ind] = dfr.VX.DataP[verts[ii]], dfr.VY.DataP[verts[ii]]
-			case ii >= 3:
-				indFlux := Ind(k, ii-3+Nint, Kmax) // Refers to the nodes, skipping the first NpInt repeated points
-				vxd[ind], vyd[ind] = dfr.FluxX.DataP[indFlux], dfr.FluxY.DataP[indFlux]
-			}
-		}
-	}
-	// fmt.Println(VX.Transpose().Print("VX_Out"))
-	// fmt.Println(VY.Transpose().Print("VY_Out"))
-
-	// Now replicate the triangle mesh for all triangles
-	baseTris := gm.Triangles
-	gm.Triangles = make([]geometry2D.Triangle, Kmax*len(baseTris))
-	for k := 0; k < Kmax; k++ {
-		for i, tri := range baseTris {
-			newTri := geometry2D.Triangle{Nodes: tri.Nodes}
-			for ii := 0; ii < 3; ii++ {
-				newTri.Nodes[ii] = int32(Ind(k, int(newTri.Nodes[ii]), Kmax))
-			}
-			gm.Triangles[Ind(k, i, Kmax)] = newTri
-		}
-	}
-	gm.BaseGeometryClass.Geometry = make([]geometry2D.Point, Kmax*Np)
-	for k := 0; k < Kmax; k++ {
-		for ii := 0; ii < Np; ii++ {
-			ind := Ind(k, ii, Kmax)
-			gm.BaseGeometryClass.Geometry[ind] = geometry2D.Point{X: [2]float32{float32(vxd[ind]), float32(vyd[ind])}}
-		}
-	}
-	// gm.Attributes = make([][]float32, len(gm.Triangles)) // Empty attributes
-	gm.Attributes = nil
+func (dfr *DFR2D) OutputMesh(fileName string) (gm *geometry2D.TriMesh) {
+	WriteAVSGraphMesh(CreateAVSGraphMesh(dfr), fileName)
 	return
 }

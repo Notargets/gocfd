@@ -35,6 +35,15 @@ func TriangulateTriangle(EdgeX, EdgeY, X, Y []float64) (tm geometry.TriMesh) {
 	var (
 		EdgeLen = len(EdgeX)
 	)
+	if EdgeLen == 0 {
+		panic("TriangulateTriangle called with zero length EdgeX")
+	}
+	if EdgeLen != len(EdgeY) {
+		panic("TriangulateTriangle called with len(EdgeX) != len(EdgeY)")
+	}
+	if len(X) == 0 || len(Y) == 0 {
+		panic("TriangulateTriangle called with zero length X or Y")
+	}
 	// The input EdgeX and EdgeY should be a contiguous array of points
 	// defining the edges of the triangle
 	triXY, constrainedEdge := ConvertEdgePlusInternal(EdgeX, EdgeY, X, Y)
