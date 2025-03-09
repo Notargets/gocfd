@@ -10,34 +10,70 @@ import (
 )
 
 func CreateAVSGraphMesh(dfr *DFR2D) (gm geometry.TriMesh) {
-	// TODO: Fix this to:
-	// TODO: triangulate a single element in (r,s) space
-	// TODO: compose a TriMesh with the actual (x,y) coordinates using the
-	// TODO: indices from the triangulation
 	var (
+		NpFlux       = dfr.FluxElement.Np
 		NpInt        = dfr.FluxElement.NpInt
 		NpEdge       = dfr.FluxElement.NpEdge
 		TriNp        = 3 + 3*NpEdge
-		EdgeX, EdgeY = make([]float64, TriNp), make([]float64, TriNp)
+		EdgeR, EdgeS = make([]float64, TriNp), make([]float64, TriNp)
+		VX, VY       = dfr.VX, dfr.VY
+		FluxX, FluxY = dfr.FluxX, dfr.FluxY
 	)
 	// Compose the edges of the triangle,
 	// they include the vertices and the edge nodes on the RT element,
 	// in counter-clockwise progression
+	VertR := []float64{-1, 1, -1}
+	VertS := []float64{-1, -1, 1}
 	var ii int
 	for n := 0; n < 3; n++ {
-		EdgeX[ii], EdgeY[ii] = dfr.VX.DataP[n], dfr.VY.DataP[n]
+		EdgeR[ii], EdgeS[ii] = VertR[n], VertS[n]
 		ii++
 		offset := 2*NpInt + n*NpEdge
 		for i := 0; i < NpEdge; i++ {
-			EdgeX[ii], EdgeY[ii] = dfr.FluxX.DataP[offset+i], dfr.FluxY.DataP[offset+i]
+			EdgeR[ii], EdgeS[ii] = dfr.FluxElement.R.DataP[offset+i],
+				dfr.FluxElement.S.DataP[offset+i]
 			ii++
 		}
 	}
+	gmRS := geometry2D.TriangulateTriangle(EdgeR, EdgeS,
+		dfr.FluxElement.R.DataP[:NpInt], dfr.FluxElement.S.DataP[:NpInt])
 	// Output a 2025 AVS compatible TriMesh
 	// The edges are first, including vertices, then the interior points
 	// Each edge begins with a vertex, then edge points, in CCW order
-	gm = geometry2D.TriangulateTriangle(EdgeX, EdgeY,
-		dfr.FluxX.DataP[:NpInt], dfr.FluxY.DataP[:NpInt])
+	lenElement := NpInt + 3*NpEdge + 3
+	XY := make([]float32, 2*dfr.K*lenElement)
+	Verts := make([][3]int64, dfr.K*len(gmRS.TriVerts))
+	var sk int
+	for k := 0; k < dfr.K; k++ {
+		elVerts := dfr.Tris.GetTriVerts(uint32(k))
+		// For each triangle, create a contiguous edge starting with the vertex
+		for n := 0; n < 3; n++ {
+			vi := elVerts[n]
+			XY[2*sk+0], XY[2*sk+1] =
+				float32(VX.DataP[vi]), float32(VY.DataP[vi])
+			sk++
+			for i := 0; i < NpEdge; i++ {
+				ind := k*NpFlux + n*NpEdge + 2*NpInt + i
+				XY[2*sk+0], XY[2*sk+1] =
+					float32(FluxX.DataP[ind]), float32(FluxY.DataP[ind])
+				sk++
+			}
+		}
+		for i := 0; i < NpInt; i++ {
+			ind := k*NpFlux + i
+			XY[2*sk+0], XY[2*sk+1] =
+				float32(FluxX.DataP[ind]), float32(FluxY.DataP[ind])
+			sk++
+		}
+		lenTriVerts := len(gmRS.TriVerts)
+		for i := 0; i < lenTriVerts; i++ {
+			for n := 0; n < 3; n++ {
+				Verts[i+k*lenTriVerts][n] =
+					gmRS.TriVerts[i][n] + int64(k*lenElement)
+			}
+		}
+	}
+	gm = geometry.NewTriMesh(XY, Verts)
 	return
 }
 
