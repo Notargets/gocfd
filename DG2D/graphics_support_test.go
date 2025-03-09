@@ -10,13 +10,14 @@ import (
 
 func TestCreateAVSGraphMesh(t *testing.T) {
 	var (
-		N = 3
+		N = 7
 	)
 	if !testing.Verbose() {
 		return
 	}
 	// dfr := NewDFR2D(N, false, "test_data/test_tris_5.neu")
-	dfr := NewDFR2D(N, false, "test_data/test_tris_1tri.neu")
+	// dfr := NewDFR2D(N, false, "test_data/test_tris_1tri.neu")
+	dfr := NewDFR2D(N, false, "test_data/test_tris_9.neu")
 	gm := CreateAVSGraphMesh(dfr)
 	plotMesh(gm)
 }

@@ -11,7 +11,6 @@ import (
 
 func CreateAVSGraphMesh(dfr *DFR2D) (gm geometry.TriMesh) {
 	var (
-		NpFlux       = dfr.FluxElement.Np
 		NpInt        = dfr.FluxElement.NpInt
 		NpEdge       = dfr.FluxElement.NpEdge
 		TriNp        = 3 + 3*NpEdge
@@ -40,7 +39,7 @@ func CreateAVSGraphMesh(dfr *DFR2D) (gm geometry.TriMesh) {
 	// Output a 2025 AVS compatible TriMesh
 	// The edges are first, including vertices, then the interior points
 	// Each edge begins with a vertex, then edge points, in CCW order
-	lenElement := NpInt + 3*NpEdge + 3
+	lenElement := 3*(NpEdge+1) + NpInt
 	XY := make([]float32, 2*dfr.K*lenElement)
 	Verts := make([][3]int64, dfr.K*len(gmRS.TriVerts))
 	var sk int
@@ -53,14 +52,17 @@ func CreateAVSGraphMesh(dfr *DFR2D) (gm geometry.TriMesh) {
 				float32(VX.DataP[vi]), float32(VY.DataP[vi])
 			sk++
 			for i := 0; i < NpEdge; i++ {
-				ind := k*NpFlux + n*NpEdge + 2*NpInt + i
+				// ind := k*NpFlux + 2*NpInt + n*NpEdge + i
+				// ind := k + i*Kmax
+				ind := k + (i+2*NpInt+n*NpEdge)*dfr.K
 				XY[2*sk+0], XY[2*sk+1] =
 					float32(FluxX.DataP[ind]), float32(FluxY.DataP[ind])
 				sk++
 			}
 		}
 		for i := 0; i < NpInt; i++ {
-			ind := k*NpFlux + i
+			// ind := k*NpFlux + i
+			ind := k + i*dfr.K
 			XY[2*sk+0], XY[2*sk+1] =
 				float32(FluxX.DataP[ind]), float32(FluxY.DataP[ind])
 			sk++
