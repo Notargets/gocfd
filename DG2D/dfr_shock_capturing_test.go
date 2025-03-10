@@ -163,7 +163,7 @@ func TestPlotVariousFields(t *testing.T) {
 	}
 	angle := 82.8
 	dfr := CreateEquiTriMesh(N, angle)
-	gm := CreateAVSGraphMesh(dfr)
+	gm := dfr.CreateAVSGraphMesh()
 	X, Y := convXYtoXandY(gm.XY)
 	field := setTestField(X, Y, NORMALSHOCKTESTM5)
 	// field := setTestField(X, Y, NORMALSHOCKTESTM2)

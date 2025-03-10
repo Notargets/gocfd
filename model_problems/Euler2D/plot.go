@@ -75,7 +75,8 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 		skipInterp = true
 	}
 	if !skipInterp {
-		field = c.dfr.FluxInterp.Mul(fld)
+		// field = c.dfr.FluxInterp.Mul(fld)
+		field = c.dfr.GraphInterp.Mul(fld)
 	}
 	return
 }

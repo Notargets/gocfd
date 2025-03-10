@@ -1,12 +1,31 @@
 package DG2D
 
 import (
+	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/notargets/avs/chart2d"
 	"github.com/notargets/avs/geometry"
 	utils2 "github.com/notargets/avs/utils"
 )
+
+func TestDFR2D_WriteAVSGraphMesh(t *testing.T) {
+	if !testing.Verbose() {
+		return
+	}
+	dfr := NewDFR2D(3, false, "test_data/test_tris_9.neu")
+	dfr.WriteAVSGraphMesh(dfr.CreateAVSGraphMesh(), "test_data/test_tris_9.gobcfd")
+	md, gm, err := ReadMesh("test_data/test_tris_9.gobcfd")
+	_, _ = md, gm
+	assert.NoError(t, err)
+	fmt.Println(md)
+	fmt.Printf("Git tag: %v\n", md.GitVersion)
+	// plotMesh(gm)
+	// for {
+	// }
+}
 
 func TestCreateAVSGraphMesh(t *testing.T) {
 	var (
@@ -18,7 +37,7 @@ func TestCreateAVSGraphMesh(t *testing.T) {
 	// dfr := NewDFR2D(N, false, "test_data/test_tris_5.neu")
 	// dfr := NewDFR2D(N, false, "test_data/test_tris_1tri.neu")
 	dfr := NewDFR2D(N, false, "test_data/test_tris_9.neu")
-	gm := CreateAVSGraphMesh(dfr)
+	gm := dfr.CreateAVSGraphMesh()
 	plotMesh(gm)
 }
 

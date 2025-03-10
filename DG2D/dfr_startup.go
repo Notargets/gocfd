@@ -9,8 +9,6 @@ import (
 
 	"github.com/notargets/gocfd/readfiles"
 
-	"github.com/notargets/gocfd/geometry2D"
-
 	"github.com/notargets/gocfd/utils"
 )
 
@@ -18,7 +16,9 @@ type DFR2D struct {
 	N               int
 	SolutionElement *LagrangeElement2D
 	// FluxElement        *RTBasis2DSimplexLegacy
-	FluxElement        *RTElement
+	FluxElement *RTElement
+	// Interpolates from the interior (solution) points to graph points
+	GraphInterp        utils.Matrix
 	FluxInterp         utils.Matrix // Interpolates from the interior (solution) points to all of the flux points
 	FluxEdgeInterp     utils.Matrix // Interpolates only from interior to the edge points in the flux element
 	FluxDr, FluxDs     utils.Matrix // Derivatives from the interior (solution) points to all of the flux points
@@ -56,6 +56,8 @@ func NewDFR2D(N int, verbose bool, meshFileO ...string) (dfr *DFR2D) {
 	}
 	dfr.SolutionBasis = NewJacobiBasis2D(le.N, le.R, le.S, 0, 0)
 	// Get the interpolation matrices that interpolate the whole RT element and just the edges using solution points
+	GraphR, GraphS := dfr.GetRSForGraphMesh()
+	dfr.GraphInterp = dfr.SolutionBasis.GetInterpMatrix(GraphR, GraphS)
 	dfr.FluxInterp = dfr.SolutionBasis.GetInterpMatrix(rt.R, rt.S)       // Interpolation matrix for flux nodes
 	dfr.FluxEdgeInterp = dfr.SolutionBasis.GetInterpMatrix(RFlux, SFlux) // Interpolation matrix across three edges
 	dfr.FluxDr, dfr.FluxDs = le.GetDerivativeMatrices(rt.R, rt.S)
@@ -283,57 +285,5 @@ func (dfr *DFR2D) ProjectFluxOntoRTSpace(Fx, Fy utils.Matrix) (Fp utils.Matrix) 
 			}
 		}
 	}
-	return
-}
-
-func (dfr *DFR2D) ConvertScalarToOutputMesh(f utils.Matrix) (fI []float32) {
-	/*
-				Input f contains the function data to be associated with the output mesh
-				The input dimensions of f are: f(Np, K), where Np is the number of RT nodes and K is the element count
-
-				Output fI contains the function data in the same order as the vertices of the output mesh
-		    	The corners of each element are formed by averaging the nearest two edge values
-	*/
-	var (
-		fD     = f.DataP
-		Kmax   = dfr.K
-		Nint   = dfr.FluxElement.NpInt
-		Nedge  = dfr.FluxElement.NpEdge
-		NpFlux = dfr.FluxElement.Np
-		Np     = NpFlux - Nint + 3 // Subtract NpInt to remove the dup pts and add 3 for the verts
-	)
-	Ind := func(k, i, Kmax int) (ind int) {
-		ind = k + i*Kmax
-		return
-	}
-	fI = make([]float32, Kmax*Np)
-	for k := 0; k < Kmax; k++ {
-		var (
-			edge [3][2]float32
-		)
-		for ii := 0; ii < 3; ii++ {
-			beg := 2*Nint + ii*Nedge
-			end := beg + Nedge - 1
-			ie0, ie1 := Ind(k, beg, Kmax), Ind(k, end, Kmax)
-			// [ii][0] is the first point on the edge, [ii][1] is the second
-			edge[ii][0], edge[ii][1] = float32(fD[ie0]), float32(fD[ie1])
-		}
-		for ii := 0; ii < Np; ii++ {
-			ind := Ind(k, ii, Kmax)
-			switch {
-			case ii < 3:
-				// Create values for each corner by averaging the nodes opposite each
-				fI[ind] = 0.5 * (edge[(ii+2)%3][1] + edge[ii][0])
-			case ii >= 3:
-				indFlux := Ind(k, ii-3+Nint, Kmax) // Refers to the nodes, skipping the first NpInt repeated points
-				fI[ind] = float32(fD[indFlux])
-			}
-		}
-	}
-	return
-}
-
-func (dfr *DFR2D) OutputMesh(fileName string) (gm *geometry2D.TriMesh) {
-	WriteAVSGraphMesh(CreateAVSGraphMesh(dfr), fileName)
 	return
 }
