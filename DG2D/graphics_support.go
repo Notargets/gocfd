@@ -68,6 +68,10 @@ func (dfr *DFR2D) CreateAVSGraphMesh() (gm geometry.TriMesh) {
 	gmRS := geometry2D.TriangulateTriangle(
 		R.DataP[:TriEdgeNp], S.DataP[:TriEdgeNp],
 		R.DataP[TriEdgeNp:], S.DataP[TriEdgeNp:])
+
+	// We need to convert the BCIndex, which lists vertices in VX,
+	// VY into line segments
+
 	// Output a 2025 AVS compatible TriMesh
 	// The edges are first, including vertices, then the interior points
 	// Each edge begins with a vertex, then edge points, in CCW order
@@ -109,28 +113,6 @@ func (dfr *DFR2D) CreateAVSGraphMesh() (gm geometry.TriMesh) {
 	}
 	gm = geometry.NewTriMesh(XY, Verts)
 	return
-}
-
-func (dfr *DFR2D) WriteAVSGraphMesh(gm geometry.TriMesh, fileName string) {
-	var (
-		err         error
-		lenXYCoords = len(gm.XY)
-		lenTriVerts = len(gm.TriVerts)
-	)
-	md := &MeshMetadata{
-		Description:     "Hybrid Lagrangian / Raviart Thomas elements",
-		NDimensions:     2,
-		Order:           dfr.N,
-		NumBaseElements: dfr.K,
-		NumPerElement:   lenTriVerts / dfr.K,
-		NumElements:     lenTriVerts,
-		LenXY:           lenXYCoords,
-		GitVersion:      GitVersion, // Will be auto filled at build time
-	}
-	err = WriteMesh(fileName, md, gm)
-	if err != nil {
-		panic(err)
-	}
 }
 
 func WriteAVSSolutionField(field []float32, fileName string) {
@@ -196,13 +178,33 @@ func (dfr *DFR2D) ConvertScalarToOutputMesh(f utils.Matrix) (fI []float32) {
 	return
 }
 
-func (dfr *DFR2D) OutputMesh(fileName string) {
-	dfr.WriteAVSGraphMesh(dfr.CreateAVSGraphMesh(), fileName)
+func (dfr *DFR2D) OutputMesh(fileName string, BCXY map[string][][]float32) {
+	var (
+		err         error
+		gm          = dfr.CreateAVSGraphMesh()
+		lenXYCoords = len(gm.XY)
+		lenTriVerts = len(gm.TriVerts)
+	)
+	md := &MeshMetadata{
+		Description:     "Hybrid Lagrangian / Raviart Thomas elements",
+		NDimensions:     2,
+		Order:           dfr.N,
+		NumBaseElements: dfr.K,
+		NumPerElement:   lenTriVerts / dfr.K,
+		NumElements:     lenTriVerts,
+		LenXY:           lenXYCoords,
+		GitVersion:      GitVersion, // Will be auto filled at build time
+	}
+	err = WriteMesh(fileName, md, gm, BCXY)
+	if err != nil {
+		panic(err)
+	}
 	return
 }
 
 // Function to write MeshMetadata and TriMesh sequentially
-func WriteMesh(filename string, metadata *MeshMetadata, mesh geometry.TriMesh) error {
+func WriteMesh(filename string, metadata *MeshMetadata,
+	mesh geometry.TriMesh, BCXY map[string][][]float32) error {
 	file, err := os.Create(filename)
 	if err != nil {
 		return err
@@ -221,12 +223,17 @@ func WriteMesh(filename string, metadata *MeshMetadata, mesh geometry.TriMesh) e
 		return err
 	}
 
+	// Encode BCXY data
+	if err = encoder.Encode(BCXY); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 // Function to read MeshMetadata and TriMesh sequentially
 func ReadMesh(filename string) (md MeshMetadata, gm geometry.TriMesh,
-	err error) {
+	BCXY map[string][][]float32, err error) {
 	file, err := os.Open(filename)
 	if err != nil {
 		panic(err)
@@ -242,6 +249,11 @@ func ReadMesh(filename string) (md MeshMetadata, gm geometry.TriMesh,
 
 	// Decode mesh data
 	if err = decoder.Decode(&gm); err != nil {
+		panic(err)
+	}
+
+	// Decode BCXY data
+	if err = decoder.Decode(&BCXY); err != nil {
 		panic(err)
 	}
 	return

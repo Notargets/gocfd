@@ -1,5 +1,5 @@
 gocfd:
-	go fmt ./...  && go build -ldflags "-X main.GitVersion=$(git describe --tags --always --dirty)" && go install ./...
+	go fmt ./...  && go install -ldflags "-X main.GitVersion=$(git describe --tags --always --dirty)" ./...
 	@printf "run this -> %s \n" "$$"\GOPATH/bin/$@
 
 test:

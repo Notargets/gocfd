@@ -16,9 +16,9 @@ func TestDFR2D_WriteAVSGraphMesh(t *testing.T) {
 		return
 	}
 	dfr := NewDFR2D(3, false, "test_data/test_tris_9.neu")
-	dfr.WriteAVSGraphMesh(dfr.CreateAVSGraphMesh(), "test_data/test_tris_9.gobcfd")
-	md, gm, err := ReadMesh("test_data/test_tris_9.gobcfd")
-	_, _ = md, gm
+	dfr.OutputMesh("test_data/test_tris_9.gobcfd", nil)
+	md, gm, BCXY, err := ReadMesh("test_data/test_tris_9.gobcfd")
+	_, _, _ = md, gm, BCXY
 	assert.NoError(t, err)
 	assert.NotNil(t, md)
 	assert.Equal(t, 10, md.NumBaseElements)
@@ -26,7 +26,14 @@ func TestDFR2D_WriteAVSGraphMesh(t *testing.T) {
 	assert.Equal(t, 360, md.NumElements)
 	assert.Equal(t, 3, md.Order)
 	fmt.Println(md)
-	fmt.Printf("Git tag: %v\n", md.GitVersion)
+	// fmt.Printf("Git tag: %v\n", md.GitVersion)
+	// md, gm, BCXY, err := ReadMesh("test_data/meshfile.gobcfd")
+	// for name, XYranges := range BCXY {
+	// 	fmt.Println(name)
+	// 	for i, xy := range XYranges {
+	// 		fmt.Println("I range: ", i, "range: ", xy)
+	// 	}
+	// }
 	// plotMesh(gm)
 	// for {
 	// }

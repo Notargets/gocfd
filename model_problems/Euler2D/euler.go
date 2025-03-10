@@ -95,8 +95,7 @@ func NewEuler(ip *InputParameters.InputParameters2D, meshFile string, ProcLimit 
 	}
 
 	// Save graph mesh
-	c.dfr.OutputMesh("meshfile.gobcfd")
-	c.AppendBCsToMeshFile("meshfile.gobcfd")
+	c.dfr.OutputMesh("meshfile.gobcfd", c.SerializeBCs())
 
 	if verbose {
 		fmt.Printf("Euler Equations in 2 Dimensions\n")

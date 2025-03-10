@@ -81,6 +81,37 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 	return
 }
 
+func (c *Euler) SerializeBCs() (BCXY map[string][][]float32) {
+	// We output the XY coordinates of boundary conditions
+	var (
+		bcEdges = c.dfr.BCEdges
+	)
+	BCXY = make(map[string][][]float32)
+	for _, name := range bcEdges.ListNames() {
+		bName := types.BCTAG(name)
+		if _, present := bcEdges[bName]; present {
+			// We need to (re)construct contiguous BC lists of indices from the edge map
+			var vLast int
+			ii := -1
+			for i, edge := range bcEdges[bName] {
+				verts := edge.GetVertices()
+				v1, v2 := verts[0], verts[1]
+				if i == 0 || v1 != vLast {
+					ii++
+					BCXY[name] = append(BCXY[name], make([]float32, 1))
+					BCXY[name][ii] = append(BCXY[name][ii], float32(c.dfr.VX.DataP[v1]))
+					BCXY[name][ii] = append(BCXY[name][ii], float32(c.dfr.VY.DataP[v1]))
+					vLast = v1
+				}
+				BCXY[name][ii] = append(BCXY[name][ii], float32(c.dfr.VX.DataP[v2]))
+				BCXY[name][ii] = append(BCXY[name][ii], float32(c.dfr.VY.DataP[v2]))
+				vLast = v2
+			}
+		}
+	}
+	return
+}
+
 func (c *Euler) AppendBCsToMeshFile(fileName string) {
 	var (
 		err     error
