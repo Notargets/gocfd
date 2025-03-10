@@ -20,6 +20,11 @@ func TestDFR2D_WriteAVSGraphMesh(t *testing.T) {
 	md, gm, err := ReadMesh("test_data/test_tris_9.gobcfd")
 	_, _ = md, gm
 	assert.NoError(t, err)
+	assert.NotNil(t, md)
+	assert.Equal(t, 10, md.NumBaseElements)
+	assert.Equal(t, 36, md.NumPerElement)
+	assert.Equal(t, 360, md.NumElements)
+	assert.Equal(t, 3, md.Order)
 	fmt.Println(md)
 	fmt.Printf("Git tag: %v\n", md.GitVersion)
 	// plotMesh(gm)
