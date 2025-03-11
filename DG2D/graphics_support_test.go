@@ -5,6 +5,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/notargets/gocfd/utils"
+
 	"github.com/stretchr/testify/assert"
 
 	"github.com/notargets/avs/chart2d"
@@ -12,7 +14,7 @@ import (
 	utils2 "github.com/notargets/avs/utils"
 )
 
-func plotField(field []float64, fieldNum int, gm geometry.TriMesh,
+func plotField(field []float64, gm geometry.TriMesh,
 	xMM ...float64) {
 	var xMin, xMax, yMin, yMax float32
 
@@ -27,35 +29,28 @@ func plotField(field []float64, fieldNum int, gm geometry.TriMesh,
 		1024, 1024, utils2.WHITE, utils2.BLACK)
 	// Create a vector field including the three vertices
 	var pField []float32
-	vertsLen := len(field) / 4
 	var fMin, fMax float32
 	fMin, fMax = math.MaxFloat32, -math.MaxFloat32
-	n := 0 // Density
-	n = 2  // V momentum
-	n = 3  // rho*E energy
-	n = 0  // Density
-	n = 1  // U momentum
-	n = 3  // rho*E energy
-	n = 0  // Density
-	for i := 0; i < vertsLen; i++ {
-		pField = append(pField, float32(field[i+n*vertsLen]))
-		// fmt.Printf("F[%d] = %.2f\n", i, pField[i])
-		if pField[i] < fMin {
-			fMin = pField[i]
+	pField = make([]float32, len(field))
+	for i, f := range field {
+		f32 := float32(f)
+		if fMin > f32 {
+			fMin = f32
 		}
-		if pField[i] > fMax {
-			fMax = pField[i]
+		if fMax < f32 {
+			fMax = f32
 		}
+		pField[i] = float32(f)
 	}
 	vs := geometry.VertexScalar{
 		TMesh:       &gm,
 		FieldValues: pField,
 	}
-	_ = vs
-	_ = ch
-	// ch.AddContourVertexScalar(&vs, fMin, fMax, 100)
+	fmt.Printf("fMin: %f, fMax: %f\n", fMin, fMax)
 	ch.AddShadedVertexScalar(&vs, fMin, fMax)
 	ch.AddTriMesh(gm)
+	line := []float32{0, -5, 0, 5, -5, 0, 5, 0}
+	ch.AddLine(line, utils2.RED)
 	for {
 	}
 }
@@ -67,19 +62,19 @@ func TestPlotVariousFields(t *testing.T) {
 	if !testing.Verbose() {
 		return
 	}
-	angle := 82.8
-	dfr := CreateEquiTriMesh(N, angle)
-	gm := dfr.CreateAVSGraphMesh()
-	X, Y := convXYtoXandY(gm.XY)
-	field := setTestField(X, Y, NORMALSHOCKTESTM5)
-	// field := setTestField(X, Y, NORMALSHOCKTESTM2)
-	// field := setTestField(X, Y, RADIAL2TEST)
-	n := 0 // Density
-	n = 1  // U momentum
-	n = 2  // V momentum
-	n = 3  // rho*E energy
-	n = 0  // Density
-	plotField(field, n, gm)
+	// angle := 82.8
+	// dfr := CreateEquiTriMesh(N, angle)
+	// gm := dfr.CreateAVSGraphMesh()
+	// dfr := NewDFR2D(N, false, "test_data/test_tris_9.neu")
+	dfr := NewDFR2D(N, false, "test_data/test_10tris_centered.neu")
+
+	X, Y := dfr.SolutionX.DataP, dfr.SolutionY.DataP
+	field := setTestField(X, Y, FIXEDVORTEXTEST)
+	// field := setTestField(X, Y, NORMALSHOCKTESTM12)
+	// field := setTestField(X, Y, RADIAL3TEST)
+	fM := utils.NewMatrix(dfr.K, dfr.SolutionElement.Np, field)
+	fMGraph := dfr.GraphInterp.Mul(fM).Transpose()
+	plotField(fMGraph.DataP, dfr.GraphMesh)
 }
 
 func TestDFR2D_WriteAVSGraphMesh(t *testing.T) {
