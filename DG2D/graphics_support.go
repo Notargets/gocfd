@@ -1,7 +1,6 @@
 package DG2D
 
 import (
-	"encoding/binary"
 	"encoding/gob"
 	"os"
 
@@ -23,6 +22,76 @@ type MeshMetadata struct {
 	NumPerElement   int    // Elements are triangulated to approximate the poly
 	LenXY           int    // Length of the XY coordinates in the mesh
 	GitVersion      string
+}
+
+type FieldMetadata struct {
+	NumFields        int // How many fields are in the [][]float32
+	FieldNames       []string
+	SolutionMetadata map[string]float32 // Fields like ReynoldsNumber, gamma...
+	GitVersion       string
+}
+
+type SingleFieldMetadata struct {
+	Iterations int
+	Time       float32
+	Count      int // Number of fields
+	Length     int // of each field, for skipping / readahead
+}
+
+type FieldWriter struct {
+	FieldMeta         *FieldMetadata
+	MeshMetadata      *MeshMetadata
+	FileName          string
+	IsMetaDataWritten bool
+	file              *os.File
+	encoder           *gob.Encoder
+}
+
+func (dfr *DFR2D) NewAVSFieldWriter(fmd *FieldMetadata,
+	fileName string) (fw *FieldWriter) {
+	var (
+		err error
+	)
+	fw = &FieldWriter{
+		FieldMeta:    fmd,
+		MeshMetadata: dfr.GetMeshMetadata(),
+		FileName:     fileName,
+	}
+	fw.file, err = os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		panic(err)
+	}
+	fw.encoder = gob.NewEncoder(fw.file)
+
+	return
+}
+
+func (fw *FieldWriter) WriteFieldsMeta() {
+	var (
+		err error
+	)
+	// Encode mesh metadata first
+	if err = fw.encoder.Encode(fw.MeshMetadata); err != nil {
+		panic(err)
+	}
+	// Encode field metadata
+	if err = fw.encoder.Encode(fw.FieldMeta); err != nil {
+		panic(err)
+	}
+}
+
+func (fw *FieldWriter) AppendFields(sfmd *SingleFieldMetadata, fields [][]float32) {
+	var (
+		err error
+	)
+	// Encode single field metadata
+	if err = fw.encoder.Encode(sfmd); err != nil {
+		panic(err)
+	}
+	// Encode field data
+	if err = fw.encoder.Encode(fields); err != nil {
+		panic(err)
+	}
 }
 
 func (dfr *DFR2D) GetRSForGraphMesh() (R, S utils.Vector) {
@@ -115,77 +184,13 @@ func (dfr *DFR2D) CreateAVSGraphMesh() (gm geometry.TriMesh) {
 	return
 }
 
-func WriteAVSSolutionField(field []float32, fileName string) {
+func (dfr *DFR2D) GetMeshMetadata() (md *MeshMetadata) {
 	var (
-		lenField = int64(len(field))
-	)
-	file, err := os.OpenFile(fileName, os.O_CREATE, os.ModeAppend)
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
-
-	// TODO: Amend this format to include the step number, maybe other meta info
-	binary.Write(file, binary.LittleEndian, &lenField)
-	binary.Write(file, binary.LittleEndian, &field)
-	return
-}
-
-func (dfr *DFR2D) ConvertScalarToOutputMesh(f utils.Matrix) (fI []float32) {
-	/*
-				Input f contains the function data to be associated with the output mesh
-				The input dimensions of f are: f(Np, K), where Np is the number of RT nodes and K is the element count
-
-				Output fI contains the function data in the same order as the vertices of the output mesh
-		    	The corners of each element are formed by averaging the nearest two edge values
-	*/
-	var (
-		fD     = f.DataP
-		Kmax   = dfr.K
-		Nint   = dfr.FluxElement.NpInt
-		Nedge  = dfr.FluxElement.NpEdge
-		NpFlux = dfr.FluxElement.Np
-		Np     = NpFlux - Nint + 3 // Subtract NpInt to remove the dup pts and add 3 for the verts
-	)
-	Ind := func(k, i, Kmax int) (ind int) {
-		ind = k + i*Kmax
-		return
-	}
-	fI = make([]float32, Kmax*Np)
-	for k := 0; k < Kmax; k++ {
-		var (
-			edge [3][2]float32
-		)
-		for ii := 0; ii < 3; ii++ {
-			beg := 2*Nint + ii*Nedge
-			end := beg + Nedge - 1
-			ie0, ie1 := Ind(k, beg, Kmax), Ind(k, end, Kmax)
-			// [ii][0] is the first point on the edge, [ii][1] is the second
-			edge[ii][0], edge[ii][1] = float32(fD[ie0]), float32(fD[ie1])
-		}
-		for ii := 0; ii < Np; ii++ {
-			ind := Ind(k, ii, Kmax)
-			switch {
-			case ii < 3:
-				// Create values for each corner by averaging the nodes opposite each
-				fI[ind] = 0.5 * (edge[(ii+2)%3][1] + edge[ii][0])
-			case ii >= 3:
-				indFlux := Ind(k, ii-3+Nint, Kmax) // Refers to the nodes, skipping the first NpInt repeated points
-				fI[ind] = float32(fD[indFlux])
-			}
-		}
-	}
-	return
-}
-
-func (dfr *DFR2D) OutputMesh(fileName string, BCXY map[string][][]float32) {
-	var (
-		err         error
-		gm          = dfr.CreateAVSGraphMesh()
+		gm          = dfr.GraphMesh
 		lenXYCoords = len(gm.XY)
 		lenTriVerts = len(gm.TriVerts)
 	)
-	md := &MeshMetadata{
+	md = &MeshMetadata{
 		Description:     "Hybrid Lagrangian / Raviart Thomas elements",
 		NDimensions:     2,
 		Order:           dfr.N,
@@ -193,9 +198,17 @@ func (dfr *DFR2D) OutputMesh(fileName string, BCXY map[string][][]float32) {
 		NumPerElement:   lenTriVerts / dfr.K,
 		NumElements:     lenTriVerts,
 		LenXY:           lenXYCoords,
-		GitVersion:      GitVersion, // Will be auto filled at build time
+		GitVersion:      GitVersion, // Will be autofilled at build time
 	}
-	err = WriteMesh(fileName, md, gm, BCXY)
+	return
+}
+
+func (dfr *DFR2D) OutputMesh(fileName string, BCXY map[string][][]float32) {
+	var (
+		err error
+	)
+	md := dfr.GetMeshMetadata()
+	err = WriteMesh(fileName, md, dfr.GraphMesh, BCXY)
 	if err != nil {
 		panic(err)
 	}

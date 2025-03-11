@@ -5,6 +5,8 @@ import (
 	"math"
 	"strings"
 
+	"github.com/notargets/avs/geometry"
+
 	"github.com/notargets/gocfd/types"
 
 	"github.com/notargets/gocfd/readfiles"
@@ -18,6 +20,7 @@ type DFR2D struct {
 	// FluxElement        *RTBasis2DSimplexLegacy
 	FluxElement *RTElement
 	// Interpolates from the interior (solution) points to graph points
+	GraphMesh          geometry.TriMesh
 	GraphInterp        utils.Matrix
 	FluxInterp         utils.Matrix // Interpolates from the interior (solution) points to all of the flux points
 	FluxEdgeInterp     utils.Matrix // Interpolates only from interior to the edge points in the flux element
@@ -73,6 +76,7 @@ func NewDFR2D(N int, verbose bool, meshFileO ...string) (dfr *DFR2D) {
 				readfiles.ReadSU2(meshFileO[0], verbose)
 		}
 		dfr.ProcessGeometry(dfr.VX, dfr.VY, EToV, dfr.BCEdges)
+		dfr.GraphMesh = dfr.CreateAVSGraphMesh()
 	}
 	return
 }

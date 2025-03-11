@@ -2,6 +2,7 @@ package DG2D
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,6 +11,76 @@ import (
 	"github.com/notargets/avs/geometry"
 	utils2 "github.com/notargets/avs/utils"
 )
+
+func plotField(field []float64, fieldNum int, gm geometry.TriMesh,
+	xMM ...float64) {
+	var xMin, xMax, yMin, yMax float32
+
+	if len(xMM) == 4 {
+		xMin, xMax = float32(xMM[0]), float32(xMM[1])
+		yMin, yMax = float32(xMM[2]), float32(xMM[3])
+	} else {
+		xMin, xMax = -1, 1
+		yMin, yMax = -1, 1
+	}
+	ch := chart2d.NewChart2D(xMin, xMax, yMin, yMax,
+		1024, 1024, utils2.WHITE, utils2.BLACK)
+	// Create a vector field including the three vertices
+	var pField []float32
+	vertsLen := len(field) / 4
+	var fMin, fMax float32
+	fMin, fMax = math.MaxFloat32, -math.MaxFloat32
+	n := 0 // Density
+	n = 2  // V momentum
+	n = 3  // rho*E energy
+	n = 0  // Density
+	n = 1  // U momentum
+	n = 3  // rho*E energy
+	n = 0  // Density
+	for i := 0; i < vertsLen; i++ {
+		pField = append(pField, float32(field[i+n*vertsLen]))
+		// fmt.Printf("F[%d] = %.2f\n", i, pField[i])
+		if pField[i] < fMin {
+			fMin = pField[i]
+		}
+		if pField[i] > fMax {
+			fMax = pField[i]
+		}
+	}
+	vs := geometry.VertexScalar{
+		TMesh:       &gm,
+		FieldValues: pField,
+	}
+	_ = vs
+	_ = ch
+	// ch.AddContourVertexScalar(&vs, fMin, fMax, 100)
+	ch.AddShadedVertexScalar(&vs, fMin, fMax)
+	ch.AddTriMesh(gm)
+	for {
+	}
+}
+
+func TestPlotVariousFields(t *testing.T) {
+	var (
+		N = 3
+	)
+	if !testing.Verbose() {
+		return
+	}
+	angle := 82.8
+	dfr := CreateEquiTriMesh(N, angle)
+	gm := dfr.CreateAVSGraphMesh()
+	X, Y := convXYtoXandY(gm.XY)
+	field := setTestField(X, Y, NORMALSHOCKTESTM5)
+	// field := setTestField(X, Y, NORMALSHOCKTESTM2)
+	// field := setTestField(X, Y, RADIAL2TEST)
+	n := 0 // Density
+	n = 1  // U momentum
+	n = 2  // V momentum
+	n = 3  // rho*E energy
+	n = 0  // Density
+	plotField(field, n, gm)
+}
 
 func TestDFR2D_WriteAVSGraphMesh(t *testing.T) {
 	if !testing.Verbose() {
