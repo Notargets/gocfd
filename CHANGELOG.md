@@ -1,3 +1,4 @@
+- [Update 54](CHANGELOG/Update_54.md): Interpolation for Shock Capturing (part 3)
 - [Update 53](CHANGELOG/Update_53.md): Interpolation for Shock Capturing (part 2)
 - [Update 52](CHANGELOG/Update_52.md): Interpolation for Shock Capturing (part 1)
 - [Update 51](CHANGELOG/Update_51.md): Redefinition of RT element Final

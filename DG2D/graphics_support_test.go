@@ -3,7 +3,6 @@ package DG2D
 import (
 	"fmt"
 	"math"
-	"strconv"
 	"testing"
 
 	"github.com/notargets/gocfd/utils"
@@ -58,7 +57,7 @@ func plotField(field []float64, gm geometry.TriMesh, FMin, FMax float64,
 
 func TestPlotVariousFields(t *testing.T) {
 	var (
-		N = 2
+		N = 3
 	)
 	if !testing.Verbose() {
 		return
@@ -71,44 +70,42 @@ func TestPlotVariousFields(t *testing.T) {
 
 	// SolutionX and Y are dimension (Np,K)
 	// Np := dfr.SolutionElement.Np
-	K := dfr.K
-	for k := 0; k < K; k++ {
-		dfr.SolutionX.Col(k).Transpose().Print("XElement:" + strconv.Itoa(k))
-		dfr.SolutionY.Col(k).Transpose().Print("YElement:" + strconv.Itoa(k))
-		minX := dfr.SolutionX.Col(k).Min()
-		maxX := dfr.SolutionX.Col(k).Max()
-		if minX < 0 && maxX < 0 {
-			fmt.Printf("Element [%d] is pre-shock\n\n", k)
-		} else if minX < 0 && maxX >= 0 {
-			fmt.Printf("Element [%d] is mixed pre- and POST-shock\n\n", k)
-		} else {
-			fmt.Printf("Element [%d] is POST-shock\n\n", k)
-		}
-		// for i :=0; i<Np; i++ {
-		// }
-	}
+	// K := dfr.K
+	// for k := 0; k < K; k++ {
+	// 	dfr.SolutionX.Col(k).Transpose().Print("XElement:" + strconv.Itoa(k))
+	// 	dfr.SolutionY.Col(k).Transpose().Print("YElement:" + strconv.Itoa(k))
+	// 	minX := dfr.SolutionX.Col(k).Min()
+	// 	maxX := dfr.SolutionX.Col(k).Max()
+	// 	if minX < 0 && maxX < 0 {
+	// 		fmt.Printf("Element [%d] is pre-shock\n\n", k)
+	// 	} else if minX < 0 && maxX >= 0 {
+	// 		fmt.Printf("Element [%d] is mixed pre- and POST-shock\n\n", k)
+	// 	} else {
+	// 		fmt.Printf("Element [%d] is POST-shock\n\n", k)
+	// 	}
+	// }
 	X, Y := dfr.SolutionX.DataP, dfr.SolutionY.DataP
+	// field := setTestField(X, Y, RADIAL2TEST)
 	// field := setTestField(X, Y, FIXEDVORTEXTEST)
 	// field := setTestField(X, Y, NORMALSHOCKTESTM12)
-	// field := setTestField(X, Y, RADIAL2TEST)
-	field := setTestField(X, Y, NORMALSHOCKTESTM2)
-	// field := setTestField(X, Y, NORMALSHOCKTESTM5)
+	// field := setTestField(X, Y, NORMALSHOCKTESTM2)
+	field := setTestField(X, Y, NORMALSHOCKTESTM5)
 	fM := utils.NewMatrix(dfr.SolutionElement.Np,
 		dfr.K, field[:dfr.K*dfr.SolutionElement.Np])
 	fM.PrintDims("fM Before Mod")
-	fM.Print("fM Before Mod Filter")
-	dfr.FilterMod.PrintDims("FilterMod")
-	fM = fM.Transpose().Mul(dfr.FilterMod).Transpose()
-	fM.PrintDims("After Mod Filter")
-	fM.Print("After Mod Filter")
+	// fM.Print("fM Before Mod Filter")
+	// dfr.FilterMod.PrintDims("FilterMod")
+	// fM = fM.Transpose().Mul(dfr.FilterMod).Transpose()
+	// fM.PrintDims("After Mod Filter")
+	// fM.Print("After Mod Filter")
 	fMin, fMax := getFieldMinMax(field[:dfr.K*dfr.SolutionElement.Np])
-	fmt.Printf("fMin: %f, fMax: %f\n", fMin, fMax)
-	dfr.GraphInterp.PrintDims("GraphInterp")
+	// dfr.GraphInterp.PrintDims("GraphInterp")
 	// The graph mesh field dimensions are (K,Np)
-	fMGraph := dfr.GraphInterp.Mul(fM).Transpose()
+	// fMGraph := dfr.GraphInterp.Mul(fM).Transpose()
+	fMGraph := dfr.GraphInterpMod.Mul(fM).Transpose()
 	fMGraph.PrintDims("Graph Field Dims")
 	fMGraph.Print("Graph Field")
-	// fMGraph := dfr.GraphInterp.Mul(fM)
+	fmt.Printf("fMin: %f, fMax: %f\n", fMin, fMax)
 	plotField(fMGraph.DataP, dfr.GraphMesh, fMin, fMax)
 }
 
