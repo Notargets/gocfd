@@ -3,6 +3,7 @@ package DG2D
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"testing"
 
 	"github.com/notargets/gocfd/utils"
@@ -14,7 +15,7 @@ import (
 	utils2 "github.com/notargets/avs/utils"
 )
 
-func plotField(field []float64, gm geometry.TriMesh,
+func plotField(field []float64, gm geometry.TriMesh, FMin, FMax float64,
 	xMM ...float64) {
 	var xMin, xMax, yMin, yMax float32
 
@@ -46,8 +47,8 @@ func plotField(field []float64, gm geometry.TriMesh,
 		TMesh:       &gm,
 		FieldValues: pField,
 	}
-	fmt.Printf("fMin: %f, fMax: %f\n", fMin, fMax)
-	ch.AddShadedVertexScalar(&vs, fMin, fMax)
+	fmt.Printf("Interpolated fMin: %f, fMax: %f\n", fMin, fMax)
+	ch.AddShadedVertexScalar(&vs, float32(FMin), float32(FMax))
 	ch.AddTriMesh(gm)
 	line := []float32{0, -5, 0, 5, -5, 0, 5, 0}
 	ch.AddLine(line, utils2.RED)
@@ -57,7 +58,7 @@ func plotField(field []float64, gm geometry.TriMesh,
 
 func TestPlotVariousFields(t *testing.T) {
 	var (
-		N = 3
+		N = 2
 	)
 	if !testing.Verbose() {
 		return
@@ -68,13 +69,63 @@ func TestPlotVariousFields(t *testing.T) {
 	// dfr := NewDFR2D(N, false, "test_data/test_tris_9.neu")
 	dfr := NewDFR2D(N, false, "test_data/test_10tris_centered.neu")
 
+	// SolutionX and Y are dimension (Np,K)
+	// Np := dfr.SolutionElement.Np
+	K := dfr.K
+	for k := 0; k < K; k++ {
+		dfr.SolutionX.Col(k).Transpose().Print("XElement:" + strconv.Itoa(k))
+		dfr.SolutionY.Col(k).Transpose().Print("YElement:" + strconv.Itoa(k))
+		minX := dfr.SolutionX.Col(k).Min()
+		maxX := dfr.SolutionX.Col(k).Max()
+		if minX < 0 && maxX < 0 {
+			fmt.Printf("Element [%d] is pre-shock\n\n", k)
+		} else if minX < 0 && maxX >= 0 {
+			fmt.Printf("Element [%d] is mixed pre- and POST-shock\n\n", k)
+		} else {
+			fmt.Printf("Element [%d] is POST-shock\n\n", k)
+		}
+		// for i :=0; i<Np; i++ {
+		// }
+	}
 	X, Y := dfr.SolutionX.DataP, dfr.SolutionY.DataP
-	field := setTestField(X, Y, FIXEDVORTEXTEST)
+	// field := setTestField(X, Y, FIXEDVORTEXTEST)
 	// field := setTestField(X, Y, NORMALSHOCKTESTM12)
-	// field := setTestField(X, Y, RADIAL3TEST)
-	fM := utils.NewMatrix(dfr.K, dfr.SolutionElement.Np, field)
+	// field := setTestField(X, Y, RADIAL2TEST)
+	field := setTestField(X, Y, NORMALSHOCKTESTM2)
+	// field := setTestField(X, Y, NORMALSHOCKTESTM5)
+	fM := utils.NewMatrix(dfr.SolutionElement.Np,
+		dfr.K, field[:dfr.K*dfr.SolutionElement.Np])
+	fM.PrintDims("fM Before Mod")
+	fM.Print("fM Before Mod Filter")
+	dfr.FilterMod.PrintDims("FilterMod")
+	fM = fM.Transpose().Mul(dfr.FilterMod).Transpose()
+	fM.PrintDims("After Mod Filter")
+	fM.Print("After Mod Filter")
+	fMin, fMax := getFieldMinMax(field[:dfr.K*dfr.SolutionElement.Np])
+	fmt.Printf("fMin: %f, fMax: %f\n", fMin, fMax)
+	dfr.GraphInterp.PrintDims("GraphInterp")
+	// The graph mesh field dimensions are (K,Np)
 	fMGraph := dfr.GraphInterp.Mul(fM).Transpose()
-	plotField(fMGraph.DataP, dfr.GraphMesh)
+	fMGraph.PrintDims("Graph Field Dims")
+	fMGraph.Print("Graph Field")
+	// fMGraph := dfr.GraphInterp.Mul(fM)
+	plotField(fMGraph.DataP, dfr.GraphMesh, fMin, fMax)
+}
+
+func getFieldMinMax(field []float64) (fMin, fMax float64) {
+	for i, f := range field {
+		if i == 0 {
+			fMin = f
+			fMax = f
+		}
+		if f < fMin {
+			fMin = f
+		}
+		if f > fMax {
+			fMax = f
+		}
+	}
+	return
 }
 
 func TestDFR2D_WriteAVSGraphMesh(t *testing.T) {

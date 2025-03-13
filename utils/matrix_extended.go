@@ -188,6 +188,20 @@ func (m Matrix) Print(msgI ...string) (o string) {
 	return
 }
 
+func (m Matrix) PrintDims(msgI ...string) (o string) {
+	var (
+		name = ""
+	)
+	if len(msgI) != 0 {
+		name = msgI[0]
+	}
+	formatString := "%s = Dims:[%d,%d]\n"
+	d1, d2 := m.Dims()
+	o = fmt.Sprintf(formatString, name, d1, d2)
+	fmt.Printf(o)
+	return
+}
+
 func (m Matrix) Transpose() (R Matrix) { // Does not change receiver
 	var (
 		nr, nc = m.Dims()

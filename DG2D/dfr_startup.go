@@ -22,8 +22,8 @@ type DFR2D struct {
 	// Interpolates from the interior (solution) points to graph points
 	GraphMesh          geometry.TriMesh
 	GraphInterp        utils.Matrix
-	FluxInterp         utils.Matrix // Interpolates from the interior (solution) points to all of the flux points
 	FluxEdgeInterp     utils.Matrix // Interpolates only from interior to the edge points in the flux element
+	FilterMod          utils.Matrix // Solution Modulation filter damps high modes
 	FluxDr, FluxDs     utils.Matrix // Derivatives from the interior (solution) points to all of the flux points
 	DXMetric, DYMetric utils.Matrix // X and Y derivative metrics, multiply by scalar field values to create DOF for RT
 	// Mesh Parameters
@@ -60,9 +60,12 @@ func NewDFR2D(N int, verbose bool, meshFileO ...string) (dfr *DFR2D) {
 	dfr.SolutionBasis = NewJacobiBasis2D(le.N, le.R, le.S, 0, 0)
 	// Get the interpolation matrices that interpolate the whole RT element and just the edges using solution points
 	GraphR, GraphS := dfr.GetRSForGraphMesh()
-	dfr.GraphInterp = dfr.SolutionBasis.GetInterpMatrix(GraphR, GraphS)
-	dfr.FluxInterp = dfr.SolutionBasis.GetInterpMatrix(rt.R, rt.S)       // Interpolation matrix for flux nodes
+	Nu, p := 0.1, 3.29
+	dfr.GraphInterp = dfr.SolutionBasis.GetModInterpMatrix(GraphR, GraphS, Nu, p, 1)
 	dfr.FluxEdgeInterp = dfr.SolutionBasis.GetInterpMatrix(RFlux, SFlux) // Interpolation matrix across three edges
+	// dfr.FluxEdgeInterp = dfr.SolutionBasis.GetModInterpMatrix(RFlux, SFlux, Nu, p, 1) // Interpolation matrix across three edges
+	// dfr.FluxEdgeInterp = dfr.SolutionBasis.GetModInterpMatrix(RFlux, SFlux, Nu, p, 1) // Interpolation matrix across three edges
+	dfr.FilterMod = dfr.SolutionBasis.GetModInterpMatrix(dfr.SolutionElement.R, dfr.SolutionElement.S, Nu, p, 1)
 	dfr.FluxDr, dfr.FluxDs = le.GetDerivativeMatrices(rt.R, rt.S)
 	if len(meshFileO) != 0 {
 		var EToV utils.Matrix

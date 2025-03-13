@@ -230,7 +230,7 @@ func (jb2d *JacobiBasis2D) GetInterpMatrix(R, S utils.Vector) (Interp utils.Matr
 }
 
 func (jb2d *JacobiBasis2D) GetModInterpMatrix(R, S utils.Vector,
-	Nu, p float64) (Interp utils.Matrix) {
+	Nu, p float64, SmoothingIterations int) (Interp utils.Matrix) {
 	/*
 		Uses Jacobi polynomials as the basis function
 
@@ -242,6 +242,9 @@ func (jb2d *JacobiBasis2D) GetModInterpMatrix(R, S utils.Vector,
 		N  = jb2d.P
 		Np = jb2d.Np
 	)
+	if SmoothingIterations < 1 {
+		SmoothingIterations = 1
+	}
 	CoefMods := jb2d.ModalFilter2D(Nu, p)
 	// First compute polynomial terms, used by all polynomials
 	polyTerms := make([]float64, R.Len()*Np)
@@ -251,7 +254,8 @@ func (jb2d *JacobiBasis2D) GetModInterpMatrix(R, S utils.Vector,
 		var sk2 int
 		for i := 0; i <= N; i++ {
 			for j := 0; j <= (N - i); j++ {
-				polyTerms[sk] = CoefMods[sk2] * jb2d.PolynomialTerm(r, s, i, j)
+				CoefMod := math.Pow(CoefMods[sk2], float64(SmoothingIterations))
+				polyTerms[sk] = CoefMod * jb2d.PolynomialTerm(r, s, i, j)
 				sk++
 				sk2++
 			}

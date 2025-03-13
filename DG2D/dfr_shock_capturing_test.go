@@ -356,7 +356,8 @@ func GetInterpolationResults(Nu, p float64) (aggStats []ElementTestStats) {
 		rt := dfr.FluxElement
 		RFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.R.DataP)) // For the Interpolation matrix across three edges
 		SFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.S.DataP)) // For the Interpolation matrix across three edges
-		EdgeInterpMod[N] = dfr.SolutionElement.JB2D.GetModInterpMatrix(RFlux, SFlux, Nu, p)
+		EdgeInterpMod[N] = dfr.SolutionElement.JB2D.GetModInterpMatrix(RFlux,
+			SFlux, Nu, p, 1)
 		for ii := 0; ii < NAngles; ii++ {
 			angle := (float64(ii) / float64(NAngles)) * 180.
 			CreateEquiTriMesh(N, angle, dfr)
@@ -394,7 +395,7 @@ func TestInterpolationVariousFields(t *testing.T) {
 		RFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.R.DataP)) // For the Interpolation matrix across three edges
 		SFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.S.DataP)) // For the Interpolation matrix across three edges
 		EdgeInterpMod := dfr.SolutionElement.JB2D.GetModInterpMatrix(RFlux,
-			SFlux, Nu, p)
+			SFlux, Nu, p, 1)
 		// for _, tf := range []TestField{NORMALSHOCKTESTM12, NORMALSHOCKTESTM2,
 		// 	NORMALSHOCKTESTM5, FIXEDVORTEXTEST, RADIAL1TEST, RADIAL2TEST,
 		// 	RADIAL3TEST, RADIAL4TEST} {
