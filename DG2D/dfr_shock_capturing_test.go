@@ -16,142 +16,6 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-type TestField uint8
-
-const (
-	NORMALSHOCKTESTM2 = TestField(iota)
-	NORMALSHOCKTESTM5 = TestField(iota)
-	NORMALSHOCKTESTM12
-	FIXEDVORTEXTEST
-	MOVINGVORTEXTEST
-	RADIAL1TEST
-	RADIAL2TEST
-	RADIAL3TEST
-	RADIAL4TEST
-)
-
-func (tf TestField) String() string {
-	switch tf {
-	case NORMALSHOCKTESTM2:
-		return "NORMALSHOCKTESTM2"
-	case NORMALSHOCKTESTM5:
-		return "NORMALSHOCKTESTM5"
-	case NORMALSHOCKTESTM12:
-		return "NORMALSHOCKTESTM12"
-	case FIXEDVORTEXTEST:
-		return "FIXEDVORTEXTEST"
-	case MOVINGVORTEXTEST:
-		return "MOVINGVORTEXTEST"
-	case RADIAL1TEST:
-		return "RADIAL1TEST"
-	case RADIAL2TEST:
-		return "RADIAL2TEST"
-	case RADIAL3TEST:
-		return "RADIAL3TEST"
-	case RADIAL4TEST:
-		return "RADIAL4TEST"
-	}
-	return ""
-}
-
-func setTestField(X, Y []float64, tf TestField) (field []float64) {
-	switch tf {
-	case NORMALSHOCKTESTM12:
-		field = setShockConditions(X, 1.2, 0)
-	case NORMALSHOCKTESTM2:
-		field = setShockConditions(X, 2, 0)
-	case NORMALSHOCKTESTM5:
-		field = setShockConditions(X, 5, 0)
-	case FIXEDVORTEXTEST:
-		iv := isentropic_vortex.NewIVortex(5, 0, 0, 1.4, 0)
-		field = setIsoVortexConditions(X, Y, iv)
-	case MOVINGVORTEXTEST:
-		iv := isentropic_vortex.NewIVortex(5, 0, 0, 1.4)
-		field = setIsoVortexConditions(X, Y, iv)
-	case RADIAL1TEST:
-		field = setRadial(X, Y, 1)
-	case RADIAL2TEST:
-		field = setRadial(X, Y, 2)
-	case RADIAL3TEST:
-		field = setRadial(X, Y, 3)
-	case RADIAL4TEST:
-		field = setRadial(X, Y, 4)
-	}
-	return
-}
-
-func convXYtoXandY(XY []float32) (X, Y []float64) {
-	for i := 0; i < len(XY)/2; i++ {
-		X = append(X, float64(XY[2*i]))
-		Y = append(Y, float64(XY[2*i+1]))
-	}
-	return
-}
-
-func setRadial(X, Y []float64, order float64) (field []float64) {
-	var (
-		Np = len(X)
-	)
-	field = make([]float64, Np*4)
-	var x, y float64
-	for i := 0; i < Np; i++ {
-		x, y = X[i], Y[i]
-		for n := 0; n < 4; n++ {
-			field[i+n*Np] = math.Pow(x, order) + math.Pow(y, order)
-		}
-	}
-	return
-}
-
-func setShockConditions(X []float64, Mach, Alpha float64) (field []float64) {
-	var (
-		U1, U2 = ShockConditions(Mach, Alpha)
-		Np     = len(X)
-	)
-	// fmt.Printf("Mach: %.2f\n", Mach)
-	// fmt.Printf("U1: ")
-	// for n := 0; n < 4; n++ {
-	// 	fmt.Printf(" %.2f ", U1[n])
-	// }
-	// fmt.Printf("\n")
-	// fmt.Printf("U2: ")
-	// for n := 0; n < 4; n++ {
-	// 	fmt.Printf(" %.2f ", U2[n])
-	// }
-	// fmt.Printf("\n")
-	field = make([]float64, Np*4)
-	var x float64
-	for i := 0; i < Np; i++ {
-		x = X[i]
-		for n := 0; n < 4; n++ {
-			if x < 0 {
-				field[i+n*Np] = U1[n]
-			} else {
-				field[i+n*Np] = U2[n]
-			}
-		}
-	}
-	return
-}
-
-func setIsoVortexConditions(X, Y []float64,
-	iv *isentropic_vortex.IVortex) (field []float64) {
-	var (
-		Np = len(X)
-	)
-	field = make([]float64, Np*4)
-	var x, y float64
-	for i := 0; i < Np; i++ {
-		x, y = X[i], Y[i]
-		rho, rhoU, rhoV, rhoE := iv.GetStateC(0, x, y)
-		field[i+0*Np] = rho
-		field[i+1*Np] = rhoU
-		field[i+2*Np] = rhoV
-		field[i+3*Np] = rhoE
-	}
-	return
-}
-
 type ElementTestStats struct {
 	N                      int
 	Nu, p                  float64
@@ -1375,6 +1239,134 @@ func TestMachConditions(t *testing.T) {
 	U1, U2 = ShockConditions(2, 15)
 	fmt.Printf("U1: %5.2f,%5.2f,%5.2f,%5.2f\n", U1[0], U1[1], U1[2], U1[3])
 	fmt.Printf("U2: %5.2f,%5.2f,%5.2f,%5.2f\n", U2[0], U2[1], U2[2], U2[3])
+}
+
+type TestField uint8
+
+const (
+	NORMALSHOCKTESTM2 = TestField(iota)
+	NORMALSHOCKTESTM5 = TestField(iota)
+	NORMALSHOCKTESTM12
+	FIXEDVORTEXTEST
+	MOVINGVORTEXTEST
+	RADIAL1TEST
+	RADIAL2TEST
+	RADIAL3TEST
+	RADIAL4TEST
+)
+
+func (tf TestField) String() string {
+	switch tf {
+	case NORMALSHOCKTESTM2:
+		return "NORMALSHOCKTESTM2"
+	case NORMALSHOCKTESTM5:
+		return "NORMALSHOCKTESTM5"
+	case NORMALSHOCKTESTM12:
+		return "NORMALSHOCKTESTM12"
+	case FIXEDVORTEXTEST:
+		return "FIXEDVORTEXTEST"
+	case MOVINGVORTEXTEST:
+		return "MOVINGVORTEXTEST"
+	case RADIAL1TEST:
+		return "RADIAL1TEST"
+	case RADIAL2TEST:
+		return "RADIAL2TEST"
+	case RADIAL3TEST:
+		return "RADIAL3TEST"
+	case RADIAL4TEST:
+		return "RADIAL4TEST"
+	}
+	return ""
+}
+
+func setTestField(X, Y []float64, tf TestField) (field []float64) {
+	switch tf {
+	case NORMALSHOCKTESTM12:
+		field = setShockConditions(X, 1.2, 0)
+	case NORMALSHOCKTESTM2:
+		field = setShockConditions(X, 2, 0)
+	case NORMALSHOCKTESTM5:
+		field = setShockConditions(X, 5, 0)
+	case FIXEDVORTEXTEST:
+		iv := isentropic_vortex.NewIVortex(5, 0, 0, 1.4, 0)
+		field = setIsoVortexConditions(X, Y, iv)
+	case MOVINGVORTEXTEST:
+		iv := isentropic_vortex.NewIVortex(5, 0, 0, 1.4)
+		field = setIsoVortexConditions(X, Y, iv)
+	case RADIAL1TEST:
+		field = setRadial(X, Y, 1)
+	case RADIAL2TEST:
+		field = setRadial(X, Y, 2)
+	case RADIAL3TEST:
+		field = setRadial(X, Y, 3)
+	case RADIAL4TEST:
+		field = setRadial(X, Y, 4)
+	}
+	return
+}
+
+func setRadial(X, Y []float64, order float64) (field []float64) {
+	var (
+		Np = len(X)
+	)
+	field = make([]float64, Np*4)
+	var x, y float64
+	for i := 0; i < Np; i++ {
+		x, y = X[i], Y[i]
+		for n := 0; n < 4; n++ {
+			field[i+n*Np] = math.Pow(x, order) + math.Pow(y, order)
+		}
+	}
+	return
+}
+
+func setShockConditions(X []float64, Mach, Alpha float64) (field []float64) {
+	var (
+		U1, U2 = ShockConditions(Mach, Alpha)
+		Np     = len(X)
+	)
+	// fmt.Printf("Mach: %.2f\n", Mach)
+	// fmt.Printf("U1: ")
+	// for n := 0; n < 4; n++ {
+	// 	fmt.Printf(" %.2f ", U1[n])
+	// }
+	// fmt.Printf("\n")
+	// fmt.Printf("U2: ")
+	// for n := 0; n < 4; n++ {
+	// 	fmt.Printf(" %.2f ", U2[n])
+	// }
+	// fmt.Printf("\n")
+	field = make([]float64, Np*4)
+	var x float64
+	for i := 0; i < Np; i++ {
+		x = X[i]
+		for n := 0; n < 4; n++ {
+			if x < 0 {
+				field[i+n*Np] = U1[n]
+			} else {
+				field[i+n*Np] = U2[n]
+			}
+		}
+	}
+	return
+}
+
+func setIsoVortexConditions(X, Y []float64,
+	iv *isentropic_vortex.IVortex) (field []float64) {
+	var (
+		Np = len(X)
+	)
+	field = make([]float64, Np*4)
+	var x, y float64
+	for i := 0; i < Np; i++ {
+		x, y = X[i], Y[i]
+		rho, rhoU, rhoV, rhoE := iv.GetStateC(0, x, y)
+		field[i+0*Np] = rho
+		field[i+1*Np] = rhoU
+		field[i+2*Np] = rhoV
+		field[i+3*Np] = rhoE
+	}
+	return
 }
 
 // ShockConditions computes post-shock properties given pre-shock Mach number (M1) and shock angle (alpha)

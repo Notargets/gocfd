@@ -14,47 +14,6 @@ import (
 	utils2 "github.com/notargets/avs/utils"
 )
 
-func plotField(field []float64, gm geometry.TriMesh, FMin, FMax float64,
-	xMM ...float64) {
-	var xMin, xMax, yMin, yMax float32
-
-	if len(xMM) == 4 {
-		xMin, xMax = float32(xMM[0]), float32(xMM[1])
-		yMin, yMax = float32(xMM[2]), float32(xMM[3])
-	} else {
-		xMin, xMax = -1, 1
-		yMin, yMax = -1, 1
-	}
-	ch := chart2d.NewChart2D(xMin, xMax, yMin, yMax,
-		1024, 1024, utils2.WHITE, utils2.BLACK)
-	// Create a vector field including the three vertices
-	var pField []float32
-	var fMin, fMax float32
-	fMin, fMax = math.MaxFloat32, -math.MaxFloat32
-	pField = make([]float32, len(field))
-	for i, f := range field {
-		f32 := float32(f)
-		if fMin > f32 {
-			fMin = f32
-		}
-		if fMax < f32 {
-			fMax = f32
-		}
-		pField[i] = float32(f)
-	}
-	vs := geometry.VertexScalar{
-		TMesh:       &gm,
-		FieldValues: pField,
-	}
-	fmt.Printf("Interpolated fMin: %f, fMax: %f\n", fMin, fMax)
-	ch.AddShadedVertexScalar(&vs, float32(FMin), float32(FMax))
-	ch.AddTriMesh(gm)
-	line := []float32{0, -5, 0, 5, -5, 0, 5, 0}
-	ch.AddLine(line, utils2.RED)
-	for {
-	}
-}
-
 func TestPlotVariousFields(t *testing.T) {
 	var (
 		N = 3
@@ -107,22 +66,6 @@ func TestPlotVariousFields(t *testing.T) {
 	fMGraph.Print("Graph Field")
 	fmt.Printf("fMin: %f, fMax: %f\n", fMin, fMax)
 	plotField(fMGraph.DataP, dfr.GraphMesh, fMin, fMax)
-}
-
-func getFieldMinMax(field []float64) (fMin, fMax float64) {
-	for i, f := range field {
-		if i == 0 {
-			fMin = f
-			fMax = f
-		}
-		if f < fMin {
-			fMin = f
-		}
-		if f > fMax {
-			fMax = f
-		}
-	}
-	return
 }
 
 func TestDFR2D_WriteAVSGraphMesh(t *testing.T) {
@@ -205,4 +148,61 @@ func getMinMax(gm geometry.TriMesh) (xMin, xMax, yMin, yMax float32) {
 		}
 	}
 	return
+}
+
+func getFieldMinMax(field []float64) (fMin, fMax float64) {
+	for i, f := range field {
+		if i == 0 {
+			fMin = f
+			fMax = f
+		}
+		if f < fMin {
+			fMin = f
+		}
+		if f > fMax {
+			fMax = f
+		}
+	}
+	return
+}
+
+func plotField(field []float64, gm geometry.TriMesh, FMin, FMax float64,
+	xMM ...float64) {
+	var xMin, xMax, yMin, yMax float32
+
+	if len(xMM) == 4 {
+		xMin, xMax = float32(xMM[0]), float32(xMM[1])
+		yMin, yMax = float32(xMM[2]), float32(xMM[3])
+	} else {
+		xMin, xMax = -1, 1
+		yMin, yMax = -1, 1
+	}
+	ch := chart2d.NewChart2D(xMin, xMax, yMin, yMax,
+		1024, 1024, utils2.WHITE, utils2.BLACK)
+	// Create a vector field including the three vertices
+	var pField []float32
+	var fMin, fMax float32
+	fMin, fMax = math.MaxFloat32, -math.MaxFloat32
+	pField = make([]float32, len(field))
+	for i, f := range field {
+		f32 := float32(f)
+		if fMin > f32 {
+			fMin = f32
+		}
+		if fMax < f32 {
+			fMax = f32
+		}
+		pField[i] = float32(f)
+	}
+	vs := geometry.VertexScalar{
+		TMesh:       &gm,
+		FieldValues: pField,
+	}
+	fmt.Printf("Interpolated fMin: %f, fMax: %f\n", fMin, fMax)
+	ch.AddShadedVertexScalar(&vs, float32(FMin), float32(FMax))
+	ch.AddTriMesh(gm)
+	line := []float32{0, -5, 0, 5, -5, 0, 5, 0}
+	ch.AddLine(line, utils2.RED)
+	for {
+	}
 }

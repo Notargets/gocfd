@@ -125,18 +125,26 @@ func (dfr *DFR2D) GetRSForGraphMesh() (R, S utils.Vector) {
 	return
 }
 
+func (dfr *DFR2D) TriangulateRTElement() (gm geometry.TriMesh) {
+	var (
+		NpEdge    = dfr.FluxElement.NpEdge
+		TriEdgeNp = 3 * (1 + NpEdge)
+	)
+	R, S := dfr.GetRSForGraphMesh()
+	gm = geometry2D.TriangulateTriangle(
+		R.DataP[:TriEdgeNp], S.DataP[:TriEdgeNp],
+		R.DataP[TriEdgeNp:], S.DataP[TriEdgeNp:])
+	return
+}
+
 func (dfr *DFR2D) CreateAVSGraphMesh() (gm geometry.TriMesh) {
 	var (
 		NpInt        = dfr.FluxElement.NpInt
 		NpEdge       = dfr.FluxElement.NpEdge
-		TriEdgeNp    = 3 * (1 + NpEdge)
 		VX, VY       = dfr.VX, dfr.VY
 		FluxX, FluxY = dfr.FluxX, dfr.FluxY
 	)
-	R, S := dfr.GetRSForGraphMesh()
-	gmRS := geometry2D.TriangulateTriangle(
-		R.DataP[:TriEdgeNp], S.DataP[:TriEdgeNp],
-		R.DataP[TriEdgeNp:], S.DataP[TriEdgeNp:])
+	gmRS := dfr.TriangulateRTElement()
 
 	// We need to convert the BCIndex, which lists vertices in VX,
 	// VY into line segments
