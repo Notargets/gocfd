@@ -2,16 +2,11 @@ package DG2D
 
 import (
 	"fmt"
-	"math"
 	"testing"
 
 	"github.com/notargets/gocfd/utils"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/notargets/avs/chart2d"
-	"github.com/notargets/avs/geometry"
-	utils2 "github.com/notargets/avs/utils"
 )
 
 func TestPlotVariousFields(t *testing.T) {
@@ -108,101 +103,4 @@ func TestCreateAVSGraphMesh(t *testing.T) {
 	dfr := NewDFR2D(N, false, "test_data/test_tris_9.neu")
 	gm := dfr.CreateAVSGraphMesh()
 	plotMesh(gm)
-}
-
-func plotMesh(gm geometry.TriMesh) {
-	xMin, xMax, yMin, yMax := getMinMax(gm)
-	ch := chart2d.NewChart2D(xMin, xMax, yMin, yMax,
-		1024, 1024, utils2.WHITE, utils2.BLACK)
-	// Create a vector field including the three vertices
-	ch.AddTriMesh(gm)
-	for {
-	}
-}
-
-func getMinMax(gm geometry.TriMesh) (xMin, xMax, yMin, yMax float32) {
-	var (
-		x, y  float32
-		lenXY = len(gm.XY) / 2
-	)
-	for i := 0; i < lenXY; i++ {
-		x, y = gm.XY[i*2+0], gm.XY[i*2+1]
-		if i == 0 {
-			xMin = x
-			xMax = x
-			yMin = y
-			yMax = y
-		} else {
-			if x < xMin {
-				xMin = x
-			}
-			if x > xMax {
-				xMax = x
-			}
-			if y < yMin {
-				yMin = y
-			}
-			if y > yMax {
-				yMax = y
-			}
-		}
-	}
-	return
-}
-
-func getFieldMinMax(field []float64) (fMin, fMax float64) {
-	for i, f := range field {
-		if i == 0 {
-			fMin = f
-			fMax = f
-		}
-		if f < fMin {
-			fMin = f
-		}
-		if f > fMax {
-			fMax = f
-		}
-	}
-	return
-}
-
-func plotField(field []float64, gm geometry.TriMesh, FMin, FMax float64,
-	xMM ...float64) {
-	var xMin, xMax, yMin, yMax float32
-
-	if len(xMM) == 4 {
-		xMin, xMax = float32(xMM[0]), float32(xMM[1])
-		yMin, yMax = float32(xMM[2]), float32(xMM[3])
-	} else {
-		xMin, xMax = -1, 1
-		yMin, yMax = -1, 1
-	}
-	ch := chart2d.NewChart2D(xMin, xMax, yMin, yMax,
-		1024, 1024, utils2.WHITE, utils2.BLACK)
-	// Create a vector field including the three vertices
-	var pField []float32
-	var fMin, fMax float32
-	fMin, fMax = math.MaxFloat32, -math.MaxFloat32
-	pField = make([]float32, len(field))
-	for i, f := range field {
-		f32 := float32(f)
-		if fMin > f32 {
-			fMin = f32
-		}
-		if fMax < f32 {
-			fMax = f32
-		}
-		pField[i] = float32(f)
-	}
-	vs := geometry.VertexScalar{
-		TMesh:       &gm,
-		FieldValues: pField,
-	}
-	fmt.Printf("Interpolated fMin: %f, fMax: %f\n", fMin, fMax)
-	ch.AddShadedVertexScalar(&vs, float32(FMin), float32(FMax))
-	ch.AddTriMesh(gm)
-	line := []float32{0, -5, 0, 5, -5, 0, 5, 0}
-	ch.AddLine(line, utils2.RED)
-	for {
-	}
 }
