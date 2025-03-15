@@ -19,6 +19,28 @@ with certainty that the reconstructed flux will be well behaved. On reflection,
 this now seems so obvious that I fully expect this is what others are doing
 in practice and they're just not talking about it.
 
+Below is a visualization of the RT1-RT8 elements showing the interior points 
+(in green crosshairs), the edge segments in white along with their 
+associated triangulation, and the element boundary in red. It's clear from 
+these graphics that the edge segments are well supported by interior points 
+that we can use to reconstruct flux on the edge segments. This represents 
+the unit triangle, and every element will mirror these interior points 
+across each edge segment, forming the basis for each Riemann solution to get 
+the flux on the edge segment. We then area average each pair of edge 
+segment's Roe flux on either side of each RT edge node to get the flux for 
+that edge node. This should be both stable and accurate for all 
+circumstances, as the order of the reconstruction should match the order of 
+the edge, which is P+1, even though each reconstruction is 1st order across 
+the edge.
+
+| RT1                        | RT2                        | RT3                        | RT4                        |
+|----------------------------|----------------------------|----------------------------|----------------------------|
+| ![Image 1](edgefv_rt1.png) | ![Image 2](edgefv_rt2.png) | ![Image 2](edgefv_rt3.png) | ![Image 2](edgefv_rt4.png) |
+
+| RT5                        | RT6                        | RT7                        | RT8                        |
+|----------------------------|----------------------------|----------------------------|----------------------------|
+| ![Image 2](edgefv_rt5.png) | ![Image 2](edgefv_rt6.png) | ![Image 2](edgefv_rt7.png) | ![Image 2](edgefv_rt8.png) |
+
 ## Experimental Results: Modulating filter is not enough (not even close)
 
 The deciding factor is: how effective is the approach for a case where we have
