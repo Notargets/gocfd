@@ -53,9 +53,9 @@ func (tf TestField) String() string {
 	return ""
 }
 
-func TestEdgeFlux(t *testing.T) {
+func TestPlotEdgeTriangulation(t *testing.T) {
 	var (
-		N = 3
+		N = 7
 	)
 	if !testing.Verbose() {
 		return
