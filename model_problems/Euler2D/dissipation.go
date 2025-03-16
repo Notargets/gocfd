@@ -159,7 +159,8 @@ func NewScalarDissipation(kappa float64, dfr *DG2D.DFR2D, pm *PartitionMap) (sd 
 		as values at Np node points, multiplying the Node point values vector by Clipper produces an alternative version
 		of the node values based on truncating the last polynomial mode.
 	*/
-	sd.Clipper = el.JB2D.V.Mul(CutoffFilter2D(el.N, el.N-1, 0)).Mul(el.JB2D.Vinv)
+	sd.Clipper = el.JB2D.V.Mul(dfr.CutoffFilter2D(el.N, el.N-1,
+		0)).Mul(el.JB2D.Vinv)
 	return
 }
 

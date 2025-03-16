@@ -14,32 +14,27 @@ type SolutionLimiter struct {
 	Element              *DG2D.LagrangeElement2D
 	Tris                 *DG2D.Triangulation
 	Partitions           *PartitionMap
-	ShockFinder          []*ModeAliasShockFinder // Sharded
-	UElement, dUdr, dUds []utils.Matrix          // Sharded scratch areas for assembly and testing of solution values
+	ShockFinder          []*DG2D.ModeAliasShockFinder // Sharded
+	UElement, dUdr, dUds []utils.Matrix               // Sharded scratch areas for assembly and testing of solution values
 	FS                   *FreeStream
-	ModalFilter          []*ModeFilter // Used to multiply solution vector to filter out high order oscillations
 }
 
 type LimiterType uint8
 
 const (
 	None LimiterType = iota
-	ModeFilterT
 	BarthJespersonT
 	PerssonC0T
 )
 
 var (
 	LimiterNames = map[string]LimiterType{
-		"modefilter":      ModeFilterT,
-		"mode filter":     ModeFilterT,
 		"barthjesperson":  BarthJespersonT,
 		"barth jesperson": BarthJespersonT,
 		"perssonc0":       PerssonC0T,
 		"persson c0":      PerssonC0T,
 	}
 	LimiterNamesRev = map[LimiterType]string{
-		ModeFilterT:     "Modal Filter",
 		BarthJespersonT: "Barth Jesperson",
 		PerssonC0T:      "Persson, C0 viscosity",
 	}
@@ -79,26 +74,21 @@ func NewSolutionLimiter(t LimiterType, kappa float64, dfr *DG2D.DFR2D, pm *Parti
 		limiterType: t,
 		Element:     dfr.SolutionElement,
 		Tris:        dfr.Tris,
-		ShockFinder: make([]*ModeAliasShockFinder, Nthreads),
+		ShockFinder: make([]*DG2D.ModeAliasShockFinder, Nthreads),
 		FS:          fs,
 		Partitions:  pm,
 		// Sharded working matrices
-		UElement:    make([]utils.Matrix, Nthreads),
-		dUdr:        make([]utils.Matrix, Nthreads),
-		dUds:        make([]utils.Matrix, Nthreads),
-		ModalFilter: make([]*ModeFilter, Nthreads),
+		UElement: make([]utils.Matrix, Nthreads),
+		dUdr:     make([]utils.Matrix, Nthreads),
+		dUds:     make([]utils.Matrix, Nthreads),
 	}
 	switch bjl.limiterType {
 	case BarthJespersonT:
 		for np := 0; np < Nthreads; np++ {
-			bjl.ShockFinder[np] = NewAliasShockFinder(dfr.SolutionElement, kappa)
+			bjl.ShockFinder[np] = dfr.NewAliasShockFinder(kappa)
 			bjl.UElement[np] = utils.NewMatrix(Np, 1)
 			bjl.dUdr[np] = utils.NewMatrix(Np, 1)
 			bjl.dUds[np] = utils.NewMatrix(Np, 1)
-		}
-	case ModeFilterT:
-		for np := 0; np < Nthreads; np++ {
-			bjl.ModalFilter[np] = NewModeFilter(bjl.Element, 2*kappa)
 		}
 	}
 	return
@@ -109,7 +99,6 @@ func (bjl *SolutionLimiter) LimitSolution(myThread int, Qall, Residual [][4]util
 		Q        = Qall[myThread]
 		Np, Kmax = Q[0].Dims()
 		UE       = bjl.UElement[myThread]
-		FS       = FilterScratch[myThread]
 	)
 	switch bjl.limiterType {
 	case BarthJespersonT:
@@ -128,13 +117,6 @@ func (bjl *SolutionLimiter) LimitSolution(myThread int, Qall, Residual [][4]util
 				}
 				points++
 			}
-		}
-	case ModeFilterT:
-		mf := bjl.ModalFilter[myThread]
-		// Multiply Residual by Clipper matrix to filter out high order modes
-		for n := 0; n < 4; n++ {
-			mf.Clipper.Mul(Residual[myThread][n], FS)
-			FS.Copy(Residual[myThread][n])
 		}
 	}
 	return
@@ -243,163 +225,4 @@ func (bjl *SolutionLimiter) limitScalarFieldBarthJesperson(k, myThread int, Qall
 			U.DataP[ind] = Uave + psi*(dR*dUdrAve+dS*dUdsAve)
 		}
 	}
-}
-
-type ModeFilter struct {
-	Clipper utils.Matrix // Matrix used to apply an exponential filter to the polynomial modes
-}
-
-func NewModeFilter(element *DG2D.LagrangeElement2D, SP float64) (mf *ModeFilter) {
-	/*
-		The "Clipper" matrix drops the last mode from the polynomial and forms an alternative field of values at the node
-		points based on a polynomial with one less term. In other words, if we have a polynomial of degree "p", expressed
-		as values at Np node points, multiplying the Node point values vector by Clipper produces an alternative version
-		of the node values based on truncating the last polynomial mode.
-	*/
-	var (
-		N = element.N
-	)
-	mf = &ModeFilter{
-		Clipper: element.JB2D.V.Mul(expFilter2D(N, N/2, SP)).Mul(element.JB2D.Vinv),
-	}
-	return
-}
-
-func CutoffFilter2D(N, NCutoff int, frac float64) (diag utils.Matrix) {
-	/*
-		The NCutoff is inclusive, so if you want to clip the top mode at N, input N
-	*/
-	var (
-		Np = (N + 1) * (N + 2) / 2
-	)
-	data := make([]float64, Np)
-	for ii := 0; ii < Np; ii++ {
-		data[ii] = 1.
-	}
-	var ii int
-	for i := 0; i <= N; i++ {
-		for j := 0; j <= N-i; j++ {
-			if i+j >= NCutoff {
-				data[ii] = frac
-			}
-			ii++
-		}
-	}
-	diag = utils.NewDiagMatrix(Np, data)
-	return
-}
-
-func expFilter2D(N, NCutoff int, sp float64) (diag utils.Matrix) {
-	/*
-		The NCutoff is inclusive, so if you want to clip the top mode at N, input N
-	*/
-	var (
-		Np    = (N + 1) * (N + 2) / 2
-		eps   = 2.2204e-16
-		alpha = -math.Log(eps)
-	)
-	data := make([]float64, Np)
-	for ii := 0; ii < Np; ii++ {
-		data[ii] = 1.
-	}
-	if N != NCutoff {
-		var ii int
-		for i := 0; i <= N; i++ {
-			for j := 0; j <= N-i; j++ {
-				if i+j >= NCutoff {
-					data[ii] = math.Exp(-alpha * math.Pow((float64(i+j-NCutoff)/float64(N-NCutoff)), sp))
-				}
-				ii++
-			}
-		}
-	}
-	diag = utils.NewDiagMatrix(Np, data)
-	return
-}
-
-type ModeAliasShockFinder struct {
-	Element *DG2D.LagrangeElement2D
-	Clipper utils.Matrix // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder
-	Np      int
-	q, qalt utils.Matrix // scratch storage for evaluating the moment
-	Kappa   float64
-}
-
-func NewAliasShockFinder(element *DG2D.LagrangeElement2D, Kappa float64) (sf *ModeAliasShockFinder) {
-	var (
-		Np = element.Np
-		N  = element.N
-	)
-	sf = &ModeAliasShockFinder{
-		Element: element,
-		Np:      Np,
-		q:       utils.NewMatrix(Np, 1),
-		qalt:    utils.NewMatrix(Np, 1),
-		Kappa:   Kappa,
-	}
-	/*
-		The "Clipper" matrix drops the last mode from the polynomial and forms an alternative field of values at the node
-		points based on a polynomial with one less term. In other words, if we have a polynomial of degree "p", expressed
-		as values at Np node points, multiplying the Node point values vector by Clipper produces an alternative version
-		of the node values based on truncating the last polynomial mode.
-	*/
-	sf.Clipper = element.JB2D.V.Mul(CutoffFilter2D(N, N, 0)).Mul(element.JB2D.Vinv)
-	return
-}
-
-func (sf *ModeAliasShockFinder) ElementHasShock(q []float64) (i bool) {
-	// Zhiqiang uses a threshold of sigma<0.99 to indicate "troubled cell"
-	if sf.ShockIndicator(q) < 0.99 {
-		i = true
-	}
-	return
-}
-
-func (sf *ModeAliasShockFinder) ShockIndicator(q []float64) (sigma float64) {
-	/*
-		Original method by Persson, constants chosen to match Zhiqiang, et. al.
-	*/
-	var (
-		Se    = math.Log10(sf.moment(q))
-		k     = float64(sf.Element.N)
-		kappa = sf.Kappa
-		//C0    = 3.
-		//S0    = -C0 * math.Log(k)
-		S0          = 4. / math.Pow(k, 4)
-		left, right = S0 - kappa, S0 + kappa
-		ookappa     = 1. / kappa
-	)
-	switch {
-	case Se < left:
-		sigma = 1.
-	case Se >= left && Se <= right:
-		sigma = 0.5 * (1. - math.Sin(0.5*math.Pi*ookappa*(Se-S0)))
-	case Se > right:
-		sigma = 0.
-	}
-	return
-}
-
-func (sf *ModeAliasShockFinder) moment(q []float64) (m float64) {
-	var (
-		Np            = sf.Np
-		U, UClipped   = sf.q, sf.qalt
-		UD, UClippedD = U.DataP, UClipped.DataP
-		MD            = sf.Element.MassMatrix.DataP
-	)
-	copy(sf.q.DataP, q)
-	/*
-		Evaluate the L2 moment of (q - qalt) over the element, where qalt is the truncated version of q
-		Here we don't bother using quadrature, we do a simple sum
-	*/
-	UClipped = sf.Clipper.Mul(U, UClipped)
-	var mNum, mDenom float64
-	for i := 0; i < Np; i++ {
-		mass := MD[i+i*Np]
-		t1 := UD[i] - UClippedD[i]
-		mNum += mass * (t1 * t1)
-		mDenom += mass * (UD[i] * UD[i])
-	}
-	m = mNum / mDenom
-	return
 }

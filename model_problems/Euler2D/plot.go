@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"os"
 
+	"github.com/notargets/gocfd/DG2D"
+
 	"github.com/notargets/gocfd/types"
 
 	"github.com/notargets/gocfd/utils"
@@ -27,11 +29,11 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 			fldD[ik] = c.FSFar.GetFlowFunction(Q, ik, plotField)
 		}
 	case plotField == ShockFunction:
-		var sf *ModeAliasShockFinder
+		var sf *DG2D.ModeAliasShockFinder
 		if c.Limiter != nil {
 			sf = c.Limiter.ShockFinder[0]
 		} else {
-			sf = NewAliasShockFinder(c.dfr.SolutionElement, 2)
+			sf = c.dfr.NewAliasShockFinder(2)
 		}
 		fld = utils.NewMatrix(Np, Kmax)
 		fldD := fld.DataP

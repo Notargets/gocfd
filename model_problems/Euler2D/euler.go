@@ -46,7 +46,7 @@ type Euler struct {
 	// Below are partitioned by K (elements) in the first slice
 	Q                    [][4]utils.Matrix // Sharded solution variables, stored at solution point locations, Np_solution x K
 	SolutionX, SolutionY []utils.Matrix
-	ShockFinder          *ModeAliasShockFinder
+	ShockFinder          *DG2D.ModeAliasShockFinder
 	Limiter              *SolutionLimiter
 	Dissipation          *ScalarDissipation
 	// Edge number mapped quantities, i.e. Face Normal Flux
