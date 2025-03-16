@@ -2,6 +2,18 @@
 
 ## Next steps: Reconstruct flux directly using FV sub-element triangulation
 
+** Clarification Update **
+After some thought, performing a reconstruction that "elevates" the first order
+Riemann flux to the full polynomial order of the element with a shock in it will
+just create the same Gibbs problem we've had all along. I think the rest of this
+technique seems perfectly suited to obtaining edge flux values when there's a
+shock wave or other discontinuity that triggers the Gibbs instability, but it
+will necessarily mean that the fluxes used at the edge of the element will
+revert to first order. I believe this is the only way to ensure stability, and
+that the reduction in accuracy will be localized to the elements directly
+impacted by Gibbs instability, which is consistent with all approaches I've
+seen.
+
 The below results from using the modal filter to suppress Gibbs oscillations in
 the interpolation of solution values from the interior show complete failure 
 of the interpolation approach for reconstruction of edge fluxes. It's obvious
