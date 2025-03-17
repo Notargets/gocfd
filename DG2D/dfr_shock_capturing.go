@@ -10,7 +10,7 @@ type ModeAliasShockFinder struct {
 	Element *LagrangeElement2D
 	Clipper utils.Matrix // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder
 	Np      int
-	q, qalt utils.Matrix // scratch storage for evaluating the moment
+	Q, Qalt utils.Matrix // scratch storage for evaluating the moment
 	Kappa   float64
 }
 
@@ -23,8 +23,8 @@ func (dfr *DFR2D) NewAliasShockFinder(Kappa float64) (sf *ModeAliasShockFinder) 
 	sf = &ModeAliasShockFinder{
 		Element: element,
 		Np:      Np,
-		q:       utils.NewMatrix(Np, 1),
-		qalt:    utils.NewMatrix(Np, 1),
+		Q:       utils.NewMatrix(Np, 1),
+		Qalt:    utils.NewMatrix(Np, 1),
 		Kappa:   Kappa,
 	}
 	/*
@@ -63,8 +63,7 @@ func (dfr *DFR2D) CutoffFilter2D(N, NCutoff int, frac float64) (diag utils.Matri
 }
 
 func (sf *ModeAliasShockFinder) ElementHasShock(q []float64) (i bool) {
-	// Zhiqiang uses a threshold of sigma<0.99 to indicate "troubled cell"
-	if sf.ShockIndicator(q) < 0.99 {
+	if sf.ShockIndicator(q) > 0.99 {
 		i = true
 	}
 	return
@@ -75,20 +74,18 @@ func (sf *ModeAliasShockFinder) ShockIndicator(q []float64) (sigma float64) {
 		Original method by Persson, constants chosen to match Zhiqiang, et. al.
 	*/
 	var (
-		Se    = math.Log10(sf.moment(q))
-		k     = float64(sf.Element.N)
-		kappa = sf.Kappa
-		// C0    = 3.
-		// S0    = -C0 * math.Log(k)
-		S0          = 4. / math.Pow(k, 4)
+		Se          = math.Log10(sf.moment(q))
+		kappa       = sf.Kappa
+		S0          = 4. / math.Pow(float64(sf.Element.N), 4.)
 		left, right = S0 - kappa, S0 + kappa
-		ookappa     = 1. / kappa
+		ookappa     = 0.5 / kappa
 	)
 	switch {
 	case Se < left:
 		sigma = 1.
 	case Se >= left && Se <= right:
-		sigma = 0.5 * (1. - math.Sin(0.5*math.Pi*ookappa*(Se-S0)))
+		// sigma = 0.5 * (1. + math.Sin(math.Pi*ookappa*(Se-S0)))
+		sigma = 0.5 * (1. + math.Sin(math.Pi*ookappa*(S0-Se)))
 	case Se > right:
 		sigma = 0.
 	}
@@ -98,13 +95,13 @@ func (sf *ModeAliasShockFinder) ShockIndicator(q []float64) (sigma float64) {
 func (sf *ModeAliasShockFinder) moment(q []float64) (m float64) {
 	var (
 		Np            = sf.Np
-		U, UClipped   = sf.q, sf.qalt
+		U, UClipped   = sf.Q, sf.Qalt
 		UD, UClippedD = U.DataP, UClipped.DataP
 		MD            = sf.Element.MassMatrix.DataP
 	)
-	copy(sf.q.DataP, q)
+	copy(sf.Q.DataP, q)
 	/*
-		Evaluate the L2 moment of (q - qalt) over the element, where qalt is the truncated version of q
+		Evaluate the L2 moment of (Q - Qalt) over the element, where Qalt is the truncated version of Q
 		Here we don't bother using quadrature, we do a simple sum
 	*/
 	UClipped = sf.Clipper.Mul(U, UClipped)

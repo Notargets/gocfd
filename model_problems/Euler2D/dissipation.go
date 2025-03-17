@@ -96,10 +96,10 @@ type ScalarDissipation struct {
 	DissX, DissY               [][4]utils.Matrix // Sharded NpFlux x Kmax, X and Y derivative of dissipation field
 	EpsVertex                  []float64         // NVerts x 1, Aggregated (Max) of epsilon surrounding each vertex, Not sharded
 	PMap                       *PartitionMap     // Partition map for the solution shards in K
-	U, UClipped                []utils.Matrix    // Sharded scratch areas for assembly and testing of solution values
 	Clipper                    utils.Matrix      // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder
 	dfr                        *DG2D.DFR2D
-	S0, Kappa                  float64
+	ShockFinder                []*DG2D.ModeAliasShockFinder
+	Kappa                      float64
 	BaryCentricCoords          utils.Matrix // A thruple(lam0,lam1,lam2) for interpolation for each interior point, Npx3
 	VertexEpsilonValues        []utils.Matrix
 }
@@ -127,11 +127,8 @@ func NewScalarDissipation(kappa float64, dfr *DG2D.DFR2D, pm *PartitionMap) (sd 
 		VtoE:                NewVertexToElement(dfr.Tris.EToV).Shard(pm),
 		PMap:                pm,
 		dfr:                 dfr,
-		// Sharded working matrices
-		U:        make([]utils.Matrix, NPar),
-		UClipped: make([]utils.Matrix, NPar),
-		S0:       4.0 / math.Pow(order, 4.),
-		Kappa:    5.,
+		ShockFinder:         make([]*DG2D.ModeAliasShockFinder, NPar),
+		Kappa:               5.,
 	}
 	sd.EtoV = sd.shardEtoV(dfr.Tris.EToV)
 	sd.createInterpolationStencil()
@@ -139,8 +136,6 @@ func NewScalarDissipation(kappa float64, dfr *DG2D.DFR2D, pm *PartitionMap) (sd 
 		sd.Kappa = kappa
 	}
 	for np := 0; np < NPar; np++ {
-		sd.U[np] = utils.NewMatrix(Np, 1)
-		sd.UClipped[np] = utils.NewMatrix(Np, 1)
 		Kmax := pm.GetBucketDimension(np)
 		sd.Epsilon[np] = utils.NewMatrix(NpFlux, Kmax)
 		sd.VertexEpsilonValues[np] = utils.NewMatrix(3, Kmax)
@@ -152,6 +147,7 @@ func NewScalarDissipation(kappa float64, dfr *DG2D.DFR2D, pm *PartitionMap) (sd 
 			sd.DissX[np][n] = utils.NewMatrix(NpFlux, Kmax)
 			sd.DissY[np][n] = utils.NewMatrix(NpFlux, Kmax)
 		}
+		sd.ShockFinder[np] = dfr.NewAliasShockFinder(sd.Kappa)
 	}
 	/*
 		The "Clipper" matrix drops the last mode from the polynomial and forms an alternative field of values at the node
@@ -403,14 +399,15 @@ func (sd *ScalarDissipation) GetC0EpsilonPlotField(c *Euler) (fld utils.Matrix) 
 
 func (sd *ScalarDissipation) CalculateElementViscosity(myThread int, Qall [][4]utils.Matrix) {
 	var (
-		dfr        = sd.dfr
-		Rho        = Qall[myThread][0]
-		Eps        = sd.EpsilonScalar[myThread]
-		Kmax       = sd.PMap.GetBucketDimension(myThread)
-		U          = sd.U[myThread]
-		UClipped   = sd.UClipped[myThread]
+		dfr  = sd.dfr
+		Rho  = Qall[myThread][0]
+		Eps  = sd.EpsilonScalar[myThread]
+		Kmax = sd.PMap.GetBucketDimension(myThread)
+		// U          = sd.U[myThread]
+		// UClipped   = sd.UClipped[myThread]
 		KMaxGlobal = sd.PMap.MaxIndex
 		Order      = float64(sd.dfr.N)
+		sf         = sd.ShockFinder[myThread]
 	)
 	/*
 		Eps0 wants to be (h/p) and is supposed to be proportional to cell width
@@ -432,47 +429,19 @@ func (sd *ScalarDissipation) CalculateElementViscosity(myThread int, Qall [][4]u
 				maxEdgeLen = edgeLen
 			}
 		}
-		var (
-			eps0        = 0.75 * maxEdgeLen / Order
-			Se          = math.Log10(sd.moment(k, Kmax, U, UClipped, Rho))
-			left, right = sd.S0 - sd.Kappa, sd.S0 + sd.Kappa
-			oo2kappa    = 0.5 / sd.Kappa
-		)
-		switch {
-		case Se < left:
-			Eps[k] = 0.
-		case Se >= left && Se <= right:
-			Eps[k] = 0.5 * eps0 * (1. + math.Sin(math.Pi*oo2kappa*(Se-sd.S0)))
-		case Se > right:
-			Eps[k] = eps0
-		}
-	}
-}
+		eps0 := 0.75 * maxEdgeLen / Order
 
-func (sd *ScalarDissipation) moment(k, Kmax int, U, UClipped, Rho utils.Matrix) (m float64) {
-	var (
-		Np            = sd.dfr.SolutionElement.Np
-		UD, UClippedD = U.DataP, UClipped.DataP
-		MD            = sd.dfr.SolutionElement.MassMatrix.DataP
-	)
-	for i := 0; i < Np; i++ {
-		ind := k + i*Kmax
-		UD[i] = Rho.DataP[ind]
+		for i := 0; i < sd.dfr.SolutionElement.Np; i++ {
+			ind := k + i*Kmax
+			sf.Qalt.DataP[i] = Rho.DataP[ind]
+		}
+		sigma := sf.ShockIndicator(sf.Qalt.DataP)
+		// Eps[k] = eps0 * (1. - sigma)
+		// TODO: Having big problems with this - the behavior of sigma seems
+		// TODO: reversed - need to verify that as we approach troubled cell,
+		// TODO: sigma should become 1, and should be 0 in smooth regions
+		Eps[k] = eps0 * sigma
 	}
-	/*
-		Evaluate the L2 moment of (q - qalt) over the element, where qalt is the truncated version of q
-		Here we don't bother using quadrature, we do a simple sum
-	*/
-	UClipped = sd.Clipper.Mul(U, UClipped)
-	var mNum, mDenom float64
-	for i := 0; i < Np; i++ {
-		mass := MD[i+i*Np]
-		t1 := UD[i] - UClippedD[i]
-		mNum += mass * (t1 * t1)
-		mDenom += mass * (UD[i] * UD[i])
-	}
-	m = mNum / mDenom
-	return
 }
 
 func (sd *ScalarDissipation) createInterpolationStencil() {

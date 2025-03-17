@@ -39,11 +39,11 @@ func TestPlotVariousFields(t *testing.T) {
 	// 	}
 	// }
 	X, Y := dfr.SolutionX.DataP, dfr.SolutionY.DataP
-	// field := setTestField(X, Y, RADIAL2TEST)
-	// field := setTestField(X, Y, FIXEDVORTEXTEST)
-	// field := setTestField(X, Y, NORMALSHOCKTESTM12)
-	// field := setTestField(X, Y, NORMALSHOCKTESTM2)
-	field := setTestField(X, Y, NORMALSHOCKTESTM5)
+	// field := SetTestField(X, Y, RADIAL2TEST)
+	// field := SetTestField(X, Y, FIXEDVORTEXTEST)
+	// field := SetTestField(X, Y, NORMALSHOCKTESTM12)
+	// field := SetTestField(X, Y, NORMALSHOCKTESTM2)
+	field := SetTestField(X, Y, NORMALSHOCKTESTM5)
 	fM := utils.NewMatrix(dfr.SolutionElement.Np,
 		dfr.K, field[:dfr.K*dfr.SolutionElement.Np])
 	fM.PrintDims("fM Before Mod")
@@ -60,7 +60,7 @@ func TestPlotVariousFields(t *testing.T) {
 	fMGraph.PrintDims("Graph Field Dims")
 	fMGraph.Print("Graph Field")
 	fmt.Printf("fMin: %f, fMax: %f\n", fMin, fMax)
-	plotField(fMGraph.DataP, dfr.GraphMesh, fMin, fMax)
+	PlotField(fMGraph.DataP, dfr.GraphMesh, fMin, fMax)
 }
 
 func TestDFR2D_WriteAVSGraphMesh(t *testing.T) {
@@ -86,7 +86,7 @@ func TestDFR2D_WriteAVSGraphMesh(t *testing.T) {
 	// 		fmt.Println("I range: ", i, "range: ", xy)
 	// 	}
 	// }
-	// plotMesh(gm)
+	// PlotMesh(gm)
 	// for {
 	// }
 }
@@ -102,5 +102,5 @@ func TestCreateAVSGraphMesh(t *testing.T) {
 	// dfr := NewDFR2D(N, false, "test_data/test_tris_1tri.neu")
 	dfr := NewDFR2D(N, false, "test_data/test_tris_9.neu")
 	gm := dfr.CreateAVSGraphMesh()
-	plotMesh(gm)
+	PlotMesh(gm)
 }

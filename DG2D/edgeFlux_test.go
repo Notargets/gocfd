@@ -51,5 +51,5 @@ func TestPlotEdgeTriangulation(t *testing.T) {
 		xyCross = append(xyCross, float32(x), float32(y))
 	}
 	addCrossHairs(xyCross, utils2.GREEN, lines)
-	plotLines(lines)
+	PlotLines(lines)
 }

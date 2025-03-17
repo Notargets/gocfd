@@ -300,7 +300,7 @@ func addCrossHairs(xy []float32, col color.RGBA, lines map[color.RGBA][]float32)
 	}
 }
 
-func plotLines(lines map[color.RGBA][]float32) {
+func PlotLines(lines map[color.RGBA][]float32) {
 	var (
 		xMin, xMax = float32(math.MaxFloat32), -float32(math.MaxFloat32)
 		yMin, yMax = float32(math.MaxFloat32), -float32(math.MaxFloat32)
@@ -318,7 +318,7 @@ func plotLines(lines map[color.RGBA][]float32) {
 	}
 }
 
-func plotMesh(gm geometry.TriMesh) {
+func PlotMesh(gm geometry.TriMesh) {
 	var (
 		xMin, xMax = float32(math.MaxFloat32), float32(-math.MaxFloat32)
 		yMin, yMax = float32(math.MaxFloat32), float32(-math.MaxFloat32)
@@ -377,8 +377,23 @@ func getFieldMinMax(field []float64) (fMin, fMax float64) {
 	}
 	return
 }
+func getFieldMinMax32(field []float32) (fMin, fMax float32) {
+	for i, f := range field {
+		if i == 0 {
+			fMin = f
+			fMax = f
+		}
+		if f < fMin {
+			fMin = f
+		}
+		if f > fMax {
+			fMax = f
+		}
+	}
+	return
+}
 
-func plotField(field []float64, gm geometry.TriMesh, FMin, FMax float64,
+func PlotField(field []float64, gm geometry.TriMesh, FMin, FMax float64,
 	xMM ...float64) {
 	var xMin, xMax, yMin, yMax float32
 
@@ -394,23 +409,20 @@ func plotField(field []float64, gm geometry.TriMesh, FMin, FMax float64,
 	// Create a vector field including the three vertices
 	var pField []float32
 	var fMin, fMax float32
-	fMin, fMax = math.MaxFloat32, -math.MaxFloat32
 	pField = make([]float32, len(field))
 	for i, f := range field {
-		f32 := float32(f)
-		if fMin > f32 {
-			fMin = f32
-		}
-		if fMax < f32 {
-			fMax = f32
-		}
 		pField[i] = float32(f)
 	}
+	fMin, fMax = getFieldMinMax32(pField)
 	vs := geometry.VertexScalar{
 		TMesh:       &gm,
 		FieldValues: pField,
 	}
-	fmt.Printf("Interpolated fMin: %f, fMax: %f\n", fMin, fMax)
+	fmt.Printf("fMin: %f, fMax: %f\n", fMin, fMax)
+	if FMin == 0 && FMax == 0 {
+		FMin = float64(fMin)
+		FMax = float64(fMax)
+	}
 	ch.AddShadedVertexScalar(&vs, float32(FMin), float32(FMax))
 	ch.AddTriMesh(gm)
 	line := []float32{0, -5, 0, 5, -5, 0, 5, 0}
