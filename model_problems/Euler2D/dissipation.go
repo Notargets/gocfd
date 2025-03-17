@@ -436,10 +436,6 @@ func (sd *ScalarDissipation) CalculateElementViscosity(myThread int, Qall [][4]u
 			sf.Qalt.DataP[i] = Rho.DataP[ind]
 		}
 		sigma := sf.ShockIndicator(sf.Qalt.DataP)
-		// Eps[k] = eps0 * (1. - sigma)
-		// TODO: Having big problems with this - the behavior of sigma seems
-		// TODO: reversed - need to verify that as we approach troubled cell,
-		// TODO: sigma should become 1, and should be 0 in smooth regions
 		Eps[k] = eps0 * sigma
 	}
 }

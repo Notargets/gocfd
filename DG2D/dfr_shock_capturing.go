@@ -63,7 +63,7 @@ func (dfr *DFR2D) CutoffFilter2D(N, NCutoff int, frac float64) (diag utils.Matri
 }
 
 func (sf *ModeAliasShockFinder) ElementHasShock(q []float64) (i bool) {
-	if sf.ShockIndicator(q) > 0.99 {
+	if sf.ShockIndicator(q) > 0.01 {
 		i = true
 	}
 	return
@@ -82,12 +82,11 @@ func (sf *ModeAliasShockFinder) ShockIndicator(q []float64) (sigma float64) {
 	)
 	switch {
 	case Se < left:
-		sigma = 1.
-	case Se >= left && Se <= right:
-		// sigma = 0.5 * (1. + math.Sin(math.Pi*ookappa*(Se-S0)))
-		sigma = 0.5 * (1. + math.Sin(math.Pi*ookappa*(S0-Se)))
-	case Se > right:
 		sigma = 0.
+	case Se >= left && Se <= right:
+		sigma = 0.5 * (1. + math.Sin(math.Pi*ookappa*(Se-S0)))
+	case Se > right:
+		sigma = 1.
 	}
 	return
 }
