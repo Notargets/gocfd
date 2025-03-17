@@ -75,6 +75,7 @@ func NewEuler(ip *InputParameters.InputParameters2D, meshFile string, ProcLimit 
 
 	// Read mesh file, initialize geometry and finite elements
 	c.dfr = DG2D.NewDFR2D(ip.PolynomialOrder, verbose, meshFile)
+	c.ShockFinder = c.dfr.NewAliasShockFinder(ip.Kappa)
 
 	c.SetParallelDegree(ProcLimit, c.dfr.K) // Must occur after determining the number of elements
 	c.PartitionEdgesByK()                   // Setup the key for edge calculations, useful for parallelizing the process
