@@ -17,11 +17,11 @@ func TestPlotEdgeTriangulation(t *testing.T) {
 	}
 	dfr := NewDFR2D(N, false,
 		"test_data/test_10tris_centered.neu")
-	efi := dfr.getEdgeSegmentFluxIndex()
+	efi := dfr.GetEdgeSegmentFluxIndex()
 
 	fmt.Println("2*NpInt, NpEdge: ", 2*dfr.FluxElement.NpInt, dfr.FluxElement.NpEdge)
-	fmt.Println("Segment Indices: ", efi.interiorPtsIndex)
-	fmt.Println("Segment Areas: ", efi.segmentArea)
+	fmt.Println("Segment Indices: ", efi.InteriorPtsIndex)
+	fmt.Println("Segment Areas: ", efi.SegmentArea)
 
 	gmRT := dfr.TriangulateRTElement()
 	Np_RTBoundary := 3 * (1 + dfr.FluxElement.NpEdge)

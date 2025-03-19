@@ -6,12 +6,12 @@ import (
 )
 
 type EdgeSegmentFluxIndex struct {
-	interiorPtsIndex []int     // The interior point supporting each segment
-	segmentArea      []float64 // The area for each segment in R,S space
+	InteriorPtsIndex []int     // The interior point supporting each segment
+	SegmentArea      []float64 // The area for each segment in R,S space
 	edgeTris         [][3]int  // used for debugging
 }
 
-func (dfr *DFR2D) getEdgeSegmentFluxIndex() (efi *EdgeSegmentFluxIndex) {
+func (dfr *DFR2D) GetEdgeSegmentFluxIndex() (efi *EdgeSegmentFluxIndex) {
 	// The output of this function is a list of point indices within the
 	// interior of the Solution element that map to segments along the edge
 	// boundary of the element.
@@ -29,8 +29,8 @@ func (dfr *DFR2D) getEdgeSegmentFluxIndex() (efi *EdgeSegmentFluxIndex) {
 	// each of the three edges have only one supporting segment,
 	// so they don't use an area average weighting.
 	efi = &EdgeSegmentFluxIndex{
-		interiorPtsIndex: make([]int, 3*(dfr.FluxElement.NpEdge-1)),
-		segmentArea:      make([]float64, 3*(dfr.FluxElement.NpEdge-1)),
+		InteriorPtsIndex: make([]int, 3*(dfr.FluxElement.NpEdge-1)),
+		SegmentArea:      make([]float64, 3*(dfr.FluxElement.NpEdge-1)),
 	}
 	gmRT := dfr.TriangulateRTElement()
 
@@ -126,7 +126,7 @@ func (dfr *DFR2D) getEdgeSegmentFluxIndex() (efi *EdgeSegmentFluxIndex) {
 			for i := 0; i < 3; i++ {
 				if tri[i] >= Np_RTBoundary {
 					// This is the support point - convert to interior index
-					efi.interiorPtsIndex[sk] = tri[i] - Np_RTBoundary
+					efi.InteriorPtsIndex[sk] = tri[i] - Np_RTBoundary
 				} else {
 					areaPts[areaPtNum] = convEdgePtIndex(tri[i])
 					// NpEdge := dfr.FluxElement.NpEdge
@@ -143,7 +143,7 @@ func (dfr *DFR2D) getEdgeSegmentFluxIndex() (efi *EdgeSegmentFluxIndex) {
 			}
 			a1, a2 := areaPts[0], areaPts[1]
 			r1, s1, r2, s2 := RFlux[a1], SFlux[a1], RFlux[a2], SFlux[a2]
-			efi.segmentArea[sk] = lineLength(r1, s1, r2, s2)
+			efi.SegmentArea[sk] = lineLength(r1, s1, r2, s2)
 			sk++
 		}
 	}

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/notargets/gocfd/utils"
+
 	"github.com/notargets/gocfd/model_problems/Euler2D/isentropic_vortex"
 )
 
@@ -78,6 +80,22 @@ func SetTestField(X, Y []float64, tf TestField) (field []float64) {
 		field = setRadial(X, Y, 4)
 	case INTEGERTEST:
 		field = setInteger(len(X), 4)
+	}
+	return
+}
+
+func SetTestFieldQ(dfr *DFR2D, tf TestField, Q [4]utils.Matrix) {
+	var (
+		Np, Kmax = Q[0].Dims()
+	)
+	X, Y := dfr.SolutionX.Transpose().DataP, dfr.SolutionY.Transpose().DataP
+	field := SetTestField(X, Y, tf)
+	for n := 0; n < 4; n++ {
+		for k := 0; k < Kmax; k++ {
+			for i := 0; i < Np; i++ {
+				Q[n].Set(i, k, field[i+k*Np+n*Np*Kmax])
+			}
+		}
 	}
 	return
 }

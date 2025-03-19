@@ -63,7 +63,7 @@ func (dfr *DFR2D) CutoffFilter2D(N, NCutoff int, frac float64) (diag utils.Matri
 }
 
 func (sf *ModeAliasShockFinder) ElementHasShock(q []float64) (i bool) {
-	if sf.ShockIndicator(q) > 0.01 {
+	if sf.ShockIndicator(q) > 0.0075 {
 		i = true
 	}
 	return
