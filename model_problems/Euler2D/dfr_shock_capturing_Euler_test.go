@@ -13,7 +13,7 @@ import (
 
 func TestPlotVariousFields2(t *testing.T) {
 	var (
-		N = 7
+		N = 1
 	)
 	if !testing.Verbose() {
 		return
@@ -130,7 +130,7 @@ func (c *Euler) FirstOrderEdgeProjection_ForGraphing(Q utils.Matrix,
 
 		// Beginning/End Edge Points (0-based), inclusive:
 		// Edge1			Edge2				Edge3
-		// b:0 e:Nseg-1		b:Nseg e:2*Nseg-1	b:2*Nseg e:3*Nseg-1 or e:Nefi
+		// b:0 e:Nseg-1		b:Nseg e:2*Nseg-1	b:2*Nseg e:3*Nseg-1 or e:Nefi-1
 
 		// Below are loop indices in efi coordinates (non-inclusive)
 		// Edge1         Edge2              Edge3
@@ -139,22 +139,30 @@ func (c *Euler) FirstOrderEdgeProjection_ForGraphing(Q utils.Matrix,
 		// NpE == NpEdge, below in GraphMesh coordinates (ranges non-inclusive)
 		// v1,   Edge1,   v2,        Edge2,         v3         Edge3
 		//  0,  1->NpE+1, NpE+1, (NpE+2)->2*NpE+2, 2*NpE+2, 2*NpE+3->3*NpE+3
-		if false {
-
-			var sk int
+		if true {
+			var skEdge, skSeg int
 			for n := 0; n < 3; n++ { // Each edge
-				// Beginning point and end point of range, excluding vertices
-				QGraph.Set(n*NpEdge+n+1, k, Q.At(efi.InteriorPtsIndex[sk], k))
+				// Beginning point of range, excluding vertex
+				// QGraph.Set(n*NpEdge+n+1, k, Q.At(efi.InteriorPtsIndex[skSeg], k))
+				skEdge = 1 + n*(NpEdge+1) // Skip the vertex
+				sleft := efi.InteriorPtsIndex[skSeg]
+				QGraph.Set(skEdge, k, Q.At(sleft, k))
+				skEdge++
 				// Interior range
 				for i := 1; i < NpEdge-1; i++ { // Averaging segment values
-					sleft := efi.InteriorPtsIndex[sk]
-					sright := efi.InteriorPtsIndex[sk+1]
-					QGraph.Set(i+n*NpEdge+n+1, k, 0.5*(Q.At(sleft, k)+Q.At(sright,
-						k)))
-					sk++
+					sright := efi.InteriorPtsIndex[skSeg+1]
+					// QGraph.Set(i+n*NpEdge+n+1, k, 0.5*(Q.At(sleft, k)+Q.At(sright,k)))
+					QGraph.Set(skEdge, k, 0.5*(Q.At(sleft, k)+Q.At(sright, k)))
+					skSeg++
+					skEdge++
+					sleft = sright
 				}
-				QGraph.Set((n+1)*NpEdge+n, k, Q.At(efi.InteriorPtsIndex[sk], k))
+				// End point of range, excluding vertex
+				// QGraph.Set((n+1)*NpEdge+n, k, Q.At(efi.InteriorPtsIndex[skSeg], k))
+				QGraph.Set(skEdge, k, Q.At(sleft, k))
+				skEdge++
 			}
+			fmt.Println("skEdge = ", skEdge)
 		}
 		// if sk != Nefi {
 		// 	fmt.Printf("Interior point edge count: %d, sk = %d\n", Nefi, sk)
