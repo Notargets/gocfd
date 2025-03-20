@@ -116,16 +116,16 @@ func (c *Euler) FirstOrderEdgeProjection_ForGraphing(Q utils.Matrix,
 		// Efi coordinates:
 		//      v1              v2                 v3
 		// 0+(Nefi-1)/2  ((Nseg-1)+Nseg)/2  (2Nseg-1)+2Nseg/2
-		fmt.Println("NpEdge, Nseg, Nefi, NpInt = ", NpEdge, Nseg, Nefi, NpInt)
-		fmt.Println("InteriorPtsIndex = ", efi.InteriorPtsIndex)
+		// fmt.Println("NpEdge, Nseg, Nefi, NpInt = ", NpEdge, Nseg, Nefi, NpInt)
+		// fmt.Println("InteriorPtsIndex = ", efi.InteriorPtsIndex)
 		v1a, v1b := efi.InteriorPtsIndex[0], efi.InteriorPtsIndex[Nefi-1]
-		fmt.Println("v1a/b = ", v1a, v1b)
+		// fmt.Println("v1a/b = ", v1a, v1b)
 		QGraph.Set(0, k, 0.5*(Q.At(v1a, k)+Q.At(v1b, k)))
 		v2a, v2b := efi.InteriorPtsIndex[Nseg-1], efi.InteriorPtsIndex[Nseg]
-		fmt.Println("v2a/b = ", v2a, v2b)
+		// fmt.Println("v2a/b = ", v2a, v2b)
 		QGraph.Set(NpEdge+1, k, 0.5*(Q.At(v2a, k)+Q.At(v2b, k)))
 		v3a, v3b := efi.InteriorPtsIndex[2*Nseg-1], efi.InteriorPtsIndex[2*Nseg]
-		fmt.Println("v3a/b = ", v3a, v3b)
+		// fmt.Println("v3a/b = ", v3a, v3b)
 		QGraph.Set(2*NpEdge+2, k, 0.5*(Q.At(v3a, k)+Q.At(v3b, k)))
 
 		// Beginning/End Edge Points (0-based), inclusive:
@@ -139,35 +139,29 @@ func (c *Euler) FirstOrderEdgeProjection_ForGraphing(Q utils.Matrix,
 		// NpE == NpEdge, below in GraphMesh coordinates (ranges non-inclusive)
 		// v1,   Edge1,   v2,        Edge2,         v3         Edge3
 		//  0,  1->NpE+1, NpE+1, (NpE+2)->2*NpE+2, 2*NpE+2, 2*NpE+3->3*NpE+3
-		if true {
-			var skEdge, skSeg int
-			for n := 0; n < 3; n++ { // Each edge
-				// Beginning point of range, excluding vertex
-				// QGraph.Set(n*NpEdge+n+1, k, Q.At(efi.InteriorPtsIndex[skSeg], k))
-				skEdge = 1 + n*(NpEdge+1) // Skip the vertex
-				sleft := efi.InteriorPtsIndex[skSeg]
-				QGraph.Set(skEdge, k, Q.At(sleft, k))
-				skEdge++
-				// Interior range
-				for i := 1; i < NpEdge-1; i++ { // Averaging segment values
-					sright := efi.InteriorPtsIndex[skSeg+1]
-					// QGraph.Set(i+n*NpEdge+n+1, k, 0.5*(Q.At(sleft, k)+Q.At(sright,k)))
-					QGraph.Set(skEdge, k, 0.5*(Q.At(sleft, k)+Q.At(sright, k)))
-					skSeg++
-					skEdge++
-					sleft = sright
-				}
-				// End point of range, excluding vertex
-				// QGraph.Set((n+1)*NpEdge+n, k, Q.At(efi.InteriorPtsIndex[skSeg], k))
-				QGraph.Set(skEdge, k, Q.At(sleft, k))
-				skEdge++
+		var skEdge, skSeg int
+		for n := 0; n < 3; n++ { // Each edge
+			// Beginning point of range, excluding vertex
+			// QGraph.Set(n*NpEdge+n+1, k, Q.At(efi.InteriorPtsIndex[skSeg], k))
+			skEdge = 1 + n*(NpEdge+1) // Skip the vertex
+			sleft := efi.InteriorPtsIndex[skSeg]
+			QGraph.Set(skEdge, k, Q.At(sleft, k))
+			skEdge++
+			// Interior range
+			for i := 1; i < NpEdge-1; i++ { // Averaging segment values
+				sright := efi.InteriorPtsIndex[skSeg+1]
+				// QGraph.Set(i+n*NpEdge+n+1, k, 0.5*(Q.At(sleft, k)+Q.At(sright,k)))
+				QGraph.Set(skEdge, k, 0.5*(Q.At(sleft, k)+Q.At(sright, k)))
 				skSeg++
+				skEdge++
+				sleft = sright
 			}
-			fmt.Println("skEdge, skSeg = ", skEdge, skSeg)
+			// End point of range, excluding vertex
+			// QGraph.Set((n+1)*NpEdge+n, k, Q.At(efi.InteriorPtsIndex[skSeg], k))
+			QGraph.Set(skEdge, k, Q.At(sleft, k))
+			skEdge++
+			skSeg++
 		}
-		// if sk != Nefi {
-		// 	fmt.Printf("Interior point edge count: %d, sk = %d\n", Nefi, sk)
-		// 	panic("edge segment point count is not correct")
-		// }
+		// fmt.Println("skEdge, skSeg = ", skEdge, skSeg)
 	}
 }
