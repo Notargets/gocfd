@@ -13,7 +13,7 @@ import (
 
 func TestPlotVariousFields2(t *testing.T) {
 	var (
-		N = 1
+		N = 7
 	)
 	if !testing.Verbose() {
 		return
@@ -161,8 +161,9 @@ func (c *Euler) FirstOrderEdgeProjection_ForGraphing(Q utils.Matrix,
 				// QGraph.Set((n+1)*NpEdge+n, k, Q.At(efi.InteriorPtsIndex[skSeg], k))
 				QGraph.Set(skEdge, k, Q.At(sleft, k))
 				skEdge++
+				skSeg++
 			}
-			fmt.Println("skEdge = ", skEdge)
+			fmt.Println("skEdge, skSeg = ", skEdge, skSeg)
 		}
 		// if sk != Nefi {
 		// 	fmt.Printf("Interior point edge count: %d, sk = %d\n", Nefi, sk)
