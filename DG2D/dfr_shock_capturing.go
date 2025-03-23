@@ -7,11 +7,56 @@ import (
 )
 
 type ModeAliasShockFinder struct {
-	Element *LagrangeElement2D
-	Clipper utils.Matrix // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder
-	Np      int
-	Q, Qalt utils.Matrix // scratch storage for evaluating the moment
-	Kappa   float64
+	Element    *LagrangeElement2D
+	Clipper    utils.Matrix // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder
+	Np         int
+	Q, Qalt    utils.Matrix // scratch storage for evaluating the moment
+	Kappa      float64
+	ShockCells *ShockedCells
+}
+
+type ShockedCells struct {
+	cells []int
+}
+
+// NewShockedCells creates a structure with an initial reserved capacity.
+func NewShockedCells(initialCapacity int) *ShockedCells {
+	return &ShockedCells{
+		cells: make([]int, 0, initialCapacity),
+	}
+}
+
+// Add appends a new shocked cell index.
+func (s *ShockedCells) Add(cell int) {
+	s.cells = append(s.cells, cell)
+}
+
+// Reset efficiently clears the list without reallocating memory.
+func (s *ShockedCells) Reset() {
+	s.cells = s.cells[:0]
+}
+
+// Cells returns the underlying slice.
+func (s *ShockedCells) Cells() []int {
+	return s.cells
+}
+
+func (sf *ModeAliasShockFinder) UpdateShockedCells(Rho utils.Matrix) {
+	var (
+		_, KMax = Rho.Dims()
+	)
+	sf.ShockCells.Reset()
+	for k := 0; k < KMax; k++ {
+		scratch := sf.Qalt.DataP
+		for i := 0; i < sf.Np; i++ {
+			ind := k + i*KMax
+			scratch[i] = Rho.DataP[ind]
+		}
+		if sf.ElementHasShock(scratch) {
+			sf.ShockCells.Add(k)
+		}
+	}
+	return
 }
 
 func (dfr *DFR2D) NewAliasShockFinder(Kappa float64) (sf *ModeAliasShockFinder) {
@@ -21,11 +66,12 @@ func (dfr *DFR2D) NewAliasShockFinder(Kappa float64) (sf *ModeAliasShockFinder) 
 		N       = element.N
 	)
 	sf = &ModeAliasShockFinder{
-		Element: element,
-		Np:      Np,
-		Q:       utils.NewMatrix(Np, 1),
-		Qalt:    utils.NewMatrix(Np, 1),
-		Kappa:   Kappa,
+		Element:    element,
+		Np:         Np,
+		Q:          utils.NewMatrix(Np, 1),
+		Qalt:       utils.NewMatrix(Np, 1),
+		Kappa:      Kappa,
+		ShockCells: NewShockedCells(dfr.K),
 	}
 	/*
 		The "Clipper" matrix drops the last mode from the polynomial and forms an alternative field of values at the node

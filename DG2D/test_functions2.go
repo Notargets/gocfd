@@ -22,6 +22,7 @@ type TestField uint8
 const (
 	NORMALSHOCKTESTM2 = TestField(iota)
 	NORMALSHOCKTESTM5 = TestField(iota)
+	NORMALSHOCKTESTM18
 	NORMALSHOCKTESTM12
 	FIXEDVORTEXTEST
 	MOVINGVORTEXTEST
@@ -38,6 +39,8 @@ func (tf TestField) String() string {
 		return "NORMALSHOCKTESTM2"
 	case NORMALSHOCKTESTM5:
 		return "NORMALSHOCKTESTM5"
+	case NORMALSHOCKTESTM18:
+		return "NORMALSHOCKTESTM18"
 	case NORMALSHOCKTESTM12:
 		return "NORMALSHOCKTESTM12"
 	case FIXEDVORTEXTEST:
@@ -60,6 +63,8 @@ func SetTestField(X, Y []float64, tf TestField) (field []float64) {
 	switch tf {
 	case NORMALSHOCKTESTM12:
 		field = setShockConditions(X, 1.2, 0)
+	case NORMALSHOCKTESTM18:
+		field = setShockConditions(X, 1.8, 0)
 	case NORMALSHOCKTESTM2:
 		field = setShockConditions(X, 2, 0)
 	case NORMALSHOCKTESTM5:

@@ -41,8 +41,9 @@ func TestPlotVariousFields2(t *testing.T) {
 	c := NewEuler(ip, meshFile, 1, false, false)
 	// DG2D.SetTestFieldQ(c.dfr, DG2D.RADIAL1TEST, c.Q[0])
 	// DG2D.SetTestFieldQ(c.dfr, DG2D.NORMALSHOCKTESTM12, c.Q[0])
-	// DG2D.SetTestFieldQ(c.dfr, DG2D.NORMALSHOCKTESTM2, c.Q[0])
-	DG2D.SetTestFieldQ(c.dfr, DG2D.NORMALSHOCKTESTM5, c.Q[0])
+	// DG2D.SetTestFieldQ(c.dfr, DG2D.NORMALSHOCKTESTM18, c.Q[0])
+	DG2D.SetTestFieldQ(c.dfr, DG2D.NORMALSHOCKTESTM2, c.Q[0])
+	// DG2D.SetTestFieldQ(c.dfr, DG2D.NORMALSHOCKTESTM5, c.Q[0])
 	// DG2D.SetTestFieldQ(c.dfr, DG2D.FIXEDVORTEXTEST, c.Q[0])
 	// DG2D.SetTestFieldQ(c.dfr, DG2D.INTEGERTEST, c.Q[0])
 
@@ -52,17 +53,17 @@ func TestPlotVariousFields2(t *testing.T) {
 	// c.Q[0][3].Print("E")
 	// os.Exit(1)
 
-	Dens := c.Q[0][0]
-	Kmax := c.dfr.K
-	scratch := c.ShockFinder.Qalt.DataP
-	for k := 0; k < Kmax; k++ {
-		for i := 0; i < c.dfr.SolutionElement.Np; i++ {
-			ind := k + i*Kmax
-			scratch[i] = Dens.DataP[ind]
-		}
-		sigma := c.ShockFinder.ShockIndicator(scratch)
-		fmt.Printf("ShockFinder Sigma[%d] = %f\n", k, sigma)
-	}
+	// Dens := c.Q[0][0]
+	// Kmax := c.dfr.K
+	// scratch := c.ShockFinder.Qalt.DataP
+	// for k := 0; k < Kmax; k++ {
+	// 	for i := 0; i < c.dfr.SolutionElement.Np; i++ {
+	// 		ind := k + i*Kmax
+	// 		scratch[i] = Dens.DataP[ind]
+	// 	}
+	// 	sigma := c.ShockFinder.ShockIndicator(scratch)
+	// 	fmt.Printf("ShockFinder Sigma[%d] = %f\n", k, sigma)
+	// }
 	fieldNum := 3
 	d1, d2 := c.Q[0][fieldNum].Dims()
 	fmt.Printf("Q dims before interpolation = %d:%d\n", d1, d2)
@@ -71,21 +72,21 @@ func TestPlotVariousFields2(t *testing.T) {
 	d1, d2 = QInterp.Dims()
 	fmt.Printf("Q dims after interpolation = %d:%d\n", d1, d2)
 	// For testing, zero out the edge and vertex values
-	for k := 0; k < Kmax; k++ {
-		for i := 0; i < 3*(c.dfr.FluxElement.NpEdge+1); i++ {
-			QInterp.Set(i, k, 0.)
-		}
-	}
+	// for k := 0; k < Kmax; k++ {
+	// 	for i := 0; i < 3*(c.dfr.FluxElement.NpEdge+1); i++ {
+	// 		QInterp.Set(i, k, 0.)
+	// 	}
+	// }
 	c.FirstOrderEdgeProjection_ForGraphing(c.Q[0][fieldNum], &QInterp)
 	// QInterp.Print("QInterp")
 	DG2D.PlotField(QInterp.Transpose().DataP, c.dfr.GraphMesh, 0.0, 0.0)
 }
 
-func (c *Euler) FirstOrderEdgeProjection_ForGraphing(Q utils.Matrix,
+func (c *Euler) FirstOrderEdgeProjection_ForGraphing(QField utils.Matrix,
 	QGraph *utils.Matrix) {
 	var (
 		dfr         = c.dfr
-		NpInt, KMax = Q.Dims()
+		NpInt, KMax = QField.Dims()
 		NpEdge      = dfr.FluxElement.NpEdge
 		NpGraph     = 3*(1+NpEdge) + NpInt
 		efi         = dfr.GetEdgeSegmentFluxIndex()
@@ -94,7 +95,8 @@ func (c *Euler) FirstOrderEdgeProjection_ForGraphing(Q utils.Matrix,
 		QGraphP := utils.NewMatrix(NpGraph, KMax)
 		*QGraph = QGraphP
 	}
-	for k := 0; k < KMax; k++ {
+	c.ShockFinder.UpdateShockedCells(QField)
+	for _, k := range c.ShockFinder.ShockCells.Cells() {
 		// There are NpEdge-1 interior points supporting reconstruction of
 		// NpEdge-1 sub-segments on each of the three edges
 		// Here we will use the two adjoining corner segments to construct
@@ -120,13 +122,13 @@ func (c *Euler) FirstOrderEdgeProjection_ForGraphing(Q utils.Matrix,
 		// fmt.Println("InteriorPtsIndex = ", efi.InteriorPtsIndex)
 		v1a, v1b := efi.InteriorPtsIndex[0], efi.InteriorPtsIndex[Nefi-1]
 		// fmt.Println("v1a/b = ", v1a, v1b)
-		QGraph.Set(0, k, 0.5*(Q.At(v1a, k)+Q.At(v1b, k)))
+		QGraph.Set(0, k, 0.5*(QField.At(v1a, k)+QField.At(v1b, k)))
 		v2a, v2b := efi.InteriorPtsIndex[Nseg-1], efi.InteriorPtsIndex[Nseg]
 		// fmt.Println("v2a/b = ", v2a, v2b)
-		QGraph.Set(NpEdge+1, k, 0.5*(Q.At(v2a, k)+Q.At(v2b, k)))
+		QGraph.Set(NpEdge+1, k, 0.5*(QField.At(v2a, k)+QField.At(v2b, k)))
 		v3a, v3b := efi.InteriorPtsIndex[2*Nseg-1], efi.InteriorPtsIndex[2*Nseg]
 		// fmt.Println("v3a/b = ", v3a, v3b)
-		QGraph.Set(2*NpEdge+2, k, 0.5*(Q.At(v3a, k)+Q.At(v3b, k)))
+		QGraph.Set(2*NpEdge+2, k, 0.5*(QField.At(v3a, k)+QField.At(v3b, k)))
 
 		// Beginning/End Edge Points (0-based), inclusive:
 		// Edge1			Edge2				Edge3
@@ -142,23 +144,23 @@ func (c *Euler) FirstOrderEdgeProjection_ForGraphing(Q utils.Matrix,
 		var skEdge, skSeg int
 		for n := 0; n < 3; n++ { // Each edge
 			// Beginning point of range, excluding vertex
-			// QGraph.Set(n*NpEdge+n+1, k, Q.At(efi.InteriorPtsIndex[skSeg], k))
+			// QGraph.Set(n*NpEdge+n+1, k, QField.At(efi.InteriorPtsIndex[skSeg], k))
 			skEdge = 1 + n*(NpEdge+1) // Skip the vertex
 			sleft := efi.InteriorPtsIndex[skSeg]
-			QGraph.Set(skEdge, k, Q.At(sleft, k))
+			QGraph.Set(skEdge, k, QField.At(sleft, k))
 			skEdge++
 			// Interior range
 			for i := 1; i < NpEdge-1; i++ { // Averaging segment values
 				sright := efi.InteriorPtsIndex[skSeg+1]
-				// QGraph.Set(i+n*NpEdge+n+1, k, 0.5*(Q.At(sleft, k)+Q.At(sright,k)))
-				QGraph.Set(skEdge, k, 0.5*(Q.At(sleft, k)+Q.At(sright, k)))
+				// QGraph.Set(i+n*NpEdge+n+1, k, 0.5*(QField.At(sleft, k)+QField.At(sright,k)))
+				QGraph.Set(skEdge, k, 0.5*(QField.At(sleft, k)+QField.At(sright, k)))
 				skSeg++
 				skEdge++
 				sleft = sright
 			}
 			// End point of range, excluding vertex
-			// QGraph.Set((n+1)*NpEdge+n, k, Q.At(efi.InteriorPtsIndex[skSeg], k))
-			QGraph.Set(skEdge, k, Q.At(sleft, k))
+			// QGraph.Set((n+1)*NpEdge+n, k, QField.At(efi.InteriorPtsIndex[skSeg], k))
+			QGraph.Set(skEdge, k, QField.At(sleft, k))
 			skEdge++
 			skSeg++
 		}
