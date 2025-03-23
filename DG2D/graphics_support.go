@@ -33,8 +33,9 @@ type MeshMetadata struct {
 type FieldMetadata struct {
 	NumFields        int // How many fields are in the [][]float32
 	FieldNames       []string
-	SolutionMetadata map[string]float32 // Fields like ReynoldsNumber, gamma...
-	GitVersion       string
+	SolutionMetadata map[string]interface{} // Fields like ReynoldsNumber,
+	// gamma...
+	GitVersion string
 }
 
 type SingleFieldMetadata struct {
@@ -44,24 +45,29 @@ type SingleFieldMetadata struct {
 	Length     int // of each field, for skipping / readahead
 }
 
-type FieldWriter struct {
+type AVSFieldWriter struct {
+	Dimensions        [2]int // NpGraph, KMax - Points per element and #elements
+	NpGraph, KMax     int
 	FieldMeta         *FieldMetadata
 	MeshMetadata      *MeshMetadata
 	FileName          string
 	IsMetaDataWritten bool
 	file              *os.File
 	encoder           *gob.Encoder
+	fields            map[string][]float32
 }
 
 func (dfr *DFR2D) NewAVSFieldWriter(fmd *FieldMetadata,
-	fileName string) (fw *FieldWriter) {
+	fileName string, gm geometry.TriMesh) (fw *AVSFieldWriter) {
 	var (
 		err error
 	)
-	fw = &FieldWriter{
+	fw = &AVSFieldWriter{
 		FieldMeta:    fmd,
 		MeshMetadata: dfr.GetMeshMetadata(),
 		FileName:     fileName,
+		NpGraph:      len(gm.XY) / 2,
+		KMax:         len(gm.TriVerts),
 	}
 	fw.file, err = os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -72,7 +78,26 @@ func (dfr *DFR2D) NewAVSFieldWriter(fmd *FieldMetadata,
 	return
 }
 
-func (fw *FieldWriter) WriteFieldsMeta() {
+func (fw *AVSFieldWriter) SaveField(name string, field []float64) {
+	if len(field) != fw.NpGraph*fw.KMax {
+		panic("Dimensions mismatch between field and mesh")
+	}
+	if _, exists := fw.fields[name]; !exists {
+		fw.fields[name] = make([]float32, fw.KMax*fw.NpGraph)
+	}
+	for i, f := range field {
+		fw.fields[name][i] = float32(f)
+	}
+}
+
+func (fw *AVSFieldWriter) Save(sfmd *SingleFieldMetadata) {
+	if !fw.IsMetaDataWritten {
+		fw.WriteFieldsMeta()
+	}
+	fw.AppendFields(sfmd)
+}
+
+func (fw *AVSFieldWriter) WriteFieldsMeta() {
 	var (
 		err error
 	)
@@ -86,7 +111,7 @@ func (fw *FieldWriter) WriteFieldsMeta() {
 	}
 }
 
-func (fw *FieldWriter) AppendFields(sfmd *SingleFieldMetadata, fields [][]float32) {
+func (fw *AVSFieldWriter) AppendFields(sfmd *SingleFieldMetadata) {
 	var (
 		err error
 	)
@@ -95,7 +120,7 @@ func (fw *FieldWriter) AppendFields(sfmd *SingleFieldMetadata, fields [][]float3
 		panic(err)
 	}
 	// Encode field data
-	if err = fw.encoder.Encode(fields); err != nil {
+	if err = fw.encoder.Encode(fw.fields); err != nil {
 		panic(err)
 	}
 }

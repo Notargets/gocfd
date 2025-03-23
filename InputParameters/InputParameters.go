@@ -24,6 +24,7 @@ type InputParameters2D struct {
 	ImplicitSolver    bool                                  `yaml:"ImplicitSolver"`
 	Limiter           string                                `yaml:"Limiter"`
 	Kappa             float64                               `yaml:"Kappa"`
+	PlotFields        []string                              `yaml:"PlotFields"`
 }
 
 func (ip *InputParameters2D) Parse(data []byte) error {
@@ -37,6 +38,9 @@ func (ip *InputParameters2D) Print() {
 	fmt.Printf("[%s]\t\t\t= Flux Type\n", ip.FluxType)
 	fmt.Printf("[%s]\t= InitType\n", ip.InitType)
 	fmt.Printf("[%d]\t\t\t\t= Polynomial Order\n", ip.PolynomialOrder)
+	for _, name := range ip.PlotFields {
+		fmt.Printf("Plotting Field Named:[%s]\n", name)
+	}
 	keys := make([]string, len(ip.BCs))
 	i := 0
 	for k := range ip.BCs {

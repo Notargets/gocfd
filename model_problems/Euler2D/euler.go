@@ -3,7 +3,6 @@ package Euler2D
 import (
 	"fmt"
 	"math"
-	"os"
 	"sync"
 	"syscall"
 	"time"
@@ -50,9 +49,9 @@ type Euler struct {
 	Limiter              *SolutionLimiter
 	Dissipation          *ScalarDissipation
 	// Edge number mapped quantities, i.e. Face Normal Flux
-	EdgeStore          *EdgeValueStorage
-	ShockTube          *sod_shock_tube.SODShockTube
-	SolutionOutputFile *os.File
+	EdgeStore           *EdgeValueStorage
+	ShockTube           *sod_shock_tube.SODShockTube
+	SolutionFieldWriter *DG2D.AVSFieldWriter
 }
 
 func NewEuler(ip *InputParameters.InputParameters2D, meshFile string, ProcLimit int, verbose, profile bool) (c *Euler) {
@@ -76,6 +75,20 @@ func NewEuler(ip *InputParameters.InputParameters2D, meshFile string, ProcLimit 
 	// Read mesh file, initialize geometry and finite elements
 	c.dfr = DG2D.NewDFR2D(ip.PolynomialOrder, verbose, meshFile)
 	c.ShockFinder = c.dfr.NewAliasShockFinder(ip.Kappa)
+	fmd := &DG2D.FieldMetadata{
+		NumFields:  1,
+		FieldNames: ip.PlotFields,
+		SolutionMetadata: map[string]interface{}{
+			"CFL":     ip.CFL,
+			"Mesh":    meshFile,
+			"Case":    c.Case,
+			"Solver":  "2D Euler",
+			"FS Mach": ip.Minf,
+		},
+		GitVersion: "",
+	}
+	c.SolutionFieldWriter = c.dfr.NewAVSFieldWriter(
+		fmd, "solutionfile.gobcfd", c.dfr.GraphMesh)
 
 	c.SetParallelDegree(ProcLimit, c.dfr.K) // Must occur after determining the number of elements
 	c.PartitionEdgesByK()                   // Setup the key for edge calculations, useful for parallelizing the process
