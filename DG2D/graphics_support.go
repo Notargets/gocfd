@@ -68,6 +68,7 @@ func (dfr *DFR2D) NewAVSFieldWriter(fmd *FieldMetadata,
 		FileName:     fileName,
 		NpGraph:      len(gm.XY) / 2,
 		KMax:         len(gm.TriVerts),
+		fields:       make(map[string][]float32),
 	}
 	fw.file, err = os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -82,11 +83,14 @@ func (dfr *DFR2D) NewAVSFieldWriter(fmd *FieldMetadata,
 }
 
 func (fw *AVSFieldWriter) saveField(name string, field []float64) {
-	if len(field) != fw.NpGraph*fw.KMax {
-		panic("Dimensions mismatch between field and mesh")
+	if len(field) != fw.NpGraph {
+		err := fmt.Errorf("Dimensions mismatch between field and mesh\n"+
+			"Field length is: %d, Mesh Data Length: %d\n",
+			len(field), fw.NpGraph)
+		panic(err)
 	}
 	if _, exists := fw.fields[name]; !exists {
-		fw.fields[name] = make([]float32, fw.KMax*fw.NpGraph)
+		fw.fields[name] = make([]float32, fw.NpGraph)
 	}
 	for i, f := range field {
 		fw.fields[name][i] = float32(f)
