@@ -88,7 +88,7 @@ func NewDFR2D(N int, verbose bool, meshFileO ...string) (dfr *DFR2D) {
 
 func (dfr *DFR2D) ProcessGeometry(VX, VY utils.Vector,
 	EToV utils.Matrix, BCEdges types.BCMAP) {
-	// dfr.BCEdges.Print()
+	// dfr.BCEdges.String()
 	dfr.Tris = NewTriangulation(VX, VY, EToV, BCEdges)
 	// Build connectivity matrices
 	dfr.FluxX, dfr.FluxY =

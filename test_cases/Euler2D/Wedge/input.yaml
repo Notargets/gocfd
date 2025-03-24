@@ -19,3 +19,5 @@ Limiter: PerssonC0
 #Limiter: Barth Jesperson
 #Limiter: ModeFilter
 Kappa: 3
+
+PlotFields: ["Density"]

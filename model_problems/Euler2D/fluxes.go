@@ -8,7 +8,7 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-func (it InitType) Print() (txt string) {
+func (it InitType) String() (txt string) {
 	txt = InitPrintNames[it]
 	return
 }

@@ -74,11 +74,14 @@ func (dfr *DFR2D) NewAVSFieldWriter(fmd *FieldMetadata,
 		panic(err)
 	}
 	fw.encoder = gob.NewEncoder(fw.file)
-
+	if !fw.IsMetaDataWritten {
+		fw.WriteFieldsMeta()
+		fw.IsMetaDataWritten = true
+	}
 	return
 }
 
-func (fw *AVSFieldWriter) SaveField(name string, field []float64) {
+func (fw *AVSFieldWriter) saveField(name string, field []float64) {
 	if len(field) != fw.NpGraph*fw.KMax {
 		panic("Dimensions mismatch between field and mesh")
 	}
@@ -90,11 +93,11 @@ func (fw *AVSFieldWriter) SaveField(name string, field []float64) {
 	}
 }
 
-func (fw *AVSFieldWriter) Save(sfmd *SingleFieldMetadata) {
-	if !fw.IsMetaDataWritten {
-		fw.WriteFieldsMeta()
+func (fw *AVSFieldWriter) Save(sfmd *SingleFieldMetadata, fields map[string][]float64) {
+	for name, fld := range fields {
+		fw.saveField(name, fld)
 	}
-	fw.AppendFields(sfmd)
+	fw.appendFields(sfmd)
 }
 
 func (fw *AVSFieldWriter) WriteFieldsMeta() {
@@ -111,7 +114,7 @@ func (fw *AVSFieldWriter) WriteFieldsMeta() {
 	}
 }
 
-func (fw *AVSFieldWriter) AppendFields(sfmd *SingleFieldMetadata) {
+func (fw *AVSFieldWriter) appendFields(sfmd *SingleFieldMetadata) {
 	var (
 		err error
 	)

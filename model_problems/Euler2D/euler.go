@@ -81,7 +81,7 @@ func NewEuler(ip *InputParameters.InputParameters2D, meshFile string, ProcLimit 
 		SolutionMetadata: map[string]interface{}{
 			"CFL":     ip.CFL,
 			"Mesh":    meshFile,
-			"Case":    c.Case,
+			"Case":    c.Case.String(),
 			"Solver":  "2D Euler",
 			"FS Mach": ip.Minf,
 		},
@@ -114,7 +114,7 @@ func NewEuler(ip *InputParameters.InputParameters2D, meshFile string, ProcLimit 
 	if verbose {
 		fmt.Printf("Euler Equations in 2 Dimensions\n")
 		fmt.Printf("Using %d go routines in parallel\n", c.Partitions.ParallelDegree)
-		fmt.Printf("Solving %s\n", c.Case.Print())
+		fmt.Printf("Solving %s\n", c.Case.String())
 		switch c.Case {
 		case FREESTREAM:
 			fmt.Printf("Mach Infinity = %8.5f, Angle of Attack = %8.5f\n", ip.Minf, ip.Alpha)
@@ -162,7 +162,27 @@ func (c *Euler) Solve() {
 				printMem = true
 			}
 			c.PrintUpdate(rk.Time, rk.GlobalDT, steps, c.Q, rk.Residual, printMem, rk.LimitedPoints)
-
+			if len(c.SolutionFieldWriter.FieldMeta.FieldNames) != 0 {
+				Q4 := c.RecombineShardsKBy4(c.Q)
+				fieldMap := make(map[string][]float64)
+				var nFields, length int
+				for _, name := range c.SolutionFieldWriter.FieldMeta.FieldNames {
+					ff, match := BestMatchFlowFunction(name)
+					if !match {
+						panic("Unable to find matching flow function named: " + name)
+					}
+					fieldMap[name] = c.GetPlotField(Q4, ff).DataP
+					length = len(fieldMap[name])
+					nFields++
+				}
+				c.SolutionFieldWriter.Save(&DG2D.SingleFieldMetadata{
+					Iterations: steps,
+					Time:       float32(rk.Time),
+					Count:      nFields,
+					Length:     length,
+				},
+					fieldMap)
+			}
 		}
 	}
 	c.PrintFinal(elapsed, steps)

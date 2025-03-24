@@ -3,11 +3,66 @@ package Euler2D
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/notargets/gocfd/utils"
 )
 
-type FlowFunction uint16
+type FlowFunction int16
+
+// Map to store pre-tokenized names
+var flowFunctionTokens map[FlowFunction][]string
+
+func init() {
+	flowFunctionTokens = make(map[FlowFunction][]string)
+	allFunctions := []FlowFunction{
+		Density, XMomentum, YMomentum, Energy, Mach, StaticPressure,
+		DynamicPressure, PressureCoefficient, SoundSpeed, Velocity,
+		XVelocity, YVelocity, Enthalpy, Entropy,
+		ShockFunction, EpsilonDissipation, EpsilonDissipationC0,
+		XGradientDensity, XGradientXMomentum, XGradientYMomentum, XGradientEnergy,
+		YGradientDensity, YGradientXMomentum, YGradientYMomentum, YGradientEnergy,
+	}
+
+	for _, ff := range allFunctions {
+		tokens := tokenize(ff.String())
+		flowFunctionTokens[ff] = tokens
+	}
+}
+
+// Normalize and tokenize a string into lowercase words
+func tokenize(s string) []string {
+	s = strings.ToLower(s)
+	s = strings.ReplaceAll(s, "-", " ")
+	s = strings.ReplaceAll(s, "_", " ")
+	return strings.Fields(s)
+}
+
+// Match user input to best matching FlowFunction
+func BestMatchFlowFunction(input string) (FlowFunction, bool) {
+	inputTokens := tokenize(input)
+
+	bestMatch := FlowFunction(-1)
+	bestScore := -1
+
+	for ff, tokens := range flowFunctionTokens {
+		score := 0
+		for _, inputToken := range inputTokens {
+			for _, token := range tokens {
+				if strings.Contains(token, inputToken) {
+					score++
+					break
+				}
+			}
+		}
+		if score > bestScore {
+			bestScore = score
+			bestMatch = ff
+		}
+	}
+
+	return bestMatch, bestScore > 0
+}
 
 func (pm FlowFunction) String() string {
 	strings := []string{

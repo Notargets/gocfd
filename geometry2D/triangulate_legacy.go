@@ -40,7 +40,7 @@ func (tm *TriMeshG) NewEdge(verts [2]int, isImmovableO ...bool) (e *Edge) {
 	// TODO: If this is necessary, use a data structure to make it not O(N^2)
 	for _, ee := range tm.Edges {
 		if ee.containsIndex(verts[0]) && ee.containsIndex(verts[1]) {
-			// fmt.Printf("reusing edge: %s, inputIsImmovable: %v\n", ee.Print(), isImmovable)
+			// fmt.Printf("reusing edge: %s, inputIsImmovable: %v\n", ee.String(), isImmovable)
 			return ee
 		}
 	}
@@ -541,10 +541,10 @@ func (tm *TriMeshG) AddPoint(X, Y float64, traceO ...bool) {
 		/*
 			fmt.Printf("About to split triangle into three\n%sPoint: %s\n%s\n%s\n%s\n",
 				tm.PrintTri(baseTri, "baseTri"),
-				tm.Points[pR].Print(),
-				e1.Print(),
-				e2.Print(),
-				e3.Print(),
+				tm.Points[pR].String(),
+				e1.String(),
+				e2.String(),
+				e3.String(),
 			)
 		*/
 		tri := tm.NewTri(e1, e2)
@@ -618,7 +618,7 @@ func (tm *TriMeshG) AddPoint(X, Y float64, traceO ...bool) {
 			for j := 0; j < numTris; j++ {
 				for _, ee := range newTris[j].Edges {
 					if !ee.containsIndex(pR) { // We only want the edge opposite of pR
-						// fmt.Printf("legalizing: %s\n", ee.Print())
+						// fmt.Printf("legalizing: %s\n", ee.String())
 						tm.legalizeEdge(ee, pR)
 					}
 				}
@@ -734,7 +734,7 @@ func (tm *TriMeshG) flipEdge(e *Edge) {
 		for ee = range eMap {
 			if ee.containsIndex(ptI) {
 				delete(eMap, ee) // remove edge from bucket
-				// fmt.Printf("Number of tris (%d) on edge %s\n", len(ee.Tris), ee.Print())
+				// fmt.Printf("Number of tris (%d) on edge %s\n", len(ee.Tris), ee.String())
 				return ee
 			}
 		}

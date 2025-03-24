@@ -339,9 +339,9 @@ func TestFluxInterpolation(t *testing.T) {
 	c.InterpolateSolutionToEdges(c.Q[0], rk.Q_Face[0], rk.Flux[0], rk.Flux_Face[0])
 	el := c.dfr.SolutionElement
 	/*
-		el.JB2D.V.Print("V")
-		el.JB2D.Vinv.Print("Vinv")
-		el.MassMatrix.Print("M")
+		el.JB2D.V.String("V")
+		el.JB2D.Vinv.String("Vinv")
+		el.MassMatrix.String("M")
 	*/
 	RR := [][2]float64{{-1 / 3, -1 / 3}, {-1, -1}, {-1, 1}, {1, -1}}
 	NpInt := el.Np
@@ -373,9 +373,9 @@ func TestFluxInterpolation(t *testing.T) {
 
 	// solution := utils.NewMatrix(NpInt, 1, []float64{1, 1, 1, 1, 1, 1})
 	// modes := el.JB2D.Vinv.Mul(solution)
-	// solution.Transpose().Print("solution-const")
-	// modes.Transpose().Print("modes1")
-	// locations.Mul(modes).Transpose().Print("Locations1")
+	// solution.Transpose().String("solution-const")
+	// modes.Transpose().String("modes1")
+	// locations.Mul(modes).Transpose().String("Locations1")
 	// solution = utils.NewMatrix(NpInt, 1, []float64{1, 1, 1, 0.5, 0.5, 1.5})
 	solution := utils.NewMatrix(NpInt, 1, []float64{1.0, 0.5, 1.5, 1.5, 1.5, 1.5, 1, 1, 1, 1})
 	modes := el.JB2D.Vinv.Mul(solution)
@@ -385,7 +385,7 @@ func TestFluxInterpolation(t *testing.T) {
 
 	VinvFiltered := truncate.Mul(el.JB2D.Vinv)
 	modes = VinvFiltered.Mul(solution)
-	// modes.Transpose().Print("modes3")
+	// modes.Transpose().String("modes3")
 	locations.Mul(modes).Transpose().Print("Locations3")
 
 	R, S := utils.NewVector(4, []float64{-1 / 3, -1, -1, 1}), utils.NewVector(4, []float64{-1 / 3, -1, 1, -1})
@@ -583,7 +583,7 @@ func TestDissipation2(t *testing.T) {
 				8.13663, 6.17267, 7.82733, 8.17267, 9.00000, 9.00000},
 				sd.Epsilon[0].DataP, 0.00001, "err msg %s")
 		*/
-		// fmt.Printf(sd.Epsilon[0].Print("Epsilon"))
+		// fmt.Printf(sd.Epsilon[0].String("Epsilon"))
 	}
 	// Gradient test using GetSolutionGradient()
 	{

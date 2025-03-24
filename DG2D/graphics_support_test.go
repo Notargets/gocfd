@@ -26,8 +26,8 @@ func TestPlotVariousFields(t *testing.T) {
 	// Np := dfr.SolutionElement.Np
 	// K := dfr.K
 	// for k := 0; k < K; k++ {
-	// 	dfr.SolutionX.Col(k).Transpose().Print("XElement:" + strconv.Itoa(k))
-	// 	dfr.SolutionY.Col(k).Transpose().Print("YElement:" + strconv.Itoa(k))
+	// 	dfr.SolutionX.Col(k).Transpose().String("XElement:" + strconv.Itoa(k))
+	// 	dfr.SolutionY.Col(k).Transpose().String("YElement:" + strconv.Itoa(k))
 	// 	minX := dfr.SolutionX.Col(k).Min()
 	// 	maxX := dfr.SolutionX.Col(k).Max()
 	// 	if minX < 0 && maxX < 0 {
@@ -47,11 +47,11 @@ func TestPlotVariousFields(t *testing.T) {
 	fM := utils.NewMatrix(dfr.SolutionElement.Np,
 		dfr.K, field[:dfr.K*dfr.SolutionElement.Np])
 	fM.PrintDims("fM Before Mod")
-	// fM.Print("fM Before Mod Filter")
+	// fM.String("fM Before Mod Filter")
 	// dfr.FilterMod.PrintDims("FilterMod")
 	// fM = fM.Transpose().Mul(dfr.FilterMod).Transpose()
 	// fM.PrintDims("After Mod Filter")
-	// fM.Print("After Mod Filter")
+	// fM.String("After Mod Filter")
 	fMin, fMax := getFieldMinMax(field[:dfr.K*dfr.SolutionElement.Np])
 	// dfr.GraphInterp.PrintDims("GraphInterp")
 	// The graph mesh field dimensions are (K,Np)

@@ -45,10 +45,10 @@ func TestPlotVariousFields2(t *testing.T) {
 	// DG2D.SetTestFieldQ(c.dfr, DG2D.FIXEDVORTEXTEST, c.Q[0])
 	// DG2D.SetTestFieldQ(c.dfr, DG2D.INTEGERTEST, c.Q[0])
 
-	// c.Q[0][0].Print("Density")
-	// c.Q[0][1].Print("Umom")
-	// c.Q[0][2].Print("Vmom")
-	// c.Q[0][3].Print("E")
+	// c.Q[0][0].String("Density")
+	// c.Q[0][1].String("Umom")
+	// c.Q[0][2].String("Vmom")
+	// c.Q[0][3].String("E")
 	// os.Exit(1)
 
 	// Dens := c.Q[0][0]
@@ -76,6 +76,6 @@ func TestPlotVariousFields2(t *testing.T) {
 	// 	}
 	// }
 	c.GetFirstOrderEdgeProjection_ForGraphing(c.Q[0][fieldNum], &QInterp)
-	// QInterp.Print("QInterp")
+	// QInterp.String("QInterp")
 	DG2D.PlotField(QInterp.Transpose().DataP, c.dfr.GraphMesh, 0.0, 0.0)
 }

@@ -89,8 +89,8 @@ func TestDFR2D(t *testing.T) {
 		// Interpolate from interior to flux points
 		sV := utils.NewMatrix(rt.NpInt, 1, solution)
 		_ = dfr.FluxEdgeInterp.Mul(sV)
-		// t.Logf("%s\n", fluxInterp.Print("fluxInterp"))
-		// t.Logf("%s\n", sV.Print("sV"))
+		// t.Logf("%s\n", fluxInterp.String("fluxInterp"))
+		// t.Logf("%s\n", sV.String("sV"))
 	}
 	// Test triangulation
 	{
@@ -320,8 +320,8 @@ func DivergenceCheck(t *testing.T, dfr *DFR2D) {
 		// dfr := NewDFR2D(N, false, "test_data/test_tris_5.neu")
 		N := dfr.N
 		rt := dfr.FluxElement
-		// rt.Div.Print("Div")
-		// rt.DivInt.Print("DivInt")
+		// rt.Div.String("Div")
+		// rt.DivInt.String("DivInt")
 		for cOrder := 1; cOrder <= N; cOrder++ { // Run a test on polynomial flux vector fields up to Nth order
 			t.Logf("checking RT order[%d]...", cOrder+1)
 			Fx, Fy, divCheck := checkSolution(dfr, cOrder)
@@ -333,7 +333,7 @@ func DivergenceCheck(t *testing.T, dfr *DFR2D) {
 					Jdet = dfr.Jdet.Row(k).DataP[0]
 				)
 				divM := rt.Div.Mul(Fpk).Scale(1. / Jdet)
-				// divM.Print("divM")
+				// divM.String("divM")
 				// t.Logf("divCheck.Row(k) = %v\n", divCheck.Row(k).DataP)
 				assert.InDeltaSlicef(t, divCheck.Row(k).DataP, divM.DataP, 0.00001, "")
 			}

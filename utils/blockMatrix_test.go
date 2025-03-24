@@ -43,7 +43,7 @@ func TestBlockMatrix(t *testing.T) {
 		Bm.M[3][2] = NewMatrix(1, 1, []float64{4.})
 		Bm.M[3][3] = NewMatrix(1, 1, []float64{1.})
 		BmOrig := Bm.Copy()
-		//fmt.Printf(Bm.Print())
+		// fmt.Printf(Bm.String())
 
 		b := make([]Matrix, Bm.Nr)
 		for i := 0; i < Bm.Nr; i++ {
@@ -133,14 +133,14 @@ func TestBlockMatrix(t *testing.T) {
 		Bm.M[3][2] = NewMatrix(1, 1, []float64{4.})
 		Bm.M[3][3] = one.Copy()
 		BmOrig := Bm.Copy()
-		//fmt.Printf(Bm.Print())
+		// fmt.Printf(Bm.String())
 
 		b := make([]Matrix, Bm.Nr)
 		for i := 0; i < Bm.Nr; i++ {
-			//b[i] = one.Copy().Scale(float64(i + 1))
+			// b[i] = one.Copy().Scale(float64(i + 1))
 			val := float64(i + 1.)
 			b[i] = NewMatrix(4, 1, []float64{val, val, val, val})
-			//fmt.Printf(b[i].Print("b[" + strconv.Itoa(i) + "]"))
+			// fmt.Printf(b[i].String("b[" + strconv.Itoa(i) + "]"))
 		}
 		// Call LUPSolve without first calling LUPDecompose, expect an error
 		x, err := Bm.LUPSolve(b)
@@ -158,22 +158,22 @@ func TestBlockMatrix(t *testing.T) {
 		assert.Nil(t, err)
 		mul := 1.
 		for i := 0; i < Bm.Nr; i++ {
-			//msg := "x[" + strconv.Itoa(i) + "]"
-			//fmt.Printf(x.M[i][0].Print(msg))
+			// msg := "x[" + strconv.Itoa(i) + "]"
+			// fmt.Printf(x.M[i][0].String(msg))
 			if i == 3 {
 				mul = -1.
 			}
 			// Known answer x = [0.5[I],0.5[I],0.5[I],-0.5[I]]
 			val := mul * 0.5
 			assert.InDeltaSlicef(t, []float64{val, val, val, val}, x.M[i][0].DataP, 0.0000001, "err msg %s")
-			//assert.InDeltaSlicef(t,
-			//one.Copy().Scale(mul*0.5).DataP,
-			//x.M[i][0].DataP, 0.0000001, "err msg %s")
+			// assert.InDeltaSlicef(t,
+			// one.Copy().Scale(mul*0.5).DataP,
+			// x.M[i][0].DataP, 0.0000001, "err msg %s")
 		}
 		assert.Equal(t, []int{1, 2, 3, 0}, Bm.P) // Known permutation matrix, one swap per each row
 
-		//Bs := Bm.Mul(x)
-		//fmt.Printf(Bs.Print())
+		// Bs := Bm.Mul(x)
+		// fmt.Printf(Bs.String())
 
 		// Validate solution
 		A := BmOrig.Mul(x) // Multiply original block matrix by solution to get b

@@ -287,10 +287,10 @@ func TestInterpolationVariousFields_failed_tests(t *testing.T) {
 			printRMSError(stats)
 			fmt.Printf("---------------------\n\n")
 			// Coeffs := GetRTCoefficients(dfr, tf)
-			// QSol.Print("QSol Orig")
+			// QSol.String("QSol Orig")
 			// for _, iterCount := range []int{10, 100, 1000} {
 			// 	QSolMod := ModulateInternalField(dfr, QSol, Nu, p, iterCount)
-			// 	QSolMod.Print("QSolMod." + strconv.Itoa(iterCount))
+			// 	QSolMod.String("QSolMod." + strconv.Itoa(iterCount))
 			// }
 		}
 	}
@@ -806,13 +806,13 @@ func TestEdgeInterpolation(t *testing.T) {
 				QFlux.Set(i, n, field[i+n*NpFlux])
 			}
 		}
-		// QSol.Print("QSol")
-		// QFlux.Print("QFlux")
+		// QSol.String("QSol")
+		// QFlux.String("QFlux")
 		MInv := M.Transpose().Mul(M).InverseWithCheck().Mul(M.Transpose())
-		// MInv.Print("MInv")
+		// MInv.String("MInv")
 		Dens := CopyDensityFromQAndEdges(dfr, QSol, QFlux)
 		Grad := MInv.Mul(Dens)
-		// Grad.Print("Grad")
+		// Grad.String("Grad")
 		GradA, GradB, GradC := Grad.DataP[0], Grad.DataP[1], Grad.DataP[2]
 		n1, n2 := GradB, GradC
 		norm := math.Sqrt(n1*n1 + n2*n2)
@@ -957,7 +957,7 @@ func GradientMassMatrix(dfr *DFR2D) (M utils.Matrix) {
 		M.Set(i, 1, dfr.FluxX.DataP[i+NpInt])
 		M.Set(i, 2, dfr.FluxY.DataP[i+NpInt])
 	}
-	// M.Print("M")
+	// M.String("M")
 	return
 }
 
@@ -1186,10 +1186,10 @@ func TestPlotEquiTri(t *testing.T) {
 			}
 		}
 	}
-	// Q.Print("Q1")
-	// dfr.FluxEdgeInterp.Print("FluxEdgeInterp")
+	// Q.String("Q1")
+	// dfr.FluxEdgeInterp.String("FluxEdgeInterp")
 	QEdge := dfr.FluxEdgeInterp.Mul(Q)
-	// QEdge.Print("QEdge")
+	// QEdge.String("QEdge")
 	// dfr.FluxElement.ProjectFunctionOntoDOF()
 	NpFluxEdge := dfr.FluxElement.NpEdge
 	var CorrectU [4]float64

@@ -422,9 +422,9 @@ func (c *Euler) PeriodicBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix,
 	// Periodic Boundary condition
 	fRho, fRhoU, fEner := c.RoeFlux(Rho, RhoU, Ener, RhoF, RhoUF, EnerF, vmapI, vmapO)
 	/*
-		fmt.Println(dRhoF.Print("dRhoF before"))
-		fmt.Println(dRhoUF.Print("dRhoUF before"))
-		fmt.Println(dEnerF.Print("dEnerF before"))
+		fmt.Println(dRhoF.String("dRhoF before"))
+		fmt.Println(dRhoUF.String("dRhoUF before"))
+		fmt.Println(dEnerF.String("dEnerF before"))
 	*/
 	dRhoF.AssignVector(c.El.MapI, fRho)
 	dRhoUF.AssignVector(c.El.MapI, fRhoU)
@@ -433,9 +433,9 @@ func (c *Euler) PeriodicBC_DFR(Rho, RhoU, Ener, RhoF, RhoUF, EnerF utils.Matrix,
 	dRhoUF.AssignVector(c.El.MapO, fRhoU)
 	dEnerF.AssignVector(c.El.MapO, fEner)
 	/*
-		fmt.Println(dRhoF.Print("dRhoF after"))
-		fmt.Println(dRhoUF.Print("dRhoUF after"))
-		fmt.Println(dEnerF.Print("dEnerF after"))
+		fmt.Println(dRhoF.String("dRhoF after"))
+		fmt.Println(dRhoUF.String("dRhoUF after"))
+		fmt.Println(dEnerF.String("dEnerF after"))
 		os.Exit(1)
 	*/
 }

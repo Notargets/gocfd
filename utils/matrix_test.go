@@ -262,7 +262,7 @@ func TestMatrix(t *testing.T) {
 		assert.Equal(t, B.Mul(A), B.MulParallel(A, 2))
 		assert.Equal(t, B.Mul(A), B.MulParallel(A, 4))
 		assert.Equal(t, B.Mul(A), B.MulParallel(A, 5))
-		// fmt.Println(B.MulParallel(A, 2).Print("BmulA"))
+		// fmt.Println(B.MulParallel(A, 2).String("BmulA"))
 	}
 	// Matrix x Matrix
 	{
