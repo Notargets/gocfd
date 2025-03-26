@@ -79,7 +79,9 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix,
 	}
 	if !skipInterp {
 		// field = c.dfr.FluxInterp.Mul(fld)
-		// field = c.dfr.GraphInterp.Mul(fld)
+		// fmt.Printf("Function: %s, Min/Max = %.2f/%.2f\n",
+		// 	plotField.String(), fld.Min(), fld.Max())
+		field = c.dfr.GraphInterp.Mul(fld).Transpose()
 		c.GetFirstOrderEdgeProjection_ForGraphing(fld, &field)
 	}
 	return

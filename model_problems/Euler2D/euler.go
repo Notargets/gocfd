@@ -164,16 +164,29 @@ func (c *Euler) Solve() {
 			c.PrintUpdate(rk.Time, rk.GlobalDT, steps, c.Q, rk.Residual, printMem, rk.LimitedPoints)
 			if len(c.SolutionFieldWriter.FieldMeta.FieldNames) != 0 {
 				Q4 := c.RecombineShardsKBy4(c.Q)
+				// fmt.Printf("Recombined Density Min/Max=%.2f/%.2f\n",
+				// 	Q4[0].Min(), Q4[0].Max())
+				// fmt.Printf("Recombined XMom Min/Max=%.2f/%.2f\n",
+				// 	Q4[1].Min(), Q4[1].Max())
+				// fmt.Printf("Recombined YMom Min/Max=%.2f/%.2f\n",
+				// 	Q4[2].Min(), Q4[2].Max())
+				// fmt.Printf("Recombined Energy Min/Max=%.2f/%.2f\n",
+				// 	Q4[3].Min(), Q4[3].Max())
 				fieldMap := make(map[string][]float64)
 				var nFields, length int
 				for _, name := range c.SolutionFieldWriter.FieldMeta.FieldNames {
 					ff, match := BestMatchFlowFunction(name)
 					if !match {
 						panic("Unable to find matching flow function named: " + name)
+						// } else {
+						// 	fmt.Printf("Field function: %s\n", ff.String())
 					}
-					fieldMap[name] = c.GetPlotField(Q4, ff).DataP
+					FMat := c.GetPlotField(Q4, ff)
+					fieldMap[name] = FMat.DataP
 					length = len(fieldMap[name])
 					nFields++
+					// fmt.Printf("Writing field:%s, Min/Max=%.2f/%.2f\n",
+					// 	name, FMat.Min(), FMat.Max())
 				}
 				c.SolutionFieldWriter.Save(&DG2D.SingleFieldMetadata{
 					Iterations: steps,
