@@ -81,8 +81,9 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix,
 		// field = c.dfr.FluxInterp.Mul(fld)
 		// fmt.Printf("Function: %s, Min/Max = %.2f/%.2f\n",
 		// 	plotField.String(), fld.Min(), fld.Max())
-		field = c.dfr.GraphInterp.Mul(fld).Transpose()
+		field = c.dfr.GraphInterp.Mul(fld)
 		c.GetFirstOrderEdgeProjection_ForGraphing(fld, &field)
+		field = field.Transpose()
 	}
 	return
 }
@@ -179,7 +180,10 @@ func (c *Euler) GetFirstOrderEdgeProjection_ForGraphing(QField utils.Matrix,
 		*QGraph = QGraphP
 	}
 	c.ShockFinder.UpdateShockedCells(QField)
+	// d1, d2 := QGraph.Dims()
 	for _, k := range c.ShockFinder.ShockCells.Cells() {
+		// fmt.Printf("Kmax = %d, k = %d\n", KMax, k)
+		// fmt.Printf("QGraph Np/KMax = %d/%d\n", d1, d2)
 		// There are NpEdge-1 interior points supporting reconstruction of
 		// NpEdge-1 sub-segments on each of the three edges
 		// Here we will use the two adjoining corner segments to construct
