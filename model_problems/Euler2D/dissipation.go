@@ -388,12 +388,12 @@ func (sd *ScalarDissipation) GetScalarEpsilonPlotField(c *Euler) (fld utils.Matr
 			}
 		}
 	}
-	fld = c.RecombineShardsK(sd.Epsilon)
+	c.RecombineShardsK(sd.Epsilon, &fld)
 	return
 }
 
 func (sd *ScalarDissipation) GetC0EpsilonPlotField(c *Euler) (fld utils.Matrix) {
-	fld = c.RecombineShardsK(sd.Epsilon)
+	c.RecombineShardsK(sd.Epsilon, &fld)
 	return
 }
 

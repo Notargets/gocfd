@@ -44,6 +44,7 @@ type Euler struct {
 	MaxIterations      int
 	// Below are partitioned by K (elements) in the first slice
 	Q                    [][4]utils.Matrix // Sharded solution variables, stored at solution point locations, Np_solution x K
+	Q4                   [4]utils.Matrix   // Non-Sharded solution for plotting
 	SolutionX, SolutionY []utils.Matrix
 	ShockFinder          *DG2D.ModeAliasShockFinder
 	Limiter              *SolutionLimiter
@@ -163,15 +164,7 @@ func (c *Euler) Solve() {
 			}
 			c.PrintUpdate(rk.Time, rk.GlobalDT, steps, c.Q, rk.Residual, printMem, rk.LimitedPoints)
 			if len(c.SolutionFieldWriter.FieldMeta.FieldNames) != 0 {
-				Q4 := c.RecombineShardsKBy4(c.Q)
-				// fmt.Printf("Recombined Density Min/Max=%.2f/%.2f\n",
-				// 	Q4[0].Min(), Q4[0].Max())
-				// fmt.Printf("Recombined XMom Min/Max=%.2f/%.2f\n",
-				// 	Q4[1].Min(), Q4[1].Max())
-				// fmt.Printf("Recombined YMom Min/Max=%.2f/%.2f\n",
-				// 	Q4[2].Min(), Q4[2].Max())
-				// fmt.Printf("Recombined Energy Min/Max=%.2f/%.2f\n",
-				// 	Q4[3].Min(), Q4[3].Max())
+				c.RecombineShardsKBy4(c.Q, &c.Q4)
 				fieldMap := make(map[string][]float64)
 				var nFields, length int
 				for _, name := range c.SolutionFieldWriter.FieldMeta.FieldNames {
@@ -181,8 +174,8 @@ func (c *Euler) Solve() {
 						// } else {
 						// 	fmt.Printf("Field function: %s\n", ff.String())
 					}
-					FMat := c.GetPlotField(Q4, ff)
-					fieldMap[name] = FMat.DataP
+					field := c.GetPlotField(c.Q4, ff)
+					fieldMap[name] = field.DataP
 					length = len(fieldMap[name])
 					nFields++
 					// fmt.Printf("Writing field:%s, Min/Max=%.2f/%.2f\n",

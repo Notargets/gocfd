@@ -47,8 +47,8 @@ func (c *Euler) ShardByKTranspose(A utils.Matrix) (pA []utils.Matrix) {
 		for k := kMin; k < kMax; k++ {
 			pk := k - kMin
 			for i := 0; i < Imax; i++ {
-				//ind := k + i*c.dfr.K
-				//pind := pk + Kmax*i
+				// ind := k + i*c.dfr.K
+				// pind := pk + Kmax*i
 				ind := i + k*Imax
 				pind := i + pk*Imax
 				pAD[pind] = aD[ind]
@@ -58,12 +58,14 @@ func (c *Euler) ShardByKTranspose(A utils.Matrix) (pA []utils.Matrix) {
 	return
 }
 
-func (c *Euler) RecombineShardsK(pA []utils.Matrix) (A utils.Matrix) {
+func (c *Euler) RecombineShardsK(pA []utils.Matrix, A *utils.Matrix) {
 	var (
 		NP      = c.Partitions.ParallelDegree
 		Imax, _ = pA[0].Dims()
 	)
-	A = utils.NewMatrix(Imax, c.dfr.K)
+	if A.IsEmpty() {
+		*A = utils.NewMatrix(Imax, c.dfr.K)
+	}
 	aD := A.DataP
 	for np := 0; np < NP; np++ {
 		kMin, kMax := c.Partitions.GetBucketRange(np)
@@ -81,7 +83,7 @@ func (c *Euler) RecombineShardsK(pA []utils.Matrix) (A utils.Matrix) {
 	return
 }
 
-func (c *Euler) RecombineShardsKBy4(pA [][4]utils.Matrix) (A [4]utils.Matrix) {
+func (c *Euler) RecombineShardsKBy4(pA [][4]utils.Matrix, A *[4]utils.Matrix) {
 	var (
 		NP = c.Partitions.ParallelDegree
 	)
@@ -90,7 +92,7 @@ func (c *Euler) RecombineShardsKBy4(pA [][4]utils.Matrix) (A [4]utils.Matrix) {
 		for np := 0; np < NP; np++ {
 			ppA[np] = pA[np][n]
 		}
-		A[n] = c.RecombineShardsK(ppA)
+		c.RecombineShardsK(ppA, &A[n])
 	}
 	return
 }
