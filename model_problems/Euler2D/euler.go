@@ -32,7 +32,7 @@ type Euler struct {
 	MeshFile           string
 	CFL, FinalTime     float64
 	FSFar, FSIn, FSOut *FreeStream
-	dfr                *DG2D.DFR2D
+	DFR                *DG2D.DFR2D
 	profile            bool // Generate a CPU profile of the solver
 	FluxCalcAlgo       FluxType
 	Case               InitType
@@ -49,6 +49,7 @@ type Euler struct {
 	ShockFinder          *DG2D.ModeAliasShockFinder
 	Limiter              *SolutionLimiter
 	Dissipation          *ScalarDissipation
+	Kappa                float64 // Artificial Dissipation Strength constant
 	// Edge number mapped quantities, i.e. Face Normal Flux
 	EdgeStore           *EdgeValueStorage
 	ShockTube           *sod_shock_tube.SODShockTube
@@ -66,6 +67,7 @@ func NewEuler(ip *InputParameters.InputParameters2D, meshFile string, ProcLimit 
 		MaxIterations:     ip.MaxIterations,
 		FSFar:             NewFreeStream(ip.Minf, ip.Gamma, ip.Alpha),
 		profile:           profile,
+		Kappa:             ip.Kappa,
 	}
 	c.FluxCalcMock = c.FluxCalcBase
 
@@ -74,8 +76,8 @@ func NewEuler(ip *InputParameters.InputParameters2D, meshFile string, ProcLimit 
 	}
 
 	// Read mesh file, initialize geometry and finite elements
-	c.dfr = DG2D.NewDFR2D(ip.PolynomialOrder, verbose, meshFile)
-	c.ShockFinder = c.dfr.NewAliasShockFinder(ip.Kappa)
+	c.DFR = DG2D.NewDFR2D(ip.PolynomialOrder, verbose, meshFile)
+	c.ShockFinder = c.DFR.NewAliasShockFinder(c.Kappa)
 	fmd := &DG2D.FieldMetadata{
 		NumFields:  1,
 		FieldNames: ip.PlotFields,
@@ -88,10 +90,10 @@ func NewEuler(ip *InputParameters.InputParameters2D, meshFile string, ProcLimit 
 		},
 		GitVersion: "",
 	}
-	c.SolutionFieldWriter = c.dfr.NewAVSFieldWriter(
-		fmd, "solutionfile.gobcfd", c.dfr.GraphMesh)
+	c.SolutionFieldWriter = c.DFR.NewAVSFieldWriter(
+		fmd, "solutionfile.gobcfd", c.DFR.GraphMesh)
 
-	c.SetParallelDegree(ProcLimit, c.dfr.K) // Must occur after determining the number of elements
+	c.SetParallelDegree(ProcLimit, c.DFR.K) // Must occur after determining the number of elements
 	c.PartitionEdgesByK()                   // Setup the key for edge calculations, useful for parallelizing the process
 
 	// Allocate Normal flux storage and indices
@@ -101,16 +103,16 @@ func NewEuler(ip *InputParameters.InputParameters2D, meshFile string, ProcLimit 
 
 	// Allocate a solution limiter
 	lt := NewLimiterType(ip.Limiter)
-	c.Limiter = NewSolutionLimiter(lt, ip.Kappa, c.dfr, c.Partitions, c.FSFar)
+	c.Limiter = NewSolutionLimiter(lt, c.Kappa, c.DFR, c.Partitions, c.FSFar)
 
 	// Initiate Artificial Dissipation
 	if lt == PerssonC0T {
-		c.Dissipation = NewScalarDissipation(ip.Kappa, c.dfr, c.Partitions)
-		//		c.Limiter = NewSolutionLimiter(ModeFilterT, ip.Kappa, c.dfr, c.Partitions, c.FSFar)
+		c.Dissipation = NewScalarDissipation(c.Kappa, c.DFR, c.Partitions)
+		//		c.Limiter = NewSolutionLimiter(ModeFilterT, ip.Kappa, c.DFR, c.Partitions, c.FSFar)
 	}
 
 	// Save graph mesh
-	c.dfr.OutputMesh("meshfile.gobcfd", c.SerializeBCs())
+	c.DFR.OutputMesh("meshfile.gobcfd", c.SerializeBCs())
 
 	if verbose {
 		fmt.Printf("Euler Equations in 2 Dimensions\n")
@@ -124,11 +126,9 @@ func NewEuler(ip *InputParameters.InputParameters2D, meshFile string, ProcLimit 
 		if c.Dissipation != nil {
 			fmt.Printf("Artificial Dissipation Coefficient: Kappa = [%5.3f]\n", c.Dissipation.Kappa)
 		}
-		if c.Limiter.limiterType == BarthJespersonT {
-			fmt.Printf("Shock Finder Coefficient: Kappa = [%5.3f]\n", ip.Kappa)
-		}
+		fmt.Printf("Shock Finder Coefficient: Kappa = [%5.3f]\n", c.Kappa)
 		fmt.Printf("CFL = %8.4f, Polynomial Degree N = %d (1 is linear), Num Elements K = %d\n\n\n",
-			ip.CFL, ip.PolynomialOrder, c.dfr.K)
+			ip.CFL, ip.PolynomialOrder, c.DFR.K)
 	}
 	return
 }
@@ -157,6 +157,7 @@ func (c *Euler) Solve() {
 		rk.Time += rk.GlobalDT
 		rk.StepCount++
 		finished = c.CheckIfFinished(rk.Time, FinalTime, steps)
+		// if finished || steps == 1 || steps%1 == 0 {
 		if finished || steps == 1 || steps%100 == 0 {
 			var printMem bool
 			if steps%100 == 0 {
@@ -211,6 +212,7 @@ type RungeKutta4SSP struct {
 	NpInt, Nedge, NpFlux int            // Number of points in solution, edge and flux total
 	EdgeQ1, EdgeQ2       [][][4]float64 // Sharded local working memory, dimensions Nedge
 	LimitedPoints        []int          // Sharded number of limited points
+	ShockSensor          []*DG2D.ModeAliasShockFinder
 }
 
 func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
@@ -219,8 +221,8 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		NPar = pm.ParallelDegree
 	)
 	rk = &RungeKutta4SSP{
-		Jdet:          c.ShardByKTranspose(c.dfr.Jdet),
-		Jinv:          c.ShardByKTranspose(c.dfr.Jinv),
+		Jdet:          c.ShardByKTranspose(c.DFR.Jdet),
+		Jinv:          c.ShardByKTranspose(c.DFR.Jinv),
 		RHSQ:          make([][4]utils.Matrix, NPar),
 		Q_Face:        make([][4]utils.Matrix, NPar),
 		Flux_Face:     make([][2][4]utils.Matrix, NPar),
@@ -235,12 +237,13 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		DT:            make([]utils.Matrix, NPar),
 		MaxWaveSpeed:  make([]float64, NPar),
 		Kmax:          make([]int, NPar),
-		NpInt:         c.dfr.SolutionElement.Np,
-		Nedge:         c.dfr.FluxElement.NpEdge,
-		NpFlux:        c.dfr.FluxElement.Np,
+		NpInt:         c.DFR.SolutionElement.Np,
+		Nedge:         c.DFR.FluxElement.NpEdge,
+		NpFlux:        c.DFR.FluxElement.Np,
 		EdgeQ1:        make([][][4]float64, NPar),
 		EdgeQ2:        make([][][4]float64, NPar),
 		LimitedPoints: make([]int, NPar),
+		ShockSensor:   make([]*DG2D.ModeAliasShockFinder, NPar),
 	}
 	// Initialize memory for RHS
 	for np := 0; np < NPar; np++ {
@@ -263,6 +266,7 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		rk.DT[np] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 		rk.EdgeQ1[np] = make([][4]float64, rk.Nedge)
 		rk.EdgeQ2[np] = make([][4]float64, rk.Nedge)
+		rk.ShockSensor[np] = c.DFR.NewAliasShockFinder(c.Kappa)
 	}
 	return
 }
@@ -310,7 +314,9 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		rkStep                     = getRKStepNumber(currentStep)
 		QQQ                        = [][4]utils.Matrix{Q0, Q1, Q2, Q3, Q4}[rkStep]
 		QQQAll                     = [][][4]utils.Matrix{c.Q, rk.Q1, rk.Q2, rk.Q3, rk.Q4}[rkStep]
+		ShockSensor                = rk.ShockSensor[myThread]
 	)
+	_ = ShockSensor
 	defer wg.Done()
 	/*
 		Inline functions
@@ -369,6 +375,9 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 			}
 		}
 		c.InterpolateSolutionToEdges(QQQ, Q_Face, Flux, Flux_Face) // Interpolates Q_Face values from Q
+		// TODO: Simple projection disabled - ineffective.
+		//  Will implement another approach
+		// c.ProjectEdgeValuesForShockedCells(QQQ, Q_Face, Flux, Flux_Face, ShockSensor)
 	case 1, 6, 11, 16, 21:
 		rk.MaxWaveSpeed[myThread] =
 			c.CalculateEdgeFlux(rk.Time, initDT, rk.Jdet, rk.DT, rk.Q_Face, rk.Flux_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
@@ -395,9 +404,109 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		rkAdvance(rkStep, QQQ)
 		if rkStep != 4 {
 			c.InterpolateSolutionToEdges(QQQ, Q_Face, Flux, Flux_Face) // Interpolates Q_Face values from Q
+			// TODO: Simple projection disabled - ineffective.
+			//  Will implement another approach
+			// c.ProjectEdgeValuesForShockedCells(QQQ, Q_Face, Flux, Flux_Face, ShockSensor)
 		}
 	}
 	return
+}
+
+func (c *Euler) ProjectEdges(Q, Q_Face utils.Matrix, kRange []int) {
+	for _, k := range kRange {
+		var (
+			dfr    = c.DFR
+			NpEdge = dfr.FluxElement.NpEdge
+			efi    = dfr.EdgeSegmentIndex
+		)
+		// fmt.Printf("Kmax = %d, k = %d\nn", KMax, k)
+		// fmt.Printf("QGraph Np/KMax = %d/%d\nn", d1, d2)
+		// There are NpEdge-1 interior points supporting reconstruction of
+		// NpEdge-1 sub-segments on each of the three edges
+		// Here we will use the two adjoining corner segments to construct
+		// the vertex value and we'll average segments to create interior
+		// node values
+
+		// Below in reconstructed efi coordinates:
+		// Nseg = NpE-1,  Nefi = 3Nseg
+		Nseg := NpEdge - 1
+		Nefi := 3 * Nseg
+		if len(efi.InteriorPtsIndex) != Nefi {
+			panic("edge segment point count is not correct")
+		}
+		// Beginning/End Edge Points (0-based), inclusive:
+		// Edge1			Edge2				Edge3
+		// b:0 e:Nseg-1		b:Nseg e:2*Nseg-1	b:2*Nseg e:3*Nseg-1 or e:Nefi-1
+
+		// Below are loop indices in efi coordinates (non-inclusive)
+		// Edge1         Edge2              Edge3
+		// 0->Nseg       Nseg->2Nseg        2Nseg->Nefi
+
+		// NpE == NpEdge, below in GraphMesh coordinates (ranges non-inclusive)
+		// v1,   Edge1,   v2,        Edge2,         v3         Edge3
+		//  0,  1->NpE+1, NpE+1, (NpE+2)->2*NpE+2, 2*NpE+2, 2*NpE+3->3*NpE+3
+		var skSeg int
+		for nEdge := 0; nEdge < 3; nEdge++ { // Each edge
+			offset := NpEdge * nEdge
+			// skSeg = nEdge * Nseg
+			// Beginning point of range, excluding vertex
+			avg := func(F utils.Matrix, sl, sr int) float64 {
+				return (F.At(sl, k) + F.At(sr, k)) / 2.
+			}
+			area_avg := func(F utils.Matrix, sl, sr int) float64 {
+				a_l, a_r := efi.SegmentArea[sl], efi.SegmentArea[sr]
+				a_t := a_l + a_r
+				return (a_l*F.At(sl, k) + a_r*F.At(sr, k)) / a_t
+			}
+			alt_area_avg := func(F utils.Matrix, sl, sr int) float64 {
+				a_l, a_r := efi.SegmentArea[sl], efi.SegmentArea[sr]
+				a_t := a_l + a_r
+				return (a_r*F.At(sl, k) + a_l*F.At(sr, k)) / a_t
+			}
+			_, _, _ = area_avg, avg, alt_area_avg
+			// Left most point
+			sleft := efi.InteriorPtsIndex[skSeg]
+			Q_Face.Set(0+offset, k, Q.At(sleft, k))
+			var sright int
+			for i := 1; i < NpEdge-1; i++ { // Averaging segment values
+				// Interior range
+				sright = efi.InteriorPtsIndex[skSeg+1]
+				// Q_Face.Set(i+offset, k, alt_area_avg(Q, sleft, sright))
+				Q_Face.Set(i+offset, k, area_avg(Q, sleft, sright))
+				// Q_Face.Set(i+offset, k, avg(Q, sleft, sright))
+				sleft = sright
+				skSeg++
+			}
+			// Right most point
+			i := NpEdge - 1
+			Q_Face.Set(i+offset, k, Q.At(sright, k))
+			skSeg++
+		}
+		if skSeg != Nefi {
+			fmt.Printf("skSeg = %d, Nefi = %d\n", skSeg, Nefi)
+			panic("edge segment point count is not correct")
+		}
+		// fmt.Println("skSeg = ", skSeg)
+	}
+}
+
+func (c *Euler) ProjectEdgeValuesForShockedCells(
+	Q, Q_Face [4]utils.Matrix, Flux, Flux_Face [2][4]utils.Matrix,
+	ShockSensor *DG2D.ModeAliasShockFinder) {
+	ShockSensor.UpdateShockedCells(Q[0])
+	cells := ShockSensor.ShockCells.Cells()
+	// Enable for all elements, for testing
+	// _, KMax := Q[0].Dims()
+	// cells = make([]int, KMax)
+	// for k := 0; k < KMax; k++ {
+	// 	cells[k] = k
+	// }
+	for n := 0; n < 4; n++ {
+		c.ProjectEdges(Q[n], Q_Face[n], cells)
+		for nn := 0; nn < 2; nn++ {
+			c.ProjectEdges(Flux[nn][n], Flux_Face[nn][n], cells)
+		}
+	}
 }
 
 func getRKStepNumber(currentStep int) (rkStepNum int) {
@@ -408,7 +517,7 @@ func getRKStepNumber(currentStep int) (rkStepNum int) {
 func (c *Euler) RHSInternalPoints(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4]utils.Matrix) {
 	var (
 		JdetD = Jdet.DataP
-		Nint  = c.dfr.FluxElement.NpInt
+		Nint  = c.DFR.FluxElement.NpInt
 		data  []float64
 	)
 	/*
@@ -425,7 +534,7 @@ func (c *Euler) RHSInternalPoints(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4
 	*/
 	for n := 0; n < 4; n++ { // For each of the 4 equations in [rho, rhoU, rhoV, E]
 		// Unit triangle divergence matrix times the flux projected onto the RT elements: F_RT_DOF => Div(Flux) in (r,s)
-		c.dfr.FluxElement.DivInt.Mul(F_RT_DOF[n], RHSQ[n])
+		c.DFR.FluxElement.DivInt.Mul(F_RT_DOF[n], RHSQ[n])
 		// Multiply each element's divergence by 1/||J|| to go (r,s)->(x,y), and -1 for the RHS
 		data = RHSQ[n].DataP
 		for k := 0; k < Kmax; k++ {
@@ -443,8 +552,8 @@ func (c *Euler) RHSInternalPoints(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4
 
 func (c *Euler) SetRTFluxInternal(Kmax int, Jdet, Jinv utils.Matrix, F_RT_DOF, Q [4]utils.Matrix) {
 	var (
-		Nint   = c.dfr.FluxElement.NpInt
-		NpFlux = c.dfr.FluxElement.Np
+		Nint   = c.DFR.FluxElement.NpInt
+		NpFlux = c.DFR.FluxElement.Np
 		fdofD  = [4][]float64{F_RT_DOF[0].DataP, F_RT_DOF[1].DataP, F_RT_DOF[2].DataP, F_RT_DOF[3].DataP}
 	)
 	/*
@@ -479,8 +588,8 @@ func (c *Euler) InitializeSolution(verbose bool) {
 			c.Q[np] = c.InitializeFS(Kmax)
 		}
 	case SHOCKTUBE:
-		c.SolutionX = c.ShardByK(c.dfr.SolutionX)
-		c.SolutionY = c.ShardByK(c.dfr.SolutionY)
+		c.SolutionX = c.ShardByK(c.DFR.SolutionX)
+		c.SolutionY = c.ShardByK(c.DFR.SolutionY)
 		gamma := 1.4
 		c.FSIn = NewFreestreamFromQinf(gamma, [4]float64{1, 0, 0, 1 / (gamma - 1)})
 		c.FSOut = NewFreestreamFromQinf(gamma, [4]float64{0.125, 0, 0, 0.1 / (gamma - 1)})
@@ -488,7 +597,7 @@ func (c *Euler) InitializeSolution(verbose bool) {
 		for np := 0; np < NP; np++ {
 			var (
 				Kmax = c.Partitions.GetBucketDimension(np)
-				Nint = c.dfr.SolutionElement.Np
+				Nint = c.DFR.SolutionElement.Np
 			)
 			for n := 0; n < 4; n++ {
 				c.Q[np][n] = utils.NewMatrix(Nint, Kmax)
@@ -511,18 +620,18 @@ func (c *Euler) InitializeSolution(verbose bool) {
 			}
 		}
 		// There are 5 points vertically, then we double sample (4 pts per cell) to capture all the dynamics
-		c.ShockTube = sod_shock_tube.NewSODShockTube(4*c.dfr.K/5, c.dfr)
+		c.ShockTube = sod_shock_tube.NewSODShockTube(4*c.DFR.K/5, c.DFR)
 	case IVORTEX:
 		c.FSFar = NewFreestreamFromQinf(1.4, [4]float64{1, 1, 0, 3})
-		c.SolutionX = c.ShardByK(c.dfr.SolutionX)
-		c.SolutionY = c.ShardByK(c.dfr.SolutionY)
+		c.SolutionX = c.ShardByK(c.DFR.SolutionX)
+		c.SolutionY = c.ShardByK(c.DFR.SolutionY)
 		NP := c.Partitions.ParallelDegree
 		for np := 0; np < NP; np++ {
 			c.AnalyticSolution, c.Q[np] = c.InitializeIVortex(c.SolutionX[np], c.SolutionY[np])
 		}
 		// Set "Wall" BCs to IVortex
 		var count int
-		for _, e := range c.dfr.Tris.Edges {
+		for _, e := range c.DFR.Tris.Edges {
 			if e.BCType == types.BC_Wall {
 				count++
 				e.BCType = types.BC_IVortex
@@ -586,16 +695,16 @@ func (c *Euler) PrintUpdate(Time, dt float64, steps int, Q, Residual [][4]utils.
 		lpsum += val
 	}
 	if lpsum != 0 {
-		fmt.Printf(" #limited:%5d/%-8d ", lpsum, c.dfr.K*c.dfr.SolutionElement.Np)
+		fmt.Printf(" #limited:%5d/%-8d ", lpsum, c.DFR.K*c.DFR.SolutionElement.Np)
 	}
 	fmt.Printf("\n")
 }
 
 func (c *Euler) PrintFinal(elapsed time.Duration, steps int) {
-	rate := float64(elapsed.Microseconds()) / (float64(c.dfr.K * steps))
+	rate := float64(elapsed.Microseconds()) / (float64(c.DFR.K * steps))
 	fmt.Printf("\nRate of execution = %8.5f us/(element*iteration) over %d iterations\n", rate, steps)
 	instructionRate := 1344.282 // measured instructions per element per iteration
-	iRate := instructionRate * float64(c.dfr.K*steps) / elapsed.Seconds()
+	iRate := instructionRate * float64(c.DFR.K*steps) / elapsed.Seconds()
 	var mem syscall.Rusage
 	_ = syscall.Getrusage(syscall.RUSAGE_SELF, &mem)
 	usec, ssec := float64(mem.Utime.Nano())/1.e9, float64(mem.Stime.Nano())/1.e9
@@ -627,7 +736,7 @@ func (c *Euler) GetSolutionGradientUsingRTElement(myThread, varNum int, Q [4]uti
 			All others should be NpFlux x Kmax
 	*/
 	var (
-		dfr          = c.dfr
+		dfr          = c.DFR
 		NpInt        = dfr.FluxElement.NpInt
 		NpEdge       = dfr.FluxElement.NpEdge
 		KmaxGlobal   = c.Partitions.MaxIndex
@@ -683,7 +792,7 @@ func (c *Euler) GetSolutionGradient(myThread, varNum int, Q [4]utils.Matrix, Gra
 			All others should be NpFlux x Kmax
 	*/
 	var (
-		dfr    = c.dfr
+		dfr    = c.DFR
 		NpFlux = dfr.FluxElement.Np
 		Kmax   = c.Partitions.GetBucketDimension(myThread)
 	)
@@ -718,7 +827,7 @@ func (c *Euler) CalculateLocalDT(DT utils.Matrix, myThread int) {
 		}
 	}
 	// Set the DT of all interior points of each element to the element DT
-	for i := 1; i < c.dfr.SolutionElement.Np; i++ {
+	for i := 1; i < c.DFR.SolutionElement.Np; i++ {
 		for k := 0; k < Kmax; k++ {
 			ind := k + Kmax*i
 			DT.DataP[ind] = DT.DataP[k]

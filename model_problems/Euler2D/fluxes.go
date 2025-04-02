@@ -135,7 +135,7 @@ func (c *Euler) FluxJacobianCalc(rho, rhoU, rhoV, E float64) (Fx, Gy [16]float64
 func (c *Euler) AvgFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux [][4]float64) {
 	var (
-		Nedge = c.dfr.FluxElement.NpEdge
+		Nedge = c.DFR.FluxElement.NpEdge
 	)
 	averageFluxN := func(fx1, fy1, fx2, fy2 [4]float64, normal [2]float64) (fnorm [4]float64) {
 		var (
@@ -161,7 +161,7 @@ func (c *Euler) AvgFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 func (c *Euler) LaxFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux [][4]float64) {
 	var (
-		Nedge                                  = c.dfr.FluxElement.NpEdge
+		Nedge                                  = c.DFR.FluxElement.NpEdge
 		EL, rhoL, rhoUL, rhoVL, uL, vL, pL, CL float64
 		ER, rhoR, rhoUR, rhoVR, uR, vR, pR, CR float64
 		nx, ny                                 = normal[0], normal[1]
@@ -193,7 +193,7 @@ func (c *Euler) LaxFlux2(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 	Q_FaceL, Q_FaceR [4]utils.Matrix, Flux_FaceL, Flux_FaceR [2][4]utils.Matrix,
 	normal [2]float64, normalFlux [][4]float64) {
 	var (
-		Nedge                          = c.dfr.FluxElement.NpEdge
+		Nedge                          = c.DFR.FluxElement.NpEdge
 		rhoL, rhoUL, rhoVL, uL, vL, CL float64
 		rhoR, rhoUR, rhoVR, uR, vR, CR float64
 		nx, ny                         = normal[0], normal[1]
@@ -221,7 +221,7 @@ func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux [][4]float64) {
 	// fmt.Printf("here 1\n")
 	var (
-		Nedge            = c.dfr.FluxElement.NpEdge
+		Nedge            = c.DFR.FluxElement.NpEdge
 		rhoL, uL, vL, pL float64
 		rhoR, uR, vR, pR float64
 		hL, hR           float64
@@ -333,7 +333,7 @@ func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 func (c *Euler) RoeERFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux [][4]float64) {
 	var (
-		Nedge                          = c.dfr.FluxElement.NpEdge
+		Nedge                          = c.DFR.FluxElement.NpEdge
 		rhoL, uL, vL, pL, EL, HL, UL   float64
 		rhoR, uR, vR, pR, ER, HR, UR   float64
 		dU, dP, dRho, dRhoU, dRhoV, dE float64
@@ -425,7 +425,7 @@ func (c *Euler) RoeFlux2(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 	normal [2]float64, normalFlux [][4]float64) {
 	// fmt.Printf("here 2\n")
 	var (
-		Nedge            = c.dfr.FluxElement.NpEdge
+		Nedge            = c.DFR.FluxElement.NpEdge
 		rhoL, uL, vL, pL float64
 		rhoR, uR, vR, pR float64
 		hL, hR           float64

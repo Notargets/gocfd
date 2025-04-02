@@ -302,7 +302,7 @@ func (sd *ScalarDissipation) AddDissipation(c *Euler, myThread int, Jinv, Jdet u
 					IInII = IInIId[fInd]
 					shift = NpEdge * edgeNum
 				)
-				edgeFlux, sign := c.EdgeStore.GetEdgeValues(GradientFluxForLaplacian, myThread, k, n, edgeNum, c.dfr)
+				edgeFlux, sign := c.EdgeStore.GetEdgeValues(GradientFluxForLaplacian, myThread, k, n, edgeNum, c.DFR)
 				var ii int
 				for i := 0; i < NpEdge; i++ {
 					ind := k + (2*NpInt+i+shift)*Kmax
@@ -412,7 +412,7 @@ func (sd *ScalarDissipation) CalculateElementViscosity(myThread int, Qall [][4]u
 	/*
 		Eps0 wants to be (h/p) and is supposed to be proportional to cell width
 		Something like this for the "h" quantity seems right
-			Np1  = c.dfr.N + 1
+			Np1  = c.DFR.N + 1
 			Np12 = float64(Np1 * Np1)
 			edgeLen     = e.GetEdgeLength()
 			fs := 0.5 * Np12 * edgeLen / Jdet[bn].DataP[k]

@@ -13,9 +13,9 @@ import (
 
 func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field utils.Matrix) {
 	var (
-		Kmax       = c.dfr.K
-		Np         = c.dfr.SolutionElement.Np
-		NpFlux     = c.dfr.FluxElement.Np
+		Kmax       = c.DFR.K
+		Np         = c.DFR.SolutionElement.Np
+		NpFlux     = c.DFR.FluxElement.Np
 		fld        utils.Matrix
 		skipInterp bool
 	)
@@ -33,7 +33,7 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 		if c.Limiter != nil {
 			sf = c.Limiter.ShockFinder[0]
 		} else {
-			sf = c.dfr.NewAliasShockFinder(2)
+			sf = c.DFR.NewAliasShockFinder(2)
 		}
 		fld = utils.NewMatrix(Np, Kmax)
 		fldD := fld.DataP
@@ -77,7 +77,7 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 		skipInterp = true
 	}
 	if !skipInterp {
-		field = c.dfr.GraphInterp.Mul(fld)
+		field = c.DFR.GraphInterp.Mul(fld)
 		c.GetFirstOrderEdgeProjection_ForGraphing(fld, &field)
 		field = field.Transpose()
 	}
@@ -87,7 +87,7 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 func (c *Euler) SerializeBCs() (BCXY map[string][][]float32) {
 	// We output the XY coordinates of boundary conditions
 	var (
-		bcEdges = c.dfr.BCEdges
+		bcEdges = c.DFR.BCEdges
 	)
 	BCXY = make(map[string][][]float32)
 	for _, name := range bcEdges.ListNames() {
@@ -102,12 +102,12 @@ func (c *Euler) SerializeBCs() (BCXY map[string][][]float32) {
 				if i == 0 || v1 != vLast {
 					ii++
 					BCXY[name] = append(BCXY[name], make([]float32, 1))
-					BCXY[name][ii] = append(BCXY[name][ii], float32(c.dfr.VX.DataP[v1]))
-					BCXY[name][ii] = append(BCXY[name][ii], float32(c.dfr.VY.DataP[v1]))
+					BCXY[name][ii] = append(BCXY[name][ii], float32(c.DFR.VX.DataP[v1]))
+					BCXY[name][ii] = append(BCXY[name][ii], float32(c.DFR.VY.DataP[v1]))
 					vLast = v1
 				}
-				BCXY[name][ii] = append(BCXY[name][ii], float32(c.dfr.VX.DataP[v2]))
-				BCXY[name][ii] = append(BCXY[name][ii], float32(c.dfr.VY.DataP[v2]))
+				BCXY[name][ii] = append(BCXY[name][ii], float32(c.DFR.VX.DataP[v2]))
+				BCXY[name][ii] = append(BCXY[name][ii], float32(c.DFR.VY.DataP[v2]))
 				vLast = v2
 			}
 		}
@@ -119,7 +119,7 @@ func (c *Euler) AppendBCsToMeshFile(fileName string) {
 	var (
 		err     error
 		file    *os.File
-		bcEdges = c.dfr.BCEdges
+		bcEdges = c.DFR.BCEdges
 	)
 	file, err = os.OpenFile(fileName, 0, os.ModeAppend)
 	if err != nil {
@@ -136,8 +136,8 @@ func (c *Euler) AppendBCsToMeshFile(fileName string) {
 		}
 	}
 	binary.Write(file, binary.LittleEndian, nBCs)
-	X := c.dfr.VX
-	Y := c.dfr.VY
+	X := c.DFR.VX
+	Y := c.DFR.VY
 	var x1, y1, x2, y2 float32
 	for _, name := range bcEdges.ListNames() {
 		bName := types.BCTAG(name)
@@ -165,7 +165,7 @@ func (c *Euler) AppendBCsToMeshFile(fileName string) {
 func (c *Euler) GetFirstOrderEdgeProjection_ForGraphing(QField utils.Matrix,
 	QGraph *utils.Matrix) {
 	var (
-		dfr         = c.dfr
+		dfr         = c.DFR
 		NpInt, KMax = QField.Dims()
 		NpEdge      = dfr.FluxElement.NpEdge
 		NpGraph     = 3*(1+NpEdge) + NpInt

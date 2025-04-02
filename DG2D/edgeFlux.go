@@ -3,12 +3,15 @@ package DG2D
 import (
 	"fmt"
 	"math"
+
+	"github.com/notargets/avs/geometry"
 )
 
 type EdgeSegmentFluxIndex struct {
 	InteriorPtsIndex []int     // The interior point supporting each segment
 	SegmentArea      []float64 // The area for each segment in R,S space
-	edgeTris         [][3]int  // used for debugging
+	EdgeTris         [][3]int  // used for debugging
+	gmRT             geometry.TriMesh
 }
 
 func (dfr *DFR2D) GetEdgeSegmentFluxIndex() (efi *EdgeSegmentFluxIndex) {
@@ -28,11 +31,15 @@ func (dfr *DFR2D) GetEdgeSegmentFluxIndex() (efi *EdgeSegmentFluxIndex) {
 	// The two "outside" flux edge points adjoining the triangle corners for
 	// each of the three edges have only one supporting segment,
 	// so they don't use an area average weighting.
-	efi = &EdgeSegmentFluxIndex{
-		InteriorPtsIndex: make([]int, 3*(dfr.FluxElement.NpEdge-1)),
-		SegmentArea:      make([]float64, 3*(dfr.FluxElement.NpEdge-1)),
+	if dfr.EdgeSegmentIndex == nil {
+		dfr.EdgeSegmentIndex = &EdgeSegmentFluxIndex{
+			InteriorPtsIndex: make([]int, 3*(dfr.FluxElement.NpEdge-1)),
+			SegmentArea:      make([]float64, 3*(dfr.FluxElement.NpEdge-1)),
+			gmRT:             dfr.TriangulateRTElement(),
+		}
 	}
-	gmRT := dfr.TriangulateRTElement()
+	efi = dfr.EdgeSegmentIndex
+	gmRT := efi.gmRT
 
 	Np_RTBoundary := 3 * (1 + dfr.FluxElement.NpEdge)
 
@@ -112,7 +119,7 @@ func (dfr *DFR2D) GetEdgeSegmentFluxIndex() (efi *EdgeSegmentFluxIndex) {
 		return
 	}
 	// Compose the segment supporting tris
-	// var edgeTris [][3]int
+	// var EdgeTris [][3]int
 	var (
 		sk           int
 		RFlux, SFlux = dfr.FluxElement.R.DataP, dfr.FluxElement.S.DataP
@@ -120,13 +127,13 @@ func (dfr *DFR2D) GetEdgeSegmentFluxIndex() (efi *EdgeSegmentFluxIndex) {
 	for _, tris := range triMap {
 		for _, tri := range tris {
 			// fmt.Println("Tri: ", tri)
-			efi.edgeTris = append(efi.edgeTris, tri)
+			dfr.EdgeSegmentIndex.EdgeTris = append(dfr.EdgeSegmentIndex.EdgeTris, tri)
 			var areaPts [2]int
 			var areaPtNum int
 			for i := 0; i < 3; i++ {
 				if tri[i] >= Np_RTBoundary {
 					// This is the support point - convert to interior index
-					efi.InteriorPtsIndex[sk] = tri[i] - Np_RTBoundary
+					dfr.EdgeSegmentIndex.InteriorPtsIndex[sk] = tri[i] - Np_RTBoundary
 				} else {
 					areaPts[areaPtNum] = convEdgePtIndex(tri[i])
 					// NpEdge := dfr.FluxElement.NpEdge
@@ -143,7 +150,7 @@ func (dfr *DFR2D) GetEdgeSegmentFluxIndex() (efi *EdgeSegmentFluxIndex) {
 			}
 			a1, a2 := areaPts[0], areaPts[1]
 			r1, s1, r2, s2 := RFlux[a1], SFlux[a1], RFlux[a2], SFlux[a2]
-			efi.SegmentArea[sk] = lineLength(r1, s1, r2, s2)
+			dfr.EdgeSegmentIndex.SegmentArea[sk] = lineLength(r1, s1, r2, s2)
 			sk++
 		}
 	}

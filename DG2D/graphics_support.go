@@ -7,6 +7,8 @@ import (
 	"math"
 	"os"
 
+	"github.com/notargets/avs/assets"
+
 	"github.com/notargets/avs/chart2d"
 	utils2 "github.com/notargets/avs/utils"
 
@@ -318,7 +320,7 @@ func ReadMesh(filename string) (md MeshMetadata, gm geometry.TriMesh,
 	return
 }
 
-func addCrossHairs(xy []float32, col color.RGBA, lines map[color.RGBA][]float32) {
+func AddCrossHairs(xy []float32, col color.RGBA, lines map[color.RGBA][]float32) {
 	var (
 		lenXY = len(xy) / 2
 		size  = float32(0.02)
@@ -332,7 +334,15 @@ func addCrossHairs(xy []float32, col color.RGBA, lines map[color.RGBA][]float32)
 	}
 }
 
-func PlotLines(lines map[color.RGBA][]float32) {
+type RenderText struct {
+	Color color.RGBA
+	Text  string
+	Pitch uint32
+	X, Y  float32
+}
+
+func PlotLinesAndText(lines map[color.RGBA][]float32,
+	text []RenderText) {
 	var (
 		xMin, xMax = float32(math.MaxFloat32), -float32(math.MaxFloat32)
 		yMin, yMax = float32(math.MaxFloat32), -float32(math.MaxFloat32)
@@ -345,6 +355,12 @@ func PlotLines(lines map[color.RGBA][]float32) {
 	// Create a vector field including the three vertices
 	for col, line := range lines {
 		ch.AddLine(line, col)
+	}
+	for _, txt := range text {
+		tf := assets.NewTextFormatter("NotoSans",
+			"Regular", txt.Pitch,
+			txt.Color, true, false)
+		ch.Printf(tf, txt.X, txt.Y, "%s", txt.Text)
 	}
 	for {
 	}

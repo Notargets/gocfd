@@ -17,7 +17,7 @@ func TestPlotEdgeTriangulation(t *testing.T) {
 	}
 	dfr := NewDFR2D(N, false,
 		"test_data/test_10tris_centered.neu")
-	efi := dfr.GetEdgeSegmentFluxIndex()
+	efi := dfr.EdgeSegmentIndex
 
 	fmt.Println("2*NpInt, NpEdge: ", 2*dfr.FluxElement.NpInt, dfr.FluxElement.NpEdge)
 	fmt.Println("Segment Indices: ", efi.InteriorPtsIndex)
@@ -35,7 +35,7 @@ func TestPlotEdgeTriangulation(t *testing.T) {
 			gmRT.XY[2*i], gmRT.XY[2*i+1],
 			gmRT.XY[2*ip], gmRT.XY[2*ip+1])
 	}
-	for _, tri := range efi.edgeTris {
+	for _, tri := range efi.EdgeTris {
 		i1, i2, i3 := tri[0], tri[1], tri[2]
 		lines[utils2.WHITE] = append(lines[utils2.WHITE],
 			gmRT.XY[2*i1], gmRT.XY[2*i1+1],
@@ -45,11 +45,19 @@ func TestPlotEdgeTriangulation(t *testing.T) {
 			gmRT.XY[2*i3], gmRT.XY[2*i3+1],
 			gmRT.XY[2*i1], gmRT.XY[2*i1+1])
 	}
+	var text []RenderText
 	var xyCross []float32
 	for i := 0; i < dfr.SolutionElement.Np; i++ {
 		x, y := dfr.SolutionElement.R.DataP[i], dfr.SolutionElement.S.DataP[i]
 		xyCross = append(xyCross, float32(x), float32(y))
+		text = append(text, RenderText{
+			Color: utils2.WHITE,
+			Text:  fmt.Sprintf("%.2f,%.2f", x, y),
+			Pitch: 18,
+			X:     float32(x),
+			Y:     float32(y),
+		})
 	}
-	addCrossHairs(xyCross, utils2.GREEN, lines)
-	PlotLines(lines)
+	AddCrossHairs(xyCross, utils2.GREEN, lines)
+	PlotLinesAndText(lines, text)
 }

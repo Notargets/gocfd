@@ -57,12 +57,12 @@ const (
 
 func (c *Euler) NewEdgeStorage() (nf *EdgeValueStorage) {
 	var (
-		NumEdges = len(c.dfr.Tris.Edges)
+		NumEdges = len(c.DFR.Tris.Edges)
 	)
 	nf = &EdgeValueStorage{
 		StorageIndex: make(map[types.EdgeKey]int),
 		PMap:         c.Partitions,
-		Nedge:        c.dfr.FluxElement.NpEdge,
+		Nedge:        c.DFR.FluxElement.NpEdge,
 		Fluxes:       make([][4]utils.Matrix, int(GradientFluxForLaplacian)+1),
 	}
 	// Allocate memory for fluxes
@@ -119,22 +119,22 @@ func (nf *EdgeValueStorage) PutEdgeValues(en types.EdgeKey, valType ValueType, E
 
 func (c *Euler) GetFaceNormal(kGlobal, edgeNumber int) (normal [2]float64) {
 	var (
-		KmaxGlobal = c.dfr.K
+		KmaxGlobal = c.DFR.K
 		faceInd    = kGlobal + KmaxGlobal*edgeNumber
 	)
-	normal = [2]float64{c.dfr.FaceNorm[0].DataP[faceInd], c.dfr.FaceNorm[1].DataP[faceInd]}
+	normal = [2]float64{c.DFR.FaceNorm[0].DataP[faceInd], c.DFR.FaceNorm[1].DataP[faceInd]}
 	return
 }
 
 func (c *Euler) StoreGradientEdgeFlux(edgeKeys EdgeKeySlice, EdgeQ1 [][4]float64) {
 	var (
-		Nedge                    = c.dfr.FluxElement.NpEdge
+		Nedge                    = c.DFR.FluxElement.NpEdge
 		gradientFluxForLaplacian = EdgeQ1
 		pm                       = c.Partitions
-		Nint                     = c.dfr.FluxElement.NpInt
+		Nint                     = c.DFR.FluxElement.NpInt
 	)
 	for _, en := range edgeKeys {
-		e := c.dfr.Tris.Edges[en]
+		e := c.DFR.Tris.Edges[en]
 		var (
 			kLGlobal             = int(e.ConnectedTris[0])
 			kL, KmaxL, myThreadL = pm.GetLocalK(int(e.ConnectedTris[0]))
@@ -179,13 +179,13 @@ func (c *Euler) StoreGradientEdgeFlux(edgeKeys EdgeKeySlice, EdgeQ1 [][4]float64
 func (c *Euler) CalculateEdgeFlux(Time float64, CalculateDT bool, Jdet, DT []utils.Matrix, Q_Face [][4]utils.Matrix,
 	Flux_Face [][2][4]utils.Matrix, edgeKeys EdgeKeySlice, EdgeQ1, EdgeQ2 [][4]float64) (waveSpeedMax float64) {
 	var (
-		Nedge                 = c.dfr.FluxElement.NpEdge
+		Nedge                 = c.DFR.FluxElement.NpEdge
 		numericalFluxForEuler = EdgeQ1
 		qFluxForGradient      = EdgeQ2
 		pm                    = c.Partitions
 	)
 	for _, en := range edgeKeys {
-		e := c.dfr.Tris.Edges[en]
+		e := c.DFR.Tris.Edges[en]
 		var (
 			kLGlobal             = int(e.ConnectedTris[0])
 			kL, KmaxL, myThreadL = pm.GetLocalK(int(e.ConnectedTris[0]))
@@ -238,7 +238,7 @@ func (c *Euler) calculateLocalDT(e *DG2D.Edge, Nedge int,
 		pm                = c.Partitions
 		edgeNum           = int(e.ConnectedTriEdgeNumber[0])
 		k, Kmax, myThread = pm.GetLocalK(int(e.ConnectedTris[0]))
-		Np1               = c.dfr.N + 1
+		Np1               = c.DFR.N + 1
 		Np12              = float64(Np1 * Np1)
 		shift             = edgeNum * Nedge
 		edgeLen           = e.GetEdgeLength()
@@ -339,16 +339,16 @@ func (c *Euler) calculateNonSharedEdgeFlux(e *DG2D.Edge, Nedge int, Time float64
 
 func (c *Euler) SetRTFluxOnEdges(myThread, Kmax int, F_RT_DOF [4]utils.Matrix) {
 	var (
-		dfr        = c.dfr
+		dfr        = c.DFR
 		Nedge      = dfr.FluxElement.NpEdge
 		Nint       = dfr.FluxElement.NpInt
-		KmaxGlobal = c.dfr.K
+		KmaxGlobal = c.DFR.K
 	)
 	for k := 0; k < Kmax; k++ {
 		kGlobal := c.Partitions.GetGlobalK(k, myThread)
 		for edgeNum := 0; edgeNum < 3; edgeNum++ {
 			shift := edgeNum * Nedge
-			// nFlux, sign := c.EdgeStore.GetEdgeNormalFlux(kGlobal, edgeNum, dfr)
+			// nFlux, sign := c.EdgeStore.GetEdgeNormalFlux(kGlobal, edgeNum, DFR)
 			ind2 := kGlobal + KmaxGlobal*edgeNum
 			IInII := dfr.IInII.DataP[ind2]
 			for n := 0; n < 4; n++ {
@@ -374,13 +374,13 @@ func (c *Euler) InterpolateSolutionToEdges(Q, Q_Face [4]utils.Matrix, Flux, Flux
 	)
 	// Interpolate from solution points to edges using precomputed interpolation matrix
 	for n := 0; n < 4; n++ {
-		c.dfr.FluxEdgeInterp.Mul(Q[n], Q_Face[n])
+		c.DFR.FluxEdgeInterp.Mul(Q[n], Q_Face[n])
 	}
 	// Calculate Flux for interior points
 	for k := 0; k < Kmax; k++ {
 		for i := 0; i < NpInt; i++ {
 			// for i := range Q[0].DataP {
-			// for i := 0; i < c.dfr.SolutionElement.Np*Kmax; i++ {
+			// for i := 0; i < c.DFR.SolutionElement.Np*Kmax; i++ {
 			ind := k + Kmax*i
 			Fx, Fy := c.CalculateFlux(Q, ind)
 			for n := 0; n < 4; n++ {
@@ -391,45 +391,8 @@ func (c *Euler) InterpolateSolutionToEdges(Q, Q_Face [4]utils.Matrix, Flux, Flux
 	}
 	// Interpolate Flux to the edges
 	for n := 0; n < 4; n++ {
-		c.dfr.FluxEdgeInterp.Mul(Flux[0][n], Flux_Face[0][n])
-		c.dfr.FluxEdgeInterp.Mul(Flux[1][n], Flux_Face[1][n])
-	}
-	return
-}
-
-// TODO: This method is where we calculate the normal flux on all RT edges using
-// TODO: the divergence of the internal solution values. We multiply the
-// TODO: scalar flux values by the inverse of the matrix of divergence of
-// TODO: RT basis functions, which provides the constants of the RT divergence
-// TODO: field, which at the edge points is equal to the value of the vector
-// TODO: normal flux there. We use this to solve the Riemann problem at the
-// TODO: edges.
-func (c *Euler) GetNormalFluxFromDivergence(Q, Q_Face [4]utils.Matrix, Flux,
-	Flux_Face [2][4]utils.Matrix) {
-	var (
-		NpInt, Kmax = Q[0].Dims()
-	)
-	// Interpolate from solution points to edges using precomputed interpolation matrix
-	for n := 0; n < 4; n++ {
-		c.dfr.FluxEdgeInterp.Mul(Q[n], Q_Face[n])
-	}
-	// Calculate Flux for interior points
-	for k := 0; k < Kmax; k++ {
-		for i := 0; i < NpInt; i++ {
-			// for i := range Q[0].DataP {
-			// for i := 0; i < c.dfr.SolutionElement.Np*Kmax; i++ {
-			ind := k + Kmax*i
-			Fx, Fy := c.CalculateFlux(Q, ind)
-			for n := 0; n < 4; n++ {
-				Flux[0][n].DataP[ind] = Fx[n]
-				Flux[1][n].DataP[ind] = Fy[n]
-			}
-		}
-	}
-	// Interpolate Flux to the edges
-	for n := 0; n < 4; n++ {
-		c.dfr.FluxEdgeInterp.Mul(Flux[0][n], Flux_Face[0][n])
-		c.dfr.FluxEdgeInterp.Mul(Flux[1][n], Flux_Face[1][n])
+		c.DFR.FluxEdgeInterp.Mul(Flux[0][n], Flux_Face[0][n])
+		c.DFR.FluxEdgeInterp.Mul(Flux[1][n], Flux_Face[1][n])
 	}
 	return
 }

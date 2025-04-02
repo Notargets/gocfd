@@ -10,7 +10,7 @@ import (
 
 func (c *Euler) WallBC(k, Kmax int, Q_Face [4]utils.Matrix, ishift int, normal [2]float64, normalFlux [][4]float64) {
 	var (
-		Nedge = c.dfr.FluxElement.NpEdge
+		Nedge = c.DFR.FluxElement.NpEdge
 	)
 	for i := 0; i < Nedge; i++ {
 		ind := k + (i+ishift)*Kmax
@@ -24,13 +24,13 @@ func (c *Euler) WallBC(k, Kmax int, Q_Face [4]utils.Matrix, ishift int, normal [
 
 func (c *Euler) IVortexBC(Time float64, k, Kmax, ishift int, Q_Face [4]utils.Matrix, normal [2]float64) {
 	var (
-		Nedge   = c.dfr.FluxElement.NpEdge
-		Nint    = c.dfr.FluxElement.NpInt
+		Nedge   = c.DFR.FluxElement.NpEdge
+		Nint    = c.DFR.FluxElement.NpInt
 		qfD     = [4][]float64{Q_Face[0].DataP, Q_Face[1].DataP, Q_Face[2].DataP, Q_Face[3].DataP}
 		riemann = true
 	)
 	// Set the flow variables to the exact solution
-	X, Y := c.dfr.FluxX.DataP, c.dfr.FluxY.DataP
+	X, Y := c.DFR.FluxX.DataP, c.DFR.FluxY.DataP
 	for i := 0; i < Nedge; i++ {
 		iL := i + ishift
 		indFlux := k + (2*Nint+iL)*Kmax
@@ -53,7 +53,7 @@ func (c *Euler) IVortexBC(Time float64, k, Kmax, ishift int, Q_Face [4]utils.Mat
 
 func (c *Euler) FarBC(FS *FreeStream, k, Kmax, ishift int, Q_Face [4]utils.Matrix, normal [2]float64) {
 	var (
-		Nedge = c.dfr.FluxElement.NpEdge
+		Nedge = c.DFR.FluxElement.NpEdge
 		qfD   = [4][]float64{Q_Face[0].DataP, Q_Face[1].DataP, Q_Face[2].DataP, Q_Face[3].DataP}
 	)
 	for i := 0; i < Nedge; i++ {
@@ -98,7 +98,7 @@ func (c *Euler) RiemannBC(FS *FreeStream, k, Kmax, i int, QQ [4][]float64, QInf 
 		Rint := VnormInt + 2.*CInt*OOGM1
 		Vnorm := 0.5 * (Rint + Rinf)
 		C := 0.25 * GM1 * (Rint - Rinf)
-		//fmt.Printf("normal = %8.5f,%8.5f\n", normal[0], normal[1])
+		// fmt.Printf("normal = %8.5f,%8.5f\n", normal[0], normal[1])
 		switch {
 		case VnormInt < 0: // Inflow, entropy and tangent velocity from Qinf
 			Vtang = tangent[0]*uInf + tangent[1]*vInf
@@ -109,7 +109,7 @@ func (c *Euler) RiemannBC(FS *FreeStream, k, Kmax, i int, QQ [4][]float64, QInf 
 		}
 		u := Vnorm*normal[0] + Vtang*tangent[0]
 		v := Vnorm*normal[1] + Vtang*tangent[1]
-		//fmt.Printf("uInt,vInt=%8.5f,%8.5f u,v=%8.5f,%8.5f\n", uInt, vInt, u, v)
+		// fmt.Printf("uInt,vInt=%8.5f,%8.5f u,v=%8.5f,%8.5f\n", uInt, vInt, u, v)
 		rho := math.Pow(C*C/(Gamma*Beta), OOGM1)
 		p := Beta * math.Pow(rho, Gamma)
 		Q[0] = rho

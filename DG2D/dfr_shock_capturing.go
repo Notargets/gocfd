@@ -45,6 +45,9 @@ func (sf *ModeAliasShockFinder) UpdateShockedCells(Rho utils.Matrix) {
 	var (
 		_, KMax = Rho.Dims()
 	)
+	if sf.ShockCells == nil {
+		sf.ShockCells = NewShockedCells(KMax)
+	}
 	sf.ShockCells.Reset()
 	for k := 0; k < KMax; k++ {
 		scratch := sf.Qalt.DataP
@@ -66,12 +69,11 @@ func (dfr *DFR2D) NewAliasShockFinder(Kappa float64) (sf *ModeAliasShockFinder) 
 		N       = element.N
 	)
 	sf = &ModeAliasShockFinder{
-		Element:    element,
-		Np:         Np,
-		Q:          utils.NewMatrix(Np, 1),
-		Qalt:       utils.NewMatrix(Np, 1),
-		Kappa:      Kappa,
-		ShockCells: NewShockedCells(dfr.K),
+		Element: element,
+		Np:      Np,
+		Q:       utils.NewMatrix(Np, 1),
+		Qalt:    utils.NewMatrix(Np, 1),
+		Kappa:   Kappa,
 	}
 	/*
 		The "Clipper" matrix drops the last mode from the polynomial and forms an alternative field of values at the node
@@ -109,6 +111,7 @@ func (dfr *DFR2D) CutoffFilter2D(N, NCutoff int, frac float64) (diag utils.Matri
 }
 
 func (sf *ModeAliasShockFinder) ElementHasShock(q []float64) (i bool) {
+	// if sf.ShockIndicator(q) > 0.01 {
 	if sf.ShockIndicator(q) > 0.0075 {
 		i = true
 	}

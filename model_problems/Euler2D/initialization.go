@@ -49,7 +49,7 @@ func NewInitType(label string) (it InitType) {
 
 func (c *Euler) InitializeFS(Kmax int) (Q [4]utils.Matrix) {
 	var (
-		Np = c.dfr.SolutionElement.Np
+		Np = c.DFR.SolutionElement.Np
 	)
 	Q[0] = utils.NewMatrix(Np, Kmax).AddScalar(c.FSFar.Qinf[0])
 	Q[1] = utils.NewMatrix(Np, Kmax).AddScalar(c.FSFar.Qinf[1])

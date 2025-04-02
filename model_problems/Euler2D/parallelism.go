@@ -23,7 +23,7 @@ func (c *Euler) ShardByK(A utils.Matrix) (pA []utils.Matrix) {
 		for k := kMin; k < kMax; k++ {
 			pk := k - kMin
 			for i := 0; i < Imax; i++ {
-				ind := k + i*c.dfr.K
+				ind := k + i*c.DFR.K
 				pind := pk + Kmax*i
 				pAD[pind] = aD[ind]
 			}
@@ -47,7 +47,7 @@ func (c *Euler) ShardByKTranspose(A utils.Matrix) (pA []utils.Matrix) {
 		for k := kMin; k < kMax; k++ {
 			pk := k - kMin
 			for i := 0; i < Imax; i++ {
-				// ind := k + i*c.dfr.K
+				// ind := k + i*c.DFR.K
 				// pind := pk + Kmax*i
 				ind := i + k*Imax
 				pind := i + pk*Imax
@@ -64,7 +64,7 @@ func (c *Euler) RecombineShardsK(pA []utils.Matrix, A *utils.Matrix) {
 		Imax, _ = pA[0].Dims()
 	)
 	if A.IsEmpty() {
-		*A = utils.NewMatrix(Imax, c.dfr.K)
+		*A = utils.NewMatrix(Imax, c.DFR.K)
 	}
 	aD := A.DataP
 	for np := 0; np < NP; np++ {
@@ -74,7 +74,7 @@ func (c *Euler) RecombineShardsK(pA []utils.Matrix, A *utils.Matrix) {
 		for k := kMin; k < kMax; k++ {
 			pk := k - kMin
 			for i := 0; i < Imax; i++ {
-				ind := k + i*c.dfr.K
+				ind := k + i*c.DFR.K
 				pind := pk + Kmax*i
 				aD[ind] = pAD[pind]
 			}
@@ -125,7 +125,7 @@ func (c *Euler) PartitionEdges() {
 		SharedEdges, BCEdges, PhantomEdges EdgeKeySlice
 	)
 	// First, separate edges into 3 groups
-	for en, e := range c.dfr.Tris.Edges {
+	for en, e := range c.DFR.Tris.Edges {
 		switch e.NumConnectedTris {
 		case 0:
 			PhantomEdges = append(PhantomEdges, en)
@@ -183,7 +183,7 @@ func (c *Euler) PartitionEdgesByK() {
 	)
 	c.SortedEdgeKeys = make([]EdgeKeySlice, NPar)
 	// First, separate edges into 3 groups
-	for en, e := range c.dfr.Tris.Edges {
+	for en, e := range c.DFR.Tris.Edges {
 		bn, _, _ := pm.GetBucket(int(e.ConnectedTris[0]))
 		c.SortedEdgeKeys[bn] = append(c.SortedEdgeKeys[bn], en)
 	}
