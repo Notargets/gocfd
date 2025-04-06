@@ -8,6 +8,101 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
+func SwitchToEntropyVariables(Q [4]utils.Matrix, gamma float64) {
+	/*
+		Let:
+		  ρ   = density
+		  v₁, v₂ = velocity components
+		  v²  = v₁² + v₂²
+		  E   = total energy
+		  p   = pressure
+		  T   = temperature
+		  s   = entropy = ln(p / ρ^γ)
+		  γ   = ratio of specific heats
+
+		Then the entropy variables 𝒘 ∈ ℝ⁴ are:
+		          ┌                                       ┐
+		          │ (γ - s)/(γ - 1) - v²/(2T)             │
+		𝒘 =       │ v₁ / T                                │
+		          │ v₂ / T                                │
+		          │ -1 / T                                │
+		          └                                       ┘
+	*/
+	var (
+		Qp0   = Q[0].DataP
+		Qp1   = Q[1].DataP
+		Qp2   = Q[2].DataP
+		Qp3   = Q[3].DataP
+		gm1   = gamma - 1.
+		oogm1 = 1. / gm1
+	)
+	for i := range Qp0 {
+		rho, rhoU, rhoV, rhoE := Qp0[i], Qp1[i], Qp2[i], Qp3[i]
+		u, v := rhoU/rho, rhoV/rho
+		v2 := u*u + v*v
+		p := gm1 * (rhoE - 0.5*rho*v2)
+		ooT := rho / p
+		s := math.Log(p / (math.Pow(rho, gamma)))
+		Qp0[i] = (gamma-s)*oogm1 - 0.5*v2*ooT
+		Qp1[i] = u * ooT
+		Qp2[i] = v * ooT
+		Qp3[i] = -ooT
+	}
+}
+
+func SwitchToConservedVariables(W [4]utils.Matrix, gamma float64) {
+	/*
+		Given entropy variables:
+
+		          ┌                    ┐
+		          │ w₁                 │
+		𝒘 =       │ w₂                 │
+		          │ w₃                 │
+		          │ w₄                 │
+		          └                    ┘
+
+		Then compute:
+		  T   = -1 / w₄                         (Temperature)
+		  v₁  = w₂ / T                          (Velocity component 1)
+		  v₂  = w₃ / T                          (Velocity component 2)
+		  v²  = v₁² + v₂²                       (Velocity magnitude squared)
+
+		  ρ   = exp( (γ - 1)/γ ⋅ (w₁ - v²/(2T)) )
+		  p   = ρ ⋅ T                           (Ideal gas law)
+		  E   = p/(γ - 1) + ½ ⋅ ρ ⋅ v²          (Total energy)
+
+		Conserved variables:
+		          ┌                     ┐
+		          │ ρ                   │
+		𝒖 =       │ ρ ⋅ v₁              │
+		          │ ρ ⋅ v₂              │
+		          │ E                   │
+		          └                     ┘
+	*/
+	var (
+		Wp0    = W[0].DataP
+		Wp1    = W[1].DataP
+		Wp2    = W[2].DataP
+		Wp3    = W[3].DataP
+		gm1    = gamma - 1.
+		oogm1  = 1. / gm1
+		gm1ogm = gm1 / gamma
+	)
+	for i := range Wp0 {
+		w1, w2, w3, w4 := Wp0[i], Wp1[i], Wp2[i], Wp3[i]
+		T := -1. / w4
+		ooT := 1. / T
+		u, v := w2*ooT, w3*ooT
+		v2 := u*u + v*v
+		rho := math.Exp(gm1ogm * (w1 - 0.5*v2*ooT))
+		p := rho * T
+		Wp0[i] = rho
+		Wp1[i] = rho * u
+		Wp2[i] = rho * v
+		Wp3[i] = p*oogm1 + 0.5*rho*v2
+	}
+}
+
 type FlowFunction int16
 
 // Map to store pre-tokenized names
@@ -125,7 +220,7 @@ const (
 	XVelocity            // 10
 	YVelocity            // 11
 	Enthalpy             // 12
-	Entropy              //13
+	Entropy              // 13
 	ShockFunction        = 100
 	EpsilonDissipation   = 101
 	EpsilonDissipationC0 = 102

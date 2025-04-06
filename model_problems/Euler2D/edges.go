@@ -368,31 +368,23 @@ func (c *Euler) SetRTFluxOnEdges(myThread, Kmax int, F_RT_DOF [4]utils.Matrix) {
 	}
 }
 
-func (c *Euler) InterpolateSolutionToEdges(Q, Q_Face [4]utils.Matrix, Flux, Flux_Face [2][4]utils.Matrix) {
-	var (
-		NpInt, Kmax = Q[0].Dims()
-	)
+func (c *Euler) InterpolateSolutionToEdges(Q, Q_Face [4]utils.Matrix) {
 	// Interpolate from solution points to edges using precomputed interpolation matrix
 	for n := 0; n < 4; n++ {
 		c.DFR.FluxEdgeInterp.Mul(Q[n], Q_Face[n])
 	}
-	// Calculate Flux for interior points
-	for k := 0; k < Kmax; k++ {
-		for i := 0; i < NpInt; i++ {
-			// for i := range Q[0].DataP {
-			// for i := 0; i < c.DFR.SolutionElement.Np*Kmax; i++ {
-			ind := k + Kmax*i
-			Fx, Fy := c.CalculateFlux(Q, ind)
-			for n := 0; n < 4; n++ {
-				Flux[0][n].DataP[ind] = Fx[n]
-				Flux[1][n].DataP[ind] = Fy[n]
-			}
-		}
-	}
-	// Interpolate Flux to the edges
+	return
+}
+
+func (c *Euler) InterpolateSolutionToEdgesWithEntropyVariables(Q,
+	Q_Face [4]utils.Matrix) {
+	// Switch to Entropy variables
+	SwitchToEntropyVariables(Q, c.FSFar.Gamma)
+	// Interpolate from solution points to edges using precomputed interpolation matrix
 	for n := 0; n < 4; n++ {
-		c.DFR.FluxEdgeInterp.Mul(Flux[0][n], Flux_Face[0][n])
-		c.DFR.FluxEdgeInterp.Mul(Flux[1][n], Flux_Face[1][n])
+		c.DFR.FluxEdgeInterp.Mul(Q[n], Q_Face[n])
 	}
+	SwitchToConservedVariables(Q, c.FSFar.Gamma)
+	SwitchToConservedVariables(Q_Face, c.FSFar.Gamma)
 	return
 }
