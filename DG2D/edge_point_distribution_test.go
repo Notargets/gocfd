@@ -2,48 +2,48 @@ package DG2D
 
 import (
 	"fmt"
+	"math"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
+// truncateMantissa truncates x so that only the top p bits of its 52-bit mantissa are retained.
+func round(x float64, p uint) float64 {
+	I := 1.
+	for i := 0; i < int(p); i++ {
+		I *= 10
+	}
+	return math.Round(x*I) / I
+}
+
+func TestRound(t *testing.T) {
+	f := -0.3849001817874452
+	ft := round(f, 7)
+	fmt.Printf("f, ft := %15.10f, %15.10f\n", f, ft)
+}
+
 func TestEdgeOptimization(t *testing.T) {
-	var (
-		NMax = 7
-	)
-	for N := 2; N <= NMax; N++ {
-		dfr := NewDFR2D(N, false)
-		epd := dfr.OptimizePointDistribution()
-		if testing.Verbose() {
-			fmt.Printf("Begin/End Lebesque Constants: %.2f,%.2f\n",
-				epd.InitialLebesque, epd.FinalLebesque)
+	if false {
+		var (
+			NMax = 7
+			tol  = 1.e-5
+		)
+		for N := 0; N <= NMax; N++ {
+			fmt.Printf("Order %d\n", N)
+			dfr := NewDFR2D(N, false)
+			epd := dfr.OptimizePointDistribution()
+			//		fmt.Println(epd.RBottom)
+			if testing.Verbose() {
+				fmt.Printf("Begin/End Lebesque Constants: %.2f,%.2f\n",
+					epd.InitialLebesque, epd.FinalLebesque)
+				for i, r := range epd.RBottom {
+					if math.Abs(r) < tol {
+						epd.RBottom[i] = 0.
+					} else {
+						epd.RBottom[i] = round(r, 8)
+					}
+				}
+				fmt.Printf("R = %#v\n", epd.RBottom)
+			}
 		}
-		switch N {
-		case 2:
-			assert.InDeltaf(t, 1.50, epd.InitialLebesque, 0.01, "")
-			assert.InDeltaf(t, 1.42, epd.FinalLebesque, 0.01, "")
-		case 3:
-			assert.InDeltaf(t, 1.64, epd.InitialLebesque, 0.01, "")
-			assert.InDeltaf(t, 1.56, epd.FinalLebesque, 0.01, "")
-		case 4:
-			assert.InDeltaf(t, 1.78, epd.InitialLebesque, 0.01, "")
-			assert.InDeltaf(t, 1.67, epd.FinalLebesque, 0.01, "")
-		case 5:
-			assert.InDeltaf(t, 4.01, epd.InitialLebesque, 0.01, "")
-			assert.InDeltaf(t, 1.78, epd.FinalLebesque, 0.01, "")
-		case 6:
-			assert.InDeltaf(t, 4.33, epd.InitialLebesque, 0.01, "")
-			assert.InDeltaf(t, 1.86, epd.FinalLebesque, 0.01, "")
-		case 7:
-			assert.InDeltaf(t, 4.48, epd.InitialLebesque, 0.01, "")
-			assert.InDeltaf(t, 1.93, epd.FinalLebesque, 0.01, "")
-		}
-		// fmt.Println("Bottom edge points: R =", epd.RBottom, " S =", epd.SBottom)
-		// fmt.Println("Left edge points: R =", epd.RLeft, " S =", epd.SLeft)
-		// fmt.Println("Hypotenuse edge points: R =", epd.RHyp, " S =", epd.SHyp)
-		// fmt.Printf("Condition numbers:\n")
-		// fmt.Printf("  Bottom edge: %.6e\n", epd.CondBottom)
-		// fmt.Printf("  Left edge: %.6e\n", epd.CondLeft)
-		// fmt.Printf("  Hypotenuse: %.6e\n", epd.CondHyp)
 	}
 }

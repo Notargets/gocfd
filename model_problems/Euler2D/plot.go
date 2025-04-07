@@ -78,7 +78,7 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 	}
 	if !skipInterp {
 		field = c.DFR.GraphInterp.Mul(fld)
-		c.GetFirstOrderEdgeProjection_ForGraphing(fld, &field)
+		// c.GetFirstOrderEdgeProjection_ForGraphing(fld, &field)
 		field = field.Transpose()
 	}
 	return

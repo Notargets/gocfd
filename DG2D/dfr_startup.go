@@ -70,7 +70,7 @@ func NewDFR2D(N int, verbose bool, meshFileO ...string) (dfr *DFR2D) {
 	// dfr.FluxEdgeInterp = dfr.SolutionBasis.GetModInterpMatrix(RFlux, SFlux, Nu, p, 1) // Interpolation matrix across three edges
 	// dfr.FilterMod = dfr.SolutionBasis.GetModInterpMatrix(dfr.SolutionElement.R, dfr.SolutionElement.S, Nu, p, 1)
 	dfr.FluxDr, dfr.FluxDs = le.GetDerivativeMatrices(rt.R, rt.S)
-	dfr.EdgeSegmentIndex = dfr.GetEdgeSegmentFluxIndex()
+	// dfr.EdgeSegmentIndex = dfr.GetEdgeSegmentFluxIndex()
 	if len(meshFileO) != 0 {
 		var EToV utils.Matrix
 		t := getFileTypeFromExtension(meshFileO[0])

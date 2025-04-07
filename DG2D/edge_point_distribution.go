@@ -3,6 +3,8 @@ package DG2D
 import (
 	"fmt"
 	"math"
+	"math/rand"
+	"sort"
 
 	"github.com/notargets/gocfd/utils"
 
@@ -26,55 +28,40 @@ func (dfr *DFR2D) OptimizePointDistribution() (epd *EdgePointDistribution) {
 		PInterpolation: dfr.SolutionBasis.P,
 		NpEdge:         dfr.FluxElement.NpEdge,
 	}
-	NpTotal := dfr.FluxElement.NpEdge
-	if NpTotal < 3 {
-		fmt.Println("Not enough points to fix endpoints.")
-		return
-	}
-	// Optimize only the interior points.
-	nInterior := NpTotal - 2
 
-	// fmt.Printf("Optimizing point distribution for %d edge points (%d interior points)\n",
+	// IMPORTANT: NpEdge is already the count of interior points only,
+	// so we don't need to subtract 2 for the endpoints
+	nInterior := dfr.FluxElement.NpEdge
+
+	// For display purposes, we add 2 to account for endpoints when showing total points
+	NpTotal := nInterior + 2
+
+	// fmt.Printf("Optimizing point distribution for %d total edge points (%d interior points) - ENHANCED VERSION\n",
 	// 	NpTotal, nInterior)
 
-	// Try different initial configurations:
-	// 1. Start with LGL points if available (best for minimizing Gibbs oscillations)
-	// 2. Fall back to Chebyshev points (second best)
-	// 3. Finally use linear spacing as a last resort
+	// Use multiple starting distributions for better global search
+	initialDistributions := generateInitialDistributions(nInterior)
 
-	var initialInterior []float64
-	// Start with Legendre-Gauss-Lobatto points if available (optimal for oscillation control)
-	if NpTotal <= 10 {
-		lglPoints := legendreGaussLobattoPoints(NpTotal)
-		initialInterior = make([]float64, nInterior)
-		copy(initialInterior, lglPoints[1:nInterior+1])
-		// fmt.Println("Using Legendre-Gauss-Lobatto points as initial guess")
-	} else {
-		// Use Chebyshev points for higher orders (still good for oscillation control)
-		chebPoints := chebyshevPoints(NpTotal)
-		initialInterior = make([]float64, nInterior)
-		copy(initialInterior, chebPoints[1:nInterior+1])
-		fmt.Println("Using Chebyshev points as initial guess")
-	}
-
-	// Compute Lebesgue constant of initial distribution
+	// Compute Lebesgue constant of best initial distribution
 	fullInitial := make([]float64, NpTotal)
 	fullInitial[0] = -1
-	copy(fullInitial[1:1+nInterior], initialInterior)
+	copy(fullInitial[1:1+nInterior], initialDistributions[0]) // Use first distribution for reporting
 	fullInitial[NpTotal-1] = 1
-	initialLebConst := lebesgueConstant(fullInitial)
-	// fmt.Printf("Initial distribution Lebesgue constant: %.6f\n", initialLebConst)
+
+	// Calculate Lebesgue constant excluding endpoints if they're not used
+	initialLebConst := lebesgueConstantInteriorOnly(fullInitial)
+	// fmt.Printf("Initial distribution Lebesgue constant (interior only): %.6f\n", initialLebConst)
 	epd.InitialLebesque = initialLebConst
 
-	// Optimize each edge.
+	// Optimize each edge using multi-start global optimization
 	// fmt.Println("Optimizing bottom edge...")
-	optInteriorBottom := optimizeEdge(dfr, initialInterior, edgeBottom)
+	optInteriorBottom := optimizeEdgeGlobal(dfr, initialDistributions, edgeBottom)
 
 	// fmt.Println("Optimizing left edge...")
-	optInteriorLeft := optimizeEdge(dfr, initialInterior, edgeLeft)
+	optInteriorLeft := optimizeEdgeGlobal(dfr, initialDistributions, edgeLeft)
 
 	// fmt.Println("Optimizing hypotenuse edge...")
-	optInteriorHyp := optimizeEdge(dfr, initialInterior, edgeHypotenuse)
+	optInteriorHyp := optimizeEdgeGlobal(dfr, initialDistributions, edgeHypotenuse)
 
 	// Reconstruct full free-parameter vectors with fixed endpoints.
 	fullBottom := make([]float64, NpTotal)
@@ -94,29 +81,118 @@ func (dfr *DFR2D) OptimizePointDistribution() (epd *EdgePointDistribution) {
 		fullHyp[i+1] = v
 	}
 
-	// Calculate final Lebesgue constants
-	bottomLebConst := lebesgueConstant(fullBottom)
-	// leftLebConst := lebesgueConstant(fullLeft)
-	// hypLebConst := lebesgueConstant(fullHyp)
+	// Calculate final Lebesgue constants (interior only)
+	bottomLebConst := lebesgueConstantInteriorOnly(fullBottom)
+	// leftLebConst := lebesgueConstantInteriorOnly(fullLeft)
+	// hypLebConst := lebesgueConstantInteriorOnly(fullHyp)
 	epd.FinalLebesque = bottomLebConst
 
-	// fmt.Printf("Final Lebesgue constants - Bottom: %.6f, Left: %.6f, Hypotenuse: %.6f\n",
+	// fmt.Printf("Final Lebesgue constants (interior only) - Bottom: %.6f, Left: %.6f, Hypotenuse: %.6f\n",
 	// 	bottomLebConst, leftLebConst, hypLebConst)
 
-	// Output the full optimized free-parameter vectors.
-	// fmt.Println("Optimized bottom edge (free R values):", fullBottom)
-	// fmt.Println("Optimized left edge (free S values):", fullLeft)
-	// fmt.Println("Optimized hypotenuse edge (free parameters):", fullHyp)
+	// Output the optimized interior points
+	// fmt.Println("Optimized bottom edge interior points:", fullBottom[1:len(fullBottom)-1])
+	// fmt.Println("Optimized left edge interior points:", fullLeft[1:len(fullLeft)-1])
+	// fmt.Println("Optimized hypotenuse edge interior points:", fullHyp[1:len(fullHyp)-1])
 
 	// Map the free-parameter vectors to full (R,S) pairs.
 	epd.RBottom, epd.SBottom = edgeBottom(fullBottom)
 	epd.RLeft, epd.SLeft = edgeLeft(fullLeft)
 	epd.RHyp, epd.SHyp = edgeHypotenuse(fullHyp)
 
+	trim := func(r, s *[]float64) {
+		var l = len(*r)
+		*r, *s = (*r)[1:l-1], (*s)[1:l-1]
+		return
+	}
+	trim(&epd.RBottom, &epd.SBottom)
+	trim(&epd.RLeft, &epd.SLeft)
+	trim(&epd.RHyp, &epd.SHyp)
+
 	epd.CondBottom, epd.CondLeft, epd.CondHyp =
 		dfr.checkConditionNumbers(fullBottom, fullLeft, fullHyp)
 
 	return
+}
+
+// Generate multiple initial distributions for better global optimization
+func generateInitialDistributions(nInterior int) [][]float64 {
+	var distributions [][]float64
+
+	// Add handling for Order 0 (0 interior points)
+	if nInterior == 0 {
+		// For Order 0, there are no interior points to optimize
+		return [][]float64{{}}
+	}
+
+	// 1. LGL points (usually best for minimizing oscillations)
+	lglPoints := legendreGaussLobattoPoints(nInterior + 2)
+	lglInterior := make([]float64, nInterior)
+	copy(lglInterior, lglPoints[1:nInterior+1])
+	distributions = append(distributions, lglInterior)
+
+	// 2. Chebyshev points (also good for oscillation control)
+	chebPoints := chebyshevPoints(nInterior + 2)
+	chebInterior := make([]float64, nInterior)
+	copy(chebInterior, chebPoints[1:nInterior+1])
+	distributions = append(distributions, chebInterior)
+
+	// 3. Equidistant points
+	equiPoints := make([]float64, nInterior)
+	for i := 0; i < nInterior; i++ {
+		equiPoints[i] = -1.0 + 2.0*float64(i+1)/float64(nInterior+1)
+	}
+	distributions = append(distributions, equiPoints)
+
+	// 4. Random perturbations of LGL points (helps escape local minima)
+	const perturbationCount = 5
+	const perturbScale = 0.1
+	rand.Seed(42) // For reproducibility
+
+	for i := 0; i < perturbationCount; i++ {
+		perturbed := make([]float64, nInterior)
+		copy(perturbed, lglInterior)
+
+		// Add random perturbations
+		for j := range perturbed {
+			// Random perturbation scaled by position (smaller near edges)
+			perturbation := (rand.Float64()*2 - 1) * perturbScale * (1 - perturbed[j]*perturbed[j])
+			perturbed[j] += perturbation
+		}
+
+		// Sort to maintain ordering
+		sort.Float64s(perturbed)
+
+		// Ensure points are strictly in (-1, 1) and properly spaced
+		if nInterior > 0 {
+			minSpacing := 0.01
+			perturbed[0] = math.Max(perturbed[0], -0.99)
+			for j := 1; j < nInterior; j++ {
+				perturbed[j] = math.Max(perturbed[j], perturbed[j-1]+minSpacing)
+			}
+			perturbed[nInterior-1] = math.Min(perturbed[nInterior-1], 0.99)
+			for j := nInterior - 2; j >= 0; j-- {
+				perturbed[j] = math.Min(perturbed[j], perturbed[j+1]-minSpacing)
+			}
+		}
+
+		distributions = append(distributions, perturbed)
+	}
+
+	// 5. For certain orders, add known good distributions
+	if nInterior == 1 {
+		// For P=1 (1 interior point), optimal is at 0
+		distributions = append(distributions, []float64{0.0})
+	} else if nInterior == 2 {
+		// For P=2 (2 interior points), try specific values
+		distributions = append(distributions, []float64{-0.5, 0.5})
+		distributions = append(distributions, []float64{-0.4472, 0.4472})
+	} else if nInterior == 3 {
+		// For P=3 (3 interior points)
+		distributions = append(distributions, []float64{-0.6546, 0.0, 0.6546})
+	}
+
+	return distributions
 }
 
 // checkConditionNumbers computes and reports the condition numbers for each edge
@@ -203,6 +279,79 @@ func lebesgueConstant(points []float64) float64 {
 	return maxLebesgue
 }
 
+// lebesgueConstantInteriorOnly computes the Lebesgue constant excluding the endpoints
+// This is more appropriate when endpoint nodes won't be used
+func lebesgueConstantInteriorOnly(points []float64) float64 {
+	n := len(points)
+	if n < 2 {
+		return 0.0
+	}
+
+	// Only consider interior points (exclude -1 and 1)
+	interiorPoints := points[1 : n-1]
+	if len(interiorPoints) == 0 {
+		return 0.0
+	}
+
+	// Use higher resolution sampling
+	const numEval = 10000
+	maxLebesgue := 0.0
+
+	// Evaluate more densely on the domain excluding small regions near endpoints
+	for i := 0; i < numEval; i++ {
+		x := -0.999 + 1.998*float64(i)/float64(numEval-1)
+		sum := 0.0
+
+		// Sum of Lagrange basis polynomials for interior points
+		for j := 0; j < len(interiorPoints); j++ {
+			// Compute the Lagrange basis polynomial
+			basis := 1.0
+			// Include endpoints in the denominator calculation
+			for k := 0; k < n; k++ {
+				if points[k] != interiorPoints[j] {
+					basis *= (x - points[k]) / (interiorPoints[j] - points[k])
+				}
+			}
+			sum += math.Abs(basis)
+		}
+
+		if sum > maxLebesgue {
+			maxLebesgue = sum
+		}
+	}
+
+	// Additional focused sampling near interior points where Lebesgue function often peaks
+	for _, p := range interiorPoints {
+		// Sample 100 points in small neighborhoods around each interior point
+		for i := 0; i < 100; i++ {
+			offset := (float64(i) - 50.0) / 500.0 // ±0.1 range
+			x := p + offset
+
+			// Skip if out of domain
+			if x <= -1.0 || x >= 1.0 {
+				continue
+			}
+
+			sum := 0.0
+			for j := 0; j < len(interiorPoints); j++ {
+				basis := 1.0
+				for k := 0; k < n; k++ {
+					if points[k] != interiorPoints[j] {
+						basis *= (x - points[k]) / (interiorPoints[j] - points[k])
+					}
+				}
+				sum += math.Abs(basis)
+			}
+
+			if sum > maxLebesgue {
+				maxLebesgue = sum
+			}
+		}
+	}
+
+	return maxLebesgue
+}
+
 func optimizeFunc(y []float64, dfr *DFR2D, edgeFunc func([]float64) (R, S []float64)) float64 {
 	nInterior := len(y)
 
@@ -226,10 +375,10 @@ func optimizeFunc(y []float64, dfr *DFR2D, edgeFunc func([]float64) (R, S []floa
 	}
 
 	// Compute the Lebesgue constant for this distribution - this is our primary objective
-	lebConst := lebesgueConstant(fullX)
+	// Use the interior-only version since endpoints won't be used
+	lebConst := lebesgueConstantInteriorOnly(fullX)
 
 	// Return just the Lebesgue constant as our objective
-	// We'll separately evaluate and report condition numbers but not use them for optimization
 	return lebConst
 }
 
@@ -309,6 +458,22 @@ func legendreGaussLobattoPoints(n int) []float64 {
 		return []float64{-1, -math.Sqrt(1.0/3.0 + a), -math.Sqrt(1.0/3.0 - a),
 			math.Sqrt(1.0/3.0 - a), math.Sqrt(1.0/3.0 + a), 1}
 	}
+	if n == 7 {
+		// More accurate p=6 LGL points
+		return []float64{-1, -0.830224, -0.468849, 0, 0.468849, 0.830224, 1}
+	}
+	if n == 8 {
+		// More accurate p=7 LGL points
+		return []float64{-1, -0.871740, -0.591700, -0.209300, 0.209300, 0.591700, 0.871740, 1}
+	}
+	if n == 9 {
+		// More accurate p=8 LGL points
+		return []float64{-1, -0.899758, -0.677186, -0.363117, 0, 0.363117, 0.677186, 0.899758, 1}
+	}
+	if n == 10 {
+		// More accurate p=9 LGL points
+		return []float64{-1, -0.919534, -0.738774, -0.477925, -0.165279, 0.165279, 0.477925, 0.738774, 0.919534, 1}
+	}
 
 	// For higher orders, use a good initial guess based on Chebyshev points
 	points := make([]float64, n)
@@ -324,10 +489,67 @@ func legendreGaussLobattoPoints(n int) []float64 {
 	return points
 }
 
-// optimizeEdge performs the optimization for a given edge. Since the
-// endpoints are fixed, we optimize only the interior points. We transform
-// initial interior values from x-space to y-space via atanh.
-func optimizeEdge(dfr *DFR2D, initialInterior []float64, edgeFunc func([]float64) (R, S []float64)) []float64 {
+// optimizeEdgeGlobal performs multi-start global optimization for a given edge
+func optimizeEdgeGlobal(dfr *DFR2D, initialDistributions [][]float64, edgeFunc func([]float64) (R, S []float64)) []float64 {
+	nInterior := dfr.FluxElement.NpEdge
+
+	// Handle the case where there are no interior points to optimize (Order 0)
+	if nInterior == 0 {
+		return []float64{}
+	}
+
+	bestLebConst := math.Inf(1)
+	var bestResult []float64
+
+	for idx, initialInterior := range initialDistributions {
+		// Run standard optimization from this starting point
+		result := optimizeEdge(dfr, initialInterior, edgeFunc, idx)
+
+		// Evaluate the Lebesgue constant
+		n := len(initialInterior)
+		fullResult := make([]float64, n+2)
+		fullResult[0] = -1
+		copy(fullResult[1:n+1], result)
+		fullResult[n+1] = 1
+
+		lebConst := lebesgueConstantInteriorOnly(fullResult)
+
+		// Keep track of the best result
+		if lebConst < bestLebConst {
+			bestLebConst = lebConst
+			bestResult = make([]float64, len(result))
+			copy(bestResult, result)
+			// fmt.Printf("  New best from start %d - Lebesgue: %.6f\n", idx, lebConst)
+		}
+	}
+
+	// Try additional fine-tuning optimization if needed
+	if len(bestResult) > 0 && len(bestResult) <= 3 {
+		// For small number of points, try exhaustive search
+		refined := refineLowOrderPoints(dfr, bestResult, edgeFunc, bestLebConst)
+
+		// Check if refinement improved the result
+		n := len(refined)
+		fullRefined := make([]float64, n+2)
+		fullRefined[0] = -1
+		copy(fullRefined[1:n+1], refined)
+		fullRefined[n+1] = 1
+
+		refinedLebConst := lebesgueConstantInteriorOnly(fullRefined)
+
+		if refinedLebConst < bestLebConst {
+			bestLebConst = refinedLebConst
+			bestResult = refined
+			// fmt.Printf("  Refined result - Lebesgue: %.6f\n", refinedLebConst)
+		}
+	}
+
+	// fmt.Printf("  Final best Lebesgue constant: %.6f\n", bestLebConst)
+	return bestResult
+}
+
+// optimizeEdge performs the optimization for a given edge from a specific starting point
+func optimizeEdge(dfr *DFR2D, initialInterior []float64, edgeFunc func([]float64) (R, S []float64), startIdx int) []float64 {
 	n := len(initialInterior)
 	initialY := make([]float64, n)
 	for i, xi := range initialInterior {
@@ -336,22 +558,12 @@ func optimizeEdge(dfr *DFR2D, initialInterior []float64, edgeFunc func([]float64
 		initialY[i] = math.Atanh(safeX)
 	}
 
-	// First, evaluate the condition number of the initial distribution
+	// Calculate initial Lebesgue constant
 	fullInitial := make([]float64, n+2)
 	fullInitial[0] = -1
 	copy(fullInitial[1:n+1], initialInterior)
 	fullInitial[n+1] = 1
-
-	// Calculate initial Lebesgue constant
-	initLebConst := lebesgueConstant(fullInitial)
-
-	// Calculate initial condition number
-	// R, S := edgeFunc(fullInitial)
-	// Rm, Sm := utils.NewVector(len(R), R), utils.NewVector(len(S), S)
-	// A := dfr.SolutionBasis.GetInterpMatrix(Rm, Sm)
-	// initCond := conditionNumber(A.M)
-
-	// fmt.Printf("  Initial distribution - Lebesgue: %.6f, Condition: %.6e\n", initLebConst, initCond)
+	initLebConst := lebesgueConstantInteriorOnly(fullInitial)
 
 	problem := optimize.Problem{
 		Func: func(y []float64) float64 {
@@ -359,47 +571,53 @@ func optimizeEdge(dfr *DFR2D, initialInterior []float64, edgeFunc func([]float64
 		},
 	}
 
+	// Use more aggressive optimization settings
 	settings := optimize.Settings{
-		MajorIterations:   1000, // Increase max iterations
-		GradientThreshold: 1e-6, // Tighter convergence criteria
+		MajorIterations:   2000, // Increase max iterations
+		GradientThreshold: 1e-8, // Tighter convergence criteria
 		Concurrent:        4,    // Use multiple goroutines if possible
+		InitValues:        nil,  // Initialize from y
 	}
 
-	result, err := optimize.Minimize(problem, initialY, &settings, nil)
-	if err != nil {
-		fmt.Println("  Optimization error:", err)
-		// Try a different starting point with LGL points if optimization fails
-		if n+2 <= 10 { // Use precalculated LGL points for small n
-			lglPoints := legendreGaussLobattoPoints(n + 2)
-			// Extract interior points
-			lglInterior := make([]float64, n)
-			copy(lglInterior, lglPoints[1:n+1])
+	// Try different methods if standard optimization fails
+	var result *optimize.Result
+	var err error
 
-			// Transform to unconstrained space
-			for i, xi := range lglInterior {
-				safeX := math.Max(-0.9999, math.Min(0.9999, xi))
-				initialY[i] = math.Atanh(safeX)
-			}
+	// First attempt - standard optimization
+	result, err = optimize.Minimize(problem, initialY, &settings, nil)
 
-			// Try optimization again
-			result, err = optimize.Minimize(problem, initialY, &settings, nil)
+	// If standard optimization fails or gives poor results, try with different methods
+	if err != nil || result.F > initLebConst {
+		// Try with BFGS method explicitly
+		bfgsMethod := &optimize.BFGS{}
+		result, err = optimize.Minimize(problem, initialY, &settings, bfgsMethod)
 
-			if err != nil {
-				// If still failing, return the LGL points which should be pretty good
-				fmt.Println("  Optimization failed. Using LGL points.")
-				return lglInterior
-			}
-		} else {
-			// Fall back to initial points
-			fmt.Println("  Optimization failed. Using initial points.")
-			return initialInterior
+		// If still failing, try Nelder-Mead (derivative-free)
+		if err != nil || result.F > initLebConst {
+			nelderMeadMethod := &optimize.NelderMead{}
+			result, err = optimize.Minimize(problem, initialY, &settings, nelderMeadMethod)
 		}
 	}
 
-	// Transform the optimized y back to x for the interior.
+	if err != nil {
+		fmt.Printf("  Optimization from start %d failed: %v\n", startIdx, err)
+		return initialInterior
+	}
+
+	// Transform the optimized y back to x for the interior
 	optXInterior := make([]float64, n)
 	for i, yi := range result.X {
 		optXInterior[i] = math.Tanh(yi)
+	}
+
+	// Force strict monotonicity and bounds
+	for i := 0; i < len(optXInterior); i++ {
+		optXInterior[i] = math.Max(-0.9999, math.Min(0.9999, optXInterior[i]))
+	}
+	for i := 1; i < len(optXInterior); i++ {
+		if optXInterior[i] <= optXInterior[i-1] {
+			optXInterior[i] = optXInterior[i-1] + 0.0001
+		}
 	}
 
 	// Check if optimization improved the Lebesgue constant
@@ -407,24 +625,153 @@ func optimizeEdge(dfr *DFR2D, initialInterior []float64, edgeFunc func([]float64
 	fullOptimized[0] = -1
 	copy(fullOptimized[1:n+1], optXInterior)
 	fullOptimized[n+1] = 1
+	optLebConst := lebesgueConstantInteriorOnly(fullOptimized)
 
-	optLebConst := lebesgueConstant(fullOptimized)
-
-	// Calculate optimized condition number
-	// R, S = edgeFunc(fullOptimized)
-	// Rm, Sm = utils.NewVector(len(R), R), utils.NewVector(len(S), S)
-	// A = dfr.SolutionBasis.GetInterpMatrix(Rm, Sm)
-	// optCond := conditionNumber(A.M)
-
-	// fmt.Printf("  Optimized distribution - Lebesgue: %.6f, Condition: %.6e\n", optLebConst, optCond)
-
-	// Accept the optimization results even if condition number is high
-	// as long as we improved the Lebesgue constant
+	// Accept the optimization results as long as we improved the Lebesgue constant
 	if optLebConst > initLebConst*1.01 { // Allow 1% tolerance
-		fmt.Printf("  Optimization increased Lebesgue constant (%.4f -> %.4f). Reverting.\n",
-			initLebConst, optLebConst)
+		// fmt.Printf("  Start %d increased Lebesgue (%.6f -> %.6f). Reverting.\n",
+		// 	startIdx, initLebConst, optLebConst)
 		return initialInterior
 	}
 
+	// fmt.Printf("  Start %d improved Lebesgue (%.6f -> %.6f).\n",
+	// 	startIdx, initLebConst, optLebConst)
 	return optXInterior
+}
+
+// refineLowOrderPoints does a more exhaustive search for low-order cases
+func refineLowOrderPoints(dfr *DFR2D, bestPoints []float64, edgeFunc func([]float64) (R, S []float64), currentBest float64) []float64 {
+	n := len(bestPoints)
+	if n == 0 {
+		return bestPoints
+	}
+
+	// Create a copy to work with
+	result := make([]float64, n)
+	copy(result, bestPoints)
+
+	if n == 1 {
+		// For 1 point, try a fine grid search
+		const steps = 1000
+		bestLebConst := currentBest
+
+		for i := 0; i < steps; i++ {
+			candidate := -0.999 + 1.998*float64(i)/float64(steps-1)
+
+			// Create full point set
+			fullX := []float64{-1, candidate, 1}
+
+			// Calculate Lebesgue constant
+			lebConst := lebesgueConstantInteriorOnly(fullX)
+
+			if lebConst < bestLebConst {
+				bestLebConst = lebConst
+				result[0] = candidate
+				// fmt.Printf("    Grid search improved: %.6f at %.6f\n", lebConst, candidate)
+			}
+		}
+
+		return result
+	} else if n == 2 {
+		// For 2 points, try a coarser 2D grid search
+		const steps = 100
+		bestLebConst := currentBest
+
+		for i := 0; i < steps; i++ {
+			p1 := -0.99 + 0.8*float64(i)/float64(steps-1)
+
+			for j := i + 1; j < steps; j++ {
+				p2 := p1 + 0.01 + 0.98*float64(j-i)/float64(steps-1)
+
+				// Create full point set
+				fullX := []float64{-1, p1, p2, 1}
+
+				// Calculate Lebesgue constant
+				lebConst := lebesgueConstantInteriorOnly(fullX)
+
+				if lebConst < bestLebConst {
+					bestLebConst = lebConst
+					result[0] = p1
+					result[1] = p2
+					// fmt.Printf("    Grid search improved: %.6f at [%.6f, %.6f]\n", lebConst, p1, p2)
+				}
+			}
+		}
+
+		return result
+	} else if n == 3 {
+		// For 3 points, use simulated annealing for a more global search
+		bestLebConst := currentBest
+
+		// Copy initial best points
+		current := make([]float64, n)
+		copy(current, bestPoints)
+
+		// Simulated annealing parameters
+		temperature := 1.0
+		coolingRate := 0.995
+		minTemp := 0.0001
+
+		// Evaluate initial solution
+		fullCurrent := make([]float64, n+2)
+		fullCurrent[0] = -1
+		copy(fullCurrent[1:n+1], current)
+		fullCurrent[n+1] = 1
+		currentLebConst := lebesgueConstantInteriorOnly(fullCurrent)
+
+		rand.Seed(42) // For reproducibility
+		iterations := 10000
+
+		for i := 0; i < iterations && temperature > minTemp; i++ {
+			// Create a neighboring solution with small perturbations
+			neighbor := make([]float64, n)
+			copy(neighbor, current)
+
+			// Apply random perturbation
+			idx := rand.Intn(n)
+			perturbation := (rand.Float64()*2 - 1) * 0.05 * (1 - current[idx]*current[idx])
+			neighbor[idx] += perturbation
+
+			// Ensure ordering and bounds
+			sort.Float64s(neighbor)
+			for j := 0; j < n; j++ {
+				neighbor[j] = math.Max(-0.99, math.Min(0.99, neighbor[j]))
+			}
+
+			// Evaluate neighbor
+			fullNeighbor := make([]float64, n+2)
+			fullNeighbor[0] = -1
+			copy(fullNeighbor[1:n+1], neighbor)
+			fullNeighbor[n+1] = 1
+			neighborLebConst := lebesgueConstantInteriorOnly(fullNeighbor)
+
+			// Decide whether to accept the neighbor
+			acceptProb := 0.0
+			if neighborLebConst < currentLebConst {
+				acceptProb = 1.0
+			} else {
+				// Accept worse solution with decreasing probability as temperature cools
+				acceptProb = math.Exp((currentLebConst - neighborLebConst) / temperature)
+			}
+
+			if rand.Float64() < acceptProb {
+				copy(current, neighbor)
+				currentLebConst = neighborLebConst
+
+				// Update best solution if improved
+				if currentLebConst < bestLebConst {
+					bestLebConst = currentLebConst
+					copy(result, current)
+					// fmt.Printf("    Annealing improved: %.6f\n", bestLebConst)
+				}
+			}
+
+			// Cool the temperature
+			temperature *= coolingRate
+		}
+
+		return result
+	}
+
+	return result
 }
