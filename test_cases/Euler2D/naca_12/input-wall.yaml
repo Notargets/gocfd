@@ -1,22 +1,26 @@
 Title: "Test Case"
-CFL: 2.5
+#CFL: 3.0
+#CFL: 2.5
+CFL: 1.0
 #CFL: 0.5
 #FluxType: average
 #FluxType: Roe-ER
 FluxType: Roe
 #FluxType: Lax
 InitType: Freestream # Can be "Freestream" or "IVortex"
-PolynomialOrder: 2
+PolynomialOrder: 0
 FinalTime: 20
 #Minf: 2.0
 Minf: 0.8
 Gamma: 1.4
-Alpha: 1.5
+Alpha: 5.5
 #Alpha: 0
 LocalTimeStepping: true
 #LocalTimeStepping: false
-MaxIterations: 10000
+MaxIterations: 2000
+#MaxIterations: 10000
 #Limiter: Barth Jesperson
 Limiter: PerssonC0
 #Limiter: ModeFilter
 Kappa: 3
+PlotFields: ["mach"]

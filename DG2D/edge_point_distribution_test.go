@@ -22,15 +22,19 @@ func TestRound(t *testing.T) {
 }
 
 func TestEdgeOptimization(t *testing.T) {
+	// This only needs to be done once and the output placed into the edge
+	// distributions in raviart_thomas_element.go
 	if false {
 		var (
+			NMin = 0
 			NMax = 7
 			tol  = 1.e-5
 		)
-		for N := 0; N <= NMax; N++ {
-			fmt.Printf("Order %d\n", N)
-			dfr := NewDFR2D(N, false)
-			epd := dfr.OptimizePointDistribution()
+		for N := NMin; N <= NMax; N++ {
+			fmt.Printf("RT Order %d\n", N+1)
+			R, S := NodesEpsilon(N)
+			SolutionBasis := NewJacobiBasis2D(N, R, S, 0, 0)
+			epd := OptimizePointDistribution(N, SolutionBasis)
 			//		fmt.Println(epd.RBottom)
 			if testing.Verbose() {
 				fmt.Printf("Begin/End Lebesque Constants: %.2f,%.2f\n",

@@ -37,7 +37,6 @@ type DFR2D struct {
 	IInII                utils.Matrix    // Mag face normal divided by unit triangle face norm mag, Kx3 dimension
 	EdgeNumber           []types.EdgeKey // Edge number for each edge, used to index into edge structures, Kx3 dimension
 	SolutionBasis        *JacobiBasis2D
-	EdgeSegmentIndex     *EdgeSegmentFluxIndex
 }
 
 func NewDFR2D(N int, verbose bool, meshFileO ...string) (dfr *DFR2D) {

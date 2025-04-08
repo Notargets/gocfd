@@ -397,19 +397,18 @@ func (rt *RTElement) ExtendGeomToRT(Rint, Sint utils.Vector) (R, S utils.Vector)
 	case 4:
 		Rdist = []float64{-0.78093647, -0.43143958, 0, 0.43143071, 0.780937}
 	case 5:
-		Rdist = []float64{-0.83155051, -0.55394627, -0.19423772, 0.19420846, 0.55372084, 0.83157178}
+		Rdist = []float64{-0.83155051, -0.55394627, -0.19423772, 0.19420846,
+			0.55372084, 0.83157178}
 	case 6:
-		Rdist = []float64{-0.86736381, -0.64201719, -0.34118457, -8.399e-05, 0.34103526, 0.64187617, 0.86666209}
+		Rdist = []float64{-0.86736381, -0.64201719, -0.34118457, 0,
+			0.34103526, 0.64187617, 0.86666209}
 	case 7:
-		Rdist = []float64{-0.89215475, -0.7065447, -0.45294463, -0.15588555, 0.15590652, 0.45318727, 0.70679979, 0.89196653}
+		Rdist = []float64{-0.89215475, -0.7065447, -0.45294463, -0.15588555,
+			0.15590652, 0.45318727, 0.70679979, 0.89196653}
+	case 8:
+		Rdist = []float64{-0.91090107, -0.755625, -0.5402, -0.28137625,
+			0, 0.28119241, 0.54000096, 0.75548225, 0.91083652}
 	}
-	// fmt.Println("LG = ", DG1D.LegendreZeros(N))
-	// fmt.Println("OPT = ", Rdist)
-	// GQR := utils.NewVector(N+1, DG1D.LegendreZeros(N))
-	// GQR.Print("GQR LG")
-	// GQR = utils.NewVector(N+1, Rdist)
-	// GQR.Print("GQR Opt")
-	// os.Exit(1)
 	GQR := utils.NewVector(N+1, Rdist)
 	/*
 		Double the number of interior points to match each direction of the basis

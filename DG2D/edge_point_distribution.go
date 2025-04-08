@@ -23,15 +23,16 @@ type EdgePointDistribution struct {
 // OptimizePointDistribution runs the optimization for the point distributions
 // along the three edges of the unit triangle. Endpoints are fixed at -1 and 1,
 // and only the interior points are optimized to minimize Gibbs oscillations.
-func (dfr *DFR2D) OptimizePointDistribution() (epd *EdgePointDistribution) {
+func OptimizePointDistribution(P int, SolutionBasis *JacobiBasis2D) (
+	epd *EdgePointDistribution) {
 	epd = &EdgePointDistribution{
-		PInterpolation: dfr.SolutionBasis.P,
-		NpEdge:         dfr.FluxElement.NpEdge,
+		PInterpolation: P,
+		NpEdge:         P + 2,
 	}
 
 	// IMPORTANT: NpEdge is already the count of interior points only,
 	// so we don't need to subtract 2 for the endpoints
-	nInterior := dfr.FluxElement.NpEdge
+	nInterior := epd.NpEdge
 
 	// For display purposes, we add 2 to account for endpoints when showing total points
 	NpTotal := nInterior + 2
@@ -55,13 +56,13 @@ func (dfr *DFR2D) OptimizePointDistribution() (epd *EdgePointDistribution) {
 
 	// Optimize each edge using multi-start global optimization
 	// fmt.Println("Optimizing bottom edge...")
-	optInteriorBottom := optimizeEdgeGlobal(dfr, initialDistributions, edgeBottom)
+	optInteriorBottom := optimizeEdgeGlobal(epd.NpEdge, initialDistributions)
 
 	// fmt.Println("Optimizing left edge...")
-	optInteriorLeft := optimizeEdgeGlobal(dfr, initialDistributions, edgeLeft)
+	optInteriorLeft := optimizeEdgeGlobal(epd.NpEdge, initialDistributions)
 
 	// fmt.Println("Optimizing hypotenuse edge...")
-	optInteriorHyp := optimizeEdgeGlobal(dfr, initialDistributions, edgeHypotenuse)
+	optInteriorHyp := optimizeEdgeGlobal(epd.NpEdge, initialDistributions)
 
 	// Reconstruct full free-parameter vectors with fixed endpoints.
 	fullBottom := make([]float64, NpTotal)
@@ -110,7 +111,7 @@ func (dfr *DFR2D) OptimizePointDistribution() (epd *EdgePointDistribution) {
 	trim(&epd.RHyp, &epd.SHyp)
 
 	epd.CondBottom, epd.CondLeft, epd.CondHyp =
-		dfr.checkConditionNumbers(fullBottom, fullLeft, fullHyp)
+		checkConditionNumbers(SolutionBasis, fullBottom, fullLeft, fullHyp)
 
 	return
 }
@@ -196,7 +197,7 @@ func generateInitialDistributions(nInterior int) [][]float64 {
 }
 
 // checkConditionNumbers computes and reports the condition numbers for each edge
-func (dfr *DFR2D) checkConditionNumbers(fullBottom, fullLeft,
+func checkConditionNumbers(SolutionBasis *JacobiBasis2D, fullBottom, fullLeft,
 	fullHyp []float64) (cBottom, cLeft, cHyp float64) {
 	// Map the distributions to the edges
 	Rbottom, Sbottom := edgeBottom(fullBottom)
@@ -209,9 +210,9 @@ func (dfr *DFR2D) checkConditionNumbers(fullBottom, fullLeft,
 	RmLeft, SmLeft := utils.NewVector(Np, Rleft), utils.NewVector(Np, Sleft)
 	RmHyp, SmHyp := utils.NewVector(Np, Rhyp), utils.NewVector(Np, Shyp)
 
-	ABottom := dfr.SolutionBasis.GetInterpMatrix(RmBottom, SmBottom)
-	ALeft := dfr.SolutionBasis.GetInterpMatrix(RmLeft, SmLeft)
-	AHyp := dfr.SolutionBasis.GetInterpMatrix(RmHyp, SmHyp)
+	ABottom := SolutionBasis.GetInterpMatrix(RmBottom, SmBottom)
+	ALeft := SolutionBasis.GetInterpMatrix(RmLeft, SmLeft)
+	AHyp := SolutionBasis.GetInterpMatrix(RmHyp, SmHyp)
 
 	// Compute condition numbers
 	cBottom = conditionNumber(ABottom.M)
@@ -352,7 +353,7 @@ func lebesgueConstantInteriorOnly(points []float64) float64 {
 	return maxLebesgue
 }
 
-func optimizeFunc(y []float64, dfr *DFR2D, edgeFunc func([]float64) (R, S []float64)) float64 {
+func optimizeFunc(y []float64) float64 {
 	nInterior := len(y)
 
 	// Transform y -> x for the interior points (using a hyperbolic tangent mapping)
@@ -490,8 +491,7 @@ func legendreGaussLobattoPoints(n int) []float64 {
 }
 
 // optimizeEdgeGlobal performs multi-start global optimization for a given edge
-func optimizeEdgeGlobal(dfr *DFR2D, initialDistributions [][]float64, edgeFunc func([]float64) (R, S []float64)) []float64 {
-	nInterior := dfr.FluxElement.NpEdge
+func optimizeEdgeGlobal(nInterior int, initialDistributions [][]float64) []float64 {
 
 	// Handle the case where there are no interior points to optimize (Order 0)
 	if nInterior == 0 {
@@ -503,7 +503,7 @@ func optimizeEdgeGlobal(dfr *DFR2D, initialDistributions [][]float64, edgeFunc f
 
 	for idx, initialInterior := range initialDistributions {
 		// Run standard optimization from this starting point
-		result := optimizeEdge(dfr, initialInterior, edgeFunc, idx)
+		result := optimizeEdge(initialInterior, idx)
 
 		// Evaluate the Lebesgue constant
 		n := len(initialInterior)
@@ -526,7 +526,7 @@ func optimizeEdgeGlobal(dfr *DFR2D, initialDistributions [][]float64, edgeFunc f
 	// Try additional fine-tuning optimization if needed
 	if len(bestResult) > 0 && len(bestResult) <= 3 {
 		// For small number of points, try exhaustive search
-		refined := refineLowOrderPoints(dfr, bestResult, edgeFunc, bestLebConst)
+		refined := refineLowOrderPoints(bestResult, bestLebConst)
 
 		// Check if refinement improved the result
 		n := len(refined)
@@ -549,7 +549,7 @@ func optimizeEdgeGlobal(dfr *DFR2D, initialDistributions [][]float64, edgeFunc f
 }
 
 // optimizeEdge performs the optimization for a given edge from a specific starting point
-func optimizeEdge(dfr *DFR2D, initialInterior []float64, edgeFunc func([]float64) (R, S []float64), startIdx int) []float64 {
+func optimizeEdge(initialInterior []float64, startIdx int) []float64 {
 	n := len(initialInterior)
 	initialY := make([]float64, n)
 	for i, xi := range initialInterior {
@@ -567,7 +567,7 @@ func optimizeEdge(dfr *DFR2D, initialInterior []float64, edgeFunc func([]float64
 
 	problem := optimize.Problem{
 		Func: func(y []float64) float64 {
-			return optimizeFunc(y, dfr, edgeFunc)
+			return optimizeFunc(y)
 		},
 	}
 
@@ -640,7 +640,7 @@ func optimizeEdge(dfr *DFR2D, initialInterior []float64, edgeFunc func([]float64
 }
 
 // refineLowOrderPoints does a more exhaustive search for low-order cases
-func refineLowOrderPoints(dfr *DFR2D, bestPoints []float64, edgeFunc func([]float64) (R, S []float64), currentBest float64) []float64 {
+func refineLowOrderPoints(bestPoints []float64, currentBest float64) []float64 {
 	n := len(bestPoints)
 	if n == 0 {
 		return bestPoints

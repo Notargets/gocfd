@@ -1,15 +1,18 @@
 Title: "Test Case"
-CFL: 2.5
+CFL: 3.0
+#CFL: 2.5
 #CFL: 1.0
 #CFL: 0.5
+#CFL: 0.25
+#CFL: 0.01
 #FluxType: average
 #FluxType: Roe-ER
 FluxType: Roe
 #FluxType: Lax
 InitType: Freestream # Can be "Freestream" or "IVortex"
-PolynomialOrder: 2
+PolynomialOrder: 0
 FinalTime: 20
-Minf: 3.0
+Minf: 5.0
 Gamma: 1.4
 Alpha: 0.
 LocalTimeStepping: true

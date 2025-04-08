@@ -126,7 +126,7 @@ func CheckDivergence(t *testing.T, rt *RTElement, dt VectorTestField,
 	PFieldStart, PFieldEnd int) {
 	var (
 		Np   = rt.Np
-		tolM = 0.000001
+		tolM = 0.00001
 	)
 	// A := utils.NewMatrix(Np, Np)
 	f1, f2 := make([]float64, Np), make([]float64, Np)

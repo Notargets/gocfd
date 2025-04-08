@@ -106,7 +106,7 @@ func NewEuler(ip *InputParameters.InputParameters2D, meshFile string, ProcLimit 
 	c.Limiter = NewSolutionLimiter(lt, c.Kappa, c.DFR, c.Partitions, c.FSFar)
 
 	// Initiate Artificial Dissipation
-	if lt == PerssonC0T {
+	if lt == PerssonC0T && c.DFR.N != 0 {
 		c.Dissipation = NewScalarDissipation(c.Kappa, c.DFR, c.Partitions)
 		//		c.Limiter = NewSolutionLimiter(ModeFilterT, ip.Kappa, c.DFR, c.Partitions, c.FSFar)
 	}
@@ -310,6 +310,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		QQQ                        = [][4]utils.Matrix{Q0, Q1, Q2, Q3, Q4}[rkStep]
 		QQQAll                     = [][][4]utils.Matrix{c.Q, rk.Q1, rk.Q2, rk.Q3, rk.Q4}[rkStep]
 		ShockSensor                = rk.ShockSensor[myThread]
+		Debug                      = false
 	)
 	_ = ShockSensor
 	defer wg.Done()
@@ -317,11 +318,28 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		Inline functions
 	*/
 	rkAdvance := func(rkstep int, QQQ [4]utils.Matrix) {
+		checkFunc := func() {
+			if !Debug {
+				return
+			}
+			utils.IsNan(QQQ)
+			utils.IsNan(F_RT_DOF)
+			utils.IsNan(RHSQ)
+			utils.IsNan(Jinv)
+			utils.IsNan(Jdet)
+			utils.IsNan(Q0)
+			utils.IsNan(Q1)
+			utils.IsNan(Q2)
+			utils.IsNan(Q3)
+			utils.IsNan(Q4)
+			utils.IsNan(DT)
+		}
 		/*
 			SSP54 RK Coefficients from:
 			"A numerical study of diagonally split Runge-Kutta methods for PDEs with discontinuities"
 			Colin B. Macdonald, Sigal Gottlieb and Steven J. Ruuth, 2007
 		*/
+		checkFunc()
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, QQQ) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
@@ -401,103 +419,6 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		}
 	}
 	return
-}
-
-func (c *Euler) ProjectEdges(Q, Q_Face utils.Matrix, kRange []int) {
-	for _, k := range kRange {
-		var (
-			dfr    = c.DFR
-			NpEdge = dfr.FluxElement.NpEdge
-			efi    = dfr.EdgeSegmentIndex
-		)
-		// fmt.Printf("Kmax = %d, k = %d\nn", KMax, k)
-		// fmt.Printf("QGraph Np/KMax = %d/%d\nn", d1, d2)
-		// There are NpEdge-1 interior points supporting reconstruction of
-		// NpEdge-1 sub-segments on each of the three edges
-		// Here we will use the two adjoining corner segments to construct
-		// the vertex value and we'll average segments to create interior
-		// node values
-
-		// Below in reconstructed efi coordinates:
-		// Nseg = NpE-1,  Nefi = 3Nseg
-		Nseg := NpEdge - 1
-		Nefi := 3 * Nseg
-		if len(efi.InteriorPtsIndex) != Nefi {
-			panic("edge segment point count is not correct")
-		}
-		// Beginning/End Edge Points (0-based), inclusive:
-		// Edge1			Edge2				Edge3
-		// b:0 e:Nseg-1		b:Nseg e:2*Nseg-1	b:2*Nseg e:3*Nseg-1 or e:Nefi-1
-
-		// Below are loop indices in efi coordinates (non-inclusive)
-		// Edge1         Edge2              Edge3
-		// 0->Nseg       Nseg->2Nseg        2Nseg->Nefi
-
-		// NpE == NpEdge, below in GraphMesh coordinates (ranges non-inclusive)
-		// v1,   Edge1,   v2,        Edge2,         v3         Edge3
-		//  0,  1->NpE+1, NpE+1, (NpE+2)->2*NpE+2, 2*NpE+2, 2*NpE+3->3*NpE+3
-		var skSeg int
-		for nEdge := 0; nEdge < 3; nEdge++ { // Each edge
-			offset := NpEdge * nEdge
-			// skSeg = nEdge * Nseg
-			// Beginning point of range, excluding vertex
-			avg := func(F utils.Matrix, sl, sr int) float64 {
-				return (F.At(sl, k) + F.At(sr, k)) / 2.
-			}
-			area_avg := func(F utils.Matrix, sl, sr int) float64 {
-				a_l, a_r := efi.SegmentArea[sl], efi.SegmentArea[sr]
-				a_t := a_l + a_r
-				return (a_l*F.At(sl, k) + a_r*F.At(sr, k)) / a_t
-			}
-			alt_area_avg := func(F utils.Matrix, sl, sr int) float64 {
-				a_l, a_r := efi.SegmentArea[sl], efi.SegmentArea[sr]
-				a_t := a_l + a_r
-				return (a_r*F.At(sl, k) + a_l*F.At(sr, k)) / a_t
-			}
-			_, _, _ = area_avg, avg, alt_area_avg
-			// Left most point
-			sleft := efi.InteriorPtsIndex[skSeg]
-			Q_Face.Set(0+offset, k, Q.At(sleft, k))
-			var sright int
-			for i := 1; i < NpEdge-1; i++ { // Averaging segment values
-				// Interior range
-				sright = efi.InteriorPtsIndex[skSeg+1]
-				// Q_Face.Set(i+offset, k, alt_area_avg(Q, sleft, sright))
-				Q_Face.Set(i+offset, k, area_avg(Q, sleft, sright))
-				// Q_Face.Set(i+offset, k, avg(Q, sleft, sright))
-				sleft = sright
-				skSeg++
-			}
-			// Right most point
-			i := NpEdge - 1
-			Q_Face.Set(i+offset, k, Q.At(sright, k))
-			skSeg++
-		}
-		if skSeg != Nefi {
-			fmt.Printf("skSeg = %d, Nefi = %d\n", skSeg, Nefi)
-			panic("edge segment point count is not correct")
-		}
-		// fmt.Println("skSeg = ", skSeg)
-	}
-}
-
-func (c *Euler) ProjectEdgeValuesForShockedCells(
-	Q, Q_Face [4]utils.Matrix, Flux, Flux_Face [2][4]utils.Matrix,
-	ShockSensor *DG2D.ModeAliasShockFinder) {
-	ShockSensor.UpdateShockedCells(Q[0])
-	cells := ShockSensor.ShockCells.Cells()
-	// Enable for all elements, for testing
-	// _, KMax := Q[0].Dims()
-	// cells = make([]int, KMax)
-	// for k := 0; k < KMax; k++ {
-	// 	cells[k] = k
-	// }
-	for n := 0; n < 4; n++ {
-		c.ProjectEdges(Q[n], Q_Face[n], cells)
-		for nn := 0; nn < 2; nn++ {
-			c.ProjectEdges(Flux[nn][n], Flux_Face[nn][n], cells)
-		}
-	}
 }
 
 func getRKStepNumber(currentStep int) (rkStepNum int) {
@@ -803,11 +724,11 @@ func (c *Euler) GetSolutionGradient(myThread, varNum int, Q [4]utils.Matrix, Gra
 
 func (c *Euler) CalculateLocalDT(DT utils.Matrix, myThread int) {
 	var (
-		_, Kmax   = DT.Dims()
-		epsScalar = c.Dissipation.EpsilonScalar[myThread]
+		_, Kmax = DT.Dims()
 	)
 	// Replicate local time step to the other solution points for each k
 	if c.Dissipation != nil {
+		epsScalar := c.Dissipation.EpsilonScalar[myThread]
 		for k := 0; k < Kmax; k++ {
 			// Set each element's DT to CFL/(max_wave_speed)
 			DT.DataP[k] = c.CFL / ((1 + epsScalar[k]) * DT.DataP[k])
