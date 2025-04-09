@@ -478,3 +478,21 @@ func PlotField(field []float64, gm geometry.TriMesh, FMin, FMax float64,
 	for {
 	}
 }
+
+func (dfr *DFR2D) AverageGraphFieldVertices(field utils.Matrix) {
+	// Replace vertices for plotting
+	NpEdge := dfr.FluxElement.NpEdge + 2
+	for k := 0; k < dfr.K; k++ {
+		var iVm int
+		for nEdge := 0; nEdge < 3; nEdge++ {
+			iV := nEdge * (NpEdge - 1)
+			iVp := iV + 1
+			if nEdge == 0 {
+				iVm = 3*(NpEdge-1) - 1
+			} else {
+				iVm = nEdge*(NpEdge-1) - 1
+			}
+			field.Set(iV, k, 0.5*(field.At(iVp, k)+field.At(iVm, k)))
+		}
+	}
+}

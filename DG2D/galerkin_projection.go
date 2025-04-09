@@ -15,7 +15,7 @@ func NewGalerkinProjection(FromBasis, ToBasis *JacobiBasis2D) (gp *GalerkinProje
 	gp = &GalerkinProjection{
 		FromBasis: FromBasis,
 		ToBasis:   ToBasis,
-		Cub:       NewCubature(gp.FromBasis.P),
+		Cub:       NewCubature(FromBasis.P),
 	}
 	gp.InterpFrom = FromBasis.GetInterpMatrix(gp.Cub.R, gp.Cub.S)
 
@@ -72,8 +72,7 @@ func (gp *GalerkinProjection) GetCoefficients(Uh utils.Matrix) (Coeffs []float64
 	return
 }
 
-func (gp *GalerkinProjection) GetProjectedValues(r, s []float64, v *[]float64,
-	Uh utils.Matrix) {
+func (gp *GalerkinProjection) GetProjectedValues(Uh utils.Matrix, r, s []float64, v *[]float64) {
 	if len(*v) != len(s) {
 		panic("value length should match input points length")
 	}
