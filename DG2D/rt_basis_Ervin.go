@@ -72,7 +72,7 @@ func NewErvinRTBasis(P int, R, S utils.Vector) (e *ErvinRTBasis) {
 				return Scale(e4v(r, s), scale)
 			},
 			divergence: func(r, s float64) (div float64) {
-				// eta + eta -1 + eta = 3 eta -1 = 3*(s+1)/2 -1 = (3s+3)/2 -2/2
+				// eta + eta -1 + eta = 3 eta -1 = 3*(S+1)/2 -1 = (3s+3)/2 -2/2
 				// = (3s+1)/2
 				div = e.dconvDrDs() * (3.*s + 1.) / 2.
 				return
@@ -291,8 +291,8 @@ func (e *ErvinRTBasis) getBkPolyTerm(j int) (
 			},
 			Gradient: func(r, s float64) (grad [2]float64) {
 				// grad = [2]float64{
-				// 	e.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s, jj, Dr),
-				// 	e.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s, jj, Ds),
+				// 	e.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(R, S, jj, Dr),
+				// 	e.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(R, S, jj, Ds),
 				// }
 				d1 := e.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s, jj, Dr)
 				d2 := e.InteriorPolyKBasis.GetOrthogonalPolynomialAtJ(r, s, jj, Ds)

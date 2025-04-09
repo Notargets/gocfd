@@ -15,7 +15,7 @@ import (
 		freedom, (N+1) per each of 3 edges on the triangle.
 
 	Inputs:
-		(N)(N+2)/2 [r,s] points from the interior of the [-1,1] triangle
+		(N)(N+2)/2 [R,S] points from the interior of the [-1,1] triangle
 
 	Outputs:
 		[R,S]: Coordinates of points within element
@@ -24,12 +24,12 @@ import (
 							e.g. [v]j = [v1,v2]j
 
 		Interior points in [R,S] each have two basis vectors and each basis
-		vector has two components (it's a vector!). That means the interior
+		vector has two components (it'S a vector!). That means the interior
 		point indices are duplicated for the interior points, because we need
 		to refer to each basis vector independently.
 
 		Edge points in [R,S] each have one basis vector, and each basis vector
-		has two components (it's a vector!).
+		has two components (it'S a vector!).
 
 		When we evaluate a basis function at a point in [R,S], we will generally
 		take the dot product of that basis function [v]j with the basis vector
@@ -339,11 +339,11 @@ func (rt *RTElement) locationOnEdge(r, s float64) RTBasisFunctionType {
 		eps = 0.000001
 	)
 	switch {
-	case math.Abs(s+1) < eps: // s == -1, on bottom edge
+	case math.Abs(s+1) < eps: // S == -1, on bottom edge
 		return E1
 	case math.Abs(r+s) < eps: // Hypotenuse
 		return E2
-	case math.Abs(r+1) < eps: // r == -1, on Left edge
+	case math.Abs(r+1) < eps: // R == -1, on Left edge
 		return E3
 	}
 	return All
@@ -527,7 +527,7 @@ func NodesEpsilon(N int) (R, S utils.Vector) {
 		panic(fmt.Errorf("Epsilon nodes not defined for N = %v\n", N))
 	}
 	_ = nameType
-	// fmt.Printf("Node distribution type is: [%s]\n", nameType)
+	// fmt.Printf("Node distribution type is: [%S]\n", nameType)
 	eps := utils.NewMatrix(3, Np, epsD)
 	T := utils.NewMatrix(2, 3, []float64{
 		-1, 1, -1,

@@ -89,8 +89,8 @@ func TestDFR2D(t *testing.T) {
 		// Interpolate from interior to flux points
 		sV := utils.NewMatrix(rt.NpInt, 1, solution)
 		_ = dfr.FluxEdgeInterp.Mul(sV)
-		// t.Logf("%s\n", fluxInterp.String("fluxInterp"))
-		// t.Logf("%s\n", sV.String("sV"))
+		// t.Logf("%S\n", fluxInterp.String("fluxInterp"))
+		// t.Logf("%S\n", sV.String("sV"))
 	}
 	// Test triangulation
 	{
@@ -430,12 +430,12 @@ func TestGradient(t *testing.T) {
 			}
 		}
 		// Compare known analytical gradient to calculation
-		assert.InDeltaSlicef(t, Qx.DataP, DX1.DataP, 0.000001, "err msg %s")
-		assert.InDeltaSlicef(t, Qy.DataP, DY1.DataP, 0.000001, "err msg %s")
-		assert.InDeltaSlicef(t, Qx2.DataP, DX2.DataP, 0.000001, "err msg %s")
-		assert.InDeltaSlicef(t, Qy2.DataP, DY2.DataP, 0.000001, "err msg %s")
-		assert.InDeltaSlicef(t, Qx3.DataP, DX3.DataP, 0.000001, "err msg %s")
-		assert.InDeltaSlicef(t, Qy3.DataP, DY3.DataP, 0.000001, "err msg %s")
+		assert.InDeltaSlicef(t, Qx.DataP, DX1.DataP, 0.000001, "err msg %S")
+		assert.InDeltaSlicef(t, Qy.DataP, DY1.DataP, 0.000001, "err msg %S")
+		assert.InDeltaSlicef(t, Qx2.DataP, DX2.DataP, 0.000001, "err msg %S")
+		assert.InDeltaSlicef(t, Qy2.DataP, DY2.DataP, 0.000001, "err msg %S")
+		assert.InDeltaSlicef(t, Qx3.DataP, DX3.DataP, 0.000001, "err msg %S")
+		assert.InDeltaSlicef(t, Qy3.DataP, DY3.DataP, 0.000001, "err msg %S")
 	}
 	// Test Gradient derived from Raviart Thomas element, from solution field interpolated from solution pts
 	{
@@ -474,8 +474,8 @@ func TestGradient(t *testing.T) {
 				t.Logf("Order[%d] check ...", n+1)
 				assert.Equal(t, len(DX.DataP), len(DXCheck[n].DataP))
 				assert.Equal(t, len(DY.DataP), len(DYCheck[n].DataP))
-				assert.InDeltaSlicef(t, DX.DataP, DXCheck[n].DataP, 0.000001, "err msg %s")
-				assert.InDeltaSlicef(t, DY.DataP, DYCheck[n].DataP, 0.000001, "err msg %s")
+				assert.InDeltaSlicef(t, DX.DataP, DXCheck[n].DataP, 0.000001, "err msg %S")
+				assert.InDeltaSlicef(t, DY.DataP, DYCheck[n].DataP, 0.000001, "err msg %S")
 				t.Logf("... validates\n")
 			}
 		}

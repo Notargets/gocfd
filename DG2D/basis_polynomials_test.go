@@ -96,7 +96,7 @@ func TestJacobiBasis2D_Gradient(t *testing.T) {
 				grad[i] = scalarPoly.Gradient(r, s, testP)
 				grad0[i] = grad[i][0]
 				grad1[i] = grad[i][1]
-				// t.Logf("P[%f,%f]=%f\n", r, s, field[i])
+				// t.Logf("P[%f,%f]=%f\n", R, S, field[i])
 			}
 			VField := utils.NewMatrix(Np, 1, field)
 			Grad0 := utils.NewVector(Np, grad0)

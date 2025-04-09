@@ -16,11 +16,21 @@ type LagrangeElement2D struct {
 }
 
 type Cubature struct {
-	r, s, w                 utils.Vector
-	W                       utils.Matrix
-	V, Dr, Ds, VT, DrT, DsT utils.Matrix
-	x, y, rx, sx, ry, sy, J utils.Matrix
-	mm, mmCHOL              utils.Matrix
+	R, S, W utils.Vector
+	Nq      int
+}
+
+func NewCubature(P int) (cb *Cubature) {
+	cub2d := getCub(P)
+	Nq := len(cub2d) / 3
+	cubMat := utils.NewMatrix(Nq, 3, cub2d)
+	cb = &Cubature{
+		R:  cubMat.Col(0),
+		S:  cubMat.Col(1),
+		W:  cubMat.Col(2),
+		Nq: Nq,
+	}
+	return
 }
 
 type NodeType string
@@ -52,7 +62,7 @@ func NewLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
 	// Build reference element matrices
 	el.JB2D = NewJacobiBasis2D(el.N, el.R, el.S, 0, 0)
 	el.MassMatrix = el.JB2D.Vinv.Transpose().Mul(el.JB2D.Vinv)
-	// Initialize the (r,s) differentiation matrices on the simplex, evaluated at (r,s) at order N
+	// Initialize the (R,S) differentiation matrices on the simplex, evaluated at (R,S) at order N
 	/*
 		Vr, Vs := GradVandermonde2D(el.N, el.R, el.S)
 		el.Dr = Vr.Mul(el.Vinv)
@@ -86,9 +96,9 @@ func (el *LagrangeElement2D) NewCube2D(COrder int) {
 		nr := len(cub2d) / 3
 		cubMat := utils.NewMatrix(nr, 3, cub2d)
 		el.Cub = &Cubature{
-			r: cubMat.Col(0),
-			s: cubMat.Col(1),
-			w: cubMat.Col(2),
+			R: cubMat.Col(0),
+			S: cubMat.Col(1),
+			W: cubMat.Col(2),
 		}
 	} else {
 		err := fmt.Errorf("Cubature2D(%d): COrder > 28 not yet tested\n", COrder)
@@ -112,10 +122,10 @@ func (el *LagrangeElement2D) NewCube2D(COrder int) {
 		   cubS = cubB
 		   cubW = 0.5 * outer(cubwb, cubwa)
 
-		   cub.r = cubR
-		   cub.s = cubS
-		   cub.w = cubW
-		   cub.Ncub = cub.r.size()
+		   cub.R = cubR
+		   cub.S = cubS
+		   cub.W = cubW
+		   cub.Ncub = cub.R.size()
 		*/
 	}
 	return

@@ -134,10 +134,10 @@ func rsToab(r, s float64) (a, b float64) {
 	return
 }
 
-// function [r,s] = xytors(x,y)
+// function [R,S] = xytors(x,y)
 // Purpose : Transfer from (x,y) in equilateral triangle
 //
-//	to (r,s) coordinates in standard triangle
+//	to (R,S) coordinates in standard triangle
 func XYtoRS(x, y utils.Vector) (r, s utils.Vector) {
 	r, s = utils.NewVector(x.Len()), utils.NewVector(x.Len())
 	var (

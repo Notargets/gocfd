@@ -110,7 +110,7 @@ func Connect2D(K, NFaces, Nv int, EToV utils.Matrix) (EToE, EToF utils.Matrix) {
 	for k := 0; k < K; k++ {
 		for face := 0; face < NFaces; face++ {
 			edge := faces.Range(face, ":")
-			//fmt.Println("Nv, TotalFaces, k, face, edge, range = ", Nv, TotalFaces, k, face, edge, el.EToV.Range(k, edge))
+			// fmt.Println("Nv, TotalFaces, k, face, edge, range = ", Nv, TotalFaces, k, face, edge, el.EToV.Range(k, edge))
 			SpFToVDOK.Equate(1, sk, EToV.Range(k, edge))
 			sk++
 		}
@@ -279,9 +279,9 @@ func (ndg *NDG2D) NewCube2D(COrder int) {
 		nr := len(cub2d) / 3
 		cubMat := utils.NewMatrix(nr, 3, cub2d)
 		ndg.Element.Cub = &Cubature{
-			r: cubMat.Col(0),
-			s: cubMat.Col(1),
-			w: cubMat.Col(2),
+			R: cubMat.Col(0),
+			S: cubMat.Col(1),
+			W: cubMat.Col(2),
 		}
 	} else {
 		err := fmt.Errorf("Cubature2D(%d): COrder > 28 not yet tested\n", COrder)
@@ -305,10 +305,10 @@ func (ndg *NDG2D) NewCube2D(COrder int) {
 		   cubS = cubB
 		   cubW = 0.5 * outer(cubwb, cubwa)
 
-		   cub.r = cubR
-		   cub.s = cubS
-		   cub.w = cubW
-		   cub.Ncub = cub.r.size()
+		   cub.R = cubR
+		   cub.S = cubS
+		   cub.W = cubW
+		   cub.Ncub = cub.R.size()
 		*/
 	}
 	return

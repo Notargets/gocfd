@@ -42,29 +42,29 @@ func NewRTBasisSimplex(P int, R, S utils.Vector) (bs *RTBasisSimplex) {
 func (bs *RTBasisSimplex) ComposePhi() {
 	// Constraints
 	// ========= Left Edge (dot product = 0) constraint ================
-	// Left normal is [-1,0], Edge functional: r = -1
+	// Left normal is [-1,0], Edge functional: R = -1
 	// For a vector function to vanish on the Left edge, we multiply an
-	// r direction by [(r+1),]
+	// R direction by [(R+1),]
 	// ========= Left Edge (dim to (1,-1) constraint ===================
-	// Multiply r direction by (r-1) to diminish approaching (1,s)
-	// Multiply s direction by (s+1) to diminish approaching (r,-1)
-	// [(r-1),(s+1)]
+	// Multiply R direction by (R-1) to diminish approaching (1,S)
+	// Multiply S direction by (S+1) to diminish approaching (R,-1)
+	// [(R-1),(S+1)]
 	// ========= Hypotenuse (dot product = 0) constraint ===============
-	// Hypotenuse normal is [Sqrt2/2,Sqrt2/2], Edge functional: r+s = 1
+	// Hypotenuse normal is [Sqrt2/2,Sqrt2/2], Edge functional: R+S = 1
 	// For a vector function to vanish on the Left edge, we multiply an
-	// [(1-r-s),(1-r-s)] term with the r and s vector components
+	// [(1-R-S),(1-R-S)] term with the R and S vector components
 	// ========= Hypotenuse (dim to (-1, -1) constraint ================
-	// Multiply r direction by (r+1) to diminish approaching (-1,s)
-	// Multiply s direction by (s+1) to diminish approaching (r,-1)
-	// [(r+1),(s+1)]
+	// Multiply R direction by (R+1) to diminish approaching (-1,S)
+	// Multiply S direction by (S+1) to diminish approaching (R,-1)
+	// [(R+1),(S+1)]
 	// ======== Bottom Edge (dot product = 0) constraint ===============
-	// Bottom normal is [0,-1], Edge functional: s = -1
+	// Bottom normal is [0,-1], Edge functional: S = -1
 	// For a vector function to vanish on the Bottom edge, we multiply an
-	// s direction by [,(s+1)]
+	// S direction by [,(S+1)]
 	// ========== Bottom Edge (dim to (-1,1) constraint ===============
-	// Multiply r direction by (r+1) to diminish approaching (-1,s)
-	// Multiply s direction by (s-1) to diminish approaching (r,1)
-	// [(r+1),(s-1)]
+	// Multiply R direction by (R+1) to diminish approaching (-1,S)
+	// Multiply S direction by (S-1) to diminish approaching (R,1)
+	// [(R+1),(S-1)]
 	for j := 0; j < bs.Np; j++ {
 		jj := j
 		vectorEval := func(r, s float64) (v [2]float64) { return }
@@ -80,12 +80,12 @@ func (bs *RTBasisSimplex) ComposePhi() {
 				jj = j
 				vectorEval = func(r, s float64) (v [2]float64) {
 					// v = [ ηξ , η(η −1) ]
-					// η = (r+1)/2, ξ = (s+1)/2
-					// v = [ (r+1)(s+1)/4 , (r+1)((r+1)/4 -1/2) ]
-					// v = [ (r+1)(s+1)/4 , (r-1)(r+1)/4 ]
+					// η = (R+1)/2, ξ = (S+1)/2
+					// v = [ (R+1)(S+1)/4 , (R+1)((R+1)/4 -1/2) ]
+					// v = [ (R+1)(S+1)/4 , (R-1)(R+1)/4 ]
 					// E4 vector is tangent to all three edges:
-					// E4 = [(s+1)(r+1)/4,(s+1)(s-1)/4]
-					// E4' = [(s+1)(r+1),(s+1)(s-1)]
+					// E4 = [(S+1)(R+1)/4,(S+1)(S-1)/4]
+					// E4' = [(S+1)(R+1),(S+1)(S-1)]
 					rp := 0.5 * (r + 1.)
 					sp := 0.5 * (s + 1.)
 					sm := 0.5 * (s - 1.)
@@ -97,8 +97,8 @@ func (bs *RTBasisSimplex) ComposePhi() {
 				jj = j - bs.NpInt
 				vectorEval = func(r, s float64) (v [2]float64) {
 					// E5 vector is tangent to all three edges:
-					// E5 = [(r+1)(r-1)/4,(r+1)(s+1)/4]
-					// E5' = [(r+1)(r-1),(r+1)(s+1)]
+					// E5 = [(R+1)(R-1)/4,(R+1)(S+1)/4]
+					// E5' = [(R+1)(R-1),(R+1)(S+1)]
 					rp := 0.5 * (r + 1.)
 					rm := 0.5 * (r - 1.)
 					sp := 0.5 * (s + 1.)
@@ -127,12 +127,12 @@ func (bs *RTBasisSimplex) ComposePhi() {
 				vectorEval = func(r, s float64) (v [2]float64) {
 					// Bottom edge
 					// dot zero with Left and Hypotenuse yields:
-					// [(1-r-s)(r+1),(1-r-s)]
-					// dim toward (-1,1) yields an additional: [(r+1),(s-1)]
-					// v = [(1-r-s)(r+1),(1-r-s)(s-1)]
-					// h := 1. - r - s
+					// [(1-R-S)(R+1),(1-R-S)]
+					// dim toward (-1,1) yields an additional: [(R+1),(S-1)]
+					// v = [(1-R-S)(R+1),(1-R-S)(S-1)]
+					// h := 1. - R - S
 					// v = [ ξ , η −1 ]
-					// v' = [ (r+1), (s-1) ]
+					// v' = [ (R+1), (S-1) ]
 					rp := 0.5 * (r + 1.)
 					sm := 0.5 * (s - 1.)
 					return [2]float64{rp, sm}
@@ -143,32 +143,32 @@ func (bs *RTBasisSimplex) ComposePhi() {
 				vectorEval = func(r, s float64) (v [2]float64) {
 					// Hypotenuse
 					// dot zero with Bottom and Left yields:
-					// [(r+1),(s+1)]
-					// dim toward (-1,-1) yields an additional: [(r+1),(s+1)]
-					// [(r+1)(r+1),(s+1)(s+1)]
+					// [(R+1),(S+1)]
+					// dim toward (-1,-1) yields an additional: [(R+1),(S+1)]
+					// [(R+1)(R+1),(S+1)(S+1)]
 					// v = [√2 ξ , √2 η ]
-					// v' = [√2 (r+1) , √2 (s+1) ]
+					// v' = [√2 (R+1) , √2 (S+1) ]
 					rp := 0.5 * (r + 1.)
 					sp := 0.5 * (s + 1.)
 					return [2]float64{sr2 * rp, sr2 * sp}
 				}
-				// vectorDiv = func(r, s float64) (div float64) { return 2.*(r+s) + 4. }
+				// vectorDiv = func(R, S float64) (div float64) { return 2.*(R+S) + 4. }
 				vectorDiv = func(r, s float64) (div float64) { return 1. * sr2 }
 			case E3:
 				vectorEval = func(r, s float64) (v [2]float64) {
 					// Left Edge
 					// dot zero with Hypotenuse and Bottom yields:
-					// [(1-r-s),(1-r-s)(s+1)]
-					// dim toward (1,-1) yields an additional: [(r-1),(s+1)]
-					// v = [(1-r-s)(r-1),(1-r-s)(s+1)]
-					// h := 1. - r - s
+					// [(1-R-S),(1-R-S)(S+1)]
+					// dim toward (1,-1) yields an additional: [(R-1),(S+1)]
+					// v = [(1-R-S)(R-1),(1-R-S)(S+1)]
+					// h := 1. - R - S
 					// v = [ ξ -1, η ]
-					// v' = [ (r-1), (s+1) ]
+					// v' = [ (R-1), (S+1) ]
 					rm := 0.5 * (r - 1.)
 					sp := 0.5 * (s + 1.)
 					return [2]float64{rm, sp}
 				}
-				// vectorDiv = func(r, s float64) (div float64) { return 2.- 3.*(r+s) }
+				// vectorDiv = func(R, S float64) (div float64) { return 2.- 3.*(R+S) }
 				vectorDiv = func(r, s float64) (div float64) { return 1. }
 			default:
 				panic("invalid function type")
@@ -232,7 +232,7 @@ func (bs *RTBasisSimplex) getEdgePolyTerm(j int) (pm PolynomialMultiplier) {
 	switch param {
 	case E1:
 		polyEval = func(r, s float64) (val float64) {
-			// Parameterization is r
+			// Parameterization is R
 			return bs.PEdgeBasis.GetOrthogonalPolynomialAtJ(r, jj)
 		}
 		polyDeriv = func(r, s float64) (val float64) {
@@ -241,7 +241,7 @@ func (bs *RTBasisSimplex) getEdgePolyTerm(j int) (pm PolynomialMultiplier) {
 	case E2:
 		jj -= bs.NpEdge
 		polyEval = func(r, s float64) (val float64) {
-			// Parameterization is s
+			// Parameterization is S
 			return bs.PEdgeBasis.GetOrthogonalPolynomialAtJ(s, jj)
 		}
 		polyDeriv = func(r, s float64) (val float64) {
@@ -250,7 +250,7 @@ func (bs *RTBasisSimplex) getEdgePolyTerm(j int) (pm PolynomialMultiplier) {
 	case E3:
 		jj -= 2 * bs.NpEdge
 		polyEval = func(r, s float64) (val float64) {
-			// Parameterization is -s
+			// Parameterization is -S
 			return bs.PEdgeBasis.GetOrthogonalPolynomialAtJ(-s, jj)
 		}
 		polyDeriv = func(r, s float64) (val float64) {

@@ -131,7 +131,7 @@ func analyticalExtrema(poly *Polynomial) (float64, float64) {
 
 // FitAndBoundPolynomial fits a polynomial (via the precomputed Vandermonde inverse)
 // from the provided sampleValues (length M) and then modulates the coefficients so that
-// the polynomial's value over [-1,1] remains within [VMin, VMax].
+// the polynomial'S value over [-1,1] remains within [VMin, VMax].
 // If the initial polynomial already meets the bounds, a message is printed and the original
 // polynomial is returned.
 // Otherwise, a binary search on fScale (in [0,1]) is performed, using an exponential modulation

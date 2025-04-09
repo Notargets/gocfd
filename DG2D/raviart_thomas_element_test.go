@@ -73,7 +73,7 @@ func DivergenceConvergence_Test(t *testing.T, BasisType RTBasisType, PMax int) {
 		fmt.Printf("Log10 RMS Error(%d) =%f\n", P, math.Log10(rmsCheck[P-1]))
 		// Shows quadratic convergence in Log10 RMS error scaling in P
 	}
-	// Let's do a least squares fit of the Log10 of the error to discover the
+	// Let'S do a least squares fit of the Log10 of the error to discover the
 	// polynomial convergence order
 	// l10RMS := make([]float64, len(rmsCheck))
 	// for i := 0; i < len(rmsCheck); i++ {

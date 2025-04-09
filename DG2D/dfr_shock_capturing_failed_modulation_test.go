@@ -523,7 +523,7 @@ func TestEdgeProjectionIsentropicVortex(t *testing.T) {
 			fmt.Printf("Q[%.2f,%.2f] = [%.2f,%.2f,%.2f,%.2f]\n",
 				x, y, rho, rhoU, rhoV, rhoE)
 		}
-		// Let's use edge 2 to test the edge interpolator
+		// Let'S use edge 2 to test the edge interpolator
 		ei := NewEdgeInterpolator(ep.s[2], 2., 5.5)
 		vMin, vMax := 1., 1.1691
 		samples := []float64{vMax, vMax, vMax, vMin} // Mach 1.2 density
@@ -532,7 +532,7 @@ func TestEdgeProjectionIsentropicVortex(t *testing.T) {
 			fmt.Printf("Coeff[%d]:%.2f\n", i, c)
 		}
 		for i, s := range ep.s[2] {
-			fmt.Printf("%d: [s,Sample]:[%5.4f,%5.4f]:p:%5.4f\n",
+			fmt.Printf("%d: [S,Sample]:[%5.4f,%5.4f]:p:%5.4f\n",
 				i, s, samples[i], p.Evaluate(s))
 		}
 
@@ -542,7 +542,7 @@ func TestEdgeProjectionIsentropicVortex(t *testing.T) {
 			fmt.Printf("Coeff[%d]:%.2f\n", i, c)
 		}
 		for i, s := range ep.s[2] {
-			fmt.Printf("%d: [s,Sample]:[%5.4f,%5.4f]:p:%5.4f\n",
+			fmt.Printf("%d: [S,Sample]:[%5.4f,%5.4f]:p:%5.4f\n",
 				i, s, samples[i], p.Evaluate(s))
 		}
 	}
@@ -557,7 +557,7 @@ func TestEdgeProjectionShockCapture(t *testing.T) {
 		ep := dfr.FluxElement.projectInteriorToEdges()
 		fmt.Println(ep.indices[2])
 		fmt.Println(ep.s[2])
-		// Let's use edge 2 to test the edge interpolator
+		// Let'S use edge 2 to test the edge interpolator
 		ei := NewEdgeInterpolator(ep.s[2], 2., 5.5)
 		vMin, vMax := 1., 1.1691
 		samples := []float64{vMax, vMax, vMax, vMin} // Mach 1.2 density
@@ -566,7 +566,7 @@ func TestEdgeProjectionShockCapture(t *testing.T) {
 			fmt.Printf("Coeff[%d]:%.2f\n", i, c)
 		}
 		for i, s := range ep.s[2] {
-			fmt.Printf("%d: [s,Sample]:[%5.4f,%5.4f]:p:%5.4f\n",
+			fmt.Printf("%d: [S,Sample]:[%5.4f,%5.4f]:p:%5.4f\n",
 				i, s, samples[i], p.Evaluate(s))
 		}
 
@@ -576,7 +576,7 @@ func TestEdgeProjectionShockCapture(t *testing.T) {
 			fmt.Printf("Coeff[%d]:%.2f\n", i, c)
 		}
 		for i, s := range ep.s[2] {
-			fmt.Printf("%d: [s,Sample]:[%5.4f,%5.4f]:p:%5.4f\n",
+			fmt.Printf("%d: [S,Sample]:[%5.4f,%5.4f]:p:%5.4f\n",
 				i, s, samples[i], p.Evaluate(s))
 		}
 	}
@@ -589,8 +589,8 @@ type EdgeProjection struct {
 
 // Sort sorts the three fields together for each of the three groups.
 // The sorting key is chosen as follows:
-//   - For group 0 and group 1, sort by r.
-//   - For group 2, sort by s.
+//   - For group 0 and group 1, sort by R.
+//   - For group 2, sort by S.
 func (ep *EdgeProjection) Sort() {
 	// Loop over each of the 3 groups.
 	for group := 0; group < 3; group++ {
@@ -610,7 +610,7 @@ func (ep *EdgeProjection) Sort() {
 			}
 		}
 		// Choose the key based on group:
-		// Group 2 sorts by s; groups 0 and 1 sort by r.
+		// Group 2 sorts by S; groups 0 and 1 sort by R.
 		if group == 2 {
 			sort.Slice(tmp, func(i, j int) bool {
 				return tmp[i].s < tmp[j].s
@@ -669,12 +669,12 @@ func (rt *RTElement) projectInteriorToEdges() (ep EdgeProjection) {
 		var points [][2]float64
 		for i := 0; i < NpInt; i++ {
 			r, s := rt.R.AtVec(i), rt.S.AtVec(i)
-			// fmt.Printf("point%d = [%5.4f,%5.4f]\n", i, r, s)
+			// fmt.Printf("point%d = [%5.4f,%5.4f]\n", i, R, S)
 			points = append(points, [2]float64{r, s})
 		}
 		// for i := 2 * NpInt; i < 2*NpInt+3*NpEdge; i++ {
-		// 	r, s := rt.R.AtVec(i), rt.S.AtVec(i)
-		// fmt.Printf("edge point%d = [%5.4f,%5.4f]\n", i, r, s)
+		// 	R, S := rt.R.AtVec(i), rt.S.AtVec(i)
+		// fmt.Printf("edge point%d = [%5.4f,%5.4f]\n", i, R, S)
 		// }
 		edgeNormal := rt.DOFVectors[offset] // Edge normal vector
 		ep.indices[nEdge] = filterInteriorPointIndices(points,
@@ -710,7 +710,7 @@ func filterInteriorPointIndices(points [][2]float64, normal, origin [2]float64) 
 	tangent[0] /= tNorm
 	tangent[1] /= tNorm
 
-	// rsFromTangentProj projects a point (r,s) along the tangent direction.
+	// rsFromTangentProj projects a point (R,S) along the tangent direction.
 	rsFromTangentProj := func(r, s float64) (rP, sP float64) {
 		// dot product with the tangent (shifted by origin)
 		dot := tangent[0]*(r-origin[0]) + tangent[1]*(s-origin[1])
@@ -962,7 +962,7 @@ func GradientMassMatrix(dfr *DFR2D) (M utils.Matrix) {
 }
 
 // projectToEdge projects a 2D point (x, y) onto the edge defined by (x0, y0) to (x1, y1)
-// using the edge’s tangent direction.
+// using the edge’S tangent direction.
 func projectToEdge(x, y, x0, y0, x1, y1 float64) float64 {
 	// Compute the unit tangent vector of the edge.
 	tanX := x1 - x0

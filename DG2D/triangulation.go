@@ -210,7 +210,7 @@ func (e *Edge) GetEdgeNormal(conn int, en types.EdgeKey, dfr *DFR2D) (normal [2]
 }
 
 func (e *Edge) Print() (p string) {
-	//for i, triNum := range e.ConnectedTris {
+	// for i, triNum := range e.ConnectedTris {
 	for i := 0; i < int(e.NumConnectedTris); i++ {
 		triNum := e.ConnectedTris[i]
 		pp := fmt.Sprintf("Tri[%d] Edge[%d] BC=%s Reversed?%v,",

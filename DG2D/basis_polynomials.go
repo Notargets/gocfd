@@ -57,7 +57,7 @@ func (jb1d *JacobiBasis1D) GradVandermonde1D() utils.Matrix {
 func (jb1d *JacobiBasis1D) GetOrthogonalPolynomialAtJ(r float64, j int,
 	derivO ...DerivativeDirection) (phi float64) {
 	// The coefficients of the J-th orthogonal polynomial are columns of Vinv
-	// The value of the J-th polynomial evaluated at it's defining point is 1
+	// The value of the J-th polynomial evaluated at it'S defining point is 1
 	for i := 0; i < jb1d.Np; i++ {
 		phi += jb1d.JacobiP(r, i, derivO...) * jb1d.Vinv.At(i, j)
 	}
@@ -155,8 +155,8 @@ func (jb2d *JacobiBasis2D) GradSimplex2DP(R, S utils.Vector, id, jd int) (ddr, d
 	dfa := DG1D.GradJacobiP(A, 0, jb2d.Beta, id)
 	gb := DG1D.JacobiP(B, 2*float64(id)+1, jb2d.Beta, jd)
 	dgb := DG1D.GradJacobiP(B, 2*float64(id)+1, jb2d.Beta, jd)
-	// r-derivative
-	// d/dr = da/dr d/da + db/dr d/db = (2/(1-s)) d/da = (2/(1-B)) d/da
+	// R-derivative
+	// d/dr = da/dr d/da + db/dr d/db = (2/(1-S)) d/da = (2/(1-B)) d/da
 	ddr = make([]float64, len(gb))
 	for i := range ddr {
 		ddr[i] = dfa[i] * gb[i]
@@ -166,7 +166,7 @@ func (jb2d *JacobiBasis2D) GradSimplex2DP(R, S utils.Vector, id, jd int) (ddr, d
 		// Normalize
 		ddr[i] *= math.Pow(2, float64(id)+0.5)
 	}
-	// s-derivative
+	// S-derivative
 	// d/ds = ((1+A)/2)/((1-B)/2) d/da + d/db
 	dds = make([]float64, len(gb))
 	for i := range dds {
@@ -204,7 +204,7 @@ func (jb2d *JacobiBasis2D) GetInterpMatrix(R, S utils.Vector) (Interp utils.Matr
 	/*
 		Uses Jacobi polynomials as the basis function
 
-		Compose a matrix of interpolating polynomials where each row represents one [r,s] location to be interpolated
+		Compose a matrix of interpolating polynomials where each row represents one [R,S] location to be interpolated
 		This matrix can then be multiplied by a single vector of function values at the polynomial nodes to produce a
 		vector of interpolated values, one for each interpolation location
 	*/
@@ -234,7 +234,7 @@ func (jb2d *JacobiBasis2D) GetModInterpMatrix(R, S utils.Vector,
 	/*
 		Uses Jacobi polynomials as the basis function
 
-		Compose a matrix of interpolating polynomials where each row represents one [r,s] location to be interpolated
+		Compose a matrix of interpolating polynomials where each row represents one [R,S] location to be interpolated
 		This matrix can then be multiplied by a single vector of function values at the polynomial nodes to produce a
 		vector of interpolated values, one for each interpolation location
 	*/
@@ -393,7 +393,7 @@ func (jb2d *JacobiBasis2D) GetAllPolynomials(derivO ...DerivativeDirection) (
 func (jb2d *JacobiBasis2D) GetOrthogonalPolynomialAtJ(r, s float64, j int,
 	derivO ...DerivativeDirection) (phi float64) {
 	// The coefficients of the J-th orthogonal polynomial are columns of Vinv
-	// The value of the J-th polynomial evaluated at it's defining point is 1
+	// The value of the J-th polynomial evaluated at it'S defining point is 1
 	var (
 		deriv = None
 	)

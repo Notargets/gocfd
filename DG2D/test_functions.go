@@ -59,7 +59,7 @@ func (lpf PolyVectorField) Divergence(r, s float64, P int) (div float64) {
 
 type PolyVectorField3 struct{}
 
-func (lpf PolyVectorField3) String() string { return "[s+10,10r]^p Zero Divergence Field" }
+func (lpf PolyVectorField3) String() string { return "[S+10,10r]^p Zero Divergence Field" }
 
 func (lpf PolyVectorField3) F(r, s float64, P int) (f1, f2 float64) {
 	var (
@@ -75,7 +75,7 @@ func (lpf PolyVectorField3) Divergence(r, s float64, P int) (div float64) {
 
 type PolyVectorField2 struct{}
 
-func (lpf PolyVectorField2) String() string { return "[r,s]^p Simple Field" }
+func (lpf PolyVectorField2) String() string { return "[R,S]^p Simple Field" }
 
 func (lpf PolyVectorField2) F(r, s float64, P int) (f1, f2 float64) {
 	var (
