@@ -376,6 +376,29 @@ func (c *Euler) InterpolateSolutionToEdges(Q, Q_Face [4]utils.Matrix) {
 	return
 }
 
+func (c *Euler) InterpolateSolutionToShockedEdges(sf *DG2D.ModeAliasShockFinder,
+	Q, Q_Face [4]utils.Matrix) {
+	var (
+		NpInt       = c.DFR.SolutionElement.Np
+		NpEdge      = c.DFR.FluxElement.NpEdge
+		NpEdgeTotal = 3 * NpEdge
+	)
+	sf.UpdateShockedCells(Q[0])
+	Uh := sf.Qalt
+	for _, k := range sf.ShockCells.Cells() {
+		for n := 0; n < 4; n++ {
+			for i := 0; i < NpInt; i++ {
+				Uh.DataP[i] = Q[n].At(i, k)
+			}
+			Uq := c.DFR.FluxEdgeProject0Interp.Mul(Uh)
+			for i := 0; i < NpEdgeTotal; i++ {
+				Q_Face[n].Set(i, k, Uq.DataP[i])
+			}
+		}
+	}
+	return
+}
+
 func (c *Euler) InterpolateSolutionToEdgesWithEntropyVariables(Q,
 	Q_Face [4]utils.Matrix) {
 	// Switch to Entropy variables

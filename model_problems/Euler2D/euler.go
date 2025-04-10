@@ -387,7 +387,8 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 				DT.DataP[k] = -100 // Global
 			}
 		}
-		c.InterpolateSolutionToEdges(QQQ, Q_Face) // Interpolates Q_Face values from Q
+		c.InterpolateSolutionToEdges(QQQ, Q_Face)                     // Interpolates Q_Face values from Q
+		c.InterpolateSolutionToShockedEdges(ShockSensor, QQQ, Q_Face) // Interpolates Q_Face values from Q
 		// c.InterpolateSolutionToEdgesWithEntropyVariables(QQQ, Q_Face)
 	case 1, 6, 11, 16, 21:
 		rk.MaxWaveSpeed[myThread] =
@@ -415,6 +416,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		rkAdvance(rkStep, QQQ)
 		if rkStep != 4 {
 			c.InterpolateSolutionToEdges(QQQ, Q_Face) // Interpolates Q_Face values from Q
+			// EdgeProjector.ProjectValues(QQQ, Q_Face)
 			// c.InterpolateSolutionToEdgesWithEntropyVariables(QQQ, Q_Face)
 		}
 	}

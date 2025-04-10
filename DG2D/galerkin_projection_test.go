@@ -9,7 +9,7 @@ import (
 
 func TestPlotProjection(t *testing.T) {
 	var (
-		N  = 2
+		N  = 4
 		NP = 0
 	)
 	if !testing.Verbose() {
@@ -50,20 +50,19 @@ func TestPlotProjection(t *testing.T) {
 	Uh := utils.NewMatrix(NpInt, 1)
 	GraphR, GraphS := dfr.GetRSForGraphMesh()
 	NpEdge := dfr.FluxElement.NpEdge
-	NpEdgeGraph := 3 * (NpEdge + 2)
-	grE := GraphR.DataP[0:NpEdgeGraph]
-	gsE := GraphS.DataP[0:NpEdgeGraph]
-	v := make([]float64, NpEdgeGraph)
+	NpEdgeGraph := 3 * (NpEdge + 1)
+	grE := GraphR.Subset(0, NpEdgeGraph-1)
+	gsE := GraphS.Subset(0, NpEdgeGraph-1)
+	IProj := gp.GetProjectedInterpolationMatrix(grE, gsE)
 	for k := 0; k < dfr.K; k++ {
 		for i := 0; i < NpInt; i++ {
 			Uh.DataP[i] = Q[0].At(i, k)
 		}
 		if ShockFinder.ElementHasShock(Uh.DataP) {
 			fmt.Println("Shock found at K = ", k)
-			gp.GetProjectedValues(Uh, grE, gsE, &v)
-			// fmt.Println("V = ", v)
+			vals := IProj.Mul(Uh)
 			for i := 0; i < NpEdgeGraph; i++ {
-				QInterp[0].Set(i, k, v[i])
+				QInterp[0].Set(i, k, vals.DataP[i])
 			}
 		}
 	}
