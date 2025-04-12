@@ -1,4 +1,4 @@
-package Euler2D
+package utils
 
 import (
 	"math"

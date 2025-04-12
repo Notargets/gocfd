@@ -9,7 +9,7 @@ import (
 
 func TestPlotProjection(t *testing.T) {
 	var (
-		N  = 4
+		N  = 7
 		NP = 0
 	)
 	if !testing.Verbose() {

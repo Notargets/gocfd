@@ -195,11 +195,12 @@ func TestEuler(t *testing.T) {
 				Nedge := c.DFR.FluxElement.NpEdge
 				NpFlux := c.DFR.FluxElement.Np // Np = 2*NpInt+3*NpEdge
 				// Mark the initial state with the element number
-				var Q_Face, F_RT_DOF [4]utils.Matrix
+				var Q_Face, Q_Face_P0, F_RT_DOF [4]utils.Matrix
 				var Flux, Flux_Face [2][4]utils.Matrix
 				for n := 0; n < 4; n++ {
 					F_RT_DOF[n] = utils.NewMatrix(NpFlux, Kmax)
 					Q_Face[n] = utils.NewMatrix(3*Nedge, Kmax)
+					Q_Face_P0[n] = utils.NewMatrix(3*Nedge, Kmax)
 					Flux_Face[0][n] = utils.NewMatrix(3*Nedge, Kmax)
 					Flux_Face[1][n] = utils.NewMatrix(3*Nedge, Kmax)
 					Flux[0][n] = utils.NewMatrix(Nint, Kmax)
@@ -207,7 +208,7 @@ func TestEuler(t *testing.T) {
 				}
 				Q := c.Q[0]
 				c.SetRTFluxInternal(Kmax, c.DFR.Jdet, c.DFR.Jinv, F_RT_DOF, Q)
-				c.InterpolateSolutionToEdges(Q, Q_Face)
+				c.InterpolateSolutionToEdges(Q, Q_Face, Q_Face_P0)
 				EdgeQ1 := make([][4]float64, Nedge)
 				EdgeQ2 := make([][4]float64, Nedge)
 				c.CalculateEdgeFlux(0, false, nil, nil, [][4]utils.Matrix{Q_Face},
@@ -279,11 +280,12 @@ func TestEuler(t *testing.T) {
 				Nedge := c.DFR.FluxElement.NpEdge
 				NpFlux := c.DFR.FluxElement.Np // Np = 2*NpInt+3*NpEdge
 				// Mark the initial state with the element number
-				var Q_Face, F_RT_DOF [4]utils.Matrix
+				var Q_Face, Q_Face_P0, F_RT_DOF [4]utils.Matrix
 				var Flux, Flux_Face [2][4]utils.Matrix
 				for n := 0; n < 4; n++ {
 					F_RT_DOF[n] = utils.NewMatrix(NpFlux, Kmax)
 					Q_Face[n] = utils.NewMatrix(3*Nedge, Kmax)
+					Q_Face_P0[n] = utils.NewMatrix(3*Nedge, Kmax)
 					Flux_Face[0][n] = utils.NewMatrix(3*Nedge, Kmax)
 					Flux_Face[1][n] = utils.NewMatrix(3*Nedge, Kmax)
 					Flux[0][n] = utils.NewMatrix(Nint, Kmax)
@@ -292,7 +294,7 @@ func TestEuler(t *testing.T) {
 				Q := c.Q[0]
 				X, Y := c.DFR.FluxX, c.DFR.FluxY
 				c.SetRTFluxInternal(Kmax, c.DFR.Jdet, c.DFR.Jinv, F_RT_DOF, Q)
-				c.InterpolateSolutionToEdges(Q, Q_Face)
+				c.InterpolateSolutionToEdges(Q, Q_Face, Q_Face_P0)
 				EdgeQ1 := make([][4]float64, Nedge)
 				EdgeQ2 := make([][4]float64, Nedge)
 				c.CalculateEdgeFlux(0, false, nil, nil, [][4]utils.Matrix{Q_Face},
@@ -336,7 +338,7 @@ func TestFluxInterpolation(t *testing.T) {
 	ip.FluxType = "Roe"
 	c := NewEuler(&ip, "../../DG2D/test_data/test_tris_6.neu", 1, false, false)
 	rk := c.NewRungeKuttaSSP()
-	c.InterpolateSolutionToEdges(c.Q[0], rk.Q_Face[0])
+	c.InterpolateSolutionToEdges(c.Q[0], rk.Q_Face[0], rk.Q_Face_P0[0])
 	el := c.DFR.SolutionElement
 	/*
 		el.JB2D.V.String("V")
@@ -460,7 +462,7 @@ func TestDissipation(t *testing.T) {
 		assert.Equal(t, vToE_test, VtoE)
 		vepFinal := [3]int32{9, 9, 0}
 		for NPar := 1; NPar < 10; NPar += 2 {
-			pm := NewPartitionMap(NPar, dfr.K)
+			pm := utils.NewPartitionMap(NPar, dfr.K)
 			sd := NewScalarDissipation(0, dfr, pm)
 			var vep [3]int32
 			for np := 0; np < NPar; np++ {
@@ -480,7 +482,7 @@ func TestDissipation(t *testing.T) {
 	if false { // Turn off value check tests while working on the constants in the artificial dissipation
 		dfr := DG2D.NewDFR2D(2, false, "../../DG2D/test_data/test_tris_9.neu")
 		Np, KMax := dfr.SolutionElement.Np, dfr.K
-		pMap := NewPartitionMap(1, KMax)
+		pMap := utils.NewPartitionMap(1, KMax)
 		Q := make([][4]utils.Matrix, 1)
 		n := 0
 		Q[0][n] = utils.NewMatrix(dfr.SolutionElement.Np, KMax)
@@ -512,7 +514,7 @@ func TestDissipation(t *testing.T) {
 		dfr := DG2D.NewDFR2D(1, false, "../../DG2D/test_data/test_tris_9.neu")
 		_, KMax := dfr.SolutionElement.Np, dfr.K
 		for NP := 1; NP < 5; NP++ {
-			pm := NewPartitionMap(NP, KMax)
+			pm := utils.NewPartitionMap(NP, KMax)
 			sd := NewScalarDissipation(0, dfr, pm)
 			/*
 				assert.InDeltaSlicef(t, []float64{0.666666, 0.166666, 0.166666, 0.166666, 0.666666, 0.166666, 0.166666, 0.166666,
@@ -547,7 +549,7 @@ func TestDissipation2(t *testing.T) {
 		)
 		NP := 1
 		_, KMax := dfr.SolutionElement.Np, dfr.K
-		pm := NewPartitionMap(NP, KMax)
+		pm := utils.NewPartitionMap(NP, KMax)
 		sd := NewScalarDissipation(0, dfr, pm)
 		for np := 0; np < NP; np++ {
 			KMax = sd.PMap.GetBucketDimension(np)

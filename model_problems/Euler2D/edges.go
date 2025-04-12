@@ -43,7 +43,7 @@ func (p EdgeKeySliceSortLeft) Less(i, j int) bool {
 type EdgeValueStorage struct {
 	Fluxes       [][4]utils.Matrix
 	StorageIndex map[types.EdgeKey]int // Index into normal flux storage using edge key
-	PMap         *PartitionMap
+	PMap         *utils.PartitionMap
 	Nedge        int
 }
 
@@ -368,31 +368,26 @@ func (c *Euler) SetRTFluxOnEdges(myThread, Kmax int, F_RT_DOF [4]utils.Matrix) {
 	}
 }
 
-func (c *Euler) InterpolateSolutionToEdges(Q, Q_Face [4]utils.Matrix) {
+func (c *Euler) InterpolateSolutionToEdges(Q, Q_Face, Q_Face_P0 [4]utils.Matrix) {
 	// Interpolate from solution points to edges using precomputed interpolation matrix
 	for n := 0; n < 4; n++ {
 		c.DFR.FluxEdgeInterp.Mul(Q[n], Q_Face[n])
+		c.DFR.FluxEdgeProject0Interp.Mul(Q[n], Q_Face_P0[n])
 	}
 	return
 }
 
 func (c *Euler) InterpolateSolutionToShockedEdges(sf *DG2D.ModeAliasShockFinder,
-	Q, Q_Face [4]utils.Matrix) {
+	Q, Q_Face, Q_Face_P0 [4]utils.Matrix) {
 	var (
-		NpInt       = c.DFR.SolutionElement.Np
 		NpEdge      = c.DFR.FluxElement.NpEdge
 		NpEdgeTotal = 3 * NpEdge
 	)
 	sf.UpdateShockedCells(Q[0])
-	Uh := sf.Qalt
 	for _, k := range sf.ShockCells.Cells() {
 		for n := 0; n < 4; n++ {
-			for i := 0; i < NpInt; i++ {
-				Uh.DataP[i] = Q[n].At(i, k)
-			}
-			Uq := c.DFR.FluxEdgeProject0Interp.Mul(Uh)
 			for i := 0; i < NpEdgeTotal; i++ {
-				Q_Face[n].Set(i, k, Uq.DataP[i])
+				Q_Face[n].Set(i, k, Q_Face_P0[n].At(i, k))
 			}
 		}
 	}

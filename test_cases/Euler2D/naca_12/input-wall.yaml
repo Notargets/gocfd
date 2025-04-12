@@ -8,7 +8,7 @@ CFL: 2.5
 FluxType: Roe
 #FluxType: Lax
 InitType: Freestream # Can be "Freestream" or "IVortex"
-PolynomialOrder: 3
+PolynomialOrder: 4
 FinalTime: 20
 #Minf: 2.0
 Minf: 0.8

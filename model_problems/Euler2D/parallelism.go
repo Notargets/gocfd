@@ -116,7 +116,7 @@ func (c *Euler) SetParallelDegree(ProcLimit, Kmax int) {
 	if ParallelDegree > Kmax {
 		ParallelDegree = 1
 	}
-	c.Partitions = NewPartitionMap(ParallelDegree, Kmax)
+	c.Partitions = utils.NewPartitionMap(ParallelDegree, Kmax)
 }
 
 func (c *Euler) PartitionEdges() {
@@ -141,9 +141,9 @@ func (c *Euler) PartitionEdges() {
 		panic(err)
 	}
 	c.SortedEdgeKeys = make([]EdgeKeySlice, NPar)
-	pmS := NewPartitionMap(NPar, len(SharedEdges))
-	pmB := NewPartitionMap(NPar, len(BCEdges))
-	pmP := NewPartitionMap(NPar, len(PhantomEdges))
+	pmS := utils.NewPartitionMap(NPar, len(SharedEdges))
+	pmB := utils.NewPartitionMap(NPar, len(BCEdges))
+	pmP := utils.NewPartitionMap(NPar, len(PhantomEdges))
 	for np := 0; np < NPar; np++ {
 		SSize := pmS.GetBucketDimension(np)
 		BSize := pmB.GetBucketDimension(np)

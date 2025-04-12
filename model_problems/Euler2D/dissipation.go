@@ -49,17 +49,17 @@ func NewVertexToElement(EtoV utils.Matrix) (VtoE VertexToElement) {
 	return
 }
 
-func (ve VertexToElement) Shard(pm *PartitionMap) (veSharded []VertexToElement) {
+func (ve VertexToElement) Shard(pm *utils.PartitionMap) (veSharded []VertexToElement) {
 	var (
 		NPar             = pm.ParallelDegree
 		lve              = len(ve)
-		VertexPartitions = NewPartitionMap(NPar, lve) // This has to be re-done to honor vertex grouping
+		VertexPartitions = utils.NewPartitionMap(NPar, lve) // This has to be re-done to honor vertex grouping
 		ib               int
 		vNum             int32
 	)
 	veSharded = make([]VertexToElement, NPar)
 	approxBucketSize := VertexPartitions.GetBucketDimension(0)
-	getShardedPair := func(vve [3]int32, pm *PartitionMap) (vves [3]int32) {
+	getShardedPair := func(vve [3]int32, pm *utils.PartitionMap) (vves [3]int32) {
 		nodeIDSharded, _, threadID := pm.GetLocalK(int(vve[1]))
 		vves = [3]int32{vve[0], int32(nodeIDSharded), int32(threadID)}
 		return
@@ -88,15 +88,15 @@ func (ve VertexToElement) Shard(pm *PartitionMap) (veSharded []VertexToElement) 
 }
 
 type ScalarDissipation struct {
-	VtoE                       []VertexToElement // Sharded vertex to element map, [2] is [vertID, ElementID_Sharded]
-	EtoV                       []utils.Matrix    // Sharded Element to Vertex map, Kx3
-	Epsilon                    []utils.Matrix    // Sharded Np x Kmax, Interpolated from element vertices
-	EpsilonScalar              [][]float64       // Sharded scalar value of dissipation, one per element
-	DissDOF, DissDOF2, DissDiv []utils.Matrix    // Sharded NpFlux x Kmax, DOF for Gradient calculation using RT
-	DissX, DissY               [][4]utils.Matrix // Sharded NpFlux x Kmax, X and Y derivative of dissipation field
-	EpsVertex                  []float64         // NVerts x 1, Aggregated (Max) of epsilon surrounding each vertex, Not sharded
-	PMap                       *PartitionMap     // Partition map for the solution shards in K
-	Clipper                    utils.Matrix      // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder
+	VtoE                       []VertexToElement   // Sharded vertex to element map, [2] is [vertID, ElementID_Sharded]
+	EtoV                       []utils.Matrix      // Sharded Element to Vertex map, Kx3
+	Epsilon                    []utils.Matrix      // Sharded Np x Kmax, Interpolated from element vertices
+	EpsilonScalar              [][]float64         // Sharded scalar value of dissipation, one per element
+	DissDOF, DissDOF2, DissDiv []utils.Matrix      // Sharded NpFlux x Kmax, DOF for Gradient calculation using RT
+	DissX, DissY               [][4]utils.Matrix   // Sharded NpFlux x Kmax, X and Y derivative of dissipation field
+	EpsVertex                  []float64           // NVerts x 1, Aggregated (Max) of epsilon surrounding each vertex, Not sharded
+	PMap                       *utils.PartitionMap // Partition map for the solution shards in K
+	Clipper                    utils.Matrix        // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder
 	dfr                        *DG2D.DFR2D
 	ShockFinder                []*DG2D.ModeAliasShockFinder
 	Kappa                      float64
@@ -104,7 +104,7 @@ type ScalarDissipation struct {
 	VertexEpsilonValues        []utils.Matrix
 }
 
-func NewScalarDissipation(kappa float64, dfr *DG2D.DFR2D, pm *PartitionMap) (sd *ScalarDissipation) {
+func NewScalarDissipation(kappa float64, dfr *DG2D.DFR2D, pm *utils.PartitionMap) (sd *ScalarDissipation) {
 	var (
 		NPar   = pm.ParallelDegree
 		el     = dfr.SolutionElement

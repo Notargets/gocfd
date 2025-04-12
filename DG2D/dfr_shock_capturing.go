@@ -12,33 +12,7 @@ type ModeAliasShockFinder struct {
 	Np         int
 	Q, Qalt    utils.Matrix // scratch storage for evaluating the moment
 	Kappa      float64
-	ShockCells *ShockedCells
-}
-
-type ShockedCells struct {
-	cells []int
-}
-
-// NewShockedCells creates a structure with an initial reserved capacity.
-func NewShockedCells(initialCapacity int) *ShockedCells {
-	return &ShockedCells{
-		cells: make([]int, 0, initialCapacity),
-	}
-}
-
-// Add appends a new shocked cell index.
-func (s *ShockedCells) Add(cell int) {
-	s.cells = append(s.cells, cell)
-}
-
-// Reset efficiently clears the list without reallocating memory.
-func (s *ShockedCells) Reset() {
-	s.cells = s.cells[:0]
-}
-
-// Cells returns the underlying slice.
-func (s *ShockedCells) Cells() []int {
-	return s.cells
+	ShockCells *utils.DynIntBuffer
 }
 
 func (sf *ModeAliasShockFinder) UpdateShockedCells(Rho utils.Matrix) {
@@ -46,7 +20,7 @@ func (sf *ModeAliasShockFinder) UpdateShockedCells(Rho utils.Matrix) {
 		_, KMax = Rho.Dims()
 	)
 	if sf.ShockCells == nil {
-		sf.ShockCells = NewShockedCells(KMax)
+		sf.ShockCells = utils.NewDynIntBuffer(KMax)
 	}
 	sf.ShockCells.Reset()
 	for k := 0; k < KMax; k++ {

@@ -39,7 +39,7 @@ type Euler struct {
 	AnalyticSolution   ExactState
 	FluxCalcMock       func(rho, rhoU, rhoV, E float64) (Fx, Fy [4]float64) // For testing
 	SortedEdgeKeys     []EdgeKeySlice                                       // Buckets, one for each parallel partition
-	Partitions         *PartitionMap                                        // mapping of elements into bins for parallelism
+	Partitions         *utils.PartitionMap                                  // mapping of elements into bins for parallelism
 	LocalTimeStepping  bool
 	MaxIterations      int
 	// Below are partitioned by K (elements) in the first slice
@@ -198,6 +198,7 @@ func (c *Euler) Solve() {
 type RungeKutta4SSP struct {
 	Jdet, Jinv           []utils.Matrix       // Sharded mesh Jacobian and inverse transform
 	RHSQ, Q_Face         [][4]utils.Matrix    // State used for matrix multiplies within the time step algorithm
+	Q_Face_P0            [][4]utils.Matrix    // Projected edge values at P=0 for all elements
 	Flux_Face            [][2][4]utils.Matrix // Flux interpolated to edges from interior
 	Q1, Q2, Q3, Q4       [][4]utils.Matrix    // Intermediate solution state
 	Residual             [][4]utils.Matrix    // Used for reporting, aliased to Q1
@@ -225,6 +226,7 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		RHSQ:          make([][4]utils.Matrix, NPar),
 		Q_Face:        make([][4]utils.Matrix, NPar),
 		Flux_Face:     make([][2][4]utils.Matrix, NPar),
+		Q_Face_P0:     make([][4]utils.Matrix, NPar),
 		Q1:            make([][4]utils.Matrix, NPar),
 		Q2:            make([][4]utils.Matrix, NPar),
 		Q3:            make([][4]utils.Matrix, NPar),
@@ -258,6 +260,7 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 			rk.Q_Face[np][n] = utils.NewMatrix(rk.Nedge*3, rk.Kmax[np])
 			rk.Flux_Face[np][0][n] = utils.NewMatrix(rk.Nedge*3, rk.Kmax[np])
 			rk.Flux_Face[np][1][n] = utils.NewMatrix(rk.Nedge*3, rk.Kmax[np])
+			rk.Q_Face_P0[np][n] = utils.NewMatrix(rk.Nedge*3, rk.Kmax[np])
 		}
 		rk.DT[np] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 		rk.EdgeQ1[np] = make([][4]float64, rk.Nedge)
@@ -299,7 +302,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		Np                         = rk.NpInt
 		dT                         float64
 		Kmax, Jdet, Jinv, F_RT_DOF = rk.Kmax[myThread], rk.Jdet[myThread], rk.Jinv[myThread], rk.F_RT_DOF[myThread]
-		DT, Q_Face                 = rk.DT[myThread], rk.Q_Face[myThread]
+		DT, Q_Face, Q_Face_P0      = rk.DT[myThread], rk.Q_Face[myThread], rk.Q_Face_P0[myThread]
 		Q0                         = c.Q[myThread]
 		Q1, Q2, Q3, Q4             = rk.Q1[myThread], rk.Q2[myThread], rk.Q3[myThread], rk.Q4[myThread]
 		RHSQ, Residual             = rk.RHSQ[myThread], rk.Residual[myThread]
@@ -387,8 +390,8 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 				DT.DataP[k] = -100 // Global
 			}
 		}
-		c.InterpolateSolutionToEdges(QQQ, Q_Face)                     // Interpolates Q_Face values from Q
-		c.InterpolateSolutionToShockedEdges(ShockSensor, QQQ, Q_Face) // Interpolates Q_Face values from Q
+		c.InterpolateSolutionToEdges(QQQ, Q_Face, Q_Face_P0)                     // Interpolates Q_Face values from Q
+		c.InterpolateSolutionToShockedEdges(ShockSensor, QQQ, Q_Face, Q_Face_P0) // Interpolates Q_Face values from Q
 		// c.InterpolateSolutionToEdgesWithEntropyVariables(QQQ, Q_Face)
 	case 1, 6, 11, 16, 21:
 		rk.MaxWaveSpeed[myThread] =
@@ -415,7 +418,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		rk.LimitedPoints[myThread] = c.Limiter.LimitSolution(myThread, c.Q, rk.Residual, rk.FilterScratch)
 		rkAdvance(rkStep, QQQ)
 		if rkStep != 4 {
-			c.InterpolateSolutionToEdges(QQQ, Q_Face) // Interpolates Q_Face values from Q
+			c.InterpolateSolutionToEdges(QQQ, Q_Face, Q_Face_P0) // Interpolates Q_Face values from Q
 			// EdgeProjector.ProjectValues(QQQ, Q_Face)
 			// c.InterpolateSolutionToEdgesWithEntropyVariables(QQQ, Q_Face)
 		}

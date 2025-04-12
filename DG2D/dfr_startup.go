@@ -73,6 +73,8 @@ func NewDFR2D(N int, verbose bool, meshFileO ...string) (dfr *DFR2D) {
 		gp := NewGalerkinProjection(dfr.SolutionBasis, nb)
 		dfr.FluxEdgeProject0Interp = gp.GetProjectedInterpolationMatrix(RFlux,
 			SFlux)
+	} else {
+		dfr.FluxEdgeProject0Interp = dfr.FluxEdgeInterp
 	}
 	// dfr.FluxEdgeInterp = dfr.SolutionBasis.GetModInterpMatrix(RFlux, SFlux, Nu, p, 1) // Interpolation matrix across three edges
 	// dfr.FluxEdgeInterp = dfr.SolutionBasis.GetModInterpMatrix(RFlux, SFlux, Nu, p, 1) // Interpolation matrix across three edges

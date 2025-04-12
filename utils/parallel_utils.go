@@ -1,4 +1,20 @@
-package Euler2D
+package utils
+
+type MailBox struct {
+	MessageChans []chan any
+	PartitionMap *PartitionMap
+}
+
+func (pm *PartitionMap) NewMailBox() (mb *MailBox) {
+	mb = &MailBox{
+		MessageChans: make([]chan any, pm.ParallelDegree),
+		PartitionMap: pm,
+	}
+	for n := 0; n < pm.ParallelDegree; n++ {
+		mb.MessageChans[n] = make(chan any, pm.ParallelDegree-1)
+	}
+	return
+}
 
 type PartitionMap struct {
 	MaxIndex       int // MaxIndex is partitioned into ParallelDegree partitions

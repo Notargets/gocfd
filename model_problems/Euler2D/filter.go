@@ -13,7 +13,7 @@ type SolutionLimiter struct {
 	limiterType          LimiterType
 	Element              *DG2D.LagrangeElement2D
 	Tris                 *DG2D.Triangulation
-	Partitions           *PartitionMap
+	Partitions           *utils.PartitionMap
 	ShockFinder          []*DG2D.ModeAliasShockFinder // Sharded
 	UElement, dUdr, dUds []utils.Matrix               // Sharded scratch areas for assembly and testing of solution values
 	FS                   *FreeStream
@@ -65,7 +65,7 @@ func NewLimiterType(label string) (lt LimiterType) {
 	return
 }
 
-func NewSolutionLimiter(t LimiterType, kappa float64, dfr *DG2D.DFR2D, pm *PartitionMap, fs *FreeStream) (bjl *SolutionLimiter) {
+func NewSolutionLimiter(t LimiterType, kappa float64, dfr *DG2D.DFR2D, pm *utils.PartitionMap, fs *FreeStream) (bjl *SolutionLimiter) {
 	var (
 		Np       = dfr.SolutionElement.Np
 		Nthreads = pm.ParallelDegree

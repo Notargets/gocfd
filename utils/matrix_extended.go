@@ -184,7 +184,7 @@ func (m Matrix) Print(msgI ...string) (o string) {
 	}
 	formatString := "%s = \n%8.5f\n"
 	o = fmt.Sprintf(formatString, name, mat.Formatted(m.M, mat.Squeeze()))
-	fmt.Printf(o)
+	fmt.Print(o)
 	return
 }
 
@@ -198,7 +198,7 @@ func (m Matrix) PrintDims(msgI ...string) (o string) {
 	formatString := "%s = Dims:[%d,%d]\n"
 	d1, d2 := m.Dims()
 	o = fmt.Sprintf(formatString, name, d1, d2)
-	fmt.Printf(o)
+	fmt.Print(o)
 	return
 }
 
