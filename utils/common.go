@@ -35,28 +35,28 @@ func Split1DMaxChunk(iMax, numThreads int) (maxChunk int) {
 	return
 }
 
-type DynIntBuffer struct {
-	buffer []int
+type DynBuffer[T any] struct {
+	buffer []T
 }
 
 // NewDynBuffer creates a structure with an initial reserved capacity.
-func NewDynIntBuffer(initialCapacity int) *DynIntBuffer {
-	return &DynIntBuffer{
-		buffer: make([]int, 0, initialCapacity),
+func NewDynBuffer[T any](cap int) *DynBuffer[T] {
+	return &DynBuffer[T]{
+		buffer: make([]T, 0, cap),
 	}
 }
 
 // Add appends a new shocked cell index.
-func (s *DynIntBuffer) Add(datum int) {
+func (s *DynBuffer[T]) Add(datum T) {
 	s.buffer = append(s.buffer, datum)
 }
 
 // Reset efficiently clears the list without reallocating memory.
-func (s *DynIntBuffer) Reset() {
+func (s *DynBuffer[T]) Reset() {
 	s.buffer = s.buffer[:0]
 }
 
 // Cells returns the underlying slice.
-func (s *DynIntBuffer) Cells() []int {
+func (s *DynBuffer[T]) Cells() []T {
 	return s.buffer
 }

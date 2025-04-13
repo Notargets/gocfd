@@ -2,6 +2,7 @@ package utils
 
 import (
 	"math"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -53,10 +54,92 @@ func TestEuler_Indexing(t *testing.T) {
 		for maxIndex := 10; maxIndex < 1000; maxIndex++ {
 			pm := NewPartitionMap(5, maxIndex)
 			for k := 0; k < maxIndex; k++ {
-				tryCount, bn, min, max := pm.getBucketWithTryCount(k)
+				tryCount, bn, imin, imax := pm.getBucketWithTryCount(k)
 				mmin, mmax := pm.GetBucketRange(bn)
-				assert.True(t, k >= min && k < max && min == mmin && max == mmax && tryCount <= 1)
+				assert.True(t, k >= imin && k < imax && imin == mmin && imax == mmax && tryCount <= 1)
 			}
 		}
 	}
+}
+
+func TestMailBox_AllToOne(t *testing.T) {
+	var (
+		NP = 1000
+		wg = sync.WaitGroup{}
+	)
+	mb := NewMailBox[int](NP)
+	myThreadPost := func(myThread int) {
+		defer wg.Done()
+		msg := myThread
+		mb.PostMessage(myThread, NP-1, msg)
+		mb.DeliverMyMessages(myThread)
+	}
+	myThreadRecv := func(myThread int) {
+		defer wg.Done()
+		mb.ReceiveMyMessages(myThread)
+	}
+	for n := 0; n < NP; n++ {
+		wg.Add(1)
+		go myThreadPost(n)
+	}
+	wg.Wait()
+	for n := 0; n < NP; n++ {
+		wg.Add(1)
+		go myThreadRecv(n)
+	}
+	wg.Wait()
+	var i, iEnd, iSum int
+	for n := 0; n < NP; n++ {
+		for _, msg := range mb.ReceiveMsgQs[n].Cells() {
+			// fmt.Println("Thread K, msg = ", n, msg)
+			_ = msg
+			i++
+			if n == NP-1 {
+				iEnd++
+				iSum += msg + 1
+			}
+		}
+	}
+	t.Logf("Itotal, IEnd = %d, %d, %d\n", i, iEnd, iSum)
+	assert.Equal(t, NP, i)
+	assert.Equal(t, i, iEnd)
+	assert.Equal(t, NP*(NP+1)/2, iSum)
+}
+
+func TestMailBox_AllToAll(t *testing.T) {
+	var (
+		NP = 1000
+		wg = sync.WaitGroup{}
+	)
+	mb := NewMailBox[int](NP)
+	myThreadPost := func(myThread int) {
+		defer wg.Done()
+		msg := myThread
+		mb.PostMessageToAll(myThread, msg)
+		mb.DeliverMyMessages(myThread)
+	}
+	myThreadRecv := func(myThread int) {
+		defer wg.Done()
+		mb.ReceiveMyMessages(myThread)
+	}
+	for n := 0; n < NP; n++ {
+		wg.Add(1)
+		go myThreadPost(n)
+	}
+	wg.Wait()
+	for n := 0; n < NP; n++ {
+		wg.Add(1)
+		go myThreadRecv(n)
+	}
+	wg.Wait()
+	var i int
+	for n := 0; n < NP; n++ {
+		for _, msg := range mb.ReceiveMsgQs[n].Cells() {
+			// fmt.Println("Thread K, msg = ", n, msg)
+			_ = msg
+			i++
+		}
+	}
+	t.Logf("Itotal = %d\n", i)
+	assert.Equal(t, (NP-1)*NP, i)
 }

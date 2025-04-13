@@ -12,7 +12,7 @@ type ModeAliasShockFinder struct {
 	Np         int
 	Q, Qalt    utils.Matrix // scratch storage for evaluating the moment
 	Kappa      float64
-	ShockCells *utils.DynIntBuffer
+	ShockCells *utils.DynBuffer[int]
 }
 
 func (sf *ModeAliasShockFinder) UpdateShockedCells(Rho utils.Matrix) {
@@ -20,7 +20,7 @@ func (sf *ModeAliasShockFinder) UpdateShockedCells(Rho utils.Matrix) {
 		_, KMax = Rho.Dims()
 	)
 	if sf.ShockCells == nil {
-		sf.ShockCells = utils.NewDynIntBuffer(KMax)
+		sf.ShockCells = utils.NewDynBuffer[int](KMax)
 	}
 	sf.ShockCells.Reset()
 	for k := 0; k < KMax; k++ {

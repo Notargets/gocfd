@@ -1,19 +1,73 @@
 package utils
 
-type MailBox struct {
-	MessageChans []chan any
-	PartitionMap *PartitionMap
+type MailBox[T any] struct {
+	NP           int
+	MessageChans []chan T                // One for each thread
+	PostMsgQs    []map[int]*DynBuffer[T] // One for each thread,
+	// key is target thread
+	ReceiveMsgQs []*DynBuffer[T] // One for each thread
+	MailFlag     []bool          // MyThread receiver has messages in outbox
 }
 
-func (pm *PartitionMap) NewMailBox() (mb *MailBox) {
-	mb = &MailBox{
-		MessageChans: make([]chan any, pm.ParallelDegree),
-		PartitionMap: pm,
+func NewMailBox[T any](NP int) *MailBox[T] {
+	mb := &MailBox[T]{
+		NP:           NP,
+		MessageChans: make([]chan T, NP),
+		PostMsgQs:    make([]map[int]*DynBuffer[T], NP),
+		ReceiveMsgQs: make([]*DynBuffer[T], NP),
+		MailFlag:     make([]bool, NP),
 	}
-	for n := 0; n < pm.ParallelDegree; n++ {
-		mb.MessageChans[n] = make(chan any, pm.ParallelDegree-1)
+	for n := 0; n < NP; n++ {
+		mb.MessageChans[n] = make(chan T, NP) // Worst case is all-to-all
+		mb.PostMsgQs[n] = make(map[int]*DynBuffer[T])
+		mb.ReceiveMsgQs[n] = NewDynBuffer[T](0)
 	}
-	return
+	return mb
+}
+
+func (mb *MailBox[T]) PostMessage(myThread, targetThread int, msg T) {
+	var (
+		exists bool
+		tgt    *DynBuffer[T]
+	)
+	if tgt, exists = mb.PostMsgQs[myThread][targetThread]; !exists {
+		mb.PostMsgQs[myThread][targetThread] = NewDynBuffer[T](0)
+	}
+	tgt = mb.PostMsgQs[myThread][targetThread]
+	tgt.Add(msg)
+	if !mb.MailFlag[myThread] {
+		mb.MailFlag[myThread] = true
+	}
+}
+
+func (mb *MailBox[T]) PostMessageToAll(myThread int, msg T) {
+	for k := 0; k < mb.NP; k++ {
+		if k != myThread {
+			mb.PostMessage(myThread, k, msg)
+		}
+	}
+}
+func (mb *MailBox[T]) DeliverMyMessages(myThread int) {
+	if mb.MailFlag[myThread] {
+		for targetThread, tgt := range mb.PostMsgQs[myThread] {
+			for _, msg := range tgt.Cells() {
+				mb.MessageChans[targetThread] <- msg
+			}
+			tgt.Reset()
+		}
+		mb.MailFlag[myThread] = false
+	}
+}
+
+func (mb *MailBox[T]) ReceiveMyMessages(myThread int) {
+	for {
+		select {
+		case msg := <-mb.MessageChans[myThread]:
+			mb.ReceiveMsgQs[myThread].Add(msg)
+		default:
+			return
+		}
+	}
 }
 
 type PartitionMap struct {
