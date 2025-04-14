@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/notargets/gocfd/DG2D"
 
 	"github.com/notargets/gocfd/InputParameters"
@@ -104,57 +106,28 @@ func TestNeighborNotify(t *testing.T) {
 		Kappa:             3,
 	}
 	c := NewEuler(ip, meshFile, 1, false, false)
-	dfr := c.DFR
-	// gp.MassMatrix.Print("MM")
-	// gp.Minv.Print("Minv")
-	var Q, Q_Face, Q_Face_P0 [4]utils.Matrix
-	for n := 0; n < 4; n++ {
-		Q[n] = utils.NewMatrix(dfr.SolutionElement.Np, dfr.K)
-		Q_Face[n] = utils.NewMatrix(dfr.FluxElement.NpEdge*3, dfr.K)
-		Q_Face_P0[n] = utils.NewMatrix(dfr.FluxElement.NpEdge*3, dfr.K)
-	}
-	// SetTestFieldQ(dfr, RADIAL1TEST, Q)
-	// SetTestFieldQ(dfr, NORMALSHOCKTESTM12, Q)
-	// SetTestFieldQ(dfr, NORMALSHOCKTESTM18, Q)
-	// SetTestFieldQ(dfr, NORMALSHOCKTESTM2, Q)
-	DG2D.SetTestFieldQ(dfr, DG2D.NORMALSHOCKTESTM5, Q)
-	// SetTestFieldQ(dfr, FIXEDVORTEXTEST, Q)
-	// SetTestFieldQ(dfr, INTEGERTEST, Q)
-
+	fmt.Println(c.DFR.Tris.EtoE)
 	nen := c.NewNeighborNotifier()
-
-	NpEdge := dfr.FluxElement.NpEdge
-	var QInterp [4]utils.Matrix
-	for n := 0; n < 4; n++ {
-		QInterp[n] = dfr.GraphInterp.Mul(Q[n])
-	}
-	n := 0
-	c.ShockFinder.UpdateShockedCells(Q[0])
-	c.InterpolateSolutionToShockedEdges(c.ShockFinder, Q_Face, Q_Face_P0)
-	for _, k := range c.ShockFinder.ShockCells.Cells() {
+	for k := 0; k < c.DFR.K; k++ {
 		nen.PostNotification(0, k)
-		// QInterp has 1 extra points per edge
-		for nEdge := 0; nEdge < 3; nEdge++ {
-			off1 := nEdge * NpEdge
-			off2 := nEdge * (NpEdge + 1)
-			for i := 0; i < NpEdge; i++ {
-				QInterp[n].Set(off2+i+1, k, Q_Face[n].At(off1+i, k))
-			}
-		}
 	}
-	fmt.Println("Here 1")
-	for _, mp := range nen.mb.PostMsgQs[0] {
-		for _, msg := range mp.Cells() {
-			fmt.Println(*msg)
-		}
-	}
-	nen.DeliverNotifications(0)
-	fmt.Println("Here 2")
-	fmt.Println(nen.ReadNotifications(0))
-	// Replace vertices for plotting
-	// dfr.AverageGraphFieldVertices(QInterp[n])
+
+	// for _, mp := range nen.mb.PostMsgQs[0] {
+	// 	for _, msg := range mp.Cells() {
+	// 		fmt.Printf("Message: Neighbor/From %d/%d\n", msg.KNeighbor,
+	// 			msg.KRemote)
+	// 	}
 	// }
-	// DG2D.PlotField(QInterp[0].Transpose().DataP, dfr.GraphMesh, 0.0, 0.0)
+	nen.DeliverNotifications(0)
+	for _, conn := range nen.ReadNotifications(0) {
+		remoteFace := conn[0]
+		remoteK := conn[1]
+		localK := conn[2]
+		// fmt.Printf("Edge[%d] Element[%d] ConnectsTo[%d]\n",
+		// 	remoteFace, remoteK, localK)
+		assert.Equal(t, c.DFR.Tris.EtoE[remoteK][remoteFace], localK)
+	}
+	// fmt.Println(nen.ReadNotifications(0))
 }
 
 type NeighborMsg struct {
@@ -180,15 +153,20 @@ func (nen *NeighborNotifier) PostNotification(myThread, myKLocal int) {
 		myK       = c.Partitions.GetGlobalK(myKLocal, myThread)
 		Neighbors = c.DFR.Tris.EtoE[myK]
 	)
+	// fmt.Println("myK (global) for myKLocal", myK, myKLocal)
+	// fmt.Println("Neighbors: ", Neighbors)
 	// The message to each neighbor is simply to connect to this node via it's
 	// local EtoE list of element->face mappings.
 	for _, nbrK := range Neighbors { // For each neighboring tri
+		if nbrK == -1 {
+			continue
+		}
 		targetThread, _, _ := c.Partitions.GetBucket(nbrK)
+		// fmt.Println("targetThread, nbrk = ", targetThread, nbrK)
 		nen.mb.PostMessage(myThread, targetThread, &NeighborMsg{
 			nbrK,
 			myK,
 		})
-		break
 	}
 }
 
@@ -197,7 +175,7 @@ func (nen *NeighborNotifier) DeliverNotifications(myThread int) {
 	nen.mb.DeliverMyMessages(myThread)
 }
 
-func (nen *NeighborNotifier) ReadNotifications(myThread int) (faces [][2]int) {
+func (nen *NeighborNotifier) ReadNotifications(myThread int) (faces [][3]int) {
 	var (
 		c = nen.c
 	)
@@ -208,12 +186,13 @@ func (nen *NeighborNotifier) ReadNotifications(myThread int) (faces [][2]int) {
 		myK := msg.KNeighbor
 		myKLocal, _, _ := c.Partitions.GetLocalK(myK)
 		remoteK := msg.KRemote
-		for nEdge, nbr := range c.DFR.Tris.EtoE[myK] {
-			if nbr == remoteK {
-				faces = append(faces, [2]int{nEdge, myKLocal})
+		for nEdge, neighbor := range c.DFR.Tris.EtoE[myK] {
+			if neighbor == remoteK {
+				faces = append(faces, [3]int{nEdge, myKLocal, neighbor})
 				break
 			}
 		}
 	}
+	nen.mb.ClearMyMessages(myThread)
 	return
 }

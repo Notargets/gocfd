@@ -4,7 +4,7 @@ import "fmt"
 
 type MailBox[T any] struct {
 	NP           int
-	MessageChans []chan T                // One for each thread
+	MessageChans []chan *DynBuffer[T]    // One for each thread
 	PostMsgQs    []map[int]*DynBuffer[T] // One for each thread,
 	// key is target thread
 	ReceiveMsgQs []*DynBuffer[T] // One for each thread
@@ -14,13 +14,13 @@ type MailBox[T any] struct {
 func NewMailBox[T any](NP int) *MailBox[T] {
 	mb := &MailBox[T]{
 		NP:           NP,
-		MessageChans: make([]chan T, NP),
+		MessageChans: make([]chan *DynBuffer[T], NP),
 		PostMsgQs:    make([]map[int]*DynBuffer[T], NP),
 		ReceiveMsgQs: make([]*DynBuffer[T], NP),
 		MailFlag:     make([]bool, NP),
 	}
 	for n := 0; n < NP; n++ {
-		mb.MessageChans[n] = make(chan T, NP) // Worst case is all-to-all
+		mb.MessageChans[n] = make(chan *DynBuffer[T], NP) // Worst case is all-to-all
 		mb.PostMsgQs[n] = make(map[int]*DynBuffer[T])
 		mb.ReceiveMsgQs[n] = NewDynBuffer[T](0)
 	}
@@ -52,17 +52,14 @@ func (mb *MailBox[T]) PostMessageToAll(myThread int, msg T) {
 func (mb *MailBox[T]) DeliverMyMessages(myThread int) {
 	if mb.MailFlag[myThread] {
 		// fmt.Printf("Here in mailbox after MailFlag\n")
-		for targetThread, tgt := range mb.PostMsgQs[myThread] {
+		for targetThread, msgBuffer := range mb.PostMsgQs[myThread] {
 			if targetThread < 0 || targetThread > mb.NP-1 {
 				panic(fmt.Sprintf("Target thread %d out of bounds", targetThread))
 			}
 			// fmt.Printf("Target thread, #msgs: %d, %d\n", targetThread,
-			// 	len(tgt.Cells()))
-			for _, msg := range tgt.Cells() {
-				// fmt.Printf("Message[%d]: %v\n", i, msg)
-				mb.MessageChans[targetThread] <- msg
-			}
-			tgt.Reset()
+			// 	len(msgBuffer.Cells()))
+			// fmt.Printf("Message[%d]: %v\n", i, msg)
+			mb.MessageChans[targetThread] <- msgBuffer
 		}
 		mb.MailFlag[myThread] = false
 	}
@@ -71,12 +68,19 @@ func (mb *MailBox[T]) DeliverMyMessages(myThread int) {
 func (mb *MailBox[T]) ReceiveMyMessages(myThread int) {
 	for {
 		select {
-		case msg := <-mb.MessageChans[myThread]:
-			mb.ReceiveMsgQs[myThread].Add(msg)
+		case msgBuffer := <-mb.MessageChans[myThread]:
+			// fmt.Println("Length of msgBuffer = ", len(msgBuffer.Cells()))
+			for _, msg := range msgBuffer.Cells() {
+				mb.ReceiveMsgQs[myThread].Add(msg)
+			}
+			msgBuffer.Reset() // Reset the originating buffer
 		default:
 			return
 		}
 	}
+}
+func (mb *MailBox[T]) ClearMyMessages(myThread int) {
+	mb.ReceiveMsgQs[myThread].Reset()
 }
 
 type PartitionMap struct {

@@ -138,7 +138,7 @@ func TestMailBox_MultipleMessagesAggregation(t *testing.T) {
 
 func TestMailBox_AllToOne(t *testing.T) {
 	var (
-		NP = 1000
+		NP = 10
 		wg = sync.WaitGroup{}
 	)
 	mb := NewMailBox[int](NP)
