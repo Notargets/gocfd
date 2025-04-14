@@ -372,18 +372,19 @@ func (c *Euler) InterpolateSolutionToEdges(Q, Q_Face, Q_Face_P0 [4]utils.Matrix)
 	// Interpolate from solution points to edges using precomputed interpolation matrix
 	for n := 0; n < 4; n++ {
 		c.DFR.FluxEdgeInterp.Mul(Q[n], Q_Face[n])
-		c.DFR.FluxEdgeProject0Interp.Mul(Q[n], Q_Face_P0[n])
+		if c.DFR.N > 1 {
+			c.DFR.FluxEdgeProject0Interp.Mul(Q[n], Q_Face_P0[n])
+		}
 	}
 	return
 }
 
 func (c *Euler) InterpolateSolutionToShockedEdges(sf *DG2D.ModeAliasShockFinder,
-	Q, Q_Face, Q_Face_P0 [4]utils.Matrix) {
+	Q_Face, Q_Face_P0 [4]utils.Matrix) {
 	var (
 		NpEdge      = c.DFR.FluxElement.NpEdge
 		NpEdgeTotal = 3 * NpEdge
 	)
-	sf.UpdateShockedCells(Q[0])
 	for _, k := range sf.ShockCells.Cells() {
 		for n := 0; n < 4; n++ {
 			for i := 0; i < NpEdgeTotal; i++ {

@@ -1,5 +1,7 @@
 package utils
 
+import "fmt"
+
 type MailBox[T any] struct {
 	NP           int
 	MessageChans []chan T                // One for each thread
@@ -49,8 +51,15 @@ func (mb *MailBox[T]) PostMessageToAll(myThread int, msg T) {
 }
 func (mb *MailBox[T]) DeliverMyMessages(myThread int) {
 	if mb.MailFlag[myThread] {
+		// fmt.Printf("Here in mailbox after MailFlag\n")
 		for targetThread, tgt := range mb.PostMsgQs[myThread] {
+			if targetThread < 0 || targetThread > mb.NP-1 {
+				panic(fmt.Sprintf("Target thread %d out of bounds", targetThread))
+			}
+			// fmt.Printf("Target thread, #msgs: %d, %d\n", targetThread,
+			// 	len(tgt.Cells()))
 			for _, msg := range tgt.Cells() {
+				// fmt.Printf("Message[%d]: %v\n", i, msg)
 				mb.MessageChans[targetThread] <- msg
 			}
 			tgt.Reset()

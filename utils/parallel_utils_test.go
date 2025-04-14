@@ -62,6 +62,80 @@ func TestEuler_Indexing(t *testing.T) {
 	}
 }
 
+func TestMailBox_MultipleMessagesAggregation(t *testing.T) {
+	var (
+		NP        = 1000
+		wg        = sync.WaitGroup{}
+		neighbors = make([][3]int, NP)
+	)
+	type Message struct {
+		SendingNeighbor int
+		RemoteIndex     int
+	}
+	var im1, ip1 int
+	for i := 0; i < NP; i++ {
+		im1 = i - 1
+		ip1 = i + 1
+		if im1 < 0 {
+			im1 = NP - 1
+		}
+		if ip1 > NP-1 {
+			ip1 = 0
+		}
+		neighbors[i] = [3]int{im1, i, ip1}
+	}
+	// fmt.Println("Neighbors: ", neighbors)
+	mb := NewMailBox[*Message](NP)
+	myThreadPost := func(myThread int) {
+		defer wg.Done()
+		targetThread := neighbors[myThread][0]
+		mb.PostMessage(myThread, targetThread, &Message{
+			SendingNeighbor: myThread,
+			RemoteIndex:     10 * targetThread,
+		})
+		targetThread = neighbors[myThread][2]
+		mb.PostMessage(myThread, targetThread, &Message{
+			SendingNeighbor: myThread,
+			RemoteIndex:     10 * targetThread,
+		})
+		mb.DeliverMyMessages(myThread)
+	}
+	myThreadRecv := func(myThread int) {
+		defer wg.Done()
+		mb.ReceiveMyMessages(myThread)
+	}
+	for n := 0; n < NP; n++ {
+		wg.Add(1)
+		go myThreadPost(n)
+	}
+	wg.Wait()
+	for n := 0; n < NP; n++ {
+		wg.Add(1)
+		go myThreadRecv(n)
+	}
+	wg.Wait()
+	var i int
+	for n := 0; n < NP; n++ {
+		for _, msg := range mb.ReceiveMsgQs[n].Cells() {
+			var found bool
+			for ii := 0; ii < 3; ii++ {
+				if neighbors[n][ii] == msg.SendingNeighbor {
+					found = true
+					// fmt.Printf("Thread[%d], Neighbor[%d] = %d\n", n,
+					// 	ii, msg.SendingNeighbor)
+					break
+				}
+			}
+			assert.Equal(t, n, msg.RemoteIndex/10)
+			assert.True(t, found)
+			// _ = msg
+			i++
+		}
+	}
+	t.Logf("Itotal = %d\n", i)
+	assert.Equal(t, 2*NP, i)
+}
+
 func TestMailBox_AllToOne(t *testing.T) {
 	var (
 		NP = 1000

@@ -313,7 +313,8 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		QQQ                        = [][4]utils.Matrix{Q0, Q1, Q2, Q3, Q4}[rkStep]
 		QQQAll                     = [][][4]utils.Matrix{c.Q, rk.Q1, rk.Q2, rk.Q3, rk.Q4}[rkStep]
 		ShockSensor                = rk.ShockSensor[myThread]
-		Debug                      = false
+		// Debug                      = false
+		Debug = true
 	)
 	_ = ShockSensor
 	defer wg.Done()
@@ -390,10 +391,14 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 				DT.DataP[k] = -100 // Global
 			}
 		}
-		c.InterpolateSolutionToEdges(QQQ, Q_Face, Q_Face_P0)                     // Interpolates Q_Face values from Q
-		c.InterpolateSolutionToShockedEdges(ShockSensor, QQQ, Q_Face, Q_Face_P0) // Interpolates Q_Face values from Q
-		// c.InterpolateSolutionToEdgesWithEntropyVariables(QQQ, Q_Face)
+		c.InterpolateSolutionToEdges(QQQ, Q_Face, Q_Face_P0) // Interpolates Q_Face values from Q
+		if c.DFR.N > 1 {
+			ShockSensor.UpdateShockedCells(QQQ[0])
+		}
 	case 1, 6, 11, 16, 21:
+		if currentStep == 1 {
+			c.InterpolateSolutionToShockedEdges(ShockSensor, Q_Face, Q_Face_P0) // Interpolates Q_Face values from Q
+		}
 		rk.MaxWaveSpeed[myThread] =
 			c.CalculateEdgeFlux(rk.Time, initDT, rk.Jdet, rk.DT, rk.Q_Face, rk.Flux_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
 		if c.Dissipation != nil {
@@ -419,8 +424,6 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 		rkAdvance(rkStep, QQQ)
 		if rkStep != 4 {
 			c.InterpolateSolutionToEdges(QQQ, Q_Face, Q_Face_P0) // Interpolates Q_Face values from Q
-			// EdgeProjector.ProjectValues(QQQ, Q_Face)
-			// c.InterpolateSolutionToEdgesWithEntropyVariables(QQQ, Q_Face)
 		}
 	}
 	return
