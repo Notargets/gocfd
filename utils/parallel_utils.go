@@ -190,3 +190,80 @@ func (pm *PartitionMap) Split1D(threadNum int) (bucket [2]int) {
 	bucket[1] = bucket[0] + Npart + endAdd
 	return
 }
+
+type NeighborMsg struct {
+	// From the perspective of the receiver
+	KNeighborGlobal, KMyGlobal int
+}
+
+type NeighborNotifier struct {
+	PartitionMap  *PartitionMap
+	NeighborsEtoE [][3]int
+	mb            *MailBox[*NeighborMsg]
+}
+
+func NewNeighborNotifier(PartitionMap *PartitionMap,
+	NeighborsEtoE [][3]int) (nen *NeighborNotifier) {
+	nen = &NeighborNotifier{
+		mb:            NewMailBox[*NeighborMsg](PartitionMap.ParallelDegree),
+		PartitionMap:  PartitionMap,
+		NeighborsEtoE: NeighborsEtoE,
+	}
+	return
+}
+
+func (nen *NeighborNotifier) PostNotification(myThread, myKLocal int) {
+	// The pattern here is:
+	// for range messages {Post}; Deliver; blockWait; Receive
+	var (
+		myK       = nen.PartitionMap.GetGlobalK(myKLocal, myThread)
+		Neighbors = nen.NeighborsEtoE[myK]
+	)
+	// The message to each neighbor is simply to connect to this node via it's
+	// local EtoE list of element->face mappings.
+	for _, nbrK := range Neighbors { // For each neighboring tri
+		if nbrK == -1 {
+			continue
+		}
+		targetThread, tgtKMin, tgtKMax := nen.PartitionMap.GetBucket(nbrK)
+		// fmt.Printf("Posting %d to thread %d, Kmin %d, Kmax %d\n", nbrK,
+		// 	targetThread, tgtKMin, tgtKMax)
+		if nbrK < tgtKMin || nbrK >= tgtKMax {
+			panic("Neighbor K out of range")
+		}
+		nen.mb.PostMessage(myThread, targetThread, &NeighborMsg{
+			myK,
+			nbrK,
+		})
+	}
+}
+
+func findEdge(NeighborList [3]int, k int) (edge int) {
+	for i := 0; i < 3; i++ {
+		if NeighborList[i] == k {
+			return i
+		}
+	}
+	panic("Edge not found")
+	return
+}
+
+func (nen *NeighborNotifier) DeliverNotifications(myThread int) {
+	// Must be called in myThread before receivers can receive notifications
+	nen.mb.DeliverMyMessages(myThread)
+}
+
+func (nen *NeighborNotifier) ReadNotifications(myThread int) (faces [][3]int) {
+	// Must be called after waiting for the DeliverNotifications is done in a
+	// sync
+	nen.mb.ReceiveMyMessages(myThread)
+	for _, msg := range nen.mb.ReceiveMsgQs[myThread].Cells() {
+		// Find which face the remote element connects to via EtoE
+		// Neighbors := c.DFR.Tris.EtoE[msg.KMyGlobal]
+		Neighbors := nen.NeighborsEtoE[msg.KMyGlobal]
+		nEdge := findEdge(Neighbors, msg.KNeighborGlobal)
+		faces = append(faces, [3]int{msg.KNeighborGlobal, msg.KMyGlobal, nEdge})
+	}
+	nen.mb.ClearMyMessages(myThread)
+	return
+}

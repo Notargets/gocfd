@@ -54,6 +54,7 @@ type Euler struct {
 	EdgeStore           *EdgeValueStorage
 	ShockTube           *sod_shock_tube.SODShockTube
 	SolutionFieldWriter *DG2D.AVSFieldWriter
+	RK                  *RungeKutta4SSP
 }
 
 func NewEuler(ip *InputParameters.InputParameters2D, meshFile string, ProcLimit int, verbose, profile bool) (c *Euler) {
@@ -114,6 +115,8 @@ func NewEuler(ip *InputParameters.InputParameters2D, meshFile string, ProcLimit 
 	// Save graph mesh
 	c.DFR.OutputMesh("meshfile.gobcfd", c.SerializeBCs())
 
+	c.RK = c.NewRungeKuttaSSP()
+
 	if verbose {
 		fmt.Printf("Euler Equations in 2 Dimensions\n")
 		fmt.Printf("Using %d go routines in parallel\n", c.Partitions.ParallelDegree)
@@ -145,25 +148,23 @@ func (c *Euler) Solve() {
 
 	c.PrintInitialization(FinalTime)
 
-	rk := c.NewRungeKuttaSSP()
-
 	elapsed := time.Duration(0)
 	var start time.Time
 	for !finished {
 		start = time.Now()
-		rk.Step(c)
+		c.RK.Step(c)
 		elapsed += time.Now().Sub(start)
 		steps++
-		rk.Time += rk.GlobalDT
-		rk.StepCount++
-		finished = c.CheckIfFinished(rk.Time, FinalTime, steps)
+		c.RK.Time += c.RK.GlobalDT
+		c.RK.StepCount++
+		finished = c.CheckIfFinished(c.RK.Time, FinalTime, steps)
 		// if finished || steps == 1 || steps%1 == 0 {
 		if finished || steps == 1 || steps%100 == 0 {
 			var printMem bool
 			if steps%100 == 0 {
 				printMem = true
 			}
-			c.PrintUpdate(rk.Time, rk.GlobalDT, steps, c.Q, rk.Residual, printMem, rk.LimitedPoints)
+			c.PrintUpdate(c.RK.Time, c.RK.GlobalDT, steps, c.Q, c.RK.Residual, printMem, c.RK.LimitedPoints)
 			if len(c.SolutionFieldWriter.FieldMeta.FieldNames) != 0 {
 				c.RecombineShardsKBy4(c.Q, &c.Q4)
 				fieldMap := make(map[string][]float64)
@@ -184,7 +185,7 @@ func (c *Euler) Solve() {
 				}
 				c.SolutionFieldWriter.Save(&DG2D.SingleFieldMetadata{
 					Iterations: steps,
-					Time:       float32(rk.Time),
+					Time:       float32(c.RK.Time),
 					Count:      nFields,
 					Length:     length,
 				},
