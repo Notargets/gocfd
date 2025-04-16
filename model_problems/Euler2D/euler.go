@@ -276,12 +276,8 @@ func (rk *RungeKutta4SSP) Step(c *Euler) {
 		This is the controller thread - it manages and synchronizes the workers
 		NOTE: Any CPU work done in this thread makes the workers wait - be careful!
 	*/
-	var (
-		pm = c.Partitions
-		NP = pm.ParallelDegree
-		wg = sync.WaitGroup{}
-	)
-	for currentStep := 0; currentStep < 26; currentStep++ {
+	for rkStep := -1; rkStep < 5; rkStep++ {
+		// for currentStep := 0; currentStep < 26; currentStep++ {
 		// rkStep := getRKStepNumber(currentStep)
 		// initDT                     := (rkStep == 0) // Calculate time step on first RK stage only
 		initDT := true // Calculate time step at each stage
@@ -290,39 +286,33 @@ func (rk *RungeKutta4SSP) Step(c *Euler) {
 			rk.calculateGlobalDT(c) // Compute the global DT for non local timestepping - must be done serially
 		}
 		// Advance the workers one step
-		for np := 0; np < NP; np++ {
-			wg.Add(1)
-			go rk.StepWorker(c, np, &wg, currentStep, initDT)
-		}
-		wg.Wait()
+		rk.StepWorker(c, rkStep, initDT)
 	}
 }
 
-func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup, currentStep int, initDT bool) {
+func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 	var (
-		Np                         = rk.NpInt
-		dT                         float64
-		Kmax, Jdet, Jinv, F_RT_DOF = rk.Kmax[myThread], rk.Jdet[myThread], rk.Jinv[myThread], rk.F_RT_DOF[myThread]
-		DT, Q_Face, Q_Face_P0      = rk.DT[myThread], rk.Q_Face[myThread], rk.Q_Face_P0[myThread]
-		Q0                         = c.Q[myThread]
-		Q1, Q2, Q3, Q4             = rk.Q1[myThread], rk.Q2[myThread], rk.Q3[myThread], rk.Q4[myThread]
-		RHSQ, Residual             = rk.RHSQ[myThread], rk.Residual[myThread]
-		EdgeQ1, EdgeQ2             = rk.EdgeQ1[myThread], rk.EdgeQ2[myThread]
-		SortedEdgeKeys             = c.SortedEdgeKeys[myThread]
-		DTStartup                  = 1. - math.Pow(math.Exp(-float64(rk.StepCount+1)), 1./64)
-		rkStep                     = getRKStepNumber(currentStep)
-		QQQ                        = [][4]utils.Matrix{Q0, Q1, Q2, Q3, Q4}[rkStep]
-		QQQAll                     = [][][4]utils.Matrix{c.Q, rk.Q1, rk.Q2, rk.Q3, rk.Q4}[rkStep]
-		ShockSensor                = rk.ShockSensor[myThread]
-		// Debug                      = false
+		Np        = rk.NpInt
+		dT        float64
+		DTStartup = 1. - math.Pow(math.Exp(-float64(rk.StepCount+1)), 1./64)
+		// rkStep    = getRKStepNumber(currentStep)
+		QQQAll = [][][4]utils.Matrix{nil, c.Q, rk.Q1, rk.Q2, rk.Q3,
+			rk.Q4}[rkStep+1]
+		// Debug     = false
 		Debug = true
 	)
-	_ = ShockSensor
-	defer wg.Done()
 	/*
 		Inline functions
 	*/
-	rkAdvance := func(rkstep int, QQQ [4]utils.Matrix) {
+	rkAdvance := func(myThread int) {
+		var (
+			Kmax, Jdet, Jinv, F_RT_DOF = rk.Kmax[myThread], rk.Jdet[myThread], rk.Jinv[myThread], rk.F_RT_DOF[myThread]
+			DT                         = rk.DT[myThread]
+			RHSQ, Residual             = rk.RHSQ[myThread], rk.Residual[myThread]
+			Q0, Q1, Q2, Q3, Q4         = c.Q[myThread], rk.Q1[myThread],
+				rk.Q2[myThread], rk.Q3[myThread], rk.Q4[myThread]
+			QQQ = [][4]utils.Matrix{Q0, Q1, Q2, Q3, Q4}[rkStep]
+		)
 		checkFunc := func() {
 			if !Debug {
 				return
@@ -362,7 +352,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 					dT = DTStartup * DT.DataP[i]
 				}
 				dtRHS := dT * RHSQ[n].DataP[i]
-				switch rkstep {
+				switch rkStep {
 				case 0:
 					U1[i] = U0[i] + 0.391752226571890*dtRHS
 				case 1:
@@ -380,53 +370,87 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, myThread int, wg *sync.WaitGroup,
 				}
 			}
 		}
+		if rkStep != 4 {
+			c.InterpolateSolutionToEdges(QQQ, rk.Q_Face[myThread], rk.Q_Face_P0[myThread]) // Interpolates Q_Face values from Q
+		}
 	}
 	/*
 		Execution
 	*/
-	switch currentStep {
-	case 0:
-		if c.LocalTimeStepping {
-			// Setup local time stepping
-			for k := 0; k < Kmax; k++ {
-				DT.DataP[k] = -100 // Global
-			}
+	doParallel := func(myFunc func(np int)) {
+		wg := sync.WaitGroup{}
+		for np := 0; np < c.Partitions.ParallelDegree; np++ {
+			wg.Add(1)
+			go func(np int, myFunc func(np int)) {
+				defer wg.Done()
+				myFunc(np)
+			}(np, myFunc)
 		}
-		c.InterpolateSolutionToEdges(QQQ, Q_Face, Q_Face_P0) // Interpolates Q_Face values from Q
-		if c.DFR.N > 1 {
-			ShockSensor.UpdateShockedCells(QQQ[0])
-		}
-	case 1, 6, 11, 16, 21:
-		if currentStep == 1 {
-			c.InterpolateSolutionToShockedEdges(ShockSensor, Q_Face, Q_Face_P0) // Interpolates Q_Face values from Q
-		}
-		rk.MaxWaveSpeed[myThread] =
-			c.CalculateEdgeFlux(rk.Time, initDT, rk.Jdet, rk.DT, rk.Q_Face, rk.Flux_Face, SortedEdgeKeys, EdgeQ1, EdgeQ2) // Global
-		if c.Dissipation != nil {
-			c.Dissipation.CalculateElementViscosity(myThread, QQQAll)
-		}
-	case 2, 7, 12, 17, 22:
-		if c.Dissipation != nil {
-			c.Dissipation.propagateEpsilonMaxToVertices(myThread)
-		}
-	case 3, 8, 13, 18, 23:
-		if initDT && c.LocalTimeStepping {
-			c.CalculateLocalDT(DT, myThread)
-		}
-		if c.Dissipation != nil {
-			c.Dissipation.CalculateEpsilonGradient(c, C0, myThread, QQQ)
-		}
-	case 4, 9, 14, 19, 24:
-		if c.Dissipation != nil {
-			c.StoreGradientEdgeFlux(SortedEdgeKeys, EdgeQ1)
-		}
-	case 5, 10, 15, 20, 25:
-		rk.LimitedPoints[myThread] = c.Limiter.LimitSolution(myThread, c.Q, rk.Residual, rk.FilterScratch)
-		rkAdvance(rkStep, QQQ)
-		if rkStep != 4 {
-			c.InterpolateSolutionToEdges(QQQ, Q_Face, Q_Face_P0) // Interpolates Q_Face values from Q
-		}
+		wg.Wait()
 	}
+	// case 0:
+	if rkStep == -1 {
+		doParallel(func(np int) {
+			if c.LocalTimeStepping {
+				// Setup local time stepping
+				for k := 0; k < rk.Kmax[np]; k++ {
+					rk.DT[np].DataP[k] = -100 // Global
+				}
+			}
+			c.InterpolateSolutionToEdges(c.Q[np], rk.Q_Face[np], rk.Q_Face_P0[np]) // Interpolates Q_Face values from Q
+			if c.DFR.N > 1 {
+				rk.ShockSensor[np].UpdateShockedCells(c.Q[np][0])
+			}
+		})
+		return
+	}
+	// case 1, 6, 11, 16, 21:
+	doParallel(func(np int) {
+		if rkStep == 0 && c.DFR.N > 1 {
+			c.InterpolateSolutionToShockedEdges(
+				rk.ShockSensor[np], rk.Q_Face[np],
+				rk.Q_Face_P0[np]) // Interpolates Q_Face values from Q
+		}
+		rk.MaxWaveSpeed[np] =
+			c.CalculateEdgeFlux(rk.Time, initDT, rk.Jdet, rk.DT, rk.Q_Face,
+				rk.Flux_Face, c.SortedEdgeKeys[np], rk.EdgeQ1[np],
+				rk.EdgeQ2[np]) // Global
+		if c.Dissipation != nil {
+			c.Dissipation.CalculateElementViscosity(np, QQQAll)
+		}
+	})
+	// case 2, 7, 12, 17, 22:
+	doParallel(func(np int) {
+		if c.Dissipation != nil {
+			c.Dissipation.propagateEpsilonMaxToVertices(np)
+		}
+	})
+	// case 3, 8, 13, 18, 23:
+	doParallel(func(np int) {
+		var (
+			Q0, Q1, Q2, Q3, Q4 = c.Q[np], rk.Q1[np], rk.Q2[np], rk.Q3[np],
+				rk.Q4[np]
+			QQQ = [][4]utils.Matrix{Q0, Q1, Q2, Q3, Q4}[rkStep]
+		)
+		if initDT && c.LocalTimeStepping {
+			c.CalculateLocalDT(rk.DT[np], np)
+		}
+		if c.Dissipation != nil {
+			c.Dissipation.CalculateEpsilonGradient(c, C0, np, QQQ)
+		}
+	})
+	// case 4, 9, 14, 19, 24:
+	doParallel(func(np int) {
+		if c.Dissipation != nil {
+			c.StoreGradientEdgeFlux(c.SortedEdgeKeys[np], rk.EdgeQ1[np])
+		}
+	})
+	// case 5, 10, 15, 20, 25:
+	doParallel(func(np int) {
+		rk.LimitedPoints[np] = c.Limiter.LimitSolution(np, c.Q,
+			rk.Residual, rk.FilterScratch)
+		rkAdvance(np)
+	})
 	return
 }
 
