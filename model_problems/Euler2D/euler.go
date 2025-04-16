@@ -276,15 +276,10 @@ func (rk *RungeKutta4SSP) Step(c *Euler) {
 		This is the controller thread - it manages and synchronizes the workers
 		NOTE: Any CPU work done in this thread makes the workers wait - be careful!
 	*/
-	for rkStep := -1; rkStep < 5; rkStep++ {
-		// for currentStep := 0; currentStep < 26; currentStep++ {
-		// rkStep := getRKStepNumber(currentStep)
-		// initDT                     := (rkStep == 0) // Calculate time step on first RK stage only
-		initDT := true // Calculate time step at each stage
+	for rkStep := 0; rkStep < 5; rkStep++ {
 		// Workers are blocked below here until the StepWorker section - make sure significant work done here is abs necessary!
-		if initDT && !c.LocalTimeStepping {
-			rk.calculateGlobalDT(c) // Compute the global DT for non local timestepping - must be done serially
-		}
+		initDT := true // Calculate time step at each stage
+		// initDT := (rkStep == 0) // Calculate time step on first RK stage only
 		// Advance the workers one step
 		rk.StepWorker(c, rkStep, initDT)
 	}
@@ -296,21 +291,20 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 		dT        float64
 		DTStartup = 1. - math.Pow(math.Exp(-float64(rk.StepCount+1)), 1./64)
 		// rkStep    = getRKStepNumber(currentStep)
-		QQQAll = [][][4]utils.Matrix{nil, c.Q, rk.Q1, rk.Q2, rk.Q3,
-			rk.Q4}[rkStep+1]
-		// Debug     = false
-		Debug = true
+		QQQAll = [][][4]utils.Matrix{c.Q, rk.Q1, rk.Q2, rk.Q3, rk.Q4}[rkStep]
+		Debug  = false
+		// Debug = true
 	)
 	/*
 		Inline functions
 	*/
-	rkAdvance := func(myThread int) {
+	rkAdvance := func(np int) {
 		var (
-			Kmax, Jdet, Jinv, F_RT_DOF = rk.Kmax[myThread], rk.Jdet[myThread], rk.Jinv[myThread], rk.F_RT_DOF[myThread]
-			DT                         = rk.DT[myThread]
-			RHSQ, Residual             = rk.RHSQ[myThread], rk.Residual[myThread]
-			Q0, Q1, Q2, Q3, Q4         = c.Q[myThread], rk.Q1[myThread],
-				rk.Q2[myThread], rk.Q3[myThread], rk.Q4[myThread]
+			Kmax, Jdet, Jinv, F_RT_DOF = rk.Kmax[np], rk.Jdet[np], rk.Jinv[np], rk.F_RT_DOF[np]
+			DT                         = rk.DT[np]
+			RHSQ, Residual             = rk.RHSQ[np], rk.Residual[np]
+			Q0, Q1, Q2, Q3, Q4         = c.Q[np], rk.Q1[np],
+				rk.Q2[np], rk.Q3[np], rk.Q4[np]
 			QQQ = [][4]utils.Matrix{Q0, Q1, Q2, Q3, Q4}[rkStep]
 		)
 		checkFunc := func() {
@@ -336,10 +330,10 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 		*/
 		checkFunc()
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, QQQ) // Updates F_RT_DOF with values from Q
-		c.SetRTFluxOnEdges(myThread, Kmax, F_RT_DOF)
+		c.SetRTFluxOnEdges(np, Kmax, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
 		if c.Dissipation != nil {
-			c.Dissipation.AddDissipation(c, myThread, Jinv, Jdet, RHSQ)
+			c.Dissipation.AddDissipation(c, np, Jinv, Jdet, RHSQ)
 		}
 		dT = rk.GlobalDT
 		for n := 0; n < 4; n++ {
@@ -370,13 +364,13 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 				}
 			}
 		}
-		if rkStep != 4 {
-			c.InterpolateSolutionToEdges(QQQ, rk.Q_Face[myThread], rk.Q_Face_P0[myThread]) // Interpolates Q_Face values from Q
-		}
 	}
 	/*
 		Execution
 	*/
+	if initDT && !c.LocalTimeStepping {
+		rk.calculateGlobalDT(c) // Compute the global DT for nonlocal timestepping - must be done serially
+	}
 	doParallel := func(myFunc func(np int)) {
 		wg := sync.WaitGroup{}
 		for np := 0; np < c.Partitions.ParallelDegree; np++ {
@@ -389,7 +383,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 		wg.Wait()
 	}
 	// case 0:
-	if rkStep == -1 {
+	if rkStep == 0 {
 		doParallel(func(np int) {
 			if c.LocalTimeStepping {
 				// Setup local time stepping
@@ -397,20 +391,25 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 					rk.DT[np].DataP[k] = -100 // Global
 				}
 			}
-			c.InterpolateSolutionToEdges(c.Q[np], rk.Q_Face[np], rk.Q_Face_P0[np]) // Interpolates Q_Face values from Q
-			if c.DFR.N > 1 {
-				rk.ShockSensor[np].UpdateShockedCells(c.Q[np][0])
-			}
 		})
-		return
 	}
+	doParallel(func(np int) {
+		var (
+			Q0, Q1, Q2, Q3, Q4 = c.Q[np], rk.Q1[np],
+				rk.Q2[np], rk.Q3[np], rk.Q4[np]
+			QQQ = [][4]utils.Matrix{Q0, Q1, Q2, Q3, Q4}[rkStep]
+		)
+		c.InterpolateSolutionToEdges(QQQ, rk.Q_Face[np],
+			rk.Q_Face_P0[np]) // Interpolates Q_Face values from Q
+		// if c.DFR.N > 1 && rkStep == 0 {
+		// 	rk.ShockSensor[np].UpdateShockedCells(QQQ[0])
+		// 	c.InterpolateSolutionToShockedEdges(
+		// 		rk.ShockSensor[np], rk.Q_Face[np],
+		// 		rk.Q_Face_P0[np]) // Interpolates Q_Face values from Q
+		// }
+	})
 	// case 1, 6, 11, 16, 21:
 	doParallel(func(np int) {
-		if rkStep == 0 && c.DFR.N > 1 {
-			c.InterpolateSolutionToShockedEdges(
-				rk.ShockSensor[np], rk.Q_Face[np],
-				rk.Q_Face_P0[np]) // Interpolates Q_Face values from Q
-		}
 		rk.MaxWaveSpeed[np] =
 			c.CalculateEdgeFlux(rk.Time, initDT, rk.Jdet, rk.DT, rk.Q_Face,
 				rk.Flux_Face, c.SortedEdgeKeys[np], rk.EdgeQ1[np],

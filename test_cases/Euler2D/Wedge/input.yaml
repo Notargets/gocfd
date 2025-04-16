@@ -16,7 +16,8 @@ Minf: 2.0
 Gamma: 1.4
 Alpha: 0.
 LocalTimeStepping: true
-MaxIterations: 600
+#MaxIterations: 600
+MaxIterations: 2000
 #MaxIterations: 5000
 
 #Limiter: 
