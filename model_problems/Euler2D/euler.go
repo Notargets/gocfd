@@ -486,7 +486,8 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 	})
 	doParallel(func(np int) {
 		if c.Dissipation != nil {
-			c.StoreDissipationEdgeFlux(c.SortedEdgeKeys[np], rk.EdgeQ1[np])
+			c.StoreDissipationEdgeFlux(c.Dissipation.EpsilonScalar,
+				c.SortedEdgeKeys[np], rk.EdgeQ1[np])
 		}
 	})
 	doParallel(func(np int) {
@@ -750,7 +751,7 @@ func (c *Euler) GetSolutionGradientUsingRTElement(myThread, varNum int, Q [4]uti
 	for k := 0; k < Kmax; k++ {
 		kGlobal := c.Partitions.GetGlobalK(k, myThread)
 		for edgeNum := 0; edgeNum < 3; edgeNum++ {
-			edgeVals, sign := c.EdgeStore.GetEdgeValues(QFluxForGradient, myThread, k, varNum, edgeNum, dfr)
+			edgeVals, sign := c.EdgeStore.GetEdgeValues(EdgeQValues, myThread, k, varNum, edgeNum, dfr)
 			var (
 				ii    int
 				shift = edgeNum * NpEdge

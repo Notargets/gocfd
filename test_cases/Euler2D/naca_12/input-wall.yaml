@@ -1,6 +1,6 @@
 Title: "Test Case"
-#CFL: 3.0
-CFL: 2.5
+CFL: 3.0
+#CFL: 2.5
 #CFL: 2.0
 #CFL: 1.0
 #CFL: 0.5
@@ -24,5 +24,5 @@ MaxIterations: 5000
 #Limiter: Barth Jesperson
 Limiter: PerssonC0
 #Limiter: ModeFilter
-Kappa: 5
+Kappa: 3
 PlotFields: ["mach"]

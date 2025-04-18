@@ -300,7 +300,7 @@ func (sd *ScalarDissipation) AddDissipation(c *Euler, myThread int, Jinv, Jdet u
 					IInII = IInIId[fInd]
 					shift = NpEdge * edgeNum
 				)
-				edgeFlux, sign := c.EdgeStore.GetEdgeValues(GradientFluxForLaplacian, myThread, k, n, edgeNum, c.DFR)
+				edgeFlux, sign := c.EdgeStore.GetEdgeValues(ViscousNormalFlux, myThread, k, n, edgeNum, c.DFR)
 				var ii int
 				for i := 0; i < NpEdge; i++ {
 					ind := k + (2*NpInt+i+shift)*Kmax

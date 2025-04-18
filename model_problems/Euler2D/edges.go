@@ -51,8 +51,8 @@ type ValueType uint8
 
 const (
 	NumericalFluxForEuler ValueType = iota
-	QFluxForGradient
-	GradientFluxForLaplacian
+	EdgeQValues
+	ViscousNormalFlux
 )
 
 func (c *Euler) NewEdgeStorage() (nf *EdgeValueStorage) {
@@ -63,7 +63,7 @@ func (c *Euler) NewEdgeStorage() (nf *EdgeValueStorage) {
 		StorageIndex: make(map[types.EdgeKey]int),
 		PMap:         c.Partitions,
 		Nedge:        c.DFR.FluxElement.NpEdge,
-		Fluxes:       make([][4]utils.Matrix, int(GradientFluxForLaplacian)+1),
+		Fluxes:       make([][4]utils.Matrix, int(ViscousNormalFlux)+1),
 	}
 	// Allocate memory for fluxes
 	for i := range nf.Fluxes {
@@ -126,16 +126,18 @@ func (c *Euler) GetFaceNormal(kGlobal, edgeNumber int) (normal [2]float64) {
 	return
 }
 
-func (c *Euler) StoreDissipationEdgeFlux(edgeKeys EdgeKeySlice, EdgeQ1 [][4]float64) {
+func (c *Euler) StoreDissipationEdgeFlux(epsilon [][]float64,
+	edgeKeys EdgeKeySlice, EdgeQ1 [][4]float64) {
 	var (
-		Nedge                    = c.DFR.FluxElement.NpEdge
-		gradientFluxForLaplacian = EdgeQ1
-		pm                       = c.Partitions
-		Nint                     = c.DFR.FluxElement.NpInt
+		Nedge       = c.DFR.FluxElement.NpEdge
+		viscousFlux = EdgeQ1
+		pm          = c.Partitions
+		Nint        = c.DFR.FluxElement.NpInt
 	)
 	for _, en := range edgeKeys {
 		e := c.DFR.Tris.Edges[en]
 		var (
+			ooedgeLength         = 1. / e.GetEdgeLength()
 			kLGlobal             = int(e.ConnectedTris[0])
 			kL, KmaxL, myThreadL = pm.GetLocalK(int(e.ConnectedTris[0]))
 			edgeNumberL          = int(e.ConnectedTriEdgeNumber[0])
@@ -143,6 +145,7 @@ func (c *Euler) StoreDissipationEdgeFlux(edgeKeys EdgeKeySlice, EdgeQ1 [][4]floa
 			shiftL               = Nedge * edgeNumberL
 			normalL              = c.GetFaceNormal(kLGlobal, edgeNumberL)
 			nxL, nyL             = normalL[0], normalL[1]
+			epsilonL             = epsilon[myThreadL][kL]
 
 			kR, KmaxR, myThreadR = pm.GetLocalK(int(e.ConnectedTris[1]))
 			edgeNumberR          = int(e.ConnectedTriEdgeNumber[1])
@@ -150,6 +153,7 @@ func (c *Euler) StoreDissipationEdgeFlux(edgeKeys EdgeKeySlice, EdgeQ1 [][4]floa
 			shiftR               = Nedge * edgeNumberR
 			normalR              = c.GetFaceNormal(kLGlobal, edgeNumberL)
 			nxR, nyR             = normalR[0], normalR[1]
+			epsilonR             = epsilon[myThreadR][kR]
 		)
 		switch e.NumConnectedTris {
 		case 0:
@@ -158,45 +162,10 @@ func (c *Euler) StoreDissipationEdgeFlux(edgeKeys EdgeKeySlice, EdgeQ1 [][4]floa
 			for n := 0; n < 4; n++ {
 				for i := 0; i < Nedge; i++ {
 					indL := kL + (2*Nint+shiftL+i)*KmaxL
-					gradientFluxForLaplacian[i][n] = nxL*DissXL[n].DataP[indL] + nyL*DissYL[n].DataP[indL]
+					viscousFlux[i][n] = nxL*DissXL[n].DataP[indL] + nyL*DissYL[n].DataP[indL]
 				}
 			}
 		case 2: // Handle edges with two connected tris - shared faces
-			// for n := 0; n < 4; n++ {
-			// 	for i := 0; i < Nedge; i++ {
-			// 		indR := kR + (2*Nint+shiftR+Nedge-1-i)*KmaxR // Reversed edge - storage is for primary element
-			// 		Use right side only per Cockburn and Shu's algorithm for Laplacian, where we alternate flux sides
-			// gradientFluxForLaplacian[i][n] = nxR*DissXR[n].DataP[indR] + nyR*DissYR[n].DataP[indR]
-			// }
-			// }
-			// TODO: Implement a jump penalty for the shared faces:
-			/*
-					ΔU = U_K(x_q) - U_L(x_q)       // using your Lagrange values at the RT node
-					σ   = Cp*p*p                  // choose Cp≈1…10, p=poly degree
-					h   = faceSize(e)             // characteristic length of the face
-
-					Fp = σ * (λ_avg / h) * ΔU
-
-				Here:
-					λ_avg = 0.5*(λ[K]+λ[L])
-				ΔU is your jump in the conserved scalar or characteristic variable (pick whichever you’re limiting).
-
-					Fc = 0.5 * (f_central_K + f_central_L)
-				where each is the nodal value of λ·∇U·n at that RT node
-
-					F_visc_n =  Fc    +   Fp
-
-				on a physical boundary you simply take:
-					F_visc_n = λ_K * (∇U_K·n) and skip Fp)
-
-					F_total_n := F_conv_n  -  F_visc_n
-
-				σ (penalty constant): start with σ = 1·p² and increase if you see residual wiggles.
-
-				Tuning guidance:
-				λ scaling: for Persson AV, λₘₐₓ∼C_visc·h/p; use the same λ you already compute.
-				Variables for jump: you can jump in each conserved component, or better yet in characteristic variables for stronger stability.
-			*/
 			/*
 				Numerical viscous flux Fⁿ
 						On each interior face, define
@@ -207,6 +176,8 @@ func (c *Euler) StoreDissipationEdgeFlux(edgeKeys EdgeKeySlice, EdgeQ1 [][4]floa
 						  Fⁿ = {λ∇u} · n − σ {λ}/h (u⁻ − u⁺)
 
 						where {λ} = (λ⁻ + λ⁺) / 2.
+					σ   = Cp*p*p                  // choose Cp≈1…10, p=poly degree
+					h   = faceSize(e)             // characteristic length of the face
 
 						  • The first term uses the normal n once: on the “+”
 							side its normal is −n, so it automatically flips sign.
@@ -216,16 +187,31 @@ func (c *Euler) StoreDissipationEdgeFlux(edgeKeys EdgeKeySlice, EdgeQ1 [][4]floa
 			for n := 0; n < 4; n++ {
 				for i := 0; i < Nedge; i++ {
 					indL := kL + (2*Nint+shiftL+i)*KmaxL
-					indR := kR + (2*Nint+shiftR+Nedge-1-i)*KmaxR // Reversed edge - storage is for primary element
 					vFL := nxL*DissXL[n].DataP[indL] + nyL*DissYL[n].DataP[indL]
+					indR := kR + (2*Nint+shiftR+Nedge-1-i)*KmaxR // Reversed edge - storage is for primary element
 					vFR := nxR*DissXR[n].DataP[indR] + nyR*DissYR[n].DataP[indR]
-					gradientFluxForLaplacian[i][n] = 0.5 * (vFL + vFR)
-					// gradientFluxForLaplacian[i][n] = nxR*DissXR[n].DataP[indR] + nyR*DissYR[n].DataP[indR]
+					viscousFlux[i][n] = 0.5 * (vFL + vFR)
+				}
+			}
+			// σ = Cp * p * p // choose Cp≈1…10, p=poly degree
+			Cp := 1.
+			Omega := Cp * float64(c.DFR.N*c.DFR.N)
+			LambdaAvg := 0.5 * (epsilonL + epsilonR)
+			for n := 0; n < 4; n++ {
+				// Load edge solution values from solution storage
+				edgeQL, _ := c.EdgeStore.GetEdgeValues(EdgeQValues, myThreadL,
+					kL, n, edgeNumberL, c.DFR)
+				edgeQR, _ := c.EdgeStore.GetEdgeValues(EdgeQValues, myThreadR,
+					kR, n, edgeNumberR, c.DFR)
+				for i := 0; i < Nedge; i++ {
+					ii := Nedge - 1 - i
+					viscousFlux[i][n] -=
+						(Omega * LambdaAvg * ooedgeLength) * (edgeQL[i] - edgeQR[ii])
 				}
 			}
 		}
 		// Load the normal flux into the global normal flux storage
-		c.EdgeStore.PutEdgeValues(en, GradientFluxForLaplacian, gradientFluxForLaplacian)
+		c.EdgeStore.PutEdgeValues(en, ViscousNormalFlux, viscousFlux)
 	}
 	return
 }
@@ -235,7 +221,7 @@ func (c *Euler) CalculateEdgeFlux(Time float64, CalculateDT bool, Jdet, DT []uti
 	var (
 		Nedge                 = c.DFR.FluxElement.NpEdge
 		numericalFluxForEuler = EdgeQ1
-		qFluxForGradient      = EdgeQ2
+		edgeQValues           = EdgeQ2
 		pm                    = c.Partitions
 	)
 	for _, en := range edgeKeys {
@@ -251,10 +237,10 @@ func (c *Euler) CalculateEdgeFlux(Time float64, CalculateDT bool, Jdet, DT []uti
 		for i := 0; i < Nedge; i++ {
 			indL := kL + (i+shiftL)*KmaxL
 			for n := 0; n < 4; n++ {
-				qFluxForGradient[i][n] = Q_Face[myThreadL][n].DataP[indL]
+				edgeQValues[i][n] = Q_Face[myThreadL][n].DataP[indL]
 			}
 		}
-		c.EdgeStore.PutEdgeValues(en, QFluxForGradient, qFluxForGradient)
+		c.EdgeStore.PutEdgeValues(en, EdgeQValues, edgeQValues)
 
 		for i := range numericalFluxForEuler {
 			for n := 0; n < 4; n++ {
@@ -267,7 +253,7 @@ func (c *Euler) CalculateEdgeFlux(Time float64, CalculateDT bool, Jdet, DT []uti
 		case 1: // Handle edges with only one triangle - default is edge flux, which will be replaced by a BC flux
 			c.calculateNonSharedEdgeFlux(e, Nedge, Time,
 				kL, KmaxL, edgeNumberL, myThreadL,
-				normalL, numericalFluxForEuler, qFluxForGradient, Q_Face)
+				normalL, numericalFluxForEuler, edgeQValues, Q_Face)
 		case 2: // Handle edges with two connected tris - shared faces
 			var (
 				kR, KmaxR, myThreadR = pm.GetLocalK(int(e.ConnectedTris[1]))

@@ -695,7 +695,7 @@ func TestDissipation2(t *testing.T) {
 								edgeValues[i][n] = Q_Face[n].DataP[ind]
 							}
 						}
-						c.EdgeStore.PutEdgeValues(en, QFluxForGradient, edgeValues)
+						c.EdgeStore.PutEdgeValues(en, EdgeQValues, edgeValues)
 					}
 				}
 			}
