@@ -2,7 +2,6 @@ package Euler2D
 
 import (
 	"fmt"
-	"math"
 	"sort"
 
 	"github.com/notargets/gocfd/DG2D"
@@ -189,7 +188,6 @@ func (sd *ScalarDissipation) shardEtoV(EtoV utils.Matrix) (ev []utils.Matrix) {
 func (sd *ScalarDissipation) propagateEpsilonMaxToVertices(myThread int) {
 	var (
 		VtoE = sd.VtoE[myThread]
-		max  = math.Max
 	)
 	oldVert := -1
 	for _, val := range VtoE {

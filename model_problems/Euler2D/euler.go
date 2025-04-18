@@ -55,6 +55,7 @@ type Euler struct {
 	ShockTube           *sod_shock_tube.SODShockTube
 	SolutionFieldWriter *DG2D.AVSFieldWriter
 	RK                  *RungeKutta4SSP
+	NeighborNotifier    *utils.NeighborNotifier
 }
 
 func NewEuler(ip *InputParameters.InputParameters2D, meshFile string, ProcLimit int, verbose, profile bool) (c *Euler) {
@@ -96,6 +97,7 @@ func NewEuler(ip *InputParameters.InputParameters2D, meshFile string, ProcLimit 
 
 	c.SetParallelDegree(ProcLimit, c.DFR.K) // Must occur after determining the number of elements
 	c.PartitionEdgesByK()                   // Setup the key for edge calculations, useful for parallelizing the process
+	c.NeighborNotifier = utils.NewNeighborNotifier(c.Partitions, c.DFR.Tris.EtoE)
 
 	// Allocate Normal flux storage and indices
 	c.EdgeStore = c.NewEdgeStorage()
@@ -197,23 +199,23 @@ func (c *Euler) Solve() {
 }
 
 type RungeKutta4SSP struct {
-	Jdet, Jinv           []utils.Matrix       // Sharded mesh Jacobian and inverse transform
-	RHSQ, Q_Face         [][4]utils.Matrix    // State used for matrix multiplies within the time step algorithm
-	Q_Face_P0            [][4]utils.Matrix    // Projected edge values at P=0 for all elements
-	Flux_Face            [][2][4]utils.Matrix // Flux interpolated to edges from interior
-	Q1, Q2, Q3, Q4       [][4]utils.Matrix    // Intermediate solution state
-	Residual             [][4]utils.Matrix    // Used for reporting, aliased to Q1
-	FilterScratch        []utils.Matrix       // Scratch space for filtering
-	F_RT_DOF             [][4]utils.Matrix    // Normal flux used for divergence
-	DT                   []utils.Matrix       // Local time step storage
-	MaxWaveSpeed         []float64            // Shard max wavespeed
-	GlobalDT, Time       float64
-	StepCount            int
-	Kmax                 []int          // Local element count (dimension: Kmax[ParallelDegree])
-	NpInt, Nedge, NpFlux int            // Number of points in solution, edge and flux total
-	EdgeQ1, EdgeQ2       [][][4]float64 // Sharded local working memory, dimensions Nedge
-	LimitedPoints        []int          // Sharded number of limited points
-	ShockSensor          []*DG2D.ModeAliasShockFinder
+	Jdet, Jinv            []utils.Matrix       // Sharded mesh Jacobian and inverse transform
+	RHSQ, Q_Face          [][4]utils.Matrix    // State used for matrix multiplies within the time step algorithm
+	Q_Face_P0             [][4]utils.Matrix    // Projected edge values at P=0 for all elements
+	Flux_Face             [][2][4]utils.Matrix // Flux interpolated to edges from interior
+	Q1, Q2, Q3, Q4        [][4]utils.Matrix    // Intermediate solution state
+	Residual              [][4]utils.Matrix    // Used for reporting, aliased to Q1
+	FilterScratch         []utils.Matrix       // Scratch space for filtering
+	F_RT_DOF              [][4]utils.Matrix    // Normal flux used for divergence
+	DT                    []utils.Matrix       // Local time step storage
+	MaxWaveSpeed          []float64            // Shard max wavespeed
+	GlobalDT, Time        float64
+	StepCount             int
+	Kmax                  []int          // Local element count (dimension: Kmax[ParallelDegree])
+	NpInt, NpEdge, NpFlux int            // Number of points in solution, edge and flux total
+	EdgeQ1, EdgeQ2        [][][4]float64 // Sharded local working memory, dimensions NpEdge
+	LimitedPoints         []int          // Sharded number of limited points
+	ShockSensor           []*DG2D.ModeAliasShockFinder
 }
 
 func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
@@ -239,7 +241,7 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		MaxWaveSpeed:  make([]float64, NPar),
 		Kmax:          make([]int, NPar),
 		NpInt:         c.DFR.SolutionElement.Np,
-		Nedge:         c.DFR.FluxElement.NpEdge,
+		NpEdge:        c.DFR.FluxElement.NpEdge,
 		NpFlux:        c.DFR.FluxElement.Np,
 		EdgeQ1:        make([][][4]float64, NPar),
 		EdgeQ2:        make([][][4]float64, NPar),
@@ -258,14 +260,14 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 			rk.RHSQ[np][n] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 			rk.Residual[np][n] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 			rk.F_RT_DOF[np][n] = utils.NewMatrix(rk.NpFlux, rk.Kmax[np])
-			rk.Q_Face[np][n] = utils.NewMatrix(rk.Nedge*3, rk.Kmax[np])
-			rk.Flux_Face[np][0][n] = utils.NewMatrix(rk.Nedge*3, rk.Kmax[np])
-			rk.Flux_Face[np][1][n] = utils.NewMatrix(rk.Nedge*3, rk.Kmax[np])
-			rk.Q_Face_P0[np][n] = utils.NewMatrix(rk.Nedge*3, rk.Kmax[np])
+			rk.Q_Face[np][n] = utils.NewMatrix(rk.NpEdge*3, rk.Kmax[np])
+			rk.Flux_Face[np][0][n] = utils.NewMatrix(rk.NpEdge*3, rk.Kmax[np])
+			rk.Flux_Face[np][1][n] = utils.NewMatrix(rk.NpEdge*3, rk.Kmax[np])
+			rk.Q_Face_P0[np][n] = utils.NewMatrix(rk.NpEdge*3, rk.Kmax[np])
 		}
 		rk.DT[np] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
-		rk.EdgeQ1[np] = make([][4]float64, rk.Nedge)
-		rk.EdgeQ2[np] = make([][4]float64, rk.Nedge)
+		rk.EdgeQ1[np] = make([][4]float64, rk.NpEdge)
+		rk.EdgeQ2[np] = make([][4]float64, rk.NpEdge)
 		rk.ShockSensor[np] = c.DFR.NewAliasShockFinder(c.Kappa)
 	}
 	return
@@ -310,8 +312,8 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 			RHSQ, Residual     = rk.RHSQ[np], rk.Residual[np]
 			Q0, Q1, Q2, Q3, Q4 = c.Q[np], rk.Q1[np], rk.Q2[np], rk.Q3[np], rk.Q4[np]
 			QQQ                = [][4]utils.Matrix{Q0, Q1, Q2, Q3, Q4}[rkStep]
-			Debug              = false
-			// Debug = true
+			// Debug              = false
+			Debug = true
 		)
 		checkFunc := func() {
 			if !Debug {
@@ -410,6 +412,8 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 			}
 		})
 	}
+	project := false
+	// project := true
 	doParallel(func(np int) {
 		var (
 			Q0, Q1, Q2, Q3, Q4 = c.Q[np], rk.Q1[np],
@@ -417,14 +421,43 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 			QQQ = [][4]utils.Matrix{Q0, Q1, Q2, Q3, Q4}[rkStep]
 		)
 		c.InterpolateSolutionToEdges(QQQ, rk.Q_Face[np], rk.Q_Face_P0[np])
-		if c.DFR.N > 1 && rkStep == 0 {
-			rk.ShockSensor[np].UpdateShockedCells(QQQ[0])
-			c.InterpolateSolutionToShockedEdges(
-				rk.ShockSensor[np], rk.Q_Face[np],
-				rk.Q_Face_P0[np]) // Interpolates Q_Face values from Q
+		if project {
+			// if c.DFR.N > 1 && (rkStep == 0 || rkStep == 1) {
+			// if c.DFR.N > 1 && rkStep%2 == 0 {
+			if c.DFR.N > 1 && rkStep == 0 {
+				// if c.DFR.N > 1 {
+				rk.ShockSensor[np].UpdateShockedCells(QQQ[0])
+				for k := range rk.ShockSensor[np].ShockCells.Cells() {
+					c.NeighborNotifier.PostNotification(np, k)
+				}
+				c.NeighborNotifier.DeliverNotifications(np)
+				c.InterpolateSolutionToShockedEdges(
+					rk.ShockSensor[np], rk.Q_Face[np],
+					rk.Q_Face_P0[np]) // Interpolates Q_Face values from Q
+			}
 		}
 	})
 	doParallel(func(np int) {
+		if project {
+			if c.DFR.N > 1 && rkStep == 0 {
+				// if c.DFR.N > 1 && rkStep%2 == 0 {
+				// if c.DFR.N > 1 && (rkStep == 0 || rkStep == 1) {
+				// if c.DFR.N > 1 {
+				myNeighbors := c.NeighborNotifier.ReadNotifications(np)
+				for _, nbr := range myNeighbors {
+					_, kShockNeighborGlobal, nEdge := nbr[0], nbr[1], nbr[2]
+					kShockNeighborLocal, _, _ := c.Partitions.GetLocalK(
+						kShockNeighborGlobal)
+					_ = nEdge
+					// c.InterpolateSolutionToTargetK(kShockNeighborLocal,
+					// 	rk.Q_Face[np], rk.Q_Face_P0[np])
+					c.InterpolateSolutionToTargetEdgeAndK(nEdge, kShockNeighborLocal,
+						rk.Q_Face[np], rk.Q_Face_P0[np])
+				}
+			}
+		}
+		// CalculateEdgeFlux is where the Riemann problem is solved at the
+		// neighbor faces, and the edge boundary conditions are applied.
 		rk.MaxWaveSpeed[np] =
 			c.CalculateEdgeFlux(rk.Time, initDT, rk.Jdet, rk.DT, rk.Q_Face,
 				rk.Flux_Face, c.SortedEdgeKeys[np], rk.EdgeQ1[np],
@@ -453,12 +486,13 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 	})
 	doParallel(func(np int) {
 		if c.Dissipation != nil {
-			c.StoreGradientEdgeFlux(c.SortedEdgeKeys[np], rk.EdgeQ1[np])
+			c.StoreDissipationEdgeFlux(c.SortedEdgeKeys[np], rk.EdgeQ1[np])
 		}
 	})
 	doParallel(func(np int) {
 		rk.LimitedPoints[np] = c.Limiter.LimitSolution(np, c.Q,
 			rk.Residual, rk.FilterScratch)
+		// Perform a Runge Kutta pseudo time step
 		rkAdvance(np)
 	})
 	return

@@ -126,7 +126,7 @@ func (c *Euler) GetFaceNormal(kGlobal, edgeNumber int) (normal [2]float64) {
 	return
 }
 
-func (c *Euler) StoreGradientEdgeFlux(edgeKeys EdgeKeySlice, EdgeQ1 [][4]float64) {
+func (c *Euler) StoreDissipationEdgeFlux(edgeKeys EdgeKeySlice, EdgeQ1 [][4]float64) {
 	var (
 		Nedge                    = c.DFR.FluxElement.NpEdge
 		gradientFluxForLaplacian = EdgeQ1
@@ -157,16 +157,70 @@ func (c *Euler) StoreGradientEdgeFlux(edgeKeys EdgeKeySlice, EdgeQ1 [][4]float64
 		case 1: // Handle edges with only one triangle
 			for n := 0; n < 4; n++ {
 				for i := 0; i < Nedge; i++ {
-					indL := kL + (2*Nint+shiftL+i)*KmaxL // Reversed edge - storage is for primary element
+					indL := kL + (2*Nint+shiftL+i)*KmaxL
 					gradientFluxForLaplacian[i][n] = nxL*DissXL[n].DataP[indL] + nyL*DissYL[n].DataP[indL]
 				}
 			}
 		case 2: // Handle edges with two connected tris - shared faces
+			// for n := 0; n < 4; n++ {
+			// 	for i := 0; i < Nedge; i++ {
+			// 		indR := kR + (2*Nint+shiftR+Nedge-1-i)*KmaxR // Reversed edge - storage is for primary element
+			// 		Use right side only per Cockburn and Shu's algorithm for Laplacian, where we alternate flux sides
+			// gradientFluxForLaplacian[i][n] = nxR*DissXR[n].DataP[indR] + nyR*DissYR[n].DataP[indR]
+			// }
+			// }
+			// TODO: Implement a jump penalty for the shared faces:
+			/*
+					ΔU = U_K(x_q) - U_L(x_q)       // using your Lagrange values at the RT node
+					σ   = Cp*p*p                  // choose Cp≈1…10, p=poly degree
+					h   = faceSize(e)             // characteristic length of the face
+
+					Fp = σ * (λ_avg / h) * ΔU
+
+				Here:
+					λ_avg = 0.5*(λ[K]+λ[L])
+				ΔU is your jump in the conserved scalar or characteristic variable (pick whichever you’re limiting).
+
+					Fc = 0.5 * (f_central_K + f_central_L)
+				where each is the nodal value of λ·∇U·n at that RT node
+
+					F_visc_n =  Fc    +   Fp
+
+				on a physical boundary you simply take:
+					F_visc_n = λ_K * (∇U_K·n) and skip Fp)
+
+					F_total_n := F_conv_n  -  F_visc_n
+
+				σ (penalty constant): start with σ = 1·p² and increase if you see residual wiggles.
+
+				Tuning guidance:
+				λ scaling: for Persson AV, λₘₐₓ∼C_visc·h/p; use the same λ you already compute.
+				Variables for jump: you can jump in each conserved component, or better yet in characteristic variables for stronger stability.
+			*/
+			/*
+				Numerical viscous flux Fⁿ
+						On each interior face, define
+						  {λ∇u} = ½ (λ⁻ ∇u⁻ + λ⁺ ∇u⁺),   [u] = u⁻ − u⁺
+
+						and with n the outward normal from the “−” side, the
+						SIPG viscous flux is
+						  Fⁿ = {λ∇u} · n − σ {λ}/h (u⁻ − u⁺)
+
+						where {λ} = (λ⁻ + λ⁺) / 2.
+
+						  • The first term uses the normal n once: on the “+”
+							side its normal is −n, so it automatically flips sign.
+						  • The penalty −σ {λ}/h (u⁻ − u⁺) does not flip sign.
+
+			*/
 			for n := 0; n < 4; n++ {
 				for i := 0; i < Nedge; i++ {
+					indL := kL + (2*Nint+shiftL+i)*KmaxL
 					indR := kR + (2*Nint+shiftR+Nedge-1-i)*KmaxR // Reversed edge - storage is for primary element
-					// Use right side only per Cockburn and Shu's algorithm for Laplacian, where we alternate flux sides
-					gradientFluxForLaplacian[i][n] = nxR*DissXR[n].DataP[indR] + nyR*DissYR[n].DataP[indR]
+					vFL := nxL*DissXL[n].DataP[indL] + nyL*DissYL[n].DataP[indL]
+					vFR := nxR*DissXR[n].DataP[indR] + nyR*DissYR[n].DataP[indR]
+					gradientFluxForLaplacian[i][n] = 0.5 * (vFL + vFR)
+					// gradientFluxForLaplacian[i][n] = nxR*DissXR[n].DataP[indR] + nyR*DissYR[n].DataP[indR]
 				}
 			}
 		}
@@ -390,6 +444,34 @@ func (c *Euler) InterpolateSolutionToShockedEdges(sf *DG2D.ModeAliasShockFinder,
 			for i := 0; i < NpEdgeTotal; i++ {
 				Q_Face[n].Set(i, k, Q_Face_P0[n].At(i, k))
 			}
+		}
+	}
+	return
+}
+
+func (c *Euler) InterpolateSolutionToTargetK(k int,
+	Q_Face, Q_Face_P0 [4]utils.Matrix) {
+	var (
+		NpEdge      = c.DFR.FluxElement.NpEdge
+		NpEdgeTotal = 3 * NpEdge
+	)
+	for n := 0; n < 4; n++ {
+		for i := 0; i < NpEdgeTotal; i++ {
+			Q_Face[n].Set(i, k, Q_Face_P0[n].At(i, k))
+		}
+	}
+	return
+}
+
+func (c *Euler) InterpolateSolutionToTargetEdgeAndK(edge, k int,
+	Q_Face, Q_Face_P0 [4]utils.Matrix) {
+	var (
+		NpEdge = c.DFR.FluxElement.NpEdge
+	)
+	offset := edge * NpEdge
+	for n := 0; n < 4; n++ {
+		for i := 0; i < NpEdge; i++ {
+			Q_Face[n].Set(i+offset, k, Q_Face_P0[n].At(i+offset, k))
 		}
 	}
 	return
