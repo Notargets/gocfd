@@ -462,7 +462,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 		// neighbor faces, and the edge boundary conditions are applied.
 		rk.MaxWaveSpeed[np] =
 			c.CalculateEdgeFlux(rk.Time, initDT,
-				rk.Jdet, rk.DT,
+				rk.Jdet, rk.DT, rk.DTVisc, c.Dissipation.Epsilon,
 				rk.Q_Face, rk.Flux_Face,
 				c.SortedEdgeKeys[np], rk.EdgeQ1[np], rk.EdgeQ2[np]) // Global
 		if c.Dissipation != nil {
@@ -489,7 +489,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 	})
 	doParallel(func(np int) {
 		if c.Dissipation != nil {
-			c.StoreDissipationEdgeFlux(c.Dissipation.EpsilonScalar,
+			c.StoreDissipationEdgeFlux(c.Dissipation.Epsilon,
 				c.SortedEdgeKeys[np], rk.EdgeQ1[np])
 		}
 	})
@@ -816,7 +816,7 @@ func (c *Euler) CalculateLocalDT(DT, DTVisc utils.Matrix, myThread int) {
 			// DT.DataP[k] = c.CFL / ((1. + epsScalar[k]) * DT.DataP[k])
 			// Set each element's DT to CFL*h/(max_wave_speed)
 			// if math.Abs(DTVisc.DataP[k]) > 0.01 {
-			DTVisc.DataP[k] = C_diff / DTVisc.DataP[k]
+			DTVisc.DataP[k] = C_diff / max(DTVisc.DataP[k], 1.e-9)
 			// }
 		}
 	}
@@ -828,8 +828,8 @@ func (c *Euler) CalculateLocalDT(DT, DTVisc utils.Matrix, myThread int) {
 	for i := 1; i < c.DFR.SolutionElement.Np; i++ {
 		for k := 0; k < Kmax; k++ {
 			ind := k + Kmax*i
-			// DT.DataP[ind] = min(DT.DataP[k], DTVisc.DataP[k])
-			DT.DataP[ind] = DT.DataP[k]
+			DT.DataP[ind] = min(DT.DataP[k], DTVisc.DataP[k])
+			// DT.DataP[ind] = DT.DataP[k]
 		}
 	}
 }
