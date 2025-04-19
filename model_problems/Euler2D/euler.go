@@ -208,7 +208,8 @@ type RungeKutta4SSP struct {
 	FilterScratch         []utils.Matrix       // Scratch space for filtering
 	F_RT_DOF              [][4]utils.Matrix    // Normal flux used for divergence
 	DT, DTVisc            []utils.Matrix       // Local time step storage
-	MaxWaveSpeed          []float64            // Shard max wavespeed
+	Epsilon               []utils.Matrix
+	MaxWaveSpeed          []float64 // Shard max wavespeed
 	GlobalDT, Time        float64
 	StepCount             int
 	Kmax                  []int          // Local element count (dimension: Kmax[ParallelDegree])
@@ -271,6 +272,9 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		rk.EdgeQ1[np] = make([][4]float64, rk.NpEdge)
 		rk.EdgeQ2[np] = make([][4]float64, rk.NpEdge)
 		rk.ShockSensor[np] = c.DFR.NewAliasShockFinder(c.Kappa)
+	}
+	if c.Dissipation != nil {
+		rk.Epsilon = c.Dissipation.Epsilon
 	}
 	return
 }
@@ -462,7 +466,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 		// neighbor faces, and the edge boundary conditions are applied.
 		rk.MaxWaveSpeed[np] =
 			c.CalculateEdgeFlux(rk.Time, initDT,
-				rk.Jdet, rk.DT, rk.DTVisc, c.Dissipation.Epsilon,
+				rk.Jdet, rk.DT, rk.DTVisc, rk.Epsilon,
 				rk.Q_Face, rk.Flux_Face,
 				c.SortedEdgeKeys[np], rk.EdgeQ1[np], rk.EdgeQ2[np]) // Global
 		if c.Dissipation != nil {
@@ -811,7 +815,7 @@ func (c *Euler) CalculateLocalDT(DT, DTVisc utils.Matrix, myThread int) {
 	if c.Dissipation != nil {
 		// epsScalar := c.Dissipation.EpsilonScalar[myThread]
 		// C_diff≈0.1–0.25;
-		C_diff := 0.2
+		C_diff := 0.15
 		for k := 0; k < Kmax; k++ {
 			// DT.DataP[k] = c.CFL / ((1. + epsScalar[k]) * DT.DataP[k])
 			// Set each element's DT to CFL*h/(max_wave_speed)
