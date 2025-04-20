@@ -222,10 +222,66 @@ func (c *Euler) StoreDissipationEdgeFlux(epsilon []utils.Matrix,
 	return
 }
 
-func (c *Euler) CalculateEdgeFlux(Time float64, CalculateDT bool,
-	Jdet, DT, DTVisc, Epsilon []utils.Matrix,
+func (c *Euler) CalculateDTFromEdge(Jdet, DT, DTVisc, Epsilon []utils.Matrix,
+	Q_Face [][4]utils.Matrix, edgeKeys EdgeKeySlice) (globalMaxWaveSpeed float64) {
+	var (
+		Nedge = c.DFR.FluxElement.NpEdge
+		pm    = c.Partitions
+		Np1   = c.DFR.N + 1
+		Np12  = float64(Np1 * Np1)
+	)
+	for _, en := range edgeKeys {
+		e := c.DFR.Tris.Edges[en]
+		var (
+			edgeNum           = int(e.ConnectedTriEdgeNumber[0])
+			k, Kmax, myThread = pm.GetLocalK(int(e.ConnectedTris[0]))
+			edgeLen           = e.GetEdgeLength()
+			shift             = edgeNum * Nedge
+		)
+		// Element Characteristic Length calculation (inverse)
+		oohK := 0.5 * Np12 * edgeLen / Jdet[myThread].DataP[k]
+		edgeMaxWaveSpeed := -math.MaxFloat64
+		for i := shift; i < shift+Nedge; i++ {
+			ind := k + i*Kmax
+			C := c.FSFar.GetFlowFunction(Q_Face[myThread], ind, SoundSpeed)
+			U := c.FSFar.GetFlowFunction(Q_Face[myThread], ind, Velocity)
+			edgeWaveSpeed := oohK * (U + C)
+			globalMaxWaveSpeed = math.Max(edgeWaveSpeed, globalMaxWaveSpeed)
+			if edgeWaveSpeed > edgeMaxWaveSpeed {
+				edgeMaxWaveSpeed = edgeWaveSpeed
+			}
+		}
+		if c.Dissipation != nil {
+			edgeMaxViscousWaveSpeed := -math.MaxFloat64
+			offset := 2*c.DFR.FluxElement.NpInt + shift
+			for i := offset; i < offset+Nedge; i++ {
+				ind := k + i*Kmax
+				edgeMaxViscousWaveSpeed =
+					max(oohK*oohK*Epsilon[myThread].DataP[ind],
+						edgeMaxViscousWaveSpeed)
+			}
+			DTVisc[myThread].DataP[k] =
+				max(DTVisc[myThread].DataP[k], edgeMaxViscousWaveSpeed)
+			if e.NumConnectedTris == 2 { // Add the wavespeed to the other tri connected to this edge if needed
+				kV, _, myThreadV := pm.GetLocalK(int(e.ConnectedTris[1]))
+				DTVisc[myThreadV].DataP[kV] = max(DTVisc[myThreadV].DataP[kV],
+					edgeMaxViscousWaveSpeed)
+			}
+		}
+		// Set the element ooDT as the max of this and current so that we get the
+		// max of all edges. Later we invert this, so we take the minimum DT
+		DT[myThread].DataP[k] = max(DT[myThread].DataP[k], edgeMaxWaveSpeed)
+		if e.NumConnectedTris == 2 { // Add the wavespeed to the other tri connected to this edge if needed
+			kC, _, myThreadC := pm.GetLocalK(int(e.ConnectedTris[1]))
+			DT[myThreadC].DataP[kC] = max(DT[myThreadC].DataP[kC], edgeMaxWaveSpeed)
+		}
+	}
+	return
+}
+
+func (c *Euler) CalculateEdgeFlux(Time float64,
 	Q_Face [][4]utils.Matrix, Flux_Face [][2][4]utils.Matrix,
-	edgeKeys EdgeKeySlice, EdgeQ1, EdgeQ2 [][4]float64) (waveSpeedMax float64) {
+	edgeKeys EdgeKeySlice, EdgeQ1, EdgeQ2 [][4]float64) {
 	var (
 		Nedge                 = c.DFR.FluxElement.NpEdge
 		numericalFluxForEuler = EdgeQ1
@@ -273,63 +329,6 @@ func (c *Euler) CalculateEdgeFlux(Time float64, CalculateDT bool,
 		}
 		// Load the normal flux into the global normal flux storage
 		c.EdgeStore.PutEdgeValues(en, NumericalFluxForEuler, numericalFluxForEuler)
-
-		if CalculateDT {
-			waveSpeedMax = c.calculateLocalDT(e, Nedge, Q_Face,
-				Jdet, DT, DTVisc, Epsilon)
-		}
-	}
-	return
-}
-
-func (c *Euler) calculateLocalDT(e *DG2D.Edge, Nedge int,
-	Q_Face [][4]utils.Matrix,
-	Jdet, DT, DTVisc, Epsilon []utils.Matrix) (waveSpeedMax float64) {
-	var (
-		pm                = c.Partitions
-		edgeNum           = int(e.ConnectedTriEdgeNumber[0])
-		k, Kmax, myThread = pm.GetLocalK(int(e.ConnectedTris[0]))
-		Np1               = c.DFR.N + 1
-		Np12              = float64(Np1 * Np1)
-		shift             = edgeNum * Nedge
-		edgeLen           = e.GetEdgeLength()
-	)
-	// Element Characteristic Length calculation (inverse)
-	oohK := 0.5 * Np12 * edgeLen / Jdet[myThread].DataP[k]
-	edgeMax := -math.MaxFloat64
-	for i := shift; i < shift+Nedge; i++ {
-		ind := k + i*Kmax
-		C := c.FSFar.GetFlowFunction(Q_Face[myThread], ind, SoundSpeed)
-		U := c.FSFar.GetFlowFunction(Q_Face[myThread], ind, Velocity)
-		waveSpeed := oohK * (U + C)
-		waveSpeedMax = math.Max(waveSpeed, waveSpeedMax)
-		if waveSpeed > edgeMax {
-			edgeMax = waveSpeed
-		}
-	}
-	if c.Dissipation != nil {
-		edgeMaxViscous := -math.MaxFloat64
-		offset := 2*c.DFR.FluxElement.NpInt + shift
-		for i := offset; i < offset+Nedge; i++ {
-			ind := k + i*Kmax
-			edgeMaxViscous = max(oohK*oohK*Epsilon[myThread].DataP[ind], edgeMaxViscous)
-		}
-		DTVisc[myThread].DataP[k] = max(DTVisc[myThread].DataP[k], edgeMaxViscous)
-		if e.NumConnectedTris == 2 { // Add the wavespeed to the other tri connected to this edge if needed
-			kV, _, myThreadV := pm.GetLocalK(int(e.ConnectedTris[1]))
-			DTVisc[myThread].DataP[kV] = max(DTVisc[myThreadV].DataP[kV],
-				edgeMaxViscous)
-		}
-		// if math.Abs(edgeMaxViscous) > 0.00001 {
-		// 	fmt.Printf("DTVisc 2 = %v\n", DTVisc[myThread].DataP[k])
-		// }
-	}
-	// Set the element ooDT as the max of this and current so that we get the
-	// max of all edges. Later we invert this, so we take the minimum DT
-	DT[myThread].DataP[k] = max(DT[myThread].DataP[k], edgeMax)
-	if e.NumConnectedTris == 2 { // Add the wavespeed to the other tri connected to this edge if needed
-		kC, _, myThreadC := pm.GetLocalK(int(e.ConnectedTris[1]))
-		DT[myThreadC].DataP[kC] = max(DT[myThreadC].DataP[kC], edgeMax)
 	}
 	return
 }

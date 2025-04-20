@@ -211,8 +211,7 @@ func TestEuler(t *testing.T) {
 				c.InterpolateSolutionToEdges(Q, Q_Face, Q_Face_P0)
 				EdgeQ1 := make([][4]float64, Nedge)
 				EdgeQ2 := make([][4]float64, Nedge)
-				c.CalculateEdgeFlux(0, false, nil, nil,
-					nil, nil, [][4]utils.Matrix{Q_Face},
+				c.CalculateEdgeFlux(0, [][4]utils.Matrix{Q_Face},
 					[][2][4]utils.Matrix{Flux_Face}, c.SortedEdgeKeys[0], EdgeQ1, EdgeQ2)
 				c.SetRTFluxOnEdges(0, Kmax, F_RT_DOF)
 				// Check that freestream divergence on this mesh is zero
@@ -298,9 +297,9 @@ func TestEuler(t *testing.T) {
 				c.InterpolateSolutionToEdges(Q, Q_Face, Q_Face_P0)
 				EdgeQ1 := make([][4]float64, Nedge)
 				EdgeQ2 := make([][4]float64, Nedge)
-				c.CalculateEdgeFlux(0, false, nil, nil,
-					nil, nil, [][4]utils.Matrix{Q_Face},
-					[][2][4]utils.Matrix{Flux_Face}, c.SortedEdgeKeys[0], EdgeQ1, EdgeQ2)
+				c.CalculateEdgeFlux(0, [][4]utils.Matrix{Q_Face},
+					[][2][4]utils.Matrix{Flux_Face}, c.SortedEdgeKeys[0],
+					EdgeQ1, EdgeQ2)
 				c.SetRTFluxOnEdges(0, Kmax, F_RT_DOF)
 				var div utils.Matrix
 				// Density is the easiest equation to match with a polynomial
@@ -758,11 +757,8 @@ func TestEuler_GetSolutionGradientUsingRTElement(t *testing.T) {
 				DX, DY     = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
 				DOFX, DOFY = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
 			)
-			rk.MaxWaveSpeed[0] =
-				c.CalculateEdgeFlux(rk.Time, false, rk.Jdet,
-					nil, nil, nil,
-					rk.Q_Face, rk.Flux_Face, SortedEdgeKeys,
-					EdgeQ1, EdgeQ2) // Global
+			c.CalculateEdgeFlux(rk.Time, rk.Q_Face, rk.Flux_Face, SortedEdgeKeys,
+				EdgeQ1, EdgeQ2) // Global
 			for n := 0; n < 4; n++ {
 				fmt.Printf("Variable[%d] check ...", n+1)
 				c.GetSolutionGradient(-1, n, Q0, DX, DY, DOFX, DOFY)
@@ -977,8 +973,7 @@ func CheckFlux0(c *Euler, t *testing.T) {
 	EdgeQ1 := make([][4]float64, Nedge)
 	EdgeQ2 := make([][4]float64, Nedge)
 	// No need to interpolate to the edges, they are left at initialized state in Q_Face
-	c.CalculateEdgeFlux(0, false, nil, nil, nil, nil,
-		[][4]utils.Matrix{Q_Face},
+	c.CalculateEdgeFlux(0, [][4]utils.Matrix{Q_Face},
 		[][2][4]utils.Matrix{Flux_Face}, c.SortedEdgeKeys[0], EdgeQ1, EdgeQ2)
 	c.SetRTFluxOnEdges(0, Kmax, F_RT_DOF)
 
