@@ -484,13 +484,6 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 			c.Dissipation.CalculateElementViscosity(np, QQQAll)
 		}
 	})
-	doSerial(func(np int) {
-		// TODO: Paralellize this by iterating over element's edges, reading the
-		// TODO: max wave values for each edge in turn. Requires a new map of
-		// TODO: element->edges
-		rk.GlobalMaxWaveSpeed[np] = c.CalculateDTFromEdge(rk.Jdet, rk.DT, rk.DTVisc,
-			rk.Epsilon, rk.Q_Face, c.SortedEdgeKeys[np])
-	})
 	// doSerial(func(np int) {
 	doParallel(func(np int) {
 		if c.Dissipation != nil {
@@ -499,22 +492,24 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 	})
 	// doSerial(func(np int) {
 	doParallel(func(np int) {
-		if initDT && c.LocalTimeStepping {
-			c.CalculateLocalDT(rk.DT[np], rk.DTVisc[np])
-		}
 		if c.Dissipation != nil {
 			c.Dissipation.CalculateEpsilonGradient(c, C0, np, QQQAll[np])
 		}
 	})
 	// doSerial(func(np int) {
 	doParallel(func(np int) {
+		c.StoreEdgeAggregates(rk.Epsilon, rk.Jdet, rk.Q_Face, c.SortedEdgeKeys[np])
 		if c.Dissipation != nil {
-			c.StoreDissipationEdgeFlux(c.Dissipation.Epsilon,
-				c.SortedEdgeKeys[np], rk.EdgeQ1[np])
+			c.StoreEdgeViscousFlux(rk.Epsilon, c.SortedEdgeKeys[np], rk.EdgeQ1[np])
 		}
 	})
 	// doSerial(func(np int) {
 	doParallel(func(np int) {
+		rk.GlobalMaxWaveSpeed[np], _ =
+			c.CalculateDTFromEdgeAggregates(rk.DT[np], rk.DTVisc[np], np)
+		if initDT && c.LocalTimeStepping {
+			c.CalculateLocalDT(rk.DT[np], rk.DTVisc[np])
+		}
 		rk.LimitedPoints[np] = c.Limiter.LimitSolution(np, c.Q,
 			rk.Residual, rk.FilterScratch)
 		// Perform a Runge Kutta pseudo time step

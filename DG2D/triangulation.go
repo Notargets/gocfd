@@ -10,9 +10,10 @@ import (
 )
 
 type Triangulation struct {
-	EToV  utils.Matrix            // K x 3 matrix mapping vertices to triangles
-	Edges map[types.EdgeKey]*Edge // map of edges, key is the edge number, an int packed with the two vertices of each edge
-	EtoE  [][3]int                // For each element in [k], the connected element for each of the three edges [0,1,2]
+	EToV     utils.Matrix            // K x 3 matrix mapping vertices to triangles
+	Edges    map[types.EdgeKey]*Edge // map of edges, key is the edge number, an int packed with the two vertices of each edge
+	EtoE     [][3]int                // For each element in [k], the connected element for each of the three edges [0,1,2]
+	EtoEdges [][3]types.EdgeKey      // The EdgeKey makes every edge storage unique
 }
 
 func NewTriangulation(VX, VY utils.Vector, EToV utils.Matrix, BCEdges types.BCMAP) (tmesh *Triangulation) {
@@ -20,15 +21,17 @@ func NewTriangulation(VX, VY utils.Vector, EToV utils.Matrix, BCEdges types.BCMA
 		K, _ = EToV.Dims()
 	)
 	tmesh = &Triangulation{
-		EToV:  EToV,
-		Edges: make(map[types.EdgeKey]*Edge),
-		EtoE:  make([][3]int, K),
+		EToV:     EToV,
+		Edges:    make(map[types.EdgeKey]*Edge),
+		EtoE:     make([][3]int, K),
+		EtoEdges: make([][3]types.EdgeKey, K),
 	}
 	// Create edges map
 	for k := 0; k < K; k++ {
 		tri := EToV.Row(k).DataP
 		verts := [3]int{int(tri[0]), int(tri[1]), int(tri[2])}
 		// Create / store the edges for this triangle
+		// Note that half of these will end up un-referenced
 		tmesh.NewEdge(VX, VY, [2]int{verts[0], verts[1]}, k, First)
 		tmesh.NewEdge(VX, VY, [2]int{verts[1], verts[2]}, k, Second)
 		tmesh.NewEdge(VX, VY, [2]int{verts[2], verts[0]}, k, Third)
@@ -136,6 +139,10 @@ func (tmesh *Triangulation) NewEdge(VX, VY utils.Vector, verts [2]int, connected
 		}
 	}
 	e.AddTri(en, connectedElementNumber, conn, intEdgeNumber, dir, VX, VY)
+
+	// Add the edge to the element's EtoEdges index
+	edgeNumber := e.ConnectedTriEdgeNumber[conn]
+	tmesh.EtoEdges[connectedElementNumber][edgeNumber] = en
 	return
 }
 

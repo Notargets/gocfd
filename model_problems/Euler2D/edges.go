@@ -42,17 +42,25 @@ func (p EdgeKeySliceSortLeft) Less(i, j int) bool {
 
 type EdgeValueStorage struct {
 	Fluxes       [][4]utils.Matrix
+	Aggregates   [][2]float64
 	StorageIndex map[types.EdgeKey]int // Index into normal flux storage using edge key
 	PMap         *utils.PartitionMap
 	Nedge        int
 }
 
-type ValueType uint8
+type EdgeValueType uint8
 
 const (
-	NumericalFluxForEuler ValueType = iota
+	NumericalFluxForEuler EdgeValueType = iota
 	EdgeQValues
 	ViscousNormalFlux
+)
+
+type EdgeAggregateType uint8
+
+const (
+	MaxWaveSpeed EdgeAggregateType = iota
+	MaxViscousWaveSpeed
 )
 
 func (c *Euler) NewEdgeStorage() (nf *EdgeValueStorage) {
@@ -64,6 +72,7 @@ func (c *Euler) NewEdgeStorage() (nf *EdgeValueStorage) {
 		PMap:         c.Partitions,
 		Nedge:        c.DFR.FluxElement.NpEdge,
 		Fluxes:       make([][4]utils.Matrix, int(ViscousNormalFlux)+1),
+		Aggregates:   make([][2]float64, NumEdges),
 	}
 	// Allocate memory for fluxes
 	for i := range nf.Fluxes {
@@ -81,7 +90,7 @@ func (c *Euler) NewEdgeStorage() (nf *EdgeValueStorage) {
 	return
 }
 
-func (nf *EdgeValueStorage) GetEdgeValues(valType ValueType, myThread, kLocal, varNum, localEdgeNumber int, dfr *DG2D.DFR2D) (EdgeValues []float64, sign int) {
+func (nf *EdgeValueStorage) GetEdgeValues(valType EdgeValueType, myThread, kLocal, varNum, localEdgeNumber int, dfr *DG2D.DFR2D) (EdgeValues []float64, sign int) {
 	var (
 		kGlobal = nf.PMap.GetGlobalK(kLocal, myThread)
 		Kmax    = dfr.K
@@ -103,9 +112,22 @@ func (nf *EdgeValueStorage) GetEdgeValues(valType ValueType, myThread, kLocal, v
 	return
 }
 
-func (nf *EdgeValueStorage) PutEdgeValues(en types.EdgeKey, valType ValueType, EdgeValues [][4]float64) {
+func (nf *EdgeValueStorage) PutEdgeAggregate(en types.EdgeKey,
+	valType EdgeAggregateType, EdgeAgg float64) {
+	edgeIndex := nf.StorageIndex[en]
+	nf.Aggregates[edgeIndex][valType] = EdgeAgg
+}
+
+func (nf *EdgeValueStorage) GetEdgeAggregate(en types.EdgeKey,
+	valType EdgeAggregateType) (EdgeAgg float64) {
+	edgeIndex := nf.StorageIndex[en]
+	EdgeAgg = nf.Aggregates[edgeIndex][valType]
+	return
+}
+
+func (nf *EdgeValueStorage) PutEdgeValues(en types.EdgeKey, valType EdgeValueType, EdgeValues [][4]float64) {
 	var (
-		target = nf.Fluxes[int(valType)]
+		target = nf.Fluxes[valType]
 	)
 	// Load the normal flux into the global normal flux storage
 	edgeIndex := nf.StorageIndex[en]
@@ -126,7 +148,7 @@ func (c *Euler) GetFaceNormal(kGlobal, edgeNumber int) (normal [2]float64) {
 	return
 }
 
-func (c *Euler) StoreDissipationEdgeFlux(epsilon []utils.Matrix,
+func (c *Euler) StoreEdgeViscousFlux(epsilon []utils.Matrix,
 	edgeKeys EdgeKeySlice, EdgeQ1 [][4]float64) {
 	var (
 		Nedge       = c.DFR.FluxElement.NpEdge
@@ -222,8 +244,8 @@ func (c *Euler) StoreDissipationEdgeFlux(epsilon []utils.Matrix,
 	return
 }
 
-func (c *Euler) CalculateDTFromEdge(Jdet, DT, DTVisc, Epsilon []utils.Matrix,
-	Q_Face [][4]utils.Matrix, edgeKeys EdgeKeySlice) (globalMaxWaveSpeed float64) {
+func (c *Euler) StoreEdgeAggregates(Epsilon, Jdet []utils.Matrix,
+	Q_Face [][4]utils.Matrix, edgeKeys EdgeKeySlice) {
 	var (
 		Nedge = c.DFR.FluxElement.NpEdge
 		pm    = c.Partitions
@@ -246,11 +268,11 @@ func (c *Euler) CalculateDTFromEdge(Jdet, DT, DTVisc, Epsilon []utils.Matrix,
 			C := c.FSFar.GetFlowFunction(Q_Face[myThread], ind, SoundSpeed)
 			U := c.FSFar.GetFlowFunction(Q_Face[myThread], ind, Velocity)
 			edgeWaveSpeed := oohK * (U + C)
-			globalMaxWaveSpeed = math.Max(edgeWaveSpeed, globalMaxWaveSpeed)
 			if edgeWaveSpeed > edgeMaxWaveSpeed {
 				edgeMaxWaveSpeed = edgeWaveSpeed
 			}
 		}
+		c.EdgeStore.PutEdgeAggregate(en, MaxWaveSpeed, edgeMaxWaveSpeed)
 		if c.Dissipation != nil {
 			edgeMaxViscousWaveSpeed := -math.MaxFloat64
 			offset := 2*c.DFR.FluxElement.NpInt + shift
@@ -260,20 +282,42 @@ func (c *Euler) CalculateDTFromEdge(Jdet, DT, DTVisc, Epsilon []utils.Matrix,
 					max(oohK*oohK*Epsilon[myThread].DataP[ind],
 						edgeMaxViscousWaveSpeed)
 			}
-			DTVisc[myThread].DataP[k] =
-				max(DTVisc[myThread].DataP[k], edgeMaxViscousWaveSpeed)
-			if e.NumConnectedTris == 2 { // Add the wavespeed to the other tri connected to this edge if needed
-				kV, _, myThreadV := pm.GetLocalK(int(e.ConnectedTris[1]))
-				DTVisc[myThreadV].DataP[kV] = max(DTVisc[myThreadV].DataP[kV],
-					edgeMaxViscousWaveSpeed)
-			}
+			c.EdgeStore.PutEdgeAggregate(en, MaxViscousWaveSpeed,
+				edgeMaxViscousWaveSpeed)
 		}
-		// Set the element ooDT as the max of this and current so that we get the
-		// max of all edges. Later we invert this, so we take the minimum DT
-		DT[myThread].DataP[k] = max(DT[myThread].DataP[k], edgeMaxWaveSpeed)
-		if e.NumConnectedTris == 2 { // Add the wavespeed to the other tri connected to this edge if needed
-			kC, _, myThreadC := pm.GetLocalK(int(e.ConnectedTris[1]))
-			DT[myThreadC].DataP[kC] = max(DT[myThreadC].DataP[kC], edgeMaxWaveSpeed)
+	}
+	return
+}
+
+func (c *Euler) CalculateDTFromEdgeAggregates(DT, DTVisc utils.Matrix,
+	myThread int) (globalMaxWaveSpeed, globalMaxViscousWaveSpeed float64) {
+	var (
+		pm      = c.Partitions
+		_, KMax = DT.Dims()
+	)
+	globalMaxWaveSpeed = -math.MaxFloat64
+	globalMaxViscousWaveSpeed = -math.MaxFloat64
+	for k := 0; k < KMax; k++ {
+		for nEdge := 0; nEdge < 3; nEdge++ {
+			// for _, en := range edgeKeys {
+			var (
+				kGlobal = pm.GetGlobalK(k, myThread)
+			)
+			en := c.DFR.Tris.EtoEdges[kGlobal][nEdge]
+			// Set the element ooDT as the max of this and current so that we get the
+			// max of all edges. Later we invert this, so we take the minimum DT
+			edgeMaxWaveSpeed := c.EdgeStore.GetEdgeAggregate(en, MaxWaveSpeed)
+			if edgeMaxWaveSpeed > globalMaxWaveSpeed {
+				globalMaxWaveSpeed = edgeMaxWaveSpeed
+			}
+			DT.DataP[k] = max(DT.DataP[k], edgeMaxWaveSpeed)
+			if c.Dissipation != nil {
+				edgeMaxViscousWaveSpeed := c.EdgeStore.GetEdgeAggregate(en, MaxViscousWaveSpeed)
+				if edgeMaxViscousWaveSpeed > globalMaxViscousWaveSpeed {
+					globalMaxViscousWaveSpeed = edgeMaxViscousWaveSpeed
+				}
+				DTVisc.DataP[k] = max(DTVisc.DataP[k], edgeMaxViscousWaveSpeed)
+			}
 		}
 	}
 	return
