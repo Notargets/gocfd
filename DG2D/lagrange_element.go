@@ -36,8 +36,8 @@ func NewCubature(P int) (cb *Cubature) {
 type NodeType string
 
 const (
-	Epsilon   = "Epsilon"
-	Hesthaven = "Hesthaven"
+	Epsilon   = NodeType("Epsilon")
+	Hesthaven = NodeType("Hesthaven")
 )
 
 func NewLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/notargets/gocfd/DG1D"
 	"github.com/notargets/gocfd/utils"
 )
 
@@ -180,7 +181,7 @@ type RTElement struct {
 	Phi        []VectorI // Each term of the basis is a vector
 }
 
-func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
+func NewRTElement(P int, basisType RTBasisType, nodeType NodeType) (rt *RTElement) {
 	// We expect that there are points in R and S to match the dimension of dim(P(NFlux-1))
 	/*
 		<---- NpInt ----><---- NpInt ----><---NpEdge----><---NpEdge----><---NpEdge---->
@@ -207,7 +208,12 @@ func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
 
 	if P > 0 {
 		if P < 9 {
-			rt.RInt, rt.SInt = NodesEpsilon(P - 1)
+			switch nodeType {
+			case Hesthaven:
+				rt.RInt, rt.SInt = XYtoRS(Nodes2D(P - 1))
+			case Epsilon:
+				rt.RInt, rt.SInt = NodesEpsilon(P - 1)
+			}
 		} else {
 			rt.RInt, rt.SInt = XYtoRS(Nodes2D(P - 1))
 			// Weak approach to pull back equidistant distro from the edges
@@ -231,12 +237,15 @@ func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
 		rt.DOFVectors[offset+i+2*NpEdge] = NewConstantVector(-1, 0)
 	}
 
-	rt.R, rt.S = rt.ExtendGeomToRT(rt.RInt, rt.SInt)
+	rt.R, rt.S = rt.ExtendGeomToRT(rt.RInt, rt.SInt, nodeType)
 	rt.CalculateBasis()
 
 	// Compose basis Vandermonde matrix
 	rt.V = rt.ComposeV(rt.Phi)
-	// rt.V.String("V - from RT Element")
+	// rt.V.Print("V - from RT Element")
+	// rt.R.Transpose().Print("R - from RT Element")
+	// rt.S.Transpose().Print("S - from RT Element")
+	// os.Exit(1)
 	rt.VInv = rt.V.InverseWithCheck()
 	rt.Div = rt.ComputeDivergenceMatrix()
 	for i := 0; i < NpInt; i++ {
@@ -374,7 +383,8 @@ func (rt *RTElement) GetInternalLocations(F []float64) (
 	return
 }
 
-func (rt *RTElement) ExtendGeomToRT(Rint, Sint utils.Vector) (R, S utils.Vector) {
+func (rt *RTElement) ExtendGeomToRT(Rint, Sint utils.Vector, nodeType NodeType) (R,
+	S utils.Vector) {
 	var (
 		N            = rt.P
 		NpEdge       = N + 1
@@ -384,32 +394,37 @@ func (rt *RTElement) ExtendGeomToRT(Rint, Sint utils.Vector) (R, S utils.Vector)
 	/*
 		Determine geometric locations of edge points, located at Gauss locations in 1D, projected onto the edges
 	*/
-	// GQR := utils.NewVector(N+1, DG1D.LegendreZeros(N))
-	// Use optimized edge points from edge_point_distribution optimization
 	var Rdist []float64
-	switch N {
-	case 1:
-		Rdist = []float64{-0.38490018, 0.38490018}
-	case 2:
-		Rdist = []float64{-0.58378055, 0, 0.58378055}
-	case 3:
-		Rdist = []float64{-0.70460764, -0.25640858, 0.25640858, 0.70460764}
-	case 4:
-		Rdist = []float64{-0.78093647, -0.43143958, 0, 0.43143071, 0.780937}
-	case 5:
-		Rdist = []float64{-0.83155051, -0.55394627, -0.19423772, 0.19420846,
-			0.55372084, 0.83157178}
-	case 6:
-		Rdist = []float64{-0.86736381, -0.64201719, -0.34118457, 0,
-			0.34103526, 0.64187617, 0.86666209}
-	case 7:
-		Rdist = []float64{-0.89215475, -0.7065447, -0.45294463, -0.15588555,
-			0.15590652, 0.45318727, 0.70679979, 0.89196653}
-	case 8:
-		Rdist = []float64{-0.91090107, -0.755625, -0.5402, -0.28137625,
-			0, 0.28119241, 0.54000096, 0.75548225, 0.91083652}
+	var GQR utils.Vector
+	switch nodeType {
+	case Hesthaven:
+		GQR = utils.NewVector(N+1, DG1D.LegendreZeros(N))
+	case Epsilon:
+		// Use optimized edge points from edge_point_distribution optimization
+		switch N {
+		case 1:
+			Rdist = []float64{-0.38490018, 0.38490018}
+		case 2:
+			Rdist = []float64{-0.58378055, 0, 0.58378055}
+		case 3:
+			Rdist = []float64{-0.70460764, -0.25640858, 0.25640858, 0.70460764}
+		case 4:
+			Rdist = []float64{-0.78093647, -0.43143958, 0, 0.43143071, 0.780937}
+		case 5:
+			Rdist = []float64{-0.83155051, -0.55394627, -0.19423772, 0.19420846,
+				0.55372084, 0.83157178}
+		case 6:
+			Rdist = []float64{-0.86736381, -0.64201719, -0.34118457, 0,
+				0.34103526, 0.64187617, 0.86666209}
+		case 7:
+			Rdist = []float64{-0.89215475, -0.7065447, -0.45294463, -0.15588555,
+				0.15590652, 0.45318727, 0.70679979, 0.89196653}
+		case 8:
+			Rdist = []float64{-0.91090107, -0.755625, -0.5402, -0.28137625,
+				0, 0.28119241, 0.54000096, 0.75548225, 0.91083652}
+		}
+		GQR = utils.NewVector(N+1, Rdist)
 	}
-	GQR := utils.NewVector(N+1, Rdist)
 	/*
 		Double the number of interior points to match each direction of the basis
 	*/

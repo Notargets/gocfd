@@ -11,6 +11,11 @@ import (
 //
 //	polynomial of order N
 func Nodes2D(N int) (x utils.Vector, y utils.Vector) {
+	if N == 0 {
+		x = utils.NewVector(1, []float64{0.})
+		y = utils.NewVector(1, []float64{0.})
+		return
+	}
 	var (
 		alpha                                                               float64
 		Np                                                                  = (N + 1) * (N + 2) / 2

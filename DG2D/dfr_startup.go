@@ -45,8 +45,10 @@ func NewDFR2D(N int, verbose bool, meshFileO ...string) (dfr *DFR2D) {
 	if N < 0 {
 		panic(fmt.Errorf("Polynomial order must be >= 0, have %d", N))
 	}
-	le := NewLagrangeElement2D(N, Epsilon)
-	rt := NewRTElement(N+1, SimplexRTBasis)
+	// le := NewLagrangeElement2D(N, Epsilon)
+	nodeType := Epsilon
+	le := NewLagrangeElement2D(N, nodeType)
+	rt := NewRTElement(N+1, SimplexRTBasis, nodeType)
 	RFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.R.DataP)) // For the Interpolation matrix across three edges
 	SFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.S.DataP)) // For the Interpolation matrix across three edges
 	dfr = &DFR2D{

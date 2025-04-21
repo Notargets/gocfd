@@ -50,7 +50,7 @@ func DivergencePolynomialField_Test(t *testing.T, BasisType RTBasisType, PMin, P
 			t.Logf("---------------------------------------------\n")
 			t.Logf("Checking Divergence for RT%d\n", P)
 			t.Logf("---------------------------------------------\n")
-			rt := NewRTElement(P, BasisType)
+			rt := NewRTElement(P, BasisType, Epsilon)
 			CheckDivergence(t, rt, field, 0, P)
 		}
 	}
@@ -64,7 +64,7 @@ func DivergenceConvergence_Test(t *testing.T, BasisType RTBasisType, PMax int) {
 		t.Logf("---------------------------------------------\n")
 		t.Logf("Checking RMS convergence for RT%d\n", P)
 		t.Logf("---------------------------------------------\n")
-		rt := NewRTElement(P, BasisType)
+		rt := NewRTElement(P, BasisType, Epsilon)
 		checkField := SinCosVectorField{}
 		rmsCheck[P-1] = CheckDivergenceRMS(t, rt, checkField)
 		fmt.Printf("RMS Error on %s: %f\n", checkField.String(), rmsCheck[P-1])
