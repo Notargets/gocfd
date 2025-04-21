@@ -476,10 +476,10 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 				}
 			}
 		}
-		// CalculateEdgeFlux is where the Riemann problem is solved at the
+		// CalculateEdgeEulerFlux is where the Riemann problem is solved at the
 		// neighbor faces, and the edge boundary conditions are applied.
-		c.CalculateEdgeFlux(rk.Time, rk.Q_Face, rk.Flux_Face,
-			c.SortedEdgeKeys[np], rk.EdgeQ1[np], rk.EdgeQ2[np]) // Global
+		c.CalculateEdgeEulerFlux(rk.Time, rk.Q_Face, rk.Flux_Face,
+			rk.EdgeQ1[np], rk.EdgeQ2[np], c.SortedEdgeKeys[np]) // Global
 		if c.Dissipation != nil {
 			c.Dissipation.CalculateElementViscosity(np, QQQAll)
 		}
@@ -500,13 +500,13 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 	doParallel(func(np int) {
 		c.StoreEdgeAggregates(rk.Epsilon, rk.Jdet, rk.Q_Face, c.SortedEdgeKeys[np])
 		if c.Dissipation != nil {
-			c.StoreEdgeViscousFlux(rk.Epsilon, c.SortedEdgeKeys[np], rk.EdgeQ1[np])
+			c.StoreEdgeViscousFlux(rk.Epsilon, rk.EdgeQ1[np], c.SortedEdgeKeys[np])
 		}
 	})
 	// doSerial(func(np int) {
 	doParallel(func(np int) {
 		rk.GlobalMaxWaveSpeed[np], _ =
-			c.CalculateDTFromEdgeAggregates(rk.DT[np], rk.DTVisc[np], np)
+			c.CalcElementMaxWaveSpeed(rk.DT[np], rk.DTVisc[np], np)
 		if initDT && c.LocalTimeStepping {
 			c.CalculateLocalDT(rk.DT[np], rk.DTVisc[np])
 		}

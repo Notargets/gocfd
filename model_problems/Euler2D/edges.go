@@ -148,8 +148,7 @@ func (c *Euler) GetFaceNormal(kGlobal, edgeNumber int) (normal [2]float64) {
 	return
 }
 
-func (c *Euler) StoreEdgeViscousFlux(epsilon []utils.Matrix,
-	edgeKeys EdgeKeySlice, EdgeQ1 [][4]float64) {
+func (c *Euler) StoreEdgeViscousFlux(epsilon []utils.Matrix, EdgeQ1 [][4]float64, edgeKeys EdgeKeySlice) {
 	var (
 		Nedge       = c.DFR.FluxElement.NpEdge
 		viscousFlux = EdgeQ1
@@ -289,7 +288,7 @@ func (c *Euler) StoreEdgeAggregates(Epsilon, Jdet []utils.Matrix,
 	return
 }
 
-func (c *Euler) CalculateDTFromEdgeAggregates(DT, DTVisc utils.Matrix,
+func (c *Euler) CalcElementMaxWaveSpeed(DT, DTVisc utils.Matrix,
 	myThread int) (globalMaxWaveSpeed, globalMaxViscousWaveSpeed float64) {
 	var (
 		pm      = c.Partitions
@@ -323,9 +322,9 @@ func (c *Euler) CalculateDTFromEdgeAggregates(DT, DTVisc utils.Matrix,
 	return
 }
 
-func (c *Euler) CalculateEdgeFlux(Time float64,
-	Q_Face [][4]utils.Matrix, Flux_Face [][2][4]utils.Matrix,
-	edgeKeys EdgeKeySlice, EdgeQ1, EdgeQ2 [][4]float64) {
+func (c *Euler) CalculateEdgeEulerFlux(Time float64, Q_Face [][4]utils.Matrix,
+	Flux_Face [][2][4]utils.Matrix, EdgeQ1, EdgeQ2 [][4]float64,
+	edgeKeys EdgeKeySlice) {
 	var (
 		Nedge                 = c.DFR.FluxElement.NpEdge
 		numericalFluxForEuler = EdgeQ1
