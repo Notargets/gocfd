@@ -86,7 +86,7 @@ func TestDFR2D_WriteAVSGraphMesh(t *testing.T) {
 	// 		fmt.Println("I range: ", i, "range: ", xy)
 	// 	}
 	// }
-	// PlotMesh(gm)
+	// PlotTriMesh(gm)
 	// for {
 	// }
 }
@@ -102,5 +102,5 @@ func TestCreateAVSGraphMesh(t *testing.T) {
 	// dfr := NewDFR2D(N, false, "test_data/test_tris_1tri.neu")
 	dfr := NewDFR2D(N, false, "test_data/test_tris_9.neu")
 	gm := dfr.CreateAVSGraphMesh()
-	PlotMesh(gm)
+	PlotTriMesh(gm)
 }
