@@ -18,8 +18,8 @@ func getXYZandW(order int) (suborder []int, subXYZ [3][]float64, subW []float64)
 	switch order {
 	case 1:
 		suborder = []int{1, 3, 6}
-		// row 0 (X = λ₁)
-		// row 1 (Y = λ₂)
+		// row 0 (R = λ₁)
+		// row 1 (S = λ₂)
 		// row 2 (Z = λ₃)
 		subXYZ[0] = []float64{
 			0.3333333333, 1.0000000000, 0.0000000000,

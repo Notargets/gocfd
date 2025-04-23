@@ -92,7 +92,7 @@ type ScalarDissipation struct {
 	Epsilon                    []utils.Matrix      // Sharded Np x Kmax, Interpolated from element vertices
 	EpsilonScalar              [][]float64         // Sharded scalar value of dissipation, one per element
 	DissDOF, DissDOF2, DissDiv []utils.Matrix      // Sharded NpFlux x Kmax, DOF for Gradient calculation using RT
-	DissX, DissY               [][4]utils.Matrix   // Sharded NpFlux x Kmax, X and Y derivative of dissipation field
+	DissX, DissY               [][4]utils.Matrix   // Sharded NpFlux x Kmax, R and S derivative of dissipation field
 	EpsVertex                  []float64           // NVerts x 1, Aggregated (Max) of epsilon surrounding each vertex, Not sharded
 	PMap                       *utils.PartitionMap // Partition map for the solution shards in K
 	Clipper                    utils.Matrix        // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder

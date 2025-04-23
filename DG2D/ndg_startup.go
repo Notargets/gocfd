@@ -82,8 +82,8 @@ func (ndg *NDG2D) Startup2D() {
 
 	// Mark fields read only
 	ndg.LIFT.SetReadOnly("LIFT")
-	ndg.X.SetReadOnly("X")
-	ndg.Y.SetReadOnly("Y")
+	ndg.X.SetReadOnly("R")
+	ndg.Y.SetReadOnly("S")
 	ndg.Fx.SetReadOnly("Fx")
 	ndg.Fy.SetReadOnly("Fy")
 	ndg.FMask.SetReadOnly("FMask")

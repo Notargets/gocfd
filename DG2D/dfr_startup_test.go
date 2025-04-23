@@ -469,8 +469,8 @@ func TestGradient(t *testing.T) {
 						DOFYd[ind] = DYmd[ind] * Un
 					}
 				}
-				DX := dfr.FluxElement.Div.Mul(DOFX) // X Derivative, divergence x RT_DOF is X derivative for this DOF
-				DY := dfr.FluxElement.Div.Mul(DOFY) // Y Derivative, divergence x RT_DOF is Y derivative for this DOF
+				DX := dfr.FluxElement.Div.Mul(DOFX) // R Derivative, divergence x RT_DOF is R derivative for this DOF
+				DY := dfr.FluxElement.Div.Mul(DOFY) // S Derivative, divergence x RT_DOF is S derivative for this DOF
 				t.Logf("Order[%d] check ...", n+1)
 				assert.Equal(t, len(DX.DataP), len(DXCheck[n].DataP))
 				assert.Equal(t, len(DY.DataP), len(DYCheck[n].DataP))

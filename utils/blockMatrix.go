@@ -84,8 +84,8 @@ func (bm *BlockMatrix) LUPDecompose() (err error) {
 	   The matrix is factored in place, replacing the current matrices within by a new matrix composed of the
 	   [L-E] and [U] matrices, stored in the same original matrix locations. The companion method to LUPD decompose is
 	   LUPSolve(), which can be called repeatedly to efficiently produce solutions to the problem:
-	                                       [M] * X = B
-	   where [M] is this matrix, and B is the known RHS vector and X is the target.
+	                                       [M] * R = B
+	   where [M] is this matrix, and B is the known RHS vector and R is the target.
 
 	   Matrix M is changed, it contains a copy of both matrices L-I and U as (L-I)+U such that:
 	                                       P * [M] = L * U
@@ -149,12 +149,12 @@ func (bm *BlockMatrix) LUPDecompose() (err error) {
 
 func (bm BlockMatrix) LUPSolve(b []Matrix) (Bx BlockMatrix, err error) {
 	/*
-	   Provided a solution vector B of size N x NB, calculate X for equation:
-	       [M] * X = B
+	   Provided a solution vector B of size N x NB, calculate R for equation:
+	       [M] * R = B
 	   where [M] is the block matrix
 
 	   Each sub-matrix within [M] is of size NBxNB
-	   Each of the X and B vectors are of size NxNB
+	   Each of the R and B vectors are of size NxNB
 	*/
 
 	var (
@@ -168,14 +168,14 @@ func (bm BlockMatrix) LUPSolve(b []Matrix) (Bx BlockMatrix, err error) {
 		return
 	}
 	/*
-		Provided a solution vector B of size N x NB, calculate X for equation:
-		[M] * X = B
+		Provided a solution vector B of size N x NB, calculate R for equation:
+		[M] * R = B
 		where [M] is the block matrix
 
 		Each sub-matrix within [M] is of size NBxNB
-		Each of the X and B vectors are of size NxNB
+		Each of the R and B vectors are of size NxNB
 	*/
-	// Allocate solution X
+	// Allocate solution R
 	Bx = NewBlockMatrix(N, 1)
 	X := Bx.M
 	for i := 0; i < N; i++ {
@@ -195,8 +195,8 @@ func (bm BlockMatrix) LUPSolve(b []Matrix) (Bx BlockMatrix, err error) {
 	_ = cDims
 	for i := N - 1; i >= 0; i-- {
 		for k := i + 1; k < N; k++ {
-			//cDims(i, k, A[i][k], X[k][0])
-			//X[i][0] = X[i][0].Subtract(A[i][k].Mul(X[k][0]))
+			// cDims(i, k, A[i][k], R[k][0])
+			// R[i][0] = R[i][0].Subtract(A[i][k].Mul(R[k][0]))
 			X[i][0] = X[i][0].Subtract(A[i][k].Mul(X[k][0].Transpose()))
 		}
 		if Scratch, err = A[i][i].Inverse(); err != nil {

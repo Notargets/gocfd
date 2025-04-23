@@ -563,7 +563,7 @@ func (tm *TriMeshG) AddPoint(X, Y float64, traceO ...bool) {
 		edge := baseTri.Edges[eNumber]
 		oppoVerts, oppoTris := edge.getOpposingVertices() // Must happen before removing tris from edge
 		if trace {
-			fmt.Printf("X, Y = [%8.5f,%8.5f], Edge = %s, Oppoverts = %v\n",
+			fmt.Printf("R, S = [%8.5f,%8.5f], Edge = %s, Oppoverts = %v\n",
 				X, Y, edge.Print(), oppoVerts)
 		}
 		// Remove base tris from central edge, they will be replaced with 4 new tris

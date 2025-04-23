@@ -946,7 +946,7 @@ func GradientMassMatrix(dfr *DFR2D) (M utils.Matrix) {
 	)
 	// Compute gradient using all points in flux element with density
 	// First compose a mass matrix with all of the point locations
-	M = utils.NewMatrix(NpInt+3*NpEdge, 3) // Points x (1:X:Y)
+	M = utils.NewMatrix(NpInt+3*NpEdge, 3) // Points x (1:R:S)
 	for i := 0; i < NpInt; i++ {
 		M.Set(i, 0, 1.)
 		M.Set(i, 1, dfr.FluxX.DataP[i])

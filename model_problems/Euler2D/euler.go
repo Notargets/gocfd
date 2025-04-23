@@ -790,8 +790,8 @@ func (c *Euler) GetSolutionGradientUsingRTElement(myThread, varNum int, Q [4]uti
 		}
 	}
 	// Calculate Grad(U)
-	dfr.FluxElement.Div.Mul(DOFX, GradX) // X Derivative, divergence x RT_DOF is X derivative for this DOF
-	dfr.FluxElement.Div.Mul(DOFY, GradY) // Y Derivative, divergence x RT_DOF is Y derivative for this DOF
+	dfr.FluxElement.Div.Mul(DOFX, GradX) // R Derivative, divergence x RT_DOF is R derivative for this DOF
+	dfr.FluxElement.Div.Mul(DOFY, GradY) // S Derivative, divergence x RT_DOF is S derivative for this DOF
 }
 
 func (c *Euler) GetSolutionGradient(myThread, varNum int, Q [4]utils.Matrix, GradX, GradY, DR, DS utils.Matrix) {

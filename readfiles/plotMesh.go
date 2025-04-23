@@ -7,7 +7,7 @@ import (
 )
 
 func PrintTriMesh(trimesh *geometry2D.TriMesh) {
-	fmt.Println("Geometry, X, Y for each vertex:")
+	fmt.Println("Geometry, R, S for each vertex:")
 	for _, pt := range trimesh.Geometry {
 		fmt.Printf("%5.2f %5.2f\n", pt.X[0], pt.X[1])
 	}

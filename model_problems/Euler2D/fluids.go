@@ -186,21 +186,21 @@ func (pm FlowFunction) String() string {
 	case pm == EpsilonDissipationC0:
 		return "Artificial Dissipation Epsilon C0"
 	case pm == XGradientDensity:
-		return "X Direction Gradient of Density"
+		return "R Direction Gradient of Density"
 	case pm == XGradientXMomentum:
-		return "X Direction Gradient of X Momentum"
+		return "R Direction Gradient of R Momentum"
 	case pm == XGradientYMomentum:
-		return "X Direction Gradient of Y Momentum"
+		return "R Direction Gradient of S Momentum"
 	case pm == XGradientEnergy:
-		return "X Direction Gradient of Energy"
+		return "R Direction Gradient of Energy"
 	case pm == YGradientDensity:
-		return "Y Direction Gradient of Density"
+		return "S Direction Gradient of Density"
 	case pm == YGradientXMomentum:
-		return "Y Direction Gradient of X Momentum"
+		return "S Direction Gradient of R Momentum"
 	case pm == YGradientYMomentum:
-		return "Y Direction Gradient of Y Momentum"
+		return "S Direction Gradient of S Momentum"
 	case pm == YGradientEnergy:
-		return "Y Direction Gradient of Energy"
+		return "S Direction Gradient of Energy"
 	default:
 		return "Unknown"
 	}

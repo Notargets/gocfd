@@ -70,7 +70,7 @@ func init() {
 	OneDCmd.Flags().IntP("case", "c", int(CaseInt), "Case to run, for Euler: 0 = SOD Shock Tube, 1 = Density Wave")
 	OneDCmd.Flags().Float64("CFL", CFL, "CFL - increase for speedup, decrease for stability")
 	OneDCmd.Flags().Float64("finalTime", FinalTime, "FinalTime - the target end time for the sim")
-	OneDCmd.Flags().Float64("xMax", XMax, "Maximum X coordinate (for Euler) - make sure to increase K with XMax")
+	OneDCmd.Flags().Float64("xMax", XMax, "Maximum R coordinate (for Euler) - make sure to increase K with XMax")
 }
 
 type Model1D struct {

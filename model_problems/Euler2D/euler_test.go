@@ -101,7 +101,7 @@ func TestEuler(t *testing.T) {
 			/*
 				Solver approach:
 				0) Solution is stored on sol points as Q
-				0a) Flux is computed and stored in X, Y component projections in the 2*NpInt front of F_RT_DOF
+				0a) Flux is computed and stored in R, S component projections in the 2*NpInt front of F_RT_DOF
 				1) Solution is extrapolated to edge points in Q_Face from Q
 				2) Edges are traversed, flux is calculated and projected onto edge face normals, scaled and placed into F_RT_DOF
 			*/
@@ -232,7 +232,7 @@ func TestEuler(t *testing.T) {
 		if true { // Test divergence of polynomial initial condition against
 			// analytic values
 			/*
-				Note: the Polynomial flux is asymmetric around the X and Y axes - it uses abs(x) and abs(y)
+				Note: the Polynomial flux is asymmetric around the R and S axes - it uses abs(x) and abs(y)
 				Elements should not straddle the axes if a perfect polynomial flux capture is needed
 			*/
 			Nmax := 7
@@ -589,7 +589,7 @@ func TestDissipation2(t *testing.T) {
 	{
 		ip := *ipDefault
 		ip.FluxType = "average"
-		// Testing to fourth order in X and Y
+		// Testing to fourth order in R and S
 		ip.PolynomialOrder = 4
 		c := NewEuler(&ip, "../../DG2D/test_data/test_tris_5.neu", 1, false, false)
 		var (
@@ -608,7 +608,7 @@ func TestDissipation2(t *testing.T) {
 			QGradXCheck[n] = utils.NewMatrix(NpFlux, Kmax)
 			QGradYCheck[n] = utils.NewMatrix(NpFlux, Kmax)
 		}
-		// Each variable [n] is an nth order polynomial in X and Y
+		// Each variable [n] is an nth order polynomial in R and S
 		for i := 0; i < NpFlux; i++ {
 			for k := 0; k < Kmax; k++ {
 				ind := k + i*Kmax
@@ -619,16 +619,16 @@ func TestDissipation2(t *testing.T) {
 					Q[2].DataP[ind] = X*X*X + Y*Y*Y
 					Q[3].DataP[ind] = X*X*X*X + Y*Y*Y*Y
 				}
-				// First order in X and Y
+				// First order in R and S
 				QGradXCheck[0].DataP[ind] = 1.
 				QGradYCheck[0].DataP[ind] = 1.
-				// Second order in X and Y
+				// Second order in R and S
 				QGradXCheck[1].DataP[ind] = 2 * X
 				QGradYCheck[1].DataP[ind] = 2 * Y
-				// Third order in X and Y
+				// Third order in R and S
 				QGradXCheck[2].DataP[ind] = 3 * X * X
 				QGradYCheck[2].DataP[ind] = 3 * Y * Y
-				// Fourth order in X and Y
+				// Fourth order in R and S
 				QGradXCheck[3].DataP[ind] = 4 * X * X * X
 				QGradYCheck[3].DataP[ind] = 4 * Y * Y * Y
 			}
@@ -662,8 +662,8 @@ func TestDissipation2(t *testing.T) {
 						DOFYd[ind] = DYmd[ind] * Un
 					}
 				}
-				DX := dfr.FluxElement.Div.Mul(DOFX) // X Derivative, divergence x RT_DOF is X derivative for this DOF
-				DY := dfr.FluxElement.Div.Mul(DOFY) // Y Derivative, divergence x RT_DOF is Y derivative for this DOF
+				DX := dfr.FluxElement.Div.Mul(DOFX) // R Derivative, divergence x RT_DOF is R derivative for this DOF
+				DY := dfr.FluxElement.Div.Mul(DOFY) // S Derivative, divergence x RT_DOF is S derivative for this DOF
 				fmt.Printf("Order[%d] check ...", n+1)
 				assert.Equal(t, len(DX.DataP), len(QGradXCheck[n].DataP))
 				assert.Equal(t, len(DY.DataP), len(QGradYCheck[n].DataP))
@@ -714,7 +714,7 @@ func TestEuler_GetSolutionGradientUsingRTElement(t *testing.T) {
 	{
 		ip := *ipDefault
 		ip.FluxType = "average"
-		// Testing to fourth order in X and Y
+		// Testing to fourth order in R and S
 		ip.PolynomialOrder = 4
 		ip.Minf = 0.8
 		ip.Alpha = 2.

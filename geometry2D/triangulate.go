@@ -42,7 +42,7 @@ func TriangulateTriangle(EdgeX, EdgeY, X, Y []float64) (tm geometry.TriMesh) {
 		panic("TriangulateTriangle called with len(EdgeX) != len(EdgeY)")
 	}
 	if len(X) == 0 || len(Y) == 0 {
-		panic("TriangulateTriangle called with zero length X or Y")
+		panic("TriangulateTriangle called with zero length R or S")
 	}
 	// The input EdgeX and EdgeY should be a contiguous array of points
 	// defining the edges of the triangle

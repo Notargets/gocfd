@@ -14,7 +14,7 @@ func TestElements1D(t *testing.T) {
 			K, Np, Nfp, NFaces                int
 			VX, FMask                         utils.Vector
 			EToV, EToE, EToF                  utils.Matrix
-			X, Dr, Rx, FScale, NX, LIFT       utils.Matrix
+			R, Dr, Rx, FScale, NX, LIFT       utils.Matrix
 			V, Vinv                           utils.Matrix
 			VmapM, VmapP, VmapB, VmapI, VmapO utils.Index
 			MapB, MapI, MapO                  utils.Index
@@ -27,7 +27,7 @@ func TestElements1D(t *testing.T) {
 		var el *Elements1D
 		el = NewElements1D(N, VX, EToV)
 		tol := 0.0000001
-		// Verify X
+		// Verify R
 		assert.InDeltaf(t, el.X.At(0, 1), 0.5, tol, "")
 		assert.InDeltaf(t, el.X.At(3, 1), 1.0, tol, "")
 		assert.InDeltaf(t, el.X.At(3, 2), 1.5, tol, "")

@@ -162,7 +162,7 @@ func XYtoRS(x, y utils.Vector) (r, s utils.Vector) {
 
 func CalculateElementLocalGeometry(EToV utils.Matrix, VX, VY, R, S utils.Vector) (X, Y utils.Matrix) {
 	/*
-		For input values of vector field [R,S], transform them into element local [X,Y]
+		For input values of vector field [R,S], transform them into element local [R,S]
 	*/
 	va, vb, vc := EToV.Col(0), EToV.Col(1), EToV.Col(2)
 	X = R.Copy().Add(S).Scale(-1).Outer(VX.SubsetIndex(va.ToIndex())).Add(

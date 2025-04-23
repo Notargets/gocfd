@@ -51,7 +51,7 @@ func (st *SODShockTube) calculateInterpolation() {
 		dfr    = st.DFR2D
 		getInt = dfr.SolutionElement.JB2D.GetInterpMatrix
 		VY     = dfr.VY
-		// Get the centerline Y coordinate
+		// Get the centerline S coordinate
 		ymid = 0.5*(VY.Max()-VY.Min()) + VY.Min()
 	)
 	/*
@@ -71,7 +71,7 @@ func (st *SODShockTube) getUVCoords(x, y float64) (ElementID int, r, s float64) 
 	var (
 		Kmax, _    = st.DFR2D.Tris.EToV.Dims()
 		verts      [3]int
-		A, B, C    [2]float64 // vertex X,Y coords
+		A, B, C    [2]float64 // vertex R,S coords
 		VX, VY     = st.DFR2D.VX.DataP, st.DFR2D.VY.DataP
 		v0, v1, v2 [2]float64
 		P          = [2]float64{x, y}

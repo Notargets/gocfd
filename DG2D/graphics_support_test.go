@@ -22,7 +22,7 @@ func TestPlotVariousFields(t *testing.T) {
 	// dfr := NewDFR2D(N, false, "test_data/test_tris_9.neu")
 	dfr := NewDFR2D(N, false, "test_data/test_10tris_centered.neu")
 
-	// SolutionX and Y are dimension (Np,K)
+	// SolutionX and S are dimension (Np,K)
 	// Np := dfr.SolutionElement.Np
 	// K := dfr.K
 	// for k := 0; k < K; k++ {
@@ -39,10 +39,10 @@ func TestPlotVariousFields(t *testing.T) {
 	// 	}
 	// }
 	X, Y := dfr.SolutionX.DataP, dfr.SolutionY.DataP
-	// field := SetTestField(X, Y, RADIAL2TEST)
-	// field := SetTestField(X, Y, FIXEDVORTEXTEST)
-	// field := SetTestField(X, Y, NORMALSHOCKTESTM12)
-	// field := SetTestField(X, Y, NORMALSHOCKTESTM2)
+	// field := SetTestField(R, S, RADIAL2TEST)
+	// field := SetTestField(R, S, FIXEDVORTEXTEST)
+	// field := SetTestField(R, S, NORMALSHOCKTESTM12)
+	// field := SetTestField(R, S, NORMALSHOCKTESTM2)
 	field := SetTestField(X, Y, NORMALSHOCKTESTM5)
 	fM := utils.NewMatrix(dfr.SolutionElement.Np,
 		dfr.K, field[:dfr.K*dfr.SolutionElement.Np])

@@ -26,10 +26,10 @@ type DFR2D struct {
 	FluxEdgeProject0Interp utils.Matrix // Projection of basis to order 0 for
 	// edge projection
 	FluxDr, FluxDs     utils.Matrix // Derivatives from the interior (solution) points to all of the flux points
-	DXMetric, DYMetric utils.Matrix // X and Y derivative metrics, multiply by scalar field values to create DOF for RT
+	DXMetric, DYMetric utils.Matrix // R and S derivative metrics, multiply by scalar field values to create DOF for RT
 	// Mesh Parameters
 	K                    int          // Number of elements (triangles) in mesh
-	VX, VY               utils.Vector // X,Y vertex points in mesh (vertices)
+	VX, VY               utils.Vector // R,S vertex points in mesh (vertices)
 	BCEdges              types.BCMAP
 	FluxX, FluxY         utils.Matrix    // Flux Element local coordinates
 	SolutionX, SolutionY utils.Matrix    // Solution Element local coordinates
@@ -165,9 +165,9 @@ func (dfr *DFR2D) GetJacobian(k int) (J, Jinv []float64, Jdet float64) {
 func (dfr *DFR2D) CalculateRTBasedDerivativeMetrics() {
 	/*
 		Multiply either of these matrices by a scalar solution value at NpFlux points, then multiply
-		that result by rt.Div to get either the X or Y derivative of that field
+		that result by rt.Div to get either the R or S derivative of that field
 		Note that you can specify arbitrary solution values at the edges to establish continuity and you will
-		still have accuracy of the X or Y derivative equal to the interior element polynomial degree
+		still have accuracy of the R or S derivative equal to the interior element polynomial degree
 	*/
 	var (
 		NpFlux, NpInt, Kmax = dfr.FluxElement.Np, dfr.FluxElement.NpInt, dfr.K
