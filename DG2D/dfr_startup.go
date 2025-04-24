@@ -47,6 +47,7 @@ func NewDFR2D(N int, verbose bool, meshFileO ...string) (dfr *DFR2D) {
 	}
 	// le := NewLagrangeElement2D(N, Epsilon)
 	nodeType := Epsilon
+	// nodeType := Uniform
 	le := NewLagrangeElement2D(N, nodeType)
 	rt := NewRTElement(N+1, SimplexRTBasis, nodeType)
 	RFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.R.DataP)) // For the Interpolation matrix across three edges

@@ -5,7 +5,7 @@ import (
 	"math"
 	"math/rand"
 	"sort"
-	"time"
+	"strconv"
 
 	"gonum.org/v1/gonum/optimize"
 
@@ -57,6 +57,40 @@ func logDet(A utils.Matrix) float64 {
 	// logAbs may be negative—that's okay
 	return logAbs
 }
+func MakeEdgePointsFromDist(edgeDist []float64) (pts []Point) {
+	var (
+		le = len(edgeDist)
+	)
+	pts = make([]Point, 3*le)
+	for i, r := range edgeDist {
+		pts[i] = Point{R: r, S: -1}
+		ii := i + le
+		pts[ii] = Point{R: -r, S: r}
+		iii := i + 2*le
+		pts[iii] = Point{R: -1, S: -r}
+	}
+	return
+}
+
+func AddEdgePointsToInterior(edgeDist []float64, R, S utils.Vector) (pts []Point) {
+	interiorPoints := make([]Point, R.Len())
+	for i, r := range R.DataP {
+		interiorPoints[i] = Point{R: r, S: S.DataP[i]}
+	}
+	edgePoints := MakeEdgePointsFromDist(edgeDist)
+	pts = append(edgePoints, interiorPoints...)
+	return
+}
+
+func MakeRSFromPoints(pts []Point) (R, S utils.Vector) {
+	R = utils.NewVector(len(pts))
+	S = utils.NewVector(len(pts))
+	for i, pt := range pts {
+		R.DataP[i] = pt.R
+		S.DataP[i] = pt.S
+	}
+	return
+}
 
 // UniformRS returns a “barycentric” grid of resolution n
 // mapped straight into the (r,s) triangle.  You get exactly
@@ -78,6 +112,42 @@ func UniformRS(n int) []Point {
 				R: 2*lj - 1,
 				S: 2*lk - 1,
 			})
+		}
+	}
+	return pts
+}
+
+// UniformRSAlpha returns a “barycentric” grid of resolution n
+// mapped into the (r,s) triangle and then uniformly shrunk
+// toward the triangle’s centroid by factor α∈[0,1].
+// You get exactly (n+1)(n+2)/2 points; α=1 ⇒ no shrink; α=0 ⇒ all at centroid.
+func UniformRSAlpha(n int, alpha float64) []Point {
+	// reference‐triangle centroid in (r,s):
+	const rc, sc = -1.0 / 3.0, -1.0 / 3.0
+	if n == 0 {
+		return []Point{Point{rc, sc}}
+	} else if n < 0 {
+		panic("n must be positive, got " + strconv.Itoa(n))
+	}
+
+	pts := make([]Point, 0, (n+1)*(n+2)/2)
+	inv := 1.0 / float64(n)
+
+	for i := 0; i <= n; i++ {
+		li := float64(i) * inv // λ₁
+		for j := 0; j <= n-i; j++ {
+			lj := float64(j) * inv // λ₂
+			lk := 1 - li - lj      // λ₃
+
+			// map (λ₂,λ₃) → (r,s)
+			r := 2*lj - 1
+			s := 2*lk - 1
+
+			// shrink toward centroid (rc,sc)
+			r = rc + alpha*(r-rc)
+			s = sc + alpha*(s-sc)
+
+			pts = append(pts, Point{R: r, S: s})
 		}
 	}
 	return pts
@@ -122,143 +192,149 @@ func getInteriorPoints(pts []Point) (intPts []Point) {
 	return
 }
 
-// OptimizeRTNodesCont does a continuous off‐lattice Fekete‐style interior
-// optimization for the RT element of order P, with Gauss–Legendre edges.
-func OptimizeRTNodesCont(P int) ([]Point, error) {
+// OptimizeRTWithParams does off‐lattice interior optimization
+// for RT‐P in the standard triangle, with fixed GL edges.
+// eps   = minimum barycentric threshold,
+// alpha = hinge strength,
+// gamma = conditioning weight.
+func OptimizeRTWithParams(
+	P int,
+	eps, alpha, gamma float64,
+) ([]Point, error) {
+	// Objective J(x):
+	//
+	//   J(x) = – log │det(Φ(x)ᵀ · Φ(x))│
+	//          + α ∑_{i=1}^M ∑_{j=1}^3 (ε – λᵢⱼ)_+²
+	//          + γ · log(λ_max / λ_min)
+	//
+	// where
+	//
+	//   • Φ(x)    is the M×M Vandermonde matrix built from the M interior points.
+	//   • λᵢ₁, λᵢ₂, λᵢ₃  are the three barycentric coordinates (ℓ₁,ℓ₂,ℓ₃) of point i.
+	//   • (y)_+  = max(0, y)  is the hinge function.
+	//   • λ_min, λ_max  are the smallest and largest eigenvalues of the Gram matrix ΦᵀΦ.
+	//   • ε  is the minimum‐barycentric threshold.
+	//   • α  is the hinge strength on barycentric bounds.
+	//   • γ  is the weight on the log‐condition‐number penalty.
 	if P < 1 {
 		return nil, fmt.Errorf("P must be ≥1, got %d", P)
 	}
 
-	// 1) Compute the P+1 Gauss–Legendre nodes on [-1,1].
+	// --- build fixed GL edge nodes (these never move) ---
 	gl := gaussLegendreNodes(P + 1)
-	// Drop the two endpoints (-1 and +1) to get exactly P interior-edge points.
-	// tvals := gl[1 : len(gl)-1] // len(tvals) == P
-
-	// 2) Lay them out on the three edges: bottom, left, hypotenuse.
-	// Drop none — Legendre roots already lie strictly in (-1,1).
-	// Place them on bottom (s=-1), left (r=-1), and hypotenuse (s=-r).
 	edges := make([]Point, 0, 3*len(gl))
 	for _, t := range gl {
-		// bottom edge:  (r ∈ (-1,1), s = -1)
-		edges = append(edges, Point{R: t, S: -1})
-		// left edge:    (r = -1, s ∈ (-1,1))
-		edges = append(edges, Point{R: -1, S: t})
-		// hypotenuse:   line s = -r
-		edges = append(edges, Point{R: t, S: -t})
+		edges = append(edges,
+			Point{R: t, S: -1}, // bottom
+			Point{R: 1, S: t},  // right
+			Point{R: -1, S: t}, // left
+		)
 	}
 
-	// 3) Prepare monomial exponents for total degree ≤ P-1.
+	// interior count and monomial exponents
 	M := P * (P + 1) / 2
 	exps := monomialExponents(P - 1)
-	if len(exps) != M {
-		return nil, fmt.Errorf("internal: expected %d monomials, got %d", M, len(exps))
-	}
 
-	// 4) Define the optimization problem over 2*M real parameters.
+	// problem definition
 	prob := optimize.Problem{
 		Func: func(x []float64) float64 {
-			// Build the M×M Vandermonde for the interior points.
-			PhiI := utils.NewMatrix(M, M)
+			// 1) build Vandermonde Φ (M×M) for current interior guess x
+			Phi := utils.NewMatrix(M, M)
 			for i := 0; i < M; i++ {
 				xi, yi := x[2*i], x[2*i+1]
+				// stick-breaking → barycentric
 				l1 := logistic(xi)
-				l2 := logistic(yi) * (1 - l1)
-				l3 := 1 - l1 - l2
+				l2 := logistic(yi) * (1.0 - l1)
+				l3 := 1.0 - l1 - l2
+				// map to (r,s)
 				r, s := 2*l2-1, 2*l3-1
+
 				for j, e := range exps {
-					PhiI.Set(i, j, math.Pow(r, float64(e[0]))*math.Pow(s, float64(e[1])))
+					Phi.Set(i, j,
+						math.Pow(r, float64(e[0]))*
+							math.Pow(s, float64(e[1])),
+					)
 				}
 			}
-			// Gram = ΦᵀΦ
-			Gram := PhiI.Transpose().Mul(PhiI)
-			// LU log‐det
-			// 3) LU‐logdet
+
+			// 2) Gram = ΦᵀΦ
+			Gram := Phi.Transpose().Mul(Phi)
+
+			// 3) LU‐logdet part
 			var lu mat.LU
 			lu.Factorize(Gram)
 			logAbs, sign := lu.LogDet()
 			if sign == 0 {
-				return math.Inf(1)
+				return math.Inf(1) // singular → infinite penalty
 			}
+			// core objective
+			obj := -logAbs
 
-			// 4) hinge‐penalty for boundary proximity (as before)
-			const (
-				eps   = 1e-1 // threshold
-				alpha = 1e3  // strength
-				// gamma controls how strongly you push for conditioning
-				gamma = 1e-0
-			)
-			penalty := 0.0
+			// 4) boundary‐hinge penalty on each barycentric λ₁,₂,₃
 			for i := 0; i < M; i++ {
 				xi, yi := x[2*i], x[2*i+1]
 				l1 := logistic(xi)
-				l2 := logistic(yi) * (1 - l1)
-				l3 := 1 - l1 - l2
+				l2 := logistic(yi) * (1.0 - l1)
+				l3 := 1.0 - l1 - l2
 
-				if l1 < eps {
-					d := eps - l1
-					penalty += alpha * d * d
-				}
-				if l2 < eps {
-					d := eps - l2
-					penalty += alpha * d * d
-				}
-				if l3 < eps {
-					d := eps - l3
-					penalty += alpha * d * d
+				for _, l := range []float64{l1, l2, l3} {
+					if l < eps {
+						d := eps - l
+						obj += alpha * d * d
+					}
 				}
 			}
 
-			// 5) condition‐number penalty: use general Eigen on the dense Gram
+			// 5) conditioning penalty via Gram eigenvalues
+			// copy into a *mat.Dense to call Eigen
+			var Gmat mat.Dense
+			Gmat.CloneFrom(Gram)
 			var eig mat.Eigen
-			var GramDense mat.Dense
-			GramDense.CloneFrom(Gram) // copy your utils.Matrix into a *mat.Dense
-
-			// Factorize asking for NO eigenvectors
-			ok := eig.Factorize(&GramDense, mat.EigenNone)
+			ok := eig.Factorize(&Gmat, mat.EigenNone)
 			if !ok {
-				return math.Inf(1) // something went very wrong
+				return math.Inf(1)
 			}
-
-			// Grab the (complex128) eigenvalues, extract reals, sort, and build κ
-			raw := eig.Values(nil) // []complex128
-			reals := make([]float64, len(raw))
-			for i, c := range raw {
+			vals := eig.Values(nil)
+			reals := make([]float64, len(vals))
+			for i, c := range vals {
 				reals[i] = real(c)
 			}
-			sort.Float64s(reals) // now sorted ascending
-			lambdaMin, lambdaMax := reals[0], reals[len(reals)-1]
+			sort.Float64s(reals)
+			λmin, λmax := reals[0], reals[len(reals)-1]
+			// log‐condition
+			obj += gamma * math.Log(λmax/λmin)
 
-			logCond := math.Log(lambdaMax / lambdaMin)
-			return -logAbs + penalty + gamma*logCond
-
+			return obj
 		},
 	}
 
-	// 5) Initialize x with small random jitter so we start nonsingular.
+	// 6) initialize x with small random in [-1,1]
 	initX := make([]float64, 2*M)
-	rand.Seed(time.Now().UnixNano())
 	for i := range initX {
 		initX[i] = rand.Float64()*2 - 1
 	}
 
-	// 6) Run Nelder–Mead with default convergence.
+	// 7) run Nelder–Mead
 	settings := &optimize.Settings{Recorder: nil}
 	result, err := optimize.Minimize(prob, initX, settings, &optimize.NelderMead{})
 	if err != nil {
-		return nil, fmt.Errorf("optimization failed: %v", err)
+		return nil, fmt.Errorf("optimize failed: %v", err)
 	}
 
-	// 7) Reconstruct the optimized interior (r,s) points.
-	xOpt := result.X
+	// 8) unpack final interior points
+	Xopt := result.X
 	interior := make([]Point, 0, M)
 	for i := 0; i < M; i++ {
-		l1 := logistic(xOpt[2*i])
-		l2 := logistic(xOpt[2*i+1]) * (1 - l1)
-		l3 := 1 - l1 - l2
-		interior = append(interior, Point{R: 2*l2 - 1, S: 2*l3 - 1})
+		l1 := logistic(Xopt[2*i])
+		l2 := logistic(Xopt[2*i+1]) * (1.0 - l1)
+		l3 := 1.0 - l1 - l2
+		interior = append(interior, Point{
+			R: 2*l2 - 1,
+			S: 2*l3 - 1,
+		})
 	}
 
-	// 8) Return the fixed edges first, then the optimized interior.
+	// 9) return edges followed by interior
 	return append(edges, interior...), nil
 }
 
@@ -284,4 +360,84 @@ func gaussLegendreNodes(n int) []float64 {
 	nodes := eig.Values(nil)
 	sort.Float64s(nodes)
 	return nodes
+}
+
+// AnalyzeRTOutput takes the full output of OptimizeRTNodesCont:
+//
+//	pts = [ e0,e1,…,e_{3(P+1)-1},  i0,i1,…,i_{M-1} ]
+//
+// and returns:
+//
+//	cond    = condition number of the M×M Vandermonde at the interior points,
+//	lebEdge = Lebesgue constant *on the fixed edge nodes* e_j.
+func AnalyzeRTOutput(P int, pts []Point) (cond, lebEdge float64) {
+	E := 3 * (P + 1)
+	M := P * (P + 1) / 2
+
+	if len(pts) != E+M {
+		panic(fmt.Errorf(
+			"AnalyzeRTOutput: expected %d total points (3*(P+1)+P(P+1)/2), got %d",
+			E+M, len(pts),
+		))
+	}
+
+	// split edges vs interior
+	edges := pts[:E]
+	interior := pts[E:]
+
+	// 1) build monomial exponents for total deg ≤ P-1
+	exps := monomialExponents(P - 1)
+
+	// 2) build the M×M Vandermonde V for the interior points
+	V := mat.NewDense(M, M, nil)
+	for i, p := range interior {
+		for j, e := range exps {
+			V.Set(i, j,
+				math.Pow(p.R, float64(e[0]))*
+					math.Pow(p.S, float64(e[1])),
+			)
+		}
+	}
+
+	// 3) condition number via thin SVD
+	var svd mat.SVD
+	ok := svd.Factorize(V, mat.SVDThin)
+	if !ok {
+		panic(fmt.Errorf("AnalyzeRTOutput: SVD failed on Vandermonde"))
+	}
+	sig := svd.Values(nil)
+	sort.Float64s(sig)
+	cond = sig[len(sig)-1] / sig[0]
+
+	// 4) LU‐factor Vandermonde for fast solves
+	var lu mat.LU
+	lu.Factorize(V)
+
+	// 5) compute edge‐Lebesgue constant:
+	//    for each fixed edge node e in edges, build φ(e), solve V α = φ,
+	//    sum |α_i|, and take the max.
+	lebEdge = 0
+	for _, ept := range edges {
+		// build φ(ept)
+		phi := mat.NewVecDense(M, nil)
+		for j, ex := range exps {
+			phi.SetVec(j,
+				math.Pow(ept.R, float64(ex[0]))*
+					math.Pow(ept.S, float64(ex[1])),
+			)
+		}
+		// solve for α: V·α = φ
+		var alpha mat.VecDense
+		alpha.SolveVec(&lu, phi)
+
+		sum := 0.0
+		for i := 0; i < M; i++ {
+			sum += math.Abs(alpha.AtVec(i))
+		}
+		if sum > lebEdge {
+			lebEdge = sum
+		}
+	}
+
+	return cond, lebEdge
 }

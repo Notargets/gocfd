@@ -26,8 +26,8 @@ func TestEdgeOptimization(t *testing.T) {
 	// distributions in raviart_thomas_element.go
 	if false {
 		var (
-			NMin = 0
-			NMax = 7
+			NMin = 1
+			NMax = 1
 			tol  = 1.e-5
 		)
 		for N := NMin; N <= NMax; N++ {

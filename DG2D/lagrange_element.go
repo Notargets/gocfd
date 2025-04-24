@@ -38,6 +38,7 @@ type NodeType string
 const (
 	Epsilon   = NodeType("Epsilon")
 	Hesthaven = NodeType("Hesthaven")
+	Uniform   = NodeType("Uniform")
 )
 
 func NewLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
@@ -58,6 +59,8 @@ func NewLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
 		el.R, el.S = NodesEpsilon(el.N)
 	case Hesthaven:
 		el.R, el.S = XYtoRS(Nodes2D(el.N))
+	case Uniform:
+		el.R, el.S = MakeRSFromPoints(UniformRSAlpha(el.N, 0.7))
 	}
 	// Build reference element matrices
 	el.JB2D = NewJacobiBasis2D(el.N, el.R, el.S, 0, 0)
