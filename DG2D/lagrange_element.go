@@ -38,6 +38,7 @@ type NodeType string
 const (
 	Epsilon   = NodeType("Epsilon")
 	Hesthaven = NodeType("Hesthaven")
+	WSJ       = NodeType("WSJ")
 	Uniform   = NodeType("Uniform")
 )
 
@@ -59,6 +60,8 @@ func NewLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
 		el.R, el.S = NodesEpsilon(el.N)
 	case Hesthaven:
 		el.R, el.S = XYtoRS(Nodes2D(el.N))
+	case WSJ:
+		el.R, el.S = MakeRSFromPoints(WilliamsShunnJameson(el.N))
 	case Uniform:
 		el.R, el.S = MakeRSFromPoints(UniformRSAlpha(el.N, 0.7))
 	}

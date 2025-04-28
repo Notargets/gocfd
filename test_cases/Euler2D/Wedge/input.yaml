@@ -1,9 +1,9 @@
 Title: "Test Case"
 #CFL: 3.0
-CFL: 2.5
+#CFL: 2.5
 #CFL: 2.0
 #CFL: 1.0
-#CFL: 0.5
+CFL: 0.5
 #CFL: 0.25
 #CFL: 0.01
 #FluxType: average
@@ -11,7 +11,7 @@ CFL: 2.5
 FluxType: Roe
 #FluxType: Lax
 InitType: Freestream # Can be "Freestream" or "IVortex"
-PolynomialOrder: 2
+PolynomialOrder: 4
 FinalTime: 20
 Minf: 2.0
 Gamma: 1.4
@@ -19,10 +19,11 @@ Alpha: 0.
 LocalTimeStepping: true
 #MaxIterations: 200
 #MaxIterations: 600
-MaxIterations: 2000
+#MaxIterations: 2000
 #MaxIterations: 3000
 #MaxIterations: 5000
 #MaxIterations: 10000
+MaxIterations: 15000
 
 #Limiter: 
 Limiter: PerssonC0

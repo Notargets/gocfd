@@ -6,6 +6,7 @@ toolchain go1.24.2
 
 require (
 	github.com/ghodss/yaml v1.0.0
+	github.com/hodgesds/perf-utils v0.7.0
 	github.com/james-bowman/sparse v0.0.0-20200204164517-b588421ac5da
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/notargets/avs v0.0.8-0.20250301163939-3d7704630871
@@ -38,6 +39,8 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.2.0 // indirect
+	go.uber.org/atomic v1.7.0 // indirect
+	go.uber.org/multierr v1.6.0 // indirect
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c // indirect
 	golang.org/x/image v0.26.0 // indirect
 	golang.org/x/sys v0.32.0 // indirect

@@ -46,7 +46,8 @@ func NewDFR2D(N int, verbose bool, meshFileO ...string) (dfr *DFR2D) {
 		panic(fmt.Errorf("Polynomial order must be >= 0, have %d", N))
 	}
 	// le := NewLagrangeElement2D(N, Epsilon)
-	nodeType := Epsilon
+	// nodeType := Epsilon
+	nodeType := WSJ
 	// nodeType := Uniform
 	le := NewLagrangeElement2D(N, nodeType)
 	rt := NewRTElement(N+1, SimplexRTBasis, nodeType)

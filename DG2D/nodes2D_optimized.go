@@ -3,19 +3,14 @@ package DG2D
 import (
 	"fmt"
 	"math"
-	"math/rand"
 	"sort"
 	"strconv"
-
-	"gonum.org/v1/gonum/optimize"
 
 	"github.com/notargets/gocfd/utils"
 
 	"gonum.org/v1/gonum/mat"
 )
 
-// RS holds a point in the standard (r,s) triangle
-// with vertices (-1,-1),(1,-1),(-1,1).
 type Point struct{ R, S float64 }
 
 // monomialExponents returns all (i,j) with i+j ≤ deg.
@@ -29,34 +24,6 @@ func monomialExponents(deg int) [][2]int {
 	return exps
 }
 
-// uniformBarycentric returns barycentric triples on (0,0)-(1,0)-(0,1)
-// at resolution n: (i/n, j/n, 1−i/n−j/n).
-func uniformBarycentric(n int) [][3]float64 {
-	out := make([][3]float64, 0, (n+1)*(n+2)/2)
-	inv := 1.0 / float64(n)
-	for i := 0; i <= n; i++ {
-		li := float64(i) * inv
-		for j := 0; j <= n-i; j++ {
-			lj := float64(j) * inv
-			lk := 1 - li - lj
-			out = append(out, [3]float64{li, lj, lk})
-		}
-	}
-	return out
-}
-
-// logDet returns ln|det(A)|.  It panics only if the determinant is zero.
-func logDet(A utils.Matrix) float64 {
-	var lu mat.LU
-	lu.Factorize(A)
-	logAbs, sign := lu.LogDet()
-	if sign == 0 {
-		// exact zero determinant
-		panic("logDet: zero determinant")
-	}
-	// logAbs may be negative—that's okay
-	return logAbs
-}
 func MakeEdgePointsFromDist(edgeDist []float64) (pts []Point) {
 	var (
 		le = len(edgeDist)
@@ -190,157 +157,6 @@ func getInteriorPoints(pts []Point) (intPts []Point) {
 	// singleEdge := (totalCount - interiorCount - vertexCount) / 3
 	// _ = singleEdge
 	return
-}
-
-// OptimizeRTWithParams does off‐lattice interior optimization
-// for RT‐P in the standard triangle, with fixed GL edges.
-// eps   = minimum barycentric threshold,
-// alpha = hinge strength,
-// gamma = conditioning weight.
-func OptimizeRTWithParams(
-	P int,
-	eps, alpha, gamma float64,
-) ([]Point, error) {
-	// Objective J(x):
-	//
-	//   J(x) = – log │det(Φ(x)ᵀ · Φ(x))│
-	//          + α ∑_{i=1}^M ∑_{j=1}^3 (ε – λᵢⱼ)_+²
-	//          + γ · log(λ_max / λ_min)
-	//
-	// where
-	//
-	//   • Φ(x)    is the M×M Vandermonde matrix built from the M interior points.
-	//   • λᵢ₁, λᵢ₂, λᵢ₃  are the three barycentric coordinates (ℓ₁,ℓ₂,ℓ₃) of point i.
-	//   • (y)_+  = max(0, y)  is the hinge function.
-	//   • λ_min, λ_max  are the smallest and largest eigenvalues of the Gram matrix ΦᵀΦ.
-	//   • ε  is the minimum‐barycentric threshold.
-	//   • α  is the hinge strength on barycentric bounds.
-	//   • γ  is the weight on the log‐condition‐number penalty.
-	if P < 1 {
-		return nil, fmt.Errorf("P must be ≥1, got %d", P)
-	}
-
-	// --- build fixed GL edge nodes (these never move) ---
-	gl := gaussLegendreNodes(P + 1)
-	edges := make([]Point, 0, 3*len(gl))
-	for _, t := range gl {
-		edges = append(edges,
-			Point{R: t, S: -1}, // bottom
-			Point{R: 1, S: t},  // right
-			Point{R: -1, S: t}, // left
-		)
-	}
-
-	// interior count and monomial exponents
-	M := P * (P + 1) / 2
-	exps := monomialExponents(P - 1)
-
-	// problem definition
-	prob := optimize.Problem{
-		Func: func(x []float64) float64 {
-			// 1) build Vandermonde Φ (M×M) for current interior guess x
-			Phi := utils.NewMatrix(M, M)
-			for i := 0; i < M; i++ {
-				xi, yi := x[2*i], x[2*i+1]
-				// stick-breaking → barycentric
-				l1 := logistic(xi)
-				l2 := logistic(yi) * (1.0 - l1)
-				l3 := 1.0 - l1 - l2
-				// map to (r,s)
-				r, s := 2*l2-1, 2*l3-1
-
-				for j, e := range exps {
-					Phi.Set(i, j,
-						math.Pow(r, float64(e[0]))*
-							math.Pow(s, float64(e[1])),
-					)
-				}
-			}
-
-			// 2) Gram = ΦᵀΦ
-			Gram := Phi.Transpose().Mul(Phi)
-
-			// 3) LU‐logdet part
-			var lu mat.LU
-			lu.Factorize(Gram)
-			logAbs, sign := lu.LogDet()
-			if sign == 0 {
-				return math.Inf(1) // singular → infinite penalty
-			}
-			// core objective
-			obj := -logAbs
-
-			// 4) boundary‐hinge penalty on each barycentric λ₁,₂,₃
-			for i := 0; i < M; i++ {
-				xi, yi := x[2*i], x[2*i+1]
-				l1 := logistic(xi)
-				l2 := logistic(yi) * (1.0 - l1)
-				l3 := 1.0 - l1 - l2
-
-				for _, l := range []float64{l1, l2, l3} {
-					if l < eps {
-						d := eps - l
-						obj += alpha * d * d
-					}
-				}
-			}
-
-			// 5) conditioning penalty via Gram eigenvalues
-			// copy into a *mat.Dense to call Eigen
-			var Gmat mat.Dense
-			Gmat.CloneFrom(Gram)
-			var eig mat.Eigen
-			ok := eig.Factorize(&Gmat, mat.EigenNone)
-			if !ok {
-				return math.Inf(1)
-			}
-			vals := eig.Values(nil)
-			reals := make([]float64, len(vals))
-			for i, c := range vals {
-				reals[i] = real(c)
-			}
-			sort.Float64s(reals)
-			λmin, λmax := reals[0], reals[len(reals)-1]
-			// log‐condition
-			obj += gamma * math.Log(λmax/λmin)
-
-			return obj
-		},
-	}
-
-	// 6) initialize x with small random in [-1,1]
-	initX := make([]float64, 2*M)
-	for i := range initX {
-		initX[i] = rand.Float64()*2 - 1
-	}
-
-	// 7) run Nelder–Mead
-	settings := &optimize.Settings{Recorder: nil}
-	result, err := optimize.Minimize(prob, initX, settings, &optimize.NelderMead{})
-	if err != nil {
-		return nil, fmt.Errorf("optimize failed: %v", err)
-	}
-
-	// 8) unpack final interior points
-	Xopt := result.X
-	interior := make([]Point, 0, M)
-	for i := 0; i < M; i++ {
-		l1 := logistic(Xopt[2*i])
-		l2 := logistic(Xopt[2*i+1]) * (1.0 - l1)
-		l3 := 1.0 - l1 - l2
-		interior = append(interior, Point{
-			R: 2*l2 - 1,
-			S: 2*l3 - 1,
-		})
-	}
-
-	// 9) return edges followed by interior
-	return append(edges, interior...), nil
-}
-
-// logistic maps ℝ→(0,1).
-func logistic(x float64) float64 {
-	return 1 / (1 + math.Exp(-x))
 }
 
 // gaussLegendreNodes returns the n roots of Pₙ(x) on [-1,1].

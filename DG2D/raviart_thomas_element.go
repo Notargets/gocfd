@@ -213,6 +213,8 @@ func NewRTElement(P int, basisType RTBasisType, nodeType NodeType) (rt *RTElemen
 				rt.RInt, rt.SInt = XYtoRS(Nodes2D(P - 1))
 			case Epsilon:
 				rt.RInt, rt.SInt = NodesEpsilon(P - 1)
+			case WSJ:
+				rt.RInt, rt.SInt = MakeRSFromPoints(WilliamsShunnJameson(P - 1))
 			case Uniform:
 				rt.RInt, rt.SInt = MakeRSFromPoints(UniformRSAlpha(P-1, 0.7))
 			}
@@ -425,12 +427,16 @@ func (rt *RTElement) ExtendGeomToRT(Rint, Sint utils.Vector, nodeType NodeType) 
 	var Rdist []float64
 	var GQR utils.Vector
 	switch nodeType {
+	// case Hesthaven, Uniform, WSJ:
 	case Hesthaven, Uniform:
 		GQR = utils.NewVector(N+1, DG1D.LegendreZeros(N))
-	case Epsilon:
-		// Use optimized edge points from edge_point_distribution optimization
+	case WSJ, Epsilon:
 		Rdist = GetOptimizedEdgePointsEpsilon(N)
 		GQR = utils.NewVector(N+1, Rdist)
+		// case Epsilon:
+		// 	Use optimized edge points from edge_point_distribution optimization
+		// Rdist = GetOptimizedEdgePointsEpsilon(N)
+		// GQR = utils.NewVector(N+1, Rdist)
 	}
 	/*
 		Double the number of interior points to match each direction of the basis
