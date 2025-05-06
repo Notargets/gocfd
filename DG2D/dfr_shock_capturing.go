@@ -92,6 +92,19 @@ func (sf *ModeAliasShockFinder) ElementHasShock(q []float64) (i bool) {
 	return
 }
 
+func (sf *ModeAliasShockFinder) GetShockIndicator(Q utils.Matrix, k int) (sigma float64) {
+	var (
+		Np, Kmax = Q.Dims()
+		Dens     = Q.DataP
+		scratch  = sf.Qalt.DataP
+	)
+	for i := 0; i < Np; i++ {
+		ind := k + i*Kmax
+		scratch[i] = Dens[ind]
+	}
+	return sf.ShockIndicator(scratch)
+}
+
 func (sf *ModeAliasShockFinder) ShockIndicator(q []float64) (sigma float64) {
 	/*
 		Original method by Persson, constants chosen to match Zhiqiang, et. al.

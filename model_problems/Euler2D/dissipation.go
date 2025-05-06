@@ -2,6 +2,7 @@ package Euler2D
 
 import (
 	"fmt"
+	"math"
 	"sort"
 
 	"github.com/notargets/gocfd/DG2D"
@@ -473,4 +474,42 @@ func (sd *ScalarDissipation) createInterpolationStencil() {
 			sd.BaryCentricCoords.DataP[ii+3*i] = LAM.DataP[ii]
 		}
 	}
+}
+
+func (c *Euler) modulateQInterp(Q [4]utils.Matrix, QInterp [4]utils.Matrix, sf *DG2D.ModeAliasShockFinder) {
+	var (
+		// Beta = 5e-2
+		Beta = 2.
+		// Beta = 6.6
+		// Beta        = 10.
+		NpInterp, _ = QInterp[0].Dims()
+	)
+	sf.UpdateShockedCells(Q[0])
+	for _, k := range sf.ShockCells.Cells() {
+		sigma := c.ShockFinder.GetShockIndicator(Q[0], k)
+		alpha := math.Exp(-Beta * sigma)
+		// fmt.Printf("sigma, alpha[%d] = %.1f, %.1f\n", k, sigma, alpha)
+		uMean := c.getElementMean(Q, k)
+		for n := 0; n < 4; n++ {
+			for i := 0; i < NpInterp; i++ {
+				QInterp[n].Set(i, k, alpha*QInterp[n].At(i, k)+(1.-alpha)*uMean[n])
+			}
+		}
+	}
+	return
+}
+
+func (c *Euler) getElementMean(Q [4]utils.Matrix, k int) (Umean [4]float64) {
+	var (
+		N     = c.DFR.SolutionElement.N
+		Np, _ = Q[0].Dims()
+	)
+	bcn := DG2D.WilliamsShunnJamesonCoords[N]
+	for n := 0; n < 4; n++ {
+		Umean[n] = 0.0
+		for i := 0; i < Np; i++ {
+			Umean[n] += Q[n].At(i, k) * bcn[i].W
+		}
+	}
+	return
 }

@@ -440,6 +440,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 			QQQ = QQQAll[np]
 		)
 		c.InterpolateSolutionToEdges(QQQ, rk.Q_Face[np], rk.Q_Face_P0[np])
+		// c.modulateQInterp(QQQ, rk.Q_Face[np], rk.ShockSensor[np])
 		if project {
 			// if c.DFR.N > 1 && (rkStep == 0 || rkStep == 1) {
 			// if c.DFR.N > 1 && rkStep%2 == 0 {
