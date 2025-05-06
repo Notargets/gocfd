@@ -1,3 +1,5 @@
+- [Update 56](CHANGELOG/Update_56.md): Shock Capturing - Modulating Edge Interpolation
+- [Update 55](CHANGELOG/Update_55.md): Interpolation for Shock Capturing (part 4)
 - [Update 54](CHANGELOG/Update_54.md): Interpolation for Shock Capturing (part 3)
 - [Update 53](CHANGELOG/Update_53.md): Interpolation for Shock Capturing (part 2)
 - [Update 52](CHANGELOG/Update_52.md): Interpolation for Shock Capturing (part 1)

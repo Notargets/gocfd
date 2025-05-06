@@ -48,12 +48,6 @@ func TestPlotShockTemperedInterpolation(t *testing.T) {
 	for n := 0; n < 4; n++ {
 		QInterp[n] = c.DFR.GraphInterp.Mul(c.Q[0][n])
 	}
-	// for _, k := range shockedElements {
-	// 	sigma := c.ShockFinder.GetShockIndicator(c.Q[0][0], k)
-	// 	alpha := math.Exp(-Beta * sigma)
-	// 	fmt.Printf("sigma, alpha[%d] = %.1f, %.1f\n", k, sigma, alpha)
-	// 	getElementInterpolationStats(c.DFR, QInterp, c.Q[0], k)
-	// }
 	c.modulateQInterp(c.Q[0], QInterp, c.ShockFinder)
 	for _, k := range shockedElements {
 		getElementInterpolationStats(c, QInterp, c.Q[0], k)
