@@ -120,7 +120,7 @@ func UniformRSAlpha(n int, alpha float64) []Point {
 	return pts
 }
 
-func getInteriorPoints(pts []Point) (intPts []Point) {
+func GetInteriorPoints(pts []Point) (intPts []Point) {
 	// var interiorCount, extCount int
 	// var vertexCount int
 	near := func(x, y float64) bool {

@@ -14,7 +14,7 @@ func TestNodes2DUniform(t *testing.T) {
 		N = P * 6
 	)
 	rs := UniformRS(N)
-	pts := getInteriorPoints(rs)
+	pts := GetInteriorPoints(rs)
 	lines := make(map[color.RGBA][]float32)
 	AddLine(-1, -1, -1, 1, utils.BLUE, lines)
 	AddLine(-1, 1, 1, -1, utils.BLUE, lines)

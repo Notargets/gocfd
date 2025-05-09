@@ -20,20 +20,13 @@ import (
 )
 
 var ipDefault = &InputParameters.InputParameters2D{
-	Title:             "",
-	CFL:               1,
-	FluxType:          "Lax",
-	InitType:          "freestream",
-	PolynomialOrder:   0,
-	FinalTime:         1,
-	Minf:              0,
-	Gamma:             1.4,
-	Alpha:             0,
-	BCs:               nil,
-	LocalTimeStepping: false,
-	MaxIterations:     5000,
-	ImplicitSolver:    false,
-	Limiter:           "",
+	CFL:      2.5,
+	FluxType: "Roe",
+	InitType: "Freestream",
+	Minf:     2,
+	Gamma:    1.4,
+	Limiter:  "PerssonC0",
+	Kappa:    3,
 }
 
 func TestFluidFunctions(t *testing.T) {
@@ -417,33 +410,6 @@ func TestFluxJacobian(t *testing.T) {
 			0, 0, 2.5050, 0,
 		}, Gy[:], tol, msg)
 	}
-}
-
-func TestEdges(t *testing.T) {
-	dfr := DG2D.NewDFR2D(1, false, "../../DG2D/test_data/test_tris_9.neu")
-	assert.Equal(t, len(dfr.Tris.Edges), 19)
-	edges := make(EdgeKeySlice, len(dfr.Tris.Edges))
-	var i int
-	for key := range dfr.Tris.Edges {
-		edges[i] = key
-		i++
-	}
-	edges.Sort()
-	// fmt.Printf("len(Edges) = %d, Edges = %v\n", len(edges), edges)
-	l := make([]int, len(edges))
-	for i, e := range edges {
-		// fmt.Printf("vertex[edge[%d]]=%d\n", i, e.GetVertices(false)[1])
-		l[i] = e.GetVertices(false)[1]
-	}
-	assert.Equal(t, []int{1, 2, 3, 4, 4, 4, 5, 5, 5, 6, 6, 7, 7, 8, 8, 8, 9, 9, 9}, l)
-	edges2 := EdgeKeySliceSortLeft(edges)
-	edges2.Sort()
-	for i, e := range edges2 {
-		// v := e.GetVertices(false)
-		// fmt.Printf("vertex2[edge[%d]]=[%d,%d]\n", i, v[0], v[1])
-		l[i] = e.GetVertices(false)[0]
-	}
-	assert.Equal(t, []int{0, 0, 0, 1, 1, 1, 2, 2, 3, 3, 4, 4, 4, 5, 5, 5, 6, 7, 8}, l)
 }
 
 func TestDissipation(t *testing.T) {

@@ -8,26 +8,13 @@ import (
 	"github.com/notargets/gocfd/utils"
 
 	"github.com/notargets/gocfd/DG2D"
-
-	"github.com/notargets/gocfd/InputParameters"
-)
-
-var (
-	ip = &InputParameters.InputParameters2D{
-		CFL:      2.5,
-		FluxType: "Roe",
-		InitType: "Freestream",
-		Minf:     2,
-		Gamma:    1.4,
-		Limiter:  "PerssonC0",
-		Kappa:    3,
-	}
 )
 
 func TestPlotShockTemperedInterpolation(t *testing.T) {
 	var (
 		N               = 2
 		shockedElements = []int{2, 3, 7, 8}
+		ip              = ipDefault
 	)
 	ip.PolynomialOrder = N
 	if !testing.Verbose() {
@@ -113,7 +100,8 @@ func getElementMinMax(Q [4]utils.Matrix, k int) (Min, Max [4]float64) {
 
 func TestPlotEntropyInterpolation(t *testing.T) {
 	var (
-		N = 2
+		N  = 2
+		ip = ipDefault
 	)
 	ip.PolynomialOrder = N
 	if !testing.Verbose() {
