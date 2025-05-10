@@ -1,33 +1,70 @@
 package Euler2D
 
 import (
-	"fmt"
-	"image/color"
+	"math"
 	"testing"
+
+	"github.com/notargets/gocfd/utils"
 
 	"github.com/notargets/gocfd/DG2D"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/notargets/avs/utils"
 )
 
 func TestEdges2(t *testing.T) {
-	// TODO: Test whether Q values in edge storage are correctly stored in
-	//  left and right forms (they kinda can't be rn) for each edge
+	// This is mostly a placeholder
 	var (
-		P = 2
+		ip     = ipDefault
+		Q_Face [4]utils.Matrix
 	)
-	dfr := DG2D.NewDFR2D(P, false, "../../DG2D/test_data/test_tris_9.neu")
+	meshFile := "../../DG2D/test_data/test_tris_9.neu"
 	// edges := make(EdgeKeySlice, len(dfr.Tris.Edges))
 	// es := edges.NewEdgeStorage(dfr)
-	_ = dfr
-	lines := make(map[color.RGBA][]float32)
-	DG2D.AddLine(-1, -1, -1, 1, utils.BLUE, lines)
-	DG2D.AddLine(-1, 1, 1, -1, utils.BLUE, lines)
-	DG2D.AddLine(1, -1, -1, -1, utils.BLUE, lines)
-	fmt.Printf("Order: %d\n", P)
-	if testing.Verbose() {
-		DG2D.PlotLinesAndText(lines, nil)
+	c := NewEuler(ip, meshFile, 1, false, false)
+	NpEdge := c.DFR.FluxElement.NpEdge
+	for n := 0; n < 4; n++ {
+		Q_Face[n] = utils.NewMatrix(3*NpEdge, c.DFR.K)
+		for k := 0; k < c.DFR.K; k++ {
+			for i := 0; i < 3*NpEdge; i++ {
+				Q_Face[n].Set(i, k, math.Pow(10., float64(k)))
+			}
+		}
+	}
+	putEdgeValues(c, Q_Face)
+	// lines := make(map[color.RGBA][]float32)
+	// DG2D.AddLine(-1, -1, -1, 1, utils2.BLUE, lines)
+	// DG2D.AddLine(-1, 1, 1, -1, utils2.BLUE, lines)
+	// DG2D.AddLine(1, -1, -1, -1, utils2.BLUE, lines)
+	// fmt.Printf("Order: %d\n", P)
+	// if testing.Verbose() {
+	// 	DG2D.PlotLinesAndText(lines, nil)
+	// }
+}
+
+func putEdgeValues(c *Euler, Q_Face [4]utils.Matrix) {
+	var (
+		Nedge       = c.DFR.FluxElement.NpEdge
+		edgeQValues = make([][4]float64, Nedge)
+		pm          = c.Partitions
+		edgeKeys    = c.SortedEdgeKeys[0]
+	)
+	for _, en := range edgeKeys {
+		e := c.DFR.Tris.Edges[en]
+		var (
+			// kLGlobal             = int(e.ConnectedTris[0])
+			// kL, KmaxL, myThreadL = pm.GetLocalK(int(e.ConnectedTris[0]))
+			kL, KmaxL, _ = pm.GetLocalK(int(e.ConnectedTris[0]))
+			edgeNumberL  = int(e.ConnectedTriEdgeNumber[0])
+			// normalL              = c.GetFaceNormal(kLGlobal, edgeNumberL)
+			shiftL = edgeNumberL * Nedge
+		)
+		// Store solution for this edge - use left side only per Cockburn and Shu's algorithm for Laplacian, alternate flux sides
+		for i := 0; i < Nedge; i++ {
+			indL := kL + (i+shiftL)*KmaxL
+			for n := 0; n < 4; n++ {
+				edgeQValues[i][n] = Q_Face[n].DataP[indL]
+			}
+		}
+		c.EdgeStore.PutEdgeValues(en, EdgeQValues, edgeQValues)
 	}
 }
 

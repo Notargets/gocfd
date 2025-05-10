@@ -5,10 +5,50 @@ import (
 	"math"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/notargets/gocfd/utils"
 
 	"github.com/notargets/gocfd/DG2D"
 )
+
+func TestElementMean(t *testing.T) {
+	var (
+		N  = 2
+		ip = ipDefault
+	)
+	ip.PolynomialOrder = N
+	if !testing.Verbose() {
+		return
+	}
+	// DFR := NewDFR2D(N, false, "../../DG2D/test_data/test_10tris_centered.
+	// neu")
+	meshFile := "../../DG2D/test_data/test_10tris_centered.neu"
+	c := NewEuler(ip, meshFile, 1, false, false)
+	// DG2D.SetTestFieldQ(c.DFR, DG2D.RADIAL1TEST, c.Q[0])
+	// DG2D.SetTestFieldQ(c.DFR, DG2D.NORMALSHOCKTESTM12, c.Q[0])
+	// DG2D.SetTestFieldQ(c.DFR, DG2D.NORMALSHOCKTESTM18, c.Q[0])
+	// DG2D.SetTestFieldQ(c.DFR, DG2D.NORMALSHOCKTESTM2, c.Q[0])
+	DG2D.SetTestFieldQ(c.DFR, DG2D.NORMALSHOCKTESTM5, c.Q[0])
+	// DG2D.SetTestFieldQ(c.DFR, DG2D.FIXEDVORTEXTEST, c.Q[0])
+	// DG2D.SetTestFieldQ(c.DFR, DG2D.INTEGERTEST, c.Q[0])
+	c.UpdateElementMean(c.Q[0], c.RK.QMean[0])
+	// for n := 0; n < 4; n++ {
+	// 	fmt.Printf("QMean[%d]=", n)
+	// 	c.RK.QMean[0][n].Transpose().Print("")
+	// }
+	assert.InDeltaSlicef(t,
+		[]float64{1, 1, 1.40545, 4.28205, 4.6875, 1, 1, 1.40545, 4.28205, 4.6875},
+		c.RK.QMean[0][0].DataP, 1e-4, "")
+	assert.InDeltaSlicef(t,
+		[]float64{5, 5, 5, 5, 5, 5, 5, 5, 5, 5}, c.RK.QMean[0][1].DataP, 1e-4, "")
+	assert.InDeltaSlicef(t,
+		[]float64{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, c.RK.QMean[0][2].DataP, 1e-4, "")
+	assert.InDeltaSlicef(t,
+		[]float64{15, 15, 19.32477, 50.00856, 54.33333, 15, 15, 19.32477,
+			50.00856, 54.33333},
+		c.RK.QMean[0][3].DataP, 1e-4, "")
+}
 
 func TestPlotShockTemperedInterpolation(t *testing.T) {
 	var (

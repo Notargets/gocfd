@@ -205,6 +205,7 @@ type RungeKutta4SSP struct {
 	Flux_Face             [][2][4]utils.Matrix // Flux interpolated to edges from interior
 	Q1, Q2, Q3, Q4        [][4]utils.Matrix    // Intermediate solution state
 	Residual              [][4]utils.Matrix    // Used for reporting, aliased to Q1
+	QMean                 [][4]utils.Vector    // Element mean
 	FilterScratch         []utils.Matrix       // Scratch space for filtering
 	F_RT_DOF              [][4]utils.Matrix    // Normal flux used for divergence
 	DT, DTVisc            []utils.Matrix       // Local time step storage
@@ -236,6 +237,7 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		Q3:                 make([][4]utils.Matrix, NPar),
 		Q4:                 make([][4]utils.Matrix, NPar),
 		Residual:           make([][4]utils.Matrix, NPar),
+		QMean:              make([][4]utils.Vector, NPar),
 		FilterScratch:      make([]utils.Matrix, NPar),
 		F_RT_DOF:           make([][4]utils.Matrix, NPar),
 		DT:                 make([]utils.Matrix, NPar),
@@ -266,6 +268,7 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 			rk.Flux_Face[np][0][n] = utils.NewMatrix(rk.NpEdge*3, rk.Kmax[np])
 			rk.Flux_Face[np][1][n] = utils.NewMatrix(rk.NpEdge*3, rk.Kmax[np])
 			rk.Q_Face_P0[np][n] = utils.NewMatrix(rk.NpEdge*3, rk.Kmax[np])
+			rk.QMean[np][n] = utils.NewVector(rk.Kmax[np])
 		}
 		rk.DT[np] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 		rk.DTVisc[np] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
@@ -441,6 +444,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 		)
 		c.InterpolateSolutionToEdges(QQQ, rk.Q_Face[np], rk.Q_Face_P0[np])
 		// c.modulateQInterp(QQQ, rk.Q_Face[np], rk.ShockSensor[np])
+		c.UpdateElementMean(QQQ, rk.QMean[np])
 		if project {
 			// if c.DFR.N > 1 && (rkStep == 0 || rkStep == 1) {
 			// if c.DFR.N > 1 && rkStep%2 == 0 {
@@ -516,11 +520,6 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 		// Perform a Runge Kutta pseudo time step
 		rkAdvance(np)
 	})
-	return
-}
-
-func getRKStepNumber(currentStep int) (rkStepNum int) {
-	rkStepNum = (currentStep - 1) / 5
 	return
 }
 
@@ -860,4 +859,22 @@ func (c *Euler) CalculateLocalDT(DT, DTVisc utils.Matrix) {
 		}
 	}
 	// fmt.Printf("DTMin, DTMax: %f, %f\n", dtMin, dtMax)
+}
+
+func (c *Euler) UpdateElementMean(Q [4]utils.Matrix, QMean [4]utils.Vector) {
+	var (
+		Np      = c.DFR.SolutionElement.Np
+		_, KMax = Q[0].Dims()
+		P       = c.DFR.N
+	)
+	for n := 0; n < 4; n++ {
+		for k := 0; k < KMax; k++ {
+			QMean[n].DataP[k] = 0.
+			for i := 0; i < Np; i++ {
+				QMean[n].DataP[k] +=
+					Q[n].At(i, k) * DG2D.WilliamsShunnJamesonCoords[P][i].W
+			}
+		}
+	}
+	return
 }
