@@ -217,8 +217,74 @@ func (c *Euler) LaxFlux2(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 	}
 }
 
+func minModLimiter(QL, QR, QML, QMR [4]float64) (QLeft, QRight [4]float64) {
+	var (
+		fallback = false
+	)
+	minmod := func(l, r, m float64) (v float64) {
+		if l > 0 && r > 0 && m > 0 {
+			v = min(l, r, m)
+		} else if l < 0 && r < 0 && m < 0 {
+			v = max(l, r, m)
+		} else {
+			fallback = true
+		}
+		return
+	}
+	setmeanL := func() {
+		for n := 0; n < 4; n++ {
+			QLeft[n] = QML[n]
+		}
+	}
+	setmeanR := func() {
+		for n := 0; n < 4; n++ {
+			QRight[n] = QMR[n]
+		}
+	}
+	setmeanLA := func() {
+		for n := 0; n < 4; n++ {
+			QLeft[n] = 0.5 * (QML[n] + QMR[n])
+		}
+	}
+	setmeanRA := func() {
+		for n := 0; n < 4; n++ {
+			QRight[n] = 0.5 * (QML[n] + QMR[n])
+		}
+	}
+	for i := 0; i < 4; i++ {
+		var (
+			ql  = QL[i]
+			qr  = QR[i]
+			qlm = QML[i]
+		)
+		QLeft[i] = minmod(ql, qr, qlm)
+		if fallback {
+			setmeanLA()
+			fallback = false
+			break
+		}
+	}
+	for i := 0; i < 4; i++ {
+		var (
+			ql  = QL[i]
+			qr  = QR[i]
+			qrm = QMR[i]
+		)
+		QRight[i] = minmod(ql, qr, qrm)
+		if fallback {
+			setmeanRA()
+			fallback = false
+			break
+		}
+	}
+	_, _ = setmeanL, setmeanR
+	return
+}
+
 func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
-	Q_FaceL, Q_FaceR [4]utils.Matrix, normal [2]float64, normalFlux [][4]float64) {
+	Q_FaceL, Q_FaceR [4]utils.Matrix,
+	QMeanL, QMeanR [4]utils.Vector,
+	normal [2]float64, normalFlux [][4]float64) {
 	// fmt.Printf("here 1\n")
 	var (
 		Nedge            = c.DFR.FluxElement.NpEdge
@@ -237,6 +303,19 @@ func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		iL := i + shiftL
 		iR := Nedge - 1 - i + shiftR // Shared edges run in reverse order relative to each other
 		indL, indR := kL+iL*KmaxL, kR+iR*KmaxR
+		var (
+			QL = [4]float64{Q_FaceL[0].DataP[indL], Q_FaceL[1].DataP[indL],
+				Q_FaceL[2].DataP[indL], Q_FaceL[3].DataP[indL]}
+			QR = [4]float64{Q_FaceR[0].DataP[indR], Q_FaceR[1].DataP[indR],
+				Q_FaceR[2].DataP[indR], Q_FaceR[3].DataP[indR]}
+			// QML = [4]float64{QMeanL[0].DataP[kL], QMeanL[1].DataP[kL],
+			// 	QMeanL[2].DataP[kL], QMeanL[3].DataP[kL]}
+			// QMR = [4]float64{QMeanR[0].DataP[kR], QMeanR[1].DataP[kR],
+			// 	QMeanR[2].DataP[kR], QMeanR[3].DataP[kR]}
+		)
+		// QL, QR = minModLimiter(QL, QR, QML, QMR)
+		// fmt.Printf("QL = %v, QR = %v\n", QL, QR)
+
 		// Rotate the momentum into face normal coordinates before calculating fluxes
 		/*
 			rhoULr, rhoVLr := Q_FaceL[1].DataP[indL]*normal[0]+Q_FaceL[2].DataP[indL]*normal[1],
@@ -244,18 +323,28 @@ func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 			rhoURr, rhoVRr := Q_FaceR[1].DataP[indR]*normal[0]+Q_FaceR[2].DataP[indR]*normal[1],
 				-Q_FaceR[1].DataP[indR]*normal[1]+Q_FaceR[2].DataP[indR]*normal[0]
 		*/
-		rhoULr, rhoVLr := rotate(Q_FaceL[1].DataP[indL], Q_FaceL[2].DataP[indL], normal[0], normal[1])
-		rhoURr, rhoVRr := rotate(Q_FaceR[1].DataP[indR], Q_FaceR[2].DataP[indR], normal[0], normal[1])
-		rhoL, uL, vL = Q_FaceL[0].DataP[indL], rhoULr/Q_FaceL[0].DataP[indL], rhoVLr/Q_FaceL[0].DataP[indL]
-		rhoR, uR, vR = Q_FaceR[0].DataP[indR], rhoURr/Q_FaceR[0].DataP[indR], rhoVRr/Q_FaceR[0].DataP[indR]
+		rhoULr, rhoVLr := rotate(QL[1], QL[2], normal[0], normal[1])
+		rhoURr, rhoVRr := rotate(QR[1], QR[2], normal[0], normal[1])
+		rhoL, uL, vL = QL[0], rhoULr/QL[0], rhoVLr/QL[0]
+		rhoR, uR, vR = QR[0], rhoURr/QR[0], rhoVRr/QR[0]
+		// rhoULr, rhoVLr := rotate(Q_FaceL[1].DataP[indL], Q_FaceL[2].DataP[indL], normal[0], normal[1])
+		// rhoURr, rhoVRr := rotate(Q_FaceR[1].DataP[indR], Q_FaceR[2].DataP[indR], normal[0], normal[1])
+		// rhoL, uL, vL = Q_FaceL[0].DataP[indL], rhoULr/Q_FaceL[0].DataP[indL], rhoVLr/Q_FaceL[0].DataP[indL]
+		// rhoR, uR, vR = Q_FaceR[0].DataP[indR], rhoURr/Q_FaceR[0].DataP[indR], rhoVRr/Q_FaceR[0].DataP[indR]
+
 		// rhoL, uL, vL = Q_FaceL[0].DataP[indL], Q_FaceL[1].DataP[indL]/Q_FaceL[0].DataP[indL], Q_FaceL[2].DataP[indL]/Q_FaceL[0].DataP[indL]
 		// rhoR, uR, vR = Q_FaceR[0].DataP[indR], Q_FaceR[1].DataP[indR]/Q_FaceR[0].DataP[indR], Q_FaceR[2].DataP[indR]/Q_FaceR[0].DataP[indR]
-		pL, pR = c.FSFar.GetFlowFunction(Q_FaceL, indL, StaticPressure), c.FSFar.GetFlowFunction(Q_FaceR, indR, StaticPressure)
+
+		// pL, pR = c.FSFar.GetFlowFunction(Q_FaceL, indL, StaticPressure), c.FSFar.GetFlowFunction(Q_FaceR, indR, StaticPressure)
+		pL = c.FSFar.GetFlowFunctionBase(QL[0], QL[1], QL[2], QL[3], StaticPressure)
+		pR = c.FSFar.GetFlowFunctionBase(QR[0], QR[1], QR[2], QR[3], StaticPressure)
 		/*
 		   HM = (EnerM+pM).dd(rhoM);  HP = (EnerP+pP).dd(rhoP);
 		*/
 		// Enthalpy
-		hL, hR = (Q_FaceL[3].DataP[indL]+pL)/rhoL, (Q_FaceR[3].DataP[indR]+pR)/rhoR
+		// hL, hR = (Q_FaceL[3].DataP[indL]+pL)/rhoL, (Q_FaceR[3].DataP[indR]+pR)/rhoR
+		hL, hR = (QL[3]+pL)/rhoL, (QR[3]+pR)/rhoR
+
 		/*
 			rhoMs = sqrt(rhoM); rhoPs = sqrt(rhoP);
 			rhoMsPs = rhoMs + rhoPs;
@@ -313,7 +402,8 @@ func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 		normalFlux[i][0] = 0.5 * (rhoULr + rhoURr)
 		normalFlux[i][1] = 0.5 * (rhoULr*uL + rhoURr*uR + +pL + pR)
 		normalFlux[i][2] = 0.5 * (rhoVLr*uL + rhoVRr*uR)
-		normalFlux[i][3] = 0.5 * ((pL+Q_FaceL[3].DataP[indL])*uL + (pR+Q_FaceR[3].DataP[indR])*uR)
+		//	normalFlux[i][3] = 0.5 * ((pL+Q_FaceL[3].DataP[indL])*uL + (pR+Q_FaceR[3].DataP[indR])*uR)
+		normalFlux[i][3] = 0.5 * ((pL+QL[3])*uL + (pR+QR[3])*uR)
 
 		normalFlux[i][0] -= 0.5 * (dW1 + dW2 + dW4)
 		normalFlux[i][1] -= 0.5 * (dW1*(u-C) + dW2*u + dW4*(u+C))

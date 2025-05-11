@@ -323,6 +323,7 @@ func (c *Euler) CalcElementMaxWaveSpeed(DT, DTVisc utils.Matrix,
 }
 
 func (c *Euler) CalculateEdgeEulerFlux(Time float64, Q_Face [][4]utils.Matrix,
+	QMean [][4]utils.Vector,
 	Flux_Face [][2][4]utils.Matrix, EdgeQ1, EdgeQ2 [][4]float64,
 	edgeKeys EdgeKeySlice) {
 	var (
@@ -368,7 +369,7 @@ func (c *Euler) CalculateEdgeEulerFlux(Time float64, Q_Face [][4]utils.Matrix,
 			)
 			c.calculateSharedEdgeFlux(Nedge, kL, KmaxL, edgeNumberL, myThreadL,
 				kR, KmaxR, edgeNumberR, myThreadR,
-				normalL, numericalFluxForEuler, Q_Face, Flux_Face)
+				normalL, numericalFluxForEuler, Q_Face, QMean, Flux_Face)
 		}
 		// Load the normal flux into the global normal flux storage
 		c.EdgeStore.PutEdgeValues(en, NumericalFluxForEuler, numericalFluxForEuler)
@@ -376,8 +377,12 @@ func (c *Euler) CalculateEdgeEulerFlux(Time float64, Q_Face [][4]utils.Matrix,
 	return
 }
 
-func (c *Euler) calculateSharedEdgeFlux(Nedge, kL, KmaxL, edgeNumberL, myThreadL, kR, KmaxR, edgeNumberR, myThreadR int,
-	normalL [2]float64, numericalFluxForEuler [][4]float64, Q_Face [][4]utils.Matrix, Flux_Face [][2][4]utils.Matrix) {
+func (c *Euler) calculateSharedEdgeFlux(Nedge, kL, KmaxL, edgeNumberL,
+	myThreadL, kR, KmaxR, edgeNumberR, myThreadR int,
+	normalL [2]float64, numericalFluxForEuler [][4]float64,
+	Q_Face [][4]utils.Matrix,
+	QMean [][4]utils.Vector,
+	Flux_Face [][2][4]utils.Matrix) {
 	var (
 		shiftL, shiftR = edgeNumberL * Nedge, edgeNumberR * Nedge
 		// interpolateFluxNotQ = true
@@ -398,7 +403,10 @@ func (c *Euler) calculateSharedEdgeFlux(Nedge, kL, KmaxL, edgeNumberL, myThreadL
 			c.RoeFlux2(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[myThreadL], Q_Face[myThreadR], Flux_Face[myThreadL],
 				Flux_Face[myThreadR], normalL, numericalFluxForEuler)
 		} else {
-			c.RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[myThreadL], Q_Face[myThreadR], normalL, numericalFluxForEuler)
+			c.RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR,
+				Q_Face[myThreadL], Q_Face[myThreadR],
+				QMean[myThreadL], QMean[myThreadR],
+				normalL, numericalFluxForEuler)
 		}
 	case FLUX_RoeER:
 		c.RoeERFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR, Q_Face[myThreadL], Q_Face[myThreadR], normalL, numericalFluxForEuler)

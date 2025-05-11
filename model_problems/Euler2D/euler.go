@@ -483,7 +483,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 		}
 		// CalculateEdgeEulerFlux is where the Riemann problem is solved at the
 		// neighbor faces, and the edge boundary conditions are applied.
-		c.CalculateEdgeEulerFlux(rk.Time, rk.Q_Face, rk.Flux_Face,
+		c.CalculateEdgeEulerFlux(rk.Time, rk.Q_Face, rk.QMean, rk.Flux_Face,
 			rk.EdgeQ1[np], rk.EdgeQ2[np], c.SortedEdgeKeys[np]) // Global
 		if c.Dissipation != nil {
 			c.Dissipation.CalculateElementViscosity(np, QQQAll)
