@@ -407,6 +407,7 @@ func (sd *ScalarDissipation) CalculateElementViscosity(myThread int, Qall [][4]u
 		KMaxGlobal = sd.PMap.MaxIndex
 		Order      = float64(sd.dfr.N)
 		sf         = sd.ShockFinder[myThread]
+		Omega      = 0.5
 	)
 	/*
 		Eps0 wants to be (h/p) and is supposed to be proportional to cell width
@@ -435,7 +436,9 @@ func (sd *ScalarDissipation) CalculateElementViscosity(myThread int, Qall [][4]u
 			sf.Qalt.DataP[i] = Rho.DataP[ind]
 		}
 		sigma := sf.ShockIndicator(sf.Qalt.DataP)
-		Eps[k] = eps0 * sigma
+		// Eps[k] = eps0 * sigma
+		// Eps[k] = Omega * eps0 * sigma
+		Eps[k] = Omega * eps0 * math.Pow(sigma, 1./3.)
 	}
 }
 
