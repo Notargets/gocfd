@@ -2,6 +2,7 @@ package Euler2D
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/notargets/gocfd/DG2D"
@@ -50,16 +51,28 @@ func NewLimiterType(label string) (lt LimiterType) {
 	return
 }
 
-func LimitSolution(Q [4]utils.Matrix,
-	Sigma utils.Vector, sf *DG2D.ModeAliasShockFinder) (points int) {
+func LimitSolution(Q [4]utils.Matrix, QMean [4]utils.Vector,
+	Sigma utils.Vector, sf *DG2D.ModeAliasShockFinder) (
+	points int) {
 	var (
 		Np, Kmax = Q[0].Dims()
+		Beta     = 10.
 	)
-	_ = Np
 	for k := 0; k < Kmax; k++ {
-		if Sigma.AtVec(k) > sf.ShockSigmaThreshold { // Element has a shock
-			// TODO: Implement sigma limiter
+		sigma := Sigma.AtVec(k)
+		// if sigma > sf.ShockSigmaThreshold { // Element has a shock
+		alpha := 1. - math.Exp(-Beta*sigma)
+		// alpha := math.Pow(sigma, 2.)
+		// alpha := sigma
+		// alpha := math.Pow(sigma, 1./3.)
+		// fmt.Printf("sigma, alpha[%d] = %.1f, %.1f\n", k, sigma, alpha)
+		for n := 0; n < 4; n++ {
+			for i := 0; i < Np; i++ {
+				Q[n].Set(i, k,
+					(1.-alpha)*Q[n].At(i, k)+alpha*QMean[n].AtVec(k))
+			}
 		}
+		// }
 	}
 	return
 }

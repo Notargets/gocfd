@@ -443,6 +443,9 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 		)
 		c.UpdateElementMean(QQQ, rk.QMean[np])
 		c.Dissipation.UpdateShockFinderSigma(np, QQQ[0], rk.Sigma[np])
+		if rkStep == 4 {
+			LimitSolution(QQQ, rk.QMean[np], rk.Sigma[np], rk.ShockSensor[np])
+		}
 		c.InterpolateSolutionToEdges(QQQ, rk.Q_Face[np], rk.Q_Face_P0[np])
 		// c.modulateQInterp(QQQ, rk.Q_Face[np], rk.ShockSensor[np])
 		if project {
@@ -510,15 +513,11 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 	})
 	// doSerial(func(np int) {
 	doParallel(func(np int) {
-		var (
-			QQQ = QQQAll[np]
-		)
 		rk.GlobalMaxWaveSpeed[np], _ =
 			c.CalcElementMaxWaveSpeed(rk.DT[np], rk.DTVisc[np], np)
 		if initDT && c.LocalTimeStepping {
 			c.CalculateLocalDT(rk.DT[np], rk.DTVisc[np])
 		}
-		LimitSolution(QQQ, rk.Sigma[np], rk.ShockSensor[np])
 		// Perform a Runge Kutta pseudo time step
 		rkAdvance(np)
 	})
