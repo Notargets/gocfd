@@ -251,13 +251,24 @@ func (v Vector) AddScalar(a float64) Vector {
 	return v
 }
 
-func (v Vector) Set(a float64) Vector {
+func (v Vector) SetScalar(a float64) Vector {
 	var (
 		data = v.RawVector().Data
 	)
 	for i := range data {
 		data[i] = a
 	}
+	return v
+}
+
+func (v Vector) Set(i int, a float64) Vector {
+	var (
+		data = v.RawVector().Data
+	)
+	if i > len(data)-1 || i < 0 {
+		panic("vector index out of range")
+	}
+	data[i] = a
 	return v
 }
 

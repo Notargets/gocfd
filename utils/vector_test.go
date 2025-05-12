@@ -15,18 +15,18 @@ func TestVector(t *testing.T) {
 	assert.Equal(t, 123, 123, "should be equal")
 	/*
 		// x = ones(Np)*VX(va) + 0.5*(r+1.)*sT(vc);
-		mm := utils.NewVector(Np).Set(1).ToMatrix().Mul(VX.SubsetIndex(va).Transpose())
+		mm := utils.NewVector(Np).SetScalar(1).ToMatrix().Mul(VX.SubsetIndex(va).Transpose())
 		r := utils.Vector{mat.VecDenseCopyOf(R)}
 		R = r.AddScalar(1).Scale(0.5).ToMatrix().Mul(sT.Transpose()).AddCopy(mm).M
 	*/
 	N := 3
-	v1 := NewVector(N).Set(1)
+	v1 := NewVector(N).SetScalar(1)
 	require.Equal(t, 1., v1.V.RawVector().Data[N-1])
-	v1.Set(2)
+	v1.SetScalar(2)
 	require.Equal(t, 2., v1.V.RawVector().Data[N-1])
 
 	M := 2
-	v2 := NewVector(M).Set(3)
+	v2 := NewVector(M).SetScalar(3)
 	A := v1.ToMatrix().Mul(v2.Transpose())
 	fmt.Printf("Ainv = \n%v\n", mat.Formatted(A, mat.Squeeze()))
 	nr, nc := A.Dims()

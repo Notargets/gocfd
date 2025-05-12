@@ -296,7 +296,7 @@ func JacobiP(r utils.Vector, alpha, beta float64, N int) (p []float64) {
 		h1 := 2.0*ip1 + ab
 		anew := 2.0 / (h1 + 2.0) * math.Sqrt(ip2*(ip1+ab1)*(ip1+a1)*(ip1+b1)/(h1+1.0)/(h1+3.0))
 		bnew := -(alpha*alpha - beta*beta) / h1 / (h1 + 2.0)
-		x_bnew := utils.NewVector(r.Len()).Set(-bnew)
+		x_bnew := utils.NewVector(r.Len()).SetScalar(-bnew)
 		x_bnew.Add(r)
 		xi := PL.RawRowView(i)
 		xip1 := PL.RawRowView(i + 1)

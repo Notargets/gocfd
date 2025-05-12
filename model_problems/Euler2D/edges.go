@@ -303,7 +303,7 @@ func (c *Euler) CalcElementMaxWaveSpeed(DT, DTVisc utils.Matrix,
 				kGlobal = pm.GetGlobalK(k, myThread)
 			)
 			en := c.DFR.Tris.EtoEdges[kGlobal][nEdge]
-			// Set the element ooDT as the max of this and current so that we get the
+			// SetScalar the element ooDT as the max of this and current so that we get the
 			// max of all edges. Later we invert this, so we take the minimum DT
 			edgeMaxWaveSpeed := c.EdgeStore.GetEdgeAggregate(en, MaxWaveSpeed)
 			if edgeMaxWaveSpeed > globalMaxWaveSpeed {

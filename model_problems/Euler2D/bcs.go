@@ -29,7 +29,7 @@ func (c *Euler) IVortexBC(Time float64, k, Kmax, ishift int, Q_Face [4]utils.Mat
 		qfD     = [4][]float64{Q_Face[0].DataP, Q_Face[1].DataP, Q_Face[2].DataP, Q_Face[3].DataP}
 		riemann = true
 	)
-	// Set the flow variables to the exact solution
+	// SetScalar the flow variables to the exact solution
 	X, Y := c.DFR.FluxX.DataP, c.DFR.FluxY.DataP
 	for i := 0; i < Nedge; i++ {
 		iL := i + ishift

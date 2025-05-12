@@ -152,7 +152,7 @@ func TestEuler(t *testing.T) {
 						is += Nint
 						assert.True(t, nearVecScalar(rtTD[is:is+Nint], val1, 0.000001))
 					}
-					// Set normal flux to a simple addition of the two sides to use as a check in assert()
+					// SetScalar normal flux to a simple addition of the two sides to use as a check in assert()
 					for k := 0; k < Kmax; k++ {
 						for i := 0; i < 3*Nedge; i++ {
 							ind := k + (2*Nint+i)*Kmax
@@ -477,12 +477,16 @@ func TestDissipation(t *testing.T) {
 		}
 		sd := NewScalarDissipation(0, dfr, pMap)
 		sd.Kappa = 4.
-		sd.CalculateElementViscosity(0, Q)
+
+		Sigma := utils.NewVector(KMax)
+		sd.UpdateShockFinderSigma(0, Q[0][0], Sigma)
+		sd.CalculateElementViscosity(0, Sigma)
 		// assert.InDeltaSlicef(t, []float64{0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903},
 		assert.InDeltaSlicef(t, []float64{0.09903, 0.09903, 0.09903, 0.07003, 0.09903, 0.07003, 0.09903, 0.07003, 0.09903, 0.07003},
 			sd.EpsilonScalar[0], 0.00001, "err msg %s")
 		sd.Kappa = 0.75
-		sd.CalculateElementViscosity(0, Q)
+		sd.UpdateShockFinderSigma(0, Q[0][0], Sigma)
+		sd.CalculateElementViscosity(0, Sigma)
 		// assert.InDeltaSlicef(t, []float64{0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270},
 		assert.InDeltaSlicef(t, []float64{0.01270, 0.01270, 0.01270, 0.00898, 0.01270, 0.00898, 0.01270, 0.00898, 0.01270, 0.00898},
 			sd.EpsilonScalar[0], 0.00001, "err msg %s")
@@ -500,7 +504,7 @@ func TestDissipation(t *testing.T) {
 					0.172673, 0, 0.827326, 0.5, 0, 0.5, 0.827326, 0, 0.172673},
 					sd.BaryCentricCoords.DataP, 0.00001, "err msg %s")
 			*/
-			// Set the epsilon scalar value to the element ID and check the vertex aggregation
+			// SetScalar the epsilon scalar value to the element ID and check the vertex aggregation
 			for np := 0; np < NP; np++ {
 				KMaxLocal := pm.GetBucketDimension(np)
 				for k := 0; k < KMaxLocal; k++ {

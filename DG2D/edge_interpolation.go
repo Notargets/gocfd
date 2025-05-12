@@ -228,7 +228,7 @@ func findCriticalPointsRobust(poly *Polynomial) []float64 {
 		for j := 0; j < d; j++ {
 			comp.Set(0, j, -coeffs[d-1-j])
 		}
-		// Set the subdiagonal to 1.
+		// SetScalar the subdiagonal to 1.
 		for i := 1; i < d; i++ {
 			comp.Set(i, i-1, 1.0)
 		}

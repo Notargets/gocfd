@@ -206,6 +206,7 @@ type RungeKutta4SSP struct {
 	Q1, Q2, Q3, Q4        [][4]utils.Matrix    // Intermediate solution state
 	Residual              [][4]utils.Matrix    // Used for reporting, aliased to Q1
 	QMean                 [][4]utils.Vector    // Element mean
+	Sigma                 []utils.Vector       // Shock Finder Result
 	FilterScratch         []utils.Matrix       // Scratch space for filtering
 	F_RT_DOF              [][4]utils.Matrix    // Normal flux used for divergence
 	DT, DTVisc            []utils.Matrix       // Local time step storage
@@ -238,6 +239,7 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		Q4:                 make([][4]utils.Matrix, NPar),
 		Residual:           make([][4]utils.Matrix, NPar),
 		QMean:              make([][4]utils.Vector, NPar),
+		Sigma:              make([]utils.Vector, NPar),
 		FilterScratch:      make([]utils.Matrix, NPar),
 		F_RT_DOF:           make([][4]utils.Matrix, NPar),
 		DT:                 make([]utils.Matrix, NPar),
@@ -270,6 +272,7 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 			rk.Q_Face_P0[np][n] = utils.NewMatrix(rk.NpEdge*3, rk.Kmax[np])
 			rk.QMean[np][n] = utils.NewVector(rk.Kmax[np])
 		}
+		rk.Sigma[np] = utils.NewVector(rk.Kmax[np])
 		rk.DT[np] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 		rk.DTVisc[np] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 		rk.EdgeQ1[np] = make([][4]float64, rk.NpEdge)
@@ -442,9 +445,10 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 		var (
 			QQQ = QQQAll[np]
 		)
+		c.UpdateElementMean(QQQ, rk.QMean[np])
+		c.Dissipation.UpdateShockFinderSigma(np, QQQ[0], rk.Sigma[np])
 		c.InterpolateSolutionToEdges(QQQ, rk.Q_Face[np], rk.Q_Face_P0[np])
 		// c.modulateQInterp(QQQ, rk.Q_Face[np], rk.ShockSensor[np])
-		c.UpdateElementMean(QQQ, rk.QMean[np])
 		if project {
 			// if c.DFR.N > 1 && (rkStep == 0 || rkStep == 1) {
 			// if c.DFR.N > 1 && rkStep%2 == 0 {
@@ -486,7 +490,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 		c.CalculateEdgeEulerFlux(rk.Time, rk.Q_Face, rk.QMean, rk.Flux_Face,
 			rk.EdgeQ1[np], rk.EdgeQ2[np], c.SortedEdgeKeys[np]) // Global
 		if c.Dissipation != nil {
-			c.Dissipation.CalculateElementViscosity(np, QQQAll)
+			c.Dissipation.CalculateElementViscosity(np, rk.Sigma[np])
 		}
 	})
 	// doSerial(func(np int) {
@@ -638,7 +642,7 @@ func (c *Euler) InitializeSolution(verbose bool) {
 		for np := 0; np < NP; np++ {
 			c.AnalyticSolution, c.Q[np] = c.InitializeIVortex(c.SolutionX[np], c.SolutionY[np])
 		}
-		// Set "Wall" BCs to IVortex
+		// SetScalar "Wall" BCs to IVortex
 		var count int
 		for _, e := range c.DFR.Tris.Edges {
 			if e.BCType == types.BC_Wall {
@@ -824,7 +828,7 @@ func (c *Euler) CalculateLocalDT(DT, DTVisc utils.Matrix) {
 		_, Kmax = DT.Dims()
 	)
 	for k := 0; k < Kmax; k++ {
-		// Set each element's DT to CFL*h/(max_wave_speed)
+		// SetScalar each element's DT to CFL*h/(max_wave_speed)
 		DT.DataP[k] = c.CFL / DT.DataP[k]
 	}
 	if c.Dissipation != nil {
@@ -833,12 +837,12 @@ func (c *Euler) CalculateLocalDT(DT, DTVisc utils.Matrix) {
 		C_diff := 0.15
 		for k := 0; k < Kmax; k++ {
 			// DT.DataP[k] = c.CFL / ((1. + epsScalar[k]) * DT.DataP[k])
-			// Set each element's DT to CFL*h/(max_wave_speed)
+			// SetScalar each element's DT to CFL*h/(max_wave_speed)
 			// if math.Abs(DTVisc.DataP[k]) > 0.01 {
 			DTVisc.DataP[k] = C_diff / max(DTVisc.DataP[k], 1.e-9)
 			// }
 		}
-		// Set the DT of all interior points of each element to the element DT
+		// SetScalar the DT of all interior points of each element to the element DT
 		// dtMin := math.MaxFloat64
 		// dtMax := -dtMin
 		// Replicate local time step to the other solution points for each k

@@ -41,12 +41,12 @@ func (el Elements1D) SlopeLimitN(U utils.Matrix, M float64) (ULim utils.Matrix) 
 
 	ULim = U.Copy()
 	if ids.Len() != 0 {
-		//fmt.Printf("ids = %v\n", ids.ToIndex())
+		// fmt.Printf("ids = %v\n", ids.ToIndex())
 		idsI := ids.ToIndex()
 		// We need to limit the elements in the index
 		// Create a piecewise linear solution for limiting the elements in the index
 		uhl := el.Vinv.Mul(U.SliceCols(idsI))
-		uhl.SetRange(2, -1, 0, -1, 0) // Set all polynomial coefficients higher than linear to 0
+		uhl.SetRange(2, -1, 0, -1, 0) // SetScalar all polynomial coefficients higher than linear to 0
 		ul := el.V.Mul(uhl)
 		// Apply slope limiter to specified elements
 		ULim.AssignColumns(idsI, el.SlopeLimitLin(ul, el.X.SliceCols(idsI), vkm1.SubsetIndex(idsI), vk.SubsetIndex(idsI), vkp1.SubsetIndex(idsI)))

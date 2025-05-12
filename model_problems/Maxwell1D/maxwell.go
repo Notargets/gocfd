@@ -135,7 +135,7 @@ func (c *Maxwell) RHS_DFR() (RHSE, RHSH utils.Matrix) {
 	// E on the boundary face is negative of E inside, so the diff in E at the boundary face is 2E of the interior
 	dE.AssignVector(el.MapB, c.E.SubsetVector(el.VmapB).Scale(2))
 	// H on the boundary face is equal to H inside, so the diff in H at the boundary face is 0
-	dH.AssignVector(el.MapB, c.H.SubsetVector(el.VmapB).Set(0))
+	dH.AssignVector(el.MapB, c.H.SubsetVector(el.VmapB).SetScalar(0))
 
 	fluxType := "anisotropic"
 	switch fluxType {
@@ -193,7 +193,7 @@ func (c *Maxwell) RHS_GK() (RHSE, RHSH utils.Matrix) {
 	// E on the boundary face is negative of E inside, so the diff in E at the boundary face is 2E of the interior
 	dE.AssignVector(el.MapB, c.E.SubsetVector(el.VmapB).Scale(2))
 	// H on the boundary face is equal to H inside, so the diff in H at the boundary face is 0
-	dH.AssignVector(el.MapB, c.H.SubsetVector(el.VmapB).Set(0))
+	dH.AssignVector(el.MapB, c.H.SubsetVector(el.VmapB).SetScalar(0))
 
 	// Upwind fluxes
 	fluxE = c.ZimPM.Copy().Add(c.ZimPP).POW(-1).ElMul(el.NX.Copy().ElMul(c.ZimPP).ElMul(dH).Subtract(dE))

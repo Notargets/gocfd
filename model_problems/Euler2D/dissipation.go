@@ -396,17 +396,16 @@ func (sd *ScalarDissipation) GetC0EpsilonPlotField(c *Euler) (fld utils.Matrix) 
 	return
 }
 
-func (sd *ScalarDissipation) CalculateElementViscosity(myThread int, Qall [][4]utils.Matrix) {
+func (sd *ScalarDissipation) CalculateElementViscosity(myThread int,
+	Sigma utils.Vector) {
 	var (
 		dfr  = sd.dfr
-		Rho  = Qall[myThread][0]
-		Eps  = sd.EpsilonScalar[myThread]
 		Kmax = sd.PMap.GetBucketDimension(myThread)
+		Eps  = sd.EpsilonScalar[myThread]
 		// U          = sd.U[myThread]
 		// UClipped   = sd.UClipped[myThread]
 		KMaxGlobal = sd.PMap.MaxIndex
 		Order      = float64(sd.dfr.N)
-		sf         = sd.ShockFinder[myThread]
 		Omega      = 0.5
 	)
 	/*
@@ -431,13 +430,8 @@ func (sd *ScalarDissipation) CalculateElementViscosity(myThread int, Qall [][4]u
 		}
 		eps0 := 0.75 * maxEdgeLen / Order
 
-		for i := 0; i < sd.dfr.SolutionElement.Np; i++ {
-			ind := k + i*Kmax
-			sf.Qalt.DataP[i] = Rho.DataP[ind]
-		}
-		sigma := sf.ShockIndicator(sf.Qalt.DataP)
+		sigma := Sigma.AtVec(k)
 		// Eps[k] = eps0 * sigma
-		// Eps[k] = Omega * eps0 * sigma
 		Eps[k] = Omega * eps0 * math.Pow(sigma, 1./3.)
 	}
 }
@@ -450,7 +444,7 @@ func (sd *ScalarDissipation) createInterpolationStencil() {
 		err   error
 	)
 	sd.BaryCentricCoords = utils.NewMatrix(Np, 3)
-	// Set up unit triangle matrix with vertices in order
+	// SetScalar up unit triangle matrix with vertices in order
 	RR := utils.NewMatrix(3, 3)
 	RR.Set(0, 0, 1.)
 	RR.Set(0, 1, 1.)
@@ -513,6 +507,21 @@ func (c *Euler) getElementMean(Q [4]utils.Matrix, k int) (Umean [4]float64) {
 		for i := 0; i < Np; i++ {
 			Umean[n] += Q[n].At(i, k) * bcn[i].W
 		}
+	}
+	return
+}
+
+func (sd *ScalarDissipation) UpdateShockFinderSigma(myThread int,
+	Rho utils.Matrix, Sigma utils.Vector) {
+	var (
+		Np, KMax = Rho.Dims()
+		sf       = sd.ShockFinder[myThread]
+	)
+	for k := 0; k < KMax; k++ {
+		for i := 0; i < Np; i++ {
+			sf.Qalt.DataP[i] = Rho.At(i, k)
+		}
+		Sigma.Set(k, sf.ShockIndicator(sf.Qalt.DataP))
 	}
 	return
 }

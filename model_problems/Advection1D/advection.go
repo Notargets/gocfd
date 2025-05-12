@@ -138,7 +138,7 @@ func (c *Advection) RHS_DFR(U utils.Matrix, Time float64) (RHSU utils.Matrix) {
 		Fface.M.Set(0, k+1, avg)
 	}
 
-	// Set the global flux values at the face to the numerical flux
+	// SetScalar the global flux values at the face to the numerical flux
 	c.F.AssignVector(el.VmapM, Fface)
 
 	if limit {

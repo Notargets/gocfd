@@ -36,7 +36,7 @@ func (el *Elements1D) Startup1D(nt NODE_TYPE) {
 	vb := el.EToV.Col(1).ToIndex()
 	sT := el.VX.SubsetIndex(vb).Subtract(el.VX.SubsetIndex(va))
 	// x = ones(Np)*VX(va) + 0.5*(r+1.)*sT(vc);
-	mm := utils.NewVector(el.Np).Set(1).Mul(el.VX.SubsetIndex(va))
+	mm := utils.NewVector(el.Np).SetScalar(1).Mul(el.VX.SubsetIndex(va))
 	el.X = el.R.Copy().AddScalar(1).Scale(0.5).Mul(sT).Add(mm)
 
 	var J utils.Matrix
