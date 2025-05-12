@@ -47,7 +47,6 @@ type Euler struct {
 	Q4                   [4]utils.Matrix   // Non-Sharded solution for plotting
 	SolutionX, SolutionY []utils.Matrix
 	ShockFinder          *DG2D.ModeAliasShockFinder
-	Limiter              *SolutionLimiter
 	Dissipation          *ScalarDissipation
 	Kappa                float64 // Artificial Dissipation Strength constant
 	// Edge number mapped quantities, i.e. Face Normal Flux
@@ -106,12 +105,9 @@ func NewEuler(ip *InputParameters.InputParameters2D, meshFile string, ProcLimit 
 
 	// Allocate a solution limiter
 	lt := NewLimiterType(ip.Limiter)
-	c.Limiter = NewSolutionLimiter(lt, c.Kappa, c.DFR, c.Partitions, c.FSFar)
-
 	// Initiate Artificial Dissipation
 	if lt == PerssonC0T && c.DFR.N != 0 {
 		c.Dissipation = NewScalarDissipation(c.Kappa, c.DFR, c.Partitions)
-		//		c.Limiter = NewSolutionLimiter(ModeFilterT, ip.Kappa, c.DFR, c.Partitions, c.FSFar)
 	}
 
 	// Save graph mesh
@@ -127,7 +123,7 @@ func NewEuler(ip *InputParameters.InputParameters2D, meshFile string, ProcLimit 
 		case FREESTREAM:
 			fmt.Printf("Mach Infinity = %8.5f, Angle of Attack = %8.5f\n", ip.Minf, ip.Alpha)
 		}
-		fmt.Printf("Flux Algorithm: [%s] using Limiter: [%s]\n", c.FluxCalcAlgo.Print(), c.Limiter.limiterType.Print())
+		fmt.Printf("Flux Algorithm: [%s]\n", c.FluxCalcAlgo.Print())
 		if c.Dissipation != nil {
 			fmt.Printf("Artificial Dissipation Coefficient: Kappa = [%5.3f]\n", c.Dissipation.Kappa)
 		}
@@ -514,13 +510,15 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 	})
 	// doSerial(func(np int) {
 	doParallel(func(np int) {
+		var (
+			QQQ = QQQAll[np]
+		)
 		rk.GlobalMaxWaveSpeed[np], _ =
 			c.CalcElementMaxWaveSpeed(rk.DT[np], rk.DTVisc[np], np)
 		if initDT && c.LocalTimeStepping {
 			c.CalculateLocalDT(rk.DT[np], rk.DTVisc[np])
 		}
-		rk.LimitedPoints[np] = c.Limiter.LimitSolution(np, c.Q,
-			rk.Residual, rk.FilterScratch)
+		LimitSolution(QQQ, rk.Sigma[np], rk.ShockSensor[np])
 		// Perform a Runge Kutta pseudo time step
 		rkAdvance(np)
 	})

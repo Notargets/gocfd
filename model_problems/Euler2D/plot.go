@@ -30,8 +30,8 @@ func (c *Euler) GetPlotField(Q [4]utils.Matrix, plotField FlowFunction) (field u
 		}
 	case plotField == ShockFunction:
 		var sf *DG2D.ModeAliasShockFinder
-		if c.Limiter != nil {
-			sf = c.Limiter.ShockFinder[0]
+		if c.Dissipation != nil {
+			sf = c.ShockFinder
 		} else {
 			sf = c.DFR.NewAliasShockFinder(2)
 		}

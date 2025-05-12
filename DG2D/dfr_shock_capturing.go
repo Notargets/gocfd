@@ -7,12 +7,13 @@ import (
 )
 
 type ModeAliasShockFinder struct {
-	Element    *LagrangeElement2D
-	Clipper    utils.Matrix // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder
-	Np         int
-	Q, Qalt    utils.Matrix // scratch storage for evaluating the moment
-	Kappa      float64
-	ShockCells *utils.DynBuffer[int]
+	Element             *LagrangeElement2D
+	Clipper             utils.Matrix // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder
+	Np                  int
+	Q, Qalt             utils.Matrix // scratch storage for evaluating the moment
+	Kappa               float64
+	ShockCells          *utils.DynBuffer[int]
+	ShockSigmaThreshold float64
 }
 
 func (sf *ModeAliasShockFinder) UpdateShockedCells(Rho utils.Matrix) {
@@ -43,11 +44,12 @@ func (dfr *DFR2D) NewAliasShockFinder(Kappa float64) (sf *ModeAliasShockFinder) 
 		N       = element.N
 	)
 	sf = &ModeAliasShockFinder{
-		Element: element,
-		Np:      Np,
-		Q:       utils.NewMatrix(Np, 1),
-		Qalt:    utils.NewMatrix(Np, 1),
-		Kappa:   Kappa,
+		Element:             element,
+		Np:                  Np,
+		Q:                   utils.NewMatrix(Np, 1),
+		Qalt:                utils.NewMatrix(Np, 1),
+		Kappa:               Kappa,
+		ShockSigmaThreshold: 0.0075,
 	}
 	/*
 		The "Clipper" matrix drops the last mode from the polynomial and forms an alternative field of values at the node
@@ -86,7 +88,7 @@ func (dfr *DFR2D) CutoffFilter2D(N, NCutoff int, frac float64) (diag utils.Matri
 
 func (sf *ModeAliasShockFinder) ElementHasShock(q []float64) (i bool) {
 	// if sf.ShockIndicator(q) > 0.01 {
-	if sf.ShockIndicator(q) > 0.0075 {
+	if sf.ShockIndicator(q) > sf.ShockSigmaThreshold {
 		i = true
 	}
 	return
