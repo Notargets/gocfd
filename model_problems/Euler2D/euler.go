@@ -434,8 +434,6 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 			}
 		})
 	}
-	project := false
-	// project := true
 	// doSerial(func(np int) {
 	doParallel(func(np int) {
 		var (
@@ -447,43 +445,9 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 			LimitSolution(QQQ, rk.QMean[np], rk.Sigma[np], rk.ShockSensor[np])
 		}
 		c.InterpolateSolutionToEdges(QQQ, rk.Q_Face[np], rk.Q_Face_P0[np])
-		// c.modulateQInterp(QQQ, rk.Q_Face[np], rk.ShockSensor[np])
-		if project {
-			// if c.DFR.N > 1 && (rkStep == 0 || rkStep == 1) {
-			// if c.DFR.N > 1 && rkStep%2 == 0 {
-			if c.DFR.N > 1 && rkStep == 0 {
-				// if c.DFR.N > 1 {
-				rk.ShockSensor[np].UpdateShockedCells(QQQ[0])
-				for k := range rk.ShockSensor[np].ShockCells.Cells() {
-					c.NeighborNotifier.PostNotification(np, k)
-				}
-				c.NeighborNotifier.DeliverNotifications(np)
-				c.InterpolateSolutionToShockedEdges(
-					rk.ShockSensor[np], rk.Q_Face[np],
-					rk.Q_Face_P0[np]) // Interpolates Q_Face values from Q
-			}
-		}
 	})
 	// doSerial(func(np int) {
 	doParallel(func(np int) {
-		if project {
-			if c.DFR.N > 1 && rkStep == 0 {
-				// if c.DFR.N > 1 && rkStep%2 == 0 {
-				// if c.DFR.N > 1 && (rkStep == 0 || rkStep == 1) {
-				// if c.DFR.N > 1 {
-				myNeighbors := c.NeighborNotifier.ReadNotifications(np)
-				for _, nbr := range myNeighbors {
-					_, kShockNeighborGlobal, nEdge := nbr[0], nbr[1], nbr[2]
-					kShockNeighborLocal, _, _ := c.Partitions.GetLocalK(
-						kShockNeighborGlobal)
-					_ = nEdge
-					// c.InterpolateSolutionToTargetK(kShockNeighborLocal,
-					// 	rk.Q_Face[np], rk.Q_Face_P0[np])
-					c.InterpolateSolutionToTargetEdgeAndK(nEdge, kShockNeighborLocal,
-						rk.Q_Face[np], rk.Q_Face_P0[np])
-				}
-			}
-		}
 		// CalculateEdgeEulerFlux is where the Riemann problem is solved at the
 		// neighbor faces, and the edge boundary conditions are applied.
 		c.CalculateEdgeEulerFlux(rk.Time, rk.Q_Face, rk.QMean, rk.Flux_Face,
