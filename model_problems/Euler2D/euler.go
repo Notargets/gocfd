@@ -440,9 +440,11 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 			QQQ = QQQAll[np]
 		)
 		c.UpdateElementMean(QQQ, rk.QMean[np])
-		c.Dissipation.UpdateShockFinderSigma(np, QQQ[0], rk.Sigma[np])
-		if rkStep == 4 {
-			LimitSolution(QQQ, rk.QMean[np], rk.Sigma[np], rk.ShockSensor[np])
+		if c.Dissipation != nil {
+			c.Dissipation.UpdateShockFinderSigma(np, QQQ[0], rk.Sigma[np])
+			if rkStep == 4 {
+				LimitSolution(QQQ, rk.QMean[np], rk.Sigma[np], rk.ShockSensor[np])
+			}
 		}
 		c.InterpolateSolutionToEdges(QQQ, rk.Q_Face[np], rk.Q_Face_P0[np])
 	})
