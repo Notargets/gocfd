@@ -406,7 +406,6 @@ func (sd *ScalarDissipation) CalculateElementViscosity(myThread int,
 		// UClipped   = sd.UClipped[myThread]
 		KMaxGlobal = sd.PMap.MaxIndex
 		Order      = float64(sd.dfr.N)
-		Omega      = 0.5
 	)
 	/*
 		Eps0 wants to be (h/p) and is supposed to be proportional to cell width
@@ -431,8 +430,9 @@ func (sd *ScalarDissipation) CalculateElementViscosity(myThread int,
 		eps0 := 0.75 * maxEdgeLen / Order
 
 		sigma := Sigma.AtVec(k)
-		// Eps[k] = eps0 * sigma
-		Eps[k] = Omega * eps0 * math.Pow(sigma, 1./3.)
+		Eps[k] = eps0 * sigma
+		// Omega := 0.5
+		// Eps[k] = Omega * eps0 * math.Pow(sigma, 1./3.)
 	}
 }
 
