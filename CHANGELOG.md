@@ -1,3 +1,4 @@
+- [Update 57](CHANGELOG/Update_57.md): Shock Capturing - Success with Polynomial Limiter!
 - [Update 56](CHANGELOG/Update_56.md): Shock Capturing - Modulating Edge Interpolation
 - [Update 55](CHANGELOG/Update_55.md): Interpolation for Shock Capturing (part 4)
 - [Update 54](CHANGELOG/Update_54.md): Interpolation for Shock Capturing (part 3)
