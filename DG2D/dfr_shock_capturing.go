@@ -9,6 +9,7 @@ import (
 type ModeAliasShockFinder struct {
 	Element             *LagrangeElement2D
 	Clipper             utils.Matrix // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder
+	P, Mass, D          utils.Matrix // Element matrices
 	Np                  int
 	Q, Qalt             utils.Matrix // scratch storage for evaluating the moment
 	Kappa               float64
@@ -50,6 +51,7 @@ func (dfr *DFR2D) NewAliasShockFinder(Kappa float64) (sf *ModeAliasShockFinder) 
 		Qalt:                utils.NewMatrix(Np, 1),
 		Kappa:               Kappa,
 		ShockSigmaThreshold: 0.0075,
+		Mass:                element.MassMatrix,
 	}
 	/*
 		The "Clipper" matrix drops the last mode from the polynomial and forms an alternative field of values at the node
@@ -57,8 +59,38 @@ func (dfr *DFR2D) NewAliasShockFinder(Kappa float64) (sf *ModeAliasShockFinder) 
 		as values at Np node points, multiplying the Node point values vector by Clipper produces an alternative version
 		of the node values based on truncating the last polynomial mode.
 	*/
+	// Compute element matrices
 	sf.Clipper =
 		element.JB2D.V.Mul(dfr.CutoffFilter2D(N, N, 0)).Mul(element.JB2D.Vinv)
+
+	// sf.D = utils.NewMatrix(Np, Np).AddScalar(1.).Subtract(sf.Clipper)
+	sf.D = utils.NewDiagMatrix(Np, nil, 1.).Subtract(sf.Clipper)
+	sf.P = sf.Mass.Mul(sf.D)
+	return
+}
+
+func (sf *ModeAliasShockFinder) UpdateSeMoment(TestVar utils.Matrix,
+	LScratch [3]utils.Matrix, Se utils.Vector) {
+	// X and Y are scratch matrices of size Np,KMax
+	// Se should be a vector of size KMax
+	var (
+		Np, KMax = TestVar.Dims()
+		X, Y, DQ = LScratch[0], LScratch[1], LScratch[2]
+	)
+	X = sf.P.Mul(TestVar, X)
+	Y = sf.Mass.Mul(TestVar, Y)
+	DQ = sf.D.Mul(TestVar, DQ)
+	for k := 0; k < KMax; k++ {
+		var num, den float64
+		for i := 0; i < Np; i++ {
+			// d_i = (U - Ualt)[i,k]
+			// but Ualt = C*Q so U - Ualt = D*Q, and X = M * D * Q already
+			di := DQ.At(i, k)
+			num += di * X.At(i, k)
+			den += TestVar.At(i, k) * Y.At(i, k)
+		}
+		Se.Set(k, math.Log10(num/den))
+	}
 	return
 }
 
@@ -140,6 +172,8 @@ func (sf *ModeAliasShockFinder) moment(q []float64) (m float64) {
 	/*
 		Evaluate the L2 moment of (Q - Qalt) over the element, where Qalt is the truncated version of Q
 		Here we don't bother using quadrature, we do a simple sum
+
+		Note: The mass matrix of the basis is diagonal, as it is orthogonal
 	*/
 	UClipped = sf.Clipper.Mul(U, UClipped)
 	var mNum, mDenom float64

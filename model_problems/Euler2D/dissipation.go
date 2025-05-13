@@ -511,17 +511,60 @@ func (c *Euler) getElementMean(Q [4]utils.Matrix, k int) (Umean [4]float64) {
 	return
 }
 
-func (sd *ScalarDissipation) UpdateShockFinderSigma(myThread int,
-	Rho utils.Matrix, Sigma utils.Vector) {
+func (sd *ScalarDissipation) UpdateShockFinderSigma(Sigma, Se utils.Vector) {
+	/*
+		Original method by Persson, constants chosen to match Zhiqiang, et. al.
+	*/
 	var (
-		Np, KMax = Rho.Dims()
-		sf       = sd.ShockFinder[myThread]
+		kappa       = sd.Kappa
+		N           = sd.dfr.SolutionElement.N
+		KMax, _     = Se.Dims()
+		S0          = 4. / math.Pow(float64(N+1), 4.)
+		left, right = S0 - kappa, S0 + kappa
+		ookappa     = 0.5 / kappa
+		sigma       float64
 	)
 	for k := 0; k < KMax; k++ {
-		for i := 0; i < Np; i++ {
-			sf.Qalt.DataP[i] = Rho.At(i, k)
+		se := Se.AtVec(k)
+		switch {
+		case se < left:
+			sigma = 0.
+		case se >= left && se <= right:
+			sigma = 0.5 * (1. + math.Sin(math.Pi*ookappa*(se-S0)))
+		case se > right:
+			sigma = 1.
 		}
-		Sigma.Set(k, sf.ShockIndicator(sf.Qalt.DataP))
+		Sigma.Set(k, sigma)
+	}
+	return
+}
+
+func (sd *ScalarDissipation) UpdateShockFinderSigma2(Sigma, Se utils.Vector) {
+	// p = polynomial degree
+	var (
+		p     = sd.dfr.SolutionElement.N
+		kappa = sd.Kappa
+	)
+
+	// Persson threshold S0 = 4/(p+1)^4
+	S0 := 4.0 / math.Pow(float64(p+1), 4.0)
+	oneMinus := 1.0 - S0
+
+	KMax, _ := Se.Dims()
+	for k := 0; k < KMax; k++ {
+		se := Se.AtVec(k) // raw ratio in [0,1]
+
+		var sigma float64
+		switch {
+		case se <= S0:
+			sigma = 0.0
+		case se >= 1.0:
+			sigma = 1.0
+		default:
+			// original Persson ramp: ((se-S0)/(1-S0))^kappa
+			sigma = math.Pow((se-S0)/oneMinus, kappa)
+		}
+		Sigma.Set(k, sigma)
 	}
 	return
 }

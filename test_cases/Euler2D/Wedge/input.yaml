@@ -28,6 +28,6 @@ MaxIterations: 2000
 #Limiter: 
 Limiter: PerssonC0
 #Limiter: Barth Jesperson
-Kappa: 4.5
+Kappa: 4.0
 
 PlotFields: ["mach"]

@@ -203,7 +203,8 @@ type RungeKutta4SSP struct {
 	Residual              [][4]utils.Matrix    // Used for reporting, aliased to Q1
 	QMean                 [][4]utils.Vector    // Element mean
 	Sigma                 []utils.Vector       // Shock Finder Result
-	FilterScratch         []utils.Matrix       // Scratch space for filtering
+	Se                    []utils.Vector       // Element moment - troubled element indicator
+	LScratch              [][3]utils.Matrix    // Scratch space for limiter
 	F_RT_DOF              [][4]utils.Matrix    // Normal flux used for divergence
 	DT, DTVisc            []utils.Matrix       // Local time step storage
 	Epsilon               []utils.Matrix
@@ -236,7 +237,8 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		Residual:           make([][4]utils.Matrix, NPar),
 		QMean:              make([][4]utils.Vector, NPar),
 		Sigma:              make([]utils.Vector, NPar),
-		FilterScratch:      make([]utils.Matrix, NPar),
+		Se:                 make([]utils.Vector, NPar),
+		LScratch:           make([][3]utils.Matrix, NPar),
 		F_RT_DOF:           make([][4]utils.Matrix, NPar),
 		DT:                 make([]utils.Matrix, NPar),
 		DTVisc:             make([]utils.Matrix, NPar),
@@ -253,7 +255,9 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 	// Initialize memory for RHS
 	for np := 0; np < NPar; np++ {
 		rk.Kmax[np] = pm.GetBucketDimension(np)
-		rk.FilterScratch[np] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
+		rk.LScratch[np][0] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
+		rk.LScratch[np][1] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
+		rk.LScratch[np][2] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 		for n := 0; n < 4; n++ {
 			rk.Q1[np][n] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 			rk.Q2[np][n] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
@@ -269,6 +273,7 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 			rk.QMean[np][n] = utils.NewVector(rk.Kmax[np])
 		}
 		rk.Sigma[np] = utils.NewVector(rk.Kmax[np])
+		rk.Se[np] = utils.NewVector(rk.Kmax[np])
 		rk.DT[np] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 		rk.DTVisc[np] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 		rk.EdgeQ1[np] = make([][4]float64, rk.NpEdge)
@@ -441,7 +446,8 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 		)
 		c.UpdateElementMean(QQQ, rk.QMean[np])
 		if c.Dissipation != nil {
-			c.Dissipation.UpdateShockFinderSigma(np, QQQ[0], rk.Sigma[np])
+			rk.ShockSensor[np].UpdateSeMoment(QQQ[0], rk.LScratch[np], rk.Se[np])
+			c.Dissipation.UpdateShockFinderSigma(rk.Sigma[np], rk.Se[np])
 			if rkStep == 4 {
 				LimitSolution(QQQ, rk.QMean[np], rk.Sigma[np], rk.ShockSensor[np])
 			}
