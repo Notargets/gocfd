@@ -11,9 +11,9 @@ CFL: 3.0
 FluxType: Roe
 #FluxType: Lax
 InitType: Freestream # Can be "Freestream" or "IVortex"
-PolynomialOrder: 2
+PolynomialOrder: 4
 FinalTime: 20
-Minf: 5.0
+Minf: 2.0
 Gamma: 1.4
 Alpha: 0.
 LocalTimeStepping: true

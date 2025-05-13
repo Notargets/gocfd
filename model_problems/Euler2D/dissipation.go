@@ -399,13 +399,10 @@ func (sd *ScalarDissipation) GetC0EpsilonPlotField(c *Euler) (fld utils.Matrix) 
 func (sd *ScalarDissipation) CalculateElementViscosity(myThread int,
 	Sigma utils.Vector) {
 	var (
-		dfr  = sd.dfr
-		Kmax = sd.PMap.GetBucketDimension(myThread)
-		Eps  = sd.EpsilonScalar[myThread]
-		// U          = sd.U[myThread]
-		// UClipped   = sd.UClipped[myThread]
-		KMaxGlobal = sd.PMap.MaxIndex
-		Order      = float64(sd.dfr.N)
+		dfr   = sd.dfr
+		Kmax  = sd.PMap.GetBucketDimension(myThread)
+		Eps   = sd.EpsilonScalar[myThread]
+		Order = float64(sd.dfr.N)
 	)
 	/*
 		Eps0 wants to be (h/p) and is supposed to be proportional to cell width
@@ -416,23 +413,9 @@ func (sd *ScalarDissipation) CalculateElementViscosity(myThread int,
 			fs := 0.5 * Np12 * edgeLen / Jdet[bn].DataP[k]
 	*/
 	for k := 0; k < Kmax; k++ {
-		// Get edges for this element
 		kGlobal := sd.PMap.GetGlobalK(k, myThread)
-		var maxEdgeLen float64
-		maxEdgeLen = -1
-		for edgeNum := 0; edgeNum < 3; edgeNum++ {
-			ind := kGlobal + KMaxGlobal*edgeNum
-			edgeLen := dfr.IInII.DataP[ind]
-			if edgeLen > maxEdgeLen {
-				maxEdgeLen = edgeLen
-			}
-		}
-		eps0 := 0.75 * maxEdgeLen / Order
-
-		sigma := Sigma.AtVec(k)
-		Eps[k] = eps0 * sigma
-		// Omega := 0.5
-		// Eps[k] = Omega * eps0 * math.Pow(sigma, 1./3.)
+		eps0 := 0.75 * dfr.EdgeLenMax.AtVec(kGlobal) / Order
+		Eps[k] = eps0 * Sigma.AtVec(k)
 	}
 }
 

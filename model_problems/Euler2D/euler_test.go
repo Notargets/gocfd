@@ -479,13 +479,19 @@ func TestDissipation(t *testing.T) {
 		sd.Kappa = 4.
 
 		Sigma := utils.NewVector(KMax)
-		sd.UpdateShockFinderSigma(0, Q[0][0], Sigma)
+		Se := utils.NewVector(KMax)
+		var LScratch [3]utils.Matrix
+		for i := 0; i < 3; i++ {
+			LScratch[i] = utils.NewMatrix(dfr.SolutionElement.Np, KMax)
+		}
+		sd.ShockFinder[0].UpdateSeMoment(Q[0][0], LScratch, Se)
+		sd.UpdateShockFinderSigma(Sigma, Se)
 		sd.CalculateElementViscosity(0, Sigma)
 		// assert.InDeltaSlicef(t, []float64{0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903, 0.09903},
 		assert.InDeltaSlicef(t, []float64{0.09903, 0.09903, 0.09903, 0.07003, 0.09903, 0.07003, 0.09903, 0.07003, 0.09903, 0.07003},
 			sd.EpsilonScalar[0], 0.00001, "err msg %s")
 		sd.Kappa = 0.75
-		sd.UpdateShockFinderSigma(0, Q[0][0], Sigma)
+		sd.UpdateShockFinderSigma(Sigma, Se)
 		sd.CalculateElementViscosity(0, Sigma)
 		// assert.InDeltaSlicef(t, []float64{0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270, 0.01270},
 		assert.InDeltaSlicef(t, []float64{0.01270, 0.01270, 0.01270, 0.00898, 0.01270, 0.00898, 0.01270, 0.00898, 0.01270, 0.00898},

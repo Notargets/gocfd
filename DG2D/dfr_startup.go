@@ -28,17 +28,18 @@ type DFR2D struct {
 	FluxDr, FluxDs     utils.Matrix // Derivatives from the interior (solution) points to all of the flux points
 	DXMetric, DYMetric utils.Matrix // R and S derivative metrics, multiply by scalar field values to create DOF for RT
 	// Mesh Parameters
-	K                    int          // Number of elements (triangles) in mesh
-	VX, VY               utils.Vector // R,S vertex points in mesh (vertices)
-	BCEdges              types.BCMAP
-	FluxX, FluxY         utils.Matrix    // Flux Element local coordinates
-	SolutionX, SolutionY utils.Matrix    // Solution Element local coordinates
-	Tris                 *Triangulation  // Triangle mesh and edge/face structures
-	J, Jinv, Jdet        utils.Matrix    // Mesh Transform Jacobian, Kx[4], each K element has a 2x2 matrix, det is |J|
-	FaceNorm             [2]utils.Matrix // Face normal (normalized), Kx3
-	IInII                utils.Matrix    // Mag face normal divided by unit triangle face norm mag, Kx3 dimension
-	EdgeNumber           []types.EdgeKey // Edge number for each edge, used to index into edge structures, Kx3 dimension
-	SolutionBasis        *JacobiBasis2D
+	K                       int          // Number of elements (triangles) in mesh
+	VX, VY                  utils.Vector // R,S vertex points in mesh (vertices)
+	BCEdges                 types.BCMAP
+	FluxX, FluxY            utils.Matrix    // Flux Element local coordinates
+	SolutionX, SolutionY    utils.Matrix    // Solution Element local coordinates
+	Tris                    *Triangulation  // Triangle mesh and edge/face structures
+	J, Jinv, Jdet           utils.Matrix    // Mesh Transform Jacobian, Kx[4], each K element has a 2x2 matrix, det is |J|
+	FaceNorm                [2]utils.Matrix // Face normal (normalized), Kx3
+	IInII                   utils.Matrix    // Mag face normal divided by unit triangle face norm mag, Kx3 dimension
+	EdgeNumber              []types.EdgeKey // Edge number for each edge, used to index into edge structures, Kx3 dimension
+	SolutionBasis           *JacobiBasis2D
+	EdgeLenMax, EdgeLenMinR utils.Vector // Characteristic Edge Lengths
 }
 
 func NewDFR2D(N int, verbose bool, meshFileO ...string) (dfr *DFR2D) {
@@ -95,9 +96,34 @@ func NewDFR2D(N int, verbose bool, meshFileO ...string) (dfr *DFR2D) {
 				readfiles.ReadSU2(meshFileO[0], verbose)
 		}
 		dfr.ProcessGeometry(dfr.VX, dfr.VY, EToV, dfr.BCEdges)
+		dfr.GetEdgeLengths()
 		dfr.GraphMesh = dfr.CreateAVSGraphMesh()
 	}
 	return
+}
+
+func (dfr *DFR2D) GetEdgeLengths() {
+	var (
+		KMax = dfr.K
+	)
+	dfr.EdgeLenMax = utils.NewVector(KMax)
+	dfr.EdgeLenMinR = utils.NewVector(KMax)
+	for k := 0; k < KMax; k++ {
+		var perimeter float64
+		// Get edges for this element
+		var maxEdgeLen float64
+		maxEdgeLen = -1
+		for edgeNum := 0; edgeNum < 3; edgeNum++ {
+			ind := k + KMax*edgeNum
+			edgeLen := dfr.IInII.DataP[ind]
+			perimeter += edgeLen
+			if edgeLen > maxEdgeLen {
+				maxEdgeLen = edgeLen
+			}
+		}
+		dfr.EdgeLenMax.Set(k, maxEdgeLen)
+		dfr.EdgeLenMinR.Set(k, 4*2*dfr.Jdet.At(k, 0)/perimeter)
+	}
 }
 
 func (dfr *DFR2D) ProcessGeometry(VX, VY utils.Vector,
