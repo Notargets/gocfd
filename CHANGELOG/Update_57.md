@@ -1,5 +1,27 @@
 # Shock Capturing - Success with Polynomial Limiter!
 
+## Experiments with existing shock indicator and Persson viscocity
+
+| Re-entry vehicle? Mach 5, AOA 35 degrees, P=2 |
+|-----------------------------------------------|
+| ![](naca0012-aoa35-M5.png)                    |
+
+I can now run ridiculous configurations like the NACA0012 airfoil
+re-entering the atmosphere at 35 degrees angle of attack and Mach 5, at
+polynomial orders up to P=6. In experiments with the shock indicator, I've
+learned there are some structural issues and a bug in the current
+implementation that I'd like to refine, but this is definitely on the right
+track. It only took four years LOL.
+
+I think the primary issue I've had in confronting this problem is that I've
+been unwilling to limit the solution itself, thinking that it's a betrayal
+of the high order accuracy approach. I've come to realize that when the
+polynomial itself is unable to capture the discontinuity, a model can be
+substituted for just the affected cells that still has physical fidelity.
+Using the current filter, the model is a hybrid of the calculated cell mean
+and the polynomial that is clearly able to suppress the polynomial, but it
+appears that the accuracy of the solution is accurate overall.
+
 ## The problem was always the solution polynomial, so limit that
 
 When we look at the problem of edge interpolation experiencing Gibbs 
@@ -31,27 +53,6 @@ interpolated to the edges at that stage.
             sigma is the shock indicator
             Beta is a constant, around 3.->10.
 
-## Experiments with existing shock indicator and Persson viscocity
-
-| Re-entry vehicle? Mach 5, AOA 35 degrees, P=2 |
-|-----------------------------------------------|
-| ![](naca0012-aoa35-M5.png)                    |
-
-I can now run ridiculous configurations like the NACA0012 airfoil 
-re-entering the atmosphere at 35 degrees angle of attack and Mach 5, at 
-polynomial orders up to P=6. In experiments with the shock indicator, I've 
-learned there are some structural issues and a bug in the current 
-implementation that I'd like to refine, but this is definitely on the right 
-track. It only took four years LOL.
-
-I think the primary issue I've had in confronting this problem is that I've 
-been unwilling to limit the solution itself, thinking that it's a betrayal 
-of the high order accuracy approach. I've come to realize that when the 
-polynomial itself is unable to capture the discontinuity, a model can be 
-substituted for just the affected cells that still has physical fidelity. 
-Using the current filter, the model is a hybrid of the calculated cell mean 
-and the polynomial that is clearly able to suppress the polynomial, but it 
-appears that the accuracy of the solution is accurate overall.
 
 ## Next steps
 

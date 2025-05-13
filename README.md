@@ -14,9 +14,9 @@ simulation. Ongoing developments focus on the efficient capture of shock waves a
 Future enhancements, following shock capture improvements, will include the integration of viscous flowfields, along with the
 possible addition of various implicit time integration solvers.
 
-| NACA 0012 Airfoil at M=0.3, Alpha=6, Roe flux, Local Time Stepping | M=0.5, Alpha=0, Roe Flux, 1482 O(2) Elements, Converged |
-|:------------------------------------------------------------------:|--------------------------------------------------------:|
-|               ![](images/naca12_2d_m0.3_a6_roe.gif)                |                 ![](images/naca12_2d_m0.5_aoa0_Roe.PNG) |
+|  NACA 0012 Airfoil at M=5, Alpha=35  |
+|:------------------------------------:|
+| ![](CHANGELOG/naca0012-aoa35-M5.png) |
 
 # Quick Start Guide
 
