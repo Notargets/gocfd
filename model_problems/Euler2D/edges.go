@@ -159,7 +159,7 @@ func (c *Euler) StoreEdgeViscousFlux(epsilon []utils.Matrix, EdgeQ1 [][4]float64
 		e := c.DFR.Tris.Edges[en]
 		var (
 			kLGlobal             = int(e.ConnectedTris[0])
-			ooedgeLength         = 1. / c.DFR.EdgeLenMax.AtVec(kLGlobal)
+			ooedgeLength         = 1. / e.GetEdgeLength()
 			kL, KmaxL, myThreadL = pm.GetLocalK(int(e.ConnectedTris[0]))
 			edgeNumberL          = int(e.ConnectedTriEdgeNumber[0])
 			DissXL, DissYL       = c.Dissipation.DissX[myThreadL], c.Dissipation.DissY[myThreadL]
@@ -257,12 +257,10 @@ func (c *Euler) StoreEdgeAggregates(Epsilon, Jdet []utils.Matrix,
 			edgeNum           = int(e.ConnectedTriEdgeNumber[0])
 			k, Kmax, myThread = pm.GetLocalK(int(e.ConnectedTris[0]))
 			shift             = edgeNum * Nedge
-			kGlobal           = pm.GetGlobalK(k, myThread)
+			edgeLen           = e.GetEdgeLength()
 		)
 		// Element Characteristic Length calculation (inverse)
-		// oohK := 0.5 * Np12 * edgeLen / Jdet[myThread].DataP[k]
-		// oohK := 2. * Np12 / c.DFR.EdgeLenMinR.AtVec(kGlobal)
-		oohK := Np12 * c.DFR.EdgeLenMax.AtVec(kGlobal) / Jdet[myThread].DataP[k]
+		oohK := 0.5 * Np12 * edgeLen / Jdet[myThread].DataP[k]
 		edgeMaxWaveSpeed := -math.MaxFloat64
 		for i := shift; i < shift+Nedge; i++ {
 			ind := k + i*Kmax
