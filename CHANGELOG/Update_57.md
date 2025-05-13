@@ -18,9 +18,10 @@ been unwilling to limit the solution itself, thinking that it's a betrayal
 of the high order accuracy approach. I've come to realize that when the
 polynomial itself is unable to capture the discontinuity, a model can be
 substituted for just the affected cells that still has physical fidelity.
-Using the current filter, the model is a hybrid of the calculated cell mean
-and the polynomial that is clearly able to suppress the polynomial, but it
-appears that the accuracy of the solution is accurate overall.
+The model is a hybrid of the calculated cell mean and the calculated polynomial 
+that smoothly blends toward the mean when the cell polynomial "tips over" 
+into instability. The solution is unmodified in cells where the polynomial 
+is able to express the energy of the field.
 
 ## The problem was always the solution polynomial, so limit that
 
