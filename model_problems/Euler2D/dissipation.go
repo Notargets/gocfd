@@ -415,7 +415,8 @@ func (sd *ScalarDissipation) CalculateElementViscosity(myThread int,
 	for k := 0; k < Kmax; k++ {
 		kGlobal := sd.PMap.GetGlobalK(k, myThread)
 		eps0 := 0.75 * dfr.EdgeLenMax.AtVec(kGlobal) / Order
-		Eps[k] = eps0 * Sigma.AtVec(k)
+		//	Eps[k] = eps0 * Sigma.AtVec(k)
+		Eps[k] = eps0 * 0.5 * math.Pow(Sigma.AtVec(k), 1./2.)
 	}
 }
 

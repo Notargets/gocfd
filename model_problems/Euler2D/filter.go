@@ -56,15 +56,16 @@ func LimitSolution(Q [4]utils.Matrix, QMean [4]utils.Vector,
 	points int) {
 	var (
 		Np, Kmax = Q[0].Dims()
-		Beta     = 10.
+		//Beta     = 10.
 	)
 	for k := 0; k < Kmax; k++ {
 		sigma := Sigma.AtVec(k)
 		// if sigma > sf.ShockSigmaThreshold { // Element has a shock
-		alpha := 1. - math.Exp(-Beta*sigma)
+		//alpha := 1. - math.Exp(-Beta*sigma)
 		// alpha := math.Pow(sigma, 2.)
 		// alpha := sigma
 		// alpha := math.Pow(sigma, 1./3.)
+		alpha := math.Pow(sigma, 1./2.)
 		// fmt.Printf("sigma, alpha[%d] = %.1f, %.1f\n", k, sigma, alpha)
 		for n := 0; n < 4; n++ {
 			for i := 0; i < Np; i++ {
