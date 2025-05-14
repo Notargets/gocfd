@@ -476,7 +476,6 @@ func TestDissipation(t *testing.T) {
 		sd := NewScalarDissipation(0, dfr, pMap)
 		sd.Kappa = 4.
 
-		Sigma := utils.NewVector(KMax)
 		Se := utils.NewVector(KMax)
 		var LScratch [3]utils.Matrix
 		for i := 0; i < 3; i++ {
@@ -513,7 +512,7 @@ func TestDissipation(t *testing.T) {
 				KMaxLocal := pm.GetBucketDimension(np)
 				for k := 0; k < KMaxLocal; k++ {
 					kGlobal := pm.GetGlobalK(k, np)
-					sd.EpsilonScalar[np][k] = float64(kGlobal)
+					sd.EpsilonScalar[np].Set(k, float64(kGlobal))
 				}
 			}
 			wg := &sync.WaitGroup{}
@@ -540,7 +539,7 @@ func TestDissipation2(t *testing.T) {
 			KMax = sd.PMap.GetBucketDimension(np)
 			for k := 0; k < KMax; k++ {
 				kGlobal := pm.GetGlobalK(k, np)
-				sd.EpsilonScalar[np][k] = float64(kGlobal)
+				sd.EpsilonScalar[np].Set(k, float64(kGlobal))
 			}
 		}
 		wg := &sync.WaitGroup{}
