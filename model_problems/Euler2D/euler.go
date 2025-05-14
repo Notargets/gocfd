@@ -442,13 +442,18 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 			c.Dissipation.CalculateElementViscosity(np)
 		}
 	})
+	doParallel(func(np int) {
+		if c.Dissipation != nil {
+			c.Dissipation.EpsilonSigmaMaxToVertices(np)
+		}
+	})
 	// doSerial(func(np int) {
 	doParallel(func(np int) {
 		var (
 			QQQ = QQQAll[np]
 		)
 		if c.Dissipation != nil {
-			c.Dissipation.EpsilonSigmaMaxToVertices(np)
+			c.Dissipation.InterpolateEpsilonSigma(np)
 		}
 		if rkStep == 4 {
 			c.UpdateElementMean(QQQ, rk.QMean[np])

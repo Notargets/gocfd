@@ -220,31 +220,42 @@ const (
 	C1
 )
 
-func (sd *ScalarDissipation) CalculateEpsilonGradient(c *Euler, cont ContinuityLevel, myThread int, Q [4]utils.Matrix) {
+func (sd *ScalarDissipation) InterpolateEpsilonSigma(myThread int) {
 	var (
-		dfr    = sd.dfr
-		Kmax   = sd.PMap.GetBucketDimension(myThread)
-		NpFlux = dfr.FluxElement.Np
-
-		EpsilonScalar       = sd.EpsilonScalar[myThread]
-		Epsilon             = sd.Epsilon[myThread]
-		DOF, DOF2           = sd.DissDOF[myThread], sd.DissDOF2[myThread]
-		DissX, DissY        = sd.DissX[myThread], sd.DissY[myThread]
-		EtoV                = sd.EtoV[myThread]
-		VertexEpsilonValues = sd.VertexScratchSpace[myThread]
+		Kmax = sd.PMap.GetBucketDimension(myThread)
+		EtoV = sd.EtoV[myThread]
 	)
-	if cont == C0 {
+	interpolate := func(VertexValuesM, Interior utils.Matrix, VertexValues []float64) {
 		// Interpolate epsilon within each element
 		for k := 0; k < Kmax; k++ {
 			tri := EtoV.DataP[3*k : 3*k+3]
 			v := [3]int{int(tri[0]), int(tri[1]), int(tri[2])}
 			for vert := 0; vert < 3; vert++ {
 				ind := k + vert*Kmax
-				VertexEpsilonValues.DataP[ind] = sd.EpsVertex[v[vert]]
+				VertexValuesM.DataP[ind] = VertexValues[v[vert]]
 			}
 		}
-		sd.BaryCentricCoords.Mul(VertexEpsilonValues, Epsilon)
+		sd.BaryCentricCoords.Mul(VertexValuesM, Interior)
+		return
 	}
+	interpolate(sd.VertexScratchSpace[myThread], sd.Epsilon[myThread],
+		sd.EpsVertex)
+	interpolate(sd.VertexScratchSpace[myThread], sd.Sigma[myThread],
+		sd.SigmaVertex)
+	return
+}
+
+func (sd *ScalarDissipation) CalculateEpsilonGradient(c *Euler, cont ContinuityLevel, myThread int, Q [4]utils.Matrix) {
+	var (
+		dfr    = sd.dfr
+		Kmax   = sd.PMap.GetBucketDimension(myThread)
+		NpFlux = dfr.FluxElement.Np
+
+		EpsilonScalar = sd.EpsilonScalar[myThread]
+		Epsilon       = sd.Epsilon[myThread]
+		DOF, DOF2     = sd.DissDOF[myThread], sd.DissDOF2[myThread]
+		DissX, DissY  = sd.DissX[myThread], sd.DissY[myThread]
+	)
 	for n := 0; n < 4; n++ {
 		c.GetSolutionGradientUsingRTElement(myThread, n, Q, DissX[n], DissY[n], DOF, DOF2)
 		switch cont {
