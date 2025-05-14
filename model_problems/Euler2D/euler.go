@@ -453,8 +453,8 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 		if c.Dissipation != nil {
 			c.Dissipation.propagateEpsilonMaxToVertices(np)
 		}
-		c.UpdateElementMean(QQQ, rk.QMean[np])
 		if rkStep == 4 {
+			c.UpdateElementMean(QQQ, rk.QMean[np])
 			LimitSolution(QQQ, rk.QMean[np], rk.Sigma[np], rk.ShockSensor[np])
 		}
 		c.InterpolateSolutionToEdges(QQQ, rk.Q_Face[np], rk.Q_Face_P0[np])
