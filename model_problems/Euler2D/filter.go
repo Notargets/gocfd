@@ -5,7 +5,6 @@ import (
 	"math"
 	"strings"
 
-	"github.com/notargets/gocfd/DG2D"
 	"github.com/notargets/gocfd/utils"
 )
 
@@ -51,29 +50,37 @@ func NewLimiterType(label string) (lt LimiterType) {
 	return
 }
 
-func LimitSolution(Q [4]utils.Matrix, QMean [4]utils.Vector,
-	Sigma utils.Vector, sf *DG2D.ModeAliasShockFinder) (
+func LimitSolution(myThread int, Q [4]utils.Matrix, QMean [4]utils.Vector,
+	sd *ScalarDissipation) (
 	points int) {
 	var (
-		Np, Kmax = Q[0].Dims()
-		//Beta     = 10.
+		Np, Kmax    = Q[0].Dims()
+		SigmaScalar = sd.SigmaScalar[myThread]
+		Sigma       = sd.Sigma[myThread]
 	)
-	for k := 0; k < Kmax; k++ {
-		sigma := Sigma.AtVec(k)
-		// if sigma > sf.ShockSigmaThreshold { // Element has a shock
-		//alpha := 1. - math.Exp(-Beta*sigma)
-		// alpha := math.Pow(sigma, 2.)
-		// alpha := sigma
-		// alpha := math.Pow(sigma, 1./3.)
-		alpha := math.Pow(sigma, 1./2.)
-		// fmt.Printf("sigma, alpha[%d] = %.1f, %.1f\n", k, sigma, alpha)
-		for n := 0; n < 4; n++ {
-			for i := 0; i < Np; i++ {
-				Q[n].Set(i, k,
-					(1.-alpha)*Q[n].At(i, k)+alpha*QMean[n].AtVec(k))
+	switch sd.Continuity {
+	case No:
+		for k := 0; k < Kmax; k++ {
+			sigma := SigmaScalar.AtVec(k)
+			alpha := math.Pow(sigma, 1./2.)
+			for n := 0; n < 4; n++ {
+				for i := 0; i < Np; i++ {
+					Q[n].Set(i, k,
+						(1.-alpha)*Q[n].At(i, k)+alpha*QMean[n].AtVec(k))
+				}
 			}
 		}
-		// }
+	case C0:
+		for n := 0; n < 4; n++ {
+			for k := 0; k < Kmax; k++ {
+				for i := 0; i < Np; i++ {
+					sigma := Sigma.At(i, k)
+					alpha := math.Pow(sigma, 1./2.)
+					Q[n].Set(i, k,
+						(1.-alpha)*Q[n].At(i, k)+alpha*QMean[n].AtVec(k))
+				}
+			}
+		}
 	}
 	return
 }

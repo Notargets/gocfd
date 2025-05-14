@@ -13,18 +13,19 @@ CFL: 5.0
 FluxType: Roe
 #FluxType: Lax
 InitType: Freestream # Can be "Freestream" or "IVortex"
-PolynomialOrder: 2
+PolynomialOrder: 7
 FinalTime: 20
 Minf: 2.0
 Gamma: 1.4
 Alpha: 0.
 LocalTimeStepping: true
 #MaxIterations: 200
-MaxIterations: 600
+#MaxIterations: 600
 #MaxIterations: 2000
 #MaxIterations: 3000
 #MaxIterations: 6000
-#MaxIterations: 10000
+#MaxIterations: 8000
+MaxIterations: 10000
 #MaxIterations: 15000
 
 #Limiter: 

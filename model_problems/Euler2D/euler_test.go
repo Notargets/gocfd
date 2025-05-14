@@ -438,7 +438,7 @@ func TestDissipation(t *testing.T) {
 		vepFinal := [3]int32{9, 9, 0}
 		for NPar := 1; NPar < 10; NPar += 2 {
 			pm := utils.NewPartitionMap(NPar, dfr.K)
-			sd := NewScalarDissipation(0, dfr, pm)
+			sd := NewScalarDissipation(0, C0, dfr, pm)
 			var vep [3]int32
 			for np := 0; np < NPar; np++ {
 				for _, val := range sd.VtoE[np] {
@@ -473,7 +473,7 @@ func TestDissipation(t *testing.T) {
 				Q[0][n].DataP[ind] = val
 			}
 		}
-		sd := NewScalarDissipation(0, dfr, pMap)
+		sd := NewScalarDissipation(0, C0, dfr, pMap)
 		sd.Kappa = 4.
 
 		Se := utils.NewVector(KMax)
@@ -499,7 +499,7 @@ func TestDissipation(t *testing.T) {
 		_, KMax := dfr.SolutionElement.Np, dfr.K
 		for NP := 1; NP < 5; NP++ {
 			pm := utils.NewPartitionMap(NP, KMax)
-			sd := NewScalarDissipation(0, dfr, pm)
+			sd := NewScalarDissipation(0, C0, dfr, pm)
 			/*
 				assert.InDeltaSlicef(t, []float64{0.666666, 0.166666, 0.166666, 0.166666, 0.666666, 0.166666, 0.166666, 0.166666,
 					0.666666, 0.666666, 0.166666, 0.166666, 0.166666, 0.666666, 0.166666, 0.166666, 0.166666, 0.666666, 0.827326,
@@ -534,7 +534,7 @@ func TestDissipation2(t *testing.T) {
 		NP := 1
 		_, KMax := dfr.SolutionElement.Np, dfr.K
 		pm := utils.NewPartitionMap(NP, KMax)
-		sd := NewScalarDissipation(0, dfr, pm)
+		sd := NewScalarDissipation(0, C0, dfr, pm)
 		for np := 0; np < NP; np++ {
 			KMax = sd.PMap.GetBucketDimension(np)
 			for k := 0; k < KMax; k++ {

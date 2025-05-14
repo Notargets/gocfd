@@ -88,6 +88,7 @@ func (ve VertexToElement) Shard(pm *utils.PartitionMap) (veSharded []VertexToEle
 }
 
 type ScalarDissipation struct {
+	Continuity                 ContinuityLevel
 	VtoE                       []VertexToElement   // Sharded vertex to element map, [2] is [vertID, ElementID_Sharded]
 	EtoV                       []utils.Matrix      // Sharded Element to Vertex map, Kx3
 	EpsilonScalar              []utils.Vector      // Sharded scalar value of dissipation, one per element
@@ -107,7 +108,8 @@ type ScalarDissipation struct {
 	VertexScratchSpace         []utils.Matrix
 }
 
-func NewScalarDissipation(kappa float64, dfr *DG2D.DFR2D, pm *utils.PartitionMap) (sd *ScalarDissipation) {
+func NewScalarDissipation(kappa float64, cont ContinuityLevel, dfr *DG2D.DFR2D,
+	pm *utils.PartitionMap) (sd *ScalarDissipation) {
 	var (
 		NPar   = pm.ParallelDegree
 		el     = dfr.SolutionElement
@@ -118,6 +120,7 @@ func NewScalarDissipation(kappa float64, dfr *DG2D.DFR2D, pm *utils.PartitionMap
 	)
 	_ = order
 	sd = &ScalarDissipation{
+		Continuity:         cont,
 		EpsilonScalar:      make([]utils.Vector, NPar), // Viscosity, const over the element
 		EpsVertex:          make([]float64, NVerts),    // Vertex values of epsilon
 		Epsilon:            make([]utils.Matrix, NPar), // Epsilon field, expressed over solution points
@@ -245,7 +248,7 @@ func (sd *ScalarDissipation) InterpolateEpsilonSigma(myThread int) {
 	return
 }
 
-func (sd *ScalarDissipation) CalculateEpsilonGradient(c *Euler, cont ContinuityLevel, myThread int, Q [4]utils.Matrix) {
+func (sd *ScalarDissipation) CalculateEpsilonGradient(c *Euler, myThread int, Q [4]utils.Matrix) {
 	var (
 		dfr    = sd.dfr
 		Kmax   = sd.PMap.GetBucketDimension(myThread)
@@ -258,7 +261,7 @@ func (sd *ScalarDissipation) CalculateEpsilonGradient(c *Euler, cont ContinuityL
 	)
 	for n := 0; n < 4; n++ {
 		c.GetSolutionGradientUsingRTElement(myThread, n, Q, DissX[n], DissY[n], DOF, DOF2)
-		switch cont {
+		switch sd.Continuity {
 		case No:
 			for k := 0; k < Kmax; k++ {
 				for i := 0; i < NpFlux; i++ {

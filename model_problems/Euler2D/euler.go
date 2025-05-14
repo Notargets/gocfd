@@ -107,7 +107,7 @@ func NewEuler(ip *InputParameters.InputParameters2D, meshFile string, ProcLimit 
 	lt := NewLimiterType(ip.Limiter)
 	// Initiate Artificial Dissipation
 	if lt == PerssonC0T && c.DFR.N != 0 {
-		c.Dissipation = NewScalarDissipation(c.Kappa, c.DFR, c.Partitions)
+		c.Dissipation = NewScalarDissipation(c.Kappa, C0, c.DFR, c.Partitions)
 	}
 
 	// Save graph mesh
@@ -457,8 +457,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 		}
 		if rkStep == 4 {
 			c.UpdateElementMean(QQQ, rk.QMean[np])
-			LimitSolution(QQQ, rk.QMean[np], c.Dissipation.SigmaScalar[np],
-				rk.ShockSensor[np])
+			LimitSolution(np, QQQ, rk.QMean[np], c.Dissipation)
 		}
 		c.InterpolateSolutionToEdges(QQQ, rk.Q_Face[np], rk.Q_Face_P0[np])
 	})
@@ -471,7 +470,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 	})
 	doParallel(func(np int) {
 		if c.Dissipation != nil {
-			c.Dissipation.CalculateEpsilonGradient(c, C0, np, QQQAll[np])
+			c.Dissipation.CalculateEpsilonGradient(c, np, QQQAll[np])
 		}
 	})
 	// doSerial(func(np int) {
