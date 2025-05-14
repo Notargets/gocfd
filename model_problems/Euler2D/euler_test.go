@@ -209,7 +209,6 @@ func TestEuler(t *testing.T) {
 				EdgeQ2 := make([][4]float64, Nedge)
 				c.CalculateEdgeEulerFlux(0,
 					[][4]utils.Matrix{Q_Face},
-					[][4]utils.Vector{QMean},
 					[][2][4]utils.Matrix{Flux_Face},
 					EdgeQ1, EdgeQ2, c.SortedEdgeKeys[0])
 				c.SetRTFluxOnEdges(0, Kmax, F_RT_DOF)
@@ -300,7 +299,6 @@ func TestEuler(t *testing.T) {
 				EdgeQ1 := make([][4]float64, Nedge)
 				EdgeQ2 := make([][4]float64, Nedge)
 				c.CalculateEdgeEulerFlux(0, [][4]utils.Matrix{Q_Face},
-					[][4]utils.Vector{QMean},
 					[][2][4]utils.Matrix{Flux_Face},
 					EdgeQ1, EdgeQ2, c.SortedEdgeKeys[0])
 				c.SetRTFluxOnEdges(0, Kmax, F_RT_DOF)
@@ -743,7 +741,7 @@ func TestEuler_GetSolutionGradientUsingRTElement(t *testing.T) {
 				DX, DY     = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
 				DOFX, DOFY = utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
 			)
-			c.CalculateEdgeEulerFlux(rk.Time, rk.Q_Face, rk.QMean,
+			c.CalculateEdgeEulerFlux(rk.Time, rk.Q_Face,
 				rk.Flux_Face,
 				EdgeQ1, EdgeQ2, SortedEdgeKeys) // Global
 			for n := 0; n < 4; n++ {
@@ -964,7 +962,6 @@ func CheckFlux0(c *Euler, t *testing.T) {
 	c.UpdateElementMean(Q, QMean)
 	// No need to interpolate to the edges, they are left at initialized state in Q_Face
 	c.CalculateEdgeEulerFlux(0, [][4]utils.Matrix{Q_Face},
-		[][4]utils.Vector{QMean},
 		[][2][4]utils.Matrix{Flux_Face}, EdgeQ1, EdgeQ2, c.SortedEdgeKeys[0])
 	c.SetRTFluxOnEdges(0, Kmax, F_RT_DOF)
 

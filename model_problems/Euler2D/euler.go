@@ -428,29 +428,34 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 	if initDT && !c.LocalTimeStepping {
 		rk.calculateGlobalDT(c) // Compute the global DT for nonlocal timestepping - must be done serially
 	}
-	if rkStep == 0 {
-		// doSerial(func(np int) {
-		doParallel(func(np int) {
-			if c.LocalTimeStepping {
-				// Initialize local time stepping
-				for k := 0; k < rk.Kmax[np]; k++ {
-					rk.DT[np].DataP[k] = -100 // Global
-				}
-			}
-		})
-	}
 	// doSerial(func(np int) {
 	doParallel(func(np int) {
 		var (
 			QQQ = QQQAll[np]
 		)
-		c.UpdateElementMean(QQQ, rk.QMean[np])
+		if rkStep == 0 && c.LocalTimeStepping {
+			// Initialize local time stepping
+			for k := 0; k < rk.Kmax[np]; k++ {
+				rk.DT[np].DataP[k] = -100 // Global
+			}
+		}
 		if c.Dissipation != nil {
 			rk.ShockSensor[np].UpdateSeMoment(QQQ[0], rk.LScratch[np], rk.Se[np])
 			c.Dissipation.UpdateShockFinderSigma(rk.Sigma[np], rk.Se[np])
-			if rkStep == 4 {
-				LimitSolution(QQQ, rk.QMean[np], rk.Sigma[np], rk.ShockSensor[np])
-			}
+			c.Dissipation.CalculateElementViscosity(np, rk.Sigma[np])
+		}
+	})
+	// doSerial(func(np int) {
+	doParallel(func(np int) {
+		var (
+			QQQ = QQQAll[np]
+		)
+		if c.Dissipation != nil {
+			c.Dissipation.propagateEpsilonMaxToVertices(np)
+		}
+		c.UpdateElementMean(QQQ, rk.QMean[np])
+		if rkStep == 4 {
+			LimitSolution(QQQ, rk.QMean[np], rk.Sigma[np], rk.ShockSensor[np])
 		}
 		c.InterpolateSolutionToEdges(QQQ, rk.Q_Face[np], rk.Q_Face_P0[np])
 	})
@@ -458,19 +463,9 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 	doParallel(func(np int) {
 		// CalculateEdgeEulerFlux is where the Riemann problem is solved at the
 		// neighbor faces, and the edge boundary conditions are applied.
-		c.CalculateEdgeEulerFlux(rk.Time, rk.Q_Face, rk.QMean, rk.Flux_Face,
+		c.CalculateEdgeEulerFlux(rk.Time, rk.Q_Face, rk.Flux_Face,
 			rk.EdgeQ1[np], rk.EdgeQ2[np], c.SortedEdgeKeys[np]) // Global
-		if c.Dissipation != nil {
-			c.Dissipation.CalculateElementViscosity(np, rk.Sigma[np])
-		}
 	})
-	// doSerial(func(np int) {
-	doParallel(func(np int) {
-		if c.Dissipation != nil {
-			c.Dissipation.propagateEpsilonMaxToVertices(np)
-		}
-	})
-	// doSerial(func(np int) {
 	doParallel(func(np int) {
 		if c.Dissipation != nil {
 			c.Dissipation.CalculateEpsilonGradient(c, C0, np, QQQAll[np])

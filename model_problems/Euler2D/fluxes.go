@@ -283,7 +283,6 @@ func minModLimiter(QL, QR, QML, QMR [4]float64) (QLeft, QRight [4]float64) {
 
 func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 	Q_FaceL, Q_FaceR [4]utils.Matrix,
-	QMeanL, QMeanR [4]utils.Vector,
 	normal [2]float64, normalFlux [][4]float64) {
 	// fmt.Printf("here 1\n")
 	var (
@@ -308,14 +307,7 @@ func (c *Euler) RoeFlux(kL, kR, KmaxL, KmaxR, shiftL, shiftR int,
 				Q_FaceL[2].DataP[indL], Q_FaceL[3].DataP[indL]}
 			QR = [4]float64{Q_FaceR[0].DataP[indR], Q_FaceR[1].DataP[indR],
 				Q_FaceR[2].DataP[indR], Q_FaceR[3].DataP[indR]}
-			// QML = [4]float64{QMeanL[0].DataP[kL], QMeanL[1].DataP[kL],
-			// 	QMeanL[2].DataP[kL], QMeanL[3].DataP[kL]}
-			// QMR = [4]float64{QMeanR[0].DataP[kR], QMeanR[1].DataP[kR],
-			// 	QMeanR[2].DataP[kR], QMeanR[3].DataP[kR]}
 		)
-		// QL, QR = minModLimiter(QL, QR, QML, QMR)
-		// fmt.Printf("QL = %v, QR = %v\n", QL, QR)
-
 		// Rotate the momentum into face normal coordinates before calculating fluxes
 		/*
 			rhoULr, rhoVLr := Q_FaceL[1].DataP[indL]*normal[0]+Q_FaceL[2].DataP[indL]*normal[1],
