@@ -202,7 +202,6 @@ type RungeKutta4SSP struct {
 	Q1, Q2, Q3, Q4        [][4]utils.Matrix    // Intermediate solution state
 	Residual              [][4]utils.Matrix    // Used for reporting, aliased to Q1
 	QMean                 [][4]utils.Vector    // Element mean
-	Sigma                 []utils.Vector       // Shock Finder Result
 	Se                    []utils.Vector       // Element moment - troubled element indicator
 	LScratch              [][3]utils.Matrix    // Scratch space for limiter
 	F_RT_DOF              [][4]utils.Matrix    // Normal flux used for divergence
@@ -236,7 +235,6 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		Q4:                 make([][4]utils.Matrix, NPar),
 		Residual:           make([][4]utils.Matrix, NPar),
 		QMean:              make([][4]utils.Vector, NPar),
-		Sigma:              make([]utils.Vector, NPar),
 		Se:                 make([]utils.Vector, NPar),
 		LScratch:           make([][3]utils.Matrix, NPar),
 		F_RT_DOF:           make([][4]utils.Matrix, NPar),
@@ -272,7 +270,6 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 			rk.Q_Face_P0[np][n] = utils.NewMatrix(rk.NpEdge*3, rk.Kmax[np])
 			rk.QMean[np][n] = utils.NewVector(rk.Kmax[np])
 		}
-		rk.Sigma[np] = utils.NewVector(rk.Kmax[np])
 		rk.Se[np] = utils.NewVector(rk.Kmax[np])
 		rk.DT[np] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
 		rk.DTVisc[np] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
@@ -441,8 +438,8 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 		}
 		if c.Dissipation != nil {
 			rk.ShockSensor[np].UpdateSeMoment(QQQ[0], rk.LScratch[np], rk.Se[np])
-			c.Dissipation.UpdateShockFinderSigma(rk.Sigma[np], rk.Se[np])
-			c.Dissipation.CalculateElementViscosity(np, rk.Sigma[np])
+			c.Dissipation.UpdateShockFinderSigma(np, rk.Se[np])
+			c.Dissipation.CalculateElementViscosity(np)
 		}
 	})
 	// doSerial(func(np int) {
@@ -451,11 +448,12 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 			QQQ = QQQAll[np]
 		)
 		if c.Dissipation != nil {
-			c.Dissipation.propagateEpsilonMaxToVertices(np)
+			c.Dissipation.EpsilonSigmaMaxToVertices(np)
 		}
 		if rkStep == 4 {
 			c.UpdateElementMean(QQQ, rk.QMean[np])
-			LimitSolution(QQQ, rk.QMean[np], rk.Sigma[np], rk.ShockSensor[np])
+			LimitSolution(QQQ, rk.QMean[np], c.Dissipation.SigmaScalar[np],
+				rk.ShockSensor[np])
 		}
 		c.InterpolateSolutionToEdges(QQQ, rk.Q_Face[np], rk.Q_Face_P0[np])
 	})

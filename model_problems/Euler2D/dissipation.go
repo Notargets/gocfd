@@ -90,18 +90,21 @@ func (ve VertexToElement) Shard(pm *utils.PartitionMap) (veSharded []VertexToEle
 type ScalarDissipation struct {
 	VtoE                       []VertexToElement   // Sharded vertex to element map, [2] is [vertID, ElementID_Sharded]
 	EtoV                       []utils.Matrix      // Sharded Element to Vertex map, Kx3
+	EpsilonScalar              []utils.Vector      // Sharded scalar value of dissipation, one per element
+	EpsVertex                  []float64           // NVerts x 1, Aggregated (Max) of epsilon surrounding each vertex, Not sharded
 	Epsilon                    []utils.Matrix      // Sharded Np x Kmax, Interpolated from element vertices
-	EpsilonScalar              [][]float64         // Sharded scalar value of dissipation, one per element
+	SigmaScalar                []utils.Vector      // Sharded scalar value of Shock Sensor, one per element
+	SigmaVertex                []float64           // NVerts x 1, // Aggregated (Max) of Sigma surrounding each vertex, Not sharded
+	Sigma                      []utils.Matrix      // Sharded Np x Kmax, Interpolated from element vertices
 	DissDOF, DissDOF2, DissDiv []utils.Matrix      // Sharded NpFlux x Kmax, DOF for Gradient calculation using RT
 	DissX, DissY               [][4]utils.Matrix   // Sharded NpFlux x Kmax, R and S derivative of dissipation field
-	EpsVertex                  []float64           // NVerts x 1, Aggregated (Max) of epsilon surrounding each vertex, Not sharded
 	PMap                       *utils.PartitionMap // Partition map for the solution shards in K
 	Clipper                    utils.Matrix        // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder
 	dfr                        *DG2D.DFR2D
 	ShockFinder                []*DG2D.ModeAliasShockFinder
 	Kappa                      float64
 	BaryCentricCoords          utils.Matrix // A thruple(lam0,lam1,lam2) for interpolation for each interior point, Npx3
-	VertexEpsilonValues        []utils.Matrix
+	VertexScratchSpace         []utils.Matrix
 }
 
 func NewScalarDissipation(kappa float64, dfr *DG2D.DFR2D, pm *utils.PartitionMap) (sd *ScalarDissipation) {
@@ -115,20 +118,23 @@ func NewScalarDissipation(kappa float64, dfr *DG2D.DFR2D, pm *utils.PartitionMap
 	)
 	_ = order
 	sd = &ScalarDissipation{
-		EpsVertex:           make([]float64, NVerts),
-		EpsilonScalar:       make([][]float64, NPar),    // Viscosity, constant over the element
-		Epsilon:             make([]utils.Matrix, NPar), // Epsilon field, expressed over solution points
-		VertexEpsilonValues: make([]utils.Matrix, NPar), // Epsilon field, expressed over solution points
-		DissDOF:             make([]utils.Matrix, NPar),
-		DissDOF2:            make([]utils.Matrix, NPar),
-		DissDiv:             make([]utils.Matrix, NPar),
-		DissX:               make([][4]utils.Matrix, NPar),
-		DissY:               make([][4]utils.Matrix, NPar),
-		VtoE:                NewVertexToElement(dfr.Tris.EToV).Shard(pm),
-		PMap:                pm,
-		dfr:                 dfr,
-		ShockFinder:         make([]*DG2D.ModeAliasShockFinder, NPar),
-		Kappa:               5.,
+		EpsilonScalar:      make([]utils.Vector, NPar), // Viscosity, const over the element
+		EpsVertex:          make([]float64, NVerts),    // Vertex values of epsilon
+		Epsilon:            make([]utils.Matrix, NPar), // Epsilon field, expressed over solution points
+		SigmaScalar:        make([]utils.Vector, NPar), // Shock Finder Result, const over element
+		SigmaVertex:        make([]float64, NVerts),    // Vertex values of sigma
+		Sigma:              make([]utils.Matrix, NPar), // Sigma field, expressed over solution points
+		VertexScratchSpace: make([]utils.Matrix, NPar), // Used to interpolate Vertex values to interior
+		DissDOF:            make([]utils.Matrix, NPar),
+		DissDOF2:           make([]utils.Matrix, NPar),
+		DissDiv:            make([]utils.Matrix, NPar),
+		DissX:              make([][4]utils.Matrix, NPar),
+		DissY:              make([][4]utils.Matrix, NPar),
+		VtoE:               NewVertexToElement(dfr.Tris.EToV).Shard(pm),
+		PMap:               pm,
+		dfr:                dfr,
+		ShockFinder:        make([]*DG2D.ModeAliasShockFinder, NPar),
+		Kappa:              5.,
 	}
 	sd.EtoV = sd.shardEtoV(dfr.Tris.EToV)
 	sd.createInterpolationStencil()
@@ -136,16 +142,18 @@ func NewScalarDissipation(kappa float64, dfr *DG2D.DFR2D, pm *utils.PartitionMap
 		sd.Kappa = kappa
 	}
 	for np := 0; np < NPar; np++ {
-		Kmax := pm.GetBucketDimension(np)
-		sd.Epsilon[np] = utils.NewMatrix(NpFlux, Kmax)
-		sd.VertexEpsilonValues[np] = utils.NewMatrix(3, Kmax)
-		sd.EpsilonScalar[np] = make([]float64, Kmax)
-		sd.DissDOF[np] = utils.NewMatrix(NpFlux, Kmax)
-		sd.DissDOF2[np] = utils.NewMatrix(NpFlux, Kmax)
-		sd.DissDiv[np] = utils.NewMatrix(Np, Kmax)
+		KMax := pm.GetBucketDimension(np)
+		sd.EpsilonScalar[np] = utils.NewVector(KMax)
+		sd.Epsilon[np] = utils.NewMatrix(NpFlux, KMax)
+		sd.SigmaScalar[np] = utils.NewVector(KMax)
+		sd.Sigma[np] = utils.NewMatrix(NpFlux, KMax)
+		sd.VertexScratchSpace[np] = utils.NewMatrix(3, KMax)
+		sd.DissDOF[np] = utils.NewMatrix(NpFlux, KMax)
+		sd.DissDOF2[np] = utils.NewMatrix(NpFlux, KMax)
+		sd.DissDiv[np] = utils.NewMatrix(Np, KMax)
 		for n := 0; n < 4; n++ {
-			sd.DissX[np][n] = utils.NewMatrix(NpFlux, Kmax)
-			sd.DissY[np][n] = utils.NewMatrix(NpFlux, Kmax)
+			sd.DissX[np][n] = utils.NewMatrix(NpFlux, KMax)
+			sd.DissY[np][n] = utils.NewMatrix(NpFlux, KMax)
 		}
 		sd.ShockFinder[np] = dfr.NewAliasShockFinder(sd.Kappa)
 	}
@@ -186,7 +194,7 @@ func (sd *ScalarDissipation) shardEtoV(EtoV utils.Matrix) (ev []utils.Matrix) {
 	return
 }
 
-func (sd *ScalarDissipation) propagateEpsilonMaxToVertices(myThread int) {
+func (sd *ScalarDissipation) EpsilonSigmaMaxToVertices(myThread int) {
 	var (
 		VtoE = sd.VtoE[myThread]
 	)
@@ -194,9 +202,11 @@ func (sd *ScalarDissipation) propagateEpsilonMaxToVertices(myThread int) {
 	for _, val := range VtoE {
 		vert, k, threadID := int(val[0]), int(val[1]), int(val[2])
 		if oldVert == vert { // we're in the middle of processing this vert, update normally
-			sd.EpsVertex[vert] = max(sd.EpsVertex[vert], sd.EpsilonScalar[threadID][k])
+			sd.EpsVertex[vert] = max(sd.EpsVertex[vert], sd.EpsilonScalar[threadID].AtVec(k))
+			sd.SigmaVertex[vert] = max(sd.SigmaVertex[vert], sd.SigmaScalar[threadID].AtVec(k))
 		} else { // we're on a new vertex, reset the vertex value
-			sd.EpsVertex[vert] = sd.EpsilonScalar[threadID][k]
+			sd.EpsVertex[vert] = sd.EpsilonScalar[threadID].AtVec(k)
+			sd.SigmaVertex[vert] = sd.SigmaScalar[threadID].AtVec(k)
 			oldVert = vert
 		}
 	}
@@ -221,7 +231,7 @@ func (sd *ScalarDissipation) CalculateEpsilonGradient(c *Euler, cont ContinuityL
 		DOF, DOF2           = sd.DissDOF[myThread], sd.DissDOF2[myThread]
 		DissX, DissY        = sd.DissX[myThread], sd.DissY[myThread]
 		EtoV                = sd.EtoV[myThread]
-		VertexEpsilonValues = sd.VertexEpsilonValues[myThread]
+		VertexEpsilonValues = sd.VertexScratchSpace[myThread]
 	)
 	if cont == C0 {
 		// Interpolate epsilon within each element
@@ -242,8 +252,8 @@ func (sd *ScalarDissipation) CalculateEpsilonGradient(c *Euler, cont ContinuityL
 			for k := 0; k < Kmax; k++ {
 				for i := 0; i < NpFlux; i++ {
 					ind := k + Kmax*i
-					DissX[n].DataP[ind] *= EpsilonScalar[k] // Scalar viscosity, constant within each k'th element
-					DissY[n].DataP[ind] *= EpsilonScalar[k]
+					DissX[n].DataP[ind] *= EpsilonScalar.AtVec(k)
+					DissY[n].DataP[ind] *= EpsilonScalar.AtVec(k)
 				}
 			}
 		case C0:
@@ -380,7 +390,7 @@ func (sd *ScalarDissipation) GetScalarEpsilonPlotField(c *Euler) (fld utils.Matr
 	for np := 0; np < sd.PMap.ParallelDegree; np++ {
 		Np, KMax := sd.Epsilon[np].Dims()
 		for k := 0; k < KMax; k++ {
-			epsK := sd.EpsilonScalar[np][k]
+			epsK := sd.EpsilonScalar[np].AtVec(k)
 			for i := 0; i < Np; i++ {
 				ind := k + KMax*i
 				sd.Epsilon[np].DataP[ind] = epsK
@@ -396,13 +406,13 @@ func (sd *ScalarDissipation) GetC0EpsilonPlotField(c *Euler) (fld utils.Matrix) 
 	return
 }
 
-func (sd *ScalarDissipation) CalculateElementViscosity(myThread int,
-	Sigma utils.Vector) {
+func (sd *ScalarDissipation) CalculateElementViscosity(myThread int) {
 	var (
-		dfr   = sd.dfr
-		Kmax  = sd.PMap.GetBucketDimension(myThread)
-		Eps   = sd.EpsilonScalar[myThread]
-		Order = float64(sd.dfr.N)
+		dfr         = sd.dfr
+		Kmax        = sd.PMap.GetBucketDimension(myThread)
+		Eps         = sd.EpsilonScalar[myThread]
+		Order       = float64(sd.dfr.N)
+		SigmaScalar = sd.SigmaScalar[myThread]
 	)
 	/*
 		Eps0 wants to be (h/p) and is supposed to be proportional to cell width
@@ -416,7 +426,7 @@ func (sd *ScalarDissipation) CalculateElementViscosity(myThread int,
 		kGlobal := sd.PMap.GetGlobalK(k, myThread)
 		eps0 := 0.75 * dfr.EdgeLenMax.AtVec(kGlobal) / Order
 		//	Eps[k] = eps0 * Sigma.AtVec(k)
-		Eps[k] = eps0 * 0.5 * math.Pow(Sigma.AtVec(k), 1./2.)
+		Eps.Set(k, eps0*0.5*math.Pow(SigmaScalar.AtVec(k), 1./2.))
 	}
 }
 
@@ -495,11 +505,12 @@ func (c *Euler) getElementMean(Q [4]utils.Matrix, k int) (Umean [4]float64) {
 	return
 }
 
-func (sd *ScalarDissipation) UpdateShockFinderSigma(Sigma, Se utils.Vector) {
+func (sd *ScalarDissipation) UpdateShockFinderSigma(myThread int, Se utils.Vector) {
 	/*
 		Original method by Persson, constants chosen to match Zhiqiang, et. al.
 	*/
 	var (
+		SigmaScalar = sd.SigmaScalar[myThread]
 		kappa       = sd.Kappa
 		N           = sd.dfr.SolutionElement.N
 		KMax, _     = Se.Dims()
@@ -518,37 +529,7 @@ func (sd *ScalarDissipation) UpdateShockFinderSigma(Sigma, Se utils.Vector) {
 		case se > right:
 			sigma = 1.
 		}
-		Sigma.Set(k, sigma)
-	}
-	return
-}
-
-func (sd *ScalarDissipation) UpdateShockFinderSigma2(Sigma, Se utils.Vector) {
-	// p = polynomial degree
-	var (
-		p     = sd.dfr.SolutionElement.N
-		kappa = sd.Kappa
-	)
-
-	// Persson threshold S0 = 4/(p+1)^4
-	S0 := 4.0 / math.Pow(float64(p+1), 4.0)
-	oneMinus := 1.0 - S0
-
-	KMax, _ := Se.Dims()
-	for k := 0; k < KMax; k++ {
-		se := Se.AtVec(k) // raw ratio in [0,1]
-
-		var sigma float64
-		switch {
-		case se <= S0:
-			sigma = 0.0
-		case se >= 1.0:
-			sigma = 1.0
-		default:
-			// original Persson ramp: ((se-S0)/(1-S0))^kappa
-			sigma = math.Pow((se-S0)/oneMinus, kappa)
-		}
-		Sigma.Set(k, sigma)
+		SigmaScalar.Set(k, sigma)
 	}
 	return
 }
