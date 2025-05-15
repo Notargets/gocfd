@@ -455,9 +455,9 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 		if c.Dissipation != nil {
 			c.Dissipation.InterpolateEpsilonSigma(np)
 		}
-		if rkStep == 4 {
+		if rkStep == 4 && c.Dissipation != nil {
 			c.UpdateElementMean(QQQ, rk.QMean[np])
-			LimitSolution(np, QQQ, rk.QMean[np], c.Dissipation)
+			c.Dissipation.LimitSolution(np, QQQ, rk.QMean[np])
 		}
 		c.InterpolateSolutionToEdges(QQQ, rk.Q_Face[np], rk.Q_Face_P0[np])
 	})
@@ -800,7 +800,7 @@ func (c *Euler) CalculateLocalDT(DT, DTVisc utils.Matrix) {
 	if c.Dissipation != nil {
 		// epsScalar := c.Dissipation.EpsilonScalar[myThread]
 		// C_diff≈0.1–0.25;
-		C_diff := 0.15
+		C_diff := 0.25
 		for k := 0; k < Kmax; k++ {
 			// DT.DataP[k] = c.CFL / ((1. + epsScalar[k]) * DT.DataP[k])
 			// SetScalar each element's DT to CFL*h/(max_wave_speed)

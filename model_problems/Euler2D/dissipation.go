@@ -423,25 +423,23 @@ func (sd *ScalarDissipation) GetC0EpsilonPlotField(c *Euler) (fld utils.Matrix) 
 func (sd *ScalarDissipation) CalculateElementViscosity(myThread int) {
 	var (
 		dfr         = sd.dfr
-		Kmax        = sd.PMap.GetBucketDimension(myThread)
+		KMax        = sd.PMap.GetBucketDimension(myThread)
 		Eps         = sd.EpsilonScalar[myThread]
-		Order       = float64(sd.dfr.N)
 		SigmaScalar = sd.SigmaScalar[myThread]
 	)
 	/*
 		Eps0 wants to be (h/p) and is supposed to be proportional to cell width
-		Something like this for the "h" quantity seems right
-			Np1  = c.DFR.N + 1
-			Np12 = float64(Np1 * Np1)
-			edgeLen     = e.GetEdgeLength()
-			fs := 0.5 * Np12 * edgeLen / Jdet[bn].DataP[k]
 	*/
-	for k := 0; k < Kmax; k++ {
+	for k := 0; k < KMax; k++ {
 		kGlobal := sd.PMap.GetGlobalK(k, myThread)
-		eps0 := 0.75 * dfr.EdgeLenMax.AtVec(kGlobal) / Order
-		//	Eps[k] = eps0 * Sigma.AtVec(k)
-		Eps.Set(k, eps0*0.5*math.Pow(SigmaScalar.AtVec(k), 1./2.))
+		// hK := GetHK(dfr.EdgeLenMinR.AtVec(kGlobal))
+		Eps.Set(k, sd.Eps0(dfr.GetHk(kGlobal))*SigmaScalar.AtVec(k))
 	}
+}
+
+func (sd *ScalarDissipation) Eps0(edgeLen float64) (eps0 float64) {
+	eps0 = edgeLen / float64(sd.dfr.N)
+	return
 }
 
 func (sd *ScalarDissipation) createInterpolationStencil() {
@@ -544,6 +542,41 @@ func (sd *ScalarDissipation) UpdateShockFinderSigma(myThread int, Se utils.Vecto
 			sigma = 1.
 		}
 		SigmaScalar.Set(k, sigma)
+	}
+	return
+}
+
+func (sd *ScalarDissipation) LimitSolution(myThread int, Q [4]utils.Matrix,
+	QMean [4]utils.Vector) {
+	var (
+		Np, Kmax    = Q[0].Dims()
+		SigmaScalar = sd.SigmaScalar[myThread]
+		Sigma       = sd.Sigma[myThread]
+		// fM          = sd.filterRamp()
+	)
+	switch sd.Continuity {
+	case No:
+		for k := 0; k < Kmax; k++ {
+			// Smooth ramp accelerator 0-1 for sigma
+			alpha := math.Sin(0.5 * math.Pi * SigmaScalar.AtVec(k))
+			for n := 0; n < 4; n++ {
+				for i := 0; i < Np; i++ {
+					Q[n].Set(i, k,
+						(1.-alpha)*Q[n].At(i, k)+alpha*QMean[n].AtVec(k))
+				}
+			}
+		}
+	case C0:
+		for n := 0; n < 4; n++ {
+			for k := 0; k < Kmax; k++ {
+				for i := 0; i < Np; i++ {
+					// Smooth ramp accelerator 0-1 for sigma
+					alpha := math.Sin(0.5 * math.Pi * Sigma.At(i, k))
+					Q[n].Set(i, k,
+						(1.-alpha)*Q[n].At(i, k)+alpha*QMean[n].AtVec(k))
+				}
+			}
+		}
 	}
 	return
 }

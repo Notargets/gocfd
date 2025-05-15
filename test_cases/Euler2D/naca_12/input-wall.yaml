@@ -13,7 +13,7 @@ FluxType: Roe
 InitType: Freestream # Can be "Freestream" or "IVortex"
 PolynomialOrder: 2
 FinalTime: 20
-#Minf: 2.0
+#Minf: 5.0
 #Minf: 2.0
 Minf: 0.8
 Gamma: 1.4
@@ -35,6 +35,7 @@ MaxIterations: 50000
 #Limiter: Barth Jesperson
 Limiter: PerssonC0
 #Limiter: ModeFilter
-Kappa: 4
-#Kappa: 5
+Kappa: 3.5
+#Kappa: 4.5
+#Kappa: 5.0
 PlotFields: ["mach"]

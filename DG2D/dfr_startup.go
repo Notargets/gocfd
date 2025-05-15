@@ -102,6 +102,16 @@ func NewDFR2D(N int, verbose bool, meshFileO ...string) (dfr *DFR2D) {
 	return
 }
 
+func (dfr *DFR2D) GetHk(kGlobal int) (hK float64) {
+	var (
+		Np1  = dfr.N + 1
+		Np12 = float64(Np1 * Np1)
+	)
+	// Element Characteristic Length calculation
+	hK = dfr.EdgeLenMax.AtVec(kGlobal) / Np12
+	return
+}
+
 func (dfr *DFR2D) GetEdgeLengths() {
 	var (
 		KMax = dfr.K
@@ -121,7 +131,7 @@ func (dfr *DFR2D) GetEdgeLengths() {
 				maxEdgeLen = edgeLen
 			}
 		}
-		dfr.EdgeLenMax.Set(k, maxEdgeLen)
+		dfr.EdgeLenMax.Set(k, dfr.Jdet.At(k, 0)/maxEdgeLen)
 		dfr.EdgeLenMinR.Set(k, 4*2*dfr.Jdet.At(k, 0)/perimeter)
 	}
 }
