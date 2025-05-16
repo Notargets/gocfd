@@ -188,13 +188,12 @@ func TestEuler(t *testing.T) {
 				Nedge := c.DFR.FluxElement.NpEdge
 				NpFlux := c.DFR.FluxElement.Np // Np = 2*NpInt+3*NpEdge
 				// Mark the initial state with the element number
-				var Q_Face, Q_Face_P0, F_RT_DOF [4]utils.Matrix
+				var Q_Face, F_RT_DOF [4]utils.Matrix
 				var QMean [4]utils.Vector
 				var Flux, Flux_Face [2][4]utils.Matrix
 				for n := 0; n < 4; n++ {
 					F_RT_DOF[n] = utils.NewMatrix(NpFlux, Kmax)
 					Q_Face[n] = utils.NewMatrix(3*Nedge, Kmax)
-					Q_Face_P0[n] = utils.NewMatrix(3*Nedge, Kmax)
 					Flux_Face[0][n] = utils.NewMatrix(3*Nedge, Kmax)
 					Flux_Face[1][n] = utils.NewMatrix(3*Nedge, Kmax)
 					Flux[0][n] = utils.NewMatrix(Nint, Kmax)
@@ -204,7 +203,7 @@ func TestEuler(t *testing.T) {
 				Q := c.Q[0]
 				c.SetRTFluxInternal(Kmax, c.DFR.Jdet, c.DFR.Jinv, F_RT_DOF, Q)
 				c.UpdateElementMean(Q, QMean)
-				c.InterpolateSolutionToEdges(Q, Q_Face, Q_Face_P0)
+				c.InterpolateSolutionToEdges(Q, Q_Face)
 				EdgeQ1 := make([][4]float64, Nedge)
 				EdgeQ2 := make([][4]float64, Nedge)
 				c.CalculateEdgeEulerFlux(0,
@@ -278,13 +277,12 @@ func TestEuler(t *testing.T) {
 				Nedge := c.DFR.FluxElement.NpEdge
 				NpFlux := c.DFR.FluxElement.Np // Np = 2*NpInt+3*NpEdge
 				// Mark the initial state with the element number
-				var Q_Face, Q_Face_P0, F_RT_DOF [4]utils.Matrix
+				var Q_Face, F_RT_DOF [4]utils.Matrix
 				var QMean [4]utils.Vector
 				var Flux, Flux_Face [2][4]utils.Matrix
 				for n := 0; n < 4; n++ {
 					F_RT_DOF[n] = utils.NewMatrix(NpFlux, Kmax)
 					Q_Face[n] = utils.NewMatrix(3*Nedge, Kmax)
-					Q_Face_P0[n] = utils.NewMatrix(3*Nedge, Kmax)
 					Flux_Face[0][n] = utils.NewMatrix(3*Nedge, Kmax)
 					Flux_Face[1][n] = utils.NewMatrix(3*Nedge, Kmax)
 					Flux[0][n] = utils.NewMatrix(Nint, Kmax)
@@ -294,7 +292,7 @@ func TestEuler(t *testing.T) {
 				Q := c.Q[0]
 				X, Y := c.DFR.FluxX, c.DFR.FluxY
 				c.SetRTFluxInternal(Kmax, c.DFR.Jdet, c.DFR.Jinv, F_RT_DOF, Q)
-				c.InterpolateSolutionToEdges(Q, Q_Face, Q_Face_P0)
+				c.InterpolateSolutionToEdges(Q, Q_Face)
 				c.UpdateElementMean(Q, QMean)
 				EdgeQ1 := make([][4]float64, Nedge)
 				EdgeQ2 := make([][4]float64, Nedge)
@@ -340,7 +338,7 @@ func TestFluxInterpolation(t *testing.T) {
 	ip.FluxType = "Roe"
 	c := NewEuler(&ip, "../../DG2D/test_data/test_tris_6.neu", 1, false, false)
 	rk := c.NewRungeKuttaSSP()
-	c.InterpolateSolutionToEdges(c.Q[0], rk.Q_Face[0], rk.Q_Face_P0[0])
+	c.InterpolateSolutionToEdges(c.Q[0], rk.Q_Face[0])
 	el := c.DFR.SolutionElement
 	/*
 		el.JB2D.V.String("V")

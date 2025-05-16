@@ -197,7 +197,6 @@ func (c *Euler) Solve() {
 type RungeKutta4SSP struct {
 	Jdet, Jinv                                 []utils.Matrix       // Sharded mesh Jacobian and inverse transform
 	RHSQ, Q_Face                               [][4]utils.Matrix    // State used for matrix multiplies within the time step algorithm
-	Q_Face_P0                                  [][4]utils.Matrix    // Projected edge values at P=0 for all elements
 	Flux_Face                                  [][2][4]utils.Matrix // Flux interpolated to edges from interior
 	Q1, Q2, Q3, Q4                             [][4]utils.Matrix    // Intermediate solution state
 	Residual                                   [][4]utils.Matrix    // Used for reporting, aliased to Q1
@@ -228,7 +227,6 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		RHSQ:                   make([][4]utils.Matrix, NPar),
 		Q_Face:                 make([][4]utils.Matrix, NPar),
 		Flux_Face:              make([][2][4]utils.Matrix, NPar),
-		Q_Face_P0:              make([][4]utils.Matrix, NPar),
 		Q1:                     make([][4]utils.Matrix, NPar),
 		Q2:                     make([][4]utils.Matrix, NPar),
 		Q3:                     make([][4]utils.Matrix, NPar),
@@ -268,7 +266,6 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 			rk.Q_Face[np][n] = utils.NewMatrix(rk.NpEdge*3, rk.Kmax[np])
 			rk.Flux_Face[np][0][n] = utils.NewMatrix(rk.NpEdge*3, rk.Kmax[np])
 			rk.Flux_Face[np][1][n] = utils.NewMatrix(rk.NpEdge*3, rk.Kmax[np])
-			rk.Q_Face_P0[np][n] = utils.NewMatrix(rk.NpEdge*3, rk.Kmax[np])
 			rk.QMean[np][n] = utils.NewVector(rk.Kmax[np])
 		}
 		rk.Se[np] = utils.NewVector(rk.Kmax[np])
@@ -456,7 +453,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int) {
 			c.UpdateElementMean(QQQ, rk.QMean[np])
 			c.Dissipation.LimitSolution(np, QQQ, rk.QMean[np])
 		}
-		c.InterpolateSolutionToEdges(QQQ, rk.Q_Face[np], rk.Q_Face_P0[np])
+		c.InterpolateSolutionToEdges(QQQ, rk.Q_Face[np])
 	})
 	// doSerial(func(np int) {
 	doParallel(func(np int) {

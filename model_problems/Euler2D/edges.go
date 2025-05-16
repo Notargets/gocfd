@@ -482,70 +482,10 @@ func (c *Euler) SetRTFluxOnEdges(myThread, Kmax int, F_RT_DOF [4]utils.Matrix) {
 	}
 }
 
-func (c *Euler) InterpolateSolutionToEdges(Q, Q_Face, Q_Face_P0 [4]utils.Matrix) {
-	// Interpolate from solution points to edges using precomputed interpolation matrix
-	for n := 0; n < 4; n++ {
-		c.DFR.FluxEdgeInterp.Mul(Q[n], Q_Face[n])
-		if c.DFR.N > 1 {
-			c.DFR.FluxEdgeProject0Interp.Mul(Q[n], Q_Face_P0[n])
-		}
-	}
-	return
-}
-
-func (c *Euler) InterpolateSolutionToShockedEdges(sf *DG2D.ModeAliasShockFinder,
-	Q_Face, Q_Face_P0 [4]utils.Matrix) {
-	var (
-		NpEdge      = c.DFR.FluxElement.NpEdge
-		NpEdgeTotal = 3 * NpEdge
-	)
-	for _, k := range sf.ShockCells.Cells() {
-		for n := 0; n < 4; n++ {
-			for i := 0; i < NpEdgeTotal; i++ {
-				Q_Face[n].Set(i, k, Q_Face_P0[n].At(i, k))
-			}
-		}
-	}
-	return
-}
-
-func (c *Euler) InterpolateSolutionToTargetK(k int,
-	Q_Face, Q_Face_P0 [4]utils.Matrix) {
-	var (
-		NpEdge      = c.DFR.FluxElement.NpEdge
-		NpEdgeTotal = 3 * NpEdge
-	)
-	for n := 0; n < 4; n++ {
-		for i := 0; i < NpEdgeTotal; i++ {
-			Q_Face[n].Set(i, k, Q_Face_P0[n].At(i, k))
-		}
-	}
-	return
-}
-
-func (c *Euler) InterpolateSolutionToTargetEdgeAndK(edge, k int,
-	Q_Face, Q_Face_P0 [4]utils.Matrix) {
-	var (
-		NpEdge = c.DFR.FluxElement.NpEdge
-	)
-	offset := edge * NpEdge
-	for n := 0; n < 4; n++ {
-		for i := 0; i < NpEdge; i++ {
-			Q_Face[n].Set(i+offset, k, Q_Face_P0[n].At(i+offset, k))
-		}
-	}
-	return
-}
-
-func (c *Euler) InterpolateSolutionToEdgesWithEntropyVariables(Q,
-	Q_Face [4]utils.Matrix) {
-	// Switch to Entropy variables
-	SwitchToEntropyVariables(Q, c.FSFar.Gamma)
+func (c *Euler) InterpolateSolutionToEdges(Q, Q_Face [4]utils.Matrix) {
 	// Interpolate from solution points to edges using precomputed interpolation matrix
 	for n := 0; n < 4; n++ {
 		c.DFR.FluxEdgeInterp.Mul(Q[n], Q_Face[n])
 	}
-	SwitchToConservedVariables(Q, c.FSFar.Gamma)
-	SwitchToConservedVariables(Q_Face, c.FSFar.Gamma)
 	return
 }
