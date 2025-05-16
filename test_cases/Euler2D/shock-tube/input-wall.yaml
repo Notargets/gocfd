@@ -6,7 +6,7 @@ FluxType: Roe
 #FluxType: Lax
 InitType: shocktube # Can be "Freestream" or "IVortex"
 PolynomialOrder: 2
-FinalTime: 2.0
+FinalTime: 0.5
 LocalTimeStepping: false
 MaxIterations: 80000
 #Limiter: Barth Jesperson
@@ -16,4 +16,4 @@ Kappa: 4
 #Kappa: 0
 #Kappa: 5
 #Kappa: 10
-#PlotFields: [ "mach" ]
+PlotFields: [ "mach" ]
