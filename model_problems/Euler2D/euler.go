@@ -195,26 +195,26 @@ func (c *Euler) Solve() {
 }
 
 type RungeKutta4SSP struct {
-	Jdet, Jinv            []utils.Matrix       // Sharded mesh Jacobian and inverse transform
-	RHSQ, Q_Face          [][4]utils.Matrix    // State used for matrix multiplies within the time step algorithm
-	Q_Face_P0             [][4]utils.Matrix    // Projected edge values at P=0 for all elements
-	Flux_Face             [][2][4]utils.Matrix // Flux interpolated to edges from interior
-	Q1, Q2, Q3, Q4        [][4]utils.Matrix    // Intermediate solution state
-	Residual              [][4]utils.Matrix    // Used for reporting, aliased to Q1
-	QMean                 [][4]utils.Vector    // Element mean
-	Se                    []utils.Vector       // Element moment - troubled element indicator
-	LScratch              [][3]utils.Matrix    // Scratch space for limiter
-	F_RT_DOF              [][4]utils.Matrix    // Normal flux used for divergence
-	DT, DTVisc            []utils.Matrix       // Local time step storage
-	Epsilon               []utils.Matrix
-	GlobalMaxWaveSpeed    []float64 // Shard max wavespeed
-	GlobalDT, Time        float64
-	StepCount             int
-	Kmax                  []int          // Local element count (dimension: Kmax[ParallelDegree])
-	NpInt, NpEdge, NpFlux int            // Number of points in solution, edge and flux total
-	EdgeQ1, EdgeQ2        [][][4]float64 // Sharded local working memory, dimensions NpEdge
-	LimitedPoints         []int          // Sharded number of limited points
-	ShockSensor           []*DG2D.ModeAliasShockFinder
+	Jdet, Jinv                                 []utils.Matrix       // Sharded mesh Jacobian and inverse transform
+	RHSQ, Q_Face                               [][4]utils.Matrix    // State used for matrix multiplies within the time step algorithm
+	Q_Face_P0                                  [][4]utils.Matrix    // Projected edge values at P=0 for all elements
+	Flux_Face                                  [][2][4]utils.Matrix // Flux interpolated to edges from interior
+	Q1, Q2, Q3, Q4                             [][4]utils.Matrix    // Intermediate solution state
+	Residual                                   [][4]utils.Matrix    // Used for reporting, aliased to Q1
+	QMean                                      [][4]utils.Vector    // Element mean
+	Se                                         []utils.Vector       // Element moment - troubled element indicator
+	LScratch                                   [][3]utils.Matrix    // Scratch space for limiter
+	F_RT_DOF                                   [][4]utils.Matrix    // Normal flux used for divergence
+	DT, DTVisc                                 []utils.Matrix       // Local time step storage
+	Epsilon                                    []utils.Matrix
+	GlobalMaxWaveSpeed, GlobalMaxViscWaveSpeed []float64 // Shard max wavespeed
+	GlobalDT, Time                             float64
+	StepCount                                  int
+	Kmax                                       []int          // Local element count (dimension: Kmax[ParallelDegree])
+	NpInt, NpEdge, NpFlux                      int            // Number of points in solution, edge and flux total
+	EdgeQ1, EdgeQ2                             [][][4]float64 // Sharded local working memory, dimensions NpEdge
+	LimitedPoints                              []int          // Sharded number of limited points
+	ShockSensor                                []*DG2D.ModeAliasShockFinder
 }
 
 func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
@@ -223,32 +223,33 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		NPar = pm.ParallelDegree
 	)
 	rk = &RungeKutta4SSP{
-		Jdet:               c.ShardByKTranspose(c.DFR.Jdet),
-		Jinv:               c.ShardByKTranspose(c.DFR.Jinv),
-		RHSQ:               make([][4]utils.Matrix, NPar),
-		Q_Face:             make([][4]utils.Matrix, NPar),
-		Flux_Face:          make([][2][4]utils.Matrix, NPar),
-		Q_Face_P0:          make([][4]utils.Matrix, NPar),
-		Q1:                 make([][4]utils.Matrix, NPar),
-		Q2:                 make([][4]utils.Matrix, NPar),
-		Q3:                 make([][4]utils.Matrix, NPar),
-		Q4:                 make([][4]utils.Matrix, NPar),
-		Residual:           make([][4]utils.Matrix, NPar),
-		QMean:              make([][4]utils.Vector, NPar),
-		Se:                 make([]utils.Vector, NPar),
-		LScratch:           make([][3]utils.Matrix, NPar),
-		F_RT_DOF:           make([][4]utils.Matrix, NPar),
-		DT:                 make([]utils.Matrix, NPar),
-		DTVisc:             make([]utils.Matrix, NPar),
-		GlobalMaxWaveSpeed: make([]float64, NPar),
-		Kmax:               make([]int, NPar),
-		NpInt:              c.DFR.SolutionElement.Np,
-		NpEdge:             c.DFR.FluxElement.NpEdge,
-		NpFlux:             c.DFR.FluxElement.Np,
-		EdgeQ1:             make([][][4]float64, NPar),
-		EdgeQ2:             make([][][4]float64, NPar),
-		LimitedPoints:      make([]int, NPar),
-		ShockSensor:        make([]*DG2D.ModeAliasShockFinder, NPar),
+		Jdet:                   c.ShardByKTranspose(c.DFR.Jdet),
+		Jinv:                   c.ShardByKTranspose(c.DFR.Jinv),
+		RHSQ:                   make([][4]utils.Matrix, NPar),
+		Q_Face:                 make([][4]utils.Matrix, NPar),
+		Flux_Face:              make([][2][4]utils.Matrix, NPar),
+		Q_Face_P0:              make([][4]utils.Matrix, NPar),
+		Q1:                     make([][4]utils.Matrix, NPar),
+		Q2:                     make([][4]utils.Matrix, NPar),
+		Q3:                     make([][4]utils.Matrix, NPar),
+		Q4:                     make([][4]utils.Matrix, NPar),
+		Residual:               make([][4]utils.Matrix, NPar),
+		QMean:                  make([][4]utils.Vector, NPar),
+		Se:                     make([]utils.Vector, NPar),
+		LScratch:               make([][3]utils.Matrix, NPar),
+		F_RT_DOF:               make([][4]utils.Matrix, NPar),
+		DT:                     make([]utils.Matrix, NPar),
+		DTVisc:                 make([]utils.Matrix, NPar),
+		GlobalMaxWaveSpeed:     make([]float64, NPar),
+		GlobalMaxViscWaveSpeed: make([]float64, NPar),
+		Kmax:                   make([]int, NPar),
+		NpInt:                  c.DFR.SolutionElement.Np,
+		NpEdge:                 c.DFR.FluxElement.NpEdge,
+		NpFlux:                 c.DFR.FluxElement.Np,
+		EdgeQ1:                 make([][][4]float64, NPar),
+		EdgeQ2:                 make([][][4]float64, NPar),
+		LimitedPoints:          make([]int, NPar),
+		ShockSensor:            make([]*DG2D.ModeAliasShockFinder, NPar),
 	}
 	// Initialize memory for RHS
 	for np := 0; np < NPar; np++ {
@@ -291,12 +292,11 @@ func (rk *RungeKutta4SSP) Step(c *Euler) {
 	for rkStep := 0; rkStep < 5; rkStep++ {
 		// Workers are blocked below here until the StepWorker section - make sure significant work done here is abs necessary!
 		// Advance the workers one step
-		rk.StepWorker(c, rkStep, true)
+		rk.StepWorker(c, rkStep)
 	}
 }
 
-func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
-	// If initDT is true, we calculate the time step at each iteration
+func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int) {
 	var (
 		QQQAll = [][][4]utils.Matrix{c.Q, rk.Q1, rk.Q2, rk.Q3, rk.Q4}[rkStep]
 	)
@@ -422,9 +422,6 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 	/*
 		Time Step Execution
 	*/
-	if initDT && !c.LocalTimeStepping {
-		rk.calculateGlobalDT(c) // Compute the global DT for nonlocal timestepping - must be done serially
-	}
 	// doSerial(func(np int) {
 	doParallel(func(np int) {
 		var (
@@ -482,9 +479,14 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int, initDT bool) {
 	})
 	// doSerial(func(np int) {
 	doParallel(func(np int) {
-		rk.GlobalMaxWaveSpeed[np], _ =
+		rk.GlobalMaxWaveSpeed[np], rk.GlobalMaxViscWaveSpeed[np] =
 			c.CalcElementMaxWaveSpeed(rk.DT[np], rk.DTVisc[np], np)
-		if initDT && c.LocalTimeStepping {
+	})
+	if !c.LocalTimeStepping {
+		rk.calculateGlobalDT(c) // Compute the global DT for nonlocal timestepping - must be done serially
+	}
+	doParallel(func(np int) {
+		if c.LocalTimeStepping {
 			c.CalculateLocalDT(rk.DT[np], rk.DTVisc[np])
 		}
 		// Perform a Runge Kutta pseudo time step
@@ -692,22 +694,6 @@ func (c *Euler) PrintFinal(elapsed time.Duration, steps int) {
 		iRate/1000000000., instructionRate)
 }
 
-func (rk *RungeKutta4SSP) calculateGlobalDT(c *Euler) {
-	var (
-		pm = c.Partitions
-		NP = pm.ParallelDegree
-	)
-	// Must be done in controller/sync process
-	var globalMaxWaveSpeed float64
-	for np := 0; np < NP; np++ {
-		globalMaxWaveSpeed = max(globalMaxWaveSpeed, rk.GlobalMaxWaveSpeed[np])
-	}
-	rk.GlobalDT = c.CFL / globalMaxWaveSpeed
-	if rk.Time+rk.GlobalDT > c.FinalTime {
-		rk.GlobalDT = c.FinalTime - rk.Time
-	}
-}
-
 func (c *Euler) GetSolutionGradientUsingRTElement(myThread, varNum int, Q [4]utils.Matrix, GradX, GradY, DOFX, DOFY utils.Matrix) {
 	/*
 		Dimensions:
@@ -786,6 +772,34 @@ func (c *Euler) GetSolutionGradient(myThread, varNum int, Q [4]utils.Matrix, Gra
 			GradX.DataP[ind] = JinvD[0]*DR.DataP[ind] + JinvD[2]*DS.DataP[ind]
 			GradY.DataP[ind] = JinvD[1]*DR.DataP[ind] + JinvD[3]*DS.DataP[ind]
 		}
+	}
+}
+
+func (rk *RungeKutta4SSP) calculateGlobalDT(c *Euler) {
+	var (
+		pm = c.Partitions
+		NP = pm.ParallelDegree
+	)
+	// Must be done in controller/sync process
+	var globalMaxWaveSpeed float64
+	for np := 0; np < NP; np++ {
+		globalMaxWaveSpeed = max(globalMaxWaveSpeed, rk.GlobalMaxWaveSpeed[np])
+	}
+	rk.GlobalDT = c.CFL / globalMaxWaveSpeed
+	if c.Dissipation != nil {
+		var (
+			NP1    = float64(c.DFR.N + 1)
+			NP12   = NP1 * NP1
+			C_diff = 1. / NP12
+		)
+		var globalMaxViscWaveSpeed float64
+		for np := 0; np < NP; np++ {
+			globalMaxViscWaveSpeed = max(globalMaxViscWaveSpeed, rk.GlobalMaxViscWaveSpeed[np])
+		}
+		rk.GlobalDT = min(rk.GlobalDT, C_diff/globalMaxViscWaveSpeed)
+	}
+	if rk.Time+rk.GlobalDT > c.FinalTime {
+		rk.GlobalDT = c.FinalTime - rk.Time
 	}
 }
 
