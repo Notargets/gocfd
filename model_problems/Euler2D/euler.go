@@ -3,6 +3,9 @@ package Euler2D
 import (
 	"fmt"
 	"math"
+	"os"
+	"runtime"
+	"runtime/pprof"
 	"sync"
 	"syscall"
 	"time"
@@ -16,8 +19,6 @@ import (
 	"github.com/notargets/gocfd/DG2D"
 
 	"github.com/notargets/gocfd/utils"
-
-	"github.com/pkg/profile"
 )
 
 /*
@@ -141,7 +142,30 @@ func (c *Euler) Solve() {
 		finished  bool
 	)
 	if c.profile {
-		defer profile.Start().Stop()
+		// defer profile.Start().Stop()
+		// Start CPU profile
+		fCPU, err := os.Create("cpu.pprof")
+		if err != nil {
+			panic(fmt.Errorf("could not create CPU profile: %s", err))
+		}
+		pprof.StartCPUProfile(fCPU)
+		defer func() {
+			pprof.StopCPUProfile()
+			fCPU.Close()
+		}()
+
+		// Run your workload here
+
+		// After workload, write heap profile
+		fMem, err := os.Create("mem.pprof")
+		if err != nil {
+			panic(fmt.Errorf("could not create memory profile: %s", err))
+		}
+		runtime.GC() // run GC to get up-to-date mem profile
+		if err := pprof.WriteHeapProfile(fMem); err != nil {
+			panic(fmt.Errorf("could not write memory profile: %s", err))
+		}
+		fMem.Close()
 	}
 
 	c.PrintInitialization(FinalTime)
