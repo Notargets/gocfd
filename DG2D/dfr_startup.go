@@ -102,12 +102,18 @@ func NewDFR2D(N int, verbose bool, meshFileO ...string) (dfr *DFR2D) {
 	return
 }
 
+func (dfr *DFR2D) GetHkVisc(kGlobal int) (hKVisc float64) {
+	hKVisc = dfr.GetHk(kGlobal)
+	return
+}
+
 func (dfr *DFR2D) GetHk(kGlobal int) (hK float64) {
 	var (
 		Np1  = dfr.N + 1
 		Np12 = float64(Np1 * Np1)
 	)
-	// Element Characteristic Length calculation
+	// Element Characteristic Length calculation,
+	// scaled to fit nodal sub element size
 	hK = dfr.EdgeLenMax.AtVec(kGlobal) / Np12
 	return
 }

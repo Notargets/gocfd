@@ -22,12 +22,12 @@ Alpha: 0.
 LocalTimeStepping: true
 #MaxIterations: 200
 #MaxIterations: 600
-#MaxIterations: 2000
+MaxIterations: 2000
 #MaxIterations: 3000
 #MaxIterations: 4000
 #MaxIterations: 5000
 #MaxIterations: 6000
-MaxIterations: 8000
+#MaxIterations: 8000
 #MaxIterations: 10000
 #MaxIterations: 15000
 

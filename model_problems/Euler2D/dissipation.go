@@ -106,6 +106,7 @@ type ScalarDissipation struct {
 	Kappa                      float64
 	BaryCentricCoords          utils.Matrix // A thruple(lam0,lam1,lam2) for interpolation for each interior point, Npx3
 	VertexScratchSpace         []utils.Matrix
+	Eps0                       float64 // Constant multiplier for the viscosity
 }
 
 func NewScalarDissipation(kappa float64, cont ContinuityLevel, dfr *DG2D.DFR2D,
@@ -139,6 +140,7 @@ func NewScalarDissipation(kappa float64, cont ContinuityLevel, dfr *DG2D.DFR2D,
 		ShockFinder:        make([]*DG2D.ModeAliasShockFinder, NPar),
 		Kappa:              5.,
 	}
+	sd.Eps0 = sd.Kappa / 1.5
 	sd.EtoV = sd.shardEtoV(dfr.Tris.EToV)
 	sd.createInterpolationStencil()
 	if kappa != 0. {
@@ -422,7 +424,7 @@ func (sd *ScalarDissipation) GetC0EpsilonPlotField(c *Euler) (fld utils.Matrix) 
 
 func (sd *ScalarDissipation) CalculateElementViscosity(myThread int) {
 	var (
-		dfr         = sd.dfr
+		// dfr         = sd.dfr
 		KMax        = sd.PMap.GetBucketDimension(myThread)
 		Eps         = sd.EpsilonScalar[myThread]
 		SigmaScalar = sd.SigmaScalar[myThread]
@@ -433,13 +435,8 @@ func (sd *ScalarDissipation) CalculateElementViscosity(myThread int) {
 	for k := 0; k < KMax; k++ {
 		kGlobal := sd.PMap.GetGlobalK(k, myThread)
 		// hK := GetHK(dfr.EdgeLenMinR.AtVec(kGlobal))
-		Eps.Set(k, sd.Eps0(dfr.GetHk(kGlobal))*SigmaScalar.AtVec(k))
+		Eps.Set(k, sd.Eps0*sd.dfr.GetHkVisc(kGlobal)*SigmaScalar.AtVec(k))
 	}
-}
-
-func (sd *ScalarDissipation) Eps0(edgeLen float64) (eps0 float64) {
-	eps0 = edgeLen / float64(sd.dfr.N)
-	return
 }
 
 func (sd *ScalarDissipation) createInterpolationStencil() {
@@ -572,6 +569,7 @@ func (sd *ScalarDissipation) LimitSolution(myThread int, Q [4]utils.Matrix,
 				for i := 0; i < Np; i++ {
 					// Smooth ramp accelerator 0-1 for sigma
 					alpha := math.Sin(0.5 * math.Pi * Sigma.At(i, k))
+					// alpha := FastBlendedAlpha(Sigma.At(i, k))
 					Q[n].Set(i, k,
 						(1.-alpha)*Q[n].At(i, k)+alpha*QMean[n].AtVec(k))
 				}
@@ -579,4 +577,31 @@ func (sd *ScalarDissipation) LimitSolution(myThread int, Q [4]utils.Matrix,
 		}
 	}
 	return
+}
+
+// FastBlendedAlpha returns the smoothed blend between sine and circle-quadrant shapes.
+// Uses shifted cubic smoothstep blend weight centered at sigmaC (compile-time constant).
+// Assumes sigma ∈ [0, 1]. Uses fast polynomial approximations.
+func FastBlendedAlpha(sigma float64) float64 {
+	// --- Compile-time blend center ---
+	const sigmaC = 0.
+
+	// --- Precomputed shift constants ---
+	const a = 1.0 / (1.0 - sigmaC)     // 1.428571429 for sigmaC=0.3
+	const b = -sigmaC / (1.0 - sigmaC) // -0.428571429
+
+	// --- Compute blend weight using cubic Hermite ---
+	x := a*sigma + b // No need to clip since sigma ∈ [0,1]
+	w := 0.5 + 0.5*x*(1-x*x)
+
+	// --- Approximate sin(π/2 * σ):  σ (π/2 - (π³/48)σ²) ---
+	const piOver2 = 1.570796327
+	const pi3Over48 = 0.645964097
+	alphaSine := sigma * (piOver2 - pi3Over48*sigma*sigma)
+
+	// --- Approximate sqrt(2σ - σ²): σ (1 + 0.25(1 - σ)) ---
+	alphaCircle := sigma * (1.0 + 0.25*(1.0-sigma))
+
+	// --- Final blend ---
+	return (1-w)*alphaSine + w*alphaCircle
 }

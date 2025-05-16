@@ -272,13 +272,13 @@ func (c *Euler) StoreEdgeAggregates(Epsilon, Jdet []utils.Matrix,
 		}
 		c.EdgeStore.PutEdgeAggregate(en, MaxWaveSpeed, edgeMaxWaveSpeed)
 		if c.Dissipation != nil {
-			eps0 := c.Dissipation.Eps0(hK)
+			oohKVisc := 1. / c.DFR.GetHkVisc(kGlobal)
 			edgeMaxViscousWaveSpeed := -math.MaxFloat64
 			offset := 2*c.DFR.FluxElement.NpInt + shift
 			for i := offset; i < offset+Nedge; i++ {
 				ind := k + i*Kmax
 				edgeMaxViscousWaveSpeed =
-					max(oohK*oohK*eps0*Epsilon[myThread].DataP[ind],
+					max(oohKVisc*c.Dissipation.Eps0*Epsilon[myThread].DataP[ind],
 						edgeMaxViscousWaveSpeed)
 			}
 			c.EdgeStore.PutEdgeAggregate(en, MaxViscousWaveSpeed,

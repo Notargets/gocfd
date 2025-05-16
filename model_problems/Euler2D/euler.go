@@ -792,6 +792,8 @@ func (c *Euler) GetSolutionGradient(myThread, varNum int, Q [4]utils.Matrix, Gra
 func (c *Euler) CalculateLocalDT(DT, DTVisc utils.Matrix) {
 	var (
 		_, Kmax = DT.Dims()
+		NP1     = float64(c.DFR.N + 1)
+		NP12    = NP1 * NP1
 	)
 	for k := 0; k < Kmax; k++ {
 		// SetScalar each element's DT to CFL*h/(max_wave_speed)
@@ -800,7 +802,8 @@ func (c *Euler) CalculateLocalDT(DT, DTVisc utils.Matrix) {
 	if c.Dissipation != nil {
 		// epsScalar := c.Dissipation.EpsilonScalar[myThread]
 		// C_diff≈0.1–0.25;
-		C_diff := 0.25
+		// C_diff := 0.25
+		C_diff := 1. / NP12
 		for k := 0; k < Kmax; k++ {
 			// DT.DataP[k] = c.CFL / ((1. + epsScalar[k]) * DT.DataP[k])
 			// SetScalar each element's DT to CFL*h/(max_wave_speed)
