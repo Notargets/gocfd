@@ -29,11 +29,11 @@ func NewSOD(t float64) (se *SOD_Exact) {
 		l_s:   State{1, 1, 0, gamma},
 		r_s:   State{0.125, 0.1, 0, gamma},
 	}
-	se.Calc(t)
+	se.calc(t)
 	return
 }
 
-func (se *SOD_Exact) Calc(t float64) {
+func (se *SOD_Exact) calc(t float64) {
 	var (
 		gamma    = se.gamma
 		mu       = math.Sqrt((gamma - 1) / (gamma + 1))
@@ -54,7 +54,7 @@ func (se *SOD_Exact) Calc(t float64) {
 	se.x1 = se.x0 - l_s.C()*t
 	se.x3 = se.x0 + se.post_s.u*t
 	se.x4 = se.x0 + v_shock*t
-	//determining x2
+	// determining x2
 	c_2 := l_s.C() - 0.5*(gamma-1.)*se.post_s.u
 	se.x2 = se.x0 + t*(se.post_s.u-c_2)
 }
@@ -142,15 +142,15 @@ func fzero(f func(P float64) (y float64), start float64) float64 {
 func sod_func(P float64) (y float64) {
 	var (
 		rho_l, P_l = 1., 1.
-		//rho_l, P_l, u_l = 1., 1., 0.
-		//rho_r, P_r, u_r = 0.125, 0.1, 0.
+		// rho_l, P_l, u_l = 1., 1., 0.
+		// rho_r, P_r, u_r = 0.125, 0.1, 0.
 		rho_r, P_r = 0.125, 0.1
 		gamma      = 1.4
 		mu         = math.Sqrt((gamma - 1) / (gamma + 1))
 		mu2        = mu * mu
 	)
 	// Broken, per comments in Mathematica's community at https://www.mathworks.com/matlabcentral/fileexchange/46311-sod-shock-tube-problem-solver
-	//y = (P-P_r)*math.Sqrt(utils.POW(1-mu2, 2)/(rho_r*(P+mu2*P_r))) - 2*(math.Sqrt(gamma)/(gamma-1))*(1-math.Pow(P, (gamma-1)/(2*gamma)))
+	// y = (P-P_r)*math.Sqrt(utils.POW(1-mu2, 2)/(rho_r*(P+mu2*P_r))) - 2*(math.Sqrt(gamma)/(gamma-1))*(1-math.Pow(P, (gamma-1)/(2*gamma)))
 	y = (P-P_r)*math.Sqrt((1-mu2)/(rho_r*(P+mu2*P_r))) - (math.Pow(P_l, (gamma-1)/(2*gamma))-math.Pow(P, (gamma-1)/(2*gamma)))*math.Sqrt(((1-mu2*mu2)*math.Pow(P_l, 1/gamma))/(mu2*mu2*rho_l))
 	return
 }

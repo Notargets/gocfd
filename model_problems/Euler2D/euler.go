@@ -179,7 +179,7 @@ func (c *Euler) Solve() {
 		steps++
 		c.RK.Time += c.RK.GlobalDT
 		c.RK.StepCount++
-		finished = c.CheckIfFinished(c.RK.Time, FinalTime, steps)
+		finished = c.CheckIfFinished(c.RK.Time, steps)
 		// if finished || steps == 1 || steps%1 == 0 {
 		if finished || steps == 1 || steps%100 == 0 {
 			var printMem bool
@@ -216,6 +216,40 @@ func (c *Euler) Solve() {
 		}
 	}
 	c.PrintFinal(elapsed, steps)
+	c.OutputFinal()
+}
+
+func (c *Euler) OutputFinal() {
+	switch c.Case {
+	case SHOCKTUBE:
+		var (
+			st = c.ShockTube
+		)
+		c.RecombineShardsKBy4(c.Q, &c.Q4)
+		c.ShockTube.InterpolateFields(c.Q4)
+		file, err := os.Create("shocktube.dat")
+		if err != nil {
+			panic(fmt.Errorf("could not create shocktube.dat: %s", err))
+		}
+		file.WriteString(fmt.Sprintf("Meshfile: %s\n", c.MeshFile))
+		file.WriteString(fmt.Sprintf("X\tRho\tRhoU\tE\n"))
+		for i, x := range st.XLocations {
+			file.WriteString(fmt.Sprintf("%.8f\t%.8f\t%.8f\t%.8f\n",
+				x, st.Rho[i], st.RhoU[i], st.E[i]))
+		}
+		file, err = os.Create("shocktube_analytic.dat")
+		if err != nil {
+			panic(fmt.Errorf("could not create shocktube_analytic.dat: %s", err))
+		}
+		file.WriteString(fmt.Sprintf("X\tRho\tRhoU\tE\n"))
+		XA, rhoA, _, rhoUA, rhoEA :=
+			c.ShockTube.GetAnalyticSolution(c.FinalTime)
+		for i, x := range XA {
+			file.WriteString(fmt.Sprintf("%.8f\t%.8f\t%.8f\t%.8f\n",
+				x, rhoA[i], rhoUA[i], rhoEA[i]))
+		}
+	}
+	return
 }
 
 type RungeKutta4SSP struct {
@@ -647,8 +681,8 @@ func (c *Euler) InitializeSolution(verbose bool) {
 	}
 }
 
-func (c *Euler) CheckIfFinished(Time, FinalTime float64, steps int) (finished bool) {
-	if Time >= FinalTime || steps >= c.MaxIterations {
+func (c *Euler) CheckIfFinished(Time float64, steps int) (finished bool) {
+	if Time >= c.FinalTime || steps >= c.MaxIterations {
 		finished = true
 	}
 	return

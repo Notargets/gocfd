@@ -3,6 +3,8 @@ package sod_shock_tube
 import (
 	"fmt"
 
+	"github.com/notargets/gocfd/model_problems/Euler1D/sod_shock_tube"
+
 	"github.com/notargets/gocfd/DG2D"
 
 	"github.com/notargets/gocfd/utils"
@@ -43,6 +45,13 @@ func NewSODShockTube(nPts int, dfr *DG2D.DFR2D) (st *SODShockTube) {
 		}
 	}
 	st.calculateInterpolation()
+	return
+}
+
+func (st *SODShockTube) GetAnalyticSolution(t float64) (x, rho, p, rhoU,
+	E []float64) {
+	sod := sod_shock_tube.NewSOD(t)
+	x, rho, p, rhoU, E = sod.Get()
 	return
 }
 
@@ -112,7 +121,7 @@ func (st *SODShockTube) getUVCoords(x, y float64) (ElementID int, r, s float64) 
 	panic(err)
 }
 
-func (st *SODShockTube) interpolateFields(Q [4]utils.Matrix) {
+func (st *SODShockTube) InterpolateFields(Q [4]utils.Matrix) {
 	var (
 		SolPts = utils.NewMatrix(st.DFR2D.SolutionElement.Np, 1)
 	)

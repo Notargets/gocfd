@@ -143,7 +143,7 @@ func CheckDivergence(t *testing.T, rt *RTElement, dt VectorTestField,
 		rt.ProjectFunctionOntoDOF(f1, f2, FProj.DataP)
 		DivCalc := rt.Div.Mul(FProj)
 		if testing.Verbose() {
-			DivCalc.Transpose().Print("Div Calc")
+			DivCalc.Transpose().Print("Div calc")
 			fmt.Printf("Ref Div = \n[ ")
 			for i := 0; i < Np; i++ {
 				fmt.Printf("%6.5f ", DivRef[i])
