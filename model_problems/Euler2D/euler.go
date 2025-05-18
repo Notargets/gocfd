@@ -477,6 +477,9 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int) {
 	/*
 		Time Step Execution
 	*/
+	var (
+		sd = c.Dissipation
+	)
 	// doSerial(func(np int) {
 	doParallel(func(np int) {
 		var (
@@ -488,15 +491,15 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int) {
 				rk.DT[np].DataP[k] = -100 // Global
 			}
 		}
-		if c.Dissipation != nil {
+		if sd != nil {
 			rk.ShockSensor[np].UpdateSeMoment(QQQ[0], rk.LScratch[np], rk.Se[np])
-			c.Dissipation.UpdateShockFinderSigma(np, rk.Se[np])
-			c.Dissipation.CalculateElementViscosity(np)
+			sd.UpdateShockFinderSigma(np, rk.Se[np])
+			sd.CalculateElementViscosity(np)
 		}
 	})
 	doParallel(func(np int) {
-		if c.Dissipation != nil {
-			c.Dissipation.EpsilonSigmaMaxToVertices(np)
+		if sd != nil {
+			sd.EpsilonSigmaMaxToVertices(np)
 		}
 	})
 	// doSerial(func(np int) {
@@ -504,12 +507,14 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int) {
 		var (
 			QQQ = QQQAll[np]
 		)
-		if c.Dissipation != nil {
-			c.Dissipation.InterpolateEpsilonSigma(np)
+		if sd != nil {
+			sd.AvgSigmaMaxFromVerticesToSigmaScalar(sd.SigmaScalar[np],
+				sd.EtoV[np])
+			sd.InterpolateEpsilonSigma(np)
 		}
 		if rkStep == 4 && c.Dissipation != nil {
 			c.UpdateElementMean(QQQ, rk.QMean[np])
-			c.Dissipation.LimitSolution(np, QQQ, rk.QMean[np])
+			sd.LimitSolution(np, QQQ, rk.QMean[np])
 		}
 		c.InterpolateSolutionToEdges(QQQ, rk.Q_Face[np])
 	})
@@ -521,14 +526,14 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int) {
 			rk.EdgeQ1[np], rk.EdgeQ2[np], c.SortedEdgeKeys[np]) // Global
 	})
 	doParallel(func(np int) {
-		if c.Dissipation != nil {
-			c.Dissipation.CalculateEpsilonGradient(c, np, QQQAll[np])
+		if sd != nil {
+			sd.CalculateEpsilonGradient(c, np, QQQAll[np])
 		}
 	})
 	// doSerial(func(np int) {
 	doParallel(func(np int) {
 		c.StoreEdgeAggregates(rk.Epsilon, rk.Jdet, rk.Q_Face, c.SortedEdgeKeys[np])
-		if c.Dissipation != nil {
+		if sd != nil {
 			c.StoreEdgeViscousFlux(rk.Epsilon, rk.EdgeQ1[np], c.SortedEdgeKeys[np])
 		}
 	})

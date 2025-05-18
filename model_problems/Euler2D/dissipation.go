@@ -217,6 +217,21 @@ func (sd *ScalarDissipation) EpsilonSigmaMaxToVertices(myThread int) {
 	}
 }
 
+func (sd *ScalarDissipation) AvgSigmaMaxFromVerticesToSigmaScalar(
+	SigmaScalar utils.Vector, EtoV utils.Matrix) {
+	var (
+		KMax, _ = EtoV.Dims()
+	)
+	for k := 0; k < KMax; k++ {
+		SigmaAvg := 0.
+		for v := 0; v < 3; v++ {
+			SigmaAvg += sd.SigmaVertex[int(EtoV.At(k, v))]
+		}
+		SigmaScalar.Set(k, SigmaAvg/3.)
+	}
+	return
+}
+
 type ContinuityLevel uint8
 
 const (
@@ -548,34 +563,34 @@ func (sd *ScalarDissipation) LimitSolution(myThread int, Q [4]utils.Matrix,
 	var (
 		Np, Kmax    = Q[0].Dims()
 		SigmaScalar = sd.SigmaScalar[myThread]
-		Sigma       = sd.Sigma[myThread]
+		// Sigma       = sd.Sigma[myThread]
 		// fM          = sd.filterRamp()
 	)
-	switch sd.Continuity {
-	case No:
-		for k := 0; k < Kmax; k++ {
-			// Smooth ramp accelerator 0-1 for sigma
-			alpha := math.Sin(0.5 * math.Pi * SigmaScalar.AtVec(k))
-			for n := 0; n < 4; n++ {
-				for i := 0; i < Np; i++ {
-					Q[n].Set(i, k,
-						(1.-alpha)*Q[n].At(i, k)+alpha*QMean[n].AtVec(k))
-				}
-			}
-		}
-	case C0:
+	// switch sd.Continuity {
+	// case No:
+	for k := 0; k < Kmax; k++ {
+		// Smooth ramp accelerator 0-1 for sigma
+		alpha := math.Sin(0.5 * math.Pi * SigmaScalar.AtVec(k))
 		for n := 0; n < 4; n++ {
-			for k := 0; k < Kmax; k++ {
-				for i := 0; i < Np; i++ {
-					// Smooth ramp accelerator 0-1 for sigma
-					alpha := math.Sin(0.5 * math.Pi * Sigma.At(i, k))
-					// alpha := FastBlendedAlpha(Sigma.At(i, k))
-					Q[n].Set(i, k,
-						(1.-alpha)*Q[n].At(i, k)+alpha*QMean[n].AtVec(k))
-				}
+			for i := 0; i < Np; i++ {
+				Q[n].Set(i, k,
+					(1.-alpha)*Q[n].At(i, k)+alpha*QMean[n].AtVec(k))
 			}
 		}
 	}
+	// case C0:
+	// 	for n := 0; n < 4; n++ {
+	// 		for k := 0; k < Kmax; k++ {
+	// 			for i := 0; i < Np; i++ {
+	// 				Smooth ramp accelerator 0-1 for sigma
+	// alpha := math.Sin(0.5 * math.Pi * Sigma.At(i, k))
+	// alpha := FastBlendedAlpha(Sigma.At(i, k))
+	// Q[n].Set(i, k,
+	// 	(1.-alpha)*Q[n].At(i, k)+alpha*QMean[n].AtVec(k))
+	// }
+	// }
+	// }
+	// }
 	return
 }
 
