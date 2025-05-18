@@ -560,14 +560,17 @@ func (sd *ScalarDissipation) UpdateShockFinderSigma(myThread int, Se utils.Vecto
 
 func (sd *ScalarDissipation) LimitSolution(myThread int, Q [4]utils.Matrix,
 	QMean [4]utils.Vector) {
+	// Note that this approach is equivalent to applying the limiter to modes
+	// 1 and higher of the polynomial for the element,
+	// as the mean is actually the mode1 value for the polynomial when we
+	// have an orthogonal basis. By computing the mean and doing it this way,
+	// it's faster to compute.
 	var (
 		Np, Kmax    = Q[0].Dims()
 		SigmaScalar = sd.SigmaScalar[myThread]
 		// Sigma       = sd.Sigma[myThread]
 		// fM          = sd.filterRamp()
 	)
-	// switch sd.Continuity {
-	// case No:
 	for k := 0; k < Kmax; k++ {
 		// Smooth ramp accelerator 0-1 for sigma
 		alpha := math.Sin(0.5 * math.Pi * SigmaScalar.AtVec(k))
@@ -578,19 +581,6 @@ func (sd *ScalarDissipation) LimitSolution(myThread int, Q [4]utils.Matrix,
 			}
 		}
 	}
-	// case C0:
-	// 	for n := 0; n < 4; n++ {
-	// 		for k := 0; k < Kmax; k++ {
-	// 			for i := 0; i < Np; i++ {
-	// 				Smooth ramp accelerator 0-1 for sigma
-	// alpha := math.Sin(0.5 * math.Pi * Sigma.At(i, k))
-	// alpha := FastBlendedAlpha(Sigma.At(i, k))
-	// Q[n].Set(i, k,
-	// 	(1.-alpha)*Q[n].At(i, k)+alpha*QMean[n].AtVec(k))
-	// }
-	// }
-	// }
-	// }
 	return
 }
 
