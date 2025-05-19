@@ -36,10 +36,12 @@ func NewCubature(P int) (cb *Cubature) {
 type NodeType string
 
 const (
-	Epsilon   = NodeType("Epsilon")
-	Hesthaven = NodeType("Hesthaven")
-	WSJ       = NodeType("WSJ")
-	Uniform   = NodeType("Uniform")
+	// Only the WSJ distribution has Quadrature colocated,
+	// we will assume their use throughout
+	WSJ = NodeType("WSJ")
+	// Epsilon   = NodeType("Epsilon")
+	// Hesthaven = NodeType("Hesthaven")
+	// Uniform   = NodeType("Uniform")
 )
 
 func NewLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
@@ -54,20 +56,15 @@ func NewLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
 	el.Nfp = el.N + 1
 	el.Np = (el.N + 1) * (el.N + 2) / 2
 	el.NFaces = 3
-	// Compute nodal set
-	switch nodeType {
-	case Epsilon:
-		el.R, el.S = NodesEpsilon(el.N)
-	case Hesthaven:
-		el.R, el.S = XYtoRS(Nodes2D(el.N))
-	case WSJ:
-		el.R, el.S = MakeRSFromPoints(WilliamsShunnJameson(el.N))
-	case Uniform:
-		el.R, el.S = MakeRSFromPoints(UniformRSAlpha(el.N, 0.7))
-	}
+	// Only the WSJ distribution has Quadrature colocated,
+	// we will assume their use throughout
+	el.R, el.S = MakeRSFromPoints(WilliamsShunnJameson(el.N))
+
 	// Build reference element matrices
 	el.JB2D = NewJacobiBasis2D(el.N, el.R, el.S, 0, 0)
 	el.MassMatrix = el.JB2D.Vinv.Transpose().Mul(el.JB2D.Vinv)
+
+	// We need to normalize the basis here
 	// Initialize the (R,S) differentiation matrices on the simplex, evaluated at (R,S) at order N
 	/*
 		Vr, Vs := GradVandermonde2D(el.N, el.R, el.S)

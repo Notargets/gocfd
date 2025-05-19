@@ -37,11 +37,11 @@ func TestJacobiBasis2D_IndividualTerms(t *testing.T) {
 		jb2d.V.Print("JacobiBasis2D V")
 	}
 
-	// IJ := make([][2]int, jb2d.Np)
+	// Order2DAtJ := make([][2]int, jb2d.Np)
 	// var sk int
 	// for j := 0; j <= jb2d.P; j++ {
 	// 	for i := 0; i <= (jb2d.P - j); i++ {
-	// 		IJ[sk] = [2]int{j, i}
+	// 		Order2DAtJ[sk] = [2]int{j, i}
 	// 		sk++
 	// 	}
 	// }
@@ -50,10 +50,10 @@ func TestJacobiBasis2D_IndividualTerms(t *testing.T) {
 	A := utils.NewMatrix(jb2d.Np, jb2d.Np)
 	B := utils.NewMatrix(jb2d.Np, jb2d.Np)
 	for j := 0; j < jb2d.Np; j++ {
-		ij := jb2d.IJ[j]
+		ij := jb2d.Order2DAtJ[j]
 		for i := 0; i < jb2d.Np; i++ {
 			r, s := R.AtVec(i), S.AtVec(i)
-			// fmt.Println("IJ = ", j, ij)
+			// fmt.Println("Order2DAtJ = ", j, ij)
 			A.Set(i, j, jb2d.PolynomialTerm(r, s, ij[0], ij[1]))
 			B.Set(i, j, jb2d.GetPolynomialAtJ(r, s, j))
 		}

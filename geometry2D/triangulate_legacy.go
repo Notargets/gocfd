@@ -590,7 +590,7 @@ func (tm *TriMeshG) AddPoint(X, Y float64, traceO ...bool) {
 				err := fmt.Errorf("not enough edges, should be 2, is: %d", len(eForNewTri))
 				panic(err)
 			}
-			// Split edge IJ into two new edges, I-R and J-R for two new triangles
+			// Split edge Order2DAtJ into two new edges, I-R and J-R for two new triangles
 			var e2 [2]*Edge
 			e2[0] = tm.NewEdge([2]int{edge.Verts[0], pR}, edge.IsImmovable)
 			e2[1] = tm.NewEdge([2]int{edge.Verts[1], pR}, edge.IsImmovable)

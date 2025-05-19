@@ -118,6 +118,31 @@ func (dfr *DFR2D) GetHk(kGlobal int) (hK float64) {
 	return
 }
 
+func (dfr *DFR2D) CutoffFilter2D(NCutoff int, frac float64) (diag utils.Matrix) {
+	/*
+		The NCutoff is inclusive, so if you want to clip the top mode at N, input N
+	*/
+	var (
+		N  = dfr.N
+		Np = dfr.SolutionElement.Np
+	)
+	data := make([]float64, Np)
+	for ii := 0; ii < Np; ii++ {
+		data[ii] = 1.
+	}
+	var ii int
+	for i := 0; i <= N; i++ {
+		for j := 0; j <= N-i; j++ {
+			if i+j >= NCutoff {
+				data[ii] = frac
+			}
+			ii++
+		}
+	}
+	diag = utils.NewDiagMatrix(Np, data)
+	return
+}
+
 func (dfr *DFR2D) GetEdgeLengths() {
 	var (
 		KMax = dfr.K

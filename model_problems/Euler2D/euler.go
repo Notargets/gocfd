@@ -514,7 +514,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int) {
 		}
 		if rkStep == 4 && c.Dissipation != nil {
 			c.UpdateElementMean(QQQ, rk.QMean[np])
-			sd.LimitSolution(np, QQQ, rk.QMean[np])
+			sd.LimitSolution(np, QQQ, rk.QMean[np], rk.LScratch[np][0])
 		}
 		c.InterpolateSolutionToEdges(QQQ, rk.Q_Face[np])
 	})

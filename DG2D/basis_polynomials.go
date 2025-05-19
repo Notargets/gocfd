@@ -69,7 +69,8 @@ type JacobiBasis2D struct {
 	Np              int // Dimension
 	Alpha, Beta     float64
 	V, Vinv, Vr, Vs utils.Matrix
-	IJ              [][2]int // I,J coordinates of basis polynomial indexed on j
+	OrderAtJ        []int
+	Order2DAtJ      [][2]int // Polynomial order in each direction at J modes
 }
 
 func NewJacobiBasis2D(P int, R, S utils.Vector, Alpha, Beta float64) (jb2d *JacobiBasis2D) {
@@ -79,11 +80,13 @@ func NewJacobiBasis2D(P int, R, S utils.Vector, Alpha, Beta float64) (jb2d *Jaco
 		Alpha: Alpha,
 		Beta:  Beta,
 	}
-	jb2d.IJ = make([][2]int, jb2d.Np)
+	jb2d.OrderAtJ = make([]int, jb2d.Np)
+	jb2d.Order2DAtJ = make([][2]int, jb2d.Np)
 	var sk int
 	for i := 0; i <= jb2d.P; i++ {
 		for j := 0; j <= jb2d.P-i; j++ {
-			jb2d.IJ[sk] = [2]int{i, j}
+			jb2d.OrderAtJ[sk] = i + j
+			jb2d.Order2DAtJ[sk] = [2]int{i, j}
 			sk++
 		}
 	}
@@ -345,7 +348,7 @@ func (jb2d *JacobiBasis2D) GetPolynomialAtJ(r, s float64, j int,
 	if len(derivO) > 0 {
 		deriv = derivO[0]
 	}
-	i, jj := jb2d.IJ[j][0], jb2d.IJ[j][1]
+	i, jj := jb2d.Order2DAtJ[j][0], jb2d.Order2DAtJ[j][1]
 	switch deriv {
 	case None:
 		phi = jb2d.PolynomialTerm(r, s, i, jj)
@@ -401,7 +404,7 @@ func (jb2d *JacobiBasis2D) GetOrthogonalPolynomialAtJ(r, s float64, j int,
 		deriv = derivO[0]
 	}
 	for i := 0; i < jb2d.Np; i++ {
-		ii, jj := jb2d.IJ[i][0], jb2d.IJ[i][1]
+		ii, jj := jb2d.Order2DAtJ[i][0], jb2d.Order2DAtJ[i][1]
 		switch deriv {
 		case None:
 			phi += jb2d.PolynomialTerm(r, s, ii, jj) * jb2d.Vinv.At(i, j)

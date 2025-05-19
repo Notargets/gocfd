@@ -9,6 +9,7 @@ import (
 type ModeAliasShockFinder struct {
 	Element             *LagrangeElement2D
 	Clipper             utils.Matrix // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder
+	ModeFilter          []float64
 	P, Mass, D          utils.Matrix // Element matrices
 	Np                  int
 	Q, Qalt             utils.Matrix // scratch storage for evaluating the moment
@@ -38,6 +39,30 @@ func (sf *ModeAliasShockFinder) UpdateShockedCells(Rho utils.Matrix) {
 	return
 }
 
+func (dfr *DFR2D) ModalFilter(alpha float64, s int) (mf []float64) {
+	// This should be used in conjunction with the limiter,
+	// then applied to the modes directly. For instance,
+	// if the shock finder function sigma is available:
+	// mode[i] = 1 - sigma*(1 - mf[i])
+	var (
+		N  = dfr.SolutionElement.N
+		Np = dfr.SolutionElement.Np
+	)
+	mf = make([]float64, Np)
+
+	for j := 0; j < Np; j++ {
+		p := dfr.SolutionElement.JB2D.OrderAtJ[j]
+		if p < 3 {
+			mf[j] = 1.0 // preserve low modes
+		} else {
+			normalized := float64(p) / float64(N)
+			// Interpolate between 1 (no damping) and baseDamp (max damping)
+			mf[j] = math.Exp(-alpha * math.Pow(normalized, float64(s)))
+		}
+	}
+	return
+}
+
 func (dfr *DFR2D) NewAliasShockFinder(Kappa float64) (sf *ModeAliasShockFinder) {
 	var (
 		element = dfr.SolutionElement
@@ -53,15 +78,21 @@ func (dfr *DFR2D) NewAliasShockFinder(Kappa float64) (sf *ModeAliasShockFinder) 
 		ShockSigmaThreshold: 0.0075,
 		Mass:                element.MassMatrix,
 	}
+	// Compute element matrices
 	/*
 		The "Clipper" matrix drops the last mode from the polynomial and forms an alternative field of values at the node
 		points based on a polynomial with one less term. In other words, if we have a polynomial of degree "p", expressed
 		as values at Np node points, multiplying the Node point values vector by Clipper produces an alternative version
 		of the node values based on truncating the last polynomial mode.
 	*/
-	// Compute element matrices
+	// sf.Clipper =
+	// 	element.JB2D.V.Mul(dfr.CutoffFilter2D(N, 0)).Mul(element.JB2D.Vinv)
 	sf.Clipper =
-		element.JB2D.V.Mul(dfr.CutoffFilter2D(N, N, 0)).Mul(element.JB2D.Vinv)
+		element.JB2D.V.Mul(dfr.CutoffFilter2D(N, 0)).Mul(element.JB2D.Vinv)
+	// Implement a cutoff filter to suppress ringing, won't alter modes < 3
+	sf.ModeFilter = dfr.ModalFilter(6, 4)
+	// fmt.Println("Exponential Filter: ", sf.ModeFilter)
+	// os.Exit(1)
 
 	// sf.D = utils.NewMatrix(Np, Np).AddScalar(1.).Subtract(sf.Clipper)
 	sf.D = utils.NewDiagMatrix(Np, nil, 1.).Subtract(sf.Clipper)
@@ -91,30 +122,6 @@ func (sf *ModeAliasShockFinder) UpdateSeMoment(TestVar utils.Matrix,
 		}
 		Se.Set(k, math.Log10(num/den))
 	}
-	return
-}
-
-func (dfr *DFR2D) CutoffFilter2D(N, NCutoff int, frac float64) (diag utils.Matrix) {
-	/*
-		The NCutoff is inclusive, so if you want to clip the top mode at N, input N
-	*/
-	var (
-		Np = (N + 1) * (N + 2) / 2
-	)
-	data := make([]float64, Np)
-	for ii := 0; ii < Np; ii++ {
-		data[ii] = 1.
-	}
-	var ii int
-	for i := 0; i <= N; i++ {
-		for j := 0; j <= N-i; j++ {
-			if i+j >= NCutoff {
-				data[ii] = frac
-			}
-			ii++
-		}
-	}
-	diag = utils.NewDiagMatrix(Np, data)
 	return
 }
 

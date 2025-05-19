@@ -100,7 +100,6 @@ type ScalarDissipation struct {
 	DissDOF, DissDOF2, DissDiv []utils.Matrix      // Sharded NpFlux x Kmax, DOF for Gradient calculation using RT
 	DissX, DissY               [][4]utils.Matrix   // Sharded NpFlux x Kmax, R and S derivative of dissipation field
 	PMap                       *utils.PartitionMap // Partition map for the solution shards in K
-	Clipper                    utils.Matrix        // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder
 	dfr                        *DG2D.DFR2D
 	ShockFinder                []*DG2D.ModeAliasShockFinder
 	Kappa                      float64
@@ -162,14 +161,6 @@ func NewScalarDissipation(kappa float64, cont ContinuityLevel, dfr *DG2D.DFR2D,
 		}
 		sd.ShockFinder[np] = dfr.NewAliasShockFinder(sd.Kappa)
 	}
-	/*
-		The "Clipper" matrix drops the last mode from the polynomial and forms an alternative field of values at the node
-		points based on a polynomial with one less term. In other words, if we have a polynomial of degree "p", expressed
-		as values at Np node points, multiplying the Node point values vector by Clipper produces an alternative version
-		of the node values based on truncating the last polynomial mode.
-	*/
-	sd.Clipper = el.JB2D.V.Mul(dfr.CutoffFilter2D(el.N, el.N-1,
-		0)).Mul(el.JB2D.Vinv)
 	return
 }
 
@@ -559,7 +550,7 @@ func (sd *ScalarDissipation) UpdateShockFinderSigma(myThread int, Se utils.Vecto
 }
 
 func (sd *ScalarDissipation) LimitSolution(myThread int, Q [4]utils.Matrix,
-	QMean [4]utils.Vector) {
+	QMean [4]utils.Vector, QScratch utils.Matrix) {
 	// Note that this approach is equivalent to applying the limiter to modes
 	// 1 and higher of the polynomial for the element,
 	// as the mean is actually the mode1 value for the polynomial when we
@@ -569,44 +560,18 @@ func (sd *ScalarDissipation) LimitSolution(myThread int, Q [4]utils.Matrix,
 		Np, Kmax    = Q[0].Dims()
 		SigmaScalar = sd.SigmaScalar[myThread]
 		// Sigma       = sd.Sigma[myThread]
-		// fM          = sd.filterRamp()
 	)
-	for k := 0; k < Kmax; k++ {
-		// Smooth ramp accelerator 0-1 for sigma
-		alpha := math.Sin(0.5 * math.Pi * SigmaScalar.AtVec(k))
-		for n := 0; n < 4; n++ {
+	for n := 0; n < 4; n++ {
+		for k := 0; k < Kmax; k++ {
+			// Smooth ramp accelerator 0-1 for sigma
+			alpha := math.Sin(0.5 * math.Pi * SigmaScalar.AtVec(k))
+			qmean := QMean[n].AtVec(k)
 			for i := 0; i < Np; i++ {
-				Q[n].Set(i, k,
-					(1.-alpha)*Q[n].At(i, k)+alpha*QMean[n].AtVec(k))
+				ind := k + Kmax*i
+				q := Q[n].DataP[ind]
+				Q[n].DataP[ind] = (1.-alpha)*q + alpha*qmean
 			}
 		}
 	}
 	return
-}
-
-// FastBlendedAlpha returns the smoothed blend between sine and circle-quadrant shapes.
-// Uses shifted cubic smoothstep blend weight centered at sigmaC (compile-time constant).
-// Assumes sigma ∈ [0, 1]. Uses fast polynomial approximations.
-func FastBlendedAlpha(sigma float64) float64 {
-	// --- Compile-time blend center ---
-	const sigmaC = 0.
-
-	// --- Precomputed shift constants ---
-	const a = 1.0 / (1.0 - sigmaC)     // 1.428571429 for sigmaC=0.3
-	const b = -sigmaC / (1.0 - sigmaC) // -0.428571429
-
-	// --- Compute blend weight using cubic Hermite ---
-	x := a*sigma + b // No need to clip since sigma ∈ [0,1]
-	w := 0.5 + 0.5*x*(1-x*x)
-
-	// --- Approximate sin(π/2 * σ):  σ (π/2 - (π³/48)σ²) ---
-	const piOver2 = 1.570796327
-	const pi3Over48 = 0.645964097
-	alphaSine := sigma * (piOver2 - pi3Over48*sigma*sigma)
-
-	// --- Approximate sqrt(2σ - σ²): σ (1 + 0.25(1 - σ)) ---
-	alphaCircle := sigma * (1.0 + 0.25*(1.0-sigma))
-
-	// --- Final blend ---
-	return (1-w)*alphaSine + w*alphaCircle
 }

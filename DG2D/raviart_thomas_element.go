@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/notargets/gocfd/DG1D"
 	"github.com/notargets/gocfd/utils"
 )
 
@@ -208,16 +207,16 @@ func NewRTElement(P int, basisType RTBasisType, nodeType NodeType) (rt *RTElemen
 
 	if P > 0 {
 		if P < 9 {
-			switch nodeType {
-			case Hesthaven:
-				rt.RInt, rt.SInt = XYtoRS(Nodes2D(P - 1))
-			case Epsilon:
-				rt.RInt, rt.SInt = NodesEpsilon(P - 1)
-			case WSJ:
-				rt.RInt, rt.SInt = MakeRSFromPoints(WilliamsShunnJameson(P - 1))
-			case Uniform:
-				rt.RInt, rt.SInt = MakeRSFromPoints(UniformRSAlpha(P-1, 0.7))
-			}
+			// switch nodeType {
+			// case Hesthaven:
+			// 	rt.RInt, rt.SInt = XYtoRS(Nodes2D(P - 1))
+			// case Epsilon:
+			// 	rt.RInt, rt.SInt = NodesEpsilon(P - 1)
+			// case WSJ:
+			rt.RInt, rt.SInt = MakeRSFromPoints(WilliamsShunnJameson(P - 1))
+			// case Uniform:
+			// 	rt.RInt, rt.SInt = MakeRSFromPoints(UniformRSAlpha(P-1, 0.7))
+			// }
 		} else {
 			rt.RInt, rt.SInt = XYtoRS(Nodes2D(P - 1))
 			// Weak approach to pull back equidistant distro from the edges
@@ -426,18 +425,18 @@ func (rt *RTElement) ExtendGeomToRT(Rint, Sint utils.Vector, nodeType NodeType) 
 	*/
 	var Rdist []float64
 	var GQR utils.Vector
-	switch nodeType {
+	// switch nodeType {
 	// case Hesthaven, Uniform, WSJ:
-	case Hesthaven, Uniform:
-		GQR = utils.NewVector(N+1, DG1D.LegendreZeros(N))
-	case WSJ, Epsilon:
-		Rdist = GetOptimizedEdgePointsEpsilon(N)
-		GQR = utils.NewVector(N+1, Rdist)
-		// case Epsilon:
-		// 	Use optimized edge points from edge_point_distribution optimization
-		// Rdist = GetOptimizedEdgePointsEpsilon(N)
-		// GQR = utils.NewVector(N+1, Rdist)
-	}
+	// case Hesthaven, Uniform:
+	// 	GQR = utils.NewVector(N+1, DG1D.LegendreZeros(N))
+	// case WSJ, Epsilon:
+	Rdist = GetOptimizedEdgePointsEpsilon(N)
+	GQR = utils.NewVector(N+1, Rdist)
+	// case Epsilon:
+	// 	Use optimized edge points from edge_point_distribution optimization
+	// Rdist = GetOptimizedEdgePointsEpsilon(N)
+	// GQR = utils.NewVector(N+1, Rdist)
+	// }
 	/*
 		Double the number of interior points to match each direction of the basis
 	*/
