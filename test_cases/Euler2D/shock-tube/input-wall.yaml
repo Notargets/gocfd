@@ -9,15 +9,14 @@ CFL: 2.50
 FluxType: Roe
 #FluxType: Lax
 InitType: shocktube # Can be "Freestream" or "IVortex"
-PolynomialOrder: 2
+PolynomialOrder: 4
 FinalTime: 0.2
 LocalTimeStepping: false
 MaxIterations: 80000
 #Limiter: Barth Jesperson
 Limiter: persson c0
 #Kappa: 0.25
-Kappa: 4
-#Kappa: 0
-#Kappa: 5
+#Kappa: 4
+Kappa: 5
 #Kappa: 10
 PlotFields: [ "mach" ]

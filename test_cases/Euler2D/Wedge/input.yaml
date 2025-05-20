@@ -1,8 +1,8 @@
 Title: "Test Case"
-#CFL: 5.0
+CFL: 5.0
 #CFL: 4.0
 #CFL: 3.0
-CFL: 2.5
+#CFL: 2.5
 #CFL: 2.0
 #CFL: 1.5
 #CFL: 1.0
@@ -33,6 +33,7 @@ MaxIterations: 2000
 
 #Limiter: 
 Limiter: PerssonC0
-Kappa: 4.5
+Kappa: 4.75
+#Kappa: 5
 
 PlotFields: ["mach"]

@@ -1,6 +1,7 @@
 package DG2D
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/notargets/gocfd/utils"
@@ -41,9 +42,7 @@ func (sf *ModeAliasShockFinder) UpdateShockedCells(Rho utils.Matrix) {
 
 func (dfr *DFR2D) ModalFilter(alpha float64, s int) (mf []float64) {
 	// This should be used in conjunction with the limiter,
-	// then applied to the modes directly. For instance,
-	// if the shock finder function sigma is available:
-	// mode[i] = 1 - sigma*(1 - mf[i])
+	// then applied to the modes directly.
 	var (
 		N  = dfr.SolutionElement.N
 		Np = dfr.SolutionElement.Np
@@ -52,13 +51,13 @@ func (dfr *DFR2D) ModalFilter(alpha float64, s int) (mf []float64) {
 
 	for j := 0; j < Np; j++ {
 		p := dfr.SolutionElement.JB2D.OrderAtJ[j]
-		if p < 3 {
-			mf[j] = 1.0 // preserve low modes
-		} else {
-			normalized := float64(p) / float64(N)
-			// Interpolate between 1 (no damping) and baseDamp (max damping)
-			mf[j] = math.Exp(-alpha * math.Pow(normalized, float64(s)))
-		}
+		// if p < 2 {
+		// 	mf[j] = 1.0 // preserve low modes
+		// } else {
+		normalized := float64(p) / float64(N)
+		// Interpolate between 1 (no damping) and baseDamp (max damping)
+		mf[j] = math.Exp(-alpha * math.Pow(normalized, float64(s)))
+		// }
 	}
 	return
 }
@@ -90,13 +89,46 @@ func (dfr *DFR2D) NewAliasShockFinder(Kappa float64) (sf *ModeAliasShockFinder) 
 	sf.Clipper =
 		element.JB2D.V.Mul(dfr.CutoffFilter2D(N, 0)).Mul(element.JB2D.Vinv)
 	// Implement a cutoff filter to suppress ringing, won't alter modes < 3
-	sf.ModeFilter = dfr.ModalFilter(12, 4)
+	alpha, s := RecommendedFilterParameters(dfr.N)
+	sf.ModeFilter = dfr.ModalFilter(alpha, s)
 	// fmt.Println("Exponential Filter: ", sf.ModeFilter)
 	// os.Exit(1)
 
 	// sf.D = utils.NewMatrix(Np, Np).AddScalar(1.).Subtract(sf.Clipper)
 	sf.D = utils.NewDiagMatrix(Np, nil, 1.).Subtract(sf.Clipper)
 	sf.P = sf.Mass.Mul(sf.D)
+	return
+}
+
+func RecommendedFilterParameters(P int) (alpha float64, s int) {
+	switch {
+	case P <= 2:
+		alpha = 4.0
+		s = 4
+	case P == 3:
+		alpha = 6.0
+		s = 4
+	case P == 4:
+		alpha = 8.0
+		s = 5
+	case P == 5:
+		alpha = 10.0
+		s = 6
+	case P == 6:
+		alpha = 14.0
+		s = 6
+	case P == 7:
+		alpha = 18.0
+		s = 7
+	case P == 8:
+		alpha = 24.0
+		s = 8
+	case P >= 9:
+		alpha = 30.0 + 2.0*float64(P-9)
+		s = 8 + (P-9)/2
+	default:
+		panic(fmt.Errorf("invalid polynomial order P = %d", P))
+	}
 	return
 }
 

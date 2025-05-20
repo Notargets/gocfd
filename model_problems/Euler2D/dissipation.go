@@ -273,10 +273,11 @@ func (sd *ScalarDissipation) CalculateEpsilonGradient(c *Euler, myThread int, Q 
 		switch sd.Continuity {
 		case No:
 			for k := 0; k < Kmax; k++ {
+				epsScalar := EpsilonScalar.AtVec(k)
 				for i := 0; i < NpFlux; i++ {
 					ind := k + Kmax*i
-					DissX[n].DataP[ind] *= EpsilonScalar.AtVec(k)
-					DissY[n].DataP[ind] *= EpsilonScalar.AtVec(k)
+					DissX[n].DataP[ind] *= epsScalar
+					DissY[n].DataP[ind] *= epsScalar
 				}
 			}
 		case C0:
@@ -580,8 +581,7 @@ func (sd *ScalarDissipation) LimitSolution(myThread int, Q [4]utils.Matrix,
 }
 
 func (sd *ScalarDissipation) LimitFilterSolution(myThread int,
-	Q [4]utils.Matrix,
-	QMean [4]utils.Vector, QScratch utils.Matrix) {
+	Q [4]utils.Matrix, QScratch utils.Matrix, ShockSensor *DG2D.ModeAliasShockFinder) {
 	// Note that this approach is equivalent to applying the limiter to modes
 	// 1 and higher of the polynomial for the element,
 	// as the mean is actually the mode1 value for the polynomial when we
@@ -590,19 +590,26 @@ func (sd *ScalarDissipation) LimitFilterSolution(myThread int,
 	var (
 		Np, Kmax    = Q[0].Dims()
 		SigmaScalar = sd.SigmaScalar[myThread]
-		// Sigma       = sd.Sigma[myThread]
+		mf          = ShockSensor.ModeFilter
+		el          = sd.dfr.SolutionElement
+		jb2d        = el.JB2D
+		V           = jb2d.V
+		Vinv        = jb2d.Vinv
 	)
 	for n := 0; n < 4; n++ {
+		// Transform Q into modal
+		Vinv.Mul(Q[n], QScratch)
 		for k := 0; k < Kmax; k++ {
-			// Smooth ramp accelerator 0-1 for sigma
-			alpha := math.Sin(0.5 * math.Pi * SigmaScalar.AtVec(k))
-			qmean := QMean[n].AtVec(k)
-			for i := 0; i < Np; i++ {
+			sigma := SigmaScalar.AtVec(k)
+			alpha := math.Sin(0.5 * math.Pi * sigma)
+			// alpha := math.Sqrt(math.Sin(0.5 * math.Pi * sigma))
+			for i := 1; i < Np; i++ {
 				ind := k + Kmax*i
-				q := Q[n].DataP[ind]
-				Q[n].DataP[ind] = (1.-alpha)*q + alpha*qmean
+				QScratch.DataP[ind] *= mf[i] * (1. - alpha)
 			}
 		}
+		// Transform QScratch into Q nodal
+		V.Mul(QScratch, Q[n])
 	}
 	return
 }
