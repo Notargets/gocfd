@@ -216,7 +216,8 @@ func (sd *ScalarDissipation) AvgSigmaMaxFromVerticesToSigmaScalar(
 	for k := 0; k < KMax; k++ {
 		SigmaAvg := 0.
 		for v := 0; v < 3; v++ {
-			SigmaAvg += sd.SigmaVertex[int(EtoV.At(k, v))]
+			ind := v + 3*k
+			SigmaAvg += sd.SigmaVertex[int(EtoV.DataP[ind])]
 		}
 		SigmaScalar.Set(k, SigmaAvg/3.)
 	}
@@ -488,7 +489,7 @@ func (c *Euler) modulateQInterp(Q [4]utils.Matrix, QInterp [4]utils.Matrix, sf *
 		Beta = 2.
 		// Beta = 6.6
 		// Beta        = 10.
-		NpInterp, _ = QInterp[0].Dims()
+		NpInterp, KMax = QInterp[0].Dims()
 	)
 	sf.UpdateShockedCells(Q[0])
 	for _, k := range sf.ShockCells.Cells() {
@@ -498,7 +499,9 @@ func (c *Euler) modulateQInterp(Q [4]utils.Matrix, QInterp [4]utils.Matrix, sf *
 		uMean := c.getElementMean(Q, k)
 		for n := 0; n < 4; n++ {
 			for i := 0; i < NpInterp; i++ {
-				QInterp[n].Set(i, k, alpha*QInterp[n].At(i, k)+(1.-alpha)*uMean[n])
+				ind := k + i*KMax
+				QInterp[n].DataP[ind] = alpha*QInterp[n].DataP[ind] +
+					(1.-alpha)*uMean[n]
 			}
 		}
 	}
@@ -507,14 +510,14 @@ func (c *Euler) modulateQInterp(Q [4]utils.Matrix, QInterp [4]utils.Matrix, sf *
 
 func (c *Euler) getElementMean(Q [4]utils.Matrix, k int) (Umean [4]float64) {
 	var (
-		N     = c.DFR.SolutionElement.N
-		Np, _ = Q[0].Dims()
+		N        = c.DFR.SolutionElement.N
+		Np, KMax = Q[0].Dims()
 	)
 	bcn := DG2D.WilliamsShunnJamesonCoords[N]
 	for n := 0; n < 4; n++ {
 		Umean[n] = 0.0
 		for i := 0; i < Np; i++ {
-			Umean[n] += Q[n].At(i, k) * bcn[i].W
+			Umean[n] += Q[n].DataP[k+i*KMax] * bcn[i].W
 		}
 	}
 	return
@@ -550,6 +553,34 @@ func (sd *ScalarDissipation) UpdateShockFinderSigma(myThread int, Se utils.Vecto
 }
 
 func (sd *ScalarDissipation) LimitSolution(myThread int, Q [4]utils.Matrix,
+	QMean [4]utils.Vector, QScratch utils.Matrix) {
+	// Note that this approach is equivalent to applying the limiter to modes
+	// 1 and higher of the polynomial for the element,
+	// as the mean is actually the mode1 value for the polynomial when we
+	// have an orthogonal basis. By computing the mean and doing it this way,
+	// it's faster to compute.
+	var (
+		Np, Kmax    = Q[0].Dims()
+		SigmaScalar = sd.SigmaScalar[myThread]
+		// Sigma       = sd.Sigma[myThread]
+	)
+	for n := 0; n < 4; n++ {
+		for k := 0; k < Kmax; k++ {
+			// Smooth ramp accelerator 0-1 for sigma
+			alpha := math.Sin(0.5 * math.Pi * SigmaScalar.AtVec(k))
+			qmean := QMean[n].AtVec(k)
+			for i := 0; i < Np; i++ {
+				ind := k + Kmax*i
+				q := Q[n].DataP[ind]
+				Q[n].DataP[ind] = (1.-alpha)*q + alpha*qmean
+			}
+		}
+	}
+	return
+}
+
+func (sd *ScalarDissipation) LimitFilterSolution(myThread int,
+	Q [4]utils.Matrix,
 	QMean [4]utils.Vector, QScratch utils.Matrix) {
 	// Note that this approach is equivalent to applying the limiter to modes
 	// 1 and higher of the polynomial for the element,

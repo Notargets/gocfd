@@ -90,7 +90,7 @@ func (dfr *DFR2D) NewAliasShockFinder(Kappa float64) (sf *ModeAliasShockFinder) 
 	sf.Clipper =
 		element.JB2D.V.Mul(dfr.CutoffFilter2D(N, 0)).Mul(element.JB2D.Vinv)
 	// Implement a cutoff filter to suppress ringing, won't alter modes < 3
-	sf.ModeFilter = dfr.ModalFilter(6, 4)
+	sf.ModeFilter = dfr.ModalFilter(12, 4)
 	// fmt.Println("Exponential Filter: ", sf.ModeFilter)
 	// os.Exit(1)
 
@@ -114,11 +114,12 @@ func (sf *ModeAliasShockFinder) UpdateSeMoment(TestVar utils.Matrix,
 	for k := 0; k < KMax; k++ {
 		var num, den float64
 		for i := 0; i < Np; i++ {
+			ind := k + i*KMax
 			// d_i = (U - Ualt)[i,k]
 			// but Ualt = C*Q so U - Ualt = D*Q, and X = M * D * Q already
-			di := DQ.At(i, k)
-			num += di * X.At(i, k)
-			den += TestVar.At(i, k) * Y.At(i, k)
+			di := DQ.DataP[ind]
+			num += di * X.DataP[ind]
+			den += TestVar.DataP[ind] * Y.DataP[ind]
 		}
 		Se.Set(k, math.Log10(num/den))
 	}

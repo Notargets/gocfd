@@ -135,6 +135,6 @@ func SetupRTTest(P int) (rt *RTElement) {
 		rt.DOFVectors[offset+i+2*NpEdge] = NewConstantVector(-1, 0)
 	}
 
-	rt.R, rt.S = rt.ExtendGeomToRT(rt.RInt, rt.SInt, Epsilon)
+	rt.R, rt.S = rt.ExtendGeomToRT(rt.RInt, rt.SInt, WSJ)
 	return
 }

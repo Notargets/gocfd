@@ -38,10 +38,10 @@ type NodeType string
 const (
 	// Only the WSJ distribution has Quadrature colocated,
 	// we will assume their use throughout
-	WSJ = NodeType("WSJ")
-	// Epsilon   = NodeType("Epsilon")
-	// Hesthaven = NodeType("Hesthaven")
-	// Uniform   = NodeType("Uniform")
+	WSJ       = NodeType("WSJ")
+	Epsilon   = NodeType("Epsilon")
+	Hesthaven = NodeType("Hesthaven")
+	Uniform   = NodeType("Uniform")
 )
 
 func NewLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
@@ -58,7 +58,14 @@ func NewLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
 	el.NFaces = 3
 	// Only the WSJ distribution has Quadrature colocated,
 	// we will assume their use throughout
-	el.R, el.S = MakeRSFromPoints(WilliamsShunnJameson(el.N))
+	switch nodeType {
+	case WSJ:
+		el.R, el.S = MakeRSFromPoints(WilliamsShunnJameson(el.N))
+	case Epsilon:
+		el.R, el.S = NodesEpsilon(el.N)
+	case Hesthaven:
+		el.R, el.S = XYtoRS(Nodes2D(el.N))
+	}
 
 	// Build reference element matrices
 	el.JB2D = NewJacobiBasis2D(el.N, el.R, el.S, 0, 0)

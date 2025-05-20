@@ -15,8 +15,8 @@ func TestNewRTBasisSimplex(t *testing.T) {
 		N = 1
 	)
 	tol := 0.000001
-	rt1 := NewRTElement(N, SimplexRTBasis, Hesthaven)
-	rt2 := NewRTElement(N, ErvinBasisRT, Hesthaven)
+	rt1 := NewRTElement(N, SimplexRTBasis, WSJ)
+	rt2 := NewRTElement(N, ErvinBasisRT, WSJ)
 	Np := rt1.Np
 	Diff := utils.NewMatrix(Np, Np)
 	for i := 0; i < rt1.Np; i++ {

@@ -35,7 +35,7 @@ type NDG2D struct {
 
 func NewNDG2D(N int, meshFile string) (ndg *NDG2D) {
 	ndg = &NDG2D{
-		Element: NewLagrangeElement2D(N, WSJ),
+		Element: NewLagrangeElement2D(N, Hesthaven),
 		NODETOL: 1.e-6,
 	}
 	if N < 1 {

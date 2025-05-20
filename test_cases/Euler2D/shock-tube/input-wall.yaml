@@ -9,7 +9,7 @@ CFL: 2.50
 FluxType: Roe
 #FluxType: Lax
 InitType: shocktube # Can be "Freestream" or "IVortex"
-PolynomialOrder: 4
+PolynomialOrder: 2
 FinalTime: 0.2
 LocalTimeStepping: false
 MaxIterations: 80000
