@@ -32,22 +32,27 @@ func TestElementMean(t *testing.T) {
 	DG2D.SetTestFieldQ(c.DFR, DG2D.NORMALSHOCKTESTM5, c.Q[0])
 	// DG2D.SetTestFieldQ(c.DFR, DG2D.FIXEDVORTEXTEST, c.Q[0])
 	// DG2D.SetTestFieldQ(c.DFR, DG2D.INTEGERTEST, c.Q[0])
-	c.UpdateElementMean(c.Q[0], c.RK.QMean[0])
+	_, KMax := c.Q[0][0].Dims()
+	var QMean [4]utils.Vector
+	for n := 0; n < 4; n++ {
+		QMean[n] = utils.NewVector(KMax)
+	}
+	c.UpdateElementMean(c.Q[0], QMean)
 	// for n := 0; n < 4; n++ {
 	// 	fmt.Printf("QMean[%d]=", n)
 	// 	c.RK.QMean[0][n].Transpose().Print("")
 	// }
 	assert.InDeltaSlicef(t,
 		[]float64{1, 1, 1.40545, 4.28205, 4.6875, 1, 1, 1.40545, 4.28205, 4.6875},
-		c.RK.QMean[0][0].DataP, 1e-4, "")
+		QMean[0].DataP, 1e-4, "")
 	assert.InDeltaSlicef(t,
-		[]float64{5, 5, 5, 5, 5, 5, 5, 5, 5, 5}, c.RK.QMean[0][1].DataP, 1e-4, "")
+		[]float64{5, 5, 5, 5, 5, 5, 5, 5, 5, 5}, QMean[1].DataP, 1e-4, "")
 	assert.InDeltaSlicef(t,
-		[]float64{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, c.RK.QMean[0][2].DataP, 1e-4, "")
+		[]float64{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, QMean[2].DataP, 1e-4, "")
 	assert.InDeltaSlicef(t,
 		[]float64{15, 15, 19.32477, 50.00856, 54.33333, 15, 15, 19.32477,
 			50.00856, 54.33333},
-		c.RK.QMean[0][3].DataP, 1e-4, "")
+		QMean[3].DataP, 1e-4, "")
 }
 
 func TestPlotShockTemperedInterpolation(t *testing.T) {

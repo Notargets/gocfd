@@ -258,11 +258,10 @@ type RungeKutta4SSP struct {
 	Flux_Face                                  [][2][4]utils.Matrix // Flux interpolated to edges from interior
 	Q1, Q2, Q3, Q4                             [][4]utils.Matrix    // Intermediate solution state
 	Residual                                   [][4]utils.Matrix    // Used for reporting, aliased to Q1
-	QMean                                      [][4]utils.Vector    // Element mean
 	Se                                         []utils.Vector       // Element moment - troubled element indicator
 	LScratch                                   [][3]utils.Matrix    // Scratch space for limiter
 	F_RT_DOF                                   [][4]utils.Matrix    // Normal flux used for divergence
-	DT, DTVisc                                 []utils.Matrix       // Local time step storage
+	DT, DTVisc                                 []utils.Vector       // Local time step storage
 	Epsilon                                    []utils.Matrix
 	GlobalMaxWaveSpeed, GlobalMaxViscWaveSpeed []float64 // Shard max wavespeed
 	GlobalDT, Time                             float64
@@ -290,12 +289,11 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		Q3:                     make([][4]utils.Matrix, NPar),
 		Q4:                     make([][4]utils.Matrix, NPar),
 		Residual:               make([][4]utils.Matrix, NPar),
-		QMean:                  make([][4]utils.Vector, NPar),
 		Se:                     make([]utils.Vector, NPar),
 		LScratch:               make([][3]utils.Matrix, NPar),
 		F_RT_DOF:               make([][4]utils.Matrix, NPar),
-		DT:                     make([]utils.Matrix, NPar),
-		DTVisc:                 make([]utils.Matrix, NPar),
+		DT:                     make([]utils.Vector, NPar),
+		DTVisc:                 make([]utils.Vector, NPar),
 		GlobalMaxWaveSpeed:     make([]float64, NPar),
 		GlobalMaxViscWaveSpeed: make([]float64, NPar),
 		Kmax:                   make([]int, NPar),
@@ -324,11 +322,10 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 			rk.Q_Face[np][n] = utils.NewMatrix(rk.NpEdge*3, rk.Kmax[np])
 			rk.Flux_Face[np][0][n] = utils.NewMatrix(rk.NpEdge*3, rk.Kmax[np])
 			rk.Flux_Face[np][1][n] = utils.NewMatrix(rk.NpEdge*3, rk.Kmax[np])
-			rk.QMean[np][n] = utils.NewVector(rk.Kmax[np])
 		}
 		rk.Se[np] = utils.NewVector(rk.Kmax[np])
-		rk.DT[np] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
-		rk.DTVisc[np] = utils.NewMatrix(rk.NpInt, rk.Kmax[np])
+		rk.DT[np] = utils.NewVector(rk.Kmax[np])
+		rk.DTVisc[np] = utils.NewVector(rk.Kmax[np])
 		rk.EdgeQ1[np] = make([][4]float64, rk.NpEdge)
 		rk.EdgeQ2[np] = make([][4]float64, rk.NpEdge)
 		rk.ShockSensor[np] = c.DFR.NewAliasShockFinder(c.Kappa)
@@ -392,6 +389,7 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int) {
 			QQQ                = QQQAll[np]
 			// Debug              = false
 			Debug = true
+			Np, _ = Q0[0].Dims()
 		)
 		checkFunc := func() {
 			if !Debug {
@@ -421,55 +419,64 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int) {
 		if c.Dissipation != nil {
 			c.Dissipation.AddDissipation(c, np, Jinv, Jdet, RHSQ)
 		}
-		// if c.LocalTimeStepping {
-		// DTStartup = 1. - math.Pow(math.Exp(-float64(rk.StepCount+1)), 1./64)
-		// 	for i := range DT.DataP {
-		// 		DT.DataP[i] *= DTStartup
-		// 	}
-		// } else {
-		if !c.LocalTimeStepping {
-			for i := range DT.DataP {
-				DT.DataP[i] = rk.GlobalDT
-			}
-		}
 		for n := 0; n < 4; n++ {
 			var (
-				U0, U1, U2, U3, U4 = Q0[n].DataP, Q1[n].DataP, Q2[n].DataP, Q3[n].DataP, Q4[n].DataP
-				R, RHS             = Residual[n].DataP, RHSQ[n].DataP
+				U0, U1, U2, U3, U4 = Q0[n].DataP, Q1[n].DataP, Q2[n].DataP,
+					Q3[n].DataP, Q4[n].DataP
+				R, RHS = Residual[n].DataP, RHSQ[n].DataP
 			)
 			switch rkStep {
 			case 0:
-				for i := range DT.DataP {
-					dtRHS := DT.DataP[i] * RHSQ[n].DataP[i]
-					U1[i] = U0[i] + 0.391752226571890*dtRHS
+				for i := 0; i < Np; i++ {
+					for k := 0; k < Kmax; k++ {
+						ind := k + i*Kmax
+						dtRHS := DT.DataP[k] * RHSQ[n].DataP[ind]
+						U1[ind] = U0[ind] + 0.391752226571890*dtRHS
+					}
 				}
 			case 1:
-				for i := range DT.DataP {
-					dtRHS := DT.DataP[i] * RHSQ[n].DataP[i]
-					U2[i] = 0.444370493651235*U0[i] + 0.555629506348765*U1[i] +
-						0.368410593050371*dtRHS
+				for i := 0; i < Np; i++ {
+					for k := 0; k < Kmax; k++ {
+						ind := k + i*Kmax
+						dtRHS := DT.DataP[k] * RHSQ[n].DataP[ind]
+						U2[ind] = 0.444370493651235*U0[ind] +
+							0.555629506348765*U1[ind] +
+							0.368410593050371*dtRHS
+					}
 				}
 			case 2:
-				for i := range DT.DataP {
-					dtRHS := DT.DataP[i] * RHSQ[n].DataP[i]
-					U3[i] = 0.620101851488403*U0[i] + 0.379898148511597*U2[i] +
-						0.251891774271694*dtRHS
+				for i := 0; i < Np; i++ {
+					for k := 0; k < Kmax; k++ {
+						ind := k + i*Kmax
+						dtRHS := DT.DataP[k] * RHSQ[n].DataP[ind]
+						U3[ind] = 0.620101851488403*U0[ind] +
+							0.379898148511597*U2[ind] +
+							0.251891774271694*dtRHS
+					}
 				}
 			case 3:
-				for i := range DT.DataP {
-					dtRHS := DT.DataP[i] * RHSQ[n].DataP[i]
-					R[i] = RHS[i] // Store the current RHS for use in the last RK step
-					U4[i] = 0.178079954393132*U0[i] + 0.821920045606868*U3[i] +
-						0.544974750228521*dtRHS
+				for i := 0; i < Np; i++ {
+					for k := 0; k < Kmax; k++ {
+						ind := k + i*Kmax
+						dtRHS := DT.DataP[k] * RHSQ[n].DataP[ind]
+						R[ind] = RHS[ind] // Store the current RHS for use in the last RK step
+						U4[ind] = 0.178079954393132*U0[ind] +
+							0.821920045606868*U3[ind] +
+							0.544974750228521*dtRHS
+					}
 				}
 			case 4:
-				for i := range DT.DataP {
-					dtRHS := DT.DataP[i] * RHSQ[n].DataP[i]
-					dtR3 := DT.DataP[i] * R[i]
-					R[i] = -U0[i] + 0.517231671970585*U2[i] +
-						0.096059710526146*U3[i] + 0.386708617503269*U4[i] +
-						0.063692468666290*dtR3 + 0.226007483236906*dtRHS
-					U0[i] += R[i]
+				for i := 0; i < Np; i++ {
+					for k := 0; k < Kmax; k++ {
+						ind := k + i*Kmax
+						dtRHS := DT.DataP[k] * RHSQ[n].DataP[ind]
+						dtR3 := DT.DataP[k] * R[ind]
+						R[ind] = -U0[ind] + 0.517231671970585*U2[ind] +
+							0.096059710526146*U3[ind] +
+							0.386708617503269*U4[ind] +
+							0.063692468666290*dtR3 + 0.226007483236906*dtRHS
+						U0[ind] += R[ind]
+					}
 				}
 			}
 		}
@@ -513,8 +520,6 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int) {
 			sd.InterpolateEpsilonSigma(np)
 		}
 		if rkStep == 4 && c.Dissipation != nil {
-			// c.UpdateElementMean(QQQ, rk.QMean[np])
-			// sd.LimitSolution(np, QQQ, rk.QMean[np], rk.LScratch[np][0])
 			sd.LimitFilterSolution(np, QQQ, rk.LScratch[np][2], rk.ShockSensor[np])
 		}
 		c.InterpolateSolutionToEdges(QQQ, rk.Q_Face[np])
@@ -541,15 +546,13 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int) {
 	// doSerial(func(np int) {
 	doParallel(func(np int) {
 		rk.GlobalMaxWaveSpeed[np], rk.GlobalMaxViscWaveSpeed[np] =
-			c.CalcElementMaxWaveSpeed(rk.DT[np], rk.DTVisc[np], np)
+			c.CalcElementMaxWaveSpeed(np, rk.DT[np], rk.DTVisc[np])
 	})
 	if !c.LocalTimeStepping {
 		rk.calculateGlobalDT(c) // Compute the global DT for nonlocal timestepping - must be done serially
 	}
 	doParallel(func(np int) {
-		if c.LocalTimeStepping {
-			c.CalculateLocalDT(rk.DT[np], rk.DTVisc[np])
-		}
+		c.CalculateLocalDT(rk.DT[np], rk.DTVisc[np], rk.GlobalDT)
 		// Perform a Runge Kutta pseudo time step
 		rkAdvance(np)
 	})
@@ -864,49 +867,35 @@ func (rk *RungeKutta4SSP) calculateGlobalDT(c *Euler) {
 	}
 }
 
-func (c *Euler) CalculateLocalDT(DT, DTVisc utils.Matrix) {
+func (c *Euler) CalculateLocalDT(DT, DTVisc utils.Vector, GlobalDT float64) {
 	var (
-		_, Kmax = DT.Dims()
+		Kmax, _ = DT.Dims()
 		NP1     = float64(c.DFR.N + 1)
 		NP12    = NP1 * NP1
 	)
-	for k := 0; k < Kmax; k++ {
-		// SetScalar each element's DT to CFL*h/(max_wave_speed)
-		DT.DataP[k] = c.CFL / DT.DataP[k]
-	}
-	if c.Dissipation != nil {
-		// epsScalar := c.Dissipation.EpsilonScalar[myThread]
-		// C_diff≈0.1–0.25;
-		// C_diff := 0.25
-		C_diff := 1. / NP12
-		for k := 0; k < Kmax; k++ {
-			// DT.DataP[k] = c.CFL / ((1. + epsScalar[k]) * DT.DataP[k])
-			// SetScalar each element's DT to CFL*h/(max_wave_speed)
-			// if math.Abs(DTVisc.DataP[k]) > 0.01 {
-			DTVisc.DataP[k] = C_diff / max(DTVisc.DataP[k], 1.e-9)
-			// }
+	// c.LocalTimeStepping = false
+	if !c.LocalTimeStepping {
+		for k := range DT.DataP {
+			DT.DataP[k] = GlobalDT
 		}
-		// SetScalar the DT of all interior points of each element to the element DT
-		// dtMin := math.MaxFloat64
-		// dtMax := -dtMin
-		// Replicate local time step to the other solution points for each k
-		for i := 1; i < c.DFR.SolutionElement.Np; i++ {
-			for k := 0; k < Kmax; k++ {
-				ind := k + Kmax*i
-				DT.DataP[ind] = min(DT.DataP[k], DTVisc.DataP[k])
-			}
-		}
-		// dtMin = min(dtMin, DT.DataP[k])
-		// dtMax = max(dtMax, DT.DataP[k])
 	} else {
-		for i := 1; i < c.DFR.SolutionElement.Np; i++ {
+		for k := 0; k < Kmax; k++ {
+			// Set each element's DT to CFL*h/(max_wave_speed)
+			DT.DataP[k] = c.CFL / DT.DataP[k]
+		}
+		if c.Dissipation != nil {
+			AVThreshold := 1.e-9
+			// C_diff≈0.1–0.25;
+			// C_diff := 0.25
+			C_diff := 1. / NP12
 			for k := 0; k < Kmax; k++ {
-				ind := k + Kmax*i
-				DT.DataP[ind] = DT.DataP[k]
+				if DTVisc.DataP[k] > AVThreshold {
+					DTVisc.DataP[k] = C_diff / DTVisc.DataP[k]
+					DT.DataP[k] = min(DT.DataP[k], DTVisc.DataP[k])
+				}
 			}
 		}
 	}
-	// fmt.Printf("DTMin, DTMax: %f, %f\n", dtMin, dtMax)
 }
 
 func (c *Euler) UpdateElementMean(Q [4]utils.Matrix, QMean [4]utils.Vector) {

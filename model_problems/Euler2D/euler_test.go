@@ -189,7 +189,6 @@ func TestEuler(t *testing.T) {
 				NpFlux := c.DFR.FluxElement.Np // Np = 2*NpInt+3*NpEdge
 				// Mark the initial state with the element number
 				var Q_Face, F_RT_DOF [4]utils.Matrix
-				var QMean [4]utils.Vector
 				var Flux, Flux_Face [2][4]utils.Matrix
 				for n := 0; n < 4; n++ {
 					F_RT_DOF[n] = utils.NewMatrix(NpFlux, Kmax)
@@ -198,11 +197,9 @@ func TestEuler(t *testing.T) {
 					Flux_Face[1][n] = utils.NewMatrix(3*Nedge, Kmax)
 					Flux[0][n] = utils.NewMatrix(Nint, Kmax)
 					Flux[1][n] = utils.NewMatrix(Nint, Kmax)
-					QMean[n] = utils.NewVector(Kmax)
 				}
 				Q := c.Q[0]
 				c.SetRTFluxInternal(Kmax, c.DFR.Jdet, c.DFR.Jinv, F_RT_DOF, Q)
-				c.UpdateElementMean(Q, QMean)
 				c.InterpolateSolutionToEdges(Q, Q_Face)
 				EdgeQ1 := make([][4]float64, Nedge)
 				EdgeQ2 := make([][4]float64, Nedge)
@@ -278,7 +275,6 @@ func TestEuler(t *testing.T) {
 				NpFlux := c.DFR.FluxElement.Np // Np = 2*NpInt+3*NpEdge
 				// Mark the initial state with the element number
 				var Q_Face, F_RT_DOF [4]utils.Matrix
-				var QMean [4]utils.Vector
 				var Flux, Flux_Face [2][4]utils.Matrix
 				for n := 0; n < 4; n++ {
 					F_RT_DOF[n] = utils.NewMatrix(NpFlux, Kmax)
@@ -287,13 +283,11 @@ func TestEuler(t *testing.T) {
 					Flux_Face[1][n] = utils.NewMatrix(3*Nedge, Kmax)
 					Flux[0][n] = utils.NewMatrix(Nint, Kmax)
 					Flux[1][n] = utils.NewMatrix(Nint, Kmax)
-					QMean[n] = utils.NewVector(Kmax)
 				}
 				Q := c.Q[0]
 				X, Y := c.DFR.FluxX, c.DFR.FluxY
 				c.SetRTFluxInternal(Kmax, c.DFR.Jdet, c.DFR.Jinv, F_RT_DOF, Q)
 				c.InterpolateSolutionToEdges(Q, Q_Face)
-				c.UpdateElementMean(Q, QMean)
 				EdgeQ1 := make([][4]float64, Nedge)
 				EdgeQ2 := make([][4]float64, Nedge)
 				c.CalculateEdgeEulerFlux(0, [][4]utils.Matrix{Q_Face},
@@ -932,7 +926,6 @@ func CheckFlux0(c *Euler, t *testing.T) {
 	Nedge := c.DFR.FluxElement.NpEdge
 	NpFlux := c.DFR.FluxElement.Np
 	var Q, Q_Face, F_RT_DOF [4]utils.Matrix
-	var QMean [4]utils.Vector
 	var Flux_Face [2][4]utils.Matrix
 	for n := 0; n < 4; n++ {
 		Q[n] = utils.NewMatrix(Nint, Kmax)
@@ -940,7 +933,6 @@ func CheckFlux0(c *Euler, t *testing.T) {
 		Flux_Face[0][n] = utils.NewMatrix(3*Nedge, Kmax)
 		Flux_Face[1][n] = utils.NewMatrix(3*Nedge, Kmax)
 		F_RT_DOF[n] = utils.NewMatrix(NpFlux, Kmax)
-		QMean[n] = utils.NewVector(Kmax)
 		for k := 0; k < Kmax; k++ {
 			for i := 0; i < Nint; i++ {
 				ind := k + i*Kmax
@@ -956,7 +948,6 @@ func CheckFlux0(c *Euler, t *testing.T) {
 	c.SetRTFluxInternal(Kmax, c.DFR.Jdet, c.DFR.Jinv, F_RT_DOF, Q)
 	EdgeQ1 := make([][4]float64, Nedge)
 	EdgeQ2 := make([][4]float64, Nedge)
-	c.UpdateElementMean(Q, QMean)
 	// No need to interpolate to the edges, they are left at initialized state in Q_Face
 	c.CalculateEdgeEulerFlux(0, [][4]utils.Matrix{Q_Face},
 		[][2][4]utils.Matrix{Flux_Face}, EdgeQ1, EdgeQ2, c.SortedEdgeKeys[0])

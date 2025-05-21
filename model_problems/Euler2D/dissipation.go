@@ -554,7 +554,7 @@ func (sd *ScalarDissipation) UpdateShockFinderSigma(myThread int, Se utils.Vecto
 }
 
 func (sd *ScalarDissipation) LimitSolution(myThread int, Q [4]utils.Matrix,
-	QMean [4]utils.Vector, QScratch utils.Matrix) {
+	QMean [4]utils.Vector) {
 	// Note that this approach is equivalent to applying the limiter to modes
 	// 1 and higher of the polynomial for the element,
 	// as the mean is actually the mode1 value for the polynomial when we

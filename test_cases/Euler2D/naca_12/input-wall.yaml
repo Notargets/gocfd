@@ -1,5 +1,8 @@
 Title: "Test Case"
-CFL: 0.3
+#CFL: 2.5
+#CFL: 1.0
+#CFL: 0.5
+CFL: 0.4
 FluxType: Roe
 InitType: Freestream # Can be "Freestream" or "IVortex"
 PolynomialOrder: 2
@@ -11,5 +14,5 @@ LocalTimeStepping: true
 #LocalTimeStepping: false
 MaxIterations: 50000
 Limiter: PerssonC0
-Kappa: 4.2
+Kappa: 5.0
 PlotFields: ["mach"]

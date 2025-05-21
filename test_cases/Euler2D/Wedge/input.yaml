@@ -2,19 +2,19 @@ Title: "Test Case"
 #CFL: 5.0
 #CFL: 4.0
 #CFL: 3.0
-#CFL: 2.5
+CFL: 2.5
 #CFL: 2.0
 #CFL: 1.5
 #CFL: 1.0
 #CFL: 0.5
-CFL: 0.25
+#CFL: 0.25
 #CFL: 0.01
 #FluxType: average
 #FluxType: Roe-ER
 FluxType: Roe
 #FluxType: Lax
 InitType: Freestream # Can be "Freestream" or "IVortex"
-PolynomialOrder: 7
+PolynomialOrder: 4
 FinalTime: 20
 Minf: 5.0
 Gamma: 1.4
@@ -30,12 +30,14 @@ MaxIterations: 2000
 #MaxIterations: 8000
 #MaxIterations: 10000
 #MaxIterations: 15000
+#MaxIterations: 50000
 
 #Limiter: 
 Limiter: PerssonC0
-#Kappa: 4.75
-#Kappa: 5
+#Kappa: 4
+Kappa: 5
 #Kappa: 5.5
-Kappa: 6.0
+#Kappa: 6.0
+#Kappa: 7.0
 
 PlotFields: ["mach"]
