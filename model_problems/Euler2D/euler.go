@@ -54,7 +54,7 @@ type Euler struct {
 	EdgeStore           *EdgeValueStorage
 	ShockTube           *sod_shock_tube.SODShockTube
 	SolutionFieldWriter *DG2D.AVSFieldWriter
-	RK                  *RungeKutta4SSP
+	RK                  *RungeKutta5SSP
 	NeighborNotifier    *utils.NeighborNotifier
 }
 
@@ -252,7 +252,7 @@ func (c *Euler) OutputFinal() {
 	return
 }
 
-type RungeKutta4SSP struct {
+type RungeKutta5SSP struct {
 	Jdet, Jinv                                 []utils.Matrix       // Sharded mesh Jacobian and inverse transform
 	RHSQ, Q_Face                               [][4]utils.Matrix    // State used for matrix multiplies within the time step algorithm
 	Flux_Face                                  [][2][4]utils.Matrix // Flux interpolated to edges from interior
@@ -271,14 +271,16 @@ type RungeKutta4SSP struct {
 	EdgeQ1, EdgeQ2                             [][][4]float64 // Sharded local working memory, dimensions NpEdge
 	LimitedPoints                              []int          // Sharded number of limited points
 	ShockSensor                                []*DG2D.ModeAliasShockFinder
+	VtoE                                       []VertexToElement // Sharded vertex to element map, [2] is [vertID, ElementID_Sharded]
+	EtoV                                       []utils.Matrix    // Sharded Element to Vertex map, Kx3
 }
 
-func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
+func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta5SSP) {
 	var (
 		pm   = c.Partitions
 		NPar = pm.ParallelDegree
 	)
-	rk = &RungeKutta4SSP{
+	rk = &RungeKutta5SSP{
 		Jdet:                   c.ShardByKTranspose(c.DFR.Jdet),
 		Jinv:                   c.ShardByKTranspose(c.DFR.Jinv),
 		RHSQ:                   make([][4]utils.Matrix, NPar),
@@ -304,6 +306,8 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 		EdgeQ2:                 make([][][4]float64, NPar),
 		LimitedPoints:          make([]int, NPar),
 		ShockSensor:            make([]*DG2D.ModeAliasShockFinder, NPar),
+		VtoE:                   NewVertexToElement(c.DFR.Tris.EToV).Shard(pm),
+		EtoV:                   c.shardEtoV(c.DFR.Tris.EToV),
 	}
 	// Initialize memory for RHS
 	for np := 0; np < NPar; np++ {
@@ -336,7 +340,7 @@ func (c *Euler) NewRungeKuttaSSP() (rk *RungeKutta4SSP) {
 	return
 }
 
-func (rk *RungeKutta4SSP) Step(c *Euler) {
+func (rk *RungeKutta5SSP) Step(c *Euler) {
 	/*
 		This is the controller thread - it manages and synchronizes the workers
 		NOTE: Any CPU work done in this thread makes the workers wait - be careful!
@@ -348,9 +352,18 @@ func (rk *RungeKutta4SSP) Step(c *Euler) {
 	}
 }
 
-func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int) {
+func (rk *RungeKutta5SSP) StepWorker(c *Euler, rkStep int) {
 	var (
 		QQQAll = [][][4]utils.Matrix{c.Q, rk.Q1, rk.Q2, rk.Q3, rk.Q4}[rkStep]
+		sum    = func(a, b float64) float64 {
+			return a + b
+		}
+		div3 = func(a float64) float64 {
+			return a / 3.
+		}
+		Max = func(a, b float64) float64 {
+			return max(a, b)
+		}
 	)
 	/*
 		Inline functions
@@ -506,7 +519,10 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int) {
 	})
 	doParallel(func(np int) {
 		if sd != nil {
-			sd.EpsilonSigmaMaxToVertices(np)
+			c.MergeElementScalarToVertices(rk.VtoE[np], sd.SigmaScalar,
+				sd.SigmaVertex, Max)
+			c.MergeElementScalarToVertices(rk.VtoE[np], sd.EpsilonScalar,
+				sd.EpsVertex, Max)
 		}
 	})
 	// doSerial(func(np int) {
@@ -515,8 +531,8 @@ func (rk *RungeKutta4SSP) StepWorker(c *Euler, rkStep int) {
 			QQQ = QQQAll[np]
 		)
 		if sd != nil {
-			sd.AvgSigmaMaxFromVerticesToSigmaScalar(sd.SigmaScalar[np],
-				sd.EtoV[np])
+			c.MergeVertexScalarToElement(sd.SigmaVertex, sd.SigmaScalar[np],
+				rk.EtoV[np], sum, div3)
 			sd.InterpolateEpsilonSigma(np)
 		}
 		if rkStep == 4 && c.Dissipation != nil {
@@ -839,7 +855,7 @@ func (c *Euler) GetSolutionGradient(myThread, varNum int, Q [4]utils.Matrix, Gra
 	}
 }
 
-func (rk *RungeKutta4SSP) calculateGlobalDT(c *Euler) {
+func (rk *RungeKutta5SSP) calculateGlobalDT(c *Euler) {
 	var (
 		pm = c.Partitions
 		NP = pm.ParallelDegree
@@ -912,6 +928,72 @@ func (c *Euler) UpdateElementMean(Q [4]utils.Matrix, QMean [4]utils.Vector) {
 					Q[n].At(i, k) * DG2D.WilliamsShunnJamesonCoords[P][i].W
 			}
 		}
+	}
+	return
+}
+
+func (c *Euler) shardEtoV(EtoV utils.Matrix) (ev []utils.Matrix) {
+	var (
+		pm = c.Partitions
+		NP = pm.ParallelDegree
+		// KMax, _ = EtoV.Dims()
+	)
+	ev = make([]utils.Matrix, NP)
+	for np := 0; np < NP; np++ {
+		KMax := pm.GetBucketDimension(np)
+		ev[np] = utils.NewMatrix(KMax, 3)
+		kmin, kmax := pm.GetBucketRange(np)
+		var klocal int
+		for k := kmin; k < kmax; k++ {
+			ev[np].Set(klocal, 0, EtoV.At(k, 0))
+			ev[np].Set(klocal, 1, EtoV.At(k, 1))
+			ev[np].Set(klocal, 2, EtoV.At(k, 2))
+			klocal++
+		}
+		if klocal != KMax {
+			msg := fmt.Errorf("dimension incorrect, should be %d, is %d", KMax, klocal)
+			panic(msg)
+		}
+	}
+	return
+}
+
+func (c *Euler) MergeElementScalarToVertices(VtoE VertexToElement,
+	ElementScalar []utils.Vector, ElementVertexScalar []float64,
+	mergeFunc func(a, b float64) float64) {
+	// ElementScalar is the sharded scalar field defined on K elements
+	// ElementVertexScalar is the target for consolidation of element values
+	// mergeFunc is typically one of min/max/sum
+	oldVert := -1
+	for _, val := range VtoE {
+		vert, k, threadID := int(val[0]), int(val[1]), int(val[2])
+		if oldVert == vert { // we're in the middle of processing this vert, update normally
+			ElementVertexScalar[vert] = mergeFunc(ElementVertexScalar[vert],
+				ElementScalar[threadID].AtVec(k))
+		} else { // we're on a new vertex, reset the vertex value
+			ElementVertexScalar[vert] = ElementScalar[threadID].AtVec(k)
+			oldVert = vert
+		}
+	}
+}
+
+func (c *Euler) MergeVertexScalarToElement(ElementVertexScalar []float64,
+	ElementScalar utils.Vector,
+	EtoV utils.Matrix,
+	mergeFunc func(a, b float64) float64, finalFunc func(a float64) float64) {
+	// ElementVertexScalar is the scalar value on each vertex, 3 per element
+	// ElementScalar is the non-sharded target element
+	var (
+		KMax, _ = EtoV.Dims()
+	)
+	for k := 0; k < KMax; k++ {
+		scalarAccum := 0.
+		for v := 0; v < 3; v++ {
+			ind := v + 3*k
+			scalarAccum =
+				mergeFunc(scalarAccum, ElementVertexScalar[int(EtoV.DataP[ind])])
+		}
+		ElementScalar.Set(k, finalFunc(scalarAccum))
 	}
 	return
 }
