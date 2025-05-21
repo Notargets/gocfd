@@ -49,15 +49,17 @@ func (dfr *DFR2D) ModalFilter(alpha float64, s int) (mf []float64) {
 	)
 	mf = make([]float64, Np)
 
-	for j := 0; j < Np; j++ {
-		p := dfr.SolutionElement.JB2D.OrderAtJ[j]
-		// if p < 2 {
-		// 	mf[j] = 1.0 // preserve low modes
-		// } else {
-		normalized := float64(p) / float64(N)
-		// Interpolate between 1 (no damping) and baseDamp (max damping)
-		mf[j] = math.Exp(-alpha * math.Pow(normalized, float64(s)))
-		// }
+	if N <= 2 {
+		for j := range mf {
+			mf[j] = 1.
+		}
+	} else {
+		for j := range mf {
+			p := dfr.SolutionElement.JB2D.OrderAtJ[j]
+			normalized := float64(p) / float64(N)
+			// Interpolate between 1 (no damping) and baseDamp (max damping)
+			mf[j] = math.Exp(-alpha * math.Pow(normalized, float64(s)))
+		}
 	}
 	return
 }
