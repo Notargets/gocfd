@@ -533,7 +533,7 @@ func (rk *RungeKutta5SSP) StepWorker(c *Euler, rkStep int) {
 		if sd != nil {
 			c.MergeVertexScalarToElement(sd.SigmaVertex, sd.SigmaScalar[np],
 				rk.EtoV[np], sum, div3)
-			sd.InterpolateEpsilonSigma(np)
+			sd.InterpolateEpsilonSigma(np, rk.EtoV[np])
 		}
 		if rkStep == 4 && c.Dissipation != nil {
 			sd.LimitFilterSolution(np, QQQ, rk.LScratch[np][2], rk.ShockSensor[np])

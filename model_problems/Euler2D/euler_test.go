@@ -542,7 +542,6 @@ func TestDissipation2(t *testing.T) {
 		assert.Equal(t, []float64{1, 3, 4, 5, 7, 9, 9, 6, 8, 9}, sd.EpsVertex)
 		for np := 0; np < NP; np++ {
 			sd.linearInterpolateEpsilon(np)
-			// sd.baryCentricInterpolateEpsilon(np)
 		}
 		/*
 			assert.InDeltaSlicef(t, []float64{

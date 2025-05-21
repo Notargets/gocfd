@@ -208,22 +208,6 @@ func (sd *ScalarDissipation) EpsilonSigmaMaxToVertices(myThread int) {
 	}
 }
 
-func (sd *ScalarDissipation) AvgSigmaMaxFromVerticesToSigmaScalar(
-	SigmaScalar utils.Vector, EtoV utils.Matrix) {
-	var (
-		KMax, _ = EtoV.Dims()
-	)
-	for k := 0; k < KMax; k++ {
-		SigmaAvg := 0.
-		for v := 0; v < 3; v++ {
-			ind := v + 3*k
-			SigmaAvg += sd.SigmaVertex[int(EtoV.DataP[ind])]
-		}
-		SigmaScalar.Set(k, SigmaAvg/3.)
-	}
-	return
-}
-
 type ContinuityLevel uint8
 
 const (
@@ -232,10 +216,10 @@ const (
 	C1
 )
 
-func (sd *ScalarDissipation) InterpolateEpsilonSigma(myThread int) {
+func (sd *ScalarDissipation) InterpolateEpsilonSigma(myThread int,
+	EtoV utils.Matrix) {
 	var (
 		Kmax = sd.PMap.GetBucketDimension(myThread)
-		EtoV = sd.EtoV[myThread]
 	)
 	interpolate := func(VertexValuesM, Interior utils.Matrix, VertexValues []float64) {
 		// Interpolate epsilon within each element
@@ -386,26 +370,6 @@ func (sd *ScalarDissipation) linearInterpolateEpsilon(myThread int) {
 		for i := 0; i < NpFlux; i++ {
 			ind := k + KMax*i
 			Epsilon.DataP[ind] = vertLinear(R.DataP[i], S.DataP[i], eps)
-		}
-	}
-}
-
-func (sd *ScalarDissipation) baryCentricInterpolateEpsilon(myThread int) {
-	var (
-		dfr      = sd.dfr
-		Np, KMax = dfr.SolutionElement.Np, sd.PMap.GetBucketDimension(myThread)
-		Epsilon  = sd.Epsilon[myThread]
-		EtoV     = sd.EtoV[myThread]
-	)
-	// Interpolate epsilon within each element
-	for k := 0; k < KMax; k++ {
-		tri := EtoV.Row(k).DataP
-		v := [3]int{int(tri[0]), int(tri[1]), int(tri[2])}
-		eps := [3]float64{sd.EpsVertex[v[0]], sd.EpsVertex[v[1]], sd.EpsVertex[v[2]]}
-		for i := 0; i < Np; i++ {
-			ind := k + KMax*i
-			bcc := sd.BaryCentricCoords.Row(i).DataP
-			Epsilon.DataP[ind] = bcc[0]*eps[0] + bcc[1]*eps[1] + bcc[2]*eps[2]
 		}
 	}
 }
