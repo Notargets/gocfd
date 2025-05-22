@@ -1,8 +1,9 @@
 Title: "Test Case"
 #CFL: 2.5
+CFL: 2.0
 #CFL: 1.0
 #CFL: 0.5
-CFL: 0.4
+#CFL: 0.4
 FluxType: Roe
 InitType: Freestream # Can be "Freestream" or "IVortex"
 PolynomialOrder: 2
