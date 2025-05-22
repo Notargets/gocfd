@@ -394,15 +394,14 @@ func (rk *RungeKutta5SSP) StepWorker(c *Euler, rkStep int) {
 	_, _ = doSerial, doParallel
 	rkAdvance := func(np int) {
 		var (
-			Kmax, Jdet, Jinv   = rk.Kmax[np], rk.Jdet[np], rk.Jinv[np]
-			DT                 = rk.DT[np]
-			F_RT_DOF           = rk.F_RT_DOF[np]
-			RHSQ, Residual     = rk.RHSQ[np], rk.Residual[np]
-			Q0, Q1, Q2, Q3, Q4 = c.Q[np], rk.Q1[np], rk.Q2[np], rk.Q3[np], rk.Q4[np]
-			QQQ                = QQQAll[np]
+			Kmax, Jdet, Jinv = rk.Kmax[np], rk.Jdet[np], rk.Jinv[np]
+			DT               = rk.DT[np]
+			F_RT_DOF         = rk.F_RT_DOF[np]
+			RHSQ, Residual   = rk.RHSQ[np], rk.Residual[np]
+			QQQ              = QQQAll[np]
 			// Debug              = false
 			Debug = true
-			Np, _ = Q0[0].Dims()
+			Np, _ = c.Q[np][0].Dims()
 		)
 		checkFunc := func() {
 			if !Debug {
@@ -413,11 +412,11 @@ func (rk *RungeKutta5SSP) StepWorker(c *Euler, rkStep int) {
 			utils.IsNan(RHSQ)
 			utils.IsNan(Jinv)
 			utils.IsNan(Jdet)
-			utils.IsNan(Q0)
-			utils.IsNan(Q1)
-			utils.IsNan(Q2)
-			utils.IsNan(Q3)
-			utils.IsNan(Q4)
+			utils.IsNan(c.Q[np])
+			utils.IsNan(rk.Q1[np])
+			utils.IsNan(rk.Q2[np])
+			utils.IsNan(rk.Q3[np])
+			utils.IsNan(rk.Q4[np])
 			utils.IsNan(DT)
 		}
 		/*
@@ -434,8 +433,11 @@ func (rk *RungeKutta5SSP) StepWorker(c *Euler, rkStep int) {
 		}
 		for n := 0; n < 4; n++ {
 			var (
-				U0, U1, U2, U3, U4 = Q0[n].DataP, Q1[n].DataP, Q2[n].DataP,
-					Q3[n].DataP, Q4[n].DataP
+				q0     = c.Q[np][n].DataP
+				q1     = rk.Q1[np][n].DataP
+				q2     = rk.Q2[np][n].DataP
+				q3     = rk.Q3[np][n].DataP
+				q4     = rk.Q4[np][n].DataP
 				R, RHS = Residual[n].DataP, RHSQ[n].DataP
 			)
 			switch rkStep {
@@ -444,7 +446,7 @@ func (rk *RungeKutta5SSP) StepWorker(c *Euler, rkStep int) {
 					for k := 0; k < Kmax; k++ {
 						ind := k + i*Kmax
 						dtRHS := DT.DataP[k] * RHSQ[n].DataP[ind]
-						U1[ind] = U0[ind] + 0.391752226571890*dtRHS
+						q1[ind] = q0[ind] + 0.391752226571890*dtRHS
 					}
 				}
 			case 1:
@@ -452,8 +454,8 @@ func (rk *RungeKutta5SSP) StepWorker(c *Euler, rkStep int) {
 					for k := 0; k < Kmax; k++ {
 						ind := k + i*Kmax
 						dtRHS := DT.DataP[k] * RHSQ[n].DataP[ind]
-						U2[ind] = 0.444370493651235*U0[ind] +
-							0.555629506348765*U1[ind] +
+						q2[ind] = 0.444370493651235*q0[ind] +
+							0.555629506348765*q1[ind] +
 							0.368410593050371*dtRHS
 					}
 				}
@@ -462,8 +464,8 @@ func (rk *RungeKutta5SSP) StepWorker(c *Euler, rkStep int) {
 					for k := 0; k < Kmax; k++ {
 						ind := k + i*Kmax
 						dtRHS := DT.DataP[k] * RHSQ[n].DataP[ind]
-						U3[ind] = 0.620101851488403*U0[ind] +
-							0.379898148511597*U2[ind] +
+						q3[ind] = 0.620101851488403*q0[ind] +
+							0.379898148511597*q2[ind] +
 							0.251891774271694*dtRHS
 					}
 				}
@@ -473,8 +475,8 @@ func (rk *RungeKutta5SSP) StepWorker(c *Euler, rkStep int) {
 						ind := k + i*Kmax
 						dtRHS := DT.DataP[k] * RHSQ[n].DataP[ind]
 						R[ind] = RHS[ind] // Store the current RHS for use in the last RK step
-						U4[ind] = 0.178079954393132*U0[ind] +
-							0.821920045606868*U3[ind] +
+						q4[ind] = 0.178079954393132*q0[ind] +
+							0.821920045606868*q3[ind] +
 							0.544974750228521*dtRHS
 					}
 				}
@@ -484,11 +486,11 @@ func (rk *RungeKutta5SSP) StepWorker(c *Euler, rkStep int) {
 						ind := k + i*Kmax
 						dtRHS := DT.DataP[k] * RHSQ[n].DataP[ind]
 						dtR3 := DT.DataP[k] * R[ind]
-						R[ind] = -U0[ind] + 0.517231671970585*U2[ind] +
-							0.096059710526146*U3[ind] +
-							0.386708617503269*U4[ind] +
+						R[ind] = -q0[ind] + 0.517231671970585*q2[ind] +
+							0.096059710526146*q3[ind] +
+							0.386708617503269*q4[ind] +
 							0.063692468666290*dtR3 + 0.226007483236906*dtRHS
-						U0[ind] += R[ind]
+						q0[ind] += R[ind]
 					}
 				}
 			}
@@ -505,12 +507,6 @@ func (rk *RungeKutta5SSP) StepWorker(c *Euler, rkStep int) {
 		var (
 			QQQ = QQQAll[np]
 		)
-		if rkStep == 0 && c.LocalTimeStepping {
-			// Initialize local time stepping
-			for k := 0; k < rk.Kmax[np]; k++ {
-				rk.DT[np].DataP[k] = -100 // Global
-			}
-		}
 		if sd != nil {
 			rk.ShockSensor[np].UpdateSeMoment(QQQ[0], rk.LScratch[np], rk.Se[np])
 			sd.UpdateShockFinderSigma(np, rk.Se[np])
@@ -533,6 +529,7 @@ func (rk *RungeKutta5SSP) StepWorker(c *Euler, rkStep int) {
 		if sd != nil {
 			c.MergeVertexScalarToElement(sd.SigmaVertex, sd.SigmaScalar[np],
 				rk.EtoV[np], sum, div3)
+
 			sd.InterpolateEpsilonSigma(np, rk.EtoV[np])
 		}
 		if rkStep == 4 && c.Dissipation != nil {
@@ -561,6 +558,9 @@ func (rk *RungeKutta5SSP) StepWorker(c *Euler, rkStep int) {
 	})
 	// doSerial(func(np int) {
 	doParallel(func(np int) {
+		if rkStep == 0 {
+			c.InitializeDT(rk.DT[np])
+		}
 		rk.GlobalMaxWaveSpeed[np], rk.GlobalMaxViscWaveSpeed[np] =
 			c.CalcElementMaxWaveSpeed(np, rk.DT[np], rk.DTVisc[np])
 	})
@@ -573,6 +573,16 @@ func (rk *RungeKutta5SSP) StepWorker(c *Euler, rkStep int) {
 		rkAdvance(np)
 	})
 	return
+}
+
+func (c *Euler) InitializeDT(DT utils.Vector) {
+	var (
+		KMax, _ = DT.Dims()
+	)
+	// Initialize local time stepping
+	for k := 0; k < KMax; k++ {
+		DT.DataP[k] = -100 // Global
+	}
 }
 
 func (c *Euler) RHSInternalPoints(Kmax int, Jdet utils.Matrix, F_RT_DOF, RHSQ [4]utils.Matrix) {

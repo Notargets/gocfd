@@ -560,16 +560,18 @@ func (sd *ScalarDissipation) LimitFilterSolution(myThread int,
 		V           = jb2d.V
 		Vinv        = jb2d.Vinv
 	)
+	_ = mf
 	for n := 0; n < 4; n++ {
 		// Transform Q into modal
 		Vinv.Mul(Q[n], QScratch)
-		for k := 0; k < Kmax; k++ {
-			sigma := SigmaScalar.AtVec(k)
-			alpha := math.Sin(0.5 * math.Pi * sigma)
-			// alpha := math.Sqrt(math.Sin(0.5 * math.Pi * sigma))
-			for i := 1; i < Np; i++ {
+		for i := 1; i < Np; i++ {
+			for k := 0; k < Kmax; k++ {
+				sigma := SigmaScalar.AtVec(k)
+				alpha := math.Sin(0.5 * math.Pi * sigma)
+				// alpha := math.Sqrt(math.Sin(0.5 * math.Pi * sigma))
 				ind := k + Kmax*i
-				QScratch.DataP[ind] *= mf[i] * (1. - alpha)
+				// QScratch.DataP[ind] *= mf[i] * (1. - alpha)
+				QScratch.DataP[ind] *= 1. - alpha
 			}
 		}
 		// Transform QScratch into Q nodal
