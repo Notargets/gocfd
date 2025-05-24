@@ -532,8 +532,9 @@ func (rk *RungeKutta5SSP) StepWorker(c *Euler, rkStep int) {
 
 			sd.InterpolateEpsilonSigma(np, rk.EtoV[np])
 		}
-		if rkStep == 2 && c.Dissipation != nil {
-			sd.LimitFilterSolution(np, QQQ, rk.LScratch[np][2], rk.ShockSensor[np])
+		if (rkStep > 1) && c.Dissipation != nil {
+			sd.LimitFilterSolution(np, QQQ, rk.LScratch[np][2],
+				rk.ShockSensor[np])
 		}
 		c.InterpolateSolutionToEdges(QQQ, rk.Q_Face[np])
 	})

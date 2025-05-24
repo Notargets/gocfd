@@ -545,37 +545,81 @@ func (sd *ScalarDissipation) LimitSolution(myThread int, Q [4]utils.Matrix,
 }
 
 func (sd *ScalarDissipation) LimitFilterSolution(myThread int,
-	Q [4]utils.Matrix, QScratch utils.Matrix, ShockSensor *DG2D.ModeAliasShockFinder) {
+	Q [4]utils.Matrix, QScratch utils.Matrix,
+	ShockSensor *DG2D.ModeAliasShockFinder) {
 	// Note that this approach is equivalent to applying the limiter to modes
 	// 1 and higher of the polynomial for the element,
 	// as the mean is actually the mode1 value for the polynomial when we
 	// have an orthogonal basis. By computing the mean and doing it this way,
 	// it's faster to compute.
 	var (
-		Np, Kmax    = Q[0].Dims()
 		SigmaScalar = sd.SigmaScalar[myThread]
 		mf          = ShockSensor.ModeFilter
 		el          = sd.dfr.SolutionElement
-		jb2d        = el.JB2D
-		V           = jb2d.V
-		Vinv        = jb2d.Vinv
+		V           = el.JB2D.V
+		Vinv        = el.JB2D.Vinv
 	)
 	_ = mf
 	for n := 0; n < 4; n++ {
-		// Transform Q into modal
-		Vinv.Mul(Q[n], QScratch)
-		for i := 1; i < Np; i++ {
-			for k := 0; k < Kmax; k++ {
-				sigma := SigmaScalar.AtVec(k)
-				alpha := math.Sin(0.5 * math.Pi * sigma)
-				// alpha := math.Sqrt(math.Sin(0.5 * math.Pi * sigma))
-				ind := k + Kmax*i
-				// QScratch.DataP[ind] *= mf[i] * (1. - alpha)
-				QScratch.DataP[ind] *= 1. - alpha
-			}
+		// limitSolution(Q[n], QScratch, V, Vinv, SigmaScalar.DataP)
+		switch n {
+		case 0, 3:
+			limitSolution(Q[n], QScratch, V, Vinv, SigmaScalar.DataP)
+		case 1, 2:
+			limitAndFilterSolution(Q[n], QScratch, V, Vinv,
+				SigmaScalar.DataP, mf)
 		}
-		// Transform QScratch into Q nodal
-		V.Mul(QScratch, Q[n])
 	}
 	return
+}
+
+func limitSolution(U, UScratch, V, Vinv utils.Matrix,
+	sigmaScalar []float64) {
+	var (
+		Np, Kmax = U.Dims()
+	)
+	Vinv.Mul(U, UScratch)
+	for i := 1; i < Np; i++ {
+		for k := 0; k < Kmax; k++ {
+			alpha := math.Sin(0.5 * math.Pi * sigmaScalar[k])
+			ind := k + Kmax*i
+			UScratch.DataP[ind] *= 1. - alpha
+		}
+	}
+	// Transform QScratch into Q nodal
+	V.Mul(UScratch, U)
+}
+
+func filterSolution(U, UScratch, V, Vinv utils.Matrix,
+	mf []float64) {
+	var (
+		Np, Kmax = U.Dims()
+	)
+	Vinv.Mul(U, UScratch)
+	for i := 1; i < Np; i++ {
+		for k := 0; k < Kmax; k++ {
+			ind := k + Kmax*i
+			UScratch.DataP[ind] *= mf[i]
+		}
+	}
+	// Transform QScratch into Q nodal
+	V.Mul(UScratch, U)
+}
+
+func limitAndFilterSolution(U, UScratch, V, Vinv utils.Matrix,
+	sigmaScalar, mf []float64) {
+	var (
+		Np, Kmax = U.Dims()
+	)
+	Vinv.Mul(U, UScratch)
+	for i := 1; i < Np; i++ {
+		for k := 0; k < Kmax; k++ {
+			alpha := math.Sin(0.5 * math.Pi * sigmaScalar[k])
+			ind := k + Kmax*i
+			UScratch.DataP[ind] *= mf[i] * (1. - alpha)
+			// UScratch.DataP[ind] *= 1. - (1.-mf[i])*alpha
+		}
+	}
+	// Transform QScratch into Q nodal
+	V.Mul(UScratch, U)
 }
