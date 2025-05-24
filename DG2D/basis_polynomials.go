@@ -8,62 +8,6 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-type JacobiBasis1D struct {
-	P           int // Order
-	Np          int // Dimension
-	Alpha, Beta float64
-	R           utils.Vector
-	V, Vinv, Vr utils.Matrix
-}
-
-func NewJacobiBasis1D(P int, R utils.Vector, Alpha, Beta float64) (jb1d *JacobiBasis1D) {
-	jb1d = &JacobiBasis1D{
-		P:     P,
-		Np:    P + 1,
-		Alpha: Alpha,
-		Beta:  Beta,
-		R:     R,
-	}
-
-	if R.Len() != jb1d.Np {
-		fmt.Printf("Length of R:%d, required length:%d\n", R.Len(), jb1d.Np)
-		panic("Mismatch of length for basis coordinates")
-	}
-	jb1d.V = jb1d.Vandermonde1D()
-	jb1d.Vinv = jb1d.V.InverseWithCheck()
-	jb1d.Vr = jb1d.GradVandermonde1D()
-	return
-}
-
-func (jb1d *JacobiBasis1D) JacobiP(r float64, j int,
-	derivO ...DerivativeDirection) float64 {
-	if len(derivO) == 0 {
-		return DG1D.JacobiP(utils.NewVector(1, []float64{r}),
-			jb1d.Alpha, jb1d.Beta, j)[0]
-	} else {
-		return DG1D.GradJacobiP(utils.NewVector(1, []float64{r}),
-			jb1d.Alpha, jb1d.Beta, j)[0]
-	}
-}
-
-func (jb1d *JacobiBasis1D) Vandermonde1D() utils.Matrix {
-	return DG1D.Vandermonde1D(jb1d.P, jb1d.R)
-}
-
-func (jb1d *JacobiBasis1D) GradVandermonde1D() utils.Matrix {
-	return DG1D.GradVandermonde1D(jb1d.P, jb1d.R)
-}
-
-func (jb1d *JacobiBasis1D) GetOrthogonalPolynomialAtJ(r float64, j int,
-	derivO ...DerivativeDirection) (phi float64) {
-	// The coefficients of the J-th orthogonal polynomial are columns of Vinv
-	// The value of the J-th polynomial evaluated at it'S defining point is 1
-	for i := 0; i < jb1d.Np; i++ {
-		phi += jb1d.JacobiP(r, i, derivO...) * jb1d.Vinv.At(i, j)
-	}
-	return
-}
-
 type JacobiBasis2D struct {
 	P                       int // Order
 	Np                      int // Dimension
@@ -261,35 +205,6 @@ func (jb2d *JacobiBasis2D) PolynomialTermDs(r, s float64, i, j int) (ds float64)
 	return ddsV[0]
 }
 
-func (jb2d *JacobiBasis2D) GetInterpMatrix(R, S utils.Vector) (Interp utils.Matrix) {
-	/*
-		Uses Jacobi polynomials as the basis function
-
-		Compose a matrix of interpolating polynomials where each row represents one [R,S] location to be interpolated
-		This matrix can then be multiplied by a single vector of function values at the polynomial nodes to produce a
-		vector of interpolated values, one for each interpolation location
-	*/
-	var (
-		N  = jb2d.P
-		Np = jb2d.Np
-	)
-	// First compute polynomial terms, used by all polynomials
-	polyTerms := make([]float64, R.Len()*Np)
-	var sk int
-	for ii, r := range R.DataP {
-		s := S.DataP[ii]
-		for i := 0; i <= N; i++ {
-			for j := 0; j <= (N - i); j++ {
-				polyTerms[sk] = jb2d.PolynomialTerm(r, s, i, j)
-				sk++
-			}
-		}
-	}
-	ptV := utils.NewMatrix(R.Len(), Np, polyTerms).Transpose()
-	Interp = jb2d.Vinv.Transpose().Mul(ptV).Transpose()
-	return
-}
-
 func (jb2d *JacobiBasis2D) GetModInterpMatrix(R, S utils.Vector,
 	Nu, p float64, SmoothingIterations int) (Interp utils.Matrix) {
 	/*
@@ -456,6 +371,62 @@ func Lagrange1DPoly(t float64, R []float64, j int, derivO ...DerivativeDirection
 				p += pp / (XJ - XI)
 			}
 		}
+	}
+	return
+}
+
+type JacobiBasis1D struct {
+	P           int // Order
+	Np          int // Dimension
+	Alpha, Beta float64
+	R           utils.Vector
+	V, Vinv, Vr utils.Matrix
+}
+
+func NewJacobiBasis1D(P int, R utils.Vector, Alpha, Beta float64) (jb1d *JacobiBasis1D) {
+	jb1d = &JacobiBasis1D{
+		P:     P,
+		Np:    P + 1,
+		Alpha: Alpha,
+		Beta:  Beta,
+		R:     R,
+	}
+
+	if R.Len() != jb1d.Np {
+		fmt.Printf("Length of R:%d, required length:%d\n", R.Len(), jb1d.Np)
+		panic("Mismatch of length for basis coordinates")
+	}
+	jb1d.V = jb1d.Vandermonde1D()
+	jb1d.Vinv = jb1d.V.InverseWithCheck()
+	jb1d.Vr = jb1d.GradVandermonde1D()
+	return
+}
+
+func (jb1d *JacobiBasis1D) JacobiP(r float64, j int,
+	derivO ...DerivativeDirection) float64 {
+	if len(derivO) == 0 {
+		return DG1D.JacobiP(utils.NewVector(1, []float64{r}),
+			jb1d.Alpha, jb1d.Beta, j)[0]
+	} else {
+		return DG1D.GradJacobiP(utils.NewVector(1, []float64{r}),
+			jb1d.Alpha, jb1d.Beta, j)[0]
+	}
+}
+
+func (jb1d *JacobiBasis1D) Vandermonde1D() utils.Matrix {
+	return DG1D.Vandermonde1D(jb1d.P, jb1d.R)
+}
+
+func (jb1d *JacobiBasis1D) GradVandermonde1D() utils.Matrix {
+	return DG1D.GradVandermonde1D(jb1d.P, jb1d.R)
+}
+
+func (jb1d *JacobiBasis1D) GetOrthogonalPolynomialAtJ(r float64, j int,
+	derivO ...DerivativeDirection) (phi float64) {
+	// The coefficients of the J-th orthogonal polynomial are columns of Vinv
+	// The value of the J-th polynomial evaluated at it'S defining point is 1
+	for i := 0; i < jb1d.Np; i++ {
+		phi += jb1d.JacobiP(r, i, derivO...) * jb1d.Vinv.At(i, j)
 	}
 	return
 }
