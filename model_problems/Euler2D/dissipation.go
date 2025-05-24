@@ -556,8 +556,8 @@ func (sd *ScalarDissipation) LimitFilterSolution(myThread int,
 		SigmaScalar = sd.SigmaScalar[myThread]
 		mf          = ShockSensor.ModeFilter
 		el          = sd.dfr.SolutionElement
-		V           = el.JB2D.V
-		Vinv        = el.JB2D.Vinv
+		V           = el.JB2D.VGS
+		Vinv        = el.JB2D.VinvGS
 	)
 	_ = mf
 	for n := 0; n < 4; n++ {

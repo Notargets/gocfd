@@ -385,7 +385,7 @@ func TestFluxInterpolation(t *testing.T) {
 	locations.Mul(modes).Transpose().Print("Locations3")
 
 	R, S := utils.NewVector(4, []float64{-1 / 3, -1, -1, 1}), utils.NewVector(4, []float64{-1 / 3, -1, 1, -1})
-	linterp := el.JB2D.GetInterpMatrix(R, S)
+	linterp := el.JB2D.GetInterpMatrixGS(R, S)
 	linterp.Mul(solution).Transpose().Print("linterp-locations")
 }
 

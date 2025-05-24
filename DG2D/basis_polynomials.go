@@ -65,40 +65,98 @@ func (jb1d *JacobiBasis1D) GetOrthogonalPolynomialAtJ(r float64, j int,
 }
 
 type JacobiBasis2D struct {
-	P               int // Order
-	Np              int // Dimension
-	Alpha, Beta     float64
-	V, Vinv, Vr, Vs utils.Matrix
-	OrderAtJ        []int
-	Order2DAtJ      [][2]int // Polynomial order in each direction at J modes
+	P                       int // Order
+	Np                      int // Dimension
+	Alpha, Beta             float64
+	V, Vinv, Vr, Vs         utils.Matrix
+	OrderAtJ                []int
+	Order2DAtJ              [][2]int // Polynomial order in each direction at J modes
+	VGS, VinvGS, VrGS, VsGS utils.Matrix
+	GSTransfer              utils.Matrix
 }
 
-func NewJacobiBasis2D(P int, R, S utils.Vector, Alpha, Beta float64) (jb2d *JacobiBasis2D) {
-	jb2d = &JacobiBasis2D{
-		P:     P,
-		Np:    (P + 1) * (P + 2) / 2,
-		Alpha: Alpha,
-		Beta:  Beta,
+func NewJacobiBasis2D(P int, R, S utils.Vector, alpha, beta float64) *JacobiBasis2D {
+	// This routine now calculates an Orthonormal basis using a Gramm-Schmidt
+	// process. This assumes the use of the Williams-Shun-Jameson point
+	// distribution for the element with its associated quadrature
+	Np := (P + 1) * (P + 2) / 2
+	jb := &JacobiBasis2D{
+		P:          P,
+		Np:         Np,
+		Alpha:      alpha,
+		Beta:       beta,
+		OrderAtJ:   make([]int, Np),
+		Order2DAtJ: make([][2]int, Np),
 	}
-	jb2d.OrderAtJ = make([]int, jb2d.Np)
-	jb2d.Order2DAtJ = make([][2]int, jb2d.Np)
-	var sk int
-	for i := 0; i <= jb2d.P; i++ {
-		for j := 0; j <= jb2d.P-i; j++ {
-			jb2d.OrderAtJ[sk] = i + j
-			jb2d.Order2DAtJ[sk] = [2]int{i, j}
+	// fill OrderAtJ, Order2DAtJ
+	sk := 0
+	for i := 0; i <= P; i++ {
+		for j := 0; j <= P-i; j++ {
+			jb.OrderAtJ[sk] = i + j
+			jb.Order2DAtJ[sk] = [2]int{i, j}
 			sk++
 		}
 	}
 
-	if R.Len() != jb2d.Np {
-		fmt.Printf("Length of R:%d, required length:%d\n", R.Len(), jb2d.Np)
-		panic("Mismatch of length for basis coordinates")
+	// 1) build raw Vandermonde and gradients
+	jb.V = jb.Vandermonde2D(P, R, S)
+	jb.Vr, jb.Vs = jb.GradVandermonde2D(P, R, S)
+	jb.Vinv = jb.V.InverseWithCheck()
+
+	// 2) compute raw modal mass: diag(Vraw^T W Vraw)
+	w := WilliamsShunnJamesonWeights(P)
+	W := utils.NewDiagMatrix(len(w), w)
+
+	// 3) GS orthonormalize Vraw -> Q
+	jb.VGS = OrthonormalizeBasis(jb.V, W)
+	// rebuild Vinv = Q^T W
+	jb.VinvGS = jb.VGS.Transpose().Mul(W)
+	jb.GSTransfer = jb.Vinv.Mul(jb.VGS)
+
+	// 4) scale VrRaw,VsRaw to match Q
+	jb.VrGS = jb.Vr.Mul(jb.GSTransfer)
+	jb.VsGS = jb.Vs.Mul(jb.GSTransfer)
+	return jb
+}
+
+// GetInterpMatrixGS builds interpolation from solution nodes -> given (R_e,S_e) edge nodes.
+// It uses the same orthonormal basis Q so it's consistent with modal transforms.
+func (jb *JacobiBasis2D) GetInterpMatrixGS(R_e, S_e utils.Vector) utils.Matrix {
+	// raw Vandermonde at edge
+	Vedge := jb.Vandermonde2D(jb.P, R_e, S_e)
+	return Vedge.Mul(jb.GSTransfer).Mul(jb.VinvGS)
+}
+
+// OrthonormalizeBasis as before (weighted GS)
+func OrthonormalizeBasis(V, W utils.Matrix) utils.Matrix {
+	Nq, Np := V.Dims()
+	Q := utils.NewMatrix(Nq, Np)
+	for j := 0; j < Np; j++ {
+		// copy V[:,j]
+		for i := 0; i < Nq; i++ {
+			Q.Set(i, j, V.At(i, j))
+		}
+		// subtract projections
+		for i := 0; i < j; i++ {
+			dot := 0.0
+			for k := 0; k < Nq; k++ {
+				dot += Q.At(k, j) * W.At(k, k) * Q.At(k, i)
+			}
+			for k := 0; k < Nq; k++ {
+				Q.Set(k, j, Q.At(k, j)-dot*Q.At(k, i))
+			}
+		}
+		// normalize
+		sum := 0.0
+		for k := 0; k < Nq; k++ {
+			sum += Q.At(k, j) * W.At(k, k) * Q.At(k, j)
+		}
+		inv := 1.0 / math.Sqrt(sum)
+		for k := 0; k < Nq; k++ {
+			Q.Set(k, j, Q.At(k, j)*inv)
+		}
 	}
-	jb2d.V = jb2d.Vandermonde2D(P, R, S)
-	jb2d.Vinv = jb2d.V.InverseWithCheck()
-	jb2d.Vr, jb2d.Vs = jb2d.GradVandermonde2D(P, R, S)
-	return
+	return Q
 }
 
 func (jb2d *JacobiBasis2D) Vandermonde2D(N int, R, S utils.Vector) (V2D utils.Matrix) {
@@ -313,31 +371,6 @@ func (jb2d *JacobiBasis2D) ModalDegree2D(P int) (degree []float64) {
 	return
 }
 
-func (jb2d *JacobiBasis2D) GetPolynomialEvaluation(r, s float64,
-	derivO ...DerivativeDirection) (psi float64) {
-	var (
-		N     = jb2d.P
-		deriv = None
-	)
-	if len(derivO) > 0 {
-		deriv = derivO[0]
-	}
-	// Compute all polynomial terms and sum to form function value
-	for i := 0; i <= N; i++ {
-		for j := 0; j <= (N - i); j++ {
-			switch deriv {
-			case None:
-				psi += jb2d.PolynomialTerm(r, s, i, j)
-			case Dr:
-				psi += jb2d.PolynomialTermDr(r, s, i, j)
-			case Ds:
-				psi += jb2d.PolynomialTermDs(r, s, i, j)
-			}
-		}
-	}
-	return
-}
-
 func (jb2d *JacobiBasis2D) GetPolynomialAtJ(r, s float64, j int,
 	derivO ...DerivativeDirection) (phi float64) {
 	// 2025: This produces the J-th polynomial of the 2D basis, where J is
@@ -356,39 +389,6 @@ func (jb2d *JacobiBasis2D) GetPolynomialAtJ(r, s float64, j int,
 		phi = jb2d.PolynomialTermDr(r, s, i, jj)
 	case Ds:
 		phi = jb2d.PolynomialTermDs(r, s, i, jj)
-	}
-	return
-}
-
-func (jb2d *JacobiBasis2D) GetAllPolynomials(derivO ...DerivativeDirection) (
-	PSI utils.Vector) {
-	var (
-		deriv = None
-		m     utils.Matrix
-	)
-	if len(derivO) > 0 {
-		deriv = derivO[0]
-	}
-	RowSum := func(m utils.Matrix, rowID int) (sum float64) {
-		_, ns := m.Dims()
-		for i := 0; i < ns; i++ {
-			sum += m.At(rowID, i)
-		}
-		return
-	}
-	nr, _ := jb2d.V.Dims()
-	PSI = utils.NewVector(nr)
-
-	switch deriv {
-	case None:
-		m = jb2d.V
-	case Dr:
-		m = jb2d.Vr
-	case Ds:
-		m = jb2d.Vs
-	}
-	for i := 0; i < nr; i++ {
-		PSI.DataP[i] = RowSum(m, i)
 	}
 	return
 }

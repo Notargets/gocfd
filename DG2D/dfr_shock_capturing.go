@@ -49,14 +49,14 @@ func (dfr *DFR2D) ModalFilter(alpha float64, s int) (mf []float64) {
 	)
 	mf = make([]float64, Np)
 
-	if N <= 2 {
+	if N <= 1 {
 		for j := range mf {
 			mf[j] = 1.
 		}
 	} else {
 		for j := range mf {
 			p := dfr.SolutionElement.JB2D.OrderAtJ[j]
-			if p <= 2 {
+			if p == 0 {
 				mf[j] = 1.0
 			} else {
 				normalized := float64(p) / float64(N)
@@ -93,7 +93,7 @@ func (dfr *DFR2D) NewAliasShockFinder(Kappa float64) (sf *ModeAliasShockFinder) 
 	// sf.Clipper =
 	// 	element.JB2D.V.Mul(dfr.CutoffFilter2D(N, 0)).Mul(element.JB2D.Vinv)
 	sf.Clipper =
-		element.JB2D.V.Mul(dfr.CutoffFilter2D(N, 0)).Mul(element.JB2D.Vinv)
+		element.JB2D.VGS.Mul(dfr.CutoffFilter2D(N, 0)).Mul(element.JB2D.VinvGS)
 	// Implement a cutoff filter to suppress ringing, won't alter modes < 3
 	alpha, s := RecommendedFilterParameters(dfr.N)
 	sf.ModeFilter = dfr.ModalFilter(alpha, s)
@@ -120,6 +120,7 @@ func RecommendedFilterParameters(P int) (alpha float64, s int) {
 	case P == 5:
 		alpha = 10.0
 		s = 6
+		// s = 48
 	case P == 6:
 		alpha = 14.0
 		s = 6

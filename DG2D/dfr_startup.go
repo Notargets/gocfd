@@ -20,11 +20,9 @@ type DFR2D struct {
 	// FluxElement        *RTBasis2DSimplexLegacy
 	FluxElement *RTElement
 	// Interpolates from the interior (solution) points to graph points
-	GraphMesh              geometry.TriMesh
-	GraphInterp            utils.Matrix
-	FluxEdgeInterp         utils.Matrix // Interpolates only from interior to the edge points in the flux element
-	FluxEdgeProject0Interp utils.Matrix // Projection of basis to order 0 for
-	// edge projection
+	GraphMesh          geometry.TriMesh
+	GraphInterp        utils.Matrix
+	FluxEdgeInterp     utils.Matrix // Interpolates only from interior to the edge points in the flux element
 	FluxDr, FluxDs     utils.Matrix // Derivatives from the interior (solution) points to all of the flux points
 	DXMetric, DYMetric utils.Matrix // R and S derivative metrics, multiply by scalar field values to create DOF for RT
 	// Mesh Parameters
@@ -46,10 +44,7 @@ func NewDFR2D(N int, verbose bool, meshFileO ...string) (dfr *DFR2D) {
 	if N < 0 {
 		panic(fmt.Errorf("Polynomial order must be >= 0, have %d", N))
 	}
-	// le := NewLagrangeElement2D(N, Epsilon)
-	// nodeType := Epsilon
 	nodeType := WSJ
-	// nodeType := Uniform
 	le := NewLagrangeElement2D(N, nodeType)
 	rt := NewRTElement(N+1, SimplexRTBasis, nodeType)
 	RFlux := utils.NewVector(rt.NpEdge*3, rt.GetEdgeLocations(rt.R.DataP)) // For the Interpolation matrix across three edges
@@ -58,30 +53,20 @@ func NewDFR2D(N int, verbose bool, meshFileO ...string) (dfr *DFR2D) {
 		N:               N,
 		SolutionElement: le,
 		FluxElement:     rt,
+		SolutionBasis:   le.JB2D,
 	}
 	// Get interpolation matrix for edges using a basis on solution points at polynomial degree le.N
 	if verbose {
 		fmt.Printf("Using 2D Jacobi OrthoNormal Polynomial Basis\n")
 	}
-	dfr.SolutionBasis = NewJacobiBasis2D(le.N, le.R, le.S, 0, 0)
 	// Get the interpolation matrices that interpolate the whole RT element and just the edges using solution points
 	GraphR, GraphS := dfr.GetRSForGraphMesh()
 	// Nu, p := 0.1, 3.29
 	// dfr.GraphInterp = dfr.SolutionBasis.GetModInterpMatrix(GraphR, GraphS, Nu, p, 1)
 	// dfr.GraphInterpMod = dfr.SolutionBasis.GetModInterpMatrix(GraphR, GraphS,
 	// 	Nu, p, 1)
-	dfr.GraphInterp = dfr.SolutionBasis.GetInterpMatrix(GraphR, GraphS)
-	dfr.FluxEdgeInterp = dfr.SolutionBasis.GetInterpMatrix(RFlux, SFlux) // Interpolation matrix across three edges
-	if N > 0 {
-		Rn, Sn := NodesEpsilon(0)
-		nb := NewJacobiBasis2D(0, Rn, Sn, 0, 0)
-		gp := NewGalerkinProjection(dfr.SolutionBasis, nb)
-		dfr.FluxEdgeProject0Interp = gp.GetProjectedInterpolationMatrix(RFlux,
-			SFlux)
-	}
-	// dfr.FluxEdgeInterp = dfr.SolutionBasis.GetModInterpMatrix(RFlux, SFlux, Nu, p, 1) // Interpolation matrix across three edges
-	// dfr.FluxEdgeInterp = dfr.SolutionBasis.GetModInterpMatrix(RFlux, SFlux, Nu, p, 1) // Interpolation matrix across three edges
-	// dfr.FilterMod = dfr.SolutionBasis.GetModInterpMatrix(dfr.SolutionElement.R, dfr.SolutionElement.S, Nu, p, 1)
+	dfr.GraphInterp = dfr.SolutionBasis.GetInterpMatrixGS(GraphR, GraphS)
+	dfr.FluxEdgeInterp = dfr.SolutionBasis.GetInterpMatrixGS(RFlux, SFlux) // Interpolation matrix across three edges
 	dfr.FluxDr, dfr.FluxDs = le.GetDerivativeMatrices(rt.R, rt.S)
 	// dfr.EdgeSegmentIndex = dfr.GetEdgeSegmentFluxIndex()
 	if len(meshFileO) != 0 {

@@ -49,15 +49,15 @@ func NewGalerkinProjection(FromBasis, ToBasis *JacobiBasis2D) (gp *GalerkinProje
 		}
 	}
 	Minv := MassMatrix.InverseWithCheck()
-	IHighQ := gp.FromBasis.GetInterpMatrix(gp.Cub.R, gp.Cub.S)
-	ILowQ := gp.ToBasis.GetInterpMatrix(gp.Cub.R, gp.Cub.S)
+	IHighQ := gp.FromBasis.GetInterpMatrixGS(gp.Cub.R, gp.Cub.S)
+	ILowQ := gp.ToBasis.GetInterpMatrixGS(gp.Cub.R, gp.Cub.S)
 	W := utils.NewDiagMatrix(Nq, gp.Cub.W.DataP)
 	gp.A = Minv.Mul(ILowQ.Transpose().Mul(W).Mul(IHighQ))
 	return
 }
 
 func (gp *GalerkinProjection) GetProjectedInterpolationMatrix(R, S utils.Vector) (I utils.Matrix) {
-	ILowRS := gp.ToBasis.GetInterpMatrix(R, S)
+	ILowRS := gp.ToBasis.GetInterpMatrixGS(R, S)
 	I = ILowRS.Mul(gp.A)
 	return
 }
