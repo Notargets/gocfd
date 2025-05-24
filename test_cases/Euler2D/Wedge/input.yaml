@@ -2,10 +2,10 @@ Title: "Test Case"
 #CFL: 5.0
 #CFL: 4.0
 #CFL: 3.0
-CFL: 2.5
+#CFL: 2.5
 #CFL: 2.0
 #CFL: 1.5
-#CFL: 1.0
+CFL: 1.0
 #CFL: 0.5
 #CFL: 0.25
 #CFL: 0.01
@@ -23,10 +23,10 @@ LocalTimeStepping: true
 #MaxIterations: 200
 #MaxIterations: 600
 #MaxIterations: 2000
-MaxIterations: 3000
+#MaxIterations: 3000
 #MaxIterations: 4000
 #MaxIterations: 5000
-#MaxIterations: 6000
+MaxIterations: 6000
 #MaxIterations: 8000
 #MaxIterations: 10000
 #MaxIterations: 15000
@@ -34,10 +34,13 @@ MaxIterations: 3000
 
 #Limiter: 
 Limiter: PerssonC0
-Kappa: 4
+#Kappa: 4
+#Kappa: 4.5
 #Kappa: 5
 #Kappa: 5.5
 #Kappa: 6.0
-#Kappa: 7.0
+Kappa: 7.0
+#Kappa: 8.0
+#Kappa: 10.0
 
 PlotFields: ["mach"]

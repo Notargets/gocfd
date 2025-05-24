@@ -560,15 +560,18 @@ func (sd *ScalarDissipation) LimitFilterSolution(myThread int,
 		Vinv        = el.JB2D.VinvGS
 	)
 	_ = mf
+	_ = SigmaScalar
 	for n := 0; n < 4; n++ {
 		// limitSolution(Q[n], QScratch, V, Vinv, SigmaScalar.DataP)
-		switch n {
-		case 0, 3:
-			limitSolution(Q[n], QScratch, V, Vinv, SigmaScalar.DataP)
-		case 1, 2:
-			limitAndFilterSolution(Q[n], QScratch, V, Vinv,
-				SigmaScalar.DataP, mf)
-		}
+		// limitAndFilterSolution(Q[n], QScratch, V, Vinv, SigmaScalar.DataP, mf)
+		filterSolution(Q[n], QScratch, V, Vinv, mf)
+		// switch n {
+		// case 0, 3:
+		// 	limitSolution(Q[n], QScratch, V, Vinv, SigmaScalar.DataP)
+		// case 1, 2:
+		// 	limitAndFilterSolution(Q[n], QScratch, V, Vinv,
+		// 		SigmaScalar.DataP, mf)
+		// }
 	}
 	return
 }

@@ -428,8 +428,10 @@ func (rk *RungeKutta5SSP) StepWorker(c *Euler, rkStep int) {
 		c.SetRTFluxInternal(Kmax, Jdet, Jinv, F_RT_DOF, QQQ) // Updates F_RT_DOF with values from Q
 		c.SetRTFluxOnEdges(np, Kmax, F_RT_DOF)
 		c.RHSInternalPoints(Kmax, Jdet, F_RT_DOF, RHSQ)
-		if c.Dissipation != nil {
-			c.Dissipation.AddDissipation(c, np, Jinv, Jdet, RHSQ)
+		sd := c.Dissipation
+		if sd != nil {
+			sd.AddDissipation(c, np, Jinv, Jdet, RHSQ)
+			sd.LimitFilterSolution(np, RHSQ, rk.LScratch[np][2], rk.ShockSensor[np])
 		}
 		for n := 0; n < 4; n++ {
 			var (
@@ -532,10 +534,11 @@ func (rk *RungeKutta5SSP) StepWorker(c *Euler, rkStep int) {
 
 			sd.InterpolateEpsilonSigma(np, rk.EtoV[np])
 		}
-		if (rkStep > 1) && c.Dissipation != nil {
-			sd.LimitFilterSolution(np, QQQ, rk.LScratch[np][2],
-				rk.ShockSensor[np])
-		}
+		// if (rkStep == 2) && c.Dissipation != nil {
+		// 	if (rkStep > 1) && c.Dissipation != nil {
+		// sd.LimitFilterSolution(np, QQQ, rk.LScratch[np][2],
+		// 	rk.ShockSensor[np])
+		// }
 		c.InterpolateSolutionToEdges(QQQ, rk.Q_Face[np])
 	})
 	// doSerial(func(np int) {

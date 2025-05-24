@@ -1,7 +1,8 @@
 Title: "Test Case"
-CFL: 2.50
+#CFL: 5.0
+#CFL: 2.50
 #CFL: 1.50
-#CFL: 1.0
+CFL: 1.0
 #CFL: 0.5
 #CFL: 0.25
 #CFL: 0.05
@@ -9,14 +10,17 @@ CFL: 2.50
 FluxType: Roe
 #FluxType: Lax
 InitType: shocktube # Can be "Freestream" or "IVortex"
-PolynomialOrder: 5
+PolynomialOrder: 1
 FinalTime: 0.2
 LocalTimeStepping: false
 MaxIterations: 80000
 #Limiter: Barth Jesperson
 Limiter: persson c0
 #Kappa: 0.25
-#Kappa: 4
-Kappa: 5
+#Kappa: 3.75
+Kappa: 4
+#Kappa: 5
+#Kappa: 5.5
+#Kappa: 6
 #Kappa: 10
 PlotFields: [ "mach" ]
