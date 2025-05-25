@@ -54,6 +54,14 @@ func NewMatrix(nr, nc int, dataO ...[]float64) (R Matrix) {
 	return
 }
 
+func (m Matrix) Rows() int {
+	return m.RawMatrix().Rows
+}
+
+func (m Matrix) Cols() int {
+	return m.RawMatrix().Cols
+}
+
 func NewDiagMatrix(nr int, data []float64, scalarO ...float64) (R Matrix) {
 	var (
 		isScalar bool

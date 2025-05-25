@@ -503,7 +503,7 @@ func (sd *ScalarDissipation) UpdateShockFinderSigma(myThread int, Se utils.Vecto
 		sigma       float64
 	)
 	for k := 0; k < KMax; k++ {
-		se := Se.AtVec(k)
+		se := Se.DataP[k]
 		switch {
 		case se < left:
 			sigma = 0.
@@ -512,34 +512,7 @@ func (sd *ScalarDissipation) UpdateShockFinderSigma(myThread int, Se utils.Vecto
 		case se > right:
 			sigma = 1.
 		}
-		SigmaScalar.Set(k, sigma)
-	}
-	return
-}
-
-func (sd *ScalarDissipation) LimitSolution(myThread int, Q [4]utils.Matrix,
-	QMean [4]utils.Vector) {
-	// Note that this approach is equivalent to applying the limiter to modes
-	// 1 and higher of the polynomial for the element,
-	// as the mean is actually the mode1 value for the polynomial when we
-	// have an orthogonal basis. By computing the mean and doing it this way,
-	// it's faster to compute.
-	var (
-		Np, Kmax    = Q[0].Dims()
-		SigmaScalar = sd.SigmaScalar[myThread]
-		// Sigma       = sd.Sigma[myThread]
-	)
-	for n := 0; n < 4; n++ {
-		for k := 0; k < Kmax; k++ {
-			// Smooth ramp accelerator 0-1 for sigma
-			alpha := math.Sin(0.5 * math.Pi * SigmaScalar.AtVec(k))
-			qmean := QMean[n].AtVec(k)
-			for i := 0; i < Np; i++ {
-				ind := k + Kmax*i
-				q := Q[n].DataP[ind]
-				Q[n].DataP[ind] = (1.-alpha)*q + alpha*qmean
-			}
-		}
+		SigmaScalar.DataP[k] = sigma
 	}
 	return
 }
@@ -547,31 +520,44 @@ func (sd *ScalarDissipation) LimitSolution(myThread int, Q [4]utils.Matrix,
 func (sd *ScalarDissipation) LimitFilterSolution(myThread int,
 	Q [4]utils.Matrix, QScratch utils.Matrix,
 	ShockSensor *DG2D.ModeAliasShockFinder) {
-	// Note that this approach is equivalent to applying the limiter to modes
-	// 1 and higher of the polynomial for the element,
-	// as the mean is actually the mode1 value for the polynomial when we
-	// have an orthogonal basis. By computing the mean and doing it this way,
-	// it's faster to compute.
+	var (
+		mf          = ShockSensor.ModeFilter
+		SigmaScalar = sd.SigmaScalar[myThread]
+		el          = sd.dfr.SolutionElement
+		V           = el.JB2D.V
+		Vinv        = el.JB2D.Vinv
+	)
+	for n := 0; n < 4; n++ {
+		limitAndFilterSolution(Q[n], QScratch, V, Vinv, SigmaScalar.DataP, mf)
+	}
+	return
+}
+
+func (sd *ScalarDissipation) FilterSolution(myThread int,
+	Q [4]utils.Matrix, QScratch utils.Matrix,
+	ShockSensor *DG2D.ModeAliasShockFinder) {
+	var (
+		mf   = ShockSensor.ModeFilter
+		el   = sd.dfr.SolutionElement
+		V    = el.JB2D.V
+		Vinv = el.JB2D.Vinv
+	)
+	for n := 0; n < 4; n++ {
+		filterSolution(Q[n], QScratch, V, Vinv, mf)
+	}
+	return
+}
+
+func (sd *ScalarDissipation) LimitSolution(myThread int,
+	Q [4]utils.Matrix, QScratch utils.Matrix) {
 	var (
 		SigmaScalar = sd.SigmaScalar[myThread]
-		mf          = ShockSensor.ModeFilter
 		el          = sd.dfr.SolutionElement
-		V           = el.JB2D.VGS
-		Vinv        = el.JB2D.VinvGS
+		V           = el.JB2D.V
+		Vinv        = el.JB2D.Vinv
 	)
-	_ = mf
-	_ = SigmaScalar
 	for n := 0; n < 4; n++ {
-		// limitSolution(Q[n], QScratch, V, Vinv, SigmaScalar.DataP)
-		// limitAndFilterSolution(Q[n], QScratch, V, Vinv, SigmaScalar.DataP, mf)
-		filterSolution(Q[n], QScratch, V, Vinv, mf)
-		// switch n {
-		// case 0, 3:
-		// 	limitSolution(Q[n], QScratch, V, Vinv, SigmaScalar.DataP)
-		// case 1, 2:
-		// 	limitAndFilterSolution(Q[n], QScratch, V, Vinv,
-		// 		SigmaScalar.DataP, mf)
-		// }
+		limitSolution(Q[n], QScratch, V, Vinv, SigmaScalar.DataP)
 	}
 	return
 }
