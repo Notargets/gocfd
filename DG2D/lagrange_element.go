@@ -71,12 +71,9 @@ func NewLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
 	// Build reference element matrices
 	el.JB2D = NewJacobiBasis2D(el.N, el.R, el.S, 0, 0)
 
-	// el.CheckBasisOrthogonality()
-	// el.OtherChecks()
-	// os.Exit(1)
-
-	el.MassMatrix = el.JB2D.Vinv.Transpose().Mul(el.JB2D.Vinv)
-	// el.MassMatrix.Print("M")
+	w := WilliamsShunnJamesonWeights(el.N)
+	W := utils.NewDiagMatrix(len(w), w)
+	el.MassMatrix = el.JB2D.V.Transpose().Mul(W).Mul(el.JB2D.V) // el.MassMatrix.Print("M")
 
 	el.Dr, el.Ds = el.GetDerivativeMatrices(el.R, el.S)
 	// Mark fields read only
