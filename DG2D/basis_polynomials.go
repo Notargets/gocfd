@@ -9,14 +9,12 @@ import (
 )
 
 type JacobiBasis2D struct {
-	P                       int // Order
-	Np                      int // Dimension
-	Alpha, Beta             float64
-	V, Vinv, Vr, Vs         utils.Matrix
-	OrderAtJ                []int
-	Order2DAtJ              [][2]int // Polynomial order in each direction at J modes
-	VGS, VinvGS, VrGS, VsGS utils.Matrix
-	GSTransfer              utils.Matrix
+	P               int // Order
+	Np              int // Dimension
+	Alpha, Beta     float64
+	V, Vinv, Vr, Vs utils.Matrix
+	OrderAtJ        []int
+	Order2DAtJ      [][2]int // Polynomial order in each direction at J modes
 }
 
 func NewJacobiBasis2D(P int, R, S utils.Vector, alpha, beta float64) *JacobiBasis2D {
@@ -46,61 +44,15 @@ func NewJacobiBasis2D(P int, R, S utils.Vector, alpha, beta float64) *JacobiBasi
 	jb.V = jb.Vandermonde2D(P, R, S)
 	jb.Vr, jb.Vs = jb.GradVandermonde2D(P, R, S)
 	jb.Vinv = jb.V.InverseWithCheck()
-
-	// 2) compute raw modal mass: diag(Vraw^T W Vraw)
-	w := WilliamsShunnJamesonWeights(P)
-	W := utils.NewDiagMatrix(len(w), w)
-
-	// 3) GS orthonormalize Vraw -> Q
-	jb.VGS = OrthonormalizeBasis(jb.V, W)
-	// rebuild Vinv = Q^T W
-	jb.VinvGS = jb.VGS.Transpose().Mul(W)
-	jb.GSTransfer = jb.Vinv.Mul(jb.VGS)
-
-	// 4) scale VrRaw,VsRaw to match Q
-	jb.VrGS = jb.Vr.Mul(jb.GSTransfer)
-	jb.VsGS = jb.Vs.Mul(jb.GSTransfer)
 	return jb
 }
 
-// GetInterpMatrixGS builds interpolation from solution nodes -> given (R_e,S_e) edge nodes.
+// GetInterpMatrix builds interpolation from solution nodes -> given (R_e,S_e) edge nodes.
 // It uses the same orthonormal basis Q so it's consistent with modal transforms.
-func (jb *JacobiBasis2D) GetInterpMatrixGS(R_e, S_e utils.Vector) utils.Matrix {
+func (jb *JacobiBasis2D) GetInterpMatrix(R_e, S_e utils.Vector) utils.Matrix {
 	// raw Vandermonde at edge
 	Vedge := jb.Vandermonde2D(jb.P, R_e, S_e)
-	return Vedge.Mul(jb.GSTransfer).Mul(jb.VinvGS)
-}
-
-// OrthonormalizeBasis as before (weighted GS)
-func OrthonormalizeBasis(V, W utils.Matrix) utils.Matrix {
-	Nq, Np := V.Dims()
-	Q := utils.NewMatrix(Nq, Np)
-	for j := 0; j < Np; j++ {
-		// copy V[:,j]
-		for i := 0; i < Nq; i++ {
-			Q.Set(i, j, V.At(i, j))
-		}
-		// subtract projections
-		for i := 0; i < j; i++ {
-			dot := 0.0
-			for k := 0; k < Nq; k++ {
-				dot += Q.At(k, j) * W.At(k, k) * Q.At(k, i)
-			}
-			for k := 0; k < Nq; k++ {
-				Q.Set(k, j, Q.At(k, j)-dot*Q.At(k, i))
-			}
-		}
-		// normalize
-		sum := 0.0
-		for k := 0; k < Nq; k++ {
-			sum += Q.At(k, j) * W.At(k, k) * Q.At(k, j)
-		}
-		inv := 1.0 / math.Sqrt(sum)
-		for k := 0; k < Nq; k++ {
-			Q.Set(k, j, Q.At(k, j)*inv)
-		}
-	}
-	return Q
+	return Vedge.Mul(jb.Vinv)
 }
 
 func (jb2d *JacobiBasis2D) Vandermonde2D(N int, R, S utils.Vector) (V2D utils.Matrix) {

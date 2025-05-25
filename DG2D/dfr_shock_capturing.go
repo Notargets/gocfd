@@ -93,7 +93,7 @@ func (dfr *DFR2D) NewAliasShockFinder(Kappa float64) (sf *ModeAliasShockFinder) 
 	// sf.Clipper =
 	// 	element.JB2D.V.Mul(dfr.CutoffFilter2D(N, 0)).Mul(element.JB2D.Vinv)
 	sf.Clipper =
-		element.JB2D.VGS.Mul(dfr.CutoffFilter2D(N, 0)).Mul(element.JB2D.VinvGS)
+		element.JB2D.V.Mul(dfr.CutoffFilter2D(N, 0)).Mul(element.JB2D.Vinv)
 	// Implement a cutoff filter to suppress ringing, won't alter modes < 3
 	alpha, s := RecommendedFilterParameters(dfr.N)
 	sf.ModeFilter = dfr.ModalFilter(alpha, s)

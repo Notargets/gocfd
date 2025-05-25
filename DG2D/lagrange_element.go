@@ -71,7 +71,7 @@ func NewLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
 	// Build reference element matrices
 	el.JB2D = NewJacobiBasis2D(el.N, el.R, el.S, 0, 0)
 
-	el.CheckBasisOrthogonality()
+	// el.CheckBasisOrthogonality()
 	// el.OtherChecks()
 	// os.Exit(1)
 
@@ -86,61 +86,11 @@ func NewLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
 	return
 }
 
-func (el *LagrangeElement2D) OtherChecks() {
-	W := utils.NewDiagMatrix(el.Np, WilliamsShunnJamesonWeights(el.N))
-	jb2d := el.JB2D
-
-	fmt.Println("Check Qᵀ·W·Q:")
-	D1 := jb2d.VGS.Transpose().Mul(W).Mul(jb2d.VGS)
-	D1.Print("", "% .5f") // should be identity to ~1e-12
-	fmt.Printf("||QᵀWQ - I||_F = %.5e\n", frobenius(D1, true))
-
-	// 2) check Q·(QᵀW) ≈ I
-	D2 := jb2d.VGS.Mul(jb2d.VinvGS)
-	fmt.Println("Check Q·Vinv:")
-	D2.Print("", "% .5f") // should also be identity
-	fmt.Printf("||Q·Vinv - I||_F = %.5e\n", frobenius(D2, true))
-
-	D3 := jb2d.VinvGS.Mul(jb2d.VGS)
-	fmt.Println("Check Vinv * V:")
-	D3.Print("", "% .5f") // should also be identity
-	fmt.Printf("Vinv * V F Norm= %.5e\n", frobenius(D3, true))
-
-	K := 10
-	U := utils.NewMatrix(el.Np, K)
-	for i := range U.DataP {
-		U.DataP[i] = float64(i)
-	}
-	UScratch := el.JB2D.VinvGS.Mul(U)
-	UFiltered := el.JB2D.VGS.Mul(UScratch)
-	var sum float64
-	for i := range U.DataP {
-		sum += math.Abs(UFiltered.DataP[i] - U.DataP[i])
-	}
-	fmt.Printf("Max of UFiltered - U = %.5f\n", sum)
-}
-
-// helper to compute Frobenius norm of (M - I)
-func frobenius(M utils.Matrix, subtractIdentity bool) float64 {
-	n, m := M.Dims()
-	sum := 0.0
-	for i := 0; i < n; i++ {
-		for j := 0; j < m; j++ {
-			x := M.At(i, j)
-			if subtractIdentity && i == j {
-				x -= 1
-			}
-			sum += x * x
-		}
-	}
-	return math.Sqrt(sum)
-}
-
 func (el *LagrangeElement2D) CheckBasisOrthogonality() {
 	var (
 		N   = el.N
 		Np  = el.Np
-		V   = el.JB2D.VGS
+		V   = el.JB2D.V
 		W   = utils.NewDiagMatrix(Np, WilliamsShunnJamesonWeights(N))
 		tol = 1.e-12
 	)

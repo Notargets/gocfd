@@ -58,7 +58,7 @@ func (st *SODShockTube) GetAnalyticSolution(t float64) (x, rho, p, rhoU,
 func (st *SODShockTube) calculateInterpolation() {
 	var (
 		dfr    = st.DFR2D
-		getInt = dfr.SolutionElement.JB2D.GetInterpMatrixGS
+		getInt = dfr.SolutionElement.JB2D.GetInterpMatrix
 		VY     = dfr.VY
 		// Get the centerline S coordinate
 		ymid = 0.5*(VY.Max()-VY.Min()) + VY.Min()

@@ -65,8 +65,8 @@ func NewDFR2D(N int, verbose bool, meshFileO ...string) (dfr *DFR2D) {
 	// dfr.GraphInterp = dfr.SolutionBasis.GetModInterpMatrix(GraphR, GraphS, Nu, p, 1)
 	// dfr.GraphInterpMod = dfr.SolutionBasis.GetModInterpMatrix(GraphR, GraphS,
 	// 	Nu, p, 1)
-	dfr.GraphInterp = dfr.SolutionBasis.GetInterpMatrixGS(GraphR, GraphS)
-	dfr.FluxEdgeInterp = dfr.SolutionBasis.GetInterpMatrixGS(RFlux, SFlux) // Interpolation matrix across three edges
+	dfr.GraphInterp = dfr.SolutionBasis.GetInterpMatrix(GraphR, GraphS)
+	dfr.FluxEdgeInterp = dfr.SolutionBasis.GetInterpMatrix(RFlux, SFlux) // Interpolation matrix across three edges
 	dfr.FluxDr, dfr.FluxDs = le.GetDerivativeMatrices(rt.R, rt.S)
 	// dfr.EdgeSegmentIndex = dfr.GetEdgeSegmentFluxIndex()
 	if len(meshFileO) != 0 {

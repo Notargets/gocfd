@@ -29,7 +29,7 @@ func TestDFR2D(t *testing.T) {
 		sM := utils.NewMatrix(el.Np, 1, s)
 		// For each nodal location, interpolate a value (should equal the nodal function value)
 		// Build an interpolating polynomial matrix using the nodal geometry
-		interpM := el.JB2D.GetInterpMatrixGS(fluxEl.R, fluxEl.S)
+		interpM := el.JB2D.GetInterpMatrix(fluxEl.R, fluxEl.S)
 		values := interpM.Mul(sM)
 		// Verify the interpolated vals match the input solution values from the same [R,S]
 		assert.InDeltaSlicef(t, s, values.DataP[0:3], 1.e-7, "")
@@ -56,7 +56,7 @@ func TestDFR2D(t *testing.T) {
 			}
 			sM := utils.NewMatrix(el.Np, 1, s)
 			// Build an interpolating polynomial matrix using the nodal geometry
-			interpM := el.JB2D.GetInterpMatrixGS(fluxEl.R, fluxEl.S)
+			interpM := el.JB2D.GetInterpMatrix(fluxEl.R, fluxEl.S)
 			values := interpM.Mul(sM)
 			// Verify the interpolated values match the input polynomial
 			assert.InDeltaSlicef(t, sFlux, values.DataP, 1.e-5, "")

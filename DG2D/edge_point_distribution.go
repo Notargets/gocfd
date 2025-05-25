@@ -210,9 +210,9 @@ func checkConditionNumbers(SolutionBasis *JacobiBasis2D, fullBottom, fullLeft,
 	RmLeft, SmLeft := utils.NewVector(Np, Rleft), utils.NewVector(Np, Sleft)
 	RmHyp, SmHyp := utils.NewVector(Np, Rhyp), utils.NewVector(Np, Shyp)
 
-	ABottom := SolutionBasis.GetInterpMatrixGS(RmBottom, SmBottom)
-	ALeft := SolutionBasis.GetInterpMatrixGS(RmLeft, SmLeft)
-	AHyp := SolutionBasis.GetInterpMatrixGS(RmHyp, SmHyp)
+	ABottom := SolutionBasis.GetInterpMatrix(RmBottom, SmBottom)
+	ALeft := SolutionBasis.GetInterpMatrix(RmLeft, SmLeft)
+	AHyp := SolutionBasis.GetInterpMatrix(RmHyp, SmHyp)
 
 	// Compute condition numbers
 	cBottom = conditionNumber(ABottom.M)
