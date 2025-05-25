@@ -11,7 +11,7 @@ type ModeAliasShockFinder struct {
 	Element             *LagrangeElement2D
 	Clipper             utils.Matrix // Matrix used to clip the topmost mode from the solution polynomial, used in shockfinder
 	ModeFilter          []float64
-	P, Mass, D          utils.Matrix // Element matrices
+	P, MassMatrix, D    utils.Matrix // Element matrices
 	Np                  int
 	Q, Qalt             utils.Matrix // scratch storage for evaluating the moment
 	Kappa               float64
@@ -81,7 +81,7 @@ func (dfr *DFR2D) NewAliasShockFinder(Kappa float64) (sf *ModeAliasShockFinder) 
 		Qalt:                utils.NewMatrix(Np, 1),
 		Kappa:               Kappa,
 		ShockSigmaThreshold: 0.0075,
-		Mass:                element.MassMatrix,
+		MassMatrix:          element.MassMatrix,
 	}
 	// Compute element matrices
 	/*
@@ -102,7 +102,7 @@ func (dfr *DFR2D) NewAliasShockFinder(Kappa float64) (sf *ModeAliasShockFinder) 
 
 	// sf.D = utils.NewMatrix(Np, Np).AddScalar(1.).Subtract(sf.Clipper)
 	sf.D = utils.NewDiagMatrix(Np, nil, 1.).Subtract(sf.Clipper)
-	sf.P = sf.Mass.Mul(sf.D)
+	sf.P = sf.MassMatrix.Mul(sf.D)
 	return
 }
 
@@ -148,7 +148,7 @@ func (sf *ModeAliasShockFinder) UpdateSeMoment(TestVar utils.Matrix,
 		X, Y, DQ = LScratch[0], LScratch[1], LScratch[2]
 	)
 	X = sf.P.Mul(TestVar, X)
-	Y = sf.Mass.Mul(TestVar, Y)
+	Y = sf.MassMatrix.Mul(TestVar, Y)
 	DQ = sf.D.Mul(TestVar, DQ)
 	for k := 0; k < KMax; k++ {
 		var num, den float64
