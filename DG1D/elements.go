@@ -204,13 +204,14 @@ func JacobiGQ(alpha, beta float64, N int) (X, W utils.Vector) {
 		h1[i] = 2*float64(i) + alpha + beta
 	}
 
-	// main diagonal: diag(-1/2*(alpha^2-beta^2)./(h1+2)./h1)
+	// main diagonal: d0[i] = -(β²-α²)/((2i+α+β)*(2i+α+β+2))
 	d0 = make([]float64, N+1)
-	fac = -.5 * (alpha*alpha - beta*beta)
+	fac = (beta*beta - alpha*alpha)
 	for i := 0; i < N+1; i++ {
 		val := h1[i]
 		d0[i] = fac / (val * (val + 2.))
 	}
+
 	// Handle division by zero
 	eps := 1.e-16
 	if alpha+beta < 10*eps {
@@ -219,13 +220,14 @@ func JacobiGQ(alpha, beta float64, N int) (X, W utils.Vector) {
 
 	// 1st upper diagonal: diag(2./(h1(1:N)+2).*sqrt((1:N).*((1:N)+alpha+beta) .* ((1:N)+alpha).*((1:N)+beta)./(h1(1:N)+1)./(h1(1:N)+3)),1);
 	// for (i=1; i<=N; ++i) { d1(i)=2.0/(h1(i)+2.0)*sqrt(i*(i+alpha+beta)*(i+alpha)*(i+beta)/(h1(i)+1)/(h1(i)+3.0)); }
-	var ip1 float64
+	// var ip1 float64
 	d1 = make([]float64, N)
 	for i := 0; i < N; i++ {
-		ip1 = float64(i + 1)
+		ip1 := float64(i + 1)
 		val := h1[i]
-		d1[i] = 2. / (val + 2.)
-		d1[i] *= math.Sqrt(ip1 * (ip1 + alpha + beta) * (ip1 + alpha) * (ip1 + beta) / ((val + 1.) * (val + 3.)))
+		d1[i] = 2.0 / (val + 2.0) * math.Sqrt(
+			ip1*(ip1+alpha+beta)*(ip1+alpha)*(ip1+beta)/(val+1)/(val+3),
+		)
 	}
 
 	JJ := utils.NewSymTriDiagonal(d0, d1)
