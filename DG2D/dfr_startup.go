@@ -60,14 +60,9 @@ func NewDFR2D(N int, verbose bool, meshFileO ...string) (dfr *DFR2D) {
 	}
 	// Get the interpolation matrices that interpolate the whole RT element and just the edges using solution points
 	GraphR, GraphS := dfr.GetRSForGraphMesh()
-	// Nu, p := 0.1, 3.29
-	// dfr.GraphInterp = dfr.SolutionBasis.GetModInterpMatrix(GraphR, GraphS, Nu, p, 1)
-	// dfr.GraphInterpMod = dfr.SolutionBasis.GetModInterpMatrix(GraphR, GraphS,
-	// 	Nu, p, 1)
 	dfr.GraphInterp = dfr.SolutionBasis.GetInterpMatrix(GraphR, GraphS)
 	dfr.FluxEdgeInterp = dfr.SolutionBasis.GetInterpMatrix(RFlux, SFlux) // Interpolation matrix across three edges
 	dfr.FluxDr, dfr.FluxDs = le.GetDerivativeMatrices(rt.R, rt.S)
-	// dfr.EdgeSegmentIndex = dfr.GetEdgeSegmentFluxIndex()
 	if len(meshFileO) != 0 {
 		var EToV utils.Matrix
 		t := getFileTypeFromExtension(meshFileO[0])
