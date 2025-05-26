@@ -23,16 +23,17 @@ func TestRound(t *testing.T) {
 
 func TestEdgeOptimization(t *testing.T) {
 	// This only needs to be done once and the output placed into the edge
-	// distributions in raviart_thomas_element.go
+	// distributions in raviart_thomas_element.GetOptimizedEdgePointsEpsilon()
 	if false {
 		var (
 			NMin = 1
-			NMax = 1
+			NMax = 7
 			tol  = 1.e-5
 		)
-		for N := NMin; N <= NMax; N++ {
+		for N := NMin; N < NMax; N++ {
 			fmt.Printf("RT Order %d\n", N+1)
-			R, S := NodesEpsilon(N)
+			// R, S := NodesEpsilon(N)
+			R, S := MakeRSFromPoints(WilliamsShunnJameson(N))
 			SolutionBasis := NewJacobiBasis2D(N, R, S, 0, 0)
 			epd := OptimizePointDistribution(N, SolutionBasis)
 			//		fmt.Println(epd.RBottom)

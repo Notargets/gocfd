@@ -37,7 +37,7 @@ func TestNodes2DOptimizedBaseline(t *testing.T) {
 		gaussLegendreNodes(P+1)), UniformRSAlpha(P-1, Alpha)...))
 	fmt.Printf("Uniform Points with GL Edges:\n P=%d: cond(V)=%.3e, "+
 		"Edge Lebesgue≈%.3f\n", P, cond, leb)
-	R, S := NodesEpsilon(P - 1)
+	R, S := MakeRSFromPoints(WilliamsShunnJameson(P - 1))
 	cond, leb = AnalyzeRTOutput(P,
 		AddEdgePointsToInterior(gaussLegendreNodes(P+1), R, S))
 	fmt.Printf("Epsilon Points with GL Edges:\n P=%d: cond(V)=%.3e, "+

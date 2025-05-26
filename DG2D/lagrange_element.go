@@ -45,7 +45,12 @@ const (
 	Uniform   = NodeType("Uniform")
 )
 
-func NewLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
+func NewLagrangeElement2D(N int) (el *LagrangeElement2D) {
+	el = newLagrangeElement2D(N, WSJ)
+	return
+}
+
+func newLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
 	el = &LagrangeElement2D{
 		N:      N,
 		Np:     (N + 1) * (N + 2) / 2,

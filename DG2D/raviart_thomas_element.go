@@ -180,7 +180,7 @@ type RTElement struct {
 	Phi        []VectorI // Each term of the basis is a vector
 }
 
-func NewRTElement(P int, basisType RTBasisType, nodeType NodeType) (rt *RTElement) {
+func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
 	// We expect that there are points in R and S to match the dimension of dim(P(NFlux-1))
 	/*
 		<---- NpInt ----><---- NpInt ----><---NpEdge----><---NpEdge----><---NpEdge---->
@@ -205,26 +205,10 @@ func NewRTElement(P int, basisType RTBasisType, nodeType NodeType) (rt *RTElemen
 		DivInt:     utils.NewMatrix(NpInt, Np),
 	}
 
-	if P > 0 {
-		if P < 9 {
-			// switch nodeType {
-			// case Hesthaven:
-			// 	rt.RInt, rt.SInt = XYtoRS(Nodes2D(P - 1))
-			// case Epsilon:
-			// 	rt.RInt, rt.SInt = NodesEpsilon(P - 1)
-			// case WSJ:
-			rt.RInt, rt.SInt = MakeRSFromPoints(WilliamsShunnJameson(P - 1))
-			// case Uniform:
-			// 	rt.RInt, rt.SInt = MakeRSFromPoints(UniformRSAlpha(P-1, 0.7))
-			// }
-		} else {
-			rt.RInt, rt.SInt = XYtoRS(Nodes2D(P - 1))
-			// Weak approach to pull back equidistant distro from the edges
-			rt.RInt.Scale(0.93)
-			rt.SInt.Scale(0.93)
-			panic("This distribution is broken - TODO: fix\n")
-		}
+	if P < 1 {
+		panic("P must be greater than or equal to 1")
 	}
+	rt.RInt, rt.SInt = MakeRSFromPoints(WilliamsShunnJameson(P - 1))
 
 	// Construct the unit vectors for the DOFs
 
@@ -240,15 +224,11 @@ func NewRTElement(P int, basisType RTBasisType, nodeType NodeType) (rt *RTElemen
 		rt.DOFVectors[offset+i+2*NpEdge] = NewConstantVector(-1, 0)
 	}
 
-	rt.R, rt.S = rt.ExtendGeomToRT(rt.RInt, rt.SInt, nodeType)
+	rt.R, rt.S = rt.ExtendGeomToRT(rt.RInt, rt.SInt)
 	rt.CalculateBasis()
 
 	// Compose basis Vandermonde matrix
 	rt.V = rt.ComposeV(rt.Phi)
-	// rt.V.Print("V - from RT Element")
-	// rt.R.Transpose().Print("R - from RT Element")
-	// rt.S.Transpose().Print("S - from RT Element")
-	// os.Exit(1)
 	rt.VInv = rt.V.InverseWithCheck()
 	rt.Div = rt.ComputeDivergenceMatrix()
 	for i := 0; i < NpInt; i++ {
@@ -412,8 +392,7 @@ func GetOptimizedEdgePointsEpsilon(NRT int) (Rdist []float64) {
 	return
 }
 
-func (rt *RTElement) ExtendGeomToRT(Rint, Sint utils.Vector, nodeType NodeType) (R,
-	S utils.Vector) {
+func (rt *RTElement) ExtendGeomToRT(Rint, Sint utils.Vector) (R, S utils.Vector) {
 	var (
 		N            = rt.P
 		NpEdge       = N + 1

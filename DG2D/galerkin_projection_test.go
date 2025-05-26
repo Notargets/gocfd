@@ -20,7 +20,7 @@ func TestPlotProjection(t *testing.T) {
 	meshFile := "test_data/test_10tris_centered.neu"
 
 	dfr := NewDFR2D(N, false, meshFile)
-	Rn, Sn := NodesEpsilon(NP)
+	Rn, Sn := MakeRSFromPoints(WilliamsShunnJameson(NP))
 	nb := NewJacobiBasis2D(NP, Rn, Sn, 0, 0)
 	gp := NewGalerkinProjection(dfr.SolutionBasis, nb)
 	_ = gp

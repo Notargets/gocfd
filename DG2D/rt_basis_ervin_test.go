@@ -118,7 +118,7 @@ func SetupRTTest(P int) (rt *RTElement) {
 	}
 
 	if P > 0 {
-		rt.RInt, rt.SInt = NodesEpsilon(P - 1)
+		rt.RInt, rt.SInt = MakeRSFromPoints(WilliamsShunnJameson(P - 1))
 	}
 
 	// Construct the unit vectors for the DOFs
@@ -135,6 +135,6 @@ func SetupRTTest(P int) (rt *RTElement) {
 		rt.DOFVectors[offset+i+2*NpEdge] = NewConstantVector(-1, 0)
 	}
 
-	rt.R, rt.S = rt.ExtendGeomToRT(rt.RInt, rt.SInt, WSJ)
+	rt.R, rt.S = rt.ExtendGeomToRT(rt.RInt, rt.SInt)
 	return
 }
