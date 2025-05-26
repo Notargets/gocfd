@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/notargets/gocfd/DG1D"
+
 	"github.com/notargets/gocfd/utils"
 )
 
@@ -180,7 +182,14 @@ type RTElement struct {
 	Phi        []VectorI // Each term of the basis is a vector
 }
 
-func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
+type EdgePointsType uint8
+
+const (
+	GaussEdgePoints EdgePointsType = iota
+	OptimizedEdgePoints
+)
+
+func NewRTElement(P int, basisType RTBasisType, edgePointTypeO ...EdgePointsType) (rt *RTElement) {
 	// We expect that there are points in R and S to match the dimension of dim(P(NFlux-1))
 	/*
 		<---- NpInt ----><---- NpInt ----><---NpEdge----><---NpEdge----><---NpEdge---->
@@ -224,7 +233,7 @@ func NewRTElement(P int, basisType RTBasisType) (rt *RTElement) {
 		rt.DOFVectors[offset+i+2*NpEdge] = NewConstantVector(-1, 0)
 	}
 
-	rt.R, rt.S = rt.ExtendGeomToRT(rt.RInt, rt.SInt)
+	rt.R, rt.S = rt.ExtendGeomToRT(rt.RInt, rt.SInt, edgePointTypeO...)
 	rt.CalculateBasis()
 
 	// Compose basis Vandermonde matrix
@@ -392,13 +401,17 @@ func GetOptimizedEdgePoints(NRT int) (Rdist []float64) {
 	return
 }
 
-func (rt *RTElement) ExtendGeomToRT(Rint, Sint utils.Vector) (R, S utils.Vector) {
+func (rt *RTElement) ExtendGeomToRT(Rint, Sint utils.Vector, edgePointTypeO ...EdgePointsType) (R, S utils.Vector) {
 	var (
-		N            = rt.P
-		NpEdge       = N + 1
-		rData, sData = Rint.DataP, Sint.DataP
-		Rd, Sd       []float64
+		N             = rt.P
+		NpEdge        = N + 1
+		rData, sData  = Rint.DataP, Sint.DataP
+		Rd, Sd        []float64
+		edgePointType = OptimizedEdgePoints
 	)
+	if len(edgePointTypeO) > 0 {
+		edgePointType = edgePointTypeO[0]
+	}
 	/*
 		Determine geometric locations of edge points, located at Gauss locations in 1D, projected onto the edges
 	*/
@@ -407,10 +420,14 @@ func (rt *RTElement) ExtendGeomToRT(Rint, Sint utils.Vector) (R, S utils.Vector)
 	// switch nodeType {
 	// case Hesthaven, Uniform, WSJ:
 	// case Hesthaven, Uniform:
-	// 	GQR = utils.NewVector(N+1, DG1D.LegendreZeros(N))
 	// case WSJ, Epsilon:
-	Rdist = GetOptimizedEdgePoints(N)
-	GQR = utils.NewVector(N+1, Rdist)
+	switch edgePointType {
+	case OptimizedEdgePoints:
+		Rdist = GetOptimizedEdgePoints(N)
+		GQR = utils.NewVector(N+1, Rdist)
+	case GaussEdgePoints:
+		GQR = utils.NewVector(N+1, DG1D.LegendreZeros(N))
+	}
 	// case Epsilon:
 	// 	Use optimized edge points from edge_point_distribution optimization
 	// Rdist = GetOptimizedEdgePoints(N)

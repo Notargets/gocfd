@@ -67,24 +67,6 @@ func (jb2d *JacobiBasis2D) Vandermonde2D(N int, R, S utils.Vector) (V2D utils.Ma
 	return
 }
 
-func (jb2d *JacobiBasis2D) GradVandermonde2D(N int, R, S utils.Vector) (V2Dr, V2Ds utils.Matrix) {
-	var (
-		Np = (N + 1) * (N + 2) / 2
-		Nr = R.Len()
-	)
-	V2Dr, V2Ds = utils.NewMatrix(Nr, Np), utils.NewMatrix(Nr, Np)
-	var sk int
-	for i := 0; i <= N; i++ {
-		for j := 0; j <= (N - i); j++ {
-			ddr, dds := jb2d.GradSimplex2DP(R, S, i, j)
-			V2Dr.M.SetCol(sk, ddr)
-			V2Ds.M.SetCol(sk, dds)
-			sk++
-		}
-	}
-	return
-}
-
 func (jb2d *JacobiBasis2D) Simplex2DP(R, S utils.Vector, i, j int) (P []float64) {
 	var (
 		A, B = RStoAB(R, S)
@@ -99,6 +81,24 @@ func (jb2d *JacobiBasis2D) Simplex2DP(R, S utils.Vector, i, j int) (P []float64)
 		tv1 := sq2 * h1[ii] * h2[ii]
 		tv2 := utils.POW(1-bd[ii], i)
 		P[ii] = tv1 * tv2
+	}
+	return
+}
+
+func (jb2d *JacobiBasis2D) GradVandermonde2D(N int, R, S utils.Vector) (V2Dr, V2Ds utils.Matrix) {
+	var (
+		Np = (N + 1) * (N + 2) / 2
+		Nr = R.Len()
+	)
+	V2Dr, V2Ds = utils.NewMatrix(Nr, Np), utils.NewMatrix(Nr, Np)
+	var sk int
+	for i := 0; i <= N; i++ {
+		for j := 0; j <= (N - i); j++ {
+			ddr, dds := jb2d.GradSimplex2DP(R, S, i, j)
+			V2Dr.M.SetCol(sk, ddr)
+			V2Ds.M.SetCol(sk, dds)
+			sk++
+		}
 	}
 	return
 }
