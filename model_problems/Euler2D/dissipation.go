@@ -519,7 +519,7 @@ func (sd *ScalarDissipation) UpdateShockFinderSigma(myThread int, Se utils.Vecto
 
 func (sd *ScalarDissipation) LimitFilterSolution(myThread int,
 	Q [4]utils.Matrix, QScratch utils.Matrix,
-	ShockSensor *DG2D.ModeAliasShockFinder) {
+	ShockSensor *DG2D.ModeAliasShockFinder, momentumOnlyO ...bool) {
 	var (
 		mf          = ShockSensor.ModeFilter
 		SigmaScalar = sd.SigmaScalar[myThread]
@@ -527,8 +527,16 @@ func (sd *ScalarDissipation) LimitFilterSolution(myThread int,
 		V           = el.JB2D.V
 		Vinv        = el.JB2D.Vinv
 	)
-	for n := 0; n < 4; n++ {
-		limitAndFilterSolution(Q[n], QScratch, V, Vinv, SigmaScalar.DataP, mf)
+	if len(momentumOnlyO) > 0 && momentumOnlyO[0] {
+		limitSolution(Q[0], QScratch, V, Vinv, SigmaScalar.DataP)
+		limitSolution(Q[3], QScratch, V, Vinv, SigmaScalar.DataP)
+		for n := 1; n < 3; n++ {
+			limitAndFilterSolution(Q[n], QScratch, V, Vinv, SigmaScalar.DataP, mf)
+		}
+	} else {
+		for n := 0; n < 4; n++ {
+			limitAndFilterSolution(Q[n], QScratch, V, Vinv, SigmaScalar.DataP, mf)
+		}
 	}
 	return
 }

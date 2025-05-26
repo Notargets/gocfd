@@ -43,18 +43,17 @@ func TestNodes2DOptimizedBaseline(t *testing.T) {
 	fmt.Printf("Epsilon Points with GL Edges:\n P=%d: cond(V)=%.3e, "+
 		"Edge Lebesgue≈%.3f\n", P, cond, leb)
 	cond, leb = AnalyzeRTOutput(P,
-		AddEdgePointsToInterior(GetOptimizedEdgePointsEpsilon(P), R, S))
+		AddEdgePointsToInterior(GetOptimizedEdgePoints(P), R, S))
 	fmt.Printf("Epsilon Points with Opt Edges:\n P=%d: cond(V)=%.3e, "+
 		"Edge Lebesgue≈%.3f\n", P, cond, leb)
 	// pts := append(MakeEdgePointsFromDist(gaussLegendreNodes(P+1)),
 	// 	UniformRSAlpha(P-1, Alpha)...)
-	// pts := AddEdgePointsToInterior(GetOptimizedEdgePointsEpsilon(P), R, S)
+	// pts := AddEdgePointsToInterior(GetOptimizedEdgePoints(P), R, S)
 	// pts := AddEdgePointsToInterior(P, gaussLegendreNodes(P+1), R, S)
-	ptsInt := WilliamsShunnJameson(P - 1)
-	R, S = MakeRSFromPoints(ptsInt)
+	R, S = MakeRSFromPoints(WilliamsShunnJameson(P - 1))
 	// pts := AddEdgePointsToInterior(gaussLegendreNodes(P+1), R, S)
-	// pts := AddEdgePointsToInterior(GetOptimizedEdgePointsEpsilon(P), R, S)
-	pts := AddEdgePointsToInterior(GetOptimizedEdgePointsEpsilon(P), R, S)
+	// pts := AddEdgePointsToInterior(GetOptimizedEdgePoints(P), R, S)
+	pts := AddEdgePointsToInterior(GetOptimizedEdgePoints(P), R, S)
 	cond, leb = AnalyzeRTOutput(P, pts)
 	fmt.Printf("Williams, Shunn, Jameson Points GL Edges:\n P=%d: cond("+
 		"V)=%.3e, "+

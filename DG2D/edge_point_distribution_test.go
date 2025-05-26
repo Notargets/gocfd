@@ -23,7 +23,7 @@ func TestRound(t *testing.T) {
 
 func TestEdgeOptimization(t *testing.T) {
 	// This only needs to be done once and the output placed into the edge
-	// distributions in raviart_thomas_element.GetOptimizedEdgePointsEpsilon()
+	// distributions in raviart_thomas_element.GetOptimizedEdgePoints()
 	if false {
 		var (
 			NMin = 1

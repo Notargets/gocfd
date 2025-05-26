@@ -365,7 +365,7 @@ func (rt *RTElement) GetInternalLocations(F []float64) (
 	}
 	return
 }
-func GetOptimizedEdgePointsEpsilon(NRT int) (Rdist []float64) {
+func GetOptimizedEdgePoints(NRT int) (Rdist []float64) {
 	// Use optimized edge points from edge_point_distribution optimization
 	switch NRT {
 	case 1:
@@ -409,13 +409,14 @@ func (rt *RTElement) ExtendGeomToRT(Rint, Sint utils.Vector) (R, S utils.Vector)
 	// case Hesthaven, Uniform:
 	// 	GQR = utils.NewVector(N+1, DG1D.LegendreZeros(N))
 	// case WSJ, Epsilon:
-	Rdist = GetOptimizedEdgePointsEpsilon(N)
+	Rdist = GetOptimizedEdgePoints(N)
 	GQR = utils.NewVector(N+1, Rdist)
 	// case Epsilon:
 	// 	Use optimized edge points from edge_point_distribution optimization
-	// Rdist = GetOptimizedEdgePointsEpsilon(N)
+	// Rdist = GetOptimizedEdgePoints(N)
 	// GQR = utils.NewVector(N+1, Rdist)
 	// }
+	// 	GQR = utils.NewVector(N+1, DG1D.LegendreZeros(N))
 	/*
 		Double the number of interior points to match each direction of the basis
 	*/

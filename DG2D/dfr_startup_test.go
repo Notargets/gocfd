@@ -369,8 +369,8 @@ func TestGradient(t *testing.T) {
 		NpInt  = dfr.SolutionElement.Np
 		NpFlux = dfr.FluxElement.Np
 		X, Y   = dfr.FluxX, dfr.FluxY
-		Dr     = dfr.FluxDr
-		Ds     = dfr.FluxDs
+		FluxDr = dfr.FluxDr
+		FluxDs = dfr.FluxDs
 		Jinv   = dfr.Jinv
 		// Jdet   = dfr.Jdet
 		// Scalar fields, linear, quadratic, cubic
@@ -402,13 +402,13 @@ func TestGradient(t *testing.T) {
 		using the Lagrange element derivative operators
 	*/
 	{
-		Qr, Qs := Dr.Mul(XY1), Ds.Mul(XY1) // In a single multiplication, interpolate from solution to flux pts and Dr/Ds
+		Qr, Qs := FluxDr.Mul(XY1), FluxDs.Mul(XY1) // In a single multiplication, interpolate from solution to flux pts and Dr/Ds
 		Qx, Qy := utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
 
-		Qr2, Qs2 := Dr.Mul(XY2), Ds.Mul(XY2)
+		Qr2, Qs2 := FluxDr.Mul(XY2), FluxDs.Mul(XY2)
 		Qx2, Qy2 := utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
 
-		Qr3, Qs3 := Dr.Mul(XY3), Ds.Mul(XY3)
+		Qr3, Qs3 := FluxDr.Mul(XY3), FluxDs.Mul(XY3)
 		Qx3, Qy3 := utils.NewMatrix(NpFlux, Kmax), utils.NewMatrix(NpFlux, Kmax)
 		transform := func(ddr, dds utils.Matrix, JinvD []float64, index int) (ddx, ddy float64) {
 			var (

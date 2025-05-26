@@ -11,6 +11,7 @@ type LagrangeElement2D struct {
 	N, Nfp, Np, NFaces int
 	R, S               utils.Vector
 	Dr, Ds             utils.Matrix
+	QuadratureWeights  utils.Matrix // With the WSJ points we have colocated quadrature
 	MassMatrix         utils.Matrix
 	Cub                *Cubature
 	JB2D               *JacobiBasis2D
@@ -63,7 +64,8 @@ func newLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
 	el.Np = (el.N + 1) * (el.N + 2) / 2
 	el.NFaces = 3
 	// Only the WSJ distribution has Quadrature colocated,
-	// we will assume their use throughout
+	// we will assume their use throughout,
+	// as the mass matrix computation requires it
 	switch nodeType {
 	case WSJ:
 		el.R, el.S = MakeRSFromPoints(WilliamsShunnJameson(el.N))
@@ -76,10 +78,11 @@ func newLagrangeElement2D(N int, nodeType NodeType) (el *LagrangeElement2D) {
 	// Build reference element matrices
 	el.JB2D = NewJacobiBasis2D(el.N, el.R, el.S, 0, 0)
 
-	w := WilliamsShunnJamesonWeights(el.N)
-	W := utils.NewDiagMatrix(len(w), w)
-	el.MassMatrix = el.JB2D.V.Transpose().Mul(W).Mul(el.JB2D.V) // el.MassMatrix.Print("M")
+	W := utils.NewDiagMatrix(el.Np, WilliamsShunnJamesonWeights(el.N))
+	el.MassMatrix = el.JB2D.V.Transpose().Mul(W).Mul(el.JB2D.V)
+	// el.MassMatrix.Print("M")
 
+	el.QuadratureWeights = W
 	el.Dr, el.Ds = el.GetDerivativeMatrices(el.R, el.S)
 	// Mark fields read only
 	el.MassMatrix.SetReadOnly("MassMatrix")

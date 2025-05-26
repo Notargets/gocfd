@@ -432,6 +432,7 @@ func (rk *RungeKutta5SSP) StepWorker(c *Euler, rkStep int) {
 		if sd != nil {
 			sd.AddDissipation(c, np, Jinv, Jdet, RHSQ)
 			sd.LimitFilterSolution(np, RHSQ, rk.LScratch[np][2], rk.ShockSensor[np])
+			// sd.FilterSolution(np, RHSQ, rk.LScratch[np][2], rk.ShockSensor[np])
 		}
 		for n := 0; n < 4; n++ {
 			var (
@@ -534,12 +535,19 @@ func (rk *RungeKutta5SSP) StepWorker(c *Euler, rkStep int) {
 
 			sd.InterpolateEpsilonSigma(np, rk.EtoV[np])
 		}
+		// if c.Dissipation != nil {
+		// if (rkStep == 1) && c.Dissipation != nil {
 		if (rkStep == 2) && c.Dissipation != nil {
-			// 	if (rkStep > 1) && c.Dissipation != nil {
+			// if (rkStep == 4) && c.Dissipation != nil {
+			// if (rkStep > 1) && c.Dissipation != nil {
 			sd.LimitFilterSolution(np, QQQ, rk.LScratch[np][2],
-				rk.ShockSensor[np])
+				rk.ShockSensor[np], false)
+			// sd.LimitSolution(np, QQQ, rk.LScratch[np][2])
 		}
 		c.InterpolateSolutionToEdges(QQQ, rk.Q_Face[np])
+		// if c.Dissipation != nil {
+		// 	sd.FilterSolution(np, QQQ, rk.LScratch[np][2], rk.ShockSensor[np])
+		// }
 	})
 	// doSerial(func(np int) {
 	doParallel(func(np int) {
