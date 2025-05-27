@@ -244,42 +244,6 @@ func conditionNumber(A *mat.Dense) float64 {
 	return sigmaMax / sigmaMin
 }
 
-// lebesgueConstant computes the Lebesgue constant for a set of interpolation points.
-// The Lebesgue constant provides a measure of how good a set of points is for polynomial
-// interpolation. It bounds the ratio of the interpolation error to the best approximation error.
-func lebesgueConstant(points []float64) float64 {
-	n := len(points)
-	if n < 2 {
-		return 0.0
-	}
-
-	// Number of evaluation points
-	const numEval = 1000
-	maxLebesgue := 0.0
-
-	for i := 0; i < numEval; i++ {
-		x := -1.0 + 2.0*float64(i)/float64(numEval-1)
-		sum := 0.0
-
-		for j := 0; j < n; j++ {
-			// Compute the Lagrange basis polynomial
-			basis := 1.0
-			for k := 0; k < n; k++ {
-				if k != j {
-					basis *= (x - points[k]) / (points[j] - points[k])
-				}
-			}
-			sum += math.Abs(basis)
-		}
-
-		if sum > maxLebesgue {
-			maxLebesgue = sum
-		}
-	}
-
-	return maxLebesgue
-}
-
 // lebesgueConstantInteriorOnly computes the Lebesgue constant excluding the endpoints
 // This is more appropriate when endpoint nodes won't be used
 func lebesgueConstantInteriorOnly(points []float64) float64 {
