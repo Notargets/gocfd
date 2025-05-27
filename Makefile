@@ -25,7 +25,7 @@ bench:
 libsInstall:
 	# Make sure OpenBLAS (with Fortran ABI) is on your system:
 	sudo apt update
-	sudo apt install libopenblas-dev liblapacke-dev gfortran
+	sudo apt install libopenblas-dev liblapacke-dev gfortran libxxf86vm-dev
 
 
 
