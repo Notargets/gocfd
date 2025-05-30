@@ -210,97 +210,6 @@ func setCanonicalEdgeParameter(xi float64, edgeNum int) (r, s float64) {
 	}
 }
 
-// Simplified objective focusing on Lebesgue constant with proper normalization
-func edgePointObjectiveNormalized(params []float64, le *LagrangeElement2D, rt *RTElement,
-	edgeNum int, referenceLebesgue float64) float64 {
-
-	// RT elements don't have points at vertices, so params directly represent ALL edge points
-	fullParams := make([]float64, len(params))
-	copy(fullParams, params)
-
-	// Check monotonicity with soft penalty
-	penalty := 0.0
-	for i := 1; i < len(fullParams); i++ {
-		if fullParams[i] <= fullParams[i-1] {
-			gap := fullParams[i-1] - fullParams[i] + 0.01
-			penalty += 100.0 * gap * gap
-		}
-	}
-
-	// Check bounds with soft penalty - RT points must be strictly interior
-	// Use tighter bounds to ensure we stay well within [-1,1]
-	const boundLimit = 0.98
-	for i := 0; i < len(fullParams); i++ {
-		if fullParams[i] <= -boundLimit {
-			excess := -boundLimit - fullParams[i]
-			penalty += 1000.0 * excess * excess
-		} else if fullParams[i] >= boundLimit {
-			excess := fullParams[i] - boundLimit
-			penalty += 1000.0 * excess * excess
-		}
-	}
-
-	// High penalty for severe violations
-	if penalty > 10.0 {
-		return 1e6 + penalty
-	}
-
-	// Convert to edge points
-	edgePoints := make([]EdgePoint, len(fullParams))
-	for i, param := range fullParams {
-		r, s := setCanonicalEdgeParameter(param, edgeNum)
-		edgePoints[i] = EdgePoint{R: r, S: s}
-	}
-
-	// Verify edge constraints are satisfied
-	if !validateEdgeConstraints(edgePoints, edgeNum) {
-		return 1e8 // Very high penalty
-	}
-
-	// Compute Lebesgue constant (primary objective)
-	lebesgue := computeLebesgueConstantStable(edgePoints, edgeNum)
-
-	// Normalize by reference value to improve scaling
-	normalizedLebesgue := lebesgue / math.Max(referenceLebesgue, 1.0)
-
-	// Add small contribution from spacing quality
-	spacingPenalty := computeSpacingQuality(fullParams)
-
-	// Encourage symmetry for odd number of points
-	symmetryPenalty := 0.0
-	if len(fullParams)%2 == 1 {
-		// Middle point should be close to 0
-		midIdx := len(fullParams) / 2
-		symmetryPenalty = 10.0 * fullParams[midIdx] * fullParams[midIdx]
-	}
-
-	return normalizedLebesgue + 0.1*spacingPenalty + penalty + symmetryPenalty
-}
-
-// Compute spacing quality (prefer well-distributed points)
-func computeSpacingQuality(params []float64) float64 {
-	if len(params) < 2 {
-		return 0.0
-	}
-
-	// Compute spacing variations
-	spacings := make([]float64, len(params)-1)
-	meanSpacing := 2.0 / float64(len(params)-1)
-
-	for i := 0; i < len(spacings); i++ {
-		spacings[i] = params[i+1] - params[i]
-	}
-
-	// Penalize deviation from mean spacing
-	penalty := 0.0
-	for _, spacing := range spacings {
-		deviation := (spacing - meanSpacing) / meanSpacing
-		penalty += deviation * deviation
-	}
-
-	return penalty
-}
-
 // More stable Lebesgue constant computation
 func computeLebesgueConstantStable(edgePoints []EdgePoint, edgeNum int) float64 {
 	n := len(edgePoints)
@@ -716,4 +625,349 @@ func ensureSymmetryAndConstraints(params []float64) []float64 {
 	}
 
 	return result
+}
+
+// Replace the existing edgePointObjectiveNormalized function with this:
+
+// Replace the existing edgePointObjectiveNormalized function with this:
+func edgePointObjectiveNormalized(params []float64, le *LagrangeElement2D, rt *RTElement,
+	edgeNum int, referenceLebesgue float64) float64 {
+
+	// RT elements don't have points at vertices, so params directly represent ALL edge points
+	fullParams := make([]float64, len(params))
+	copy(fullParams, params)
+
+	// Check monotonicity with soft penalty
+	penalty := 0.0
+	for i := 1; i < len(fullParams); i++ {
+		if fullParams[i] <= fullParams[i-1] {
+			gap := fullParams[i-1] - fullParams[i] + 0.01
+			penalty += 100.0 * gap * gap
+		}
+	}
+
+	// Prevent clustering - enforce minimum spacing
+	minAllowedSpacing := 0.1 / float64(len(fullParams)) // Adaptive based on number of points
+	for i := 1; i < len(fullParams); i++ {
+		spacing := fullParams[i] - fullParams[i-1]
+		if spacing < minAllowedSpacing {
+			penalty += 1000.0 * math.Pow(minAllowedSpacing-spacing, 2)
+		}
+	}
+
+	// Check bounds with soft penalty - RT points must be strictly interior
+	const boundLimit = 0.99
+	for i := 0; i < len(fullParams); i++ {
+		if fullParams[i] <= -boundLimit {
+			excess := -boundLimit - fullParams[i]
+			penalty += 100.0 * excess * excess
+		} else if fullParams[i] >= boundLimit {
+			excess := fullParams[i] - boundLimit
+			penalty += 100.0 * excess * excess
+		}
+	}
+
+	// High penalty for constraint violations
+	if penalty > 10.0 {
+		return 1e6 + penalty
+	}
+
+	// Convert to edge points
+	edgePoints := make([]EdgePoint, len(fullParams))
+	for i, param := range fullParams {
+		r, s := setCanonicalEdgeParameter(param, edgeNum)
+		edgePoints[i] = EdgePoint{R: r, S: s}
+	}
+
+	// Verify edge constraints are satisfied
+	if !validateEdgeConstraints(edgePoints, edgeNum) {
+		return 1e8 // Very high penalty
+	}
+
+	// PRIMARY OBJECTIVES FOR STABILITY:
+
+	// For low orders (P=3,4), the objectives need special handling
+	isLowOrder := (le.N <= 3) // le.N = P-1
+
+	// A) High Frequency Amplification - most critical for CFL stability
+	highFreqAmp := 1.0
+	if !isLowOrder {
+		highFreqAmp = computeHighFrequencyAmplification(le, edgePoints)
+	} else {
+		// For low orders, use a simpler stability metric
+		// Check amplification of the highest available mode
+		highFreqAmp = computeModeExtrapolation(le, edgePoints, le.N, 0)
+	}
+
+	// B) Maximum Extrapolation Factor - controls Gibbs oscillations
+	maxExtrap := 1.0
+	for p := 0; p <= le.N; p++ {
+		for q := 0; q <= le.N-p; q++ {
+			factor := computeModeExtrapolation(le, edgePoints, p, q)
+			if factor > maxExtrap {
+				maxExtrap = factor
+			}
+		}
+	}
+
+	// C) Spacing Uniformity - ratio of max/min spacing
+	minSpacing := 2.0 // Initialize to full range
+	maxSpacing := 0.0
+	for i := 1; i < len(fullParams); i++ {
+		spacing := fullParams[i] - fullParams[i-1]
+		if spacing < minSpacing {
+			minSpacing = spacing
+		}
+		if spacing > maxSpacing {
+			maxSpacing = spacing
+		}
+	}
+
+	spacingRatio := 1.0
+	if minSpacing > 1e-10 {
+		spacingRatio = maxSpacing / minSpacing
+	}
+
+	// Weighted combination emphasizing stability factors
+	// High frequency amplification is most critical
+	objective := 10.0*highFreqAmp + // Primary factor for CFL stability
+		5.0*(maxExtrap-1.0) + // Secondary factor for oscillations
+		2.0*(spacingRatio-1.0) + // Tertiary factor for uniformity
+		penalty
+
+	return objective
+}
+
+// Replace the existing edgePointObjectiveNormalized function with this:
+func edgePointObjectiveNormalized_bad(params []float64, le *LagrangeElement2D,
+	rt *RTElement,
+	edgeNum int, referenceLebesgue float64) float64 {
+
+	// RT elements don't have points at vertices, so params directly represent ALL edge points
+	fullParams := make([]float64, len(params))
+	copy(fullParams, params)
+
+	// Check monotonicity with soft penalty
+	penalty := 0.0
+	for i := 1; i < len(fullParams); i++ {
+		if fullParams[i] <= fullParams[i-1] {
+			gap := fullParams[i-1] - fullParams[i] + 0.01
+			penalty += 100.0 * gap * gap
+		}
+	}
+
+	// Check bounds with soft penalty - RT points must be strictly interior
+	const boundLimit = 0.99
+	for i := 0; i < len(fullParams); i++ {
+		if fullParams[i] <= -boundLimit {
+			excess := -boundLimit - fullParams[i]
+			penalty += 100.0 * excess * excess
+		} else if fullParams[i] >= boundLimit {
+			excess := fullParams[i] - boundLimit
+			penalty += 100.0 * excess * excess
+		}
+	}
+
+	// High penalty for constraint violations
+	if penalty > 10.0 {
+		return 1e6 + penalty
+	}
+
+	// Convert to edge points
+	edgePoints := make([]EdgePoint, len(fullParams))
+	for i, param := range fullParams {
+		r, s := setCanonicalEdgeParameter(param, edgeNum)
+		edgePoints[i] = EdgePoint{R: r, S: s}
+	}
+
+	// Verify edge constraints are satisfied
+	if !validateEdgeConstraints(edgePoints, edgeNum) {
+		return 1e8 // Very high penalty
+	}
+
+	// PRIMARY OBJECTIVES FOR STABILITY:
+
+	// A) High Frequency Amplification - most critical for CFL stability
+	highFreqAmp := computeHighFrequencyAmplification(le, edgePoints)
+
+	// B) Maximum Extrapolation Factor - controls Gibbs oscillations
+	maxExtrap := computeMaxExtrapolationFactor(le, edgePoints)
+
+	// C) Spacing Uniformity - ratio of max/min spacing
+	minSpacing := computeMinSpacing(fullParams)
+	maxSpacing := computeMaxSpacing(fullParams)
+	spacingRatio := 1.0
+	if minSpacing > 1e-10 {
+		spacingRatio = maxSpacing / minSpacing
+	}
+
+	// Weighted combination emphasizing stability factors
+	// High frequency amplification is most critical
+	objective := 10.0*highFreqAmp + // Primary factor for CFL stability
+		5.0*(maxExtrap-1.0) + // Secondary factor for oscillations
+		2.0*(spacingRatio-1.0) + // Tertiary factor for uniformity
+		penalty
+
+	return objective
+}
+
+// Add these helper functions if they don't exist:
+
+func computeHighFrequencyAmplification(le *LagrangeElement2D, edgePoints []EdgePoint) float64 {
+	// Build interpolation matrix from interior to edge
+	InterpMatrix := buildInterpolationMatrix(le, edgePoints)
+
+	// Create high frequency test vector (alternating pattern based on total order)
+	testVec := make([]float64, le.Np)
+	for i := 0; i < le.Np; i++ {
+		order2D := le.JB2D.Order2DAtJ[i]
+		totalOrder := order2D[0] + order2D[1]
+		// Alternating sign based on total polynomial order
+		testVec[i] = math.Pow(-1.0, float64(totalOrder))
+	}
+
+	// Normalize input
+	inputNorm := 0.0
+	for i := 0; i < le.Np; i++ {
+		inputNorm += testVec[i] * testVec[i]
+	}
+	inputNorm = math.Sqrt(inputNorm)
+
+	if inputNorm < 1e-14 {
+		return 1.0
+	}
+
+	// Apply interpolation
+	testMatrix := utils.NewMatrix(le.Np, 1, testVec)
+	result := InterpMatrix.Mul(testMatrix)
+
+	// Compute output norm
+	outputNorm := 0.0
+	for i := 0; i < len(edgePoints); i++ {
+		val := result.At(i, 0)
+		outputNorm += val * val
+	}
+	outputNorm = math.Sqrt(outputNorm)
+
+	// Return amplification factor
+	return outputNorm / inputNorm
+}
+
+func computeMaxExtrapolationFactor(le *LagrangeElement2D, edgePoints []EdgePoint) float64 {
+	maxFactor := 1.0
+
+	// Test extrapolation for each polynomial mode
+	for p := 0; p <= le.N; p++ {
+		for q := 0; q <= le.N-p; q++ {
+			factor := computeModeExtrapolation(le, edgePoints, p, q)
+			if factor > maxFactor {
+				maxFactor = factor
+			}
+		}
+	}
+
+	return maxFactor
+}
+
+func computeModeExtrapolation(le *LagrangeElement2D, edgePoints []EdgePoint, p, q int) float64 {
+	// Create modal coefficient vector with only mode (p,q) active
+	modalCoeffs := make([]float64, le.Np)
+	modeIndex := -1
+	for j := 0; j < le.Np; j++ {
+		order2D := le.JB2D.Order2DAtJ[j]
+		if order2D[0] == p && order2D[1] == q {
+			modalCoeffs[j] = 1.0
+			modeIndex = j
+			break
+		}
+	}
+
+	if modeIndex < 0 {
+		return 1.0 // Mode not found
+	}
+
+	// Convert to nodal values
+	modalMatrix := utils.NewMatrix(le.Np, 1, modalCoeffs)
+	nodalMatrix := le.JB2D.V.Mul(modalMatrix)
+
+	// Find max interior value
+	maxInterior := 0.0
+	for i := 0; i < le.Np; i++ {
+		val := math.Abs(nodalMatrix.At(i, 0))
+		if val > maxInterior {
+			maxInterior = val
+		}
+	}
+
+	if maxInterior < 1e-14 {
+		return 1.0
+	}
+
+	// Interpolate to edge and find max
+	InterpMatrix := buildInterpolationMatrix(le, edgePoints)
+	edgeMatrix := InterpMatrix.Mul(nodalMatrix)
+
+	maxEdge := 0.0
+	for i := 0; i < len(edgePoints); i++ {
+		val := math.Abs(edgeMatrix.At(i, 0))
+		if val > maxEdge {
+			maxEdge = val
+		}
+	}
+
+	return maxEdge / maxInterior
+}
+
+func buildInterpolationMatrix(le *LagrangeElement2D, edgePoints []EdgePoint) utils.Matrix {
+	// Build matrix that interpolates from interior points to edge points
+	nEdge := len(edgePoints)
+	REdge := make([]float64, nEdge)
+	SEdge := make([]float64, nEdge)
+
+	// Extract R,S coordinates from edge points
+	for i, pt := range edgePoints {
+		REdge[i] = pt.R
+		SEdge[i] = pt.S
+	}
+
+	REdgeVec := utils.NewVector(nEdge, REdge)
+	SEdgeVec := utils.NewVector(nEdge, SEdge)
+
+	// Vandermonde matrix at edge points
+	Vedge := le.JB2D.Vandermonde2D(le.N, REdgeVec, SEdgeVec)
+
+	// Interpolation matrix: Vedge * Vinv
+	InterpMatrix := Vedge.Mul(le.JB2D.Vinv)
+
+	return InterpMatrix
+}
+
+func computeMinSpacing(points []float64) float64 {
+	if len(points) < 2 {
+		return 1.0
+	}
+
+	minSpacing := math.Inf(1)
+	for i := 1; i < len(points); i++ {
+		spacing := points[i] - points[i-1]
+		if spacing < minSpacing {
+			minSpacing = spacing
+		}
+	}
+	return minSpacing
+}
+
+func computeMaxSpacing(points []float64) float64 {
+	if len(points) < 2 {
+		return 1.0
+	}
+
+	maxSpacing := 0.0
+	for i := 1; i < len(points); i++ {
+		spacing := points[i] - points[i-1]
+		if spacing > maxSpacing {
+			maxSpacing = spacing
+		}
+	}
+	return maxSpacing
 }

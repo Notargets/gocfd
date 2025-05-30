@@ -1,7 +1,6 @@
 package DG2D
 
 import (
-	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -326,6 +325,11 @@ func DivergenceCheck(t *testing.T, dfr *DFR2D) {
 		for cOrder := 1; cOrder <= N; cOrder++ { // Run a test on polynomial flux vector fields up to Nth order
 			t.Logf("checking RT order[%d]...", cOrder+1)
 			Fx, Fy, divCheck := checkSolution(dfr, cOrder)
+			tol := -1.
+			for _, val := range Fx.DataP {
+				tol = math.Max(tol, math.Abs(val))
+			}
+			tol *= 1.e-9
 			// project the flux onto the RT basis directly
 			Fp := dfr.ProjectFluxOntoRTSpace(Fx, Fy)
 			for k := 0; k < dfr.K; k++ {
@@ -336,7 +340,8 @@ func DivergenceCheck(t *testing.T, dfr *DFR2D) {
 				divM := rt.Div.Mul(Fpk).Scale(1. / Jdet)
 				// divM.String("divM")
 				// t.Logf("divCheck.Row(k) = %v\n", divCheck.Row(k).DataP)
-				assert.InDeltaSlicef(t, divCheck.Row(k).DataP, divM.DataP, 0.00001, "")
+				assert.InDeltaSlicef(t, divCheck.Row(k).DataP, divM.DataP,
+					tol, "projected flux")
 			}
 			// Now project flux onto untransformed normals using ||n|| scaling factor, divergence should be the same
 			SetNormalFluxOnEdges(dfr, Fx, Fy, &Fp)
@@ -346,7 +351,8 @@ func DivergenceCheck(t *testing.T, dfr *DFR2D) {
 					Jdet = dfr.Jdet.Row(k).DataP[0]
 				)
 				divM := rt.Div.Mul(Fpk).Scale(1. / Jdet)
-				assert.InDeltaSlicef(t, divCheck.Row(k).DataP, divM.DataP, 0.00001, "")
+				assert.InDeltaSlicef(t, divCheck.Row(k).DataP, divM.DataP,
+					tol, "using ||n||")
 			}
 			t.Logf("passed.\n")
 		}
@@ -355,8 +361,8 @@ func DivergenceCheck(t *testing.T, dfr *DFR2D) {
 
 func TestDivergence(t *testing.T) {
 	for _, ang := range []float64{0, 15, 25, 45, 90, 180, 210, 270, 310} {
-		fmt.Printf("Checking angle:%f ==================\n", ang)
-		DivergenceCheck(t, CreateEquiTriMesh(2, ang))
+		t.Logf("Checking angle:%f ==================\n", ang)
+		DivergenceCheck(t, CreateEquiTriMesh(7, ang))
 	}
 	DivergenceCheck(t, NewDFR2D(7, false, "test_data/test_tris_5.neu"))
 }

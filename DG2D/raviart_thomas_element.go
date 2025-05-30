@@ -374,31 +374,32 @@ func (rt *RTElement) GetInternalLocations(F []float64) (
 	}
 	return
 }
-func GetOptimizedEdgePoints_new(NRT int) (Rdist []float64) {
+func GetOptimizedEdgePoints(NRT int) (Rdist []float64) {
 	switch NRT {
 	case 1:
 
 		Rdist = []float64{-0.38490018, 0.38490018}
 	case 2:
-		Rdist = []float64{-0.980, 0.000, 0.980}
+		Rdist = []float64{-0.028, 0.000, 0.028}
 	case 3:
-		Rdist = []float64{-0.969, -0.405, 0.405, 0.969}
+		Rdist = []float64{-0.482, -0.161, 0.161, 0.482}
 	case 4:
-		Rdist = []float64{-0.971, -0.603, 0.000, 0.603, 0.971}
+		Rdist = []float64{-0.586, -0.293, 0.000, 0.293, 0.586}
 	case 5:
-		Rdist = []float64{-0.978, -0.718, -0.263, 0.263, 0.718, 0.978}
+		Rdist = []float64{-0.634, -0.381, -0.127, 0.127, 0.381, 0.634}
 	case 6:
-		Rdist = []float64{-0.980, -0.788, -0.436, 0.000, 0.436, 0.788, 0.980}
+		Rdist = []float64{-0.671, -0.452, -0.219, 0.000, 0.219, 0.452, 0.671}
 	case 7:
-		Rdist = []float64{-0.980, -0.840, -0.541, -0.184, 0.184, 0.541, 0.840, 0.980}
+		Rdist = []float64{-0.808, -0.578, -0.343, -0.113, 0.113, 0.343, 0.578,
+			0.808}
 	case 8:
-		Rdist = []float64{-0.980, -0.880, -0.633, -0.334, 0.000, 0.334,
-			0.633, 0.880, 0.980}
+		Rdist = []float64{-0.692, -0.523, -0.350, -0.176, 0.000, 0.176, 0.350,
+			0.523, 0.692}
 	}
 	return
 }
 
-func GetOptimizedEdgePoints(NRT int) (Rdist []float64) {
+func GetOptimizedEdgePoints_old(NRT int) (Rdist []float64) {
 	// Use optimized edge points from edge_point_distribution optimization
 	switch NRT {
 	case 1:

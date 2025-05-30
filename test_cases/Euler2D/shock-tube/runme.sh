@@ -1,6 +1,7 @@
 #!/bin/bash
 MeshSize=100pts
-for order in 0 1 2 3 4 5 6 7
+#for order in 0 1 2 3 4 5 6 7
+for order in 6 7
 do
   echo "Running order: $order"
   cat input-base.yaml > tmp.yaml
@@ -8,6 +9,12 @@ do
 	echo "CFL: 2.5" >> tmp.yaml
   elif [ $order -eq 1 ]; then
 	echo "CFL: 1.0" >> tmp.yaml
+  elif [ $order -eq 5 ]; then
+	echo "CFL: 0.25" >> tmp.yaml
+	echo "Kappa: 4.5" >> tmp.yaml
+  elif [ $order -gt 5 ]; then
+	echo "CFL: 0.15" >> tmp.yaml
+	echo "Kappa: 4.5" >> tmp.yaml
   else
 	echo "CFL: 5" >> tmp.yaml
   fi

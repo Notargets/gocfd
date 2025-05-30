@@ -126,7 +126,7 @@ func CheckDivergence(t *testing.T, rt *RTElement, dt VectorTestField,
 	PFieldStart, PFieldEnd int) {
 	var (
 		Np   = rt.Np
-		tolM = 0.00001
+		tolM = 1.e-9
 	)
 	// A := utils.NewMatrix(Np, Np)
 	f1, f2 := make([]float64, Np), make([]float64, Np)
@@ -153,7 +153,7 @@ func CheckDivergence(t *testing.T, rt *RTElement, dt VectorTestField,
 		// Calculate appropriate tolerance for check
 		var maxF float64
 		for i := 0; i < Np; i++ {
-			maxF = math.Max(math.Abs(DivRef[i]), maxF)
+			maxF = math.Max(math.Abs(f1[i]), maxF)
 		}
 		tol := tolM * maxF
 		if math.Abs(maxF) < tolM {
