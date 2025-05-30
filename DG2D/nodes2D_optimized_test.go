@@ -30,7 +30,7 @@ func TestNodes2DUniform(t *testing.T) {
 
 func TestNodes2DOptimizedBaseline(t *testing.T) {
 	var (
-		P     = 4
+		P     = 7
 		Alpha = 0.7
 	)
 	cond, leb := AnalyzeRTOutput(P, append(MakeEdgePointsFromDist(

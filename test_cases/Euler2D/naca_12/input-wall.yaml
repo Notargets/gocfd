@@ -7,14 +7,18 @@ CFL: 5
 #CFL: 0.4
 FluxType: Roe
 InitType: Freestream # Can be "Freestream" or "IVortex"
-PolynomialOrder: 5
+PolynomialOrder: 4
 FinalTime: 20
 Minf: 0.8
+#Minf: 5.0
 Gamma: 1.4
+#Alpha: 35
 Alpha: 1.25
 LocalTimeStepping: true
 #LocalTimeStepping: false
-MaxIterations: 10000
+#MaxIterations: 400
+#MaxIterations: 4000
+MaxIterations: 50000
 Limiter: PerssonC0
 Kappa: 4.5
 PlotFields: ["mach"]

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand/v2"
+	"os"
 	"sort"
 	"testing"
 
@@ -473,6 +474,17 @@ func getEdgeParameter(point EdgePoint, edgeNum int) float64 {
 		return 0.0
 	}
 }
+func rangeLim(r float64) bool {
+	var (
+		tol = 1.e-2
+	)
+	if r-tol < -1.0 || r+tol > 1.0 {
+		//if r < -0.99 || r > 0.99 {
+		return true
+	} else {
+		return false
+	}
+}
 
 // Enhanced validation function to check edge constraints
 func validateEdgeConstraints(edgePoints []EdgePoint, edgeNum int) bool {
@@ -481,15 +493,15 @@ func validateEdgeConstraints(edgePoints []EdgePoint, edgeNum int) bool {
 	for _, point := range edgePoints {
 		switch edgeNum {
 		case 0: // Bottom edge: s should be -1
-			if math.Abs(point.S-(-1.0)) > tolerance {
+			if (math.Abs(point.S+1.0) > tolerance) || rangeLim(point.R) {
 				return false
 			}
 		case 1: // Hypotenuse: r + s should be 0
-			if math.Abs(point.R+point.S) > tolerance {
+			if math.Abs(point.R+point.S) > tolerance || rangeLim(point.R) || rangeLim(point.S) {
 				return false
 			}
 		case 2: // Left edge: r should be -1
-			if math.Abs(point.R-(-1.0)) > tolerance {
+			if (math.Abs(point.R+1.0) > tolerance) || rangeLim(point.S) {
 				return false
 			}
 		}
@@ -508,7 +520,7 @@ func TestEdgePointOptimization(t *testing.T) {
 
 		// Create elements for this order
 		le := NewLagrangeElement2D(N)
-		rt := NewRTElement(N+1, SimplexRTBasis, GaussEdgePoints)
+		rt := NewRTElement(N+1, SimplexRTBasis, OptimizedEdgePoints)
 
 		// Original (unoptimized) edge points
 		originalPoints := extractCurrentEdgePoints(rt)
@@ -537,7 +549,7 @@ func TestEdgePointOptimization(t *testing.T) {
 			// Verify optimized points are still on the edge
 			if !validateEdgeConstraints(optimizedPoints, edgeNum) {
 				t.Logf("ERROR: Optimized points are not on edge %d!", edgeNum)
-				continue
+				os.Exit(1)
 			}
 
 			// Evaluate optimized performance

@@ -375,6 +375,30 @@ func (rt *RTElement) GetInternalLocations(F []float64) (
 	return
 }
 func GetOptimizedEdgePoints(NRT int) (Rdist []float64) {
+	switch NRT {
+	case 1:
+
+		Rdist = []float64{-0.38490018, 0.38490018}
+	case 2:
+		Rdist = []float64{-0.980, 0.000, 0.980}
+	case 3:
+		Rdist = []float64{-0.969, -0.405, 0.405, 0.969}
+	case 4:
+		Rdist = []float64{-0.971, -0.603, 0.000, 0.603, 0.971}
+	case 5:
+		Rdist = []float64{-0.978, -0.718, -0.263, 0.263, 0.718, 0.978}
+	case 6:
+		Rdist = []float64{-0.980, -0.788, -0.436, 0.000, 0.436, 0.788, 0.980}
+	case 7:
+		Rdist = []float64{-0.980, -0.840, -0.541, -0.184, 0.184, 0.541, 0.840, 0.980}
+	case 8:
+		Rdist = []float64{-0.980, -0.880, -0.633, -0.334, 0.000, 0.334,
+			0.633, 0.880, 0.980}
+	}
+	return
+}
+
+func GetOptimizedEdgePoints_legacy(NRT int) (Rdist []float64) {
 	// Use optimized edge points from edge_point_distribution optimization
 	switch NRT {
 	case 1:
