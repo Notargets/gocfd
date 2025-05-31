@@ -248,6 +248,71 @@ func (c *Euler) OutputFinal() {
 			file.WriteString(fmt.Sprintf("%.8f\t%.8f\t%.8f\t%.8f\n",
 				x, rhoA[i], rhoUA[i], rhoEA[i]))
 		}
+	case FREESTREAM:
+		if len(c.SolutionFieldWriter.FieldMeta.FieldNames) != 0 {
+			plotFile, err := os.OpenFile("plotfile.dat",
+				os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+			if err != nil {
+				panic(fmt.Errorf("could not open plotfile.dat: %s", err))
+			}
+			c.RecombineShardsKBy4(c.Q, &c.Q4)
+			fieldMap := make(map[string]utils.Matrix)
+			var nFields int
+			for _, name := range c.SolutionFieldWriter.FieldMeta.FieldNames {
+				ff, match := BestMatchFlowFunction(name)
+				if !match {
+					panic("Unable to find matching flow function named: " + name)
+					// } else {
+					// 	fmt.Printf("Field function: %s\n", ff.String())
+				}
+				field := c.GetPlotField(c.Q4, ff)
+				fieldMap[name] = field
+				nFields++
+			}
+			var (
+				NpEdge = c.DFR.FluxElement.NpEdge
+				NpInt  = c.DFR.FluxElement.NpInt
+				// KMax   = c.DFR.K
+			)
+			var wallEdges int
+			for _, e := range c.DFR.Tris.Edges {
+				var offset, offset2 int
+				// var offset int
+				if e.BCType == types.BC_Wall {
+					wallEdges++
+					// Even though BCs are always edge 0, let's be careful
+					// The X, Y coords are KMax * (2*NpInt + 3*NpEdge)
+					offset = int(e.ConnectedTriEdgeNumber[0])*NpEdge + 2*NpInt
+					// The Graph field is KMax * (3*(NpEdge+1), NpInt)
+					// offset2 = int(e.ConnectedTriEdgeNumber[0])*(NpEdge+1) + 1 // Skips the vertex
+					offset2 = int(e.ConnectedTriEdgeNumber[0])*(NpEdge+1) + 1 // Skips the vertex
+					k := int(e.ConnectedTris[0])
+					for i := 0; i < NpEdge; i++ {
+						if c.DFR.N == 0 && i > 0 {
+							// Only output one edge point
+							continue
+						}
+						fmt.Fprintf(plotFile, "%.5e, %.5e,",
+							c.DFR.FluxX.At(offset+i, k),
+							c.DFR.FluxY.At(offset+i, k))
+						for _, name := range c.SolutionFieldWriter.FieldMeta.
+							FieldNames {
+							field := fieldMap[name]
+							fmt.Fprintf(plotFile, " %.5e,", field.At(k, i+offset2))
+						}
+						fmt.Fprintf(plotFile, "\n")
+					}
+				}
+			}
+			NedgeOutput := NpEdge
+			if c.DFR.N == 0 {
+				// We only output one edge point for N=0
+				NedgeOutput = 1
+			}
+			fmt.Printf(
+				"Output plot data for wall, dimensions: %d Wall edges by %d points each\n",
+				wallEdges, NedgeOutput)
+		}
 	}
 	return
 }

@@ -6,7 +6,7 @@ Gamma: 1.4
 LocalTimeStepping: true
 Limiter: PerssonC0
 Kappa: 4.5
-PlotFields: ["mach"]
+PlotFields: ["mach", "pressure coefficient"]
 PolynomialOrder: 4
 CFL: 5
 Minf: 0.8

@@ -11,14 +11,17 @@ do
 		echo "MaxIterations: 6000" >> tmp.yaml
 	elif [ $order -eq 1 ]; then
 		echo "CFL: 2.0" >> tmp.yaml
-		echo "MaxIterations: 10000" >> tmp.yaml
+		echo "MaxIterations: 15000" >> tmp.yaml
+	elif [ $order -eq 2 ]; then
+		echo "MaxIterations: 20000" >> tmp.yaml
 	elif [ $order -eq 4 ]; then
 		echo "CFL: 2.5" >> tmp.yaml
-		echo "MaxIterations: 10000" >> tmp.yaml
+		echo "MaxIterations: 60000" >> tmp.yaml
 	fi
 	gocfd 2D -I tmp.yaml -F mesh_NACA0012_inv.su2 >& sysout-$order
     if [ -f meshfile.gobcfd ]; then
     	mv meshfile.gobcfd meshfile-$order.gobcfd
     	mv solutionfile.gobcfd solutionfile-$order.gobcfd
+    	mv plotfile.dat plotfile-$order.dat
 	fi
 done
