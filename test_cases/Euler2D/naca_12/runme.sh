@@ -1,18 +1,22 @@
 #!/bin/bash
 
-#gocfd 2D -I input-wall.yaml -F mesh/nacaAirfoil-base.su2 -g -s20 -q 4 -z 0.06 -x .25 -y .25 -k 0.3 -l 1.5
-#gocfd 2D -I input-wall.yaml -F mesh/nacaAirfoil-base.su2 -g -s100 -q 4 -z 0.06 -x .25 -y .25 -k 0.3 -l 1.5
-#gocfd 2D -I input-wall.yaml -F mesh/nacaAirfoil-base.su2 -g -s1 -q 4 -z 0.06 -x .25 -y .25 -k 0.3 -l 1.5 -d 5000
-
-#gocfd 2D -I input-wall.yaml -F mesh/nacaAirfoil-base.su2 -g -s100 -q 4 -z 0.06 -x .25 -y .25
-#gocfd 2D -I input-wall.yaml -F mesh/nacaAirfoil-base.su2 -g -s10 -q 4 -z 0.06 -x .25 -y .25
-
-#gocfd 2D -I input-wall.yaml -F mesh/nacaAirfoil-base.su2 -g -s50 -q 4 -z 0.06 -x .25 -y .25 -k 0.3 -l 1.55
-#gocfd 2D -I input-wall.yaml -F mesh/nacaAirfoil-base.su2 -g -s50 -q 100 -z 0.06 -x .25 -y .25
-#gocfd 2D -I input-wall.yaml -F mesh/nacaAirfoil-base.su2 -g -s50 -q 7 -z 0.06 -x .25 -y .25 
-
-#gocfd 2D -I input-wall.yaml -F mesh/nacaAirfoil-base.su2 -g -s50 -q 102 -z 0.06 -x .25 -y .25 
-#gocfd 2D -I input-wall.yaml -F mesh/nacaAirfoil-base.su2 -g -s50 -q 4 -z 0.06 -x .25 -y .25 
-#gocfd 2D -I input-wall.yaml -F mesh/nacaAirfoil-base.su2 -g -s 100 -q 4 -z 0.06 -x .25 -y .25 
-
-gocfd 2D -I input-wall.yaml -F mesh/nacaAirfoil-base.su2
+#gocfd 2D -I input-wall.yaml -F mesh/nacaAirfoil-base.su2
+#for order in 0 1 2 3 4
+for order in 4
+do
+	cat input-base.yaml > tmp.yaml
+	echo "PolynomialOrder: $order" >> tmp.yaml
+	if [ $order -eq 0 ]; then
+		echo "CFL: 2.0" >> tmp.yaml
+		echo "MaxIterations: 6000" >> tmp.yaml
+	elif [ $order -eq 1 ]; then
+		echo "CFL: 2.0" >> tmp.yaml
+		echo "MaxIterations: 10000" >> tmp.yaml
+	elif [ $order -eq 4 ]; then
+		echo "CFL: 2.5" >> tmp.yaml
+		echo "MaxIterations: 10000" >> tmp.yaml
+	fi
+	gocfd 2D -I tmp.yaml -F mesh/nacaAirfoil-base.su2 >& sysout-$order
+    mv meshfile.gobcfd meshfile-$order.gobcfd
+    mv solutionfile.gobcfd solutionfile-$order.gobcfd
+done
