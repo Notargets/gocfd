@@ -2,7 +2,6 @@
 
 #gocfd 2D -I input-wall.yaml -F mesh/nacaAirfoil-base.su2
 for order in 0 1 2 3 4
-#for order in 4
 do
 	cat input-base.yaml > tmp.yaml
 	echo "PolynomialOrder: $order" >> tmp.yaml
