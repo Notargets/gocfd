@@ -27,8 +27,6 @@ libsInstall:
 	sudo apt update
 	sudo apt install libopenblas-dev liblapacke-dev gfortran libxxf86vm-dev
 
-
-
 	# Install the Netlib BLAS wrapper:
 	CGO_LDFLAGS="-lopenblas -lgfortran" go install gonum.org/v1/netlib/blas/netlib
 	# Install the Netlib LAPACK wrapper:

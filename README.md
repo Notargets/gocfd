@@ -3,6 +3,10 @@
 
 A computational fluid dynamics (CFD) solver written in Go.
 
+[Click here to see what we're currently working on](UPDATES.md) 
+
+## 2D Euler Solver using DFR / DG elements is done
+
 The 2D solver implements the Direct Flux Reconstruction (DFR) method within 
 Galerkin Discontinuous Finite Elements (GDFE) tailored
 for unstructured mesh simulations. The next phase of this project will focus 
@@ -10,7 +14,8 @@ on building a 3D solver using Flux Reconstruction DG elements with a split
 flux Entropy solver so that we can implement turbulence capture and stable 
 numerics for order P=4 and beyond in 3D.
 
-For a comprehensive log of project updates and progress, please refer to [CHANGELOG.md](CHANGELOG.md). Currently, the solver is
+For a comprehensive log of project updates and progress for the 2D solvers, 
+refer to [CHANGELOG-2D.md](CHANGELOG-2D.md). Currently, the solver is
 capable of handling 2D Euler equations, supporting the input of unstructured meshes and boundary conditions for flowfield
 simulation. Ongoing developments focus on the efficient capture of shock waves and contact discontinuities. Look
 [here](INTRODUCTION.md) for some background on this project and attributions.
@@ -20,7 +25,7 @@ possible addition of various implicit time integration solvers.
 
 |  NACA 0012 Airfoil at M=5, Alpha=35  |   Comparison to SU2 Euler Solver at P=1    | Shocktube Compared w/Analytical Solution at P=4 |
 |:------------------------------------:|:------------------------------------------:|:-----------------------------------------------:|
-| ![](CHANGELOG/naca0012-aoa35-M5.png) | ![](CHANGELOG/naca0012-comparetoSU2-1.png) |   ![](CHANGELOG/shocktube-500pts-order4.png)    |
+| ![](CHANGELOG-2D/naca0012-aoa35-M5.png) | ![](CHANGELOG-2D/naca0012-comparetoSU2-1.png) |   ![](CHANGELOG-2D/shocktube-500pts-order4.png)    |
 
 # Quick Start Guide
 

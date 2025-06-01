@@ -1,0 +1,58 @@
+- [Update 58](CHANGELOG-2D/Update_58.md): Final Entry for 2D Solver with Accuracy Comparisons
+- [Update 57](CHANGELOG-2D/Update_57.md): Shock Capturing - Success with Polynomial Limiter!
+- [Update 56](CHANGELOG-2D/Update_56.md): Shock Capturing - Modulating Edge Interpolation
+- [Update 55](CHANGELOG-2D/Update_55.md): Interpolation for Shock Capturing (part 4)
+- [Update 54](CHANGELOG-2D/Update_54.md): Interpolation for Shock Capturing (part 3)
+- [Update 53](CHANGELOG-2D/Update_53.md): Interpolation for Shock Capturing (part 2)
+- [Update 52](CHANGELOG-2D/Update_52.md): Interpolation for Shock Capturing (part 1)
+- [Update 51](CHANGELOG-2D/Update_51.md): Redefinition of RT element Final
+- [Update 50](CHANGELOG-2D/Update_50.md): Redefinition of RT element part 4
+- [Update 49](CHANGELOG-2D/Update_49.md): Redefinition of RT element part 3
+- [Update 48](CHANGELOG-2D/Update_48.md): Redefinition of RT element part 2
+- [Update 47](CHANGELOG-2D/Update_47.md): Redefinition of the RT element
+- [Update 46](CHANGELOG-2D/Update_46.md): New Plan: New RT element to remove instability
+- [Update 45](CHANGELOG-2D/Update_45.md): Restatement of Numerical Method: 
+  Hybrid Elements to Represent Scalar Field and  Coupled Vector Flux Field
+- [Update 44](CHANGELOG-2D/Update_44.md): Return after three-year hiatus.
+- [Update 43](CHANGELOG-2D/Update_43.md): Transonic testing successful for P!=1.
+- [Update 42](CHANGELOG-2D/Update_42.md): Added min/max limiter for values.
+- [Update 41](CHANGELOG-2D/Update_41.md): Interpolated fluxes to the edges.
+- [Update 40](CHANGELOG-2D/Update_40.md): Theorized interpolation cause of issues.
+- [Update 39](CHANGELOG-2D/Update_39.md): Compared RT, Lagrange, Jacobi bases.
+- [Update 38](CHANGELOG-2D/Update_38.md): Investigating exponential interpolation filter.
+- [Update 37](CHANGELOG-2D/Update_37.md): Fixed limiter; conducted shock studies.
+- [Update 36](CHANGELOG-2D/Update_36.md): Replaced with SSP54; improved shock results.
+- [Update 35](CHANGELOG-2D/Update_35.md): Added and verified gradient calculations.
+- [Update 34](CHANGELOG-2D/Update_34.md): Implemented laplacian dissipation for shocks.
+- [Update 33](CHANGELOG-2D/Update_33.md): Completed shock finder; plan dissipation.
+- [Update 32](CHANGELOG-2D/Update_32.md): Validated Roe-ER flux; plan stabilization.
+- [Update 31](CHANGELOG-2D/Update_31.md): Enhancing flux transfer to minimize dissipation.
+- [Update 30](CHANGELOG-2D/Update_30.md): Adding routines for implicit time advancement.
+- [Update 29](CHANGELOG-2D/Update_29.md): Researching methods to speed up convergence.
+- [Update 28](CHANGELOG-2D/Update_28.md): Implemented abrupt start transient modeling.
+- [Update 27](CHANGELOG-2D/Update_27.md): Added solver runtime profile option.
+- [Update 26](CHANGELOG-2D/Update_26.md): Partitioned 2D solver for parallelism.
+- [Update 25](CHANGELOG-2D/Update_25.md): Compared convergence using different flux calculations.
+- [Update 24](CHANGELOG-2D/Update_24.md): Implemented multi-core parallel solver for speedup.
+- [Update 23](CHANGELOG-2D/Update_23.md): Tested Isentropic Vortex with Lax flux.
+- [Update 22](CHANGELOG-2D/Update_22.md): First AVS renderings of 2D density.
+- [Update 21](CHANGELOG-2D/Update_21.md): 2D Euler solver functionally complete.
+- [Update 20](CHANGELOG-2D/Update_20.md): Tested polynomial divergence computation.
+- [Update 19](CHANGELOG-2D/Update_19.md): Developed unit tests for zero divergence.
+- [Update 18](CHANGELOG-2D/Update_18.md): Verified divergence for transformed triangles.
+- [Update 17](CHANGELOG-2D/Update_17.md): Initializing 2D DFR solution method.
+- [Update 16](CHANGELOG-2D/Update_16.md): Validated RT element for polynomial divergence.
+- [Update 15](CHANGELOG-2D/Update_15.md): Working Raviart-Thomas element up to 7th order.
+- [Update 14](CHANGELOG-2D/Update_14.md): Studying Raviart-Thomas for flux representation.
+- [Update 13](CHANGELOG-2D/Update_13.md): Experimented with LGL node distributions.
+- [Update 12](CHANGELOG-2D/Update_12.md): Added Gambit mesh reader; updated AVS.
+- [Update 11](CHANGELOG-2D/Update_11.md): Reworked DFR solver; verified convergence.
+- [Update 10](CHANGELOG-2D/Update_10.md): Implemented smooth solution; conducted studies.
+- [Update 9](CHANGELOG-2D/Update_9.md): Verified DFR/Roe flux with exact solution.
+- [Update 8](CHANGELOG-2D/Update_8.md): Evaluated Roe Flux versus analytic solution.
+- [Update 7](CHANGELOG-2D/Update_7.md): Identified and fixed DFR aliasing issue.
+- [Update 6](CHANGELOG-2D/Update_6.md): Implemented DFR for 1D advection problems.
+- [Update 5](CHANGELOG-2D/Update_5.md): Investigated direct flux reconstruction (DFR) methods.
+- [Update 3](CHANGELOG-2D/Update_3.md): Euler's equations: 1D shock collision.
+- [Update 2](CHANGELOG-2D/Update_2.md): Maxwell's equations in 1D cavity.
+- [Update 1](CHANGELOG-2D/Update_1.md): Implemented 1D advection equation model.
