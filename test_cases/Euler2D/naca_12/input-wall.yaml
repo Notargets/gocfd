@@ -1,13 +1,13 @@
 Title: "Test Case"
-CFL: 5
+#CFL: 5
 #CFL: 2.5
-#CFL: 2.0
+CFL: 2.0
 #CFL: 1.0
 #CFL: 0.5
 #CFL: 0.4
 FluxType: Roe
 InitType: Freestream # Can be "Freestream" or "IVortex"
-PolynomialOrder: 4
+PolynomialOrder: 0
 FinalTime: 20
 Minf: 0.8
 #Minf: 5.0
@@ -16,9 +16,11 @@ Gamma: 1.4
 Alpha: 1.25
 LocalTimeStepping: true
 #LocalTimeStepping: false
-#MaxIterations: 400
+#MaxIterations: 1
+#MaxIterations: 1000
+MaxIterations: 6000
 #MaxIterations: 4000
-MaxIterations: 50000
+#MaxIterations: 50000
 Limiter: PerssonC0
 Kappa: 4.5
-PlotFields: ["mach"]
+PlotFields: ["mach", "pressure coefficient"]
