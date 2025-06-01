@@ -1,3 +1,4 @@
+- [Update 58](CHANGELOG/Update_58.md): Final Entry for 2D Solver with Accuracy Comparisons
 - [Update 57](CHANGELOG/Update_57.md): Shock Capturing - Success with Polynomial Limiter!
 - [Update 56](CHANGELOG/Update_56.md): Shock Capturing - Modulating Edge Interpolation
 - [Update 55](CHANGELOG/Update_55.md): Interpolation for Shock Capturing (part 4)

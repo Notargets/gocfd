@@ -1,5 +1,6 @@
-# Set terminal with size and font
-set terminal qt size 1920,1080 font "Arial,14"
+# First plot to PNG
+set terminal png size 1920,1080 font "Arial,14"
+set output "plot_output.png"
 
 # Set labels with specific fonts
 set xlabel "X" font "Arial,16"
@@ -31,5 +32,10 @@ plot 'plot.dat' using 1:2 with lines linestyle 1 title 'Y', \
      ''          using 1:4 with lines linestyle 3 title 'Cp', \
      'RUN_SU2/mach_cp_data.dat' using 1:2 with lines linestyle 4 title 'SU2 Mach', \
      'RUN_SU2/mach_cp_data.dat' using 1:3 with lines linestyle 5 title 'SU2 Cp'
+
+set terminal qt size 1920,1080 enhanced font 'Helvetica,10'
+unset output
+
+replot
 
 pause -1

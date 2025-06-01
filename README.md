@@ -3,8 +3,12 @@
 
 A computational fluid dynamics (CFD) solver written in Go.
 
-The solver utilizes the Direct Flux Reconstruction (DFR) method within Galerkin Discontinuous Finite Elements (GDFE) tailored
-for unstructured mesh simulations.
+The 2D solver implements the Direct Flux Reconstruction (DFR) method within 
+Galerkin Discontinuous Finite Elements (GDFE) tailored
+for unstructured mesh simulations. The next phase of this project will focus 
+on building a 3D solver using Flux Reconstruction DG elements with a split 
+flux Entropy solver so that we can implement turbulence capture and stable 
+numerics for order P=4 and beyond in 3D.
 
 For a comprehensive log of project updates and progress, please refer to [CHANGELOG.md](CHANGELOG.md). Currently, the solver is
 capable of handling 2D Euler equations, supporting the input of unstructured meshes and boundary conditions for flowfield
