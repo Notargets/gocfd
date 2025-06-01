@@ -22,10 +22,12 @@ bench:
 	 go test github.com/notargets/gocfd/model_problems/Euler2D/benchmarks/... -bench=GetFlowFunction
 	 #go test github.com/notargets/gocfd/model_problems/Euler2D/benchmarks/... -bench=EulerSolve
 
-libsInstall:
+deps:
+	sudo snap install go --classic
 	# Make sure OpenBLAS (with Fortran ABI) is on your system:
 	sudo apt update
-	sudo apt install libopenblas-dev liblapacke-dev gfortran libxxf86vm-dev
+	sudo apt install libopenblas-dev liblapacke-dev gfortran 
+	sudo apt install pkg-config libxxf86vm-dev libgl1-mesa-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libglfw3-dev
 
 	# Install the Netlib BLAS wrapper:
 	CGO_LDFLAGS="-lopenblas -lgfortran" go install gonum.org/v1/netlib/blas/netlib
