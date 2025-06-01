@@ -23,8 +23,10 @@ set datafile separator ","
 set style line 1 lt 1 lw 2 lc rgb "red"      # Y (solid)
 set style line 2 lt 1 lw 2 lc rgb "blue"     # Mach (solid)
 set style line 3 lt 1 lw 2 lc rgb "green"    # Cp (solid)
-set style line 4 lt 1 dt (5,5) lw 2 lc rgb "blue"   # SU2 Mach (dashed: 5 on, 5 off)
-set style line 5 lt 1 dt (5,5) lw 2 lc rgb "green"  # SU2 Cp (dashed: 5 on, 5 off)
+#set style line 4 lt 1 dt (5,5) lw 2 lc rgb "blue"   # SU2 Mach (dashed: 5 on, 5 off)
+#set style line 5 lt 1 dt (5,5) lw 2 lc rgb "green"  # SU2 Cp (dashed: 5 on, 5 off)
+set style line 4 lt 0 lw 2 lc rgb "blue"     # SU2 Mach (dashed - uses built-in dash)
+set style line 5 lt 0 lw 2 lc rgb "green"    # SU2 Cp (dashed - uses built-in dash)
 
 # Plot both datasets with custom styles
 plot 'plot.dat' using 1:2 with lines linestyle 1 title 'Y', \

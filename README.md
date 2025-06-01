@@ -18,9 +18,9 @@ simulation. Ongoing developments focus on the efficient capture of shock waves a
 Future enhancements, following shock capture improvements, will include the integration of viscous flowfields, along with the
 possible addition of various implicit time integration solvers.
 
-|  NACA 0012 Airfoil at M=5, Alpha=35  |   Comparison to SU2 Euler Solver at P=1    |
-|:------------------------------------:|:------------------------------------------:|
-| ![](CHANGELOG/naca0012-aoa35-M5.png) | ![](CHANGELOG/naca0012-comparetoSU2-1.png) |
+|  NACA 0012 Airfoil at M=5, Alpha=35  |   Comparison to SU2 Euler Solver at P=1    | Shocktube Compared w/Analytical Solution at P=4 |
+|:------------------------------------:|:------------------------------------------:|:-----------------------------------------------:|
+| ![](CHANGELOG/naca0012-aoa35-M5.png) | ![](CHANGELOG/naca0012-comparetoSU2-1.png) |   ![](CHANGELOG/shocktube-500pts-order4.png)    |
 
 # Quick Start Guide
 
