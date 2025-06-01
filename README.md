@@ -37,7 +37,7 @@ was input correctly by plotting it with the -m flag.
 ## Supported Platforms
 
 I've run the code on many Ubuntu Linux distributions, and also on Windows 10. Because it is written in Go, it should be portable
-to many platforms that support OpenGL graphics.
+to many platforms.
 
 ## Building on Ubuntu Linux
 
