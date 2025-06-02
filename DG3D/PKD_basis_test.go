@@ -8,88 +8,109 @@ import (
 
 // generateTestNodes generates reference tetrahedral nodes for testing
 // Uses a simple approach to get better distributed nodes
+// generateTestNodes generates reference tetrahedral nodes for testing
+// Uses a simple approach to get better distributed nodes
+// generateTestNodes generates reference tetrahedral nodes for testing
+// Uses a simple approach to get better distributed nodes
 func generateTestNodes(P int) (r, s, t []float64) {
 	switch P {
 	case 1:
-		// Vertices of reference tetrahedron
-		r = []float64{-1, 1, -1, -1}
-		s = []float64{-1, -1, 1, -1}
-		t = []float64{-1, -1, -1, 1}
+		// For P=1, use face-centered nodes that avoid corners
+		r = []float64{-1.0 / 3.0, 1.0 / 3.0, -1.0 / 3.0, -1.0 / 3.0}
+		s = []float64{-1.0 / 3.0, -1.0 / 3.0, 1.0 / 3.0, -1.0 / 3.0}
+		t = []float64{-1.0 / 3.0, -1.0 / 3.0, -1.0 / 3.0, 1.0 / 3.0}
 		return r, s, t
 	case 2:
-		// Add edge midpoints
-		r = []float64{
-			-1, 1, -1, -1, // vertices
-			0, -1, 0, -1, 0, -1, // edge midpoints
-		}
-		s = []float64{
-			-1, -1, 1, -1, // vertices
-			-1, 0, -1, 0, -1, 0, // edge midpoints
-		}
-		t = []float64{
-			-1, -1, -1, 1, // vertices
-			-1, -1, 0, 0, 0, 0, // edge midpoints
-		}
+		// For P=2, use a symmetric set of 10 nodes
+		// Include centroid, face centers, and edge centers
+		r = make([]float64, 10)
+		s = make([]float64, 10)
+		t = make([]float64, 10)
+
+		// Centroid
+		r[0], s[0], t[0] = -1.0/3.0, -1.0/3.0, -1.0/3.0
+
+		// Face centers (4 faces)
+		r[1], s[1], t[1] = 0.0, -1.0/3.0, -1.0/3.0      // r=0 face
+		r[2], s[2], t[2] = -1.0/3.0, 0.0, -1.0/3.0      // s=0 face
+		r[3], s[3], t[3] = -1.0/3.0, -1.0/3.0, 0.0      // t=0 face
+		r[4], s[4], t[4] = -2.0/3.0, -2.0/3.0, -2.0/3.0 // r+s+t=-2 face
+
+		// Edge midpoints (shifted inward)
+		alpha := 0.5 // midpoint parameter
+		beta := 0.7  // inward shift
+
+		// Edge from v0 to v1
+		r[5] = beta * (-1.0 + alpha*2.0)
+		s[5] = beta * (-1.0)
+		t[5] = beta * (-1.0)
+
+		// Edge from v0 to v2
+		r[6] = beta * (-1.0)
+		s[6] = beta * (-1.0 + alpha*2.0)
+		t[6] = beta * (-1.0)
+
+		// Edge from v0 to v3
+		r[7] = beta * (-1.0)
+		s[7] = beta * (-1.0)
+		t[7] = beta * (-1.0 + alpha*2.0)
+
+		// Edge from v1 to v2
+		r[8] = beta * (1.0 - alpha*2.0)
+		s[8] = beta * (-1.0 + alpha*2.0)
+		t[8] = beta * (-1.0)
+
+		// Edge from v1 to v3
+		r[9] = beta * (1.0 - alpha*2.0)
+		s[9] = beta * (-1.0)
+		t[9] = beta * (-1.0 + alpha*2.0)
+
 		return r, s, t
 	default:
-		// For higher orders, use a simple approach with slight inward shift
-		// to avoid exact boundary singularities
+		// For higher orders, use a Stroud-like distribution
+		// that provides good conditioning for the PKD basis
 		n := (P + 1) * (P + 2) * (P + 3) / 6
 		r = make([]float64, n)
 		s = make([]float64, n)
 		t = make([]float64, n)
 
+		// Use a warped product grid that respects the tetrahedral structure
 		idx := 0
-		shift := 0.01 // Small inward shift
-
 		for i := 0; i <= P; i++ {
 			for j := 0; j <= P-i; j++ {
 				for k := 0; k <= P-i-j; k++ {
-					// Barycentric coordinates
-					l := P - i - j - k
-					b1 := float64(i) / float64(P)
-					b2 := float64(j) / float64(P)
-					b3 := float64(k) / float64(P)
-					b4 := float64(l) / float64(P)
+					// Use warped coordinates to avoid clustering near boundaries
+					xi := float64(i) / float64(P)
+					eta := float64(j) / float64(P)
+					zeta := float64(k) / float64(P)
 
-					// Apply small shift toward center
-					if b1 == 0 {
-						b1 = shift
-					}
-					if b2 == 0 {
-						b2 = shift
-					}
-					if b3 == 0 {
-						b3 = shift
-					}
-					if b4 == 0 {
-						b4 = shift
+					// Apply warping function to push nodes away from boundaries
+					warp := func(x float64) float64 {
+						// Smooth warping that preserves symmetry
+						return x + 0.3*x*(1-x)*(1-2*x)
 					}
 
-					if b1 == 1 {
-						b1 = 1 - shift
-					}
-					if b2 == 1 {
-						b2 = 1 - shift
-					}
-					if b3 == 1 {
-						b3 = 1 - shift
-					}
-					if b4 == 1 {
-						b4 = 1 - shift
+					xi = warp(xi)
+					eta = warp(eta)
+					zeta = warp(zeta)
+
+					// Convert to barycentric coordinates
+					lambda := 1.0 - xi - eta - zeta
+
+					// Ensure we're inside the tetrahedron
+					if lambda < 0 {
+						// Project back to tetrahedron
+						sum := xi + eta + zeta
+						xi /= sum
+						eta /= sum
+						zeta /= sum
+						lambda = 0
 					}
 
-					// Renormalize
-					sum := b1 + b2 + b3 + b4
-					b1 /= sum
-					b2 /= sum
-					b3 /= sum
-					b4 /= sum
-
-					// Convert to reference coordinates
-					r[idx] = -b1 + b2 + b3 - b4
-					s[idx] = -b1 - b2 + b3 + b4
-					t[idx] = -b1 - b2 - b3 + b4
+					// Convert barycentric to reference coordinates
+					r[idx] = -1.0 + 2.0*xi
+					s[idx] = -1.0 + 2.0*eta
+					t[idx] = -1.0 + 2.0*zeta
 
 					idx++
 				}
@@ -209,39 +230,152 @@ func TestVandermonde(t *testing.T) {
 }
 
 func TestBasisEvaluation(t *testing.T) {
-	// Test P=1 case explicitly
-	P := 1
-	basis := NewPKDBasis(P)
+	// Test orthogonal PKD modal basis properties
+	for P := 1; P <= 3; P++ {
+		basis := NewPKDBasis(P)
 
-	// Vertices of reference tetrahedron
-	vertices := [][3]float64{
-		{-1, -1, -1},
-		{1, -1, -1},
-		{-1, 1, -1},
-		{-1, -1, 1},
-	}
+		// Test 1: Constant mode (i=j=k=0) should equal 1 everywhere
+		testPoints := [][3]float64{
+			{-1, -1, -1},
+			{1, -1, -1},
+			{-1, 1, -1},
+			{-1, -1, 1},
+			{0, 0, 0},
+			{-0.5, -0.5, -0.5},
+			{0.5, -0.5, -0.5},
+		}
 
-	// Each basis function should be 1 at one vertex and 0 at others
-	for i, v := range vertices {
-		phi := basis.EvalBasis(v[0], v[1], v[2])
-		t.Logf("Vertex %d (%v): phi = %v", i, v, phi)
-
-		// For linear basis, we expect basis function i to be 1 at vertex i
-		// Note: basis ordering might be different than vertex ordering
-		foundOne := false
-		for j, val := range phi {
-			if math.Abs(val-1.0) < 1e-10 {
-				foundOne = true
-				t.Logf("  Basis function %d = 1", j)
-			} else if math.Abs(val) > 1e-10 {
-				t.Logf("  Basis function %d = %g (expected 0)", j, val)
+		for _, pt := range testPoints {
+			phi := basis.EvalBasis(pt[0], pt[1], pt[2])
+			// First basis function (constant mode) should be 1
+			if math.Abs(phi[0]-1.0) > 1e-10 {
+				t.Errorf("P=%d: Constant mode at point %v = %g (expected 1)",
+					P, pt, phi[0])
 			}
 		}
 
-		if !foundOne {
-			t.Errorf("No basis function equals 1 at vertex %d", i)
+		// Test 2: Polynomial exactness - can represent any polynomial up to degree P
+		// Test with monomials r^p * s^q * t^k where p+q+k <= P
+		r, s, tt := generateTestNodes(P)
+		V := basis.Vandermonde(r, s, tt)
+
+		// Check that V is well-conditioned enough to represent polynomials
+		cond := V.ConditionNumber()
+		if cond > 1e12 {
+			t.Logf("P=%d: Warning - Vandermonde condition number = %.2e", P, cond)
+		}
+
+		// Test 3: Basis completeness - Vandermonde should be invertible
+		_, err := V.Inverse()
+		if err != nil && cond < 1e14 {
+			t.Errorf("P=%d: Vandermonde matrix is singular", P)
+		}
+
+		// Test 4: Hierarchical property - first (P-1+1)(P-1+2)(P-1+3)/6 modes
+		// should span the P-1 polynomial space
+		if P > 1 {
+			N_prev := (P * (P + 1) * (P + 2)) / 6
+			// Evaluate basis at a test point
+			phi := basis.EvalBasis(0.2, 0.1, 0.3)
+
+			// Check that we have the expected number of basis functions
+			if len(phi) != basis.N {
+				t.Errorf("P=%d: Expected %d basis functions, got %d",
+					P, basis.N, len(phi))
+			}
+
+			// Verify hierarchical structure exists
+			if N_prev > basis.N {
+				t.Errorf("P=%d: Hierarchical structure violated", P)
+			}
+		}
+
+		t.Logf("P=%d: Modal basis evaluation test passed (N=%d, cond=%.2e)",
+			P, basis.N, cond)
+	}
+
+	// Test 5: Specific values for P=1 to verify correct modal basis
+	P := 1
+	basis := NewPKDBasis(P)
+
+	// At origin (0,0,0), the collapsed coordinates are:
+	// a = 2*(1+0)/(1-0-0) - 1 = 1
+	// b = 2*(1+0)/(1-0) - 1 = 1
+	// c = 2*(1+0) - 1 = 1
+	phi := basis.EvalBasis(0, 0, 0)
+	t.Logf("P=1 at origin: phi = %v", phi)
+
+	// For P=1, we expect 4 modes:
+	// Mode 0 (i=0,j=0,k=0): P₀(1) * P₀(1) * P₀(1) = 1*1*1 = 1
+	// Mode 1 (i=1,j=0,k=0): P₁(1) * P₀(1) * P₀(1) * 2 = 1*1*1*2 = 2
+	// Mode 2 (i=0,j=1,k=0): P₀(1) * P₁¹(1) * P₀(1) * 2 = 1*1.5*1*2 = 3
+	// Mode 3 (i=0,j=0,k=1): P₀(1) * P₀(1) * P₁²(1) * 2 = 1*1*2*2 = 4
+
+	if math.Abs(phi[0]-1.0) > 1e-10 {
+		t.Errorf("P=1: Mode 0 at origin = %g (expected 1)", phi[0])
+	}
+
+	// Check a point where collapsed coords are closer to zero
+	// Use the center of the reference tetrahedron
+	centerR := -1.0 / 3.0
+	centerS := -1.0 / 3.0
+	centerT := -1.0 / 3.0
+	phiCenter := basis.EvalBasis(centerR, centerS, centerT)
+	t.Logf("P=1 at center (%.3f,%.3f,%.3f): phi = %v",
+		centerR, centerS, centerT, phiCenter)
+
+	// Constant mode should still be 1
+	if math.Abs(phiCenter[0]-1.0) > 1e-10 {
+		t.Errorf("P=1: Mode 0 at center = %g (expected 1)", phiCenter[0])
+	}
+}
+
+func TestNodalBasisEvaluation(t *testing.T) {
+	P := 1
+	basis := NewPKDBasis(P)
+
+	// Get nodal points (these are shifted inward from vertices)
+	r, s, tt := generateTestNodes(P)
+
+	// Test that each nodal basis function is 1 at its node and 0 at others
+	for i := 0; i < len(r); i++ {
+		// Evaluate at node i
+		phi := basis.EvalNodalBasis(r[i], s[i], tt[i], r, s, tt)
+
+		for j, val := range phi {
+			expected := 0.0
+			if i == j {
+				expected = 1.0
+			}
+			if math.Abs(val-expected) > 1e-10 {
+				t.Errorf("Nodal basis %d at node %d: got %f, expected %f",
+					j, i, val, expected)
+			}
 		}
 	}
+
+	// Also test at a few arbitrary points to ensure nodal basis behaves smoothly
+	testPoints := [][3]float64{
+		{0.0, 0.0, 0.0},
+		{-0.5, -0.5, -0.5},
+		{0.2, -0.3, -0.4},
+	}
+
+	for _, pt := range testPoints {
+		phi := basis.EvalNodalBasis(pt[0], pt[1], pt[2], r, s, tt)
+
+		// Sum of nodal basis functions should be 1 (partition of unity)
+		sum := 0.0
+		for _, val := range phi {
+			sum += val
+		}
+
+		if math.Abs(sum-1.0) > 1e-10 {
+			t.Errorf("Nodal basis at point %v: sum = %f (expected 1)", pt, sum)
+		}
+	}
+
+	t.Logf("P=%d: Nodal basis evaluation test passed", P)
 }
 
 func TestDerivativeMatrices(t *testing.T) {

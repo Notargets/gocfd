@@ -54,7 +54,8 @@ func GradJacobiP(x float64, alpha, beta float64, n int) float64 {
 	return 0.5 * (alpha + beta + float64(n) + 1) * JacobiP(x, alpha+1, beta+1, n-1)
 }
 
-// EvalBasis evaluates the PKD basis at a single point (r,s,t)
+// EvalBasis evaluates the orthogonal PKD basis at a single point (r,s,t)
+// This returns the modal basis functions, not the nodal basis
 func (basis *PKDBasis) EvalBasis(r, s, t float64) []float64 {
 	phi := make([]float64, basis.N)
 
@@ -94,7 +95,7 @@ func (basis *PKDBasis) EvalBasis(r, s, t float64) []float64 {
 					val *= math.Pow((1-c)/2, float64(i+j))
 				}
 
-				// Overall scaling
+				// Overall scaling factor
 				val *= math.Pow(2, float64(i+j+k))
 
 				phi[idx] = val
@@ -104,6 +105,33 @@ func (basis *PKDBasis) EvalBasis(r, s, t float64) []float64 {
 	}
 
 	return phi
+}
+
+// EvalNodalBasis evaluates the nodal basis at a single point (r,s,t)
+// This requires the nodal points and returns Lagrange-like basis functions
+func (basis *PKDBasis) EvalNodalBasis(r, s, t float64, rNodes, sNodes, tNodes []float64) []float64 {
+	// First compute the Vandermonde matrix at the nodes
+	V := basis.Vandermonde(rNodes, sNodes, tNodes)
+
+	// Get its inverse
+	Vinv, err := V.Inverse()
+	if err != nil {
+		// Use pseudoinverse if singular
+		Vinv = V.PseudoInverse(1e-10)
+	}
+
+	// Evaluate modal basis at the point
+	modalPhi := basis.EvalBasis(r, s, t)
+
+	// Transform to nodal basis: nodalPhi = Vinv^T * modalPhi
+	nodalPhi := make([]float64, basis.N)
+	for i := 0; i < basis.N; i++ {
+		for j := 0; j < basis.N; j++ {
+			nodalPhi[i] += Vinv.At(j, i) * modalPhi[j]
+		}
+	}
+
+	return nodalPhi
 }
 
 // Vandermonde generates the Vandermonde matrix for given evaluation points
