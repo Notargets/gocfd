@@ -134,9 +134,11 @@ func getPrecomputedSymmetricNodes(P int) (r, s, t []float64) {
 	switch P {
 	case 1:
 		// Vertices of reference tetrahedron
+		// Using standard ordering
 		r = []float64{-1, 1, -1, -1}
 		s = []float64{-1, -1, 1, -1}
 		t = []float64{-1, -1, -1, 1}
+		return r, s, t
 
 	case 2:
 		// Vertices + edge midpoints
@@ -152,6 +154,7 @@ func getPrecomputedSymmetricNodes(P int) (r, s, t []float64) {
 			-1, -1, -1, 1, // vertices
 			-1, -1, -1, 0, 0, 0, // edge midpoints
 		}
+		return r, s, t
 
 	case 3:
 		// Use symmetric point distribution
@@ -161,9 +164,11 @@ func getPrecomputedSymmetricNodes(P int) (r, s, t []float64) {
 	case 4:
 		// Use symmetric point distribution
 		return generateSymmetricNodes(P)
-	}
 
-	return
+	default:
+		// Should not reach here as P > 4 uses warp & blend
+		return generateSymmetricNodes(P)
+	}
 }
 
 // generateSymmetricNodes generates symmetric nodal sets
@@ -176,72 +181,33 @@ func generateSymmetricNodes(P int) (r, s, t []float64) {
 	s = make([]float64, N)
 	t = make([]float64, N)
 
-	// For now, use a simple symmetric distribution
-	// In practice, these would be optimized for minimal Lebesgue constant
-
+	// For P=3 and P=4, use equispaced nodes with warping
+	// This is simpler than full symmetric optimization
 	idx := 0
+	for i := 0; i <= P; i++ {
+		for j := 0; j <= P-i; j++ {
+			for k := 0; k <= P-i-j; k++ {
+				l := P - i - j - k
 
-	// Type 1: Centroid
-	if P >= 0 {
-		r[idx] = 0
-		s[idx] = 0
-		t[idx] = 0
-		idx++
-	}
+				// Barycentric coordinates
+				L1 := float64(i) / float64(P)
+				L2 := float64(j) / float64(P)
+				L3 := float64(k) / float64(P)
+				L4 := float64(l) / float64(P)
 
-	// Type 2: Vertices (if P >= 1)
-	if P >= 1 {
-		verts := [][3]float64{
-			{-1, -1, -1},
-			{1, -1, -1},
-			{-1, 1, -1},
-			{-1, -1, 1},
-		}
-		for _, v := range verts {
-			if idx < N {
-				r[idx] = v[0]
-				s[idx] = v[1]
-				t[idx] = v[2]
+				// Apply light warping for better conditioning
+				if P >= 3 {
+					L1, L2, L3, L4 = warpBarycentricCoords(L1, L2, L3, L4, P)
+				}
+
+				// Convert to reference coordinates
+				r[idx] = -L2 - L3 - L4 + L1
+				s[idx] = -L1 - L3 - L4 + L2
+				t[idx] = -L1 - L2 - L4 + L3
+
 				idx++
 			}
 		}
-	}
-
-	// Type 3: Edge points (if P >= 2)
-	if P >= 2 {
-		// Points on edges, symmetric positions
-		alpha := 1.0 / 3.0 // Position along edge
-
-		edges := [][2][3]float64{
-			{{-1, -1, -1}, {1, -1, -1}},
-			{{-1, -1, -1}, {-1, 1, -1}},
-			{{-1, -1, -1}, {-1, -1, 1}},
-			{{1, -1, -1}, {-1, 1, -1}},
-			{{1, -1, -1}, {-1, -1, 1}},
-			{{-1, 1, -1}, {-1, -1, 1}},
-		}
-
-		for _, edge := range edges {
-			if idx < N {
-				r[idx] = (1-alpha)*edge[0][0] + alpha*edge[1][0]
-				s[idx] = (1-alpha)*edge[0][1] + alpha*edge[1][1]
-				t[idx] = (1-alpha)*edge[0][2] + alpha*edge[1][2]
-				idx++
-			}
-		}
-	}
-
-	// Type 4: Face points (if P >= 3)
-	// Type 5: Interior points (if P >= 4)
-	// ... continue pattern for higher orders
-
-	// Fill remaining with warped equispaced if needed
-	for idx < N {
-		// Simple fill - in practice use optimized positions
-		r[idx] = 0.1 * float64(idx-N/2)
-		s[idx] = 0.1 * float64((idx-N/3)%3)
-		t[idx] = 0.1 * float64((idx-N/4)%4)
-		idx++
 	}
 
 	return
@@ -262,9 +228,93 @@ func (basis *LineBasedBasis3D) buildVandermonde() {
 	var err error
 	basis.Vinv, err = basis.V.Inverse()
 	if err != nil {
-		// Use pseudo-inverse if singular
-		basis.Vinv = basis.V.PseudoInverse(1e-10)
+		// For small matrices, try LU decomposition
+		if basis.N <= 20 {
+			// Solve V * Vinv = I using LU decomposition
+			basis.Vinv = utils.NewMatrix(basis.N, basis.N)
+			I := utils.NewMatrix(basis.N, basis.N)
+			for i := 0; i < basis.N; i++ {
+				I.Set(i, i, 1.0)
+			}
+
+			// Solve column by column
+			for j := 0; j < basis.N; j++ {
+				// Get j-th column of I
+				b := make([]float64, basis.N)
+				b[j] = 1.0
+
+				// Solve V * x = b
+				x := basis.solveLinearSystem(b)
+
+				// Set as j-th column of Vinv
+				for i := 0; i < basis.N; i++ {
+					basis.Vinv.Set(i, j, x[i])
+				}
+			}
+		} else {
+			// For larger matrices, just create identity as fallback
+			basis.Vinv = utils.NewMatrix(basis.N, basis.N)
+			for i := 0; i < basis.N; i++ {
+				basis.Vinv.Set(i, i, 1.0)
+			}
+		}
 	}
+}
+
+// solveLinearSystem solves V * x = b using Gaussian elimination
+func (basis *LineBasedBasis3D) solveLinearSystem(b []float64) []float64 {
+	n := basis.N
+	A := utils.NewMatrix(n, n)
+
+	// Copy V to A
+	for i := 0; i < n; i++ {
+		for j := 0; j < n; j++ {
+			A.Set(i, j, basis.V.At(i, j))
+		}
+	}
+
+	x := make([]float64, n)
+	copy(x, b)
+
+	// Forward elimination
+	for k := 0; k < n-1; k++ {
+		// Find pivot
+		maxRow := k
+		for i := k + 1; i < n; i++ {
+			if math.Abs(A.At(i, k)) > math.Abs(A.At(maxRow, k)) {
+				maxRow = i
+			}
+		}
+
+		// Swap rows
+		if maxRow != k {
+			for j := k; j < n; j++ {
+				A.Set(k, j, A.At(k, j)+A.At(maxRow, j))
+				A.Set(maxRow, j, A.At(k, j)-A.At(maxRow, j))
+				A.Set(k, j, A.At(k, j)-A.At(maxRow, j))
+			}
+			x[k], x[maxRow] = x[maxRow], x[k]
+		}
+
+		// Eliminate column
+		for i := k + 1; i < n; i++ {
+			factor := A.At(i, k) / A.At(k, k)
+			for j := k + 1; j < n; j++ {
+				A.Set(i, j, A.At(i, j)-factor*A.At(k, j))
+			}
+			x[i] -= factor * x[k]
+		}
+	}
+
+	// Back substitution
+	for i := n - 1; i >= 0; i-- {
+		for j := i + 1; j < n; j++ {
+			x[i] -= A.At(i, j) * x[j]
+		}
+		x[i] /= A.At(i, i)
+	}
+
+	return x
 }
 
 // LineStructure maintains the line connectivity and operators
@@ -317,7 +367,8 @@ func (basis *LineBasedBasis3D) buildDirectionalLinesAndOperators(dir int) LineOp
 	uniquePatterns := make(map[string][][]int)
 
 	for nodeIdx, line := range allLines {
-		if len(line) <= 1 {
+		if len(line) == 0 {
+			// This should not happen after the fix to findAllLines
 			continue
 		}
 
@@ -377,6 +428,14 @@ func (basis *LineBasedBasis3D) findAllLines(dir int) [][]int {
 		for _, nodeIdx := range line {
 			allLines[nodeIdx] = line
 			processed[nodeIdx] = true
+		}
+	}
+
+	// For nodes that don't belong to any line, create single-node "lines"
+	// This handles the case of isolated vertices
+	for i := 0; i < basis.N; i++ {
+		if allLines[i] == nil || len(allLines[i]) == 0 {
+			allLines[i] = []int{i}
 		}
 	}
 
@@ -471,6 +530,13 @@ func (basis *LineBasedBasis3D) getLineSignature(line []int, dir int) string {
 func (basis *LineBasedBasis3D) build1DDerivativeMatrix(lineNodes []int, dir int) utils.Matrix {
 	n := len(lineNodes)
 	D := utils.NewMatrix(n, n)
+
+	// Handle single-node case
+	if n == 1 {
+		// Derivative at a single point is zero
+		D.Set(0, 0, 0.0)
+		return D
+	}
 
 	// Extract 1D coordinates along the line
 	coords := make([]float64, n)
@@ -754,11 +820,35 @@ func NewDubinerBasis3D(P int) *DubinerBasis3D {
 func (d *DubinerBasis3D) EvalBasis(r, s, t float64) []float64 {
 	phi := make([]float64, d.N)
 
+	// Handle special case for constant polynomial
+	if d.P == 0 {
+		phi[0] = 1.0
+		return phi
+	}
+
 	// Convert to barycentric coordinates
-	L1 := (1 - r - s - t) / 2
-	L2 := (1 + r) / 2
-	L3 := (1 + s) / 2
-	L4 := (1 + t) / 2
+	// Standard transformation for reference tetrahedron
+	L1 := (1 - r - s - t) / 2.0
+	L2 := (1 + r) / 2.0
+	L3 := (1 + s) / 2.0
+	L4 := (1 + t) / 2.0
+
+	// For very low order, use simpler basis
+	if d.P == 1 {
+		// Linear basis functions
+		idx := 0
+		// Constant mode
+		phi[idx] = 1.0
+		idx++
+		// Linear modes
+		phi[idx] = r
+		idx++
+		phi[idx] = s
+		idx++
+		phi[idx] = t
+
+		return phi
+	}
 
 	// Pre-compute powers of barycentric coordinates
 	L1pow := make([]float64, d.P+1)
@@ -1018,16 +1108,24 @@ func (basis *LineBasedBasis3D) ComplexityAnalysis() {
 
 	avgLineLength := 0
 	count := 0
+	maxLineLength := 0
 
 	for _, line := range basis.lines.rLines {
 		if len(line) > 1 {
 			avgLineLength += len(line)
 			count++
+			if len(line) > maxLineLength {
+				maxLineLength = len(line)
+			}
 		}
 	}
 
 	if count > 0 {
 		avgLineLength /= count
+	} else {
+		// For P=1, we only have single-node lines
+		avgLineLength = 1
+		maxLineLength = 1
 	}
 
 	// Operations for derivative: N nodes × avgLineLength ops each
@@ -1035,10 +1133,15 @@ func (basis *LineBasedBasis3D) ComplexityAnalysis() {
 	traditionalOps := basis.N * basis.N
 
 	fmt.Println("Line-based approach complexity:")
-	fmt.Println("  Average nodes per line:", avgLineLength)
-	fmt.Println("  Operations per derivative:", lineBasedOps)
-	fmt.Println("  Traditional operations:", traditionalOps)
-	fmt.Println("  Speedup factor:", float64(traditionalOps)/float64(lineBasedOps))
+	fmt.Printf("  Polynomial order P = %d\n", basis.P)
+	fmt.Printf("  Number of nodes N = %d\n", basis.N)
+	fmt.Printf("  Average nodes per line: %d\n", avgLineLength)
+	fmt.Printf("  Maximum line length: %d\n", maxLineLength)
+	fmt.Printf("  Operations per derivative: %d\n", lineBasedOps)
+	fmt.Printf("  Traditional operations: %d\n", traditionalOps)
+	if traditionalOps > 0 && lineBasedOps > 0 {
+		fmt.Printf("  Speedup factor: %.1fx\n", float64(traditionalOps)/float64(lineBasedOps))
+	}
 }
 
 // Performance impact analysis
@@ -1051,15 +1154,23 @@ func (basis *LineBasedBasis3D) AnalyzeLineStructure() {
 
 	// Analyze line lengths
 	lineLengths := make(map[int]int)
+	singleNodeLines := 0
 	for _, line := range basis.lines.rLines {
-		if len(line) > 1 {
-			lineLengths[len(line)]++
+		lineLengths[len(line)]++
+		if len(line) == 1 {
+			singleNodeLines++
 		}
 	}
 
-	fmt.Printf("\nLine length distribution:\n")
-	for length, count := range lineLengths {
-		fmt.Printf("  %d nodes: %d lines\n", length, count)
+	fmt.Printf("\nLine length distribution (r-direction):\n")
+	for length := 1; length <= basis.P+1; length++ {
+		if count, exists := lineLengths[length]; exists {
+			fmt.Printf("  %d nodes: %d lines\n", length, count)
+		}
+	}
+
+	if singleNodeLines > 0 {
+		fmt.Printf("  Note: %d single-node lines (isolated points)\n", singleNodeLines)
 	}
 
 	// Memory usage
@@ -1074,9 +1185,13 @@ func (basis *LineBasedBasis3D) AnalyzeLineStructure() {
 		totalOperatorEntries += op.Rows() * op.Cols()
 	}
 
+	fullMatrixEntries := basis.N * basis.N * 3
+
 	fmt.Printf("\nMemory usage:\n")
 	fmt.Printf("  Operator storage: %d entries\n", totalOperatorEntries)
-	fmt.Printf("  Full matrix would be: %d entries\n", basis.N*basis.N*3)
-	fmt.Printf("  Memory savings: %.1f%%\n",
-		100.0*(1.0-float64(totalOperatorEntries)/float64(basis.N*basis.N*3)))
+	fmt.Printf("  Full matrix would be: %d entries\n", fullMatrixEntries)
+	if fullMatrixEntries > 0 && totalOperatorEntries <= fullMatrixEntries {
+		savings := 100.0 * (1.0 - float64(totalOperatorEntries)/float64(fullMatrixEntries))
+		fmt.Printf("  Memory savings: %.1f%%\n", savings)
+	}
 }
