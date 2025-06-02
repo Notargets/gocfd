@@ -95,9 +95,6 @@ func (basis *PKDBasis) EvalBasis(r, s, t float64) []float64 {
 					val *= math.Pow((1-c)/2, float64(i+j))
 				}
 
-				// Overall scaling factor
-				val *= math.Pow(2, float64(i+j+k))
-
 				phi[idx] = val
 				idx++
 			}
@@ -164,18 +161,25 @@ func (basis *PKDBasis) DerivativeMatrix(r, s, t []float64, dir int) utils.Matrix
 	// Compute Dr = Dr * inv(V)
 	V := basis.Vandermonde(r, s, t)
 
-	// Check condition number
+	// For tensor-product nodes in collapsed coordinates, we may need
+	// to use a different approach for very high order
 	cond := V.ConditionNumber()
-	if cond > 1e12 {
-		// If badly conditioned, try pseudoinverse
-		Vinv := V.PseudoInverse(1e-10)
-		return Dr.Mul(Vinv)
-	}
 
-	Vinv, err := V.Inverse()
-	if err != nil {
-		// Try pseudoinverse as fallback
-		Vinv = V.PseudoInverse(1e-10)
+	var Vinv utils.Matrix
+	if cond > 1e14 {
+		// Use SVD-based pseudoinverse for very ill-conditioned matrices
+		Vinv = V.PseudoInverse(1e-14)
+	} else if cond > 1e10 {
+		// Use pseudoinverse with moderate tolerance
+		Vinv = V.PseudoInverse(1e-12)
+	} else {
+		// Try standard inverse first
+		var err error
+		Vinv, err = V.Inverse()
+		if err != nil {
+			// Fall back to pseudoinverse
+			Vinv = V.PseudoInverse(1e-10)
+		}
 	}
 
 	return Dr.Mul(Vinv)
@@ -187,33 +191,41 @@ func (basis *PKDBasis) EvalDerivBasis(r, s, t float64, dir int) []float64 {
 
 	// Transform to orthogonal coordinates with small epsilon to avoid division by zero
 	eps := 1e-10
-	a := 2*(1+r)/(1-s-t+eps) - 1
-	b := 2*(1+s)/(1-t+eps) - 1
-	c := 2*(1+t) - 1
 
-	// Handle boundary cases
+	// Compute collapsed coordinates
+	var a, b, c float64
+	var validTransform bool = true
+
 	if math.Abs(s+t-1) < eps {
 		a = -1
-	}
-	if math.Abs(t-1) < eps {
-		b = -1
-		c = 1
+		validTransform = false
+	} else {
+		a = 2*(1+r)/(1-s-t) - 1
 	}
 
-	// Compute coordinate derivatives
+	if math.Abs(t-1) < eps {
+		b = -1
+		validTransform = false
+	} else {
+		b = 2*(1+s)/(1-t) - 1
+	}
+
+	c = 2*(1+t) - 1
+
+	// Compute coordinate derivatives only if transformation is valid
 	var da_dr, da_ds, da_dt float64
 	var db_dr, db_ds, db_dt float64
 	var dc_dr, dc_ds, dc_dt float64
 
-	if math.Abs(s+t-1) > eps {
-		denom := 1 - s - t + eps
+	if validTransform && math.Abs(s+t-1) > eps {
+		denom := 1 - s - t
 		da_dr = 2 / denom
 		da_ds = 2 * (1 + r) / (denom * denom)
 		da_dt = 2 * (1 + r) / (denom * denom)
 	}
 
-	if math.Abs(t-1) > eps {
-		denom := 1 - t + eps
+	if validTransform && math.Abs(t-1) > eps {
+		denom := 1 - t
 		db_dr = 0
 		db_ds = 2 / denom
 		db_dt = 2 * (1 + s) / (denom * denom)
@@ -236,45 +248,44 @@ func (basis *PKDBasis) EvalDerivBasis(r, s, t float64, dir int) []float64 {
 				dPb := GradJacobiP(b, float64(2*i+1), 0, j)
 				dPc := GradJacobiP(c, float64(2*i+2*j+2), 0, k)
 
-				// Scaling factors (with protection against 0^0)
-				scale1 := 1.0
-				if i > 0 || (1-b)/2 != 0 {
-					scale1 = math.Pow((1-b)/2, float64(i))
+				// Compute scaling factors
+				w1 := 1.0
+				w2 := 1.0
+				if i > 0 {
+					w1 = math.Pow((1-b)/2, float64(i))
 				}
-				scale2 := 1.0
-				if i+j > 0 || (1-c)/2 != 0 {
-					scale2 = math.Pow((1-c)/2, float64(i+j))
+				if i+j > 0 {
+					w2 = math.Pow((1-c)/2, float64(i+j))
 				}
-				scale3 := math.Pow(2, float64(i+j+k))
 
-				// Chain rule for derivatives
-				var dphi_dr, dphi_ds, dphi_dt float64
+				// Apply product rule for the complete basis function:
+				// phi = Pa * Pb * Pc * w1 * w2
+				var dphi_da, dphi_db, dphi_dc float64
 
 				// Derivative with respect to a
-				term1 := dPa * Pb * Pc * scale1 * scale2 * scale3
-				dphi_dr += term1 * da_dr
-				dphi_ds += term1 * da_ds
-				dphi_dt += term1 * da_dt
+				dphi_da = dPa * Pb * Pc * w1 * w2
 
-				// Derivative with respect to b (including scale derivative)
-				term2 := Pa * dPb * Pc * scale1 * scale2 * scale3
+				// Derivative with respect to b (product rule)
+				dphi_db = Pa * dPb * Pc * w1 * w2
 				if i > 0 && math.Abs(1-b) > eps {
-					dscale1_db := float64(i) * math.Pow((1-b)/2, float64(i-1)) * (-0.5)
-					term2 += Pa * Pb * Pc * dscale1_db * scale2 * scale3
+					// Add derivative of w1 = ((1-b)/2)^i
+					dw1_db := -float64(i) * math.Pow((1-b)/2, float64(i-1)) * 0.5
+					dphi_db += Pa * Pb * Pc * dw1_db * w2
 				}
-				dphi_dr += term2 * db_dr
-				dphi_ds += term2 * db_ds
-				dphi_dt += term2 * db_dt
 
-				// Derivative with respect to c (including scale derivative)
-				term3 := Pa * Pb * dPc * scale1 * scale2 * scale3
+				// Derivative with respect to c (product rule)
+				dphi_dc = Pa * Pb * dPc * w1 * w2
 				if i+j > 0 && math.Abs(1-c) > eps {
-					dscale2_dc := float64(i+j) * math.Pow((1-c)/2, float64(i+j-1)) * (-0.5)
-					term3 += Pa * Pb * Pc * scale1 * dscale2_dc * scale3
+					// Add derivative of w2 = ((1-c)/2)^(i+j)
+					dw2_dc := -float64(i+j) * math.Pow((1-c)/2, float64(i+j-1)) * 0.5
+					dphi_dc += Pa * Pb * Pc * w1 * dw2_dc
 				}
-				dphi_dr += term3 * dc_dr
-				dphi_ds += term3 * dc_ds
-				dphi_dt += term3 * dc_dt
+
+				// Chain rule to get derivatives in (r,s,t) coordinates
+				var dphi_dr, dphi_ds, dphi_dt float64
+				dphi_dr = dphi_da*da_dr + dphi_db*db_dr + dphi_dc*dc_dr
+				dphi_ds = dphi_da*da_ds + dphi_db*db_ds + dphi_dc*dc_ds
+				dphi_dt = dphi_da*da_dt + dphi_db*db_dt + dphi_dc*dc_dt
 
 				// Store the appropriate derivative
 				switch dir {
