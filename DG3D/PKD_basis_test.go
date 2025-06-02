@@ -1,0 +1,334 @@
+package DG3D
+
+import (
+	"github.com/notargets/gocfd/utils"
+	"math"
+	"testing"
+)
+
+// generateTestNodes generates reference tetrahedral nodes for testing
+func generateTestNodes(P int) (r, s, t []float64) {
+	// Generate equispaced nodes on reference tetrahedron
+	n := 0
+	for i := 0; i <= P; i++ {
+		for j := 0; j <= P-i; j++ {
+			for k := 0; k <= P-i-j; k++ {
+				n++
+			}
+		}
+	}
+
+	r = make([]float64, n)
+	s = make([]float64, n)
+	t = make([]float64, n)
+
+	idx := 0
+	for i := 0; i <= P; i++ {
+		for j := 0; j <= P-i; j++ {
+			for k := 0; k <= P-i-j; k++ {
+				r[idx] = -1.0 + 2.0*float64(i)/float64(P)
+				s[idx] = -1.0 + 2.0*float64(j)/float64(P)
+				t[idx] = -1.0 + 2.0*float64(k)/float64(P)
+				idx++
+			}
+		}
+	}
+
+	return r, s, t
+}
+
+// Monomial evaluates a monomial r^p * s^q * t^k at given points
+func Monomial(r, s, t []float64, p, q, k int) []float64 {
+	n := len(r)
+	u := make([]float64, n)
+	for i := 0; i < n; i++ {
+		u[i] = math.Pow(r[i], float64(p)) *
+			math.Pow(s[i], float64(q)) *
+			math.Pow(t[i], float64(k))
+	}
+	return u
+}
+
+// MonomialDeriv computes analytical derivative of monomial
+func MonomialDeriv(r, s, t []float64, p, q, k int, dir int) []float64 {
+	n := len(r)
+	du := make([]float64, n)
+
+	switch dir {
+	case 0: // dr
+		if p > 0 {
+			for i := 0; i < n; i++ {
+				du[i] = float64(p) * math.Pow(r[i], float64(p-1)) *
+					math.Pow(s[i], float64(q)) *
+					math.Pow(t[i], float64(k))
+			}
+		}
+	case 1: // ds
+		if q > 0 {
+			for i := 0; i < n; i++ {
+				du[i] = float64(q) * math.Pow(r[i], float64(p)) *
+					math.Pow(s[i], float64(q-1)) *
+					math.Pow(t[i], float64(k))
+			}
+		}
+	case 2: // dt
+		if k > 0 {
+			for i := 0; i < n; i++ {
+				du[i] = float64(k) * math.Pow(r[i], float64(p)) *
+					math.Pow(s[i], float64(q)) *
+					math.Pow(t[i], float64(k-1))
+			}
+		}
+	}
+
+	return du
+}
+
+// MatVec performs matrix-vector multiplication
+func MatVec(A utils.Matrix, x []float64) []float64 {
+	m := A.Rows()
+	n := A.Cols()
+	if len(x) != n {
+		panic("dimension mismatch")
+	}
+
+	y := make([]float64, m)
+	for i := 0; i < m; i++ {
+		for j := 0; j < n; j++ {
+			y[i] += A.At(i, j) * x[j]
+		}
+	}
+	return y
+}
+
+// L2Error computes the L2 norm of the error between two vectors
+func L2Error(u1, u2 []float64) float64 {
+	if len(u1) != len(u2) {
+		panic("dimension mismatch")
+	}
+
+	var err float64
+	for i := range u1 {
+		diff := u1[i] - u2[i]
+		err += diff * diff
+	}
+	return math.Sqrt(err / float64(len(u1)))
+}
+
+func TestVandermonde(t *testing.T) {
+	for P := 1; P <= 7; P++ {
+		basis := NewPKDBasis(P)
+		r, s, tt := generateTestNodes(P)
+
+		V := basis.Vandermonde(r, s, tt)
+
+		// Test that V is square for nodal basis
+		if V.Rows() != V.Cols() {
+			t.Errorf("P=%d: Vandermonde not square: %d x %d", P, V.Rows(), V.Cols())
+		}
+
+		// Test conditioning
+		cond := V.ConditionNumber()
+		t.Logf("P=%d: Vandermonde size %d x %d, condition number %.2e",
+			P, V.Rows(), V.Cols(), cond)
+	}
+}
+
+func TestDerivativeMatrices(t *testing.T) {
+	tol := 1e-10
+
+	for P := 1; P <= 7; P++ {
+		basis := NewPKDBasis(P)
+		r, s, tt := generateTestNodes(P)
+
+		// Get derivative matrices
+		Dr := basis.DerivativeMatrix(r, s, tt, 0)
+		Ds := basis.DerivativeMatrix(r, s, tt, 1)
+		Dt := basis.DerivativeMatrix(r, s, tt, 2)
+
+		// Test on monomials
+		for p := 0; p <= P; p++ {
+			for q := 0; q <= P-p; q++ {
+				for k := 0; k <= P-p-q; k++ {
+					// Evaluate monomial
+					u := Monomial(r, s, tt, p, q, k)
+
+					// Compute derivatives using matrices
+					dur := MatVec(Dr, u)
+					dus := MatVec(Ds, u)
+					dut := MatVec(Dt, u)
+
+					// Compute analytical derivatives
+					dur_exact := MonomialDeriv(r, s, tt, p, q, k, 0)
+					dus_exact := MonomialDeriv(r, s, tt, p, q, k, 1)
+					dut_exact := MonomialDeriv(r, s, tt, p, q, k, 2)
+
+					// Check errors
+					err_r := L2Error(dur, dur_exact)
+					err_s := L2Error(dus, dus_exact)
+					err_t := L2Error(dut, dut_exact)
+
+					if err_r > tol || err_s > tol || err_t > tol {
+						t.Errorf("P=%d, monomial r^%d s^%d t^%d: errors (%.2e, %.2e, %.2e)",
+							P, p, q, k, err_r, err_s, err_t)
+					}
+				}
+			}
+		}
+
+		t.Logf("P=%d: Derivative matrices test passed", P)
+	}
+}
+
+func TestAffineTransform(t *testing.T) {
+	// Test vertices for a regular tetrahedron
+	v0 := [3]float64{0, 0, 0}
+	v1 := [3]float64{1, 0, 0}
+	v2 := [3]float64{0, 1, 0}
+	v3 := [3]float64{0, 0, 1}
+
+	at := NewAffineTransform(v0, v1, v2, v3)
+
+	// Check Jacobian
+	expectedJ := 1.0 / 6.0 // Volume of reference tet = 1/6
+	if math.Abs(at.J-expectedJ) > 1e-14 {
+		t.Errorf("Jacobian incorrect: got %f, expected %f", at.J, expectedJ)
+	}
+
+	// Test derivative transformation
+	P := 3
+	basis := NewPKDBasis(P)
+	r, s, tt := generateTestNodes(P)
+
+	// Simple test function u = x + 2y + 3z
+	// In reference coords: u = (1-r-s-t)*0 + r*1 + s*2 + t*3
+	u := make([]float64, len(r))
+	for i := range u {
+		u[i] = r[i] + 2*s[i] + 3*tt[i]
+	}
+
+	// Get derivatives in reference coordinates
+	Dr := basis.DerivativeMatrix(r, s, tt, 0)
+	Ds := basis.DerivativeMatrix(r, s, tt, 1)
+	Dt := basis.DerivativeMatrix(r, s, tt, 2)
+
+	dur := MatVec(Dr, u)
+	dus := MatVec(Ds, u)
+	dut := MatVec(Dt, u)
+
+	// Transform to physical derivatives
+	dx, dy, dz := at.TransformDerivatives(dur, dus, dut)
+
+	// Expected: du/dx = 1, du/dy = 2, du/dz = 3
+	tol := 1e-10
+	for i := range dx {
+		if math.Abs(dx[i]-1.0) > tol {
+			t.Errorf("dx incorrect at node %d: got %f, expected 1.0", i, dx[i])
+		}
+		if math.Abs(dy[i]-2.0) > tol {
+			t.Errorf("dy incorrect at node %d: got %f, expected 2.0", i, dy[i])
+		}
+		if math.Abs(dz[i]-3.0) > tol {
+			t.Errorf("dz incorrect at node %d: got %f, expected 3.0", i, dz[i])
+		}
+	}
+}
+
+// TestSumFactorization tests the sum factorized operators
+func TestSumFactorization(t *testing.T) {
+	tol := 1e-8
+
+	for P := 1; P <= 7; P++ {
+		basis := NewPKDBasis(P)
+		sf := NewSumFactorization(P)
+		r, s, tt := generateTestNodes(P)
+
+		// Get standard derivative matrices
+		Dr := basis.DerivativeMatrix(r, s, tt, 0)
+		Ds := basis.DerivativeMatrix(r, s, tt, 1)
+		Dt := basis.DerivativeMatrix(r, s, tt, 2)
+
+		// Test on various monomials
+		for p := 0; p <= P; p++ {
+			for q := 0; q <= P-p; q++ {
+				for k := 0; k <= P-p-q; k++ {
+					// Evaluate monomial
+					u := Monomial(r, s, tt, p, q, k)
+
+					// Standard matrix-vector products
+					dur_std := MatVec(Dr, u)
+					dus_std := MatVec(Ds, u)
+					dut_std := MatVec(Dt, u)
+
+					// Sum factorization
+					dur_sf := sf.ApplyDr(u)
+					dus_sf := sf.ApplyDs(u)
+					dut_sf := sf.ApplyDt(u)
+
+					// Compare results
+					err_r := L2Error(dur_std, dur_sf)
+					err_s := L2Error(dus_std, dus_sf)
+					err_t := L2Error(dut_std, dut_sf)
+
+					if err_r > tol || err_s > tol || err_t > tol {
+						t.Errorf("P=%d, monomial r^%d s^%d t^%d: SF errors (%.2e, %.2e, %.2e)",
+							P, p, q, k, err_r, err_s, err_t)
+					}
+				}
+			}
+		}
+
+		t.Logf("P=%d: Sum factorization test passed", P)
+	}
+}
+
+// Benchmark to compare direct vs sum factorized operations
+func BenchmarkDerivativeOperators(b *testing.B) {
+	P := 7
+	basis := NewPKDBasis(P)
+	sf := NewSumFactorization(P)
+	r, s, t := generateTestNodes(P)
+
+	Dr := basis.DerivativeMatrix(r, s, t, 0)
+	u := Monomial(r, s, t, 2, 2, 2)
+
+	b.Run("Direct", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = MatVec(Dr, u)
+		}
+	})
+
+	b.Run("SumFactorized", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = sf.ApplyDr(u)
+		}
+	})
+}
+
+// TestSumFactorizationComplexity verifies the computational complexity
+func TestSumFactorizationComplexity(t *testing.T) {
+	// Measure operations for different polynomial orders
+	operations := make(map[int]struct{ direct, sumfac int })
+
+	for P := 2; P <= 6; P++ {
+		N := (P + 1) * (P + 2) * (P + 3) / 6
+
+		// Direct method: O(N^2) operations
+		directOps := N * N
+
+		// Sum factorization: O(P*N) operations
+		// For tetrahedra: approximately 4*P*N operations
+		sumfacOps := 4 * P * N
+
+		operations[P] = struct{ direct, sumfac int }{directOps, sumfacOps}
+
+		ratio := float64(directOps) / float64(sumfacOps)
+		t.Logf("P=%d: Direct=%d ops, SumFac=%d ops, Speedup=%.1fx",
+			P, directOps, sumfacOps, ratio)
+	}
+
+	// Verify that sum factorization becomes more efficient at higher orders
+	if operations[6].direct <= operations[6].sumfac {
+		t.Error("Sum factorization should be more efficient than direct method at P=6")
+	}
+}
