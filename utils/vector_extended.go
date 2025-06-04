@@ -35,12 +35,12 @@ func NewVectorConstant(n int, val float64) Vector {
 }
 
 // Dims, At and T minimally satisfy the mat.Matrix interface.
-func (v Vector) Dims() (r, c int)         { return v.V.Dims() }
-func (v Vector) At(i, j int) float64      { return v.V.At(i, j) }
-func (v Vector) T() mat.Matrix            { return v.V.T() }
-func (v Vector) AtVec(i int) float64      { return v.V.AtVec(i) }
-func (v Vector) RawVector() blas64.Vector { return v.V.RawVector() }
-func (v Vector) SubVec(a, b Vector)       { v.V.SubVec(a.V, b.V) }
+func (v Vector) Dims() (r, c int)           { return v.V.Dims() }
+func (v Vector) At(i int, j ...int) float64 { return v.V.At(i, 0) }
+func (v Vector) T() mat.Matrix              { return v.Transpose() }
+func (v Vector) AtVec(i int) float64        { return v.V.AtVec(i) }
+func (v Vector) RawVector() blas64.Vector   { return v.V.RawVector() }
+func (v Vector) SubVec(a, b Vector)         { v.V.SubVec(a.V, b.V) }
 func (v Vector) Len() int {
 	if v.V != nil {
 		return v.V.Len()
@@ -562,4 +562,44 @@ func (v Vector) Dot(a Vector) (res float64) {
 		res += val * aD[i]
 	}
 	return
+}
+
+// Abs returns a new vector with absolute values of all elements
+func (v Vector) Abs() Vector {
+	result := v.Copy()
+	data := result.DataP
+	for i := range data {
+		data[i] = math.Abs(data[i])
+	}
+	return result
+}
+
+// AbsMax returns the maximum absolute value in the vector
+func (v Vector) AbsMax() float64 {
+	if v.Len() == 0 {
+		panic("cannot find max of empty vector")
+	}
+
+	max := math.Abs(v.DataP[0])
+	for _, val := range v.DataP {
+		absVal := math.Abs(val)
+		if absVal > max {
+			max = absVal
+		}
+	}
+	return max
+}
+
+// Norm2 returns the 2-norm (Euclidean norm) of the vector
+func (v Vector) Norm2() float64 {
+	var sum float64
+	for _, val := range v.DataP {
+		sum += val * val
+	}
+	return math.Sqrt(sum)
+}
+
+// NormInf returns the infinity norm (max absolute value) of the vector
+func (v Vector) NormInf() float64 {
+	return v.AbsMax()
 }

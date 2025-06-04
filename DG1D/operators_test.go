@@ -20,6 +20,6 @@ func TestOperators(t *testing.T) {
 		)
 		D := Minmod(A, B, C)
 		assert.Equal(t, utils.NewVector(5, []float64{3, 0, 1, 2, -1}), D)
-		fmt.Printf("D = \n%v\n", mat.Formatted(D, mat.Squeeze()))
+		fmt.Printf("D = \n%v\n", mat.Formatted(D.ToMatrix(), mat.Squeeze()))
 	}
 }

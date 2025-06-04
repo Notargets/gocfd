@@ -87,7 +87,7 @@ func NewDiagMatrix(nr int, data []float64, scalarO ...float64) (R Matrix) {
 // Dims, At and T minimally satisfy the mat.Matrix interface.
 func (m Matrix) Dims() (r, c int)          { return m.M.Dims() }
 func (m Matrix) At(i, j int) float64       { return m.M.At(i, j) }
-func (m Matrix) T() mat.Matrix             { return m.T() }
+func (m Matrix) T() mat.Matrix             { return m.Transpose() }
 func (m Matrix) RawMatrix() blas64.General { return m.M.RawMatrix() }
 func (m Matrix) Data() []float64 {
 	return m.RawMatrix().Data
