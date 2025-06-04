@@ -22,13 +22,13 @@ contribution to the normal flux on the element edge.
 Since we know the values of the Flux vector field at every basis DOF for the RT
 element, we can use interpolation to derive the constants that represent the
 field on the polynomial basis. This is described in a ChatGPT session
-[The_Interpolation_Equation_For_RT.pdf](../ChatGPT/The_Interpolation_Equation_For_RT.pdf)
+[The_Interpolation_Equation_For_RT.pdf](../AI-artifacts/ChatGPT/The_Interpolation_Equation_For_RT.pdf)
 
 ## Flux projection onto the RT element
 To *project* the flux onto the RT element, we need to solve an integral equation
 that is described via a set of prompts to ChatGPT and a nice markup document
 I've put together in
-[The Projection Equation.pdf](../ChatGPT/The_Projection_Equation.pdf).
+[The Projection Equation.pdf](../AI-artifacts/ChatGPT/The_Projection_Equation.pdf).
 
 To do a projection, we would devise a set of quadrature weights for the RT 
 element to enable solving the integration needed for projection. Then we can 
