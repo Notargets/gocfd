@@ -9,6 +9,10 @@ import (
 
 // Add this method to your utils.Matrix type
 
+func (m Matrix) Cond() float64 {
+	return m.ConditionNumber()
+}
+
 func (m Matrix) ConditionNumber() float64 {
 	// Get the underlying mat.Dense
 	dense := m.M // Assuming M is the mat.Dense field
