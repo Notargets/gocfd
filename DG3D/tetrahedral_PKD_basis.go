@@ -4,9 +4,12 @@ package DG3D
 // This is a direct translation of Hesthaven &package DG3D
 
 import (
+	"math"
+	"sort"
+
 	"github.com/notargets/gocfd/DG1D"
 	"github.com/notargets/gocfd/utils"
-	"math"
+	"gonum.org/v1/gonum/mat"
 )
 
 // TetBasis represents the Proriol-Koornwinder-Dubiner basis on reference tetrahedron
@@ -110,8 +113,8 @@ func Warpfactor(N int, rout []float64) []float64 {
 	Veq := utils.NewMatrix(N+1, N+1)
 	for i := 0; i <= N; i++ {
 		for j := 0; j <= N; j++ {
-			Veq.Set(i, j, DG1D.JacobiP(utils.NewVector(1, []float64{req[i]}), 0,
-				0, j)[0])
+			Veq.Set(i, j, DG1D.JacobiP(utils.NewVector(1, []float64{req[i]}),
+				0, 0, j)[0])
 		}
 	}
 
@@ -153,10 +156,21 @@ func Nodes3D(N int) (x, y, z utils.Vector) {
 	// Total number of nodes
 	Np := (N + 1) * (N + 2) * (N + 3) / 6
 
-	// Compute equilateral nodes
-	X := make([]float64, Np)
-	Y := make([]float64, Np)
-	Z := make([]float64, Np)
+	// Create equidistant nodes
+	L1, L2, L3, L4 := make([]float64, Np), make([]float64, Np), make([]float64, Np), make([]float64, Np)
+
+	sk := 0
+	for n := 0; n <= N; n++ {
+		for m := 0; m <= N-n; m++ {
+			for l := 0; l <= N-n-m; l++ {
+				L1[sk] = float64(l) / float64(N)
+				L2[sk] = float64(m) / float64(N)
+				L3[sk] = float64(n) / float64(N)
+				L4[sk] = 1.0 - L1[sk] - L2[sk] - L3[sk]
+				sk++
+			}
+		}
+	}
 
 	// Set vertices of tetrahedron
 	v1 := []float64{-1, -1 / math.Sqrt(3), -1 / math.Sqrt(6)}
@@ -164,76 +178,103 @@ func Nodes3D(N int) (x, y, z utils.Vector) {
 	v3 := []float64{0, 2 / math.Sqrt(3), -1 / math.Sqrt(6)}
 	v4 := []float64{0, 0, 3 / math.Sqrt(6)}
 
-	// Orthogonal base for face 1
-	t1 := []float64{v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]}
-	t2 := []float64{v3[0] - v1[0], v3[1] - v1[1], v3[2] - v1[2]}
+	// Create initial equilateral coordinates
+	X := make([]float64, Np)
+	Y := make([]float64, Np)
+	Z := make([]float64, Np)
 
-	sk := 0
-	for n := 0; n <= N; n++ {
-		for m := 0; m <= N-n; m++ {
-			for l := 0; l <= N-n-m; l++ {
-				// Barycentric coordinates
-				L1 := float64(l) / float64(N)
-				L2 := float64(m) / float64(N)
-				L3 := float64(n) / float64(N)
-
-				// Compute equilateral triangle coordinates
-				X[sk] = L3*v4[0] + L2*v3[0] + L1*v2[0] + (1-L1-L2-L3)*v1[0]
-				Y[sk] = L3*v4[1] + L2*v3[1] + L1*v2[1] + (1-L1-L2-L3)*v1[1]
-				Z[sk] = L3*v4[2] + L2*v3[2] + L1*v2[2] + (1-L1-L2-L3)*v1[2]
-
-				sk++
-			}
-		}
+	for i := 0; i < Np; i++ {
+		X[i] = L1[i]*v2[0] + L2[i]*v3[0] + L3[i]*v4[0] + L4[i]*v1[0]
+		Y[i] = L1[i]*v2[1] + L2[i]*v3[1] + L3[i]*v4[1] + L4[i]*v1[1]
+		Z[i] = L1[i]*v2[2] + L2[i]*v3[2] + L3[i]*v4[2] + L4[i]*v1[2]
 	}
 
-	// Now apply warp and blend for each face
-	// Face 1
-	for k := 0; k < Np; k++ {
-		// Get barycentric coordinates
-		L1 := (math.Sqrt(3)*Y[k] + Z[k] + 2) / 4
-		L2 := (-3*X[k] - math.Sqrt(3)*Y[k] + Z[k] + 2) / 4
-		L3 := (3*X[k] - math.Sqrt(3)*Y[k] + Z[k] + 2) / 4
-		L4 := (-Z[k] + 2) / 4
-
-		// Skip if not on face
-		if math.Abs(L1) > 1e-12 {
-			continue
-		}
-
-		// Compute blend
-		blend := 4 * L2 * L3 * L4
-
-		// Compute warp amount on face
-		r := L3 - L2
-		s := L4 - L2
-		denom := 2*L2 + L3 + L4 - 1
-		if math.Abs(denom) > 1e-12 {
-			r = r / denom
-			s = s / denom
-		}
-
-		// Compute warp
-		warpR := Warpfactor(N, []float64{r})
-		warpS := Warpfactor(N, []float64{s})
-
-		// Apply warp
-		X[k] = X[k] + blend*warpR[0]*t1[0]
-		Y[k] = Y[k] + blend*warpR[0]*t1[1]
-		Z[k] = Z[k] + blend*warpR[0]*t1[2]
-
-		X[k] = X[k] + blend*warpS[0]*t2[0]
-		Y[k] = Y[k] + blend*warpS[0]*t2[1]
-		Z[k] = Z[k] + blend*warpS[0]*t2[2]
+	// Face 1: L1 = 0
+	faceMask := make([]bool, Np)
+	for i := 0; i < Np; i++ {
+		faceMask[i] = math.Abs(L1[i]) < 1e-10
 	}
 
-	// Similar process for faces 2, 3, 4...
-	// This is simplified - full implementation would handle all faces
+	// Create orthogonal tangent vectors for face 1
+	t1 := []float64{v3[0] - v4[0], v3[1] - v4[1], v3[2] - v4[2]}
+	t2 := []float64{v2[0] - v4[0], v2[1] - v4[1], v2[2] - v4[2]}
+
+	WarpShiftFace3D(N, faceMask, L2, L3, L4, t1, t2, X, Y, Z)
+
+	// Face 2: L2 = 0
+	for i := 0; i < Np; i++ {
+		faceMask[i] = math.Abs(L2[i]) < 1e-10
+	}
+
+	t1 = []float64{v1[0] - v3[0], v1[1] - v3[1], v1[2] - v3[2]}
+	t2 = []float64{v4[0] - v3[0], v4[1] - v3[1], v4[2] - v3[2]}
+
+	WarpShiftFace3D(N, faceMask, L1, L3, L4, t1, t2, X, Y, Z)
+
+	// Face 3: L3 = 0
+	for i := 0; i < Np; i++ {
+		faceMask[i] = math.Abs(L3[i]) < 1e-10
+	}
+
+	t1 = []float64{v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]}
+	t2 = []float64{v4[0] - v1[0], v4[1] - v1[1], v4[2] - v1[2]}
+
+	WarpShiftFace3D(N, faceMask, L1, L2, L4, t1, t2, X, Y, Z)
+
+	// Face 4: L4 = 0
+	for i := 0; i < Np; i++ {
+		faceMask[i] = math.Abs(L4[i]) < 1e-10
+	}
+
+	t1 = []float64{v3[0] - v2[0], v3[1] - v2[1], v3[2] - v2[2]}
+	t2 = []float64{v1[0] - v2[0], v1[1] - v2[1], v1[2] - v2[2]}
+
+	WarpShiftFace3D(N, faceMask, L1, L2, L3, t1, t2, X, Y, Z)
 
 	// Transform to reference element coordinates
 	r, s, t := XYZtoRST(X, Y, Z)
 
 	return r, s, t
+}
+
+// WarpShiftFace3D applies warp and blend to a face
+func WarpShiftFace3D(N int, faceMask []bool, L1, L2, L3, t1, t2 []float64, X, Y, Z []float64) {
+	Np := len(X)
+
+	// Compute blend factor for each node
+	blend := make([]float64, Np)
+	for i := 0; i < Np; i++ {
+		blend[i] = 4 * L1[i] * L2[i] * L3[i]
+	}
+
+	// For each face node
+	for i := 0; i < Np; i++ {
+		if !faceMask[i] {
+			continue
+		}
+
+		// Compute r,s coordinates on face
+		denom := L1[i] + L2[i] + L3[i]
+		if math.Abs(denom) < 1e-10 {
+			continue
+		}
+
+		r := (L2[i] - L1[i]) / denom
+		s := (L3[i] - L1[i]) / denom
+
+		// Evaluate warp
+		warpR := Warpfactor(N, []float64{r})
+		warpS := Warpfactor(N, []float64{s})
+
+		// Apply warp and blend
+		X[i] += blend[i] * warpR[0] * t1[0]
+		Y[i] += blend[i] * warpR[0] * t1[1]
+		Z[i] += blend[i] * warpR[0] * t1[2]
+
+		X[i] += blend[i] * warpS[0] * t2[0]
+		Y[i] += blend[i] * warpS[0] * t2[1]
+		Z[i] += blend[i] * warpS[0] * t2[2]
+	}
 }
 
 // XYZtoRST transforms from equilateral to reference tetrahedron coordinates
@@ -243,19 +284,40 @@ func XYZtoRST(X, Y, Z []float64) (r, s, t utils.Vector) {
 	ss := make([]float64, n)
 	tt := make([]float64, n)
 
-	for i := 0; i < n; i++ {
-		// Transform from equilateral to reference coordinates
-		// This is a simplified transformation
-		rr[i] = 2*X[i]/(1-Z[i]/math.Sqrt(6)) - 1
-		ss[i] = 2*Y[i]*math.Sqrt(3)/(3*(1-Z[i]/math.Sqrt(6))) - 1
-		tt[i] = Z[i]*math.Sqrt(6)/2 - 1
+	v1 := []float64{-1, -1 / math.Sqrt(3), -1 / math.Sqrt(6)}
+	v2 := []float64{1, -1 / math.Sqrt(3), -1 / math.Sqrt(6)}
+	v3 := []float64{0, 2 / math.Sqrt(3), -1 / math.Sqrt(6)}
+	v4 := []float64{0, 0, 3 / math.Sqrt(6)}
 
-		// Handle singularities
-		if math.Abs(Z[i]-math.Sqrt(6)) < 1e-12 {
-			rr[i] = -1
-			ss[i] = -1
-			tt[i] = 1
-		}
+	for i := 0; i < n; i++ {
+		// Solve for barycentric coordinates
+		A := utils.NewMatrix(3, 3)
+		A.Set(0, 0, v2[0]-v1[0])
+		A.Set(0, 1, v3[0]-v1[0])
+		A.Set(0, 2, v4[0]-v1[0])
+		A.Set(1, 0, v2[1]-v1[1])
+		A.Set(1, 1, v3[1]-v1[1])
+		A.Set(1, 2, v4[1]-v1[1])
+		A.Set(2, 0, v2[2]-v1[2])
+		A.Set(2, 1, v3[2]-v1[2])
+		A.Set(2, 2, v4[2]-v1[2])
+
+		b := utils.NewMatrix(3, 1)
+		b.Set(0, 0, X[i]-v1[0])
+		b.Set(1, 0, Y[i]-v1[1])
+		b.Set(2, 0, Z[i]-v1[2])
+
+		lambda := A.LUSolve(b)
+
+		L1 := lambda.At(0, 0)
+		L2 := lambda.At(1, 0)
+		L3 := lambda.At(2, 0)
+		L4 := 1 - L1 - L2 - L3
+
+		// Convert to reference coordinates
+		rr[i] = -L4 - L2 - L3 + L1
+		ss[i] = -L4 - L1 + L2 - L3
+		tt[i] = -L4 - L1 - L2 + L3
 	}
 
 	r = utils.NewVector(n, rr)
@@ -297,7 +359,7 @@ func JacobiGQ(alpha, beta float64, N int) []float64 {
 	}
 
 	// Form symmetric matrix from recurrence
-	J := make([]float64, (N+1)*(N+1))
+	J := utils.NewMatrix(N+1, N+1)
 	h1 := make([]float64, N+1)
 
 	for i := 0; i <= N; i++ {
@@ -306,7 +368,7 @@ func JacobiGQ(alpha, beta float64, N int) []float64 {
 
 	// Diagonal
 	for i := 0; i <= N; i++ {
-		J[i*(N+1)+i] = -(alpha*alpha - beta*beta) / (h1[i] * (h1[i] + 2))
+		J.Set(i, i, -(alpha*alpha-beta*beta)/(h1[i]*(h1[i]+2)))
 	}
 
 	// Super/sub diagonal
@@ -315,16 +377,26 @@ func JacobiGQ(alpha, beta float64, N int) []float64 {
 		v := 2 * fi * (fi + alpha + beta) * (fi + alpha) * (fi + beta) /
 			(h1[i] * (h1[i] + 1) * (h1[i] + 2))
 		v = math.Sqrt(v)
-		J[i*(N+1)+i+1] = v
-		J[(i+1)*(N+1)+i] = v
+		J.Set(i, i+1, v)
+		J.Set(i+1, i, v)
 	}
 
-	// Compute eigenvalues (simplified - would use LAPACK in practice)
-	// This returns approximate values for small N
+	// Compute eigenvalues using gonum's eigenvalue solver
+	var eig mat.Eigen
+	ok := eig.Factorize(J.M, mat.EigenLeft)
+	if !ok {
+		panic("eigenvalue decomposition failed")
+	}
+
+	// Extract eigenvalues (real parts)
+	values := eig.Values(nil)
 	x := make([]float64, N+1)
 	for i := 0; i <= N; i++ {
-		x[i] = math.Cos(math.Pi * float64(2*i+1) / float64(2*N+2))
+		x[i] = real(values[i])
 	}
+
+	// Sort eigenvalues in ascending order
+	sort.Float64s(x)
 
 	return x
 }
