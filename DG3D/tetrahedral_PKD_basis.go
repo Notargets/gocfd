@@ -484,7 +484,7 @@ func JacobiGQ(alpha, beta float64, N int) []float64 {
 }
 
 // Simplex3DP evaluates 3D polynomial on simplex at (r,s,t) of order (i,j,k)
-// Note: Using the corrected version with (0.5*(1-b)) to be consistent with GradSimplex3DP
+// Exactly matching C++ implementation
 func Simplex3DP(r, s, t utils.Vector, i, j, k int) []float64 {
 	// Convert to collapsed coordinates
 	a, b, c := RSTtoABC(r, s, t)
@@ -499,19 +499,21 @@ func Simplex3DP(r, s, t utils.Vector, i, j, k int) []float64 {
 	// Compute the PKD polynomial
 	P := make([]float64, n)
 
-	// Use sqrt(8) normalization with corrected powers
-	norm := math.Sqrt(8.0)
-
 	for idx := 0; idx < n; idx++ {
 		bi := b.At(idx)
 		ci := c.At(idx)
 
-		// Use same convention as GradSimplex3DP: (0.5*(1-b))
-		pow_b_i := math.Pow(0.5*(1-bi), float64(i))
-		pow_c_ij := math.Pow(0.5*(1-ci), float64(i+j))
+		// Match C++ exactly: tv1 = 2.0*sqrt(2.0)*h1.dm(h2)
+		tv1 := 2.0 * math.Sqrt(2.0) * h1[idx] * h2[idx]
 
-		// Combine terms
-		P[idx] = norm * h1[idx] * h2[idx] * pow_b_i * h3[idx] * pow_c_ij
+		// Match C++ exactly: tv2 = pow(1.0-b,(double)i)
+		tv2 := math.Pow(1.0-bi, float64(i))
+
+		// Match C++ exactly: tv3 = h3.dm(pow(1.0-c,(double)(i+j)))
+		tv3 := h3[idx] * math.Pow(1.0-ci, float64(i+j))
+
+		// Match C++ exactly: (*P) = tv1.dm( tv2.dm(tv3) )
+		P[idx] = tv1 * tv2 * tv3
 	}
 
 	return P

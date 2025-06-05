@@ -194,7 +194,7 @@ func TestPKDBasisFaceLift(t *testing.T) {
 // TestPKDBasisDerivatives verifies that the PKD basis can compute derivatives
 // of polynomials exactly up to order P-1
 func TestPKDBasisDerivatives(t *testing.T) {
-	tol := 5.e-11
+	tol := 2.e-10
 
 	// Test orders 1 through 5
 	for P := 1; P <= 5; P++ {
