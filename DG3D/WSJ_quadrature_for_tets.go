@@ -425,19 +425,52 @@ func (tq *TetrahedralQuadrature) VerifyBarycentricCoordinates() bool {
 	return true
 }
 
-// GetRSTW returns slices of r, s, t coordinates and weights for all points
-func (tq *TetrahedralQuadrature) GetRSTW() (r, s, t, w []float64) {
+// GetRSTWUnit returns slices of r, s, t coordinates and weights for all points
+// for the unit simplex [0,1]³ with vertices at (0,0,0), (1,0,0), (0,1,0), (0,0,1)
+// Weights are scaled by 1/6 for the unit simplex volume
+func (tq *TetrahedralQuadrature) GetRSTWUnit() (r, s, t, w []float64) {
 	n := len(tq.Points)
 	r = make([]float64, n)
 	s = make([]float64, n)
 	t = make([]float64, n)
 	w = make([]float64, n)
 
+	// Scale factor for unit simplex volume (1/6)
+	volumeScale := 1.0 / 6.0
+
 	for i, pt := range tq.Points {
 		r[i] = pt.R
 		s[i] = pt.S
 		t[i] = pt.T
-		w[i] = pt.W
+		w[i] = pt.W * volumeScale
+	}
+
+	return
+}
+
+// GetRSTWReference returns slices of r, s, t coordinates and weights for all points
+// for the reference tetrahedron [-1,1]³ with vertices at (-1,-1,-1), (1,-1,-1), (-1,1,-1), (-1,-1,1)
+// Weights are scaled by 4/3 for the reference tetrahedron volume
+func (tq *TetrahedralQuadrature) GetRSTWReference() (r, s, t, w []float64) {
+	n := len(tq.Points)
+	r = make([]float64, n)
+	s = make([]float64, n)
+	t = make([]float64, n)
+	w = make([]float64, n)
+
+	// Volume scale factor for [-1,1]³ tetrahedron (volume = 4/3)
+	volumeScale := 4.0 / 3.0
+
+	for i, pt := range tq.Points {
+		// Transform from barycentric to reference tetrahedron coordinates
+		// Using the transformation:
+		// r = -1 + 2*xi1 + 2*xi2 + 2*xi3
+		// s = -1 + 2*xi2 + 2*xi3
+		// t = -1 + 2*xi3
+		r[i] = -1.0 + 2.0*pt.Xi1 + 2.0*pt.Xi2 + 2.0*pt.Xi3
+		s[i] = -1.0 + 2.0*pt.Xi2 + 2.0*pt.Xi3
+		t[i] = -1.0 + 2.0*pt.Xi3
+		w[i] = pt.W * volumeScale
 	}
 
 	return
