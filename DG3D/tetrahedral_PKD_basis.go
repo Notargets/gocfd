@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/notargets/gocfd/DG1D"
+	"github.com/notargets/gocfd/DG2D"
 	"github.com/notargets/gocfd/utils"
 	"gonum.org/v1/gonum/mat"
 )
@@ -109,11 +110,35 @@ func RStoAB(r, s utils.Vector) (a, b utils.Vector) {
 	return
 }
 
+// RSTtoABC transforms from (r,s,t) to (a,b,c) coordinates for 3D simplex
+func RSTtoABC(r, s, t utils.Vector) (a, b, c utils.Vector) {
+	n := r.Len()
+	a = utils.NewVector(n)
+	b = utils.NewVector(n)
+	c = utils.NewVector(n)
+
+	tol := 1e-8
+
+	for i := 0; i < n; i++ {
+		if math.Abs(s.At(i)+t.At(i)-1) > tol {
+			a.Set(i, 2*(1+r.At(i))/(-s.At(i)-t.At(i))-1)
+		} else {
+			a.Set(i, -1)
+		}
+
+		if math.Abs(t.At(i)-1) > tol {
+			b.Set(i, 2*(1+s.At(i))/(1-t.At(i))-1)
+		} else {
+			b.Set(i, -1)
+		}
+
+		c.Set(i, t.At(i))
+	}
+	return
+}
+
 // EquispacedNodes3D generates equispaced nodes on the reference tetrahedron
 func EquispacedNodes3D(P int) (r, s, t utils.Vector) {
-	// Equispaced node distribution for tetrahedron
-	// NOT optimal Warburton nodes - just equally spaced
-
 	Np := (P + 1) * (P + 2) * (P + 3) / 6
 	rr := make([]float64, Np)
 	ss := make([]float64, Np)
@@ -172,8 +197,7 @@ func Warpfactor(N int, rout []float64) []float64 {
 	Veq := utils.NewMatrix(N+1, N+1)
 	for i := 0; i <= N; i++ {
 		for j := 0; j <= N; j++ {
-			Veq.Set(i, j, DG1D.JacobiP(utils.NewVector(1, []float64{req[i]}),
-				0, 0, j)[0])
+			Veq.Set(i, j, DG1D.JacobiP(utils.NewVector(1, []float64{req[i]}), 0, 0, j)[0])
 		}
 	}
 
@@ -182,8 +206,7 @@ func Warpfactor(N int, rout []float64) []float64 {
 	Pmat := utils.NewMatrix(N+1, Nr)
 	for i := 0; i <= N; i++ {
 		for j := 0; j < Nr; j++ {
-			Pmat.Set(i, j, DG1D.JacobiP(utils.NewVector(1, []float64{rout[j]}),
-				0, 0, i)[0])
+			Pmat.Set(i, j, DG1D.JacobiP(utils.NewVector(1, []float64{rout[j]}), 0, 0, i)[0])
 		}
 	}
 
@@ -460,35 +483,8 @@ func JacobiGQ(alpha, beta float64, N int) []float64 {
 	return x
 }
 
-// RSTtoABC transforms from (r,s,t) to (a,b,c) coordinates for 3D simplex
-func RSTtoABC(r, s, t utils.Vector) (a, b, c utils.Vector) {
-	n := r.Len()
-	a = utils.NewVector(n)
-	b = utils.NewVector(n)
-	c = utils.NewVector(n)
-
-	tol := 1e-8
-
-	for i := 0; i < n; i++ {
-		if math.Abs(s.At(i)+t.At(i)-1) > tol {
-			a.Set(i, 2*(1+r.At(i))/(-s.At(i)-t.At(i))-1)
-		} else {
-			a.Set(i, -1)
-		}
-
-		if math.Abs(t.At(i)-1) > tol {
-			b.Set(i, 2*(1+s.At(i))/(1-t.At(i))-1)
-		} else {
-			b.Set(i, -1)
-		}
-
-		c.Set(i, t.At(i))
-	}
-	return
-}
-
 // Simplex3DP evaluates 3D polynomial on simplex at (r,s,t) of order (i,j,k)
-// The PKD basis is orthogonal with respect to the weighted inner product
+// Note: Using the corrected version with (0.5*(1-b)) to be consistent with GradSimplex3DP
 func Simplex3DP(r, s, t utils.Vector, i, j, k int) []float64 {
 	// Convert to collapsed coordinates
 	a, b, c := RSTtoABC(r, s, t)
@@ -498,19 +494,24 @@ func Simplex3DP(r, s, t utils.Vector, i, j, k int) []float64 {
 	// Compute Jacobi polynomials
 	h1 := DG1D.JacobiP(a, 0, 0, i)
 	h2 := DG1D.JacobiP(b, float64(2*i+1), 0, j)
-	h3 := DG1D.JacobiP(c, float64(2*i+2*j+2), 0, k)
+	h3 := DG1D.JacobiP(c, float64(2*(i+j)+2), 0, k)
 
 	// Compute the PKD polynomial
 	P := make([]float64, n)
 
-	for idx := 0; idx < n; idx++ {
-		// Compute powers
-		pow1 := math.Pow((1-b.At(idx))/2, float64(i))
-		pow2 := math.Pow((1-c.At(idx))/2, float64(i+j))
+	// Use sqrt(8) normalization with corrected powers
+	norm := math.Sqrt(8.0)
 
-		// Combine terms with normalization
-		// The sqrt(8) factor normalizes for the reference tetrahedron volume
-		P[idx] = math.Sqrt(8.0) * h1[idx] * h2[idx] * h3[idx] * pow1 * pow2
+	for idx := 0; idx < n; idx++ {
+		bi := b.At(idx)
+		ci := c.At(idx)
+
+		// Use same convention as GradSimplex3DP: (0.5*(1-b))
+		pow_b_i := math.Pow(0.5*(1-bi), float64(i))
+		pow_c_ij := math.Pow(0.5*(1-ci), float64(i+j))
+
+		// Combine terms
+		P[idx] = norm * h1[idx] * h2[idx] * pow_b_i * h3[idx] * pow_c_ij
 	}
 
 	return P
@@ -561,7 +562,7 @@ func BuildFmask3D(r, s, t utils.Vector, N int) [][]int {
 }
 
 // Lift3D computes lift matrix for surface integrals
-func Lift3D(N int, fmask [][]int, V utils.Matrix) utils.Matrix {
+func Lift3D(N int, fmask [][]int, V utils.Matrix, R, S, T utils.Vector) utils.Matrix {
 	Np := V.Rows()
 	Nfaces := 4
 	Nfp := (N + 1) * (N + 2) / 2 // Number of face points
@@ -569,21 +570,38 @@ func Lift3D(N int, fmask [][]int, V utils.Matrix) utils.Matrix {
 	// Create face mass matrix
 	Emat := utils.NewMatrix(Np, Nfaces*Nfp)
 
-	// Reference triangle nodes for faces
-	faceR, faceS := Nodes2D(N)
-	faceV := Vandermonde2D(N, faceR, faceS)
-	massFace := faceV.Mul(faceV.Transpose()).InverseWithCheck()
+	// Import 2D basis for faces
+	jb2d := DG2D.NewJacobiBasis2D(N, R, S, 0, 0)
 
 	// Build the Emat matrix
 	for face := 0; face < Nfaces; face++ {
-		if len(fmask[face]) != Nfp {
-			panic("face mask size mismatch")
+		// Extract face coordinates according to MATLAB mapping
+		var faceR, faceS utils.Vector
+
+		switch face {
+		case 0: // face 1: use R,S coordinates
+			faceR = R.SubsetIndex(fmask[face])
+			faceS = S.SubsetIndex(fmask[face])
+		case 1: // face 2: use R,T coordinates
+			faceR = R.SubsetIndex(fmask[face])
+			faceS = T.SubsetIndex(fmask[face])
+		case 2: // face 3: use S,T coordinates
+			faceR = S.SubsetIndex(fmask[face])
+			faceS = T.SubsetIndex(fmask[face])
+		case 3: // face 4: use S,T coordinates
+			faceR = S.SubsetIndex(fmask[face])
+			faceS = T.SubsetIndex(fmask[face])
 		}
 
-		// Extract face nodes
+		// Compute face Vandermonde and mass matrix
+		faceV := jb2d.Vandermonde2D(N, faceR, faceS)
+		massFace := faceV.Mul(faceV.Transpose()).InverseWithCheck()
+
+		// Fill Emat
 		for i := 0; i < Nfp; i++ {
 			for j := 0; j < Nfp; j++ {
-				Emat.Set(fmask[face][i], face*Nfp+j, massFace.At(i, j))
+				Emat.Set(fmask[face][i], face*Nfp+j,
+					Emat.At(fmask[face][i], face*Nfp+j)+massFace.At(i, j))
 			}
 		}
 	}
@@ -592,77 +610,6 @@ func Lift3D(N int, fmask [][]int, V utils.Matrix) utils.Matrix {
 	LIFT := V.Mul(V.Transpose()).Mul(Emat)
 
 	return LIFT
-}
-
-// Nodes2D computes nodes on reference triangle
-func Nodes2D(N int) (r, s utils.Vector) {
-	Np := (N + 1) * (N + 2) / 2
-	rr := make([]float64, Np)
-	ss := make([]float64, Np)
-
-	// Create equidistant nodes
-	sk := 0
-	for n := 0; n <= N; n++ {
-		for m := 0; m <= N-n; m++ {
-			L1 := float64(m) / float64(N)
-			L2 := float64(n) / float64(N)
-			L3 := 1.0 - L1 - L2
-			_ = L3
-
-			// Convert to xy coordinates
-			rr[sk] = 2*L1 - 1
-			ss[sk] = 2*L2 - 1
-			sk++
-		}
-	}
-
-	r = utils.NewVector(Np, rr)
-	s = utils.NewVector(Np, ss)
-
-	// Apply warping for optimal nodes
-	warpNodes2D(&r, &s, N)
-
-	return r, s
-}
-
-// warpNodes2D applies warping to 2D triangle nodes
-func warpNodes2D(r, s *utils.Vector, N int) {
-	// This is a simplified version - implement full warping if needed
-	// For now, just return the equidistant nodes
-}
-
-// Vandermonde2D computes 2D Vandermonde matrix on triangle
-func Vandermonde2D(N int, r, s utils.Vector) utils.Matrix {
-	Np := (N + 1) * (N + 2) / 2
-	V := utils.NewMatrix(r.Len(), Np)
-
-	// Convert to collapsed coordinates
-	a, b := RStoAB(r, s)
-
-	sk := 0
-	for i := 0; i <= N; i++ {
-		for j := 0; j <= N-i; j++ {
-			V.SetCol(sk, Simplex2DP(a, b, i, j))
-			sk++
-		}
-	}
-
-	return V
-}
-
-// Simplex2DP evaluates 2D polynomial on simplex
-func Simplex2DP(a, b utils.Vector, i, j int) []float64 {
-	n := a.Len()
-	P := make([]float64, n)
-
-	h1 := DG1D.JacobiP(a, 0, 0, i)
-	h2 := DG1D.JacobiP(b, float64(2*i+1), 0, j)
-
-	for idx := 0; idx < n; idx++ {
-		P[idx] = math.Sqrt(2.0) * h1[idx] * h2[idx] * math.Pow((1-b.At(idx))/2, float64(i))
-	}
-
-	return P
 }
 
 // GeometricFactors3D computes metric terms for physical elements
@@ -1042,120 +989,61 @@ func GradSimplex3DP(r, s, t utils.Vector, id, jd, kd int) (dmodedr, dmodeds, dmo
 	// Convert to collapsed coordinates
 	a, b, c := RSTtoABC(r, s, t)
 
-	// Compute Jacobi polynomials and derivatives
+	// Compute Jacobi polynomials
 	fa := DG1D.JacobiP(a, 0, 0, id)
 	gb := DG1D.JacobiP(b, float64(2*id+1), 0, jd)
 	hc := DG1D.JacobiP(c, float64(2*id+2*jd+2), 0, kd)
 
+	// Compute derivatives
 	dfa := DG1D.GradJacobiP(a, 0, 0, id)
 	dgb := DG1D.GradJacobiP(b, float64(2*id+1), 0, jd)
 	dhc := DG1D.GradJacobiP(c, float64(2*id+2*jd+2), 0, kd)
 
-	// Compute derivatives
+	// Compute each derivative component
 	for i := 0; i < n; i++ {
 		ai := a.At(i)
 		bi := b.At(i)
 		ci := c.At(i)
 
-		// Temporary values
-		tmp1 := gb[i] * hc[i]
-		tmp2 := fa[i] * hc[i]
-		tmp3 := fa[i] * gb[i]
-
-		// Powers
-		pow1 := 1.0
-		pow2 := 1.0
+		// r-derivative
+		V3Dr := dfa[i] * (gb[i] * hc[i])
 		if id > 0 {
-			pow1 = math.Pow((1-bi)/2, float64(id))
+			V3Dr = V3Dr * math.Pow(0.5*(1-bi), float64(id-1))
 		}
 		if id+jd > 0 {
-			pow2 = math.Pow((1-ci)/2, float64(id+jd))
+			V3Dr = V3Dr * math.Pow(0.5*(1-ci), float64(id+jd-1))
 		}
+		dmodedr[i] = V3Dr
 
-		// d/dr
-		dmodedr[i] = dfa[i] * tmp1
+		// s-derivative
+		V3Ds := 0.5 * (1 + ai) * V3Dr
+		tmp := dgb[i] * math.Pow(0.5*(1-bi), float64(id))
 		if id > 0 {
-			dmodedr[i] *= math.Pow((1-bi)/2, float64(id-1))
+			tmp = tmp + (-0.5*float64(id))*(gb[i]*math.Pow(0.5*(1-bi), float64(id-1)))
 		}
 		if id+jd > 0 {
-			dmodedr[i] *= math.Pow((1-ci)/2, float64(id+jd-1))
+			tmp = tmp * math.Pow(0.5*(1-ci), float64(id+jd-1))
 		}
+		tmp = fa[i] * (tmp * hc[i])
+		V3Ds = V3Ds + tmp
+		dmodeds[i] = V3Ds
 
-		// d/ds
-		dmodeds[i] = 0
-		// First term
-		if id > 0 {
-			term1 := dfa[i] * (1 + ai) * tmp1 * math.Pow((1-bi)/2, float64(id-1))
-			if id+jd > 0 {
-				term1 *= math.Pow((1-ci)/2, float64(id+jd-1))
-			}
-			dmodeds[i] += term1
-		}
-
-		// Second term
-		term2 := tmp3 * dgb[i] * pow1
+		// t-derivative
+		V3Dt := 0.5*(1+ai)*V3Dr + 0.5*(1+bi)*tmp
+		tmp2 := dhc[i] * math.Pow(0.5*(1-ci), float64(id+jd))
 		if id+jd > 0 {
-			term2 *= math.Pow((1-ci)/2, float64(id+jd-1))
+			tmp2 = tmp2 - 0.5*float64(id+jd)*(hc[i]*math.Pow(0.5*(1-ci), float64(id+jd-1)))
 		}
-		dmodeds[i] += term2
+		tmp2 = fa[i] * (gb[i] * tmp2)
+		tmp2 = tmp2 * math.Pow(0.5*(1-bi), float64(id))
+		V3Dt = V3Dt + tmp2
+		dmodedt[i] = V3Dt
 
-		// Third term
-		if id > 0 {
-			term3 := -float64(id) * tmp1 * fa[i] * math.Pow((1-bi)/2, float64(id-1))
-			if id+jd > 1 {
-				term3 *= math.Pow((1-ci)/2, float64(id+jd-1))
-			} else if id+jd == 1 {
-				term3 *= 1
-			}
-			dmodeds[i] += 0.5 * term3
-		}
-
-		// d/dt
-		dmodedt[i] = 0
-		// First term
-		if id > 0 {
-			term1 := dfa[i] * (1 + ai) * tmp1 * math.Pow((1-bi)/2, float64(id-1))
-			if id+jd > 0 {
-				term1 *= math.Pow((1-ci)/2, float64(id+jd-1))
-			}
-			dmodedt[i] += term1
-		}
-
-		// Second term
-		if id > 0 {
-			term2 := tmp3 * dgb[i] * (1 + bi) * math.Pow((1-bi)/2, float64(id-1))
-			if id+jd > 0 {
-				term2 *= math.Pow((1-ci)/2, float64(id+jd-1))
-			}
-			dmodedt[i] += term2
-		}
-
-		// Third term
-		term3 := tmp2 * dhc[i] * pow1 * pow2
-		dmodedt[i] += term3
-
-		// Fourth term
-		if id > 0 {
-			term4 := -float64(id) * tmp1 * fa[i] * math.Pow((1-bi)/2, float64(id-1))
-			if id+jd > 0 {
-				term4 *= math.Pow((1-ci)/2, float64(id+jd-1))
-			}
-			dmodedt[i] += 0.5 * term4
-		}
-
-		// Fifth term
-		if id+jd > 0 {
-			term5 := -float64(id+jd) * tmp3 * fa[i] * pow1
-			if id+jd > 1 {
-				term5 *= math.Pow((1-ci)/2, float64(id+jd-1))
-			}
-			dmodedt[i] += 0.5 * term5
-		}
-
-		// Apply normalization
-		dmodedr[i] *= math.Sqrt(8.0)
-		dmodeds[i] *= math.Sqrt(8.0)
-		dmodedt[i] *= math.Sqrt(8.0)
+		// normalize
+		normFactor := math.Pow(2, float64(2*id+jd)+1.5)
+		dmodedr[i] = dmodedr[i] * normFactor
+		dmodeds[i] = dmodeds[i] * normFactor
+		dmodedt[i] = dmodedt[i] * normFactor
 	}
 
 	return
@@ -1211,27 +1099,4 @@ func (tb *TetBasis) ComputeGradVandermonde(r, s, t utils.Vector) (Vr, Vs, Vt uti
 	}
 
 	return Vr, Vs, Vt
-}
-
-// ComputeMassMatrix computes the mass matrix M = V^T * W * V
-// Note: The PKD basis is orthogonal but NOT orthonormal, so this will not be identity
-func (tb *TetBasis) ComputeMassMatrix(V utils.Matrix, cubature *TetCubature) utils.Matrix {
-	n := V.Rows()  // number of cubature points
-	np := V.Cols() // number of basis functions
-
-	// Create V^T * W
-	VT := V.Transpose()
-	VTW := utils.NewMatrix(np, n)
-
-	// Apply diagonal weight matrix
-	for i := 0; i < np; i++ {
-		for j := 0; j < n; j++ {
-			VTW.Set(i, j, VT.At(i, j)*cubature.W.At(j))
-		}
-	}
-
-	// Compute M = (V^T * W) * V
-	M := VTW.Mul(V)
-
-	return M
 }
