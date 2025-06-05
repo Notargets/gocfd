@@ -2,168 +2,443 @@ package DG3D
 
 import (
 	"fmt"
+	"math"
 )
 
-// QuadraturePoint represents a quadrature point with coordinates and weight
+// QuadraturePoint represents a quadrature point in both barycentric and Cartesian coordinates
 type QuadraturePoint struct {
-	R, S, T float64 // Coordinates in [-1,1]³
-	W       float64 // Weight
+	// Barycentric coordinates (sum to 1)
+	Xi0, Xi1, Xi2, Xi3 float64
+	// Cartesian coordinates for unit simplex
+	R, S, T float64
+	// Weight (scaled for integration over unit simplex)
+	W float64
 }
 
-// TetrahedralQuadrature represents a quadrature rule for tetrahedra
+// TetrahedralQuadrature represents a quadrature rule for the unit simplex tetrahedron
 type TetrahedralQuadrature struct {
 	Order  int
+	Degree int // Polynomial degree that can be integrated exactly
 	Points []QuadraturePoint
 }
 
-// barycentricToRST converts barycentric coordinates to [-1,1]³ coordinates
-// The mapping is based on:
-// Unit simplex vertices: (0,0,0), (1,0,0), (0,1,0), (0,0,1)
-// Reference tet vertices: (1,-1,-1), (-1,1,-1), (-1,-1,1), (-1,-1,-1)
-func barycentricToRST(xi1, xi2, xi3, xi4 float64) (r, s, t float64) {
-	r = 2*xi1 - 1
-	s = 2*xi2 - 1
-	t = 2*xi3 - 1
+// NewUnitSimplexQuadrature creates a Shunn-Ham quadrature rule for the unit simplex
+// Unit simplex has vertices at (0,0,0), (1,0,0), (0,1,0), (0,0,1)
+// Volume = 1/6
+// Note: The weights in the paper sum to 1.0 and are designed for integration over
+// a simplex with volume 1. We scale them by 1/6 for the unit simplex.
+func NewUnitSimplexQuadrature(order int) (*TetrahedralQuadrature, error) {
+	switch order {
+	case 1:
+		return generateOrder1(), nil
+	case 2:
+		return generateOrder2(), nil
+	case 3:
+		return generateOrder3(), nil
+	case 4:
+		return generateOrder4(), nil
+	case 5:
+		return generateOrder5(), nil
+	case 6:
+		return generateOrder6(), nil
+	default:
+		return nil, fmt.Errorf("order %d not implemented (valid orders: 1-6)", order)
+	}
+}
+
+// convertToCartesian converts barycentric coordinates to Cartesian for unit simplex
+func convertToCartesian(xi0, xi1, xi2, xi3 float64) (r, s, t float64) {
+	// For unit simplex with vertices:
+	// v0 = (0,0,0), v1 = (1,0,0), v2 = (0,1,0), v3 = (0,0,1)
+	// The conversion is simply:
+	r = xi1
+	s = xi2
+	t = xi3
 	return
 }
 
-// NewTetrahedralQuadrature creates a Williams-Shunn-Jameson quadrature rule
-func NewTetrahedralQuadrature(order int) (*TetrahedralQuadrature, error) {
-	switch order {
-	case 4:
-		return generateOrder4(), nil
-	default:
-		return nil, fmt.Errorf("order %d not implemented", order)
+// createQuadraturePoints is a helper function to create quadrature points
+func createQuadraturePoints(baryCoords [][4]float64, weights []float64) []QuadraturePoint {
+	points := make([]QuadraturePoint, len(baryCoords))
+
+	for i, bc := range baryCoords {
+		r, s, t := convertToCartesian(bc[0], bc[1], bc[2], bc[3])
+		points[i] = QuadraturePoint{
+			Xi0: bc[0], Xi1: bc[1], Xi2: bc[2], Xi3: bc[3],
+			R: r, S: s, T: t,
+			W: weights[i],
+		}
+	}
+	return points
+}
+
+// generateOrder1 creates the 1-point order 1 rule (degree 1)
+func generateOrder1() *TetrahedralQuadrature {
+	baryCoords := [][4]float64{
+		{0.25, 0.25, 0.25, 0.25},
+	}
+	weights := []float64{1.0}
+
+	return &TetrahedralQuadrature{
+		Order:  1,
+		Degree: 1, // Integrates degree 1 exactly, error O(δ²)
+		Points: createQuadraturePoints(baryCoords, weights),
 	}
 }
 
-// generateS4 generates a single point at the centroid (all coordinates equal)
-func generateS4(value float64) [][4]float64 {
-	return [][4]float64{
-		{value, value, value, value},
+// generateOrder2 creates the 4-point order 2 rule (degree 2)
+func generateOrder2() *TetrahedralQuadrature {
+	baryCoords := [][4]float64{
+		{0.5854101966249680, 0.1381966011250110, 0.1381966011250110, 0.1381966011250110},
+		{0.1381966011250110, 0.5854101966249680, 0.1381966011250110, 0.1381966011250110},
+		{0.1381966011250110, 0.1381966011250110, 0.5854101966249680, 0.1381966011250110},
+		{0.1381966011250110, 0.1381966011250110, 0.1381966011250110, 0.5854101966249680},
+	}
+	weights := []float64{0.25, 0.25, 0.25, 0.25}
+
+	return &TetrahedralQuadrature{
+		Order:  2,
+		Degree: 2, // Integrates degree 2 exactly, error O(δ³)
+		Points: createQuadraturePoints(baryCoords, weights),
 	}
 }
 
-// generateS31 generates 4 points with pattern [a, a, a, b]
-func generateS31(a, b float64) [][4]float64 {
-	return [][4]float64{
-		{b, a, a, a},
-		{a, b, a, a},
-		{a, a, b, a},
-		{a, a, a, b},
+// generateOrder3 creates the 10-point order 3 rule (degree 3)
+func generateOrder3() *TetrahedralQuadrature {
+	baryCoords := [][4]float64{
+		// First 4 points (vertex points)
+		{0.7784952948213300, 0.0738349017262234, 0.0738349017262234, 0.0738349017262234},
+		{0.0738349017262234, 0.7784952948213300, 0.0738349017262234, 0.0738349017262234},
+		{0.0738349017262234, 0.0738349017262234, 0.7784952948213300, 0.0738349017262234},
+		{0.0738349017262234, 0.0738349017262234, 0.0738349017262234, 0.7784952948213300},
+		// Next 6 points (edge points)
+		{0.4062443438840510, 0.4062443438840510, 0.0937556561159491, 0.0937556561159491},
+		{0.4062443438840510, 0.0937556561159491, 0.4062443438840510, 0.0937556561159491},
+		{0.4062443438840510, 0.0937556561159491, 0.0937556561159491, 0.4062443438840510},
+		{0.0937556561159491, 0.4062443438840510, 0.4062443438840510, 0.0937556561159491},
+		{0.0937556561159491, 0.4062443438840510, 0.0937556561159491, 0.4062443438840510},
+		{0.0937556561159491, 0.0937556561159491, 0.4062443438840510, 0.4062443438840510},
+	}
+	weights := []float64{
+		0.0476331348432089, 0.0476331348432089, 0.0476331348432089, 0.0476331348432089,
+		0.1349112434378610, 0.1349112434378610, 0.1349112434378610, 0.1349112434378610,
+		0.1349112434378610, 0.1349112434378610,
+	}
+
+	return &TetrahedralQuadrature{
+		Order:  3,
+		Degree: 3, // Integrates degree 3 exactly, error O(δ⁴)
+		Points: createQuadraturePoints(baryCoords, weights),
 	}
 }
 
-// generateS22 generates 6 points with pattern [a, a, b, b]
-func generateS22(a, b float64) [][4]float64 {
-	return [][4]float64{
-		{a, a, b, b},
-		{a, b, a, b},
-		{a, b, b, a},
-		{b, a, a, b},
-		{b, a, b, a},
-		{b, b, a, a},
-	}
-}
-
-// generateS211 generates 12 points with pattern [a, a, b, c]
-func generateS211(a, b, c float64) [][4]float64 {
-	// For the s211 pattern, we have 12 unique permutations
-	// These are all the ways to arrange two a's, one b, and one c
-	return [][4]float64{
-		{a, a, b, c},
-		{a, a, c, b},
-		{a, b, a, c},
-		{a, b, c, a},
-		{a, c, a, b},
-		{a, c, b, a},
-		{b, a, a, c},
-		{b, a, c, a},
-		{b, c, a, a},
-		{c, a, a, b},
-		{c, a, b, a},
-		{c, b, a, a},
-	}
-}
-
-// generateOrder4 creates the 20-point order 4 rule
-// Based on Williams-Shunn-Jameson symmetric quadrature rules
+// generateOrder4 creates the 20-point order 4 rule (degree 5)
 func generateOrder4() *TetrahedralQuadrature {
-	points := make([]QuadraturePoint, 0, 20)
-
-	// The quadrature rule from Shunn-Ham 2012 for order 4 (degree 4)
-	// This integrates polynomials exactly up to degree 4
-
-	// Group 1: 4 points - s31 pattern
-	a1 := 0.0323525919372735
-	b1 := 0.9029422238811820
-	w1 := 0.0070670747944695
-
-	bary1 := generateS31(a1, b1)
-	for _, b := range bary1 {
-		r, s, t := barycentricToRST(b[0], b[1], b[2], b[3])
-		points = append(points, QuadraturePoint{R: r, S: s, T: t, W: w1})
+	baryCoords := [][4]float64{
+		// First 4 points
+		{0.9029422158182680, 0.0323525947272439, 0.0323525947272439, 0.0323525947272439},
+		{0.0323525947272439, 0.9029422158182680, 0.0323525947272439, 0.0323525947272439},
+		{0.0323525947272439, 0.0323525947272439, 0.9029422158182680, 0.0323525947272439},
+		{0.0323525947272439, 0.0323525947272439, 0.0323525947272439, 0.9029422158182680},
+		// Next 12 points
+		{0.2626825838877790, 0.6165965330619370, 0.0603604415251421, 0.0603604415251421},
+		{0.6165965330619370, 0.2626825838877790, 0.0603604415251421, 0.0603604415251421},
+		{0.2626825838877790, 0.0603604415251421, 0.6165965330619370, 0.0603604415251421},
+		{0.6165965330619370, 0.0603604415251421, 0.2626825838877790, 0.0603604415251421},
+		{0.2626825838877790, 0.0603604415251421, 0.0603604415251421, 0.6165965330619370},
+		{0.6165965330619370, 0.0603604415251421, 0.0603604415251421, 0.2626825838877790},
+		{0.0603604415251421, 0.2626825838877790, 0.6165965330619370, 0.0603604415251421},
+		{0.0603604415251421, 0.6165965330619370, 0.2626825838877790, 0.0603604415251421},
+		{0.0603604415251421, 0.2626825838877790, 0.0603604415251421, 0.6165965330619370},
+		{0.0603604415251421, 0.6165965330619370, 0.0603604415251421, 0.2626825838877790},
+		{0.0603604415251421, 0.0603604415251421, 0.2626825838877790, 0.6165965330619370},
+		{0.0603604415251421, 0.0603604415251421, 0.6165965330619370, 0.2626825838877790},
+		// Last 4 points
+		{0.3097693042728620, 0.3097693042728620, 0.3097693042728620, 0.0706920871814129},
+		{0.3097693042728620, 0.3097693042728620, 0.0706920871814129, 0.3097693042728620},
+		{0.3097693042728620, 0.0706920871814129, 0.3097693042728620, 0.3097693042728620},
+		{0.0706920871814129, 0.3097693042728620, 0.3097693042728620, 0.3097693042728620},
 	}
-
-	// Group 2: 12 points - s211 pattern
-	a2 := 0.0603604411618854
-	b2 := 0.2626825838428973
-	c2 := 0.6165965299000219
-	w2 := 0.0469986689718877
-
-	bary2 := generateS211(a2, b2, c2)
-	for _, b := range bary2 {
-		r, s, t := barycentricToRST(b[0], b[1], b[2], b[3])
-		points = append(points, QuadraturePoint{R: r, S: s, T: t, W: w2})
-	}
-
-	// Group 3: 4 points - s31 pattern
-	a3 := 0.3097693042728627
-	b3 := 0.0706920867251249
-	w3 := 0.0469986689718877
-
-	bary3 := generateS31(a3, b3)
-	for _, b := range bary3 {
-		r, s, t := barycentricToRST(b[0], b[1], b[2], b[3])
-		points = append(points, QuadraturePoint{R: r, S: s, T: t, W: w3})
-	}
-
-	// Scale weights to match the [-1,1]³ reference tetrahedron volume
-	// The weights from Shunn-Ham are normalized for the unit simplex
-	// We need to scale them for our reference element
-
-	// The unit simplex has volume 1/6
-	// The [-1,1]³ reference tetrahedron has volume 4/3
-	// The transformation Jacobian is 8
-
-	// The weights should sum to the volume of the reference element
-	weightSum := 0.0
-	for i := range points {
-		weightSum += points[i].W
-	}
-
-	// Scale factor to make weights sum to 4/3
-	scale := ReferenceTetrahedronVolume() / weightSum
-	for i := range points {
-		points[i].W *= scale
+	weights := []float64{
+		0.0070670747944695, 0.0070670747944695, 0.0070670747944695, 0.0070670747944695,
+		0.0469986689718877, 0.0469986689718877, 0.0469986689718877, 0.0469986689718877,
+		0.0469986689718877, 0.0469986689718877, 0.0469986689718877, 0.0469986689718877,
+		0.0469986689718877, 0.0469986689718877, 0.0469986689718877, 0.0469986689718877,
+		0.1019369182898680, 0.1019369182898680, 0.1019369182898680, 0.1019369182898680,
 	}
 
 	return &TetrahedralQuadrature{
 		Order:  4,
-		Points: points,
+		Degree: 5, // Integrates degree 5 exactly, error O(δ⁶)
+		Points: createQuadraturePoints(baryCoords, weights),
 	}
 }
 
-// Integrate performs numerical integration of a function over the reference tetrahedron
-func (tq *TetrahedralQuadrature) Integrate(f func(r, s, t float64) float64) float64 {
-	sum := 0.0
+// generateOrder5 creates the 35-point order 5 rule (degree 7)
+func generateOrder5() *TetrahedralQuadrature {
+	// Group 1: 4 points
+	group1 := [][4]float64{
+		{0.9197896733368800, 0.0267367755543735, 0.0267367755543735, 0.0267367755543735},
+		{0.0267367755543735, 0.9197896733368800, 0.0267367755543735, 0.0267367755543735},
+		{0.0267367755543735, 0.0267367755543735, 0.9197896733368800, 0.0267367755543735},
+		{0.0267367755543735, 0.0267367755543735, 0.0267367755543735, 0.9197896733368800},
+	}
+
+	// Group 2: 12 points
+	group2 := [][4]float64{
+		{0.1740356302468940, 0.7477598884818090, 0.0391022406356488, 0.0391022406356488},
+		{0.7477598884818090, 0.1740356302468940, 0.0391022406356488, 0.0391022406356488},
+		{0.1740356302468940, 0.0391022406356488, 0.7477598884818090, 0.0391022406356488},
+		{0.7477598884818090, 0.0391022406356488, 0.1740356302468940, 0.0391022406356488},
+		{0.1740356302468940, 0.0391022406356488, 0.0391022406356488, 0.7477598884818090},
+		{0.7477598884818090, 0.0391022406356488, 0.0391022406356488, 0.1740356302468940},
+		{0.0391022406356488, 0.1740356302468940, 0.7477598884818090, 0.0391022406356488},
+		{0.0391022406356488, 0.7477598884818090, 0.1740356302468940, 0.0391022406356488},
+		{0.0391022406356488, 0.1740356302468940, 0.0391022406356488, 0.7477598884818090},
+		{0.0391022406356488, 0.7477598884818090, 0.0391022406356488, 0.1740356302468940},
+		{0.0391022406356488, 0.0391022406356488, 0.1740356302468940, 0.7477598884818090},
+		{0.0391022406356488, 0.0391022406356488, 0.7477598884818090, 0.1740356302468940},
+	}
+
+	// Group 3: 6 points
+	group3 := [][4]float64{
+		{0.4547545999844830, 0.4547545999844830, 0.0452454000155172, 0.0452454000155172},
+		{0.4547545999844830, 0.0452454000155172, 0.4547545999844830, 0.0452454000155172},
+		{0.4547545999844830, 0.0452454000155172, 0.0452454000155172, 0.4547545999844830},
+		{0.0452454000155172, 0.4547545999844830, 0.4547545999844830, 0.0452454000155172},
+		{0.0452454000155172, 0.4547545999844830, 0.0452454000155172, 0.4547545999844830},
+		{0.0452454000155172, 0.0452454000155172, 0.4547545999844830, 0.4547545999844830},
+	}
+
+	// Group 4: 12 points
+	group4 := [][4]float64{
+		{0.5031186450145980, 0.2232010379623150, 0.2232010379623150, 0.0504792790607720},
+		{0.2232010379623150, 0.5031186450145980, 0.2232010379623150, 0.0504792790607720},
+		{0.2232010379623150, 0.2232010379623150, 0.5031186450145980, 0.0504792790607720},
+		{0.5031186450145980, 0.2232010379623150, 0.0504792790607720, 0.2232010379623150},
+		{0.2232010379623150, 0.5031186450145980, 0.0504792790607720, 0.2232010379623150},
+		{0.2232010379623150, 0.2232010379623150, 0.0504792790607720, 0.5031186450145980},
+		{0.5031186450145980, 0.0504792790607720, 0.2232010379623150, 0.2232010379623150},
+		{0.2232010379623150, 0.0504792790607720, 0.5031186450145980, 0.2232010379623150},
+		{0.2232010379623150, 0.0504792790607720, 0.2232010379623150, 0.5031186450145980},
+		{0.0504792790607720, 0.5031186450145980, 0.2232010379623150, 0.2232010379623150},
+		{0.0504792790607720, 0.2232010379623150, 0.5031186450145980, 0.2232010379623150},
+		{0.0504792790607720, 0.2232010379623150, 0.2232010379623150, 0.5031186450145980},
+	}
+
+	// Group 5: 1 point (centroid)
+	group5 := [][4]float64{
+		{0.25, 0.25, 0.25, 0.25},
+	}
+
+	// Combine all groups
+	baryCoords := append(group1, group2...)
+	baryCoords = append(baryCoords, group3...)
+	baryCoords = append(baryCoords, group4...)
+	baryCoords = append(baryCoords, group5...)
+
+	// Weights for each group
+	weights := make([]float64, 35)
+	w1 := 0.0021900463965388
+	w2 := 0.0143395670177665
+	w3 := 0.0250305395686746
+	w4 := 0.0479839333057554
+	w5 := 0.0931745731195340
+
+	// Assign weights
+	for i := 0; i < 4; i++ {
+		weights[i] = w1
+	}
+	for i := 4; i < 16; i++ {
+		weights[i] = w2
+	}
+	for i := 16; i < 22; i++ {
+		weights[i] = w3
+	}
+	for i := 22; i < 34; i++ {
+		weights[i] = w4
+	}
+	weights[34] = w5
+
+	return &TetrahedralQuadrature{
+		Order:  5,
+		Degree: 6, // Integrates degree 6 exactly, error O(δ⁷)
+		Points: createQuadraturePoints(baryCoords, weights),
+	}
+}
+
+// generateOrder6 creates the 56-point order 6 rule (degree 9)
+func generateOrder6() *TetrahedralQuadrature {
+	// Group 1: 4 points
+	group1 := [][4]float64{
+		{0.9551438045408220, 0.0149520651530592, 0.0149520651530592, 0.0149520651530592},
+		{0.0149520651530592, 0.9551438045408220, 0.0149520651530592, 0.0149520651530592},
+		{0.0149520651530592, 0.0149520651530592, 0.9551438045408220, 0.0149520651530592},
+		{0.0149520651530592, 0.0149520651530592, 0.0149520651530592, 0.9551438045408220},
+	}
+
+	// Group 2: 12 points
+	group2 := [][4]float64{
+		{0.7799760084415400, 0.1518319491659370, 0.0340960211962615, 0.0340960211962615},
+		{0.1518319491659370, 0.7799760084415400, 0.0340960211962615, 0.0340960211962615},
+		{0.7799760084415400, 0.0340960211962615, 0.1518319491659370, 0.0340960211962615},
+		{0.1518319491659370, 0.0340960211962615, 0.7799760084415400, 0.0340960211962615},
+		{0.7799760084415400, 0.0340960211962615, 0.0340960211962615, 0.1518319491659370},
+		{0.1518319491659370, 0.0340960211962615, 0.0340960211962615, 0.7799760084415400},
+		{0.0340960211962615, 0.7799760084415400, 0.1518319491659370, 0.0340960211962615},
+		{0.0340960211962615, 0.1518319491659370, 0.7799760084415400, 0.0340960211962615},
+		{0.0340960211962615, 0.7799760084415400, 0.0340960211962615, 0.1518319491659370},
+		{0.0340960211962615, 0.1518319491659370, 0.0340960211962615, 0.7799760084415400},
+		{0.0340960211962615, 0.0340960211962615, 0.7799760084415400, 0.1518319491659370},
+		{0.0340960211962615, 0.0340960211962615, 0.1518319491659370, 0.7799760084415400},
+	}
+
+	// Group 3: 12 points
+	group3 := [][4]float64{
+		{0.3549340560639790, 0.5526556431060170, 0.0462051504150017, 0.0462051504150017},
+		{0.5526556431060170, 0.3549340560639790, 0.0462051504150017, 0.0462051504150017},
+		{0.3549340560639790, 0.0462051504150017, 0.5526556431060170, 0.0462051504150017},
+		{0.5526556431060170, 0.0462051504150017, 0.3549340560639790, 0.0462051504150017},
+		{0.3549340560639790, 0.0462051504150017, 0.0462051504150017, 0.5526556431060170},
+		{0.5526556431060170, 0.0462051504150017, 0.0462051504150017, 0.3549340560639790},
+		{0.0462051504150017, 0.3549340560639790, 0.5526556431060170, 0.0462051504150017},
+		{0.0462051504150017, 0.5526556431060170, 0.3549340560639790, 0.0462051504150017},
+		{0.0462051504150017, 0.3549340560639790, 0.0462051504150017, 0.5526556431060170},
+		{0.0462051504150017, 0.5526556431060170, 0.0462051504150017, 0.3549340560639790},
+		{0.0462051504150017, 0.0462051504150017, 0.3549340560639790, 0.5526556431060170},
+		{0.0462051504150017, 0.0462051504150017, 0.5526556431060170, 0.3549340560639790},
+	}
+
+	// Group 4: 12 points
+	group4 := [][4]float64{
+		{0.5381043228880020, 0.2281904610687610, 0.2281904610687610, 0.0055147549744775},
+		{0.2281904610687610, 0.5381043228880020, 0.2281904610687610, 0.0055147549744775},
+		{0.2281904610687610, 0.2281904610687610, 0.5381043228880020, 0.0055147549744775},
+		{0.5381043228880020, 0.2281904610687610, 0.0055147549744775, 0.2281904610687610},
+		{0.2281904610687610, 0.5381043228880020, 0.0055147549744775, 0.2281904610687610},
+		{0.2281904610687610, 0.2281904610687610, 0.0055147549744775, 0.5381043228880020},
+		{0.5381043228880020, 0.0055147549744775, 0.2281904610687610, 0.2281904610687610},
+		{0.2281904610687610, 0.0055147549744775, 0.5381043228880020, 0.2281904610687610},
+		{0.2281904610687610, 0.0055147549744775, 0.2281904610687610, 0.5381043228880020},
+		{0.0055147549744775, 0.5381043228880020, 0.2281904610687610, 0.2281904610687610},
+		{0.0055147549744775, 0.2281904610687610, 0.5381043228880020, 0.2281904610687610},
+		{0.0055147549744775, 0.2281904610687610, 0.2281904610687610, 0.5381043228880020},
+	}
+
+	// Group 5: 12 points
+	group5 := [][4]float64{
+		{0.1961837595745600, 0.3523052600879940, 0.3523052600879940, 0.0992057202494530},
+		{0.3523052600879940, 0.1961837595745600, 0.3523052600879940, 0.0992057202494530},
+		{0.3523052600879940, 0.3523052600879940, 0.1961837595745600, 0.0992057202494530},
+		{0.1961837595745600, 0.3523052600879940, 0.0992057202494530, 0.3523052600879940},
+		{0.3523052600879940, 0.1961837595745600, 0.0992057202494530, 0.3523052600879940},
+		{0.3523052600879940, 0.3523052600879940, 0.0992057202494530, 0.1961837595745600},
+		{0.1961837595745600, 0.0992057202494530, 0.3523052600879940, 0.3523052600879940},
+		{0.3523052600879940, 0.0992057202494530, 0.1961837595745600, 0.3523052600879940},
+		{0.3523052600879940, 0.0992057202494530, 0.3523052600879940, 0.1961837595745600},
+		{0.0992057202494530, 0.1961837595745600, 0.3523052600879940, 0.3523052600879940},
+		{0.0992057202494530, 0.3523052600879940, 0.1961837595745600, 0.3523052600879940},
+		{0.0992057202494530, 0.3523052600879940, 0.3523052600879940, 0.1961837595745600},
+	}
+
+	// Group 6: 4 points
+	group6 := [][4]float64{
+		{0.5965649956210170, 0.1344783347929940, 0.1344783347929940, 0.1344783347929940},
+		{0.1344783347929940, 0.5965649956210170, 0.1344783347929940, 0.1344783347929940},
+		{0.1344783347929940, 0.1344783347929940, 0.5965649956210170, 0.1344783347929940},
+		{0.1344783347929940, 0.1344783347929940, 0.1344783347929940, 0.5965649956210170},
+	}
+
+	// Combine all groups
+	baryCoords := append(group1, group2...)
+	baryCoords = append(baryCoords, group3...)
+	baryCoords = append(baryCoords, group4...)
+	baryCoords = append(baryCoords, group5...)
+	baryCoords = append(baryCoords, group6...)
+
+	// Weights for each group
+	weights := make([]float64, 56)
+	w1 := 0.0010373112336140
+	w2 := 0.0096016645399480
+	w3 := 0.0164493976798232
+	w4 := 0.0153747766513310
+	w5 := 0.0293520118375230
+	w6 := 0.0366291366405108
+
+	// Assign weights
+	idx := 0
+	for i := 0; i < 4; i++ {
+		weights[idx] = w1
+		idx++
+	}
+	for i := 0; i < 12; i++ {
+		weights[idx] = w2
+		idx++
+	}
+	for i := 0; i < 12; i++ {
+		weights[idx] = w3
+		idx++
+	}
+	for i := 0; i < 12; i++ {
+		weights[idx] = w4
+		idx++
+	}
+	for i := 0; i < 12; i++ {
+		weights[idx] = w5
+		idx++
+	}
+	for i := 0; i < 4; i++ {
+		weights[idx] = w6
+		idx++
+	}
+
+	return &TetrahedralQuadrature{
+		Order:  6,
+		Degree: 8, // Integrates degree 8 exactly, error O(δ⁹)
+		Points: createQuadraturePoints(baryCoords, weights),
+	}
+}
+
+// VerifyWeightSum checks if the weights sum to 1 (NOT 1/6 as in the original)
+// The paper's weights are normalized to 1, not to the volume of the unit simplex
+func (tq *TetrahedralQuadrature) VerifyWeightSum() (sum float64, isValid bool) {
+	sum = 0.0
 	for _, pt := range tq.Points {
-		sum += pt.W * f(pt.R, pt.S, pt.T)
+		sum += pt.W
 	}
-	return sum
+	expectedSum := 1.0
+	tolerance := 1e-14
+	isValid = math.Abs(sum-expectedSum) < tolerance
+	return sum, isValid
 }
 
-// ReferenceTetrahedronVolume returns the volume of the [-1,1]³ reference tetrahedron
-func ReferenceTetrahedronVolume() float64 {
-	return 4.0 / 3.0
+// VerifyBarycentricCoordinates checks if all barycentric coordinates sum to 1
+func (tq *TetrahedralQuadrature) VerifyBarycentricCoordinates() bool {
+	tolerance := 1e-14
+	for i, pt := range tq.Points {
+		sum := pt.Xi0 + pt.Xi1 + pt.Xi2 + pt.Xi3
+		if math.Abs(sum-1.0) > tolerance {
+			fmt.Printf("Point %d: barycentric sum = %g (should be 1)\n", i, sum)
+			return false
+		}
+	}
+	return true
+}
+
+// GetRSTW returns slices of r, s, t coordinates and weights for all points
+func (tq *TetrahedralQuadrature) GetRSTW() (r, s, t, w []float64) {
+	n := len(tq.Points)
+	r = make([]float64, n)
+	s = make([]float64, n)
+	t = make([]float64, n)
+	w = make([]float64, n)
+
+	for i, pt := range tq.Points {
+		r[i] = pt.R
+		s[i] = pt.S
+		t[i] = pt.T
+		w[i] = pt.W
+	}
+
+	return
 }
