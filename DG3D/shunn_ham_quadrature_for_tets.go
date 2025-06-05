@@ -2,6 +2,7 @@ package DG3D
 
 import (
 	"fmt"
+	"github.com/notargets/gocfd/utils"
 	"math"
 )
 
@@ -307,4 +308,32 @@ func (tq *TetrahedralQuadrature) VerifyBarycentricCoordinates() bool {
 		}
 	}
 	return true
+}
+
+// GetNodesShunnHam returns the quadrature nodes (R, S,
+// T) for a tetrahedron of polynomial order P
+// The nodes are sourced from the Shunn-Ham quadrature rule with matching number of points
+// sufficient to interpolate a polynomial of order P
+func GetNodesShunnHam(P int) (R, S, T utils.Vector) {
+	quadOrder := P
+	if quadOrder < 1 || quadOrder > 6 {
+		panic(fmt.Sprintf("polynomial order P=%d not available in quadrature"+
+			" rules", P))
+	}
+	// Get the quadrature rule
+	quad, err := NewUnitSimplexQuadrature(P)
+	if err != nil {
+		// This should not happen with valid quadOrder
+		panic(fmt.Sprintf("failed to create quadrature for order %d: %v", quadOrder, err))
+	}
+
+	// Extract R, S, T coordinates for the reference tetrahedron
+	r, s, t, _ := quad.GetRSTWReference()
+
+	// Create utils.Vector instances
+	R = utils.NewVector(len(r), r)
+	S = utils.NewVector(len(s), s)
+	T = utils.NewVector(len(t), t)
+
+	return
 }
