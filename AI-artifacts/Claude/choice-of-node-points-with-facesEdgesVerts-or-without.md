@@ -239,3 +239,269 @@ formulations for challenging flows, and GPU acceleration for maximum
 performance. Success requires balancing theoretical rigor with practical
 engineering considerations, leveraging the collective experience of the global
 CFD research community.
+
+# Prompt 3
+
+research Pan and Persson's half-closed node approach (2024) with respect to
+entropy stability properties and performance in shocked flows with iLES
+
+# Answer
+
+# Pan and Persson's half-closed node approach: Mathematical innovation meets computational efficiency
+
+Yulong Pan and Per-Olof Persson from UC Berkeley introduced a groundbreaking "
+half-closed node" approach for discontinuous Galerkin methods in their 2024
+paper, representing a significant departure from traditional nodal distributions
+by placing nodes only on selected element boundaries rather than all boundaries.
+This innovation promises computational efficiency gains while maintaining
+mathematical rigor, though practical implementation and validation remain in
+early stages.
+
+## Mathematical foundations using Gauss-Radau points
+
+The half-closed nodal distribution method represents a fundamental shift in how
+nodes are placed within discontinuous Galerkin discretizations. **Traditional
+closed-node DG methods require nodes on all element boundaries**, ensuring
+continuity of basis functions across interfaces. Pan and Persson's innovation
+relaxes this requirement, placing nodes only on a subset of boundaries while
+using **Gauss-Radau quadrature points** as their preferred nodal distribution.
+
+The mathematical formulation leverages previously established superconvergence
+properties of Gauss-Radau points, which provide optimal convergence rates for
+certain classes of problems. Remarkably, this reduced-node approach maintains *
+*identical sparsity patterns for the Laplace operator** compared to traditional
+closed nodes, suggesting no penalty in matrix structure despite fewer nodal
+connections. The method integrates naturally with summation-by-parts (SBP)
+operator theory, enabling provably stable discretizations without requiring
+boundary nodes on all faces.
+
+For quadrilateral and hexahedral elements, the Gauss-Radau points are positioned
+such that nodes appear on only selected faces of each element. This strategic
+placement reduces inter-element connectivity while preserving the high-order
+accuracy characteristic of spectral element methods. The approach builds on
+generalized SBP theory that unifies various discretization methods under a
+common mathematical framework.
+
+## Entropy stability properties remain underdeveloped
+
+A critical limitation of the current work is the **absence of comprehensive
+entropy stability analysis** for the half-closed approach. While traditional
+Legendre-Gauss-Lobatto (LGL) based discontinuous Galerkin methods have
+well-established entropy stability proofs, Pan and Persson's 2024 paper focuses
+primarily on computational efficiency and superconvergence properties rather
+than entropy considerations.
+
+The mathematical foundation suggests potential for entropy-stable extensions.
+Gauss-Radau quadrature rules naturally satisfy SBP properties, which form the
+backbone of many entropy-stable formulations. Related work by Chan, Del Rey
+Fernández, and Carpenter on entropy-stable Gauss collocation methods provides a
+theoretical framework that could potentially be adapted. However, **no rigorous
+entropy stability proofs currently exist** for the half-closed configuration.
+
+The integration with SBP operators provides a pathway toward entropy stability,
+as these operators enable discrete mimicking of continuous entropy analysis. The
+preservation of SBP properties with Gauss-Radau points suggests that
+entropy-conservative and entropy-stable flux formulations could be developed,
+but this remains an open research question requiring significant theoretical
+development.
+
+## Performance benchmarks reveal efficiency gains but lack detail
+
+The computational efficiency claims of the half-closed approach rest on solid
+theoretical foundations but **lack comprehensive quantitative validation**. Pan
+and Persson demonstrate faster DG operator assembly compared to traditional
+closed-node methods, attributed to reduced nodal coupling and strategic node
+placement. The maintenance of identical sparsity patterns for diffusion
+operators suggests comparable computational complexity for certain operations.
+
+Critical performance metrics remain unreported in publicly available sources. No
+specific speedup factors, memory usage comparisons, or floating-point operation
+counts have been published. Parallel scalability studies, essential for modern
+high-performance computing applications, are absent from the available
+literature. The authors reference computational benefits but provide no
+benchmark problems, timing results, or detailed performance analysis.
+
+The theoretical advantages include reduced memory requirements from fewer nodes,
+decreased assembly time for DG operators, and potential for improved cache
+efficiency. However, without concrete benchmarks on standard test problems like
+shock tubes, blast waves, or supersonic flows, the practical performance gains
+remain unquantified. This represents a significant gap for practitioners
+considering adoption of the method.
+
+## Implicit LES behavior shows theoretical promise
+
+For implicit Large Eddy Simulation applications, the half-closed approach offers
+intriguing possibilities through its **controlled numerical dissipation
+characteristics**. High-order DG methods inherently provide scale-selective
+dissipation that concentrates at poorly resolved scales while preserving
+accuracy for well-resolved features. This property enables implicit LES without
+explicit subgrid-scale models.
+
+Gauss-based discretizations generally exhibit superior spectral properties
+compared to LGL methods, with dissipation errors of order 2k+1 and dispersion
+errors of order 2k+2 for polynomial degree k. The half-closed approach inherits
+these favorable characteristics while potentially offering better control over
+numerical dissipation through strategic node placement. Research indicates that
+numerical dissipation typically contributes **60-90% of total dissipation** in
+underresolved turbulent simulations.
+
+The method should theoretically handle moderate Reynolds numbers effectively,
+with optimal performance expected for flows up to Re ≈ 10^5. Energy stability
+through SBP operators ensures bounded dissipation, crucial for long-time
+integration of turbulent flows. However, no specific turbulent flow simulations
+using the half-closed approach have been reported, leaving practical iLES
+performance unvalidated.
+
+## Implementation details reveal significant gaps
+
+The practical implementation landscape for half-closed nodes remains largely
+undeveloped. **No open-source implementations exist** in major DG frameworks
+like FLEXI, PyFR, or Nektar++. The original paper provides mathematical
+formulations but lacks algorithmic details, data structures, or implementation
+guidance. This absence of available code severely limits adoption and validation
+by the broader computational community.
+
+For hexahedral elements, the implementation would require modified basis
+function construction on Gauss-Radau points, adapted operator assembly routines
+accounting for partial boundary nodes, and careful treatment of inter-element
+fluxes. Static condensation techniques require modification for the half-closed
+structure. Block-based solution methods need adaptation to handle the
+non-standard nodal connectivity patterns.
+
+The algorithm would follow standard DG workflows: element initialization with
+Gauss-Radau nodes, basis function construction, modified operator assembly, flux
+evaluation at interfaces, and time integration. However, each step requires
+careful adaptation for the half-closed structure. No technical documentation,
+tutorials, or reference implementations guide these modifications, presenting a
+significant barrier to practical adoption.
+
+## Comparisons with entropy-stable DGSEM-LGL methods
+
+Direct comparisons between half-closed Gauss-Radau and traditional
+entropy-stable DGSEM using LGL nodes remain limited due to the recent nature of
+Pan and Persson's work. Theoretical advantages of the half-closed approach
+include **faster operator assembly** and superconvergence properties specific to
+Gauss-Radau quadrature. The broader literature consistently shows Gauss-based
+methods achieving higher accuracy per degree of freedom compared to LGL
+discretizations.
+
+Traditional LGL-based entropy-stable DGSEM benefits from extensive theoretical
+development, proven entropy stability guarantees, widespread implementation in
+production codes, and comprehensive validation on complex flows. These methods
+place nodes at all element boundaries, ensuring straightforward flux coupling
+and well-understood stability properties. The mathematical theory for entropy
+stability with LGL nodes is mature and extensively validated.
+
+The half-closed approach potentially offers computational advantages through
+reduced inter-element connectivity and faster assembly but lacks the theoretical
+maturity of LGL methods. While maintaining identical sparsity patterns for
+certain operators, the practical impact on overall solution time remains
+unquantified. The absence of entropy stability theory for half-closed nodes
+represents a significant disadvantage for applications requiring strict
+conservation properties.
+
+## Shock capturing capabilities remain unexplored
+
+A critical limitation of the current half-closed node research is the **complete
+absence of shock capturing development**. Pan and Persson's 2024 paper focuses
+exclusively on smooth problems and operator efficiency, providing no treatment
+of discontinuities or shock waves. This represents a fundamental gap for
+applications in compressible flow simulation where shock capturing is essential.
+
+Standard DG shock capturing approaches include the Persson-Peraire modal decay
+sensor, artificial viscosity methods, subcell finite volume limiting, and WENO
+reconstruction techniques. None of these have been adapted or tested with
+half-closed nodes. The stability of the method near discontinuities remains
+uncharacterized, with no troubled cell indicators or limiting procedures
+developed.
+
+The theoretical framework provides no obvious impediment to shock capturing, and
+standard numerical flux functions (Roe, HLL, Rusanov) should remain compatible.
+However, the non-standard node placement may require novel approaches to sensing
+and limiting. The interaction between half-closed nodes and artificial viscosity
+methods needs investigation. Without demonstrated shock capturing capability,
+the method's applicability to realistic compressible flows remains severely
+limited.
+
+## Critical limitations constrain current applicability
+
+The half-closed node approach faces several fundamental limitations that
+restrict its immediate applicability. The **restriction to quadrilateral and
+hexahedral elements** limits use on general unstructured meshes with triangular
+or tetrahedral elements. This constraint eliminates many practical applications
+requiring geometric flexibility.
+
+The absence of comprehensive validation presents another major limitation. No
+complex flow simulations, standard CFD benchmarks, or challenging test cases
+have been reported. The method remains unproven for nonlinear problems,
+multiphysics applications, or flows with strong gradients. Without demonstrated
+robustness on practical problems, adoption risk remains high.
+
+Software integration challenges compound these limitations. Existing DG codes
+require substantial modification to accommodate half-closed discretizations. The
+lack of reference implementations, missing documentation, and absence of best
+practices create significant barriers. No guidance exists for handling boundary
+conditions, implementing time integration schemes, or ensuring stability for
+specific applications.
+
+## SBP integration offers theoretical elegance
+
+The integration with summation-by-parts operators represents one of the
+strongest theoretical aspects of the half-closed approach. SBP operators provide
+a **unified mathematical framework** connecting finite difference, finite
+element, and spectral methods. The Gauss-Radau quadrature naturally satisfies
+SBP properties, enabling discrete energy analysis and stability proofs.
+
+This SBP compatibility suggests pathways toward entropy conservation and
+controlled dissipation. The mathematical structure allows systematic derivation
+of stable boundary treatments and interface coupling procedures. For linear
+problems, the SBP framework guarantees stability through energy methods. The
+half-closed approach inherits these theoretical guarantees while offering
+computational advantages.
+
+However, extending SBP theory to nonlinear conservation laws with half-closed
+nodes requires additional development. The interplay between entropy stability,
+SBP operators, and reduced nodal sets needs careful analysis. While the
+theoretical foundation appears sound, practical implementation of entropy-stable
+SBP schemes with half-closed nodes remains unexplored.
+
+## Limited practical adoption reflects early development stage
+
+The practical adoption landscape for half-closed nodes remains essentially
+empty. **No research groups outside UC Berkeley** have reported implementations
+or experiences with the method. No conference presentations, workshop tutorials,
+or user testimonials exist. The approach has generated theoretical interest but
+no practical deployment.
+
+This limited adoption reflects both the method's recent introduction (May 2024)
+and significant implementation barriers. The absence of available code prevents
+easy experimentation. Missing performance data limits cost-benefit analysis.
+Unproven robustness for challenging problems increases adoption risk. The lack
+of entropy stability theory concerns researchers requiring strict conservation
+properties.
+
+The computational fluid dynamics community typically requires extensive
+validation before adopting new methods. Standard test suites, benchmark
+problems, and comparative studies build confidence. For half-closed nodes, none
+of this validation infrastructure exists. Until comprehensive testing
+demonstrates advantages over established methods, widespread adoption seems
+unlikely.
+
+## Conclusion
+
+Pan and Persson's half-closed node approach represents an innovative
+mathematical advance in discontinuous Galerkin methods, offering potential
+computational efficiency gains through strategic use of Gauss-Radau points and
+reduced nodal connectivity. The method maintains mathematical rigor while
+promising faster operator assembly and superconvergence properties. However,
+significant gaps in entropy stability theory, shock capturing capabilities, and
+practical validation currently limit its applicability to real-world problems.
+
+The absence of implementations, performance benchmarks, and demonstrated
+robustness on challenging flows presents substantial barriers to adoption. While
+the theoretical foundations appear sound, the method requires extensive
+development in entropy stability analysis, shock capturing strategies, and
+software implementation before achieving practical utility. For researchers
+seeking proven high-order methods for complex flows, traditional entropy-stable
+DGSEM with LGL nodes remains the safer choice until the half-closed approach
+matures through rigorous validation and theoretical development.
