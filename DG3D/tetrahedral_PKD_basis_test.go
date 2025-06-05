@@ -3,6 +3,7 @@ package DG3D
 import (
 	"fmt"
 	"math"
+	"math/rand/v2"
 	"testing"
 
 	"github.com/notargets/gocfd/utils"
@@ -10,7 +11,7 @@ import (
 
 // TestPKDBasisInterpolation verifies that the PKD basis can interpolate polynomials
 // exactly up to order P using quadrature integration
-func _TestPKDBasisInterpolation(t *testing.T) {
+func TestPKDBasisInterpolation(t *testing.T) {
 	// Test orders 1 through 6
 	for P := 1; P <= 5; P++ {
 		t.Run(fmt.Sprintf("Order_%d", P), func(t *testing.T) {
@@ -144,9 +145,9 @@ func _TestPKDBasisInterpolation(t *testing.T) {
 
 					// Compare with exact value
 					exactVal := test.f(r, s, t)
-					error := math.Abs(interpVal - exactVal)
-					if error > maxError {
-						maxError = error
+					Err := math.Abs(interpVal - exactVal)
+					if Err > maxError {
+						maxError = Err
 					}
 				}
 
@@ -199,16 +200,4 @@ func _TestPKDBasisInterpolation(t *testing.T) {
 			}
 		})
 	}
-}
-
-// Helper function for random number generation
-var rand = struct {
-	Float64 func() float64
-}{
-	Float64: func() float64 {
-		// Simple linear congruential generator for reproducibility
-		var seed uint64 = 12345
-		seed = (seed*1103515245 + 12345) & 0x7fffffff
-		return float64(seed) / float64(0x7fffffff)
-	},
 }
