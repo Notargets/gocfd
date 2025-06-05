@@ -96,7 +96,7 @@ func TestTetrahedralQuadratureMonomialIntegration(t *testing.T) {
 	// Test both unit simplex and reference tetrahedron
 	for _, tetType := range []string{"unit", "reference"} {
 		for _, tc := range testCases {
-			quad, err := NewUnitSimplexQuadrature(tc.order)
+			quad, err := NewShunnHamQuadrature(tc.order)
 			if err != nil {
 				t.Fatalf("Failed to create quadrature order %d: %v", tc.order, err)
 			}

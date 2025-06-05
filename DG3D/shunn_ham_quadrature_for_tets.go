@@ -195,10 +195,10 @@ var ShunnHamTetrahedralQuadData = [][]BarycentricQuadPoint{
 	},
 }
 
-// NewUnitSimplexQuadrature creates a Shunn-Ham quadrature rule for the unit simplex
+// NewShunnHamQuadrature creates a Shunn-Ham quadrature rule for the unit simplex
 // Unit simplex has vertices at (0,0,0), (1,0,0), (0,1,0), (0,0,1)
 // Volume = 1/6
-func NewUnitSimplexQuadrature(order int) (*TetrahedralQuadrature, error) {
+func NewShunnHamQuadrature(order int) (*TetrahedralQuadrature, error) {
 	if order < 1 || order > 6 {
 		return nil, fmt.Errorf("order %d not implemented (valid orders: 1-6)", order)
 	}
@@ -321,7 +321,7 @@ func GetNodesShunnHam(P int) (R, S, T utils.Vector) {
 			" rules", P))
 	}
 	// Get the quadrature rule
-	quad, err := NewUnitSimplexQuadrature(quadOrder)
+	quad, err := NewShunnHamQuadrature(quadOrder)
 	if err != nil {
 		// This should not happen with valid quadOrder
 		panic(fmt.Sprintf("failed to create quadrature for order %d: %v", quadOrder, err))

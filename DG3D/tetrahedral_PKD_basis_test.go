@@ -33,7 +33,7 @@ func _TestPKDBasisInterpolation(t *testing.T) {
 			if 2*P > 6 {
 				quadOrder = 6 // Max available
 			}
-			quad, err := NewUnitSimplexQuadrature(quadOrder)
+			quad, err := NewShunnHamQuadrature(quadOrder)
 			if err != nil {
 				t.Fatalf("Failed to create quadrature: %v", err)
 			}
