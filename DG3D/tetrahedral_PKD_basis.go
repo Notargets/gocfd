@@ -1,8 +1,5 @@
 package DG3D
 
-// Simplex3DP evaluates 3D orthonormal polynomial on simplex at (r,s,t) of order (i,j,k)
-// This is a direct translation of Hesthaven &package DG3D
-
 import (
 	"math"
 	"sort"
@@ -13,6 +10,8 @@ import (
 )
 
 // TetBasis represents the Proriol-Koornwinder-Dubiner basis on reference tetrahedron
+// Note: This basis is orthogonal with respect to the weighted inner product on the tetrahedron,
+// but NOT orthonormal with respect to the standard L2 inner product
 type TetBasis struct {
 	Order int
 	Np    int // Number of basis functions = (P+1)(P+2)(P+3)/6
@@ -31,6 +30,66 @@ func NewTetBasis(order int) *TetBasis {
 type TetCubature struct {
 	R, S, T utils.Vector // Cubature points
 	W       utils.Vector // Weights
+}
+
+// FaceCubature holds cubature points and weights for triangular faces
+type FaceCubature struct {
+	R, S utils.Vector // Cubature points on 2D triangle
+	W    utils.Vector // Weights
+}
+
+// GeometricFactors stores metric terms for physical elements
+type GeometricFactors struct {
+	X, Y, Z    utils.Matrix // Physical coordinates at each node
+	Rx, Ry, Rz utils.Matrix // dr/dx, dr/dy, dr/dz
+	Sx, Sy, Sz utils.Matrix // ds/dx, ds/dy, ds/dz
+	Tx, Ty, Tz utils.Matrix // dt/dx, dt/dy, dt/dz
+	J          utils.Matrix // Jacobian determinant
+}
+
+// FaceGeometricFactors stores metric terms for element faces
+type FaceGeometricFactors struct {
+	Nx, Ny, Nz utils.Matrix // Outward normal components
+	SJ         utils.Matrix // Surface Jacobian (area scaling)
+	Fscale     utils.Matrix // Face integration scaling = sJ/J(face)
+}
+
+// Element3D represents a tetrahedral element
+type Element3D struct {
+	*TetBasis
+
+	// Node information
+	R, S, T utils.Vector // Reference coordinates
+	X, Y, Z utils.Vector // Physical coordinates
+
+	// Mass and differentiation matrices
+	V          utils.Matrix // Vandermonde matrix
+	Vr, Vs, Vt utils.Matrix // Gradient Vandermonde matrices
+	Dr, Ds, Dt utils.Matrix // Differentiation matrices
+	M          utils.Matrix // Mass matrix
+	invM       utils.Matrix // Inverse mass matrix
+
+	// Surface integration
+	LIFT       utils.Matrix   // Lift matrix for surface integrals
+	Fmask      [][]int        // Face node indices
+	Fx, Fy, Fz []utils.Matrix // Physical coordinates on each face
+
+	// Connectivity
+	VmapM  []int // Maps face nodes to volume nodes
+	VmapP  []int // Maps face nodes to neighbor volume nodes
+	MapM   []int // Maps face nodes to unique face nodes
+	MapP   []int // Maps to neighbor face nodes
+	BCType []int // Boundary condition types per face
+
+	// Geometric factors
+	GeomFactors     *GeometricFactors
+	FaceGeomFactors *FaceGeometricFactors
+}
+
+// ConnectivityArrays stores mesh connectivity information
+type ConnectivityArrays struct {
+	EToE [][]int // Element to element connectivity
+	EToF [][]int // Element to face connectivity
 }
 
 // RStoAB transforms from (r,s) to (a,b) coordinates for 2D simplex
@@ -428,8 +487,8 @@ func RSTtoABC(r, s, t utils.Vector) (a, b, c utils.Vector) {
 	return
 }
 
-// Simplex3DP evaluates 3D orthonormal polynomial on simplex at (r,s,t) of order (i,j,k)
-// This is a direct translation of Hesthaven & Warburton's MATLAB code
+// Simplex3DP evaluates 3D polynomial on simplex at (r,s,t) of order (i,j,k)
+// The PKD basis is orthogonal with respect to the weighted inner product
 func Simplex3DP(r, s, t utils.Vector, i, j, k int) []float64 {
 	// Convert to collapsed coordinates
 	a, b, c := RSTtoABC(r, s, t)
@@ -455,6 +514,478 @@ func Simplex3DP(r, s, t utils.Vector, i, j, k int) []float64 {
 	}
 
 	return P
+}
+
+// BuildFmask3D builds face node masks for all 4 faces of tetrahedron
+func BuildFmask3D(r, s, t utils.Vector, N int) [][]int {
+	Np := r.Len()
+	fmask := make([][]int, 4)
+
+	// Face tolerances
+	NODETOL := 1e-10
+
+	// Temporary storage for face nodes
+	for f := 0; f < 4; f++ {
+		fmask[f] = make([]int, 0)
+	}
+
+	// Face 1: t = -1
+	for i := 0; i < Np; i++ {
+		if math.Abs(t.At(i)+1) < NODETOL {
+			fmask[0] = append(fmask[0], i)
+		}
+	}
+
+	// Face 2: s = -1
+	for i := 0; i < Np; i++ {
+		if math.Abs(s.At(i)+1) < NODETOL {
+			fmask[1] = append(fmask[1], i)
+		}
+	}
+
+	// Face 3: r+s+t = -1
+	for i := 0; i < Np; i++ {
+		if math.Abs(r.At(i)+s.At(i)+t.At(i)+1) < NODETOL {
+			fmask[2] = append(fmask[2], i)
+		}
+	}
+
+	// Face 4: r = -1
+	for i := 0; i < Np; i++ {
+		if math.Abs(r.At(i)+1) < NODETOL {
+			fmask[3] = append(fmask[3], i)
+		}
+	}
+
+	return fmask
+}
+
+// Lift3D computes lift matrix for surface integrals
+func Lift3D(N int, fmask [][]int, V utils.Matrix) utils.Matrix {
+	Np := V.Rows()
+	Nfaces := 4
+	Nfp := (N + 1) * (N + 2) / 2 // Number of face points
+
+	// Create face mass matrix
+	Emat := utils.NewMatrix(Np, Nfaces*Nfp)
+
+	// Reference triangle nodes for faces
+	faceR, faceS := Nodes2D(N)
+	faceV := Vandermonde2D(N, faceR, faceS)
+	massFace := faceV.Mul(faceV.Transpose()).InverseWithCheck()
+
+	// Build the Emat matrix
+	for face := 0; face < Nfaces; face++ {
+		if len(fmask[face]) != Nfp {
+			panic("face mask size mismatch")
+		}
+
+		// Extract face nodes
+		for i := 0; i < Nfp; i++ {
+			for j := 0; j < Nfp; j++ {
+				Emat.Set(fmask[face][i], face*Nfp+j, massFace.At(i, j))
+			}
+		}
+	}
+
+	// Compute LIFT = V*V'*Emat
+	LIFT := V.Mul(V.Transpose()).Mul(Emat)
+
+	return LIFT
+}
+
+// Nodes2D computes nodes on reference triangle
+func Nodes2D(N int) (r, s utils.Vector) {
+	Np := (N + 1) * (N + 2) / 2
+	rr := make([]float64, Np)
+	ss := make([]float64, Np)
+
+	// Create equidistant nodes
+	sk := 0
+	for n := 0; n <= N; n++ {
+		for m := 0; m <= N-n; m++ {
+			L1 := float64(m) / float64(N)
+			L2 := float64(n) / float64(N)
+			L3 := 1.0 - L1 - L2
+			_ = L3
+
+			// Convert to xy coordinates
+			rr[sk] = 2*L1 - 1
+			ss[sk] = 2*L2 - 1
+			sk++
+		}
+	}
+
+	r = utils.NewVector(Np, rr)
+	s = utils.NewVector(Np, ss)
+
+	// Apply warping for optimal nodes
+	warpNodes2D(&r, &s, N)
+
+	return r, s
+}
+
+// warpNodes2D applies warping to 2D triangle nodes
+func warpNodes2D(r, s *utils.Vector, N int) {
+	// This is a simplified version - implement full warping if needed
+	// For now, just return the equidistant nodes
+}
+
+// Vandermonde2D computes 2D Vandermonde matrix on triangle
+func Vandermonde2D(N int, r, s utils.Vector) utils.Matrix {
+	Np := (N + 1) * (N + 2) / 2
+	V := utils.NewMatrix(r.Len(), Np)
+
+	// Convert to collapsed coordinates
+	a, b := RStoAB(r, s)
+
+	sk := 0
+	for i := 0; i <= N; i++ {
+		for j := 0; j <= N-i; j++ {
+			V.SetCol(sk, Simplex2DP(a, b, i, j))
+			sk++
+		}
+	}
+
+	return V
+}
+
+// Simplex2DP evaluates 2D polynomial on simplex
+func Simplex2DP(a, b utils.Vector, i, j int) []float64 {
+	n := a.Len()
+	P := make([]float64, n)
+
+	h1 := DG1D.JacobiP(a, 0, 0, i)
+	h2 := DG1D.JacobiP(b, float64(2*i+1), 0, j)
+
+	for idx := 0; idx < n; idx++ {
+		P[idx] = math.Sqrt(2.0) * h1[idx] * h2[idx] * math.Pow((1-b.At(idx))/2, float64(i))
+	}
+
+	return P
+}
+
+// GeometricFactors3D computes metric terms for physical elements
+func GeometricFactors3D(x, y, z, Dr, Ds, Dt utils.Matrix) *GeometricFactors {
+	xr := Dr.Mul(x)
+	xs := Ds.Mul(x)
+	xt := Dt.Mul(x)
+	yr := Dr.Mul(y)
+	ys := Ds.Mul(y)
+	yt := Dt.Mul(y)
+	zr := Dr.Mul(z)
+	zs := Ds.Mul(z)
+	zt := Dt.Mul(z)
+
+	// Compute Jacobian
+	J := utils.NewMatrix(xr.Rows(), xr.Cols())
+	for i := 0; i < xr.Rows(); i++ {
+		for j := 0; j < xr.Cols(); j++ {
+			J.Set(i, j, xr.At(i, j)*(ys.At(i, j)*zt.At(i, j)-zs.At(i, j)*yt.At(i, j))-
+				yr.At(i, j)*(xs.At(i, j)*zt.At(i, j)-zs.At(i, j)*xt.At(i, j))+
+				zr.At(i, j)*(xs.At(i, j)*yt.At(i, j)-ys.At(i, j)*xt.At(i, j)))
+		}
+	}
+
+	// Compute inverse metric terms
+	rx := utils.NewMatrix(xr.Rows(), xr.Cols())
+	ry := utils.NewMatrix(xr.Rows(), xr.Cols())
+	rz := utils.NewMatrix(xr.Rows(), xr.Cols())
+	sx := utils.NewMatrix(xr.Rows(), xr.Cols())
+	sy := utils.NewMatrix(xr.Rows(), xr.Cols())
+	sz := utils.NewMatrix(xr.Rows(), xr.Cols())
+	tx := utils.NewMatrix(xr.Rows(), xr.Cols())
+	ty := utils.NewMatrix(xr.Rows(), xr.Cols())
+	tz := utils.NewMatrix(xr.Rows(), xr.Cols())
+
+	for i := 0; i < xr.Rows(); i++ {
+		for j := 0; j < xr.Cols(); j++ {
+			rx.Set(i, j, (ys.At(i, j)*zt.At(i, j)-zs.At(i, j)*yt.At(i, j))/J.At(i, j))
+			ry.Set(i, j, -(xs.At(i, j)*zt.At(i, j)-zs.At(i, j)*xt.At(i, j))/J.At(i, j))
+			rz.Set(i, j, (xs.At(i, j)*yt.At(i, j)-ys.At(i, j)*xt.At(i, j))/J.At(i, j))
+
+			sx.Set(i, j, -(yr.At(i, j)*zt.At(i, j)-zr.At(i, j)*yt.At(i, j))/J.At(i, j))
+			sy.Set(i, j, (xr.At(i, j)*zt.At(i, j)-zr.At(i, j)*xt.At(i, j))/J.At(i, j))
+			sz.Set(i, j, -(xr.At(i, j)*yt.At(i, j)-yr.At(i, j)*xt.At(i, j))/J.At(i, j))
+
+			tx.Set(i, j, (yr.At(i, j)*zs.At(i, j)-zr.At(i, j)*ys.At(i, j))/J.At(i, j))
+			ty.Set(i, j, -(xr.At(i, j)*zs.At(i, j)-zr.At(i, j)*xs.At(i, j))/J.At(i, j))
+			tz.Set(i, j, (xr.At(i, j)*ys.At(i, j)-yr.At(i, j)*xs.At(i, j))/J.At(i, j))
+		}
+	}
+
+	return &GeometricFactors{
+		X: x, Y: y, Z: z,
+		Rx: rx, Ry: ry, Rz: rz,
+		Sx: sx, Sy: sy, Sz: sz,
+		Tx: tx, Ty: ty, Tz: tz,
+		J: J,
+	}
+}
+
+// Normals3D computes outward facing normals at element faces
+func Normals3D(geom *GeometricFactors, fmask [][]int, K int) *FaceGeometricFactors {
+	Nfaces := 4
+	Nfp := len(fmask[0])
+
+	nx := utils.NewMatrix(Nfp*Nfaces, K)
+	ny := utils.NewMatrix(Nfp*Nfaces, K)
+	nz := utils.NewMatrix(Nfp*Nfaces, K)
+	sJ := utils.NewMatrix(Nfp*Nfaces, K)
+
+	// Face 1: t = -1
+	for k := 0; k < K; k++ {
+		for i := 0; i < Nfp; i++ {
+			vid := fmask[0][i]
+			nx.Set(i, k, -geom.Tx.At(vid, k))
+			ny.Set(i, k, -geom.Ty.At(vid, k))
+			nz.Set(i, k, -geom.Tz.At(vid, k))
+			sJ.Set(i, k, geom.J.At(vid, k)*math.Sqrt(
+				nx.At(i, k)*nx.At(i, k)+ny.At(i, k)*ny.At(i, k)+nz.At(i, k)*nz.At(i, k)))
+
+			// Normalize
+			nx.Set(i, k, nx.At(i, k)/sJ.At(i, k)*geom.J.At(vid, k))
+			ny.Set(i, k, ny.At(i, k)/sJ.At(i, k)*geom.J.At(vid, k))
+			nz.Set(i, k, nz.At(i, k)/sJ.At(i, k)*geom.J.At(vid, k))
+		}
+	}
+
+	// Face 2: s = -1
+	for k := 0; k < K; k++ {
+		for i := 0; i < Nfp; i++ {
+			vid := fmask[1][i]
+			nx.Set(Nfp+i, k, -geom.Sx.At(vid, k))
+			ny.Set(Nfp+i, k, -geom.Sy.At(vid, k))
+			nz.Set(Nfp+i, k, -geom.Sz.At(vid, k))
+			sJ.Set(Nfp+i, k, geom.J.At(vid, k)*math.Sqrt(
+				nx.At(Nfp+i, k)*nx.At(Nfp+i, k)+ny.At(Nfp+i, k)*ny.At(Nfp+i, k)+nz.At(Nfp+i, k)*nz.At(Nfp+i, k)))
+
+			// Normalize
+			nx.Set(Nfp+i, k, nx.At(Nfp+i, k)/sJ.At(Nfp+i, k)*geom.J.At(vid, k))
+			ny.Set(Nfp+i, k, ny.At(Nfp+i, k)/sJ.At(Nfp+i, k)*geom.J.At(vid, k))
+			nz.Set(Nfp+i, k, nz.At(Nfp+i, k)/sJ.At(Nfp+i, k)*geom.J.At(vid, k))
+		}
+	}
+
+	// Face 3: r+s+t = -1
+	for k := 0; k < K; k++ {
+		for i := 0; i < Nfp; i++ {
+			vid := fmask[2][i]
+			nx.Set(2*Nfp+i, k, geom.Rx.At(vid, k)+geom.Sx.At(vid, k)+geom.Tx.At(vid, k))
+			ny.Set(2*Nfp+i, k, geom.Ry.At(vid, k)+geom.Sy.At(vid, k)+geom.Ty.At(vid, k))
+			nz.Set(2*Nfp+i, k, geom.Rz.At(vid, k)+geom.Sz.At(vid, k)+geom.Tz.At(vid, k))
+			sJ.Set(2*Nfp+i, k, geom.J.At(vid, k)*math.Sqrt(
+				nx.At(2*Nfp+i, k)*nx.At(2*Nfp+i, k)+ny.At(2*Nfp+i, k)*ny.At(2*Nfp+i, k)+nz.At(2*Nfp+i, k)*nz.At(2*Nfp+i, k)))
+
+			// Normalize
+			nx.Set(2*Nfp+i, k, nx.At(2*Nfp+i, k)/sJ.At(2*Nfp+i, k)*geom.J.At(vid, k))
+			ny.Set(2*Nfp+i, k, ny.At(2*Nfp+i, k)/sJ.At(2*Nfp+i, k)*geom.J.At(vid, k))
+			nz.Set(2*Nfp+i, k, nz.At(2*Nfp+i, k)/sJ.At(2*Nfp+i, k)*geom.J.At(vid, k))
+		}
+	}
+
+	// Face 4: r = -1
+	for k := 0; k < K; k++ {
+		for i := 0; i < Nfp; i++ {
+			vid := fmask[3][i]
+			nx.Set(3*Nfp+i, k, -geom.Rx.At(vid, k))
+			ny.Set(3*Nfp+i, k, -geom.Ry.At(vid, k))
+			nz.Set(3*Nfp+i, k, -geom.Rz.At(vid, k))
+			sJ.Set(3*Nfp+i, k, geom.J.At(vid, k)*math.Sqrt(
+				nx.At(3*Nfp+i, k)*nx.At(3*Nfp+i, k)+ny.At(3*Nfp+i, k)*ny.At(3*Nfp+i, k)+nz.At(3*Nfp+i, k)*nz.At(3*Nfp+i, k)))
+
+			// Normalize
+			nx.Set(3*Nfp+i, k, nx.At(3*Nfp+i, k)/sJ.At(3*Nfp+i, k)*geom.J.At(vid, k))
+			ny.Set(3*Nfp+i, k, ny.At(3*Nfp+i, k)/sJ.At(3*Nfp+i, k)*geom.J.At(vid, k))
+			nz.Set(3*Nfp+i, k, nz.At(3*Nfp+i, k)/sJ.At(3*Nfp+i, k)*geom.J.At(vid, k))
+		}
+	}
+
+	// Compute Fscale
+	Fscale := utils.NewMatrix(Nfp*Nfaces, K)
+	for f := 0; f < Nfaces; f++ {
+		for i := 0; i < Nfp; i++ {
+			for k := 0; k < K; k++ {
+				vid := fmask[f%4][i]
+				Fscale.Set(f*Nfp+i, k, sJ.At(f*Nfp+i, k)/geom.J.At(vid, k))
+			}
+		}
+	}
+
+	return &FaceGeometricFactors{
+		Nx: nx, Ny: ny, Nz: nz,
+		SJ:     sJ,
+		Fscale: Fscale,
+	}
+}
+
+// BuildMaps3D creates connectivity maps for DG
+func BuildMaps3D(K int, Np int, Nfp int, fmask [][]int, x, y, z utils.Matrix,
+	conn *ConnectivityArrays) (VmapM, VmapP, MapM, MapP []int) {
+
+	Nfaces := 4
+
+	// Build global face to node mapping
+	nodeIds := make(map[[3]float64]int)
+	NODETOL := 1e-7
+
+	// Unique node identification
+	Nnodes := 0
+	for k := 0; k < K; k++ {
+		for n := 0; n < Np; n++ {
+			key := [3]float64{
+				math.Round(x.At(n, k)/NODETOL) * NODETOL,
+				math.Round(y.At(n, k)/NODETOL) * NODETOL,
+				math.Round(z.At(n, k)/NODETOL) * NODETOL,
+			}
+			if _, exists := nodeIds[key]; !exists {
+				nodeIds[key] = Nnodes
+				Nnodes++
+			}
+		}
+	}
+
+	// Volume to global node mapping
+	vmapM := make([]int, Nfp*Nfaces*K)
+	vmapP := make([]int, Nfp*Nfaces*K)
+	mapM := make([]int, Nfp*Nfaces*K)
+	mapP := make([]int, Nfp*Nfaces*K)
+
+	// Initialize with identity mapping
+	for i := range vmapM {
+		vmapM[i] = i
+		vmapP[i] = i
+		mapM[i] = i
+		mapP[i] = i
+	}
+
+	// Create face to face mapping
+	for k1 := 0; k1 < K; k1++ {
+		for f1 := 0; f1 < Nfaces; f1++ {
+			k2 := conn.EToE[k1][f1]
+			f2 := conn.EToF[k1][f1]
+
+			if k2 < k1 || (k2 == k1 && f2 < f1) {
+				continue // Only process each face pair once
+			}
+
+			// Find matching nodes
+			for i := 0; i < Nfp; i++ {
+				n1 := fmask[f1][i]
+				key1 := [3]float64{
+					math.Round(x.At(n1, k1)/NODETOL) * NODETOL,
+					math.Round(y.At(n1, k1)/NODETOL) * NODETOL,
+					math.Round(z.At(n1, k1)/NODETOL) * NODETOL,
+				}
+
+				for j := 0; j < Nfp; j++ {
+					n2 := fmask[f2][j]
+					key2 := [3]float64{
+						math.Round(x.At(n2, k2)/NODETOL) * NODETOL,
+						math.Round(y.At(n2, k2)/NODETOL) * NODETOL,
+						math.Round(z.At(n2, k2)/NODETOL) * NODETOL,
+					}
+
+					if key1 == key2 {
+						id1 := k1*Nfaces*Nfp + f1*Nfp + i
+						id2 := k2*Nfaces*Nfp + f2*Nfp + j
+
+						vmapM[id1] = k1*Np + n1
+						vmapM[id2] = k2*Np + n2
+						vmapP[id1] = k2*Np + n2
+						vmapP[id2] = k1*Np + n1
+
+						mapP[id1] = id2
+						mapP[id2] = id1
+						break
+					}
+				}
+			}
+		}
+	}
+
+	return vmapM, vmapP, mapM, mapP
+}
+
+// Connect3D builds element to element connectivity
+func Connect3D(EToV [][]int) *ConnectivityArrays {
+	K := len(EToV)
+	Nfaces := 4
+
+	// Build face to vertex mapping for tetrahedron
+	vn := [][]int{
+		{0, 1, 2}, // Face 1
+		{0, 1, 3}, // Face 2
+		{1, 2, 3}, // Face 3
+		{0, 2, 3}, // Face 4
+	}
+
+	// Create face to element+face mapping
+	faces := make(map[[3]int]struct{ elem, face int })
+
+	for k := 0; k < K; k++ {
+		for f := 0; f < Nfaces; f++ {
+			// Get vertices of this face
+			v := make([]int, 3)
+			for i := 0; i < 3; i++ {
+				v[i] = EToV[k][vn[f][i]]
+			}
+
+			// Sort vertices to create unique key
+			sort.Ints(v)
+			key := [3]int{v[0], v[1], v[2]}
+
+			if match, exists := faces[key]; exists {
+				// Found matching face
+				// Update both elements
+				if k != match.elem {
+					// Different elements share this face
+					// This is an internal face
+				}
+			} else {
+				faces[key] = struct{ elem, face int }{k, f}
+			}
+		}
+	}
+
+	// Build connectivity arrays
+	EToE := make([][]int, K)
+	EToF := make([][]int, K)
+
+	for k := 0; k < K; k++ {
+		EToE[k] = make([]int, Nfaces)
+		EToF[k] = make([]int, Nfaces)
+
+		// Initialize with self-connectivity
+		for f := 0; f < Nfaces; f++ {
+			EToE[k][f] = k
+			EToF[k][f] = f
+		}
+
+		// Find actual connections
+		for f := 0; f < Nfaces; f++ {
+			v := make([]int, 3)
+			for i := 0; i < 3; i++ {
+				v[i] = EToV[k][vn[f][i]]
+			}
+			sort.Ints(v)
+			key := [3]int{v[0], v[1], v[2]}
+
+			// Search all faces for match
+			for fkey, fdata := range faces {
+				if fkey == key && fdata.elem != k {
+					EToE[k][f] = fdata.elem
+					EToF[k][f] = fdata.face
+					break
+				}
+			}
+		}
+	}
+
+	return &ConnectivityArrays{
+		EToE: EToE,
+		EToF: EToF,
+	}
 }
 
 // EvaluateBasis evaluates all basis functions at a single point (r,s,t)
@@ -683,7 +1214,7 @@ func (tb *TetBasis) ComputeGradVandermonde(r, s, t utils.Vector) (Vr, Vs, Vt uti
 }
 
 // ComputeMassMatrix computes the mass matrix M = V^T * W * V
-// For orthonormal basis, this should be the identity matrix
+// Note: The PKD basis is orthogonal but NOT orthonormal, so this will not be identity
 func (tb *TetBasis) ComputeMassMatrix(V utils.Matrix, cubature *TetCubature) utils.Matrix {
 	n := V.Rows()  // number of cubature points
 	np := V.Cols() // number of basis functions

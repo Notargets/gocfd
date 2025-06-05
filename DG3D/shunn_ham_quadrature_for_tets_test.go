@@ -1,6 +1,7 @@
 package DG3D
 
 import (
+	"fmt"
 	"math"
 	"testing"
 )
@@ -177,4 +178,34 @@ func multinomial(n int, k []int) int {
 		result /= factorial(ki)
 	}
 	return result
+}
+
+// TestGetNodesShunnHam validates the nodes returned by GetNodesShunnHam
+func TestGetNodesShunnHam(t *testing.T) {
+	// Test each order from 1 to 6
+	for P := 1; P <= 5; P++ {
+		t.Run(fmt.Sprintf("Order_%d", P), func(t *testing.T) {
+			// Get nodes
+			R, S, T := GetNodesShunnHam(P)
+
+			// Check that all vectors have the same length
+			if R.Len() != S.Len() || S.Len() != T.Len() {
+				t.Errorf("Order %d: Vector lengths don't match: R=%d, S=%d, T=%d",
+					P, R.Len(), S.Len(), T.Len())
+				return
+			}
+
+			// The number of points needed to interpolate a polynomial of degree P in a tetrahedron
+			// is (P+1)(P+2)(P+3)/6
+			expectedPoints := (P + 1) * (P + 2) * (P + 3) / 6
+
+			if R.Len() != expectedPoints {
+				t.Errorf("Order %d: Expected %d points to interpolate polynomial degree %d, got %d",
+					P, expectedPoints, P, R.Len())
+			}
+
+			t.Logf("Order %d: %d points provided to interpolate polynomial degree %d",
+				P, R.Len(), P)
+		})
+	}
 }

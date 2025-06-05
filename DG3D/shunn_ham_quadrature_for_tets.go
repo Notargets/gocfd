@@ -315,13 +315,13 @@ func (tq *TetrahedralQuadrature) VerifyBarycentricCoordinates() bool {
 // The nodes are sourced from the Shunn-Ham quadrature rule with matching number of points
 // sufficient to interpolate a polynomial of order P
 func GetNodesShunnHam(P int) (R, S, T utils.Vector) {
-	quadOrder := P
+	quadOrder := P + 1
 	if quadOrder < 1 || quadOrder > 6 {
 		panic(fmt.Sprintf("polynomial order P=%d not available in quadrature"+
 			" rules", P))
 	}
 	// Get the quadrature rule
-	quad, err := NewUnitSimplexQuadrature(P)
+	quad, err := NewUnitSimplexQuadrature(quadOrder)
 	if err != nil {
 		// This should not happen with valid quadOrder
 		panic(fmt.Sprintf("failed to create quadrature for order %d: %v", quadOrder, err))
