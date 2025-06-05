@@ -572,6 +572,8 @@ func Lift3D(N int, fmask [][]int, V utils.Matrix, R, S, T utils.Vector) utils.Ma
 	// Create face mass matrix
 	Emat := utils.NewMatrix(Np, Nfaces*Nfp)
 
+	// TODO: Figure out how we're going to handle point distributions,
+	//  include face, edge and vertices like Hesthaven or only interior
 	// Import 2D basis for faces
 	jb2d := DG2D.NewJacobiBasis2D(N, R, S, 0, 0)
 
