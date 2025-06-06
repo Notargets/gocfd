@@ -408,3 +408,98 @@ but interpolation-based approaches can also maintain conservation with
 appropriate design. The choice between methods involves balancing theoretical
 robustness, computational efficiency, and the specific requirements of the
 problem being solved.
+
+# Prompt 3
+
+Research the following statements about the mortar technique for ensuring
+conservation of flux across non conformal element interfaces specifically for
+the cases of tet/hex/prism/pyramid interfaces. Obtain the necessary
+implementation detail to compose an implementation of the mortar methods in
+source code in an efficient form sufficient to handle the common cases among
+those elements, in particular those involving multiple triangles interfacing to
+a quadrilateral for viscous and inviscid fluxes. If the implementation is
+neutral WRT handling viscous/inviscid/em fluxes that is superior in that only
+one method should be required to handle physical fluxes. The interest here
+excludes the “how” of solving the Riemann problem, that should be a completely
+separate concern from how to project fluxes to the common interface space and
+back again with conservation being enforced globally and even locally if deemed
+necessary.
+
+Equal and mixed order interfaces should be included. If they differ in
+implementation, call that out for a specific variant implementation for each. I
+have attached the discussion to guide the research as well.
+
+You’re absolutely right - I made an error in my explanation. Mortar methods 
+are inherently asymmetric in their projection operations, and this does 
+seem to contradict the telescoping principle I just described. Let me 
+correct this and explain how mortar methods actually maintain conservation 
+despite this asymmetry.
+
+## The Asymmetry in Mortar Methods
+
+You’ve correctly identified that mortar methods involve two distinct operations:
+
+1. Forward projection: Each element projects its solution to the mortar space (
+   often different for each element due to different polynomial orders or
+   element sizes)
+2. Backward projection: The mortar space solution is projected back to each
+   element’s space (again, different for each element)
+   This is fundamentally asymmetric - element A might project to a P=3 mortar
+   space while element B projects to a P=4 mortar space, and the backward
+   projections are similarly different.
+
+## How Conservation is Maintained Despite Asymmetry
+
+The key is that mortar methods maintain conservation through a different
+mechanism than simple telescoping. They ensure conservation by satisfying a
+discrete compatibility condition:
+
+∫_Γ [F*]_mortar · v_A dΓ = -∫_Γ [F*]_mortar · v_B dΓ
+
+for all test functions v_A and v_B in the respective element spaces. This is
+achieved through:
+
+1. L² projections that preserve integral quantities: The projection operators
+   are designed so that integral conservation is maintained even though
+   pointwise values differ
+2. Careful construction of the mortar flux: The numerical flux F* is computed in
+   the mortar space using a single consistent evaluation, then projected back to
+   each element space in a way that preserves the integral of the flux
+3. Compatibility of quadrature rules: The quadrature rules on each side must be
+   compatible with the mortar space quadrature in a specific sense
+
+## The Subtle Distinction
+
+The conservation property in mortar methods comes from preserving the integral
+of the flux across the interface, not from having identical pointwise values.
+This is a weaker but sufficient condition for conservation.
+In mathematical terms, if P_A and P_B are the projection operators to elements A
+and B from the mortar space:
+
+* P_A(F) ≠ P_B(F) (pointwise)
+* But ∫ P_A(F) · v_A = -∫ P_B(F) · v_B (in the weak sense)
+
+This research requires understanding the state of practice for mortar
+interfaces. If common and necessary practices form a mortar space a certain way,
+say using a quadrature surface of a specific degree in order to satisfy the
+conservation or accuracy (or stability) requirement, this should be discovered
+as part of the research.
+
+The resulting report should contain enough detail for one, maybe two
+implementations of mortar interfaces. Possibly one for equal order polynomial
+neighbors and another for mixed order. It should be opinionated WRT an
+implementation approach that mirrors the most successful approaches used for
+mixed element production DG FR methods for CFD and MHD. The target application
+is to a method library that will provide element bases for the four 3D element
+shapes, and the mortar interface will need to support all of them.
+
+Another detail to incorporate: the element definitions have not yet standardized
+on a node point choice. I can choose from any of the most successful types for
+CFD flows with strong shocks and iLES, including GLL/LGL points, Hesthaven
+Warp/Blend or others as needed. If it is discovered as part of the research that
+the volumetric node choice is important to the success of the flux continuity
+scheme, I am open to that being part of the implementation AS AN ASSUMPTION,
+meaning make the overt statement that the implementation should assume the use
+of one of the volume node point choices, and all of the implementation will
+proceed with this assumption. This becomes important as to the origin of the
+flux (solution node point directly or interpolated), etc.
