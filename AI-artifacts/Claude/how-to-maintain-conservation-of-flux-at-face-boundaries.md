@@ -413,31 +413,62 @@ problem being solved.
 
 Research the following statements about the mortar technique for ensuring
 conservation of flux across non conformal element interfaces specifically for
-the cases of tet/hex/prism/pyramid interfaces. Obtain the necessary
-implementation detail to compose an implementation of the mortar methods in
-source code in an efficient form sufficient to handle the common cases among
-those elements, in particular those involving multiple triangles interfacing to
-a quadrilateral for viscous and inviscid fluxes. If the implementation is
-neutral WRT handling viscous/inviscid/em fluxes that is superior in that only
-one method should be required to handle physical fluxes. The interest here
-excludes the “how” of solving the Riemann problem, that should be a completely
-separate concern from how to project fluxes to the common interface space and
-back again with conservation being enforced globally and even locally if deemed
-necessary.
+the cases of tet/hex/prism/pyramid interfaces. These statements are 
+discussed below the research instructions with these headers:
+## The Asymmetry in Mortar Methods
+## How Conservation is Maintained Despite Asymmetry
+## The Subtle Distinction
+
+Obtain the necessary implementation detail to compose an implementation of
+the mortar methods in source code in an efficient form sufficient to handle
+the common cases among those elements, in particular those involving 
+multiple triangles interfacing to a quadrilateral for viscous and inviscid 
+fluxes. If the implementation is neutral WRT handling viscous/inviscid/em 
+fluxes that is superior in that only one method should be required to handle 
+physical fluxes. The interest here excludes the “how” of solving the Riemann 
+problem, that should be a completely separate concern from how to project 
+fluxes to the common interface space and back again with conservation being 
+enforced globally and even locally if deemed necessary.
 
 Equal and mixed order interfaces should be included. If they differ in
 implementation, call that out for a specific variant implementation for each. I
 have attached the discussion to guide the research as well.
+This research requires understanding the state of practice for mortar
+interfaces. If common and necessary practices form a mortar space a certain way,
+say using a quadrature surface of a specific degree in order to satisfy the
+conservation or accuracy (or stability) requirement, this should be discovered
+as part of the research.
 
-You’re absolutely right - I made an error in my explanation. Mortar methods 
-are inherently asymmetric in their projection operations, and this does 
-seem to contradict the telescoping principle I just described. Let me 
-correct this and explain how mortar methods actually maintain conservation 
-despite this asymmetry.
+The resulting report should contain enough detail for one, maybe two
+implementations of mortar interfaces. Possibly one for equal order polynomial
+neighbors and another for mixed order. It should be opinionated WRT an
+implementation approach that mirrors the most successful approaches used for
+mixed element production DG FR methods for CFD and MHD. The target application
+is to a method library that will provide element bases for the four 3D element
+shapes, and the mortar interface will need to support all of them.
+
+Another detail to incorporate: the element definitions have not yet standardized
+on a node point choice. I can choose from any of the most successful types for
+CFD flows with strong shocks and iLES, including GLL/LGL points, Hesthaven
+Warp/Blend or others as needed. If it is discovered as part of the research that
+the volumetric node choice is important to the success of the flux continuity
+scheme, I am open to that being part of the implementation AS AN ASSUMPTION,
+meaning make the overt statement that the implementation should assume the use
+of one of the volume node point choices, and all of the implementation will
+proceed with this assumption. This becomes important as to the origin of the
+flux (solution node point directly or interpolated), etc.
+
+Note that the DG FR methods used do not necessarily involve integration. I 
+plan to solve the physics equations in differential form. Also note the 
+following:
+1) agnostic to Riemann solver choice
+2) P <= 5 in 3D
+3) will always save the mortar interface operators to the extent possible to 
+   maximize performance
 
 ## The Asymmetry in Mortar Methods
 
-You’ve correctly identified that mortar methods involve two distinct operations:
+Mortar methods involve two distinct operations:
 
 1. Forward projection: Each element projects its solution to the mortar space (
    often different for each element due to different polynomial orders or
@@ -478,28 +509,3 @@ and B from the mortar space:
 
 * P_A(F) ≠ P_B(F) (pointwise)
 * But ∫ P_A(F) · v_A = -∫ P_B(F) · v_B (in the weak sense)
-
-This research requires understanding the state of practice for mortar
-interfaces. If common and necessary practices form a mortar space a certain way,
-say using a quadrature surface of a specific degree in order to satisfy the
-conservation or accuracy (or stability) requirement, this should be discovered
-as part of the research.
-
-The resulting report should contain enough detail for one, maybe two
-implementations of mortar interfaces. Possibly one for equal order polynomial
-neighbors and another for mixed order. It should be opinionated WRT an
-implementation approach that mirrors the most successful approaches used for
-mixed element production DG FR methods for CFD and MHD. The target application
-is to a method library that will provide element bases for the four 3D element
-shapes, and the mortar interface will need to support all of them.
-
-Another detail to incorporate: the element definitions have not yet standardized
-on a node point choice. I can choose from any of the most successful types for
-CFD flows with strong shocks and iLES, including GLL/LGL points, Hesthaven
-Warp/Blend or others as needed. If it is discovered as part of the research that
-the volumetric node choice is important to the success of the flux continuity
-scheme, I am open to that being part of the implementation AS AN ASSUMPTION,
-meaning make the overt statement that the implementation should assume the use
-of one of the volume node point choices, and all of the implementation will
-proceed with this assumption. This becomes important as to the origin of the
-flux (solution node point directly or interpolated), etc.
