@@ -81,7 +81,7 @@ func DivergenceConvergence_Test(t *testing.T, BasisType RTBasisType, PMax int) {
 	// }
 	// Results := utils.NewVector(PEnd, l10RMS)
 	Results := utils.NewVector(PEnd, rmsCheck)
-	jp1d := NewJacobiBasis1D(PEnd-1, Results, 0, 0)
+	jp1d := NewJacobiBasis1D(PEnd-1, Results)
 	V := jp1d.Vandermonde1D()
 	V.Print("V")
 	VInter, _ := V.Transpose().Mul(V).Inverse()

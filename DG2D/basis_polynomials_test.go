@@ -134,7 +134,7 @@ func TestJacobiBasis1D_GetOrthogonalPolynomialAtJ(t *testing.T) {
 	PEnd := 6
 	for P := PStart; P <= PEnd; P++ {
 		R := utils.NewVector(P+1, DG1D.LegendreZeros(P))
-		jb1d := NewJacobiBasis1D(P, R, 0, 0)
+		jb1d := NewJacobiBasis1D(P, R)
 		A := utils.NewMatrix(jb1d.Np, jb1d.Np)
 		DR := utils.NewMatrix(jb1d.Np, jb1d.Np)
 		for j := 0; j < jb1d.Np; j++ {
