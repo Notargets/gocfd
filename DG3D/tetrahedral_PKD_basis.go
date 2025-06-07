@@ -18,7 +18,6 @@ type TetBasis struct {
 	Np    int // Number of basis functions = (P+1)(P+2)(P+3)/6
 }
 
-// NewTetBasis creates a new tetrahedral basis of given order
 func NewTetBasis(order int) *TetBasis {
 	np := (order + 1) * (order + 2) * (order + 3) / 6
 	return &TetBasis{
@@ -27,19 +26,6 @@ func NewTetBasis(order int) *TetBasis {
 	}
 }
 
-// TetCubature holds cubature points and weights for tetrahedron
-type TetCubature struct {
-	R, S, T utils.Vector // Cubature points
-	W       utils.Vector // Weights
-}
-
-// FaceCubature holds cubature points and weights for triangular faces
-type FaceCubature struct {
-	R, S utils.Vector // Cubature points on 2D triangle
-	W    utils.Vector // Weights
-}
-
-// GeometricFactors stores metric terms for physical elements
 type GeometricFactors struct {
 	X, Y, Z    utils.Matrix // Physical coordinates at each node
 	Rx, Ry, Rz utils.Matrix // dr/dx, dr/dy, dr/dz
@@ -48,14 +34,12 @@ type GeometricFactors struct {
 	J          utils.Matrix // Jacobian determinant
 }
 
-// FaceGeometricFactors stores metric terms for element faces
 type FaceGeometricFactors struct {
 	Nx, Ny, Nz utils.Matrix // Outward normal components
 	SJ         utils.Matrix // Surface Jacobian (area scaling)
 	Fscale     utils.Matrix // Face integration scaling = sJ/J(face)
 }
 
-// Element3D represents a tetrahedral element
 type Element3D struct {
 	*TetBasis
 
@@ -87,27 +71,9 @@ type Element3D struct {
 	FaceGeomFactors *FaceGeometricFactors
 }
 
-// ConnectivityArrays stores mesh connectivity information
 type ConnectivityArrays struct {
 	EToE [][]int // Element to element connectivity
 	EToF [][]int // Element to face connectivity
-}
-
-// RStoAB transforms from (r,s) to (a,b) coordinates for 2D simplex
-func RStoAB(r, s utils.Vector) (a, b utils.Vector) {
-	n := r.Len()
-	a = utils.NewVector(n)
-	b = utils.NewVector(n)
-
-	for i := 0; i < n; i++ {
-		if s.At(i) != 1 {
-			a.Set(i, 2*(1+r.At(i))/(1-s.At(i))-1)
-		} else {
-			a.Set(i, -1)
-		}
-		b.Set(i, s.At(i))
-	}
-	return
 }
 
 func RSTtoABC(r, s, t utils.Vector) (a, b, c utils.Vector) {
@@ -136,103 +102,6 @@ func RSTtoABC(r, s, t utils.Vector) (a, b, c utils.Vector) {
 	return
 }
 
-// EquispacedNodes3D generates equispaced nodes on the reference tetrahedron
-func EquispacedNodes3D(P int) (r, s, t utils.Vector) {
-	Np := (P + 1) * (P + 2) * (P + 3) / 6
-	rr := make([]float64, Np)
-	ss := make([]float64, Np)
-	tt := make([]float64, Np)
-
-	if P == 1 {
-		// Vertices of reference tetrahedron
-		rr[0], ss[0], tt[0] = -1.0, -1.0, -1.0
-		rr[1], ss[1], tt[1] = 1.0, -1.0, -1.0
-		rr[2], ss[2], tt[2] = -1.0, 1.0, -1.0
-		rr[3], ss[3], tt[3] = -1.0, -1.0, 1.0
-	} else {
-		// Use equispaced nodes on the reference tetrahedron
-		idx := 0
-		for n := 0; n <= P; n++ {
-			for m := 0; m <= P-n; m++ {
-				for l := 0; l <= P-n-m; l++ {
-					// Map to barycentric coordinates
-					i := l
-					j := m
-					k := n
-					L1 := float64(i) / float64(P)
-					L2 := float64(j) / float64(P)
-					L3 := float64(k) / float64(P)
-					L4 := 1.0 - L1 - L2 - L3
-
-					// Convert to Cartesian coordinates on reference element
-					rr[idx] = -L1 - L2 - L3 + L4
-					ss[idx] = -L1 - L2 + L3 - L4
-					tt[idx] = -L1 + L2 - L3 - L4
-					idx++
-				}
-			}
-		}
-	}
-
-	r = utils.NewVector(Np, rr)
-	s = utils.NewVector(Np, ss)
-	t = utils.NewVector(Np, tt)
-
-	return r, s, t
-}
-
-// Warpfactor computes warp factor used in creating optimal node distributions
-func Warpfactor(N int, rout []float64) []float64 {
-	// Compute LGL and equidistant node distribution
-	LGLr := JacobiGL(0, 0, N)
-
-	// Equidistant nodes
-	req := make([]float64, N+1)
-	for i := 0; i <= N; i++ {
-		req[i] = -1.0 + 2.0*float64(i)/float64(N)
-	}
-
-	// Compute Vandermonde based on equispaced nodes
-	Veq := utils.NewMatrix(N+1, N+1)
-	for i := 0; i <= N; i++ {
-		for j := 0; j <= N; j++ {
-			Veq.Set(i, j, DG1D.JacobiP(utils.NewVector(1, []float64{req[i]}), 0, 0, j)[0])
-		}
-	}
-
-	// Evaluate Lagrange polynomial at rout
-	Nr := len(rout)
-	Pmat := utils.NewMatrix(N+1, Nr)
-	for i := 0; i <= N; i++ {
-		for j := 0; j < Nr; j++ {
-			Pmat.Set(i, j, DG1D.JacobiP(utils.NewVector(1, []float64{rout[j]}), 0, 0, i)[0])
-		}
-	}
-
-	Lmat := Veq.InverseWithCheck().Transpose().Mul(Pmat)
-
-	// Compute warp factor
-	warp := make([]float64, Nr)
-	for i := 0; i < Nr; i++ {
-		warp[i] = 0
-		for j := 0; j <= N; j++ {
-			warp[i] += Lmat.At(j, i) * (LGLr[j] - req[j])
-		}
-	}
-
-	// Scale factor
-	if N > 1 {
-		for i := 0; i < Nr; i++ {
-			sf := 1.0 - (math.Abs(rout[i]))
-			sf = sf * sf
-			warp[i] = warp[i] * sf
-		}
-	}
-
-	return warp
-}
-
-// Nodes3D computes optimized interpolation nodes on tetrahedron
 func Nodes3D(N int) (x, y, z utils.Vector) {
 	// Choose optimized blending parameter
 	alphastore := []float64{
@@ -405,7 +274,6 @@ func Nodes3D(N int) (x, y, z utils.Vector) {
 	return r, s, t
 }
 
-// EquiNodes3D generates equispaced nodes on the reference tetrahedron
 func EquiNodes3D(N int) (r, s, t utils.Vector) {
 	Np := (N + 1) * (N + 2) * (N + 3) / 6
 	rr := make([]float64, Np)
@@ -431,14 +299,12 @@ func EquiNodes3D(N int) (r, s, t utils.Vector) {
 	return r, s, t
 }
 
-// WarpShiftFace3D computes warp factor used in creating 3D Warp & Blend nodes
 func WarpShiftFace3D(p int, pval, pval2 float64, L1, L2, L3, L4 []float64) (warpx, warpy []float64) {
 	// Compute warp factors using evalshift
 	warpx, warpy = evalshift(p, pval, L2, L3, L4)
 	return warpx, warpy
 }
 
-// XYZtoRST transforms from equilateral to reference tetrahedron coordinates
 func XYZtoRST(X, Y, Z []float64) (r, s, t utils.Vector) {
 	n := len(X)
 	rr := make([]float64, n)
@@ -488,7 +354,6 @@ func XYZtoRST(X, Y, Z []float64) (r, s, t utils.Vector) {
 	return
 }
 
-// JacobiGL computes Gauss-Lobatto-Jacobi points
 func JacobiGL(alpha, beta float64, N int) []float64 {
 	if N == 0 {
 		return []float64{0.0}
@@ -513,7 +378,6 @@ func JacobiGL(alpha, beta float64, N int) []float64 {
 	return x
 }
 
-// JacobiGQ computes Gauss-Jacobi quadrature points
 func JacobiGQ(alpha, beta float64, N int) []float64 {
 	if N == 0 {
 		return []float64{-(alpha - beta) / (alpha + beta + 2)}
@@ -562,8 +426,6 @@ func JacobiGQ(alpha, beta float64, N int) []float64 {
 	return x
 }
 
-// Simplex3DP evaluates 3D polynomial on simplex at (r,s,t) of order (i,j,k)
-// Exactly matching C++ implementation
 func Simplex3DP(r, s, t utils.Vector, i, j, k int) []float64 {
 	// Convert to collapsed coordinates
 	a, b, c := RSTtoABC(r, s, t)
@@ -598,9 +460,6 @@ func Simplex3DP(r, s, t utils.Vector, i, j, k int) []float64 {
 	return P
 }
 
-// BuildFmask3D builds face node masks for all 4 faces of tetrahedron
-// BuildFmask3D builds face node masks for all 4 faces of tetrahedron
-// BuildFmask3D builds face node masks for all 4 faces of tetrahedron
 func BuildFmask3D(r, s, t utils.Vector, N int) [][]int {
 	Np := r.Len()
 	fmask := make([][]int, 4)
@@ -644,7 +503,6 @@ func BuildFmask3D(r, s, t utils.Vector, N int) [][]int {
 	return fmask
 }
 
-// Lift3D computes lift matrix for surface integrals
 func Lift3D(N int, fmask [][]int, V utils.Matrix, R, S, T utils.Vector) utils.Matrix {
 	Np := V.Rows()
 	Nfaces := 4
@@ -697,7 +555,270 @@ func Lift3D(N int, fmask [][]int, V utils.Matrix, R, S, T utils.Vector) utils.Ma
 	return LIFT
 }
 
-// GeometricFactors3D computes metric terms for physical elements
+func (tb *TetBasis) EvaluateBasis(r, s, t float64) []float64 {
+	phi := make([]float64, tb.Np)
+
+	// Create vectors for single point
+	rv := utils.NewVector(1, []float64{r})
+	sv := utils.NewVector(1, []float64{s})
+	tv := utils.NewVector(1, []float64{t})
+
+	// Loop over all basis functions
+	idx := 0
+	for i := 0; i <= tb.Order; i++ {
+		for j := 0; j <= tb.Order-i; j++ {
+			for k := 0; k <= tb.Order-i-j; k++ {
+				P := Simplex3DP(rv, sv, tv, i, j, k)
+				phi[idx] = P[0]
+				idx++
+			}
+		}
+	}
+
+	return phi
+}
+
+func (tb *TetBasis) ComputeVandermonde(r, s, t utils.Vector) utils.Matrix {
+	n := r.Len()
+	V := utils.NewMatrix(n, tb.Np)
+
+	// Loop over all basis functions
+	sk := 0
+	for i := 0; i <= tb.Order; i++ {
+		for j := 0; j <= tb.Order-i; j++ {
+			for k := 0; k <= tb.Order-i-j; k++ {
+				P := Simplex3DP(r, s, t, i, j, k)
+				V.SetCol(sk, P)
+				sk++
+			}
+		}
+	}
+
+	return V
+}
+
+func GradSimplex3DP(r, s, t utils.Vector, id, jd, kd int) (dmodedr, dmodeds, dmodedt []float64) {
+	n := r.Len()
+	dmodedr = make([]float64, n)
+	dmodeds = make([]float64, n)
+	dmodedt = make([]float64, n)
+
+	// Convert to collapsed coordinates
+	a, b, c := RSTtoABC(r, s, t)
+
+	// Compute Jacobi polynomials
+	fa := DG1D.JacobiP(a, 0, 0, id)
+	gb := DG1D.JacobiP(b, float64(2*id+1), 0, jd)
+	hc := DG1D.JacobiP(c, float64(2*id+2*jd+2), 0, kd)
+
+	// Compute derivatives
+	dfa := DG1D.GradJacobiP(a, 0, 0, id)
+	dgb := DG1D.GradJacobiP(b, float64(2*id+1), 0, jd)
+	dhc := DG1D.GradJacobiP(c, float64(2*id+2*jd+2), 0, kd)
+
+	// Compute each derivative component
+	for i := 0; i < n; i++ {
+		ai := a.At(i)
+		bi := b.At(i)
+		ci := c.At(i)
+
+		// r-derivative
+		V3Dr := dfa[i] * (gb[i] * hc[i])
+		if id > 0 {
+			V3Dr = V3Dr * math.Pow(0.5*(1-bi), float64(id-1))
+		}
+		if id+jd > 0 {
+			V3Dr = V3Dr * math.Pow(0.5*(1-ci), float64(id+jd-1))
+		}
+		dmodedr[i] = V3Dr
+
+		// s-derivative
+		V3Ds := 0.5 * (1 + ai) * V3Dr
+		tmp := dgb[i] * math.Pow(0.5*(1-bi), float64(id))
+		if id > 0 {
+			tmp = tmp + (-0.5*float64(id))*(gb[i]*math.Pow(0.5*(1-bi), float64(id-1)))
+		}
+		if id+jd > 0 {
+			tmp = tmp * math.Pow(0.5*(1-ci), float64(id+jd-1))
+		}
+		tmp = fa[i] * (tmp * hc[i])
+		V3Ds = V3Ds + tmp
+		dmodeds[i] = V3Ds
+
+		// t-derivative
+		V3Dt := 0.5*(1+ai)*V3Dr + 0.5*(1+bi)*tmp
+		tmp2 := dhc[i] * math.Pow(0.5*(1-ci), float64(id+jd))
+		if id+jd > 0 {
+			tmp2 = tmp2 - 0.5*float64(id+jd)*(hc[i]*math.Pow(0.5*(1-ci), float64(id+jd-1)))
+		}
+		tmp2 = fa[i] * (gb[i] * tmp2)
+		tmp2 = tmp2 * math.Pow(0.5*(1-bi), float64(id))
+		V3Dt = V3Dt + tmp2
+		dmodedt[i] = V3Dt
+
+		// normalize
+		normFactor := math.Pow(2, float64(2*id+jd)+1.5)
+		dmodedr[i] = dmodedr[i] * normFactor
+		dmodeds[i] = dmodeds[i] * normFactor
+		dmodedt[i] = dmodedt[i] * normFactor
+	}
+
+	return
+}
+
+func (tb *TetBasis) EvaluateBasisGrad(r, s, t float64) (dphidr, dphids, dphidt []float64) {
+	dphidr = make([]float64, tb.Np)
+	dphids = make([]float64, tb.Np)
+	dphidt = make([]float64, tb.Np)
+
+	// Create vectors for single point
+	rv := utils.NewVector(1, []float64{r})
+	sv := utils.NewVector(1, []float64{s})
+	tv := utils.NewVector(1, []float64{t})
+
+	// Loop over all basis functions
+	idx := 0
+	for i := 0; i <= tb.Order; i++ {
+		for j := 0; j <= tb.Order-i; j++ {
+			for k := 0; k <= tb.Order-i-j; k++ {
+				dr, ds, dt := GradSimplex3DP(rv, sv, tv, i, j, k)
+				dphidr[idx] = dr[0]
+				dphids[idx] = ds[0]
+				dphidt[idx] = dt[0]
+				idx++
+			}
+		}
+	}
+
+	return dphidr, dphids, dphidt
+}
+
+func (tb *TetBasis) ComputeGradVandermonde(r, s, t utils.Vector) (Vr, Vs, Vt utils.Matrix) {
+	n := r.Len()
+	Vr = utils.NewMatrix(n, tb.Np)
+	Vs = utils.NewMatrix(n, tb.Np)
+	Vt = utils.NewMatrix(n, tb.Np)
+
+	// Loop over all basis functions
+	sk := 0
+	for i := 0; i <= tb.Order; i++ {
+		for j := 0; j <= tb.Order-i; j++ {
+			for k := 0; k <= tb.Order-i-j; k++ {
+				dr, ds, dt := GradSimplex3DP(r, s, t, i, j, k)
+				Vr.SetCol(sk, dr)
+				Vs.SetCol(sk, ds)
+				Vt.SetCol(sk, dt)
+				sk++
+			}
+		}
+	}
+
+	return Vr, Vs, Vt
+}
+
+func evalshift(p int, pval float64, L1, L2, L3 []float64) (dx, dy []float64) {
+	n := len(L1)
+	dx = make([]float64, n)
+	dy = make([]float64, n)
+
+	// 1) compute Gauss-Lobatto-Legendre node distribution
+	gaussX := JacobiGL(0, 0, p)
+	// Negate the values (C++: gaussX = -JacobiGL(0,0,p))
+	for i := range gaussX {
+		gaussX[i] = -gaussX[i]
+	}
+
+	// 3) compute blending function at each node for each edge
+	blend1 := make([]float64, n)
+	blend2 := make([]float64, n)
+	blend3 := make([]float64, n)
+
+	for i := 0; i < n; i++ {
+		blend1[i] = L2[i] * L3[i]
+		blend2[i] = L1[i] * L3[i]
+		blend3[i] = L1[i] * L2[i]
+	}
+
+	// 4) amount of warp for each node, for each edge
+	tv1 := make([]float64, n)
+	tv2 := make([]float64, n)
+	tv3 := make([]float64, n)
+
+	for i := 0; i < n; i++ {
+		tv1[i] = L3[i] - L2[i]
+		tv2[i] = L1[i] - L3[i]
+		tv3[i] = L2[i] - L1[i]
+	}
+
+	warpfactor1 := evalwarp(p, gaussX, tv1)
+	warpfactor2 := evalwarp(p, gaussX, tv2)
+	warpfactor3 := evalwarp(p, gaussX, tv3)
+
+	// Scale by 4.0
+	for i := 0; i < n; i++ {
+		warpfactor1[i] *= 4.0
+		warpfactor2[i] *= 4.0
+		warpfactor3[i] *= 4.0
+	}
+
+	// 5) combine blend & warp
+	warp1 := make([]float64, n)
+	warp2 := make([]float64, n)
+	warp3 := make([]float64, n)
+
+	for i := 0; i < n; i++ {
+		warp1[i] = blend1[i] * warpfactor1[i] * (1.0 + pval*pval*L1[i]*L1[i])
+		warp2[i] = blend2[i] * warpfactor2[i] * (1.0 + pval*pval*L2[i]*L2[i])
+		warp3[i] = blend3[i] * warpfactor3[i] * (1.0 + pval*pval*L3[i]*L3[i])
+	}
+
+	// 6) evaluate shift in equilateral triangle
+	TWOPI := 2.0 * math.Pi
+	FOURPI := 4.0 * math.Pi
+
+	for i := 0; i < n; i++ {
+		dx[i] = 1.0*warp1[i] + math.Cos(TWOPI/3.0)*warp2[i] + math.Cos(FOURPI/3.0)*warp3[i]
+		dy[i] = 0.0*warp1[i] + math.Sin(TWOPI/3.0)*warp2[i] + math.Sin(FOURPI/3.0)*warp3[i]
+	}
+
+	return dx, dy
+}
+
+func evalwarp(p int, gaussX []float64, xnodes []float64) []float64 {
+	n := len(xnodes)
+	warp := make([]float64, n)
+
+	// Create equidistant nodes
+	xeq := make([]float64, p+1)
+	for i := 0; i <= p; i++ {
+		xeq[i] = -1.0 + 2.0*float64(i)/float64(p)
+	}
+
+	// For each evaluation point
+	for i := 0; i < n; i++ {
+		x := xnodes[i]
+
+		// Compute Lagrange interpolation from equidistant to GLL nodes
+		warpval := 0.0
+		for j := 0; j <= p; j++ {
+			// Lagrange basis at xeq[j] evaluated at x
+			lagrange := 1.0
+			for k := 0; k <= p; k++ {
+				if k != j {
+					lagrange *= (x - xeq[k]) / (xeq[j] - xeq[k])
+				}
+			}
+			warpval += lagrange * (gaussX[j] - xeq[j])
+		}
+
+		// Scale factor
+		sf := 1.0 - x*x
+		warp[i] = warpval * sf
+	}
+
+	return warp
+}
+
 func GeometricFactors3D(x, y, z, Dr, Ds, Dt utils.Matrix) *GeometricFactors {
 	xr := Dr.Mul(x)
 	xs := Ds.Mul(x)
@@ -755,7 +876,6 @@ func GeometricFactors3D(x, y, z, Dr, Ds, Dt utils.Matrix) *GeometricFactors {
 	}
 }
 
-// Normals3D computes outward facing normals at element faces
 func Normals3D(geom *GeometricFactors, fmask [][]int, K int) *FaceGeometricFactors {
 	Nfaces := 4
 	Nfp := len(fmask[0])
@@ -851,7 +971,6 @@ func Normals3D(geom *GeometricFactors, fmask [][]int, K int) *FaceGeometricFacto
 	}
 }
 
-// BuildMaps3D creates connectivity maps for DG
 func BuildMaps3D(K int, Np int, Nfp int, fmask [][]int, x, y, z utils.Matrix,
 	conn *ConnectivityArrays) (VmapM, VmapP, MapM, MapP []int) {
 
@@ -939,7 +1058,6 @@ func BuildMaps3D(K int, Np int, Nfp int, fmask [][]int, x, y, z utils.Matrix,
 	return vmapM, vmapP, mapM, mapP
 }
 
-// Connect3D builds element to element connectivity
 func Connect3D(EToV [][]int) *ConnectivityArrays {
 	K := len(EToV)
 	Nfaces := 4
@@ -1018,275 +1136,4 @@ func Connect3D(EToV [][]int) *ConnectivityArrays {
 		EToE: EToE,
 		EToF: EToF,
 	}
-}
-
-// EvaluateBasis evaluates all basis functions at a single point (r,s,t)
-func (tb *TetBasis) EvaluateBasis(r, s, t float64) []float64 {
-	phi := make([]float64, tb.Np)
-
-	// Create vectors for single point
-	rv := utils.NewVector(1, []float64{r})
-	sv := utils.NewVector(1, []float64{s})
-	tv := utils.NewVector(1, []float64{t})
-
-	// Loop over all basis functions
-	idx := 0
-	for i := 0; i <= tb.Order; i++ {
-		for j := 0; j <= tb.Order-i; j++ {
-			for k := 0; k <= tb.Order-i-j; k++ {
-				P := Simplex3DP(rv, sv, tv, i, j, k)
-				phi[idx] = P[0]
-				idx++
-			}
-		}
-	}
-
-	return phi
-}
-
-// ComputeVandermonde computes the Vandermonde matrix for given nodes
-func (tb *TetBasis) ComputeVandermonde(r, s, t utils.Vector) utils.Matrix {
-	n := r.Len()
-	V := utils.NewMatrix(n, tb.Np)
-
-	// Loop over all basis functions
-	sk := 0
-	for i := 0; i <= tb.Order; i++ {
-		for j := 0; j <= tb.Order-i; j++ {
-			for k := 0; k <= tb.Order-i-j; k++ {
-				P := Simplex3DP(r, s, t, i, j, k)
-				V.SetCol(sk, P)
-				sk++
-			}
-		}
-	}
-
-	return V
-}
-
-// GradSimplex3DP computes gradients of 3D orthonormal polynomial
-func GradSimplex3DP(r, s, t utils.Vector, id, jd, kd int) (dmodedr, dmodeds, dmodedt []float64) {
-	n := r.Len()
-	dmodedr = make([]float64, n)
-	dmodeds = make([]float64, n)
-	dmodedt = make([]float64, n)
-
-	// Convert to collapsed coordinates
-	a, b, c := RSTtoABC(r, s, t)
-
-	// Compute Jacobi polynomials
-	fa := DG1D.JacobiP(a, 0, 0, id)
-	gb := DG1D.JacobiP(b, float64(2*id+1), 0, jd)
-	hc := DG1D.JacobiP(c, float64(2*id+2*jd+2), 0, kd)
-
-	// Compute derivatives
-	dfa := DG1D.GradJacobiP(a, 0, 0, id)
-	dgb := DG1D.GradJacobiP(b, float64(2*id+1), 0, jd)
-	dhc := DG1D.GradJacobiP(c, float64(2*id+2*jd+2), 0, kd)
-
-	// Compute each derivative component
-	for i := 0; i < n; i++ {
-		ai := a.At(i)
-		bi := b.At(i)
-		ci := c.At(i)
-
-		// r-derivative
-		V3Dr := dfa[i] * (gb[i] * hc[i])
-		if id > 0 {
-			V3Dr = V3Dr * math.Pow(0.5*(1-bi), float64(id-1))
-		}
-		if id+jd > 0 {
-			V3Dr = V3Dr * math.Pow(0.5*(1-ci), float64(id+jd-1))
-		}
-		dmodedr[i] = V3Dr
-
-		// s-derivative
-		V3Ds := 0.5 * (1 + ai) * V3Dr
-		tmp := dgb[i] * math.Pow(0.5*(1-bi), float64(id))
-		if id > 0 {
-			tmp = tmp + (-0.5*float64(id))*(gb[i]*math.Pow(0.5*(1-bi), float64(id-1)))
-		}
-		if id+jd > 0 {
-			tmp = tmp * math.Pow(0.5*(1-ci), float64(id+jd-1))
-		}
-		tmp = fa[i] * (tmp * hc[i])
-		V3Ds = V3Ds + tmp
-		dmodeds[i] = V3Ds
-
-		// t-derivative
-		V3Dt := 0.5*(1+ai)*V3Dr + 0.5*(1+bi)*tmp
-		tmp2 := dhc[i] * math.Pow(0.5*(1-ci), float64(id+jd))
-		if id+jd > 0 {
-			tmp2 = tmp2 - 0.5*float64(id+jd)*(hc[i]*math.Pow(0.5*(1-ci), float64(id+jd-1)))
-		}
-		tmp2 = fa[i] * (gb[i] * tmp2)
-		tmp2 = tmp2 * math.Pow(0.5*(1-bi), float64(id))
-		V3Dt = V3Dt + tmp2
-		dmodedt[i] = V3Dt
-
-		// normalize
-		normFactor := math.Pow(2, float64(2*id+jd)+1.5)
-		dmodedr[i] = dmodedr[i] * normFactor
-		dmodeds[i] = dmodeds[i] * normFactor
-		dmodedt[i] = dmodedt[i] * normFactor
-	}
-
-	return
-}
-
-// EvaluateBasisGrad evaluates gradients of all basis functions at a single point
-func (tb *TetBasis) EvaluateBasisGrad(r, s, t float64) (dphidr, dphids, dphidt []float64) {
-	dphidr = make([]float64, tb.Np)
-	dphids = make([]float64, tb.Np)
-	dphidt = make([]float64, tb.Np)
-
-	// Create vectors for single point
-	rv := utils.NewVector(1, []float64{r})
-	sv := utils.NewVector(1, []float64{s})
-	tv := utils.NewVector(1, []float64{t})
-
-	// Loop over all basis functions
-	idx := 0
-	for i := 0; i <= tb.Order; i++ {
-		for j := 0; j <= tb.Order-i; j++ {
-			for k := 0; k <= tb.Order-i-j; k++ {
-				dr, ds, dt := GradSimplex3DP(rv, sv, tv, i, j, k)
-				dphidr[idx] = dr[0]
-				dphids[idx] = ds[0]
-				dphidt[idx] = dt[0]
-				idx++
-			}
-		}
-	}
-
-	return dphidr, dphids, dphidt
-}
-
-// ComputeGradVandermonde computes gradient Vandermonde matrices
-func (tb *TetBasis) ComputeGradVandermonde(r, s, t utils.Vector) (Vr, Vs, Vt utils.Matrix) {
-	n := r.Len()
-	Vr = utils.NewMatrix(n, tb.Np)
-	Vs = utils.NewMatrix(n, tb.Np)
-	Vt = utils.NewMatrix(n, tb.Np)
-
-	// Loop over all basis functions
-	sk := 0
-	for i := 0; i <= tb.Order; i++ {
-		for j := 0; j <= tb.Order-i; j++ {
-			for k := 0; k <= tb.Order-i-j; k++ {
-				dr, ds, dt := GradSimplex3DP(r, s, t, i, j, k)
-				Vr.SetCol(sk, dr)
-				Vs.SetCol(sk, ds)
-				Vt.SetCol(sk, dt)
-				sk++
-			}
-		}
-	}
-
-	return Vr, Vs, Vt
-}
-
-// evalshift computes two-dimensional Warp & Blend transform
-func evalshift(p int, pval float64, L1, L2, L3 []float64) (dx, dy []float64) {
-	n := len(L1)
-	dx = make([]float64, n)
-	dy = make([]float64, n)
-
-	// 1) compute Gauss-Lobatto-Legendre node distribution
-	gaussX := JacobiGL(0, 0, p)
-	// Negate the values (C++: gaussX = -JacobiGL(0,0,p))
-	for i := range gaussX {
-		gaussX[i] = -gaussX[i]
-	}
-
-	// 3) compute blending function at each node for each edge
-	blend1 := make([]float64, n)
-	blend2 := make([]float64, n)
-	blend3 := make([]float64, n)
-
-	for i := 0; i < n; i++ {
-		blend1[i] = L2[i] * L3[i]
-		blend2[i] = L1[i] * L3[i]
-		blend3[i] = L1[i] * L2[i]
-	}
-
-	// 4) amount of warp for each node, for each edge
-	tv1 := make([]float64, n)
-	tv2 := make([]float64, n)
-	tv3 := make([]float64, n)
-
-	for i := 0; i < n; i++ {
-		tv1[i] = L3[i] - L2[i]
-		tv2[i] = L1[i] - L3[i]
-		tv3[i] = L2[i] - L1[i]
-	}
-
-	warpfactor1 := evalwarp(p, gaussX, tv1)
-	warpfactor2 := evalwarp(p, gaussX, tv2)
-	warpfactor3 := evalwarp(p, gaussX, tv3)
-
-	// Scale by 4.0
-	for i := 0; i < n; i++ {
-		warpfactor1[i] *= 4.0
-		warpfactor2[i] *= 4.0
-		warpfactor3[i] *= 4.0
-	}
-
-	// 5) combine blend & warp
-	warp1 := make([]float64, n)
-	warp2 := make([]float64, n)
-	warp3 := make([]float64, n)
-
-	for i := 0; i < n; i++ {
-		warp1[i] = blend1[i] * warpfactor1[i] * (1.0 + pval*pval*L1[i]*L1[i])
-		warp2[i] = blend2[i] * warpfactor2[i] * (1.0 + pval*pval*L2[i]*L2[i])
-		warp3[i] = blend3[i] * warpfactor3[i] * (1.0 + pval*pval*L3[i]*L3[i])
-	}
-
-	// 6) evaluate shift in equilateral triangle
-	TWOPI := 2.0 * math.Pi
-	FOURPI := 4.0 * math.Pi
-
-	for i := 0; i < n; i++ {
-		dx[i] = 1.0*warp1[i] + math.Cos(TWOPI/3.0)*warp2[i] + math.Cos(FOURPI/3.0)*warp3[i]
-		dy[i] = 0.0*warp1[i] + math.Sin(TWOPI/3.0)*warp2[i] + math.Sin(FOURPI/3.0)*warp3[i]
-	}
-
-	return dx, dy
-}
-
-// evalwarp evaluates the warp function
-func evalwarp(p int, gaussX []float64, xnodes []float64) []float64 {
-	n := len(xnodes)
-	warp := make([]float64, n)
-
-	// Create equidistant nodes
-	xeq := make([]float64, p+1)
-	for i := 0; i <= p; i++ {
-		xeq[i] = -1.0 + 2.0*float64(i)/float64(p)
-	}
-
-	// For each evaluation point
-	for i := 0; i < n; i++ {
-		x := xnodes[i]
-
-		// Compute Lagrange interpolation from equidistant to GLL nodes
-		warpval := 0.0
-		for j := 0; j <= p; j++ {
-			// Lagrange basis at xeq[j] evaluated at x
-			lagrange := 1.0
-			for k := 0; k <= p; k++ {
-				if k != j {
-					lagrange *= (x - xeq[k]) / (xeq[j] - xeq[k])
-				}
-			}
-			warpval += lagrange * (gaussX[j] - xeq[j])
-		}
-
-		// Scale factor
-		sf := 1.0 - x*x
-		warp[i] = warpval * sf
-	}
-
-	return warp
 }
