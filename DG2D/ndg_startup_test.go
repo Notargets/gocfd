@@ -32,7 +32,7 @@ func TestNDG2D(t *testing.T) {
 		assert.InDeltaSlicef(t, []float64{0.7071, 0.7071, 0.7071, 0.7071, 0.7071, 0.7071}, h1, 0.0001, "")
 		h2 := DG1D.JacobiP(b, float64(1), 0, 0)
 		assert.InDeltaSlicef(t, []float64{0.7071, 0.7071, 0.7071, 0.7071, 0.7071, 0.7071}, h2, 0.0001, "")
-		JB2D := NewJacobiBasis2D(N, R, S, 0, 0)
+		JB2D := NewJacobiBasis2D(N, R, S)
 		P := JB2D.Simplex2DP(R, S, 0, 0)
 		assert.InDeltaSlicef(t, []float64{0.7071, 0.7071, 0.7071, 0.7071, 0.7071, 0.7071}, P, 0.0001, "")
 

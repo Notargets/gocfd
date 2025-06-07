@@ -120,7 +120,7 @@ func (mt *ModalTransferEdgeInterpolation) buildEdge1DBasis(edgeNum int) *JacobiB
 
 	// Create 1D Jacobi basis
 	edge1DCoordVec := utils.NewVector(len(edge1DCoords), edge1DCoords)
-	return NewJacobiBasis1D(mt.rt.NpEdge-1, edge1DCoordVec, 0.0, 0.0)
+	return NewJacobiBasis1D(mt.rt.NpEdge-1, edge1DCoordVec)
 }
 
 // ShockCapturingFilter applies modal filtering for shock capturing

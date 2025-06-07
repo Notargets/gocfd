@@ -210,7 +210,7 @@ func modalTransferMethodFixed(le *LagrangeElement2D, rt *RTElement, edgeNum int,
 
 	edgeOrder := rt.NpEdge - 1
 	edge1DCoordVec := utils.NewVector(len(edge1DCoords), edge1DCoords)
-	jb1d := NewJacobiBasis1D(edgeOrder, edge1DCoordVec, 0.0, 0.0)
+	jb1d := NewJacobiBasis1D(edgeOrder, edge1DCoordVec)
 	Vedge1D := jb1d.Vandermonde1D()
 
 	edgeMatrix := Vedge1D.Mul(modalCoeffs1D)
@@ -479,7 +479,7 @@ func rangeLim(r float64) bool {
 		tol = 1.e-2
 	)
 	if r-tol < -1.0 || r+tol > 1.0 {
-		//if r < -0.99 || r > 0.99 {
+		// if r < -0.99 || r > 0.99 {
 		return true
 	} else {
 		return false

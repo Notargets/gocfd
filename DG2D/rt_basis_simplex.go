@@ -30,11 +30,8 @@ func NewRTBasisSimplex(P int, R, S utils.Vector) (bs *RTBasisSimplex) {
 	edge1Begin := 2 * NpInt
 	edge2Begin := edge1Begin + NpEdge
 	REdge := utils.NewVector(NpEdge, R.DataP[edge1Begin:edge2Begin])
-	bs.PEdgeBasis = NewJacobiBasis1D(P, REdge, 0, 0)
-	bs.PKBasis = NewJacobiBasis2D(P-1,
-		R.Copy().Subset(0, NpInt-1),
-		S.Copy().Subset(0, NpInt-1),
-		0, 0)
+	bs.PEdgeBasis = NewJacobiBasis1D(P, REdge)
+	bs.PKBasis = NewJacobiBasis2D(P-1, R.Copy().Subset(0, NpInt-1), S.Copy().Subset(0, NpInt-1))
 	bs.ComposePhi()
 	return
 }

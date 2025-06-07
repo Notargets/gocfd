@@ -91,10 +91,7 @@ func RecomputeBasis(BasisType int, e *ErvinRTBasis, rt *RTElement) {
 		g3 := rt.R.DataP[edgeLocation+2]
 		e.Phi = e.ComposePhiRT2(g1, g2, g3)
 	case 3:
-		e.InteriorPolyKBasis = NewJacobiBasis2D(e.P-1,
-			rt.R.Copy().Subset(0, e.NpInt-1),
-			rt.S.Copy().Subset(0, e.NpInt-1),
-			0, 0)
+		e.InteriorPolyKBasis = NewJacobiBasis2D(e.P-1, rt.R.Copy().Subset(0, e.NpInt-1), rt.S.Copy().Subset(0, e.NpInt-1))
 		e.Phi = e.ComposePhiRTK(rt.R.DataP[edgeLocation : edgeLocation+e.NpEdge])
 	}
 	rt.Phi = e.Phi

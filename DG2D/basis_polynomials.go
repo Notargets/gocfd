@@ -11,13 +11,12 @@ import (
 type JacobiBasis2D struct {
 	P               int // Order
 	Np              int // Dimension
-	Alpha, Beta     float64
 	V, Vinv, Vr, Vs utils.Matrix
 	OrderAtJ        []int
 	Order2DAtJ      [][2]int // Polynomial order in each direction at J modes
 }
 
-func NewJacobiBasis2D(P int, R, S utils.Vector, alpha, beta float64) *JacobiBasis2D {
+func NewJacobiBasis2D(P int, R, S utils.Vector) *JacobiBasis2D {
 	// This routine now calculates an Orthonormal basis using a Gramm-Schmidt
 	// process. This assumes the use of the Williams-Shun-Jameson point
 	// distribution for the element with its associated quadrature
@@ -25,8 +24,6 @@ func NewJacobiBasis2D(P int, R, S utils.Vector, alpha, beta float64) *JacobiBasi
 	jb := &JacobiBasis2D{
 		P:          P,
 		Np:         Np,
-		Alpha:      alpha,
-		Beta:       beta,
 		OrderAtJ:   make([]int, Np),
 		Order2DAtJ: make([][2]int, Np),
 	}
@@ -55,26 +52,31 @@ func (jb *JacobiBasis2D) GetInterpMatrix(R_e, S_e utils.Vector) utils.Matrix {
 	return Vedge.Mul(jb.Vinv)
 }
 
-func (jb2d *JacobiBasis2D) Vandermonde2D(N int, R, S utils.Vector) (V2D utils.Matrix) {
-	V2D = utils.NewMatrix(R.Len(), jb2d.Np)
+func Vandermonde2D(N int, R, S utils.Vector) (V2D utils.Matrix) {
+	Np := (N + 1) * (N + 2) / 2
+	V2D = utils.NewMatrix(R.Len(), Np)
 	var sk int
 	for i := 0; i <= N; i++ {
 		for j := 0; j <= (N - i); j++ {
-			V2D.SetCol(sk, jb2d.Simplex2DP(R, S, i, j))
+			V2D.SetCol(sk, Simplex2DP(R, S, i, j))
 			sk++
 		}
 	}
 	return
 }
 
-func (jb2d *JacobiBasis2D) Simplex2DP(R, S utils.Vector, i, j int) (P []float64) {
+func (jb2d *JacobiBasis2D) Vandermonde2D(N int, R, S utils.Vector) (V2D utils.Matrix) {
+	return Vandermonde2D(N, R, S)
+}
+
+func Simplex2DP(R, S utils.Vector, i, j int) (P []float64) {
 	var (
 		A, B = RStoAB(R, S)
 		Np   = A.Len()
 		bd   = B.DataP
 	)
-	h1 := DG1D.JacobiP(A, 0, jb2d.Beta, i)
-	h2 := DG1D.JacobiP(B, float64(2*i+1), jb2d.Beta, j)
+	h1 := DG1D.JacobiP(A, 0, 0, i)
+	h2 := DG1D.JacobiP(B, float64(2*i+1), 0, j)
 	P = make([]float64, Np)
 	sq2 := math.Sqrt(2)
 	for ii := range h1 {
@@ -83,6 +85,10 @@ func (jb2d *JacobiBasis2D) Simplex2DP(R, S utils.Vector, i, j int) (P []float64)
 		P[ii] = tv1 * tv2
 	}
 	return
+}
+
+func (jb2d *JacobiBasis2D) Simplex2DP(R, S utils.Vector, i, j int) (P []float64) {
+	return Simplex2DP(R, S, i, j)
 }
 
 func (jb2d *JacobiBasis2D) GradVandermonde2D(N int, R, S utils.Vector) (V2Dr, V2Ds utils.Matrix) {
@@ -104,14 +110,18 @@ func (jb2d *JacobiBasis2D) GradVandermonde2D(N int, R, S utils.Vector) (V2Dr, V2
 }
 
 func (jb2d *JacobiBasis2D) GradSimplex2DP(R, S utils.Vector, id, jd int) (ddr, dds []float64) {
+	return GradSimplex2DP(R, S, id, jd)
+}
+
+func GradSimplex2DP(R, S utils.Vector, id, jd int) (ddr, dds []float64) {
 	var (
 		A, B   = RStoAB(R, S)
 		ad, bd = A.DataP, B.DataP
 	)
-	fa := DG1D.JacobiP(A, 0, jb2d.Beta, id)
-	dfa := DG1D.GradJacobiP(A, 0, jb2d.Beta, id)
-	gb := DG1D.JacobiP(B, 2*float64(id)+1, jb2d.Beta, jd)
-	dgb := DG1D.GradJacobiP(B, 2*float64(id)+1, jb2d.Beta, jd)
+	fa := DG1D.JacobiP(A, 0, 0, id)
+	dfa := DG1D.GradJacobiP(A, 0, 0, id)
+	gb := DG1D.JacobiP(B, 2*float64(id)+1, 0, jd)
+	dgb := DG1D.GradJacobiP(B, 2*float64(id)+1, 0, jd)
 	// R-derivative
 	// d/dr = da/dr d/da + db/dr d/db = (2/(1-S)) d/da = (2/(1-B)) d/da
 	ddr = make([]float64, len(gb))
@@ -249,18 +259,15 @@ func Lagrange1DPoly(t float64, R []float64, j int, derivO ...DerivativeDirection
 type JacobiBasis1D struct {
 	P           int // Order
 	Np          int // Dimension
-	Alpha, Beta float64
 	R           utils.Vector
 	V, Vinv, Vr utils.Matrix
 }
 
-func NewJacobiBasis1D(P int, R utils.Vector, Alpha, Beta float64) (jb1d *JacobiBasis1D) {
+func NewJacobiBasis1D(P int, R utils.Vector) (jb1d *JacobiBasis1D) {
 	jb1d = &JacobiBasis1D{
-		P:     P,
-		Np:    P + 1,
-		Alpha: Alpha,
-		Beta:  Beta,
-		R:     R,
+		P:  P,
+		Np: P + 1,
+		R:  R,
 	}
 
 	if R.Len() != jb1d.Np {
@@ -273,14 +280,16 @@ func NewJacobiBasis1D(P int, R utils.Vector, Alpha, Beta float64) (jb1d *JacobiB
 	return
 }
 
-func (jb1d *JacobiBasis1D) JacobiP(r float64, j int,
+func (jb1d *JacobiBasis1D) JacobiP(r float64, j int, derivO ...DerivativeDirection) float64 {
+	return JacobiP(r, j, derivO...)
+}
+
+func JacobiP(r float64, j int,
 	derivO ...DerivativeDirection) float64 {
 	if len(derivO) == 0 {
-		return DG1D.JacobiP(utils.NewVector(1, []float64{r}),
-			jb1d.Alpha, jb1d.Beta, j)[0]
+		return DG1D.JacobiP(utils.NewVector(1, []float64{r}), 0, 0, j)[0]
 	} else {
-		return DG1D.GradJacobiP(utils.NewVector(1, []float64{r}),
-			jb1d.Alpha, jb1d.Beta, j)[0]
+		return DG1D.GradJacobiP(utils.NewVector(1, []float64{r}), 0, 0, j)[0]
 	}
 }
 

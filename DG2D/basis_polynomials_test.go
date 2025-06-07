@@ -32,7 +32,7 @@ func TestJacobiBasis2D_IndividualTerms(t *testing.T) {
 	tol := 0.000001
 	P := 2
 	R, S := MakeRSFromPoints(WilliamsShunnJameson(P))
-	jb2d := NewJacobiBasis2D(P, R, S, 0, 0)
+	jb2d := NewJacobiBasis2D(P, R, S)
 	if testing.Verbose() {
 		jb2d.V.Print("JacobiBasis2D V")
 	}
@@ -68,7 +68,7 @@ func TestJacobiBasis2D_Gradient(t *testing.T) {
 		t.Logf("----------------------------------------\n")
 		// R, S := NodesEpsilon(P)
 		R, S := MakeRSFromPoints(WilliamsShunnJameson(P))
-		jb2d := NewJacobiBasis2D(P, R, S, 0, 0)
+		jb2d := NewJacobiBasis2D(P, R, S)
 		PTestStart := 0
 		PTestEnd := P
 		// PTestEnd = 1
@@ -113,7 +113,7 @@ func TestJacobiBasis2D_GetOrthogonalPolynomialAtJ(t *testing.T) {
 	PEnd := 6
 	for P := PStart; P <= PEnd; P++ {
 		R, S := MakeRSFromPoints(WilliamsShunnJameson(P))
-		jb2d := NewJacobiBasis2D(P, R, S, 0, 0)
+		jb2d := NewJacobiBasis2D(P, R, S)
 		A := utils.NewMatrix(jb2d.Np, jb2d.Np)
 		for j := 0; j < jb2d.Np; j++ {
 			for i := 0; i < jb2d.Np; i++ {

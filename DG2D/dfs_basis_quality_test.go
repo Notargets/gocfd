@@ -85,7 +85,7 @@ func TestCorrectModalTransferWithActualBasis(t *testing.T) {
 
 		edgeOrder := rt.NpEdge - 1
 		edge1DCoordVec := utils.NewVector(len(edge1DCoords), edge1DCoords)
-		jb1d := NewJacobiBasis1D(edgeOrder, edge1DCoordVec, 0.0, 0.0)
+		jb1d := NewJacobiBasis1D(edgeOrder, edge1DCoordVec)
 		Vedge1D := jb1d.Vandermonde1D()
 
 		edgeMatrix := Vedge1D.Mul(modalCoeffs1D)

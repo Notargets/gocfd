@@ -21,7 +21,7 @@ func TestPlotProjection(t *testing.T) {
 
 	dfr := NewDFR2D(N, false, meshFile)
 	Rn, Sn := MakeRSFromPoints(WilliamsShunnJameson(NP))
-	nb := NewJacobiBasis2D(NP, Rn, Sn, 0, 0)
+	nb := NewJacobiBasis2D(NP, Rn, Sn)
 	gp := NewGalerkinProjection(dfr.SolutionBasis, nb)
 	_ = gp
 	// gp.MassMatrix.Print("MM")

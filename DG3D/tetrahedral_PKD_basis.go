@@ -519,6 +519,8 @@ func Simplex3DP(r, s, t utils.Vector, i, j, k int) []float64 {
 }
 
 // BuildFmask3D builds face node masks for all 4 faces of tetrahedron
+// BuildFmask3D builds face node masks for all 4 faces of tetrahedron
+// BuildFmask3D builds face node masks for all 4 faces of tetrahedron
 func BuildFmask3D(r, s, t utils.Vector, N int) [][]int {
 	Np := r.Len()
 	fmask := make([][]int, 4)
@@ -531,30 +533,30 @@ func BuildFmask3D(r, s, t utils.Vector, N int) [][]int {
 		fmask[f] = make([]int, 0)
 	}
 
-	// Face 1: t = -1
+	// Face 1: t = -1 (matching C++: abs(1+t) < NODETOL)
 	for i := 0; i < Np; i++ {
-		if math.Abs(t.At(i)+1) < NODETOL {
+		if math.Abs(1.0+t.At(i)) < NODETOL {
 			fmask[0] = append(fmask[0], i)
 		}
 	}
 
-	// Face 2: s = -1
+	// Face 2: s = -1 (matching C++: abs(1+s) < NODETOL)
 	for i := 0; i < Np; i++ {
-		if math.Abs(s.At(i)+1) < NODETOL {
+		if math.Abs(1.0+s.At(i)) < NODETOL {
 			fmask[1] = append(fmask[1], i)
 		}
 	}
 
-	// Face 3: r+s+t = -1
+	// Face 3: r+s+t = -1 (matching C++: abs(1+r+s+t) < NODETOL)
 	for i := 0; i < Np; i++ {
-		if math.Abs(r.At(i)+s.At(i)+t.At(i)+1) < NODETOL {
+		if math.Abs(1.0+r.At(i)+s.At(i)+t.At(i)) < NODETOL {
 			fmask[2] = append(fmask[2], i)
 		}
 	}
 
-	// Face 4: r = -1
+	// Face 4: r = -1 (matching C++: abs(1+r) < NODETOL)
 	for i := 0; i < Np; i++ {
-		if math.Abs(r.At(i)+1) < NODETOL {
+		if math.Abs(1.0+r.At(i)) < NODETOL {
 			fmask[3] = append(fmask[3], i)
 		}
 	}
@@ -571,40 +573,40 @@ func Lift3D(N int, fmask [][]int, V utils.Matrix, R, S, T utils.Vector) utils.Ma
 	// Create face mass matrix
 	Emat := utils.NewMatrix(Np, Nfaces*Nfp)
 
-	// TODO: Figure out how we're going to handle point distributions,
-	//  include face, edge and vertices like Hesthaven or only interior
-	// Import 2D basis for faces
-	jb2d := DG2D.NewJacobiBasis2D(N, R, S, 0, 0)
-
 	// Build the Emat matrix
 	for face := 0; face < Nfaces; face++ {
-		// Extract face coordinates according to MATLAB mapping
+		// Extract face coordinates according to C++ mapping
+		// Note: C++ uses 1-based face indexing, we use 0-based
 		var faceR, faceS utils.Vector
 
 		switch face {
-		case 0: // face 1: use R,S coordinates
+		case 0: // C++ face 1: use R,S coordinates
 			faceR = R.SubsetIndex(fmask[face])
 			faceS = S.SubsetIndex(fmask[face])
-		case 1: // face 2: use R,T coordinates
+		case 1: // C++ face 2: use R,T coordinates
 			faceR = R.SubsetIndex(fmask[face])
 			faceS = T.SubsetIndex(fmask[face])
-		case 2: // face 3: use S,T coordinates
+		case 2: // C++ face 3: use S,T coordinates
 			faceR = S.SubsetIndex(fmask[face])
 			faceS = T.SubsetIndex(fmask[face])
-		case 3: // face 4: use S,T coordinates
+		case 3: // C++ face 4: use S,T coordinates
 			faceR = S.SubsetIndex(fmask[face])
 			faceS = T.SubsetIndex(fmask[face])
 		}
 
 		// Compute face Vandermonde and mass matrix
-		faceV := jb2d.Vandermonde2D(N, faceR, faceS)
+		faceV := DG2D.Vandermonde2D(N, faceR, faceS)
 		massFace := faceV.Mul(faceV.Transpose()).InverseWithCheck()
 
 		// Fill Emat
+		// C++: JJ.reset((face-1)*Nfp+1, face*Nfp) creates 1-based indices
+		// Go: we need 0-based indices: face*Nfp to (face+1)*Nfp-1
 		for i := 0; i < Nfp; i++ {
 			for j := 0; j < Nfp; j++ {
-				Emat.Set(fmask[face][i], face*Nfp+j,
-					Emat.At(fmask[face][i], face*Nfp+j)+massFace.At(i, j))
+				// C++ assigns massFace to Emat(idr, JJ)
+				// idr = Fmask(All,face) = fmask[face]
+				// JJ columns are face*Nfp+j (0-based)
+				Emat.Set(fmask[face][i], face*Nfp+j, massFace.At(i, j))
 			}
 		}
 	}
