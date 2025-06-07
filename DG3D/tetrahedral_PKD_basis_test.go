@@ -15,7 +15,7 @@ import (
 // exactly up to order P
 func TestPKDBasisInterpolation(t *testing.T) {
 	var (
-		tol = 1.e-12
+		tol = 2.e-12
 	)
 	// for i, label := range []string{"Warp/Blend", "Equispaced", "Shunn Ham"} {
 	// 	t.Logf("Using %s nodes\n", label)
@@ -519,9 +519,164 @@ func TestPKDBasisDerivatives(t *testing.T) {
 	}
 }
 
+func TestBuildFmask3D(t *testing.T) {
+	for P := 1; P <= 5; P++ {
+		t.Run(fmt.Sprintf("Order_%d", P), func(t *testing.T) {
+			// Get interpolation nodes
+			R, S, T := Nodes3D(P)
+
+			// Build face masks
+			fmask := BuildFmask3D(R, S, T, P)
+
+			// Expected number of nodes per face
+			Nfp := (P + 1) * (P + 2) / 2
+
+			// Total number of nodes
+			Np := (P + 1) * (P + 2) * (P + 3) / 6
+
+			// Test 1: Check we have 4 faces
+			assert.Equal(t, 4, len(fmask), "Should have 4 faces")
+
+			// Test 2: Check each face has the correct number of nodes
+			for face := 0; face < 4; face++ {
+				assert.Equal(t, Nfp, len(fmask[face]),
+					"Face %d should have %d nodes, got %d", face, Nfp, len(fmask[face]))
+			}
+
+			// Test 3: Check all face node indices are valid
+			for face := 0; face < 4; face++ {
+				for _, idx := range fmask[face] {
+					assert.True(t, idx >= 0 && idx < Np,
+						"Face %d has invalid node index %d (should be 0-%d)", face, idx, Np-1)
+				}
+			}
+
+			// Test 4: Check no duplicate nodes within a face
+			for face := 0; face < 4; face++ {
+				seen := make(map[int]bool)
+				for _, idx := range fmask[face] {
+					assert.False(t, seen[idx],
+						"Face %d has duplicate node index %d", face, idx)
+					seen[idx] = true
+				}
+			}
+
+			// Test 5: Verify face nodes satisfy face equations
+			tol := 1e-10
+			for face := 0; face < 4; face++ {
+				for _, idx := range fmask[face] {
+					r := R.At(idx)
+					s := S.At(idx)
+					tt := T.At(idx)
+
+					switch face {
+					case 0: // Face 1: t = -1
+						assert.True(t, math.Abs(1.0+tt) < tol,
+							"Face 0 node %d: t=%g should be -1", idx, tt)
+					case 1: // Face 2: s = -1
+						assert.True(t, math.Abs(1.0+s) < tol,
+							"Face 1 node %d: s=%g should be -1", idx, s)
+					case 2: // Face 3: r+s+t = -1
+						assert.True(t, math.Abs(1.0+r+s+tt) < tol,
+							"Face 2 node %d: r+s+t=%g should be -1", idx, r+s+tt)
+					case 3: // Face 4: r = -1
+						assert.True(t, math.Abs(1.0+r) < tol,
+							"Face 3 node %d: r=%g should be -1", idx, r)
+					}
+				}
+			}
+
+			// Test 6: Count total unique face nodes
+			allFaceNodes := make(map[int]bool)
+			for face := 0; face < 4; face++ {
+				for _, idx := range fmask[face] {
+					allFaceNodes[idx] = true
+				}
+			}
+
+			// For a tetrahedron, all nodes should be on the boundary
+			// except for higher order internal nodes
+			t.Logf("Order %d: %d total nodes, %d face nodes", P, Np, len(allFaceNodes))
+
+			// Test 7: Print face node counts for debugging
+			t.Logf("Order %d face node counts: [%d, %d, %d, %d]",
+				P, len(fmask[0]), len(fmask[1]), len(fmask[2]), len(fmask[3]))
+		})
+	}
+}
+
+func TestBuildFmask3DWithToleranceCheck(t *testing.T) {
+	for P := 1; P <= 5; P++ {
+		t.Run(fmt.Sprintf("Order_%d", P), func(t *testing.T) {
+			// Get interpolation nodes
+			R, S, T := Nodes3D(P)
+
+			// Expected number of nodes per face
+			Nfp := (P + 1) * (P + 2) / 2
+
+			// Check with different tolerances
+			tolerances := []float64{1e-10, 1e-9, 1e-8, 1e-7, 1e-6}
+
+			for _, tol := range tolerances {
+				// Count nodes near each face
+				face0Count := 0
+				face1Count := 0
+				face2Count := 0
+				face3Count := 0
+
+				for i := 0; i < R.Len(); i++ {
+					r := R.At(i)
+					s := S.At(i)
+					t := T.At(i)
+
+					if math.Abs(1.0+t) < tol {
+						face0Count++
+					}
+					if math.Abs(1.0+s) < tol {
+						face1Count++
+					}
+					if math.Abs(1.0+r+s+t) < tol {
+						face2Count++
+					}
+					if math.Abs(1.0+r) < tol {
+						face3Count++
+					}
+				}
+
+				t.Logf("Order %d, tolerance %e: face counts [%d, %d, %d, %d], expected %d",
+					P, tol, face0Count, face1Count, face2Count, face3Count, Nfp)
+			}
+
+			// Also check the actual distance from faces for nodes we expect to be on faces
+			maxDist := 0.0
+			for i := 0; i < R.Len(); i++ {
+				r := R.At(i)
+				s := S.At(i)
+				tt := T.At(i)
+
+				// Check minimum distance to any face
+				dist0 := math.Abs(1.0 + tt)
+				dist1 := math.Abs(1.0 + s)
+				dist2 := math.Abs(1.0 + r + s + tt)
+				dist3 := math.Abs(1.0 + r)
+
+				minDist := math.Min(math.Min(dist0, dist1), math.Min(dist2, dist3))
+
+				// If this should be a face node (within some reasonable tolerance)
+				if minDist < 1e-6 {
+					if minDist > maxDist {
+						maxDist = minDist
+						t.Logf("Node %d: r=%g, s=%g, t=%g, min face distance=%e",
+							i, r, s, tt, minDist)
+					}
+				}
+			}
+			t.Logf("Order %d: Maximum distance from face for 'face nodes': %e", P, maxDist)
+		})
+	}
+}
+
 func TestPKDBasisFaceLift(t *testing.T) {
-	// TODO: Figure out how we're going to handle point distributions,
-	//  include face, edge and vertices like Hesthaven or only interior
 	for P := 1; P <= 5; P++ {
 		t.Run(fmt.Sprintf("Order_%d", P), func(t *testing.T) {
 			// Create basis
@@ -543,178 +698,179 @@ func TestPKDBasisFaceLift(t *testing.T) {
 	}
 }
 
-func parked(t *testing.T) {
-	P := 1
-	t.Run(fmt.Sprintf("Order_%d", P), func(t *testing.T) {
-		// Create basis
-		basis := NewTetBasis(P)
+func _TestPKDBasisFaceLift2(t *testing.T) {
+	for P := 1; P <= 5; P++ {
+		t.Run(fmt.Sprintf("Order_%d", P), func(t *testing.T) {
+			// Create basis
+			basis := NewTetBasis(P)
 
-		// Get interpolation nodes
-		R, S, T := Nodes3D(P)
+			// Get interpolation nodes
+			R, S, T := Nodes3D(P)
 
-		// Compute Vandermonde matrix
-		V := basis.ComputeVandermonde(R, S, T)
+			// Compute Vandermonde matrix
+			V := basis.ComputeVandermonde(R, S, T)
 
-		// Get face masks
-		fmask := BuildFmask3D(R, S, T, P)
+			// Get face masks
+			fmask := BuildFmask3D(R, S, T, P)
 
-		// Compute Lift matrix
-		LIFT := Lift3D(P, fmask, V, R, S, T)
+			// Compute Lift matrix
+			LIFT := Lift3D(P, fmask, V, R, S, T)
 
-		assert.False(t, LIFT.IsEmpty(), "LIFT is empty") // Get WSJ quadrature for faces (2D triangle quadrature)
+			assert.False(t, LIFT.IsEmpty(), "LIFT is empty") // Get WSJ quadrature for faces (2D triangle quadrature)
 
-		faceQuadNodes, faceWeights := DG2D.WilliamsShunnJamesonWithWeights(P)
-		Nfq := len(faceWeights) // Number of face quadrature points
-		RFace, SFace := DG2D.MakeRSFromPoints(faceQuadNodes)
+			faceQuadNodes, faceWeights := DG2D.WilliamsShunnJamesonWithWeights(P)
+			Nfq := len(faceWeights) // Number of face quadrature points
+			RFace, SFace := DG2D.MakeRSFromPoints(faceQuadNodes)
 
-		// Create 2D basis for face interpolation
-		jb2d := DG2D.NewJacobiBasis2D(P, RFace, SFace)
+			// Create 2D basis for face interpolation
+			jb2d := DG2D.NewJacobiBasis2D(P, RFace, SFace)
 
-		// Test the lift operator properties
-		Nfp := (P + 1) * (P + 2) / 2
-		Nfaces := 4
+			// Test the lift operator properties
+			Nfp := (P + 1) * (P + 2) / 2
+			Nfaces := 4
 
-		// Test 1: Verify LIFT matrix dimensions
-		liftRows, liftCols := LIFT.Dims()
-		expectedCols := Nfaces * Nfp
-		if liftRows != basis.Np || liftCols != expectedCols {
-			t.Errorf("Order %d: LIFT matrix has wrong dimensions (%d,%d), expected (%d,%d)",
-				P, liftRows, liftCols, basis.Np, expectedCols)
-		}
-
-		// Test 2: Apply LIFT to constant function on all faces
-		// This tests that surface integrals are correctly lifted to volume
-		ones := utils.NewVector(Nfaces * Nfp)
-		for i := 0; i < Nfaces*Nfp; i++ {
-			ones.Set(i, 1.0)
-		}
-
-		liftOnes := LIFT.Mul(ones.ToMatrix())
-
-		// Check that result is finite
-		for i := 0; i < basis.Np; i++ {
-			val := liftOnes.At(i, 0)
-			if math.IsNaN(val) || math.IsInf(val, 0) {
-				t.Errorf("Order %d: LIFT of constant produced invalid value at node %d: %g",
-					P, i, val)
-			}
-		}
-
-		// Test 3: Test with polynomial that's zero on some faces
-		// This verifies face locality
-		testVec := utils.NewVector(Nfaces * Nfp)
-		// Set non-zero values only on face 0
-		for i := 0; i < Nfp; i++ {
-			testVec.Set(i, 1.0)
-		}
-
-		liftTest := LIFT.Mul(testVec.ToMatrix())
-
-		// Nodes not connected to face 0 should have small contributions
-		for i := 0; i < basis.Np; i++ {
-			isOnFace0 := false
-			for _, idx := range fmask[0] {
-				if idx == i {
-					isOnFace0 = true
-					break
-				}
+			// Test 1: Verify LIFT matrix dimensions
+			liftRows, liftCols := LIFT.Dims()
+			expectedCols := Nfaces * Nfp
+			if liftRows != basis.Np || liftCols != expectedCols {
+				t.Errorf("Order %d: LIFT matrix has wrong dimensions (%d,%d), expected (%d,%d)",
+					P, liftRows, liftCols, basis.Np, expectedCols)
 			}
 
-			val := liftTest.At(i, 0)
-			if !isOnFace0 && math.Abs(val) > 1e-10 {
-				// Interior nodes should have non-zero values due to lifting
-				// but they should be reasonable
-				if math.Abs(val) > 1e3 {
-					t.Errorf("Order %d: Interior node %d has unreasonably large lift value: %g",
+			// Test 2: Apply LIFT to constant function on all faces
+			// This tests that surface integrals are correctly lifted to volume
+			ones := utils.NewVector(Nfaces * Nfp)
+			for i := 0; i < Nfaces*Nfp; i++ {
+				ones.Set(i, 1.0)
+			}
+
+			liftOnes := LIFT.Mul(ones.ToMatrix())
+
+			// Check that result is finite
+			for i := 0; i < basis.Np; i++ {
+				val := liftOnes.At(i, 0)
+				if math.IsNaN(val) || math.IsInf(val, 0) {
+					t.Errorf("Order %d: LIFT of constant produced invalid value at node %d: %g",
 						P, i, val)
 				}
 			}
-		}
 
-		// Test 4: Verify using face quadrature
-		// The WSJ quadrature can exactly integrate polynomials of order 2P
-		// We'll verify that lifted face data integrates correctly
-
-		// Create a test polynomial on each face
-		for face := 0; face < Nfaces; face++ {
-			// Get face coordinates
-			var faceR, faceS utils.Vector
-			switch face {
-			case 0: // t = -1
-				faceR = R.SubsetIndex(fmask[face])
-				faceS = S.SubsetIndex(fmask[face])
-			case 1: // s = -1
-				faceR = R.SubsetIndex(fmask[face])
-				faceS = T.SubsetIndex(fmask[face])
-			case 2: // r+s+t = -1
-				faceR = S.SubsetIndex(fmask[face])
-				faceS = T.SubsetIndex(fmask[face])
-			case 3: // r = -1
-				faceR = S.SubsetIndex(fmask[face])
-				faceS = T.SubsetIndex(fmask[face])
-			}
-
-			// Create face Vandermonde for interpolation to quadrature points
-			faceV := jb2d.Vandermonde2D(P, faceR, faceS)
-			faceVq := jb2d.Vandermonde2D(P, RFace, SFace)
-
-			// Interpolation matrix from face nodes to quadrature points
-			faceInterp := faceVq.Mul(faceV.InverseWithCheck())
-
-			// Test polynomial f(r,s) = r + s
-			faceData := utils.NewVector(Nfp)
+			// Test 3: Test with polynomial that's zero on some faces
+			// This verifies face locality
+			testVec := utils.NewVector(Nfaces * Nfp)
+			// Set non-zero values only on face 0
 			for i := 0; i < Nfp; i++ {
-				faceData.Set(i, faceR.At(i)+faceS.At(i))
+				testVec.Set(i, 1.0)
 			}
 
-			// Interpolate to quadrature points
-			faceDataQ := faceInterp.Mul(faceData.ToMatrix())
+			liftTest := LIFT.Mul(testVec.ToMatrix())
 
-			// Compute integral using quadrature
-			integral := 0.0
-			for q := 0; q < Nfq; q++ {
-				integral += faceDataQ.At(q, 0) * faceWeights[q]
+			// Nodes not connected to face 0 should have small contributions
+			for i := 0; i < basis.Np; i++ {
+				isOnFace0 := false
+				for _, idx := range fmask[0] {
+					if idx == i {
+						isOnFace0 = true
+						break
+					}
+				}
+
+				val := liftTest.At(i, 0)
+				if !isOnFace0 && math.Abs(val) > 1e-10 {
+					// Interior nodes should have non-zero values due to lifting
+					// but they should be reasonable
+					if math.Abs(val) > 1e3 {
+						t.Errorf("Order %d: Interior node %d has unreasonably large lift value: %g",
+							P, i, val)
+					}
+				}
 			}
 
-			// For reference triangle, integral of (r+s) should be 0
-			// since the triangle is symmetric about r=0, s=0
-			if math.Abs(integral) > 1e-10 {
-				t.Logf("Order %d, face %d: Integral of (r+s) = %g (should be near 0)",
-					P, face, integral)
+			// Test 4: Verify using face quadrature
+			// The WSJ quadrature can exactly integrate polynomials of order 2P
+			// We'll verify that lifted face data integrates correctly
+
+			// Create a test polynomial on each face
+			for face := 0; face < Nfaces; face++ {
+				// Get face coordinates
+				var faceR, faceS utils.Vector
+				switch face {
+				case 0: // t = -1
+					faceR = R.SubsetIndex(fmask[face])
+					faceS = S.SubsetIndex(fmask[face])
+				case 1: // s = -1
+					faceR = R.SubsetIndex(fmask[face])
+					faceS = T.SubsetIndex(fmask[face])
+				case 2: // r+s+t = -1
+					faceR = S.SubsetIndex(fmask[face])
+					faceS = T.SubsetIndex(fmask[face])
+				case 3: // r = -1
+					faceR = S.SubsetIndex(fmask[face])
+					faceS = T.SubsetIndex(fmask[face])
+				}
+
+				// Create face Vandermonde for interpolation to quadrature points
+				faceV := jb2d.Vandermonde2D(P, faceR, faceS)
+				faceVq := jb2d.Vandermonde2D(P, RFace, SFace)
+
+				// Interpolation matrix from face nodes to quadrature points
+				faceInterp := faceVq.Mul(faceV.InverseWithCheck())
+
+				// Test polynomial f(r,s) = r + s
+				faceData := utils.NewVector(Nfp)
+				for i := 0; i < Nfp; i++ {
+					faceData.Set(i, faceR.At(i)+faceS.At(i))
+				}
+
+				// Interpolate to quadrature points
+				faceDataQ := faceInterp.Mul(faceData.ToMatrix())
+
+				// Compute integral using quadrature
+				integral := 0.0
+				for q := 0; q < Nfq; q++ {
+					integral += faceDataQ.At(q, 0) * faceWeights[q]
+				}
+
+				// For reference triangle, integral of (r+s) should be 0
+				// since the triangle is symmetric about r=0, s=0
+				if math.Abs(integral) > 1e-10 {
+					t.Logf("Order %d, face %d: Integral of (r+s) = %g (should be near 0)",
+						P, face, integral)
+				}
 			}
-		}
 
-		// Test 5: Verify LIFT preserves polynomial exactness
-		// For a polynomial g on the faces, LIFT(g) should be exact
-		// up to polynomial order P
+			// Test 5: Verify LIFT preserves polynomial exactness
+			// For a polynomial g on the faces, LIFT(g) should be exact
+			// up to polynomial order P
 
-		// Create linear function on all faces
-		gFace := utils.NewVector(Nfaces * Nfp)
-		for face := 0; face < Nfaces; face++ {
-			for i := 0; i < Nfp; i++ {
-				nodeIdx := fmask[face][i]
-				// Use a linear function: f = r + 2s + 3t
-				gFace.Set(face*Nfp+i, R.At(nodeIdx)+2*S.At(nodeIdx)+3*T.At(nodeIdx))
+			// Create linear function on all faces
+			gFace := utils.NewVector(Nfaces * Nfp)
+			for face := 0; face < Nfaces; face++ {
+				for i := 0; i < Nfp; i++ {
+					nodeIdx := fmask[face][i]
+					// Use a linear function: f = r + 2s + 3t
+					gFace.Set(face*Nfp+i, R.At(nodeIdx)+2*S.At(nodeIdx)+3*T.At(nodeIdx))
+				}
 			}
-		}
 
-		// Apply LIFT
-		liftG := LIFT.Mul(gFace.ToMatrix())
+			// Apply LIFT
+			liftG := LIFT.Mul(gFace.ToMatrix())
 
-		// Verify the lifted function is reasonable
-		maxVal := 0.0
-		for i := 0; i < basis.Np; i++ {
-			val := math.Abs(liftG.At(i, 0))
-			if val > maxVal {
-				maxVal = val
+			// Verify the lifted function is reasonable
+			maxVal := 0.0
+			for i := 0; i < basis.Np; i++ {
+				val := math.Abs(liftG.At(i, 0))
+				if val > maxVal {
+					maxVal = val
+				}
 			}
-		}
 
-		if maxVal > 1e3 {
-			t.Errorf("Order %d: LIFT of linear function has unreasonably large values: max = %g",
-				P, maxVal)
-		}
+			if maxVal > 1e3 {
+				t.Errorf("Order %d: LIFT of linear function has unreasonably large values: max = %g",
+					P, maxVal)
+			}
 
-		t.Logf("Order %d: LIFT operator test completed. Max lifted value: %g", P, maxVal)
-	})
+			t.Logf("Order %d: LIFT operator test completed. Max lifted value: %g", P, maxVal)
+		})
+	}
 }

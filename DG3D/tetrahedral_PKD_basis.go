@@ -234,128 +234,208 @@ func Warpfactor(N int, rout []float64) []float64 {
 
 // Nodes3D computes optimized interpolation nodes on tetrahedron
 func Nodes3D(N int) (x, y, z utils.Vector) {
-	// Total number of nodes
+	// Choose optimized blending parameter
+	alphastore := []float64{
+		0.0000, 0.0000, 0.0000, 0.1002, 1.1332,
+		1.5608, 1.3413, 1.2577, 1.1603, 1.10153,
+		0.6080, 0.4523, 0.8856, 0.8717, 0.9655,
+	}
+
+	alpha := 1.0
+	if N <= 14 { // 0-based indexing, so N=14 corresponds to p=15 in C++
+		alpha = alphastore[N]
+	}
+
+	// Total number of nodes and tolerance
 	Np := (N + 1) * (N + 2) * (N + 3) / 6
+	tol := 1e-10
+	sqrt3 := math.Sqrt(3.0)
+	sqrt6 := math.Sqrt(6.0)
 
-	// Create equidistant nodes
-	L1, L2, L3, L4 := make([]float64, Np), make([]float64, Np), make([]float64, Np), make([]float64, Np)
+	// Create equidistributed nodes
+	r, s, t := EquiNodes3D(N)
 
-	sk := 0
-	for n := 0; n <= N; n++ {
-		for m := 0; m <= N-n; m++ {
-			for l := 0; l <= N-n-m; l++ {
-				L1[sk] = float64(l) / float64(N)
-				L2[sk] = float64(m) / float64(N)
-				L3[sk] = float64(n) / float64(N)
-				L4[sk] = 1.0 - L1[sk] - L2[sk] - L3[sk]
-				sk++
-			}
-		}
+	// Compute barycentric coordinates from (r,s,t)
+	L1 := make([]float64, Np)
+	L2 := make([]float64, Np)
+	L3 := make([]float64, Np)
+	L4 := make([]float64, Np)
+
+	for i := 0; i < Np; i++ {
+		L1[i] = (1.0 + t.At(i)) / 2.0
+		L2[i] = (1.0 + s.At(i)) / 2.0
+		L3[i] = -(1.0 + r.At(i) + s.At(i) + t.At(i)) / 2.0
+		L4[i] = (1.0 + r.At(i)) / 2.0
 	}
 
 	// Set vertices of tetrahedron
-	v1 := []float64{-1, -1 / math.Sqrt(3), -1 / math.Sqrt(6)}
-	v2 := []float64{1, -1 / math.Sqrt(3), -1 / math.Sqrt(6)}
-	v3 := []float64{0, 2 / math.Sqrt(3), -1 / math.Sqrt(6)}
-	v4 := []float64{0, 0, 3 / math.Sqrt(6)}
+	v1 := []float64{-1.0, -1.0 / sqrt3, -1.0 / sqrt6}
+	v2 := []float64{1.0, -1.0 / sqrt3, -1.0 / sqrt6}
+	v3 := []float64{0.0, 2.0 / sqrt3, -1.0 / sqrt6}
+	v4 := []float64{0.0, 0.0, 3.0 / sqrt6}
 
-	// Create initial equilateral coordinates
+	// Form undeformed coordinates
 	X := make([]float64, Np)
 	Y := make([]float64, Np)
 	Z := make([]float64, Np)
 
 	for i := 0; i < Np; i++ {
-		X[i] = L1[i]*v2[0] + L2[i]*v3[0] + L3[i]*v4[0] + L4[i]*v1[0]
-		Y[i] = L1[i]*v2[1] + L2[i]*v3[1] + L3[i]*v4[1] + L4[i]*v1[1]
-		Z[i] = L1[i]*v2[2] + L2[i]*v3[2] + L3[i]*v4[2] + L4[i]*v1[2]
+		X[i] = L3[i]*v1[0] + L4[i]*v2[0] + L2[i]*v3[0] + L1[i]*v4[0]
+		Y[i] = L3[i]*v1[1] + L4[i]*v2[1] + L2[i]*v3[1] + L1[i]*v4[1]
+		Z[i] = L3[i]*v1[2] + L4[i]*v2[2] + L2[i]*v3[2] + L1[i]*v4[2]
 	}
 
-	// Face 1: L1 = 0
-	faceMask := make([]bool, Np)
+	// Shift coordinates for warping
+	shiftX := make([]float64, Np)
+	shiftY := make([]float64, Np)
+	shiftZ := make([]float64, Np)
+
+	// Orthogonal axis tangents on faces 1-4
+	t1 := make([][]float64, 4)
+	t2 := make([][]float64, 4)
+
+	// Face 1
+	t1[0] = []float64{v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]}
+	t2[0] = []float64{v3[0] - 0.5*(v1[0]+v2[0]), v3[1] - 0.5*(v1[1]+v2[1]), v3[2] - 0.5*(v1[2]+v2[2])}
+
+	// Face 2
+	t1[1] = []float64{v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]}
+	t2[1] = []float64{v4[0] - 0.5*(v1[0]+v2[0]), v4[1] - 0.5*(v1[1]+v2[1]), v4[2] - 0.5*(v1[2]+v2[2])}
+
+	// Face 3
+	t1[2] = []float64{v3[0] - v2[0], v3[1] - v2[1], v3[2] - v2[2]}
+	t2[2] = []float64{v4[0] - 0.5*(v2[0]+v3[0]), v4[1] - 0.5*(v2[1]+v3[1]), v4[2] - 0.5*(v2[2]+v3[2])}
+
+	// Face 4
+	t1[3] = []float64{v3[0] - v1[0], v3[1] - v1[1], v3[2] - v1[2]}
+	t2[3] = []float64{v4[0] - 0.5*(v1[0]+v3[0]), v4[1] - 0.5*(v1[1]+v3[1]), v4[2] - 0.5*(v1[2]+v3[2])}
+
+	// Normalize tangents
+	for n := 0; n < 4; n++ {
+		norm1 := math.Sqrt(t1[n][0]*t1[n][0] + t1[n][1]*t1[n][1] + t1[n][2]*t1[n][2])
+		norm2 := math.Sqrt(t2[n][0]*t2[n][0] + t2[n][1]*t2[n][1] + t2[n][2]*t2[n][2])
+		for j := 0; j < 3; j++ {
+			t1[n][j] /= norm1
+			t2[n][j] /= norm2
+		}
+	}
+
+	// Warp and blend for each face
+	for face := 0; face < 4; face++ {
+		var La, Lb, Lc, Ld []float64
+
+		switch face {
+		case 0: // Face 1
+			La, Lb, Lc, Ld = L1, L2, L3, L4
+		case 1: // Face 2
+			La, Lb, Lc, Ld = L2, L1, L3, L4
+		case 2: // Face 3
+			La, Lb, Lc, Ld = L3, L1, L4, L2
+		case 3: // Face 4
+			La, Lb, Lc, Ld = L4, L1, L3, L2
+		}
+
+		// Compute warp tangential to face
+		warp1, warp2 := WarpShiftFace3D(N, alpha, alpha, La, Lb, Lc, Ld)
+
+		// Compute volume blending
+		blend := make([]float64, Np)
+		denom := make([]float64, Np)
+
+		for i := 0; i < Np; i++ {
+			blend[i] = Lb[i] * Lc[i] * Ld[i]
+			denom[i] = (Lb[i] + 0.5*La[i]) * (Lc[i] + 0.5*La[i]) * (Ld[i] + 0.5*La[i])
+
+			if denom[i] > tol {
+				blend[i] = (1.0 + alpha*alpha*La[i]*La[i]) * blend[i] / denom[i]
+			}
+		}
+
+		// Compute warp & blend
+		for i := 0; i < Np; i++ {
+			shiftX[i] += blend[i]*warp1[i]*t1[face][0] + blend[i]*warp2[i]*t2[face][0]
+			shiftY[i] += blend[i]*warp1[i]*t1[face][1] + blend[i]*warp2[i]*t2[face][1]
+			shiftZ[i] += blend[i]*warp1[i]*t1[face][2] + blend[i]*warp2[i]*t2[face][2]
+		}
+
+		// Fix face warp
+		for i := 0; i < Np; i++ {
+			if La[i] < tol {
+				count := 0
+				if Lb[i] > tol {
+					count++
+				}
+				if Lc[i] > tol {
+					count++
+				}
+				if Ld[i] > tol {
+					count++
+				}
+
+				if count < 3 {
+					shiftX[i] = warp1[i]*t1[face][0] + warp2[i]*t2[face][0]
+					shiftY[i] = warp1[i]*t1[face][1] + warp2[i]*t2[face][1]
+					shiftZ[i] = warp1[i]*t1[face][2] + warp2[i]*t2[face][2]
+				}
+			}
+		}
+	}
+
+	// Apply shift
 	for i := 0; i < Np; i++ {
-		faceMask[i] = math.Abs(L1[i]) < 1e-10
+		X[i] += shiftX[i]
+		Y[i] += shiftY[i]
+		Z[i] += shiftZ[i]
 	}
 
-	// Create orthogonal tangent vectors for face 1
-	t1 := []float64{v3[0] - v4[0], v3[1] - v4[1], v3[2] - v4[2]}
-	t2 := []float64{v2[0] - v4[0], v2[1] - v4[1], v2[2] - v4[2]}
+	x = utils.NewVector(Np, X)
+	y = utils.NewVector(Np, Y)
+	z = utils.NewVector(Np, Z)
 
-	WarpShiftFace3D(N, faceMask, L2, L3, L4, t1, t2, X, Y, Z)
-
-	// Face 2: L2 = 0
+	// Apply shift
 	for i := 0; i < Np; i++ {
-		faceMask[i] = math.Abs(L2[i]) < 1e-10
+		X[i] += shiftX[i]
+		Y[i] += shiftY[i]
+		Z[i] += shiftZ[i]
 	}
-
-	t1 = []float64{v1[0] - v3[0], v1[1] - v3[1], v1[2] - v3[2]}
-	t2 = []float64{v4[0] - v3[0], v4[1] - v3[1], v4[2] - v3[2]}
-
-	WarpShiftFace3D(N, faceMask, L1, L3, L4, t1, t2, X, Y, Z)
-
-	// Face 3: L3 = 0
-	for i := 0; i < Np; i++ {
-		faceMask[i] = math.Abs(L3[i]) < 1e-10
-	}
-
-	t1 = []float64{v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]}
-	t2 = []float64{v4[0] - v1[0], v4[1] - v1[1], v4[2] - v1[2]}
-
-	WarpShiftFace3D(N, faceMask, L1, L2, L4, t1, t2, X, Y, Z)
-
-	// Face 4: L4 = 0
-	for i := 0; i < Np; i++ {
-		faceMask[i] = math.Abs(L4[i]) < 1e-10
-	}
-
-	t1 = []float64{v3[0] - v2[0], v3[1] - v2[1], v3[2] - v2[2]}
-	t2 = []float64{v1[0] - v2[0], v1[1] - v2[1], v1[2] - v2[2]}
-
-	WarpShiftFace3D(N, faceMask, L1, L2, L3, t1, t2, X, Y, Z)
 
 	// Transform to reference element coordinates
-	r, s, t := XYZtoRST(X, Y, Z)
+	r, s, t = XYZtoRST(X, Y, Z)
 
 	return r, s, t
 }
 
-// WarpShiftFace3D applies warp and blend to a face
-func WarpShiftFace3D(N int, faceMask []bool, L1, L2, L3, t1, t2 []float64, X, Y, Z []float64) {
-	Np := len(X)
+// EquiNodes3D generates equispaced nodes on the reference tetrahedron
+func EquiNodes3D(N int) (r, s, t utils.Vector) {
+	Np := (N + 1) * (N + 2) * (N + 3) / 6
+	rr := make([]float64, Np)
+	ss := make([]float64, Np)
+	tt := make([]float64, Np)
 
-	// Compute blend factor for each node
-	blend := make([]float64, Np)
-	for i := 0; i < Np; i++ {
-		blend[i] = 4 * L1[i] * L2[i] * L3[i]
+	sk := 0
+	for n := 0; n <= N; n++ {
+		for m := 0; m <= N-n; m++ {
+			for l := 0; l <= N-n-m; l++ {
+				rr[sk] = -1.0 + 2.0*float64(l)/float64(N)
+				ss[sk] = -1.0 + 2.0*float64(m)/float64(N)
+				tt[sk] = -1.0 + 2.0*float64(n)/float64(N)
+				sk++
+			}
+		}
 	}
 
-	// For each face node
-	for i := 0; i < Np; i++ {
-		if !faceMask[i] {
-			continue
-		}
+	r = utils.NewVector(Np, rr)
+	s = utils.NewVector(Np, ss)
+	t = utils.NewVector(Np, tt)
 
-		// Compute r,s coordinates on face
-		denom := L1[i] + L2[i] + L3[i]
-		if math.Abs(denom) < 1e-10 {
-			continue
-		}
+	return r, s, t
+}
 
-		r := (L2[i] - L1[i]) / denom
-		s := (L3[i] - L1[i]) / denom
-
-		// Evaluate warp
-		warpR := Warpfactor(N, []float64{r})
-		warpS := Warpfactor(N, []float64{s})
-
-		// Apply warp and blend
-		X[i] += blend[i] * warpR[0] * t1[0]
-		Y[i] += blend[i] * warpR[0] * t1[1]
-		Z[i] += blend[i] * warpR[0] * t1[2]
-
-		X[i] += blend[i] * warpS[0] * t2[0]
-		Y[i] += blend[i] * warpS[0] * t2[1]
-		Z[i] += blend[i] * warpS[0] * t2[2]
-	}
+// WarpShiftFace3D computes warp factor used in creating 3D Warp & Blend nodes
+func WarpShiftFace3D(p int, pval, pval2 float64, L1, L2, L3, L4 []float64) (warpx, warpy []float64) {
+	// Compute warp factors using evalshift
+	warpx, warpy = evalshift(p, pval, L2, L3, L4)
+	return warpx, warpy
 }
 
 // XYZtoRST transforms from equilateral to reference tetrahedron coordinates
@@ -1104,4 +1184,109 @@ func (tb *TetBasis) ComputeGradVandermonde(r, s, t utils.Vector) (Vr, Vs, Vt uti
 	}
 
 	return Vr, Vs, Vt
+}
+
+// evalshift computes two-dimensional Warp & Blend transform
+func evalshift(p int, pval float64, L1, L2, L3 []float64) (dx, dy []float64) {
+	n := len(L1)
+	dx = make([]float64, n)
+	dy = make([]float64, n)
+
+	// 1) compute Gauss-Lobatto-Legendre node distribution
+	gaussX := JacobiGL(0, 0, p)
+	// Negate the values (C++: gaussX = -JacobiGL(0,0,p))
+	for i := range gaussX {
+		gaussX[i] = -gaussX[i]
+	}
+
+	// 3) compute blending function at each node for each edge
+	blend1 := make([]float64, n)
+	blend2 := make([]float64, n)
+	blend3 := make([]float64, n)
+
+	for i := 0; i < n; i++ {
+		blend1[i] = L2[i] * L3[i]
+		blend2[i] = L1[i] * L3[i]
+		blend3[i] = L1[i] * L2[i]
+	}
+
+	// 4) amount of warp for each node, for each edge
+	tv1 := make([]float64, n)
+	tv2 := make([]float64, n)
+	tv3 := make([]float64, n)
+
+	for i := 0; i < n; i++ {
+		tv1[i] = L3[i] - L2[i]
+		tv2[i] = L1[i] - L3[i]
+		tv3[i] = L2[i] - L1[i]
+	}
+
+	warpfactor1 := evalwarp(p, gaussX, tv1)
+	warpfactor2 := evalwarp(p, gaussX, tv2)
+	warpfactor3 := evalwarp(p, gaussX, tv3)
+
+	// Scale by 4.0
+	for i := 0; i < n; i++ {
+		warpfactor1[i] *= 4.0
+		warpfactor2[i] *= 4.0
+		warpfactor3[i] *= 4.0
+	}
+
+	// 5) combine blend & warp
+	warp1 := make([]float64, n)
+	warp2 := make([]float64, n)
+	warp3 := make([]float64, n)
+
+	for i := 0; i < n; i++ {
+		warp1[i] = blend1[i] * warpfactor1[i] * (1.0 + pval*pval*L1[i]*L1[i])
+		warp2[i] = blend2[i] * warpfactor2[i] * (1.0 + pval*pval*L2[i]*L2[i])
+		warp3[i] = blend3[i] * warpfactor3[i] * (1.0 + pval*pval*L3[i]*L3[i])
+	}
+
+	// 6) evaluate shift in equilateral triangle
+	TWOPI := 2.0 * math.Pi
+	FOURPI := 4.0 * math.Pi
+
+	for i := 0; i < n; i++ {
+		dx[i] = 1.0*warp1[i] + math.Cos(TWOPI/3.0)*warp2[i] + math.Cos(FOURPI/3.0)*warp3[i]
+		dy[i] = 0.0*warp1[i] + math.Sin(TWOPI/3.0)*warp2[i] + math.Sin(FOURPI/3.0)*warp3[i]
+	}
+
+	return dx, dy
+}
+
+// evalwarp evaluates the warp function
+func evalwarp(p int, gaussX []float64, xnodes []float64) []float64 {
+	n := len(xnodes)
+	warp := make([]float64, n)
+
+	// Create equidistant nodes
+	xeq := make([]float64, p+1)
+	for i := 0; i <= p; i++ {
+		xeq[i] = -1.0 + 2.0*float64(i)/float64(p)
+	}
+
+	// For each evaluation point
+	for i := 0; i < n; i++ {
+		x := xnodes[i]
+
+		// Compute Lagrange interpolation from equidistant to GLL nodes
+		warpval := 0.0
+		for j := 0; j <= p; j++ {
+			// Lagrange basis at xeq[j] evaluated at x
+			lagrange := 1.0
+			for k := 0; k <= p; k++ {
+				if k != j {
+					lagrange *= (x - xeq[k]) / (xeq[j] - xeq[k])
+				}
+			}
+			warpval += lagrange * (gaussX[j] - xeq[j])
+		}
+
+		// Scale factor
+		sf := 1.0 - x*x
+		warp[i] = warpval * sf
+	}
+
+	return warp
 }
