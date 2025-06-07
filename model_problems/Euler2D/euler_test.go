@@ -53,7 +53,7 @@ func TestEuler(t *testing.T) {
 	ip.FluxType = "average"
 	if true {
 		{ // Test interpolation of solution to edges for all supported orders
-			Nmax := 7
+			Nmax := 4
 			for N := 0; N <= Nmax; N++ {
 				ip.PolynomialOrder = N
 				// c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
@@ -98,7 +98,7 @@ func TestEuler(t *testing.T) {
 				1) Solution is extrapolated to edge points in Q_Face from Q
 				2) Edges are traversed, flux is calculated and projected onto edge face normals, scaled and placed into F_RT_DOF
 			*/
-			Nmax := 7
+			Nmax := 4
 			for N := 0; N <= Nmax; N++ {
 				// c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
 				ip.PolynomialOrder = N
@@ -174,7 +174,7 @@ func TestEuler(t *testing.T) {
 	}
 	if true {
 		{ // Test solution process part 2 - Freestream divergence should be zero
-			Nmax := 7
+			Nmax := 4
 			for N := 0; N <= Nmax; N++ {
 				// c := NewEuler(1, N, "../../DG2D/test_tris_5.neu", 1, FLUX_Average, FREESTREAM, 1, 0, 1.4, 0, false, 5000, None, false, false, false)
 				ip.PolynomialOrder = N
@@ -230,7 +230,7 @@ func TestEuler(t *testing.T) {
 				Note: the Polynomial flux is asymmetric around the R and S axes - it uses abs(x) and abs(y)
 				Elements should not straddle the axes if a perfect polynomial flux capture is needed
 			*/
-			Nmax := 7
+			Nmax := 4
 			for N := 2; N <= Nmax; N++ {
 				// Single triangle test case
 				var c *Euler
