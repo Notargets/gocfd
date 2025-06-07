@@ -110,7 +110,6 @@ func RStoAB(r, s utils.Vector) (a, b utils.Vector) {
 	return
 }
 
-// RSTtoABC transforms from (r,s,t) to (a,b,c) coordinates for 3D simplex
 func RSTtoABC(r, s, t utils.Vector) (a, b, c utils.Vector) {
 	n := r.Len()
 	a = utils.NewVector(n)
@@ -120,7 +119,7 @@ func RSTtoABC(r, s, t utils.Vector) (a, b, c utils.Vector) {
 	tol := 1e-8
 
 	for i := 0; i < n; i++ {
-		if math.Abs(s.At(i)+t.At(i)-1) > tol {
+		if math.Abs(s.At(i)+t.At(i)) > tol { // Changed from s+t-1 to s+t
 			a.Set(i, 2*(1+r.At(i))/(-s.At(i)-t.At(i))-1)
 		} else {
 			a.Set(i, -1)

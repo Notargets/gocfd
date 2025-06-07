@@ -472,17 +472,17 @@ func (rk *RungeKutta5SSP) StepWorker(c *Euler, rkStep int) {
 			if !Debug {
 				return
 			}
-			utils.IsNan(QQQ)
-			utils.IsNan(F_RT_DOF)
-			utils.IsNan(RHSQ)
-			utils.IsNan(Jinv)
-			utils.IsNan(Jdet)
-			utils.IsNan(c.Q[np])
-			utils.IsNan(rk.Q1[np])
-			utils.IsNan(rk.Q2[np])
-			utils.IsNan(rk.Q3[np])
-			utils.IsNan(rk.Q4[np])
-			utils.IsNan(DT)
+			utils.IsNanPanic(QQQ)
+			utils.IsNanPanic(F_RT_DOF)
+			utils.IsNanPanic(RHSQ)
+			utils.IsNanPanic(Jinv)
+			utils.IsNanPanic(Jdet)
+			utils.IsNanPanic(c.Q[np])
+			utils.IsNanPanic(rk.Q1[np])
+			utils.IsNanPanic(rk.Q2[np])
+			utils.IsNanPanic(rk.Q3[np])
+			utils.IsNanPanic(rk.Q4[np])
+			utils.IsNanPanic(DT)
 		}
 		/*
 			SSP54 RK Coefficients from:
