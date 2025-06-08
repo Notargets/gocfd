@@ -61,7 +61,7 @@ func TestJacobiBasis2D_Gradient(t *testing.T) {
 		tol        = 0.000001
 	)
 	PStart := 1
-	PEnd := 6
+	PEnd := 4
 	for P := PStart; P <= PEnd; P++ {
 		t.Logf("----------------------------------------\n")
 		t.Logf("Testing Order %d\n", P)

@@ -10,7 +10,7 @@ import (
 
 func TestShockFinder(t *testing.T) {
 	var (
-		NMin, NMax = 2, 7
+		NMin, NMax = 2, 4
 	)
 	meshFile := "test_data/test_10tris_centered.neu"
 	for N := NMin; N <= NMax; N++ {

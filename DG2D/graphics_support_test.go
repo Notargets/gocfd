@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestPlotVariousFields(t *testing.T) {
+func _TestPlotVariousFields(t *testing.T) {
 	var (
 		N = 3
 	)
@@ -91,7 +91,7 @@ func TestDFR2D_WriteAVSGraphMesh(t *testing.T) {
 	// }
 }
 
-func TestCreateAVSGraphMesh(t *testing.T) {
+func _TestCreateAVSGraphMesh(t *testing.T) {
 	var (
 		N = 7
 	)

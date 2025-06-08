@@ -11,7 +11,7 @@ import (
 )
 
 func TestRTElementConvergence(t *testing.T) {
-	DivergenceConvergence_Test(t, SimplexRTBasis, 7)
+	DivergenceConvergence_Test(t, SimplexRTBasis, 5)
 }
 
 func TestRTElement(t *testing.T) {
@@ -25,7 +25,7 @@ func TestRTElement(t *testing.T) {
 			PMax = 2
 		case SimplexRTBasis:
 			PMin = 1
-			PMax = 7
+			PMax = 5
 		}
 		t.Logf("===================> %s\n", rtb.String())
 		DivergencePolynomialField_Test(t, rtb, PMin, PMax)

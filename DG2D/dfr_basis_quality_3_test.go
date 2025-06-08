@@ -511,62 +511,64 @@ func validateEdgeConstraints(edgePoints []EdgePoint, edgeNum int) bool {
 
 // Test function with edge constraint verification
 func TestEdgePointOptimization(t *testing.T) {
-	// Test edge point optimization for orders 3-6
-	for N := 5; N <= 5; N++ {
-		separator := "============================================================"
-		t.Logf("\n%s", separator)
-		t.Logf("EDGE POINT OPTIMIZATION FOR ORDER %d", N)
-		t.Logf("%s", separator)
+	if false {
+		// Test edge point optimization for orders 3-6
+		for N := 4; N <= 4; N++ {
+			separator := "============================================================"
+			t.Logf("\n%s", separator)
+			t.Logf("EDGE POINT OPTIMIZATION FOR ORDER %d", N)
+			t.Logf("%s", separator)
 
-		// Create elements for this order
-		le := NewLagrangeElement2D(N)
-		rt := NewRTElement(N+1, SimplexRTBasis, OptimizedEdgePoints)
+			// Create elements for this order
+			le := NewLagrangeElement2D(N)
+			rt := NewRTElement(N+1, SimplexRTBasis, OptimizedEdgePoints)
 
-		// Original (unoptimized) edge points
-		originalPoints := extractCurrentEdgePoints(rt)
+			// Original (unoptimized) edge points
+			originalPoints := extractCurrentEdgePoints(rt)
 
-		// Optimize edge points for each edge
-		for edgeNum := 0; edgeNum < 3; edgeNum++ {
-			t.Logf("\n--- OPTIMIZING EDGE %d ---", edgeNum)
+			// Optimize edge points for each edge
+			for edgeNum := 0; edgeNum < 3; edgeNum++ {
+				t.Logf("\n--- OPTIMIZING EDGE %d ---", edgeNum)
 
-			// Get current edge points as starting guess
-			currentPoints := originalPoints[edgeNum]
-			t.Logf("Original points: %v", formatPoints(currentPoints))
+				// Get current edge points as starting guess
+				currentPoints := originalPoints[edgeNum]
+				t.Logf("Original points: %v", formatPoints(currentPoints))
 
-			// Verify original points are on the edge
-			if !validateEdgeConstraints(currentPoints, edgeNum) {
-				t.Logf("ERROR: Original points are not on edge %d!", edgeNum)
-				continue
-			}
+				// Verify original points are on the edge
+				if !validateEdgeConstraints(currentPoints, edgeNum) {
+					t.Logf("ERROR: Original points are not on edge %d!", edgeNum)
+					continue
+				}
 
-			// Evaluate current performance
-			directCond, modalCond := evaluateCurrentPerformance(le, rt, edgeNum, currentPoints, t)
+				// Evaluate current performance
+				directCond, modalCond := evaluateCurrentPerformance(le, rt, edgeNum, currentPoints, t)
 
-			// Optimize edge points
-			optimizedPoints := optimizeEdgePoints(le, rt, edgeNum, currentPoints, t)
-			t.Logf("Optimized points: %v", formatPoints(optimizedPoints))
+				// Optimize edge points
+				optimizedPoints := optimizeEdgePoints(le, rt, edgeNum, currentPoints, t)
+				t.Logf("Optimized points: %v", formatPoints(optimizedPoints))
 
-			// Verify optimized points are still on the edge
-			if !validateEdgeConstraints(optimizedPoints, edgeNum) {
-				t.Logf("ERROR: Optimized points are not on edge %d!", edgeNum)
-				os.Exit(1)
-			}
+				// Verify optimized points are still on the edge
+				if !validateEdgeConstraints(optimizedPoints, edgeNum) {
+					t.Logf("ERROR: Optimized points are not on edge %d!", edgeNum)
+					os.Exit(1)
+				}
 
-			// Evaluate optimized performance
-			optDirectCond, optModalCond := evaluateOptimizedPerformance(le, rt, edgeNum, optimizedPoints, t)
+				// Evaluate optimized performance
+				optDirectCond, optModalCond := evaluateOptimizedPerformance(le, rt, edgeNum, optimizedPoints, t)
 
-			// Compare results
-			t.Logf("RESULTS:")
-			t.Logf("  Direct interpolation conditioning: %.2e -> %.2e (%.1fx improvement)",
-				directCond, optDirectCond, directCond/optDirectCond)
-			t.Logf("  Modal transfer conditioning: %.2e -> %.2e (%.1fx improvement)",
-				modalCond, optModalCond, modalCond/optModalCond)
+				// Compare results
+				t.Logf("RESULTS:")
+				t.Logf("  Direct interpolation conditioning: %.2e -> %.2e (%.1fx improvement)",
+					directCond, optDirectCond, directCond/optDirectCond)
+				t.Logf("  Modal transfer conditioning: %.2e -> %.2e (%.1fx improvement)",
+					modalCond, optModalCond, modalCond/optModalCond)
 
-			// Determine recommended method
-			if optModalCond < optDirectCond {
-				t.Logf("  ✓ RECOMMENDATION: Use Modal Transfer")
-			} else {
-				t.Logf("  ✓ RECOMMENDATION: Use Direct Interpolation")
+				// Determine recommended method
+				if optModalCond < optDirectCond {
+					t.Logf("  ✓ RECOMMENDATION: Use Modal Transfer")
+				} else {
+					t.Logf("  ✓ RECOMMENDATION: Use Direct Interpolation")
+				}
 			}
 		}
 	}

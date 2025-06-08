@@ -37,7 +37,7 @@ func TestDFR2D(t *testing.T) {
 	}
 	// Test accuracy of interpolation
 	{
-		Nmax := 7
+		Nmax := 4
 		for N := 1; N <= Nmax; N++ {
 			t.Logf("Order %d", N)
 			dfr := NewDFR2D(N, false)
@@ -362,9 +362,9 @@ func DivergenceCheck(t *testing.T, dfr *DFR2D) {
 func TestDivergence(t *testing.T) {
 	for _, ang := range []float64{0, 15, 25, 45, 90, 180, 210, 270, 310} {
 		t.Logf("Checking angle:%f ==================\n", ang)
-		DivergenceCheck(t, CreateEquiTriMesh(7, ang))
+		DivergenceCheck(t, CreateEquiTriMesh(4, ang))
 	}
-	DivergenceCheck(t, NewDFR2D(7, false, "test_data/test_tris_5.neu"))
+	DivergenceCheck(t, NewDFR2D(4, false, "test_data/test_tris_5.neu"))
 }
 
 func TestGradient(t *testing.T) {

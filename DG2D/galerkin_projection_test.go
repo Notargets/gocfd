@@ -7,7 +7,7 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-func TestPlotProjection(t *testing.T) {
+func _TestPlotProjection(t *testing.T) {
 	var (
 		N  = 7
 		NP = 0

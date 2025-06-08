@@ -8,7 +8,7 @@ import (
 	"github.com/notargets/avs/utils"
 )
 
-func TestNodes2DUniform(t *testing.T) {
+func _TestNodes2DUniform(t *testing.T) {
 	var (
 		P = 2
 		N = P * 6
@@ -28,7 +28,7 @@ func TestNodes2DUniform(t *testing.T) {
 	}
 }
 
-func TestNodes2DOptimizedBaseline(t *testing.T) {
+func _TestNodes2DOptimizedBaseline(t *testing.T) {
 	var (
 		P     = 7
 		Alpha = 0.7

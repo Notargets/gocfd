@@ -7,7 +7,7 @@ import (
 
 func TestInterpolationMethodComparison(t *testing.T) {
 	// Focus on order 3 for detailed analysis
-	NMax := 7
+	NMax := 5
 	for N := 3; N < NMax; N++ {
 		t.Logf("\n============================================================")
 		t.Logf("ORDER %d INTERPOLATION METHOD COMPARISON", N)

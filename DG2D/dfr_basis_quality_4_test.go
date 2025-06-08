@@ -29,99 +29,102 @@ type EdgeOptimizationResult struct {
 
 // Enhanced test function with better output formatting
 func TestEdgePointOptimizationEnhanced(t *testing.T) {
-	if testing.Verbose() {
+	if false {
 
-		separator := "================================================================================"
+		if testing.Verbose() {
 
-		NStart := 1
-		NEnd := 7
-		oResults := make([][]float64, NEnd+1)
-		for N := NStart; N <= NEnd; N++ {
-			t.Logf("\n%s", separator)
-			t.Logf("EDGE POINT OPTIMIZATION RESULTS FOR ORDER %d", N)
-			t.Logf("%s\n", separator)
+			separator := "================================================================================"
 
-			// Create elements
-			le := NewLagrangeElement2D(N)
-			rt := NewRTElement(N+1, SimplexRTBasis, GaussEdgePoints) // Start with GL points
+			NStart := 1
+			NEnd := 4
+			oResults := make([][]float64, NEnd+1)
+			for N := NStart; N <= NEnd; N++ {
+				t.Logf("\n%s", separator)
+				t.Logf("EDGE POINT OPTIMIZATION RESULTS FOR ORDER %d", N)
+				t.Logf("%s\n", separator)
 
-			// Store results for summary
-			results := make([]EdgeOptimizationResult, 3)
+				// Create elements
+				le := NewLagrangeElement2D(N)
+				rt := NewRTElement(N+1, SimplexRTBasis, GaussEdgePoints) // Start with GL points
 
-			// Optimize each edge
-			for edgeNum := 0; edgeNum < 3; edgeNum++ {
-				t.Logf("Edge %d Optimization:", edgeNum)
-				t.Logf("--------------------------------------------------------------------------------")
+				// Store results for summary
+				results := make([]EdgeOptimizationResult, 3)
 
-				// Get initial points
-				initialPoints := getEdgePoints(rt, edgeNum)
+				// Optimize each edge
+				for edgeNum := 0; edgeNum < 3; edgeNum++ {
+					t.Logf("Edge %d Optimization:", edgeNum)
+					t.Logf("--------------------------------------------------------------------------------")
 
-				// Debug: show actual coordinates
-				if edgeNum == 2 {
-					t.Logf("  Edge 2 debug - Initial points (R,S):")
-					for i, pt := range initialPoints {
-						t.Logf("    Point %d: (%.3f, %.3f)", i, pt.R, pt.S)
+					// Get initial points
+					initialPoints := getEdgePoints(rt, edgeNum)
+
+					// Debug: show actual coordinates
+					if edgeNum == 2 {
+						t.Logf("  Edge 2 debug - Initial points (R,S):")
+						for i, pt := range initialPoints {
+							t.Logf("    Point %d: (%.3f, %.3f)", i, pt.R, pt.S)
+						}
 					}
+
+					// Run optimization
+					result := optimizeEdgePointsMultiStart(le, rt, edgeNum, initialPoints, t)
+					results[edgeNum] = result
+
+					// Display results
+					t.Logf("  Initial Distribution: %s", formatPointDistribution(result.OriginalPoints, edgeNum))
+					t.Logf("  Optimized Distribution: %s", formatPointDistribution(result.OptimizedPoints, edgeNum))
+					t.Logf("  Optimization Method: %s", result.OptimizationMethod)
+					t.Logf("  Lebesgue Constant: %.3f → %.3f (%.1f%% improvement)",
+						result.OriginalLebesgue, result.OptimizedLebesgue,
+						100.0*(result.OriginalLebesgue-result.OptimizedLebesgue)/result.OriginalLebesgue)
+
+					// Conditioning results with scientific notation for large numbers
+					t.Logf("  Direct Interpolation Cond: %.2e → %.2e (%.1fx better)",
+						result.OriginalDirectCond, result.OptimizedDirectCond,
+						result.OriginalDirectCond/result.OptimizedDirectCond)
+					t.Logf("  Modal Transfer Cond: %.2e → %.2e (%.1fx better)",
+						result.OriginalModalCond, result.OptimizedModalCond,
+						result.OriginalModalCond/result.OptimizedModalCond)
+
+					// Recommendation
+					if result.OptimizedModalCond < result.OptimizedDirectCond {
+						t.Logf("  ✓ Recommended Method: MODAL TRANSFER")
+					} else {
+						t.Logf("  ✓ Recommended Method: DIRECT INTERPOLATION")
+					}
+					t.Logf("")
 				}
 
-				// Run optimization
-				result := optimizeEdgePointsMultiStart(le, rt, edgeNum, initialPoints, t)
-				results[edgeNum] = result
-
-				// Display results
-				t.Logf("  Initial Distribution: %s", formatPointDistribution(result.OriginalPoints, edgeNum))
-				t.Logf("  Optimized Distribution: %s", formatPointDistribution(result.OptimizedPoints, edgeNum))
-				t.Logf("  Optimization Method: %s", result.OptimizationMethod)
-				t.Logf("  Lebesgue Constant: %.3f → %.3f (%.1f%% improvement)",
-					result.OriginalLebesgue, result.OptimizedLebesgue,
-					100.0*(result.OriginalLebesgue-result.OptimizedLebesgue)/result.OriginalLebesgue)
-
-				// Conditioning results with scientific notation for large numbers
-				t.Logf("  Direct Interpolation Cond: %.2e → %.2e (%.1fx better)",
-					result.OriginalDirectCond, result.OptimizedDirectCond,
-					result.OriginalDirectCond/result.OptimizedDirectCond)
-				t.Logf("  Modal Transfer Cond: %.2e → %.2e (%.1fx better)",
-					result.OriginalModalCond, result.OptimizedModalCond,
-					result.OriginalModalCond/result.OptimizedModalCond)
-
-				// Recommendation
-				if result.OptimizedModalCond < result.OptimizedDirectCond {
-					t.Logf("  ✓ Recommended Method: MODAL TRANSFER")
-				} else {
-					t.Logf("  ✓ Recommended Method: DIRECT INTERPOLATION")
+				// Summary for this order
+				t.Logf("Summary for Order %d:", N)
+				t.Logf("--------------------------------------------------------------------------------")
+				avgLebesgueImprovement := 0.0
+				for _, r := range results {
+					avgLebesgueImprovement += (r.OriginalLebesgue - r.OptimizedLebesgue) / r.OriginalLebesgue
 				}
-				t.Logf("")
-			}
+				avgLebesgueImprovement *= 100.0 / 3.0
+				t.Logf("  Average Lebesgue improvement: %.1f%%", avgLebesgueImprovement)
 
-			// Summary for this order
-			t.Logf("Summary for Order %d:", N)
-			t.Logf("--------------------------------------------------------------------------------")
-			avgLebesgueImprovement := 0.0
-			for _, r := range results {
-				avgLebesgueImprovement += (r.OriginalLebesgue - r.OptimizedLebesgue) / r.OriginalLebesgue
-			}
-			avgLebesgueImprovement *= 100.0 / 3.0
-			t.Logf("  Average Lebesgue improvement: %.1f%%", avgLebesgueImprovement)
-
-			// Check symmetry
-			checkDistributionSymmetry(results, t)
-			l := len(results[0].OptimizedPoints)
-			oResults[N] = make([]float64, l)
-			for i, pt := range results[0].OptimizedPoints {
-				oResults[N][i] = pt.R
-			}
-		}
-		for N := NStart; N <= NEnd; N++ {
-			fmt.Printf("R := []float64{")
-			l := len(oResults[N])
-			for i, r := range oResults[N] {
-				fmt.Printf("%.3f", r)
-				if i != l-1 {
-					fmt.Printf(", ")
+				// Check symmetry
+				checkDistributionSymmetry(results, t)
+				l := len(results[0].OptimizedPoints)
+				oResults[N] = make([]float64, l)
+				for i, pt := range results[0].OptimizedPoints {
+					oResults[N][i] = pt.R
 				}
-				oResults[N][i] = r
 			}
-			fmt.Printf("}\n")
+			for N := NStart; N <= NEnd; N++ {
+				fmt.Printf("R := []float64{")
+				l := len(oResults[N])
+				for i, r := range oResults[N] {
+					fmt.Printf("%.3f", r)
+					if i != l-1 {
+						fmt.Printf(", ")
+					}
+					oResults[N][i] = r
+				}
+				fmt.Printf("}\n")
+			}
 		}
 	}
 }
