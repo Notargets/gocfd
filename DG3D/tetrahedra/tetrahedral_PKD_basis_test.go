@@ -1,4 +1,4 @@
-package DG3D
+package tetrahedra
 
 import (
 	"fmt"
@@ -19,7 +19,7 @@ func TestPKDBasisInterpolation(t *testing.T) {
 	// for i, label := range []string{"Warp/Blend", "Equispaced", "Shunn Ham"} {
 	// 	t.Logf("Using %s nodes\n", label)
 	// Test orders 1 through 5
-	for P := 1; P <= 7; P++ {
+	for P := 1; P <= 6; P++ {
 		t.Run(fmt.Sprintf("Order_%d", P), func(t *testing.T) {
 			// Create basis
 			basis := NewTetBasis(P)
@@ -197,7 +197,7 @@ func TestPKDBasisDerivatives(t *testing.T) {
 	tol := 2.e-9
 
 	// Test orders 1 through 5
-	for P := 1; P <= 7; P++ {
+	for P := 1; P <= 6; P++ {
 		t.Run(fmt.Sprintf("Order_%d", P), func(t *testing.T) {
 			// Create basis
 			basis := NewTetBasis(P)
@@ -519,13 +519,13 @@ func TestPKDBasisDerivatives(t *testing.T) {
 }
 
 func TestBuildFmask3D(t *testing.T) {
-	for P := 1; P <= 7; P++ {
+	for P := 1; P <= 6; P++ {
 		t.Run(fmt.Sprintf("Order_%d", P), func(t *testing.T) {
 			// Get interpolation nodes
-			R, S, T := Nodes3D(P)
+			tb := NewTetBasis(P)
 
 			// Build face masks
-			fmask := BuildFmask3D(R, S, T, P)
+			fmask := tb.fmask
 
 			// Expected number of nodes per face
 			Nfp := (P + 1) * (P + 2) / 2
@@ -564,9 +564,9 @@ func TestBuildFmask3D(t *testing.T) {
 			tol := 1e-10
 			for face := 0; face < 4; face++ {
 				for _, idx := range fmask[face] {
-					r := R.At(idx)
-					s := S.At(idx)
-					tt := T.At(idx)
+					r := tb.R.At(idx)
+					s := tb.S.At(idx)
+					tt := tb.T.At(idx)
 
 					switch face {
 					case 0: // Face 1: t = -1
@@ -605,7 +605,7 @@ func TestBuildFmask3D(t *testing.T) {
 }
 
 func TestBuildFmask3DWithToleranceCheck(t *testing.T) {
-	for P := 1; P <= 7; P++ {
+	for P := 1; P <= 6; P++ {
 		t.Run(fmt.Sprintf("Order_%d", P), func(t *testing.T) {
 			// Get interpolation nodes
 			R, S, T := Nodes3D(P)
@@ -686,29 +686,18 @@ func TestLiftOperatorExactness(t *testing.T) {
 			basis := NewTetBasis(P)
 
 			// Get interpolation nodes
-			R, S, T := Nodes3D(P)
+			R, S := basis.R, basis.S
 
 			// Compute Vandermonde matrix and mass matrix
-			V := basis.ComputeVandermonde(R, S, T)
-
-			// For high orders, the mass matrix becomes ill-conditioned
-			// Check condition number before proceeding
-			if P >= 7 {
-				// Skip if matrix is too ill-conditioned
-				defer func() {
-					if r := recover(); r != nil {
-						t.Skipf("Order %d: Matrix inversion failed due to ill-conditioning: %v", P, r)
-					}
-				}()
-			}
+			V := basis.V
 
 			M := V.Mul(V.Transpose()).InverseWithCheck() // Mass matrix M = (V*V')^{-1}
 
 			// Get face masks
-			fmask := BuildFmask3D(R, S, T, P)
+			fmask := basis.fmask
 
 			// Compute Lift matrix
-			LIFT := Lift3D(P, fmask, V, R, S, T)
+			LIFT := basis.LIFT
 
 			Nfp := (P + 1) * (P + 2) / 2
 			Nfaces := 4

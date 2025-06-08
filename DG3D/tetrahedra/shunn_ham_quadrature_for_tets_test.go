@@ -1,4 +1,4 @@
-package DG3D
+package tetrahedra
 
 import (
 	"fmt"
