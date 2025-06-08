@@ -36,7 +36,7 @@ func TestNodes2DFekete(t *testing.T) {
 		totalCount := len(r)
 		interiorCount = totalCount - extCount
 		singleEdge := (totalCount - interiorCount - vertexCount) / 3
-		fmt.Printf("Order: %d\n", N)
+		fmt.Printf("N: %d\n", N)
 		fmt.Printf("Exterior count: %d\n", extCount)
 		fmt.Printf("Vertex count: %d\n", vertexCount)
 		fmt.Printf("Interior count: %d\n", interiorCount)

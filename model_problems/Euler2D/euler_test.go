@@ -641,7 +641,7 @@ func TestDissipation2(t *testing.T) {
 				}
 				DX := dfr.FluxElement.Div.Mul(DOFX) // R Derivative, divergence x RT_DOF is R derivative for this DOF
 				DY := dfr.FluxElement.Div.Mul(DOFY) // S Derivative, divergence x RT_DOF is S derivative for this DOF
-				fmt.Printf("Order[%d] check ...", n+1)
+				fmt.Printf("N[%d] check ...", n+1)
 				assert.Equal(t, len(DX.DataP), len(QGradXCheck[n].DataP))
 				assert.Equal(t, len(DY.DataP), len(QGradYCheck[n].DataP))
 				assert.InDeltaSlicef(t, DX.DataP, QGradXCheck[n].DataP, 0.000001, "err msg %s")
@@ -675,7 +675,7 @@ func TestDissipation2(t *testing.T) {
 				}
 			}
 			for n := 0; n < 4; n++ {
-				fmt.Printf("Order[%d] check ...", n+1)
+				fmt.Printf("N[%d] check ...", n+1)
 				c.GetSolutionGradient(-1, n, Q, DX, DY, DOFX, DOFY)
 				assert.Equal(t, len(DX.DataP), len(QGradXCheck[n].DataP))
 				assert.Equal(t, len(DY.DataP), len(QGradYCheck[n].DataP))

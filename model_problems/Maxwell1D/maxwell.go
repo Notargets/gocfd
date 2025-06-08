@@ -163,7 +163,7 @@ func (c *Maxwell) RHS_DFR() (RHSE, RHSH utils.Matrix) {
 	GradH2 := el.Dr.Mul(GradH)
 	var ADissE, ADissH utils.Matrix
 	if true {
-		// Ad-Hoc 2nd/4th Order Artificial Dissipation
+		// Ad-Hoc 2nd/4th N Artificial Dissipation
 		GradE4 := el.Dr.Mul(el.Dr.Mul(GradE2))
 		GradH4 := el.Dr.Mul(el.Dr.Mul(GradH2))
 		ADissE = GradE4.Scale(aDiss4).Add(GradE2.Scale(aDiss2))

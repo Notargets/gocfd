@@ -96,7 +96,7 @@ func TestEdgePointOptimizationEnhanced(t *testing.T) {
 				}
 
 				// Summary for this order
-				t.Logf("Summary for Order %d:", N)
+				t.Logf("Summary for N %d:", N)
 				t.Logf("--------------------------------------------------------------------------------")
 				avgLebesgueImprovement := 0.0
 				for _, r := range results {
@@ -168,7 +168,7 @@ func TestEdgeParameterization(t *testing.T) {
 	}
 
 	// Test RT edge points for order 3
-	t.Logf("\nRT Edge Points (Order 3):")
+	t.Logf("\nRT Edge Points (N 3):")
 	rt := NewRTElement(4, SimplexRTBasis, GaussEdgePoints)
 	for edgeNum := 0; edgeNum < 3; edgeNum++ {
 		points := getEdgePoints(rt, edgeNum)

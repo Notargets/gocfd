@@ -37,7 +37,7 @@ func (ip *InputParameters2D) Print() {
 	fmt.Printf("%8.5f\t\t= FinalTime\n", ip.FinalTime)
 	fmt.Printf("[%s]\t\t\t= Flux Type\n", ip.FluxType)
 	fmt.Printf("[%s]\t= InitType\n", ip.InitType)
-	fmt.Printf("[%d]\t\t\t\t= Polynomial Order\n", ip.PolynomialOrder)
+	fmt.Printf("[%d]\t\t\t\t= Polynomial N\n", ip.PolynomialOrder)
 	for _, name := range ip.PlotFields {
 		fmt.Printf("Plotting Field Named:[%s]\n", name)
 	}

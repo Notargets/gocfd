@@ -163,7 +163,7 @@ func (fn RTBasisType) String() string {
 }
 
 type RTElement struct {
-	P             int // Order of element
+	P             int // N of element
 	Np            int // Number of points in element
 	NpEdge, NpInt int // Number of Edge and Interior points
 	// At every point, the sum of basis functions equals the flux vector

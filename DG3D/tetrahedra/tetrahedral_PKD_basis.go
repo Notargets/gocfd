@@ -14,7 +14,7 @@ import (
 // Note: This basis is orthogonal with respect to the weighted inner product on the tetrahedron,
 // but NOT orthonormal with respect to the standard L2 inner product
 type TetBasis struct {
-	Order   int
+	N       int
 	Np      int // Number of basis functions = (P+1)(P+2)(P+3)/6
 	R, S, T utils.Vector
 	V, VInv utils.Matrix // Vandermonde matrix and inverse
@@ -23,12 +23,13 @@ type TetBasis struct {
 	Dr, Ds, Dt utils.Matrix // Differentiation matrices
 	LIFT       utils.Matrix // Lift matrix for surface integrals
 	Fmask      [][]int      // Face node indices
+	Nfp        int          // Number of face points per face
 }
 
 func NewTetBasis(N int) (tb *TetBasis) {
 	tb = &TetBasis{
-		Order: N,
-		Np:    (N + 1) * (N + 2) * (N + 3) / 6,
+		N:  N,
+		Np: (N + 1) * (N + 2) * (N + 3) / 6,
 	}
 	tb.R, tb.S, tb.T = Nodes3D(N)
 	tb.V = tb.ComputeVandermonde(tb.R, tb.S, tb.T)
@@ -201,18 +202,18 @@ func (tb *TetBasis) BuildFmask3D() (fmask [][]int) {
 
 func (tb *TetBasis) Lift3D() (LIFT utils.Matrix) {
 	tb.Fmask = tb.BuildFmask3D()
+	tb.Nfp = (tb.N + 1) * (tb.N + 2) / 2 // Number of face points
 	var (
-		N       = tb.Order
+		N       = tb.N
 		Np      = tb.Np
 		V       = tb.V
 		R, S, T = tb.R, tb.S, tb.T
 		fmask   = tb.Fmask
 	)
 	Nfaces := 4
-	Nfp := (N + 1) * (N + 2) / 2 // Number of face points
 
 	// Create face mass matrix
-	Emat := utils.NewMatrix(Np, Nfaces*Nfp)
+	Emat := utils.NewMatrix(Np, Nfaces*tb.Nfp)
 
 	// Build the Emat matrix
 	for face := 0; face < Nfaces; face++ {
@@ -242,12 +243,12 @@ func (tb *TetBasis) Lift3D() (LIFT utils.Matrix) {
 		// Fill Emat
 		// C++: JJ.reset((face-1)*Nfp+1, face*Nfp) creates 1-based indices
 		// Go: we need 0-based indices: face*Nfp to (face+1)*Nfp-1
-		for i := 0; i < Nfp; i++ {
-			for j := 0; j < Nfp; j++ {
+		for i := 0; i < tb.Nfp; i++ {
+			for j := 0; j < tb.Nfp; j++ {
 				// C++ assigns massFace to Emat(idr, JJ)
 				// idr = Fmask(All,face) = Fmask[face]
 				// JJ columns are face*Nfp+j (0-based)
-				Emat.Set(fmask[face][i], face*Nfp+j, massFace.At(i, j))
+				Emat.Set(fmask[face][i], face*tb.Nfp+j, massFace.At(i, j))
 			}
 		}
 	}
@@ -268,9 +269,9 @@ func (tb *TetBasis) EvaluateBasis(r, s, t float64) (phi []float64) {
 
 	// Loop over all basis functions
 	idx := 0
-	for i := 0; i <= tb.Order; i++ {
-		for j := 0; j <= tb.Order-i; j++ {
-			for k := 0; k <= tb.Order-i-j; k++ {
+	for i := 0; i <= tb.N; i++ {
+		for j := 0; j <= tb.N-i; j++ {
+			for k := 0; k <= tb.N-i-j; k++ {
 				P := Simplex3DP(rv, sv, tv, i, j, k)
 				phi[idx] = P[0]
 				idx++
@@ -286,9 +287,9 @@ func (tb *TetBasis) ComputeVandermonde(r, s, t utils.Vector) (V utils.Matrix) {
 
 	// Loop over all basis functions
 	sk := 0
-	for i := 0; i <= tb.Order; i++ {
-		for j := 0; j <= tb.Order-i; j++ {
-			for k := 0; k <= tb.Order-i-j; k++ {
+	for i := 0; i <= tb.N; i++ {
+		for j := 0; j <= tb.N-i; j++ {
+			for k := 0; k <= tb.N-i-j; k++ {
 				P := Simplex3DP(r, s, t, i, j, k)
 				V.SetCol(sk, P)
 				sk++
@@ -381,9 +382,9 @@ func (tb *TetBasis) EvaluateBasisGrad(r, s, t float64) (dphidr, dphids, dphidt [
 
 	// Loop over all basis functions
 	idx := 0
-	for i := 0; i <= tb.Order; i++ {
-		for j := 0; j <= tb.Order-i; j++ {
-			for k := 0; k <= tb.Order-i-j; k++ {
+	for i := 0; i <= tb.N; i++ {
+		for j := 0; j <= tb.N-i; j++ {
+			for k := 0; k <= tb.N-i-j; k++ {
 				dr, ds, dt := tb.GradSimplex3DP(rv, sv, tv, i, j, k)
 				dphidr[idx] = dr[0]
 				dphids[idx] = ds[0]
@@ -404,9 +405,9 @@ func (tb *TetBasis) ComputeGradVandermonde(r, s, t utils.Vector) (Vr, Vs, Vt uti
 
 	// Loop over all basis functions
 	sk := 0
-	for i := 0; i <= tb.Order; i++ {
-		for j := 0; j <= tb.Order-i; j++ {
-			for k := 0; k <= tb.Order-i-j; k++ {
+	for i := 0; i <= tb.N; i++ {
+		for j := 0; j <= tb.N-i; j++ {
+			for k := 0; k <= tb.N-i-j; k++ {
 				dr, ds, dt := tb.GradSimplex3DP(r, s, t, i, j, k)
 				Vr.SetCol(sk, dr)
 				Vs.SetCol(sk, ds)

@@ -13,7 +13,7 @@ import (
 )
 
 type EdgePointDistribution struct {
-	PInterpolation                             int // Interpolation Order
+	PInterpolation                             int // Interpolation N
 	NpEdge                                     int
 	RBottom, SBottom, RLeft, SLeft, RHyp, SHyp []float64
 	CondBottom, CondLeft, CondHyp              float64
@@ -120,9 +120,9 @@ func OptimizePointDistribution(P int, SolutionBasis *JacobiBasis2D) (
 func generateInitialDistributions(nInterior int) [][]float64 {
 	var distributions [][]float64
 
-	// Add handling for Order 0 (0 interior points)
+	// Add handling for N 0 (0 interior points)
 	if nInterior == 0 {
-		// For Order 0, there are no interior points to optimize
+		// For N 0, there are no interior points to optimize
 		return [][]float64{{}}
 	}
 
@@ -457,7 +457,7 @@ func legendreGaussLobattoPoints(n int) []float64 {
 // optimizeEdgeGlobal performs multi-start global optimization for a given edge
 func optimizeEdgeGlobal(nInterior int, initialDistributions [][]float64) []float64 {
 
-	// Handle the case where there are no interior points to optimize (Order 0)
+	// Handle the case where there are no interior points to optimize (N 0)
 	if nInterior == 0 {
 		return []float64{}
 	}

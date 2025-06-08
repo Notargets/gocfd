@@ -8,20 +8,17 @@ import (
 
 type Element3D struct {
 	*TetBasis
-
-	// Node information
-	X, Y, Z utils.Vector // Physical coordinates
-
-	// Surface integration
+	// Element information from Mesh
+	K          int            // Number of elements
+	VX, VY, VZ utils.Vector   // Vertex geometry, input from mesh, dimension K
+	X, Y, Z    utils.Vector   // Physical coordinates, Np x K
 	Fx, Fy, Fz []utils.Matrix // Physical coordinates on each face
-
 	// Connectivity
 	VmapM  []int // Maps face nodes to volume nodes
 	VmapP  []int // Maps face nodes to neighbor volume nodes
 	MapM   []int // Maps face nodes to unique face nodes
 	MapP   []int // Maps to neighbor face nodes
 	BCType []int // Boundary condition types per face
-
 	// Geometric factors
 	GeomFactors     *GeometricFactors
 	FaceGeomFactors *FaceGeometricFactors
@@ -47,11 +44,18 @@ func NewElement3D(order int) (el *Element3D) {
 	el = &Element3D{
 		TetBasis: NewTetBasis(order),
 	}
+	// TODO: Process X, Y, Z, K from input vertices
+	el.GeomFactors = el.GeometricFactors3D()
+	el.FaceGeomFactors = el.CalcFaceGeometry()
 	return
 }
 
-func (el *Element3D) GeometricFactors3D(x, y, z, Dr, Ds,
-	Dt utils.Matrix) *GeometricFactors {
+func (el *Element3D) GeometricFactors3D() (gf *GeometricFactors) {
+	var (
+		tb         = el.TetBasis
+		x, y, z    = el.X.ToMatrix(), el.Y.ToMatrix(), el.Z.ToMatrix()
+		Dr, Ds, Dt = tb.Dr, tb.Ds, tb.Dt
+	)
 	xr := Dr.Mul(x)
 	xs := Ds.Mul(x)
 	xt := Dt.Mul(x)
@@ -108,10 +112,14 @@ func (el *Element3D) GeometricFactors3D(x, y, z, Dr, Ds,
 	}
 }
 
-func (el *Element3D) Normals3D(geom *GeometricFactors, fmask [][]int,
-	K int) *FaceGeometricFactors {
+func (el *Element3D) CalcFaceGeometry() *FaceGeometricFactors {
+	var (
+		geom  = el.GeomFactors
+		fmask = el.TetBasis.Fmask
+		K     = el.K
+		Nfp   = el.Nfp
+	)
 	Nfaces := 4
-	Nfp := len(fmask[0])
 
 	nx := utils.NewMatrix(Nfp*Nfaces, K)
 	ny := utils.NewMatrix(Nfp*Nfaces, K)

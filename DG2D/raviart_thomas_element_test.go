@@ -105,7 +105,7 @@ func CheckDivergenceRMS(t *testing.T, rt *RTElement, dt VectorTestField) (rmsErr
 	f1, f2 := make([]float64, Np), make([]float64, Np)
 	DivRef := make([]float64, Np)
 	FProj := utils.NewMatrix(Np, 1)
-	t.Logf("\nReference Vector Field Infinite Order: %s\n", dt.String())
+	t.Logf("\nReference Vector Field Infinite N: %s\n", dt.String())
 	t.Logf("-------------------------------\n")
 	for i := 0; i < Np; i++ {
 		r, s := rt.R.AtVec(i), rt.S.AtVec(i)
@@ -133,7 +133,7 @@ func CheckDivergence(t *testing.T, rt *RTElement, dt VectorTestField,
 	DivRef := make([]float64, Np)
 	FProj := utils.NewMatrix(Np, 1)
 	for PField := PFieldStart; PField <= PFieldEnd; PField++ {
-		t.Logf("\nReference Vector Field Order:%d\n", PField)
+		t.Logf("\nReference Vector Field N:%d\n", PField)
 		t.Logf("-------------------------------\n")
 		for i := 0; i < Np; i++ {
 			r, s := rt.R.AtVec(i), rt.S.AtVec(i)

@@ -57,16 +57,16 @@ func TestPKDBasisInterpolation(t *testing.T) {
 				f        func(r, s, t float64) float64
 				maxOrder int // Maximum total order of polynomial
 			}{
-				// Order 0
+				// N 0
 				{"constant", func(r, s, t float64) float64 { return 1.0 }, 0},
 
-				// Order 1
+				// N 1
 				{"linear_r", func(r, s, t float64) float64 { return r }, 1},
 				{"linear_s", func(r, s, t float64) float64 { return s }, 1},
 				{"linear_t", func(r, s, t float64) float64 { return t }, 1},
 				{"linear_combo", func(r, s, t float64) float64 { return 2*r - 3*s + t }, 1},
 
-				// Order 2
+				// N 2
 				{"quadratic_r2", func(r, s, t float64) float64 { return r * r }, 2},
 				{"quadratic_s2", func(r, s, t float64) float64 { return s * s }, 2},
 				{"quadratic_t2", func(r, s, t float64) float64 { return t * t }, 2},
@@ -75,20 +75,20 @@ func TestPKDBasisInterpolation(t *testing.T) {
 				{"quadratic_st", func(r, s, t float64) float64 { return s * t }, 2},
 				{"quadratic_combo", func(r, s, t float64) float64 { return r*r + 2*r*s - t*t }, 2},
 
-				// Order 3
+				// N 3
 				{"cubic_r3", func(r, s, t float64) float64 { return r * r * r }, 3},
 				{"cubic_s3", func(r, s, t float64) float64 { return s * s * s }, 3},
 				{"cubic_rst", func(r, s, t float64) float64 { return r * s * t }, 3},
 				{"cubic_r2s", func(r, s, t float64) float64 { return r * r * s }, 3},
 				{"cubic_combo", func(r, s, t float64) float64 { return r*r*r - 2*r*s*t + s*s*t }, 3},
 
-				// Order 4
+				// N 4
 				{"quartic_r4", func(r, s, t float64) float64 { return r * r * r * r }, 4},
 				{"quartic_r2s2", func(r, s, t float64) float64 { return r * r * s * s }, 4},
 				{"quartic_r3t", func(r, s, t float64) float64 { return r * r * r * t }, 4},
 				{"quartic_combo", func(r, s, t float64) float64 { return r*r*r*r + r*r*s*s - 2*r*s*t*t }, 4},
 
-				// Order 5
+				// N 5
 				{"quintic_r5", func(r, s, t float64) float64 { return r * r * r * r * r }, 5},
 				{"quintic_r3st", func(r, s, t float64) float64 { return r * r * r * s * t }, 5},
 				{"quintic_r2s2t", func(r, s, t float64) float64 { return r * r * s * s * t }, 5},
@@ -149,7 +149,7 @@ func TestPKDBasisInterpolation(t *testing.T) {
 				// Use a tolerance that accounts for conditioning
 				interpTol := 1e-10 * float64(P*P)
 				if maxError > interpTol {
-					t.Errorf("Order %d, polynomial %s: max interpolation error %g exceeds tolerance %g",
+					t.Errorf("N %d, polynomial %s: max interpolation error %g exceeds tolerance %g",
 						P, test.name, maxError, interpTol)
 				}
 			}
@@ -182,7 +182,7 @@ func TestPKDBasisInterpolation(t *testing.T) {
 				}
 
 				if maxNodeError > tol {
-					t.Errorf("Order %d, polynomial %s: reconstruction error at nodes %g",
+					t.Errorf("N %d, polynomial %s: reconstruction error at nodes %g",
 						P, test.name, maxNodeError)
 				}
 			}
@@ -235,7 +235,7 @@ func TestPKDBasisDerivatives(t *testing.T) {
 				dfdt     func(r, s, t float64) float64
 				maxOrder int
 			}{
-				// Order 0 - derivatives should be zero
+				// N 0 - derivatives should be zero
 				{
 					"constant",
 					func(r, s, t float64) float64 { return 1.0 },
@@ -245,7 +245,7 @@ func TestPKDBasisDerivatives(t *testing.T) {
 					0,
 				},
 
-				// Order 1 - derivatives are constants
+				// N 1 - derivatives are constants
 				{
 					"linear_r",
 					func(r, s, t float64) float64 { return r },
@@ -279,7 +279,7 @@ func TestPKDBasisDerivatives(t *testing.T) {
 					1,
 				},
 
-				// Order 2 - derivatives are linear
+				// N 2 - derivatives are linear
 				{
 					"quadratic_r2",
 					func(r, s, t float64) float64 { return r * r },
@@ -305,7 +305,7 @@ func TestPKDBasisDerivatives(t *testing.T) {
 					2,
 				},
 
-				// Order 3 - derivatives are quadratic
+				// N 3 - derivatives are quadratic
 				{
 					"cubic_r3",
 					func(r, s, t float64) float64 { return r * r * r },
@@ -331,7 +331,7 @@ func TestPKDBasisDerivatives(t *testing.T) {
 					3,
 				},
 
-				// Order 4 - derivatives are cubic
+				// N 4 - derivatives are cubic
 				{
 					"quartic_r4",
 					func(r, s, t float64) float64 { return r * r * r * r },
@@ -349,7 +349,7 @@ func TestPKDBasisDerivatives(t *testing.T) {
 					4,
 				},
 
-				// Order 5 - derivatives are quartic
+				// N 5 - derivatives are quartic
 				{
 					"quintic_r5",
 					func(r, s, t float64) float64 { return r * r * r * r * r },
@@ -417,15 +417,15 @@ func TestPKDBasisDerivatives(t *testing.T) {
 
 				// Check errors are within tolerance
 				if maxErrorDr > tol {
-					t.Errorf("Order %d, polynomial %s: dr/dr error %g exceeds tolerance %g",
+					t.Errorf("N %d, polynomial %s: dr/dr error %g exceeds tolerance %g",
 						P, test.name, maxErrorDr, tol)
 				}
 				if maxErrorDs > tol {
-					t.Errorf("Order %d, polynomial %s: dr/ds error %g exceeds tolerance %g",
+					t.Errorf("N %d, polynomial %s: dr/ds error %g exceeds tolerance %g",
 						P, test.name, maxErrorDs, tol)
 				}
 				if maxErrorDt > tol {
-					t.Errorf("Order %d, polynomial %s: dr/dt error %g exceeds tolerance %g",
+					t.Errorf("N %d, polynomial %s: dr/dt error %g exceeds tolerance %g",
 						P, test.name, maxErrorDt, tol)
 				}
 			}
@@ -502,15 +502,15 @@ func TestPKDBasisDerivatives(t *testing.T) {
 				// Use slightly relaxed tolerance for random point evaluation
 				randomTol := tol * 10
 				if maxErrorDr > randomTol {
-					t.Errorf("Order %d, polynomial %s: random point dr/dr error %g exceeds tolerance %g",
+					t.Errorf("N %d, polynomial %s: random point dr/dr error %g exceeds tolerance %g",
 						P, test.name, maxErrorDr, randomTol)
 				}
 				if maxErrorDs > randomTol {
-					t.Errorf("Order %d, polynomial %s: random point dr/ds error %g exceeds tolerance %g",
+					t.Errorf("N %d, polynomial %s: random point dr/ds error %g exceeds tolerance %g",
 						P, test.name, maxErrorDs, randomTol)
 				}
 				if maxErrorDt > randomTol {
-					t.Errorf("Order %d, polynomial %s: random point dr/dt error %g exceeds tolerance %g",
+					t.Errorf("N %d, polynomial %s: random point dr/dt error %g exceeds tolerance %g",
 						P, test.name, maxErrorDt, randomTol)
 				}
 			}
@@ -595,10 +595,10 @@ func TestBuildFmask3D(t *testing.T) {
 
 			// For a tetrahedron, all nodes should be on the boundary
 			// except for higher order internal nodes
-			t.Logf("Order %d: %d total nodes, %d face nodes", P, Np, len(allFaceNodes))
+			t.Logf("N %d: %d total nodes, %d face nodes", P, Np, len(allFaceNodes))
 
 			// Test 7: Print face node counts for debugging
-			t.Logf("Order %d face node counts: [%d, %d, %d, %d]",
+			t.Logf("N %d face node counts: [%d, %d, %d, %d]",
 				P, len(fmask[0]), len(fmask[1]), len(fmask[2]), len(fmask[3]))
 		})
 	}
@@ -642,7 +642,7 @@ func TestBuildFmask3DWithToleranceCheck(t *testing.T) {
 					}
 				}
 
-				t.Logf("Order %d, tolerance %e: face counts [%d, %d, %d, %d], expected %d",
+				t.Logf("N %d, tolerance %e: face counts [%d, %d, %d, %d], expected %d",
 					P, tol, face0Count, face1Count, face2Count, face3Count, Nfp)
 			}
 
@@ -670,7 +670,7 @@ func TestBuildFmask3DWithToleranceCheck(t *testing.T) {
 					}
 				}
 			}
-			t.Logf("Order %d: Maximum distance from face for 'face nodes': %e", P, maxDist)
+			t.Logf("N %d: Maximum distance from face for 'face nodes': %e", P, maxDist)
 		})
 	}
 }
@@ -736,7 +736,7 @@ func TestLiftOperatorExactness(t *testing.T) {
 			relError := math.Abs(volumeIntegral-expectedSurfaceMeasure) / expectedSurfaceMeasure
 
 			assert.True(t, relError < tol,
-				"Order %d: Volume integral %g differs from expected surface measure %g by %g%% (tol=%g)",
+				"N %d: Volume integral %g differs from expected surface measure %g by %g%% (tol=%g)",
 				P, volumeIntegral, expectedSurfaceMeasure, relError*100, tol*100)
 
 			// Test 2: LIFT applied to zero face data should give zero
@@ -755,7 +755,7 @@ func TestLiftOperatorExactness(t *testing.T) {
 				zeroTol = 1e-12
 			}
 			assert.True(t, maxVal < zeroTol,
-				"Order %d: LIFT of zero data has max value %g", P, maxVal)
+				"N %d: LIFT of zero data has max value %g", P, maxVal)
 
 			// Test 3: Test polynomial exactness for r
 			pVals := R.Copy()
@@ -779,7 +779,7 @@ func TestLiftOperatorExactness(t *testing.T) {
 			expectedIntegralR := -4.0
 
 			assert.True(t, math.Abs(volumeIntegralP-expectedIntegralR) < tol,
-				"Order %d: Integral of r over surface = %g, expected %g (err=%g, tol=%g)",
+				"N %d: Integral of r over surface = %g, expected %g (err=%g, tol=%g)",
 				P, volumeIntegralP, expectedIntegralR,
 				math.Abs(volumeIntegralP-expectedIntegralR), tol)
 
@@ -802,7 +802,7 @@ func TestLiftOperatorExactness(t *testing.T) {
 
 			expectedIntegralS := -4.0
 			assert.True(t, math.Abs(volumeIntegralS-expectedIntegralS) < tol,
-				"Order %d: Integral of s over surface = %g, expected %g (err=%g, tol=%g)",
+				"N %d: Integral of s over surface = %g, expected %g (err=%g, tol=%g)",
 				P, volumeIntegralS, expectedIntegralS,
 				math.Abs(volumeIntegralS-expectedIntegralS), tol)
 
@@ -832,12 +832,12 @@ func TestLiftOperatorExactness(t *testing.T) {
 				surfaceNorm = math.Sqrt(surfaceNorm / float64(Nfp))
 
 				assert.True(t, liftedNorm < growthFactor*surfaceNorm,
-					"Order %d: Lifted norm %g exceeds stability bound %g * %g",
+					"N %d: Lifted norm %g exceeds stability bound %g * %g",
 					P, liftedNorm, growthFactor, surfaceNorm)
 			}
 
 			if testing.Verbose() {
-				t.Logf("Order %d: Surface measure = %.6f, ∫r = %.6f, ∫s = %.6f",
+				t.Logf("N %d: Surface measure = %.6f, ∫r = %.6f, ∫s = %.6f",
 					P, volumeIntegral, volumeIntegralP, volumeIntegralS)
 			}
 		})

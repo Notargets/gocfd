@@ -34,7 +34,7 @@ func TestEdges2(t *testing.T) {
 	// DG2D.AddLine(-1, -1, -1, 1, utils2.BLUE, lines)
 	// DG2D.AddLine(-1, 1, 1, -1, utils2.BLUE, lines)
 	// DG2D.AddLine(1, -1, -1, -1, utils2.BLUE, lines)
-	// fmt.Printf("Order: %d\n", P)
+	// fmt.Printf("N: %d\n", P)
 	// if testing.Verbose() {
 	// 	DG2D.PlotLinesAndText(lines, nil)
 	// }

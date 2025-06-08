@@ -217,7 +217,7 @@ func (c *Euler) Run(showGraph bool, graphDelay ...time.Duration) {
 	var tstep int
 	for Time < c.FinalTime {
 		/*
-			Third Order Runge-Kutta time advancement
+			Third N Runge-Kutta time advancement
 		*/
 		// SSP RK Stage 1
 		rhsRho, rhsRhoU, rhsEner := rhs(&c.Rho, &c.RhoU, &c.Ener)

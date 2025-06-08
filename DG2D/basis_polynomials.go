@@ -9,7 +9,7 @@ import (
 )
 
 type JacobiBasis2D struct {
-	P               int // Order
+	P               int // N
 	Np              int // Dimension
 	V, Vinv, Vr, Vs utils.Matrix
 	OrderAtJ        []int
@@ -257,7 +257,7 @@ func Lagrange1DPoly(t float64, R []float64, j int, derivO ...DerivativeDirection
 }
 
 type JacobiBasis1D struct {
-	P           int // Order
+	P           int // N
 	Np          int // Dimension
 	R           utils.Vector
 	V, Vinv, Vr utils.Matrix

@@ -64,7 +64,7 @@ func TestJacobiBasis2D_Gradient(t *testing.T) {
 	PEnd := 4
 	for P := PStart; P <= PEnd; P++ {
 		t.Logf("----------------------------------------\n")
-		t.Logf("Testing Order %d\n", P)
+		t.Logf("Testing N %d\n", P)
 		t.Logf("----------------------------------------\n")
 		// R, S := NodesEpsilon(P)
 		R, S := MakeRSFromPoints(WilliamsShunnJameson(P))
@@ -73,7 +73,7 @@ func TestJacobiBasis2D_Gradient(t *testing.T) {
 		PTestEnd := P
 		// PTestEnd = 1
 		for testP := PTestStart; testP <= PTestEnd; testP++ {
-			t.Logf("Scalar Test Field Order %d\n", testP)
+			t.Logf("Scalar Test Field N %d\n", testP)
 			t.Logf("----------------------------------------\n")
 			Np := jb2d.Np
 			field := make([]float64, Np)

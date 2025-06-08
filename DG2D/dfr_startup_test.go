@@ -39,7 +39,7 @@ func TestDFR2D(t *testing.T) {
 	{
 		Nmax := 4
 		for N := 1; N <= Nmax; N++ {
-			t.Logf("Order %d", N)
+			t.Logf("N %d", N)
 			dfr := NewDFR2D(N, false)
 			el := dfr.SolutionElement
 			fluxEl := dfr.FluxElement
@@ -478,7 +478,7 @@ func TestGradient(t *testing.T) {
 				}
 				DX := dfr.FluxElement.Div.Mul(DOFX) // R Derivative, divergence x RT_DOF is R derivative for this DOF
 				DY := dfr.FluxElement.Div.Mul(DOFY) // S Derivative, divergence x RT_DOF is S derivative for this DOF
-				t.Logf("Order[%d] check ...", n+1)
+				t.Logf("N[%d] check ...", n+1)
 				assert.Equal(t, len(DX.DataP), len(DXCheck[n].DataP))
 				assert.Equal(t, len(DY.DataP), len(DYCheck[n].DataP))
 				assert.InDeltaSlicef(t, DX.DataP, DXCheck[n].DataP, 0.000001, "err msg %S")

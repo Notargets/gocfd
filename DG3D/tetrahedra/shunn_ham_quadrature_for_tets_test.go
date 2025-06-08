@@ -190,7 +190,7 @@ func TestGetNodesShunnHam(t *testing.T) {
 
 			// Check that all vectors have the same length
 			if R.Len() != S.Len() || S.Len() != T.Len() {
-				t.Errorf("Order %d: Vector lengths don't match: R=%d, S=%d, T=%d",
+				t.Errorf("N %d: Vector lengths don't match: R=%d, S=%d, T=%d",
 					P, R.Len(), S.Len(), T.Len())
 				return
 			}
@@ -200,11 +200,11 @@ func TestGetNodesShunnHam(t *testing.T) {
 			expectedPoints := (P + 1) * (P + 2) * (P + 3) / 6
 
 			if R.Len() != expectedPoints {
-				t.Errorf("Order %d: Expected %d points to interpolate polynomial degree %d, got %d",
+				t.Errorf("N %d: Expected %d points to interpolate polynomial degree %d, got %d",
 					P, expectedPoints, P, R.Len())
 			}
 
-			t.Logf("Order %d: %d points provided to interpolate polynomial degree %d",
+			t.Logf("N %d: %d points provided to interpolate polynomial degree %d",
 				P, R.Len(), P)
 		})
 	}

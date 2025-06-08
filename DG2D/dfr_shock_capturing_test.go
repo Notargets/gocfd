@@ -14,7 +14,7 @@ func TestShockFinder(t *testing.T) {
 	)
 	meshFile := "test_data/test_10tris_centered.neu"
 	for N := NMin; N <= NMax; N++ {
-		t.Logf("Order: %d", N)
+		t.Logf("N: %d", N)
 		dfr := NewDFR2D(N, false, meshFile)
 		var (
 			Kmax  = dfr.K

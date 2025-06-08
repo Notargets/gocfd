@@ -27,7 +27,7 @@ func main() {
 	fmt.Printf("Input file: %v\n", csvFile)
 	studies := readCSV(csvFile)
 	for _, cs := range studies {
-		fmt.Printf("Title = %s, Order = %d, CFL = %5.2f\n", cs.title, cs.order, cs.CFL)
+		fmt.Printf("Title = %s, N = %d, CFL = %5.2f\n", cs.title, cs.order, cs.CFL)
 		/*
 			for i := range cs.numPTS {
 				fmt.Printf("%5.3f, %5.3f, %5.3f, %5.3f, %5.3f, %5.3f, %5.3f\n",

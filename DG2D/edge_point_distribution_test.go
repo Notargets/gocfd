@@ -31,7 +31,7 @@ func TestEdgeOptimization(t *testing.T) {
 			tol  = 1.e-5
 		)
 		for N := NMin; N < NMax; N++ {
-			fmt.Printf("RT Order %d\n", N+1)
+			fmt.Printf("RT N %d\n", N+1)
 			// R, S := NodesEpsilon(N)
 			R, S := MakeRSFromPoints(WilliamsShunnJameson(N))
 			SolutionBasis := NewJacobiBasis2D(N, R, S)

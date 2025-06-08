@@ -22,7 +22,7 @@ func _TestNodes2DUniform(t *testing.T) {
 	for _, pt := range pts {
 		AddCrossHairs([]float32{float32(pt.R), float32(pt.S)}, utils.WHITE, lines)
 	}
-	fmt.Printf("Order: %d\n", N)
+	fmt.Printf("N: %d\n", N)
 	if testing.Verbose() {
 		PlotLinesAndText(lines, nil)
 	}
