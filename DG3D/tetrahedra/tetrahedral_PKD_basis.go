@@ -17,9 +17,12 @@ type TetBasis struct {
 	Order   int
 	Np      int // Number of basis functions = (P+1)(P+2)(P+3)/6
 	R, S, T utils.Vector
-	V, VInv utils.Matrix
-	LIFT    utils.Matrix
-	fmask   [][]int
+	V, VInv utils.Matrix // Vandermonde matrix and inverse
+	// Mass and differentiation matrices
+	M, MInv    utils.Matrix // Mass matrix, Inverse mass matrix
+	Dr, Ds, Dt utils.Matrix // Differentiation matrices
+	LIFT       utils.Matrix // Lift matrix for surface integrals
+	Fmask      [][]int      // Face node indices
 }
 
 func NewTetBasis(N int) (tb *TetBasis) {
@@ -30,8 +33,17 @@ func NewTetBasis(N int) (tb *TetBasis) {
 	tb.R, tb.S, tb.T = Nodes3D(N)
 	tb.V = tb.ComputeVandermonde(tb.R, tb.S, tb.T)
 	tb.VInv = tb.V.InverseWithCheck()
-	tb.fmask = tb.BuildFmask3D()
 	tb.LIFT = tb.Lift3D()
+	Vr, Vs, Vt := tb.ComputeGradVandermonde(tb.R, tb.S, tb.T)
+	tb.Dr = Vr.Mul(tb.VInv)
+	tb.Ds = Vs.Mul(tb.VInv)
+	tb.Dt = Vt.Mul(tb.VInv)
+	tb.M = tb.VInv.Transpose().Mul(tb.VInv)
+	inverse, err := tb.M.Inverse()
+	if err != nil {
+		return nil
+	}
+	tb.MInv = inverse
 	return
 }
 
@@ -188,12 +200,13 @@ func (tb *TetBasis) BuildFmask3D() (fmask [][]int) {
 }
 
 func (tb *TetBasis) Lift3D() (LIFT utils.Matrix) {
+	tb.Fmask = tb.BuildFmask3D()
 	var (
 		N       = tb.Order
 		Np      = tb.Np
 		V       = tb.V
 		R, S, T = tb.R, tb.S, tb.T
-		fmask   = tb.fmask
+		fmask   = tb.Fmask
 	)
 	Nfaces := 4
 	Nfp := (N + 1) * (N + 2) / 2 // Number of face points
@@ -232,7 +245,7 @@ func (tb *TetBasis) Lift3D() (LIFT utils.Matrix) {
 		for i := 0; i < Nfp; i++ {
 			for j := 0; j < Nfp; j++ {
 				// C++ assigns massFace to Emat(idr, JJ)
-				// idr = Fmask(All,face) = fmask[face]
+				// idr = Fmask(All,face) = Fmask[face]
 				// JJ columns are face*Nfp+j (0-based)
 				Emat.Set(fmask[face][i], face*Nfp+j, massFace.At(i, j))
 			}

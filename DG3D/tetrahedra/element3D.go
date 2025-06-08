@@ -10,19 +10,9 @@ type Element3D struct {
 	*TetBasis
 
 	// Node information
-	R, S, T utils.Vector // Reference coordinates
 	X, Y, Z utils.Vector // Physical coordinates
 
-	// Mass and differentiation matrices
-	V          utils.Matrix // Vandermonde matrix
-	Vr, Vs, Vt utils.Matrix // Gradient Vandermonde matrices
-	Dr, Ds, Dt utils.Matrix // Differentiation matrices
-	M          utils.Matrix // Mass matrix
-	invM       utils.Matrix // Inverse mass matrix
-
 	// Surface integration
-	LIFT       utils.Matrix   // Lift matrix for surface integrals
-	Fmask      [][]int        // Face node indices
 	Fx, Fy, Fz []utils.Matrix // Physical coordinates on each face
 
 	// Connectivity
@@ -118,7 +108,8 @@ func (el *Element3D) GeometricFactors3D(x, y, z, Dr, Ds,
 	}
 }
 
-func Normals3D(geom *GeometricFactors, fmask [][]int, K int) *FaceGeometricFactors {
+func (el *Element3D) Normals3D(geom *GeometricFactors, fmask [][]int,
+	K int) *FaceGeometricFactors {
 	Nfaces := 4
 	Nfp := len(fmask[0])
 

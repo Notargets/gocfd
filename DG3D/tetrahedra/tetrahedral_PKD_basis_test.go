@@ -525,7 +525,7 @@ func TestBuildFmask3D(t *testing.T) {
 			tb := NewTetBasis(P)
 
 			// Build face masks
-			fmask := tb.fmask
+			fmask := tb.Fmask
 
 			// Expected number of nodes per face
 			Nfp := (P + 1) * (P + 2) / 2
@@ -694,7 +694,7 @@ func TestLiftOperatorExactness(t *testing.T) {
 			M := V.Mul(V.Transpose()).InverseWithCheck() // Mass matrix M = (V*V')^{-1}
 
 			// Get face masks
-			fmask := basis.fmask
+			fmask := basis.Fmask
 
 			// Compute Lift matrix
 			LIFT := basis.LIFT
