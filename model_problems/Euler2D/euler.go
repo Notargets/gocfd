@@ -1023,7 +1023,7 @@ func (c *Euler) shardEtoV(EtoV utils.Matrix) (ev []utils.Matrix) {
 	var (
 		pm = c.Partitions
 		NP = pm.ParallelDegree
-		// KMax, _ = EtoV.Dims()
+		// KMax, _ = EToV.Dims()
 	)
 	ev = make([]utils.Matrix, NP)
 	for np := 0; np < NP; np++ {

@@ -34,7 +34,7 @@ func NewVertexToElement(EtoV utils.Matrix) (VtoE VertexToElement) {
 		Kmax, Nverts = EtoV.Dims()
 	)
 	if Nverts != 3 {
-		msg := fmt.Errorf("EtoV should have dimensions [Kmax,3] was [%d,%d]", Kmax, Nverts)
+		msg := fmt.Errorf("EToV should have dimensions [Kmax,3] was [%d,%d]", Kmax, Nverts)
 		panic(msg)
 	}
 	VtoE = make(VertexToElement, Kmax*3)
@@ -168,7 +168,7 @@ func (sd *ScalarDissipation) shardEtoV(EtoV utils.Matrix) (ev []utils.Matrix) {
 	var (
 		pm = sd.PMap
 		NP = pm.ParallelDegree
-		// KMax, _ = EtoV.Dims()
+		// KMax, _ = EToV.Dims()
 	)
 	ev = make([]utils.Matrix, NP)
 	for np := 0; np < NP; np++ {

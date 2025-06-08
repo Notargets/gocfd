@@ -7,21 +7,21 @@ import (
 )
 
 type Element3D struct {
-	*TetBasis
-	// Element information from Mesh
 	K          int            // Number of elements
 	VX, VY, VZ utils.Vector   // Vertex geometry, input from mesh, dimension K
 	X, Y, Z    utils.Vector   // Physical coordinates, Np x K
 	Fx, Fy, Fz []utils.Matrix // Physical coordinates on each face
 	// Connectivity
-	VmapM  []int // Maps face nodes to volume nodes
-	VmapP  []int // Maps face nodes to neighbor volume nodes
-	MapM   []int // Maps face nodes to unique face nodes
-	MapP   []int // Maps to neighbor face nodes
-	BCType []int // Boundary condition types per face
-	// Geometric factors
-	GeomFactors     *GeometricFactors
-	FaceGeomFactors *FaceGeometricFactors
+	EToV      [][]int // Element to Vertex map from mesh file
+	BCType    []int   // Boundary condition types per face from mesh file
+	VmapM     []int   // Maps face nodes to volume nodes
+	VmapP     []int   // Maps face nodes to neighbor volume nodes
+	MapM      []int   // Maps face nodes to unique face nodes
+	MapP      []int   // Maps to neighbor face nodes
+	*TetBasis         // Hesthaven tetrahedron PKD basis
+	*GeometricFactors
+	*FaceGeometricFactors
+	*ConnectivityArrays
 }
 type ConnectivityArrays struct {
 	EToE [][]int // Element to element connectivity
@@ -44,17 +44,24 @@ func NewElement3D(order int) (el *Element3D) {
 	el = &Element3D{
 		TetBasis: NewTetBasis(order),
 	}
+	el.EToV, el.BCType = el.ReadMesh("MyMeshFile")
+	el.ConnectivityArrays = el.Connect3D()
+	el.GeometricFactors = el.GeometricFactors3D()
+	el.FaceGeometricFactors = el.CalcFaceGeometry()
+	el.BuildMaps3D()
+	return
+}
+
+func (el *Element3D) ReadMesh(meshfile string) (EtoV [][]int, BCType []int) {
 	// TODO: Process X, Y, Z, K from input vertices
-	el.GeomFactors = el.GeometricFactors3D()
-	el.FaceGeomFactors = el.CalcFaceGeometry()
+	el.K = len(el.EToV)
 	return
 }
 
 func (el *Element3D) GeometricFactors3D() (gf *GeometricFactors) {
 	var (
-		tb         = el.TetBasis
 		x, y, z    = el.X.ToMatrix(), el.Y.ToMatrix(), el.Z.ToMatrix()
-		Dr, Ds, Dt = tb.Dr, tb.Ds, tb.Dt
+		Dr, Ds, Dt = el.Dr, el.Ds, el.Dt
 	)
 	xr := Dr.Mul(x)
 	xs := Ds.Mul(x)
@@ -114,8 +121,7 @@ func (el *Element3D) GeometricFactors3D() (gf *GeometricFactors) {
 
 func (el *Element3D) CalcFaceGeometry() *FaceGeometricFactors {
 	var (
-		geom  = el.GeomFactors
-		fmask = el.TetBasis.Fmask
+		fmask = el.Fmask
 		K     = el.K
 		Nfp   = el.Nfp
 	)
@@ -130,16 +136,16 @@ func (el *Element3D) CalcFaceGeometry() *FaceGeometricFactors {
 	for k := 0; k < K; k++ {
 		for i := 0; i < Nfp; i++ {
 			vid := fmask[0][i]
-			nx.Set(i, k, -geom.Tx.At(vid, k))
-			ny.Set(i, k, -geom.Ty.At(vid, k))
-			nz.Set(i, k, -geom.Tz.At(vid, k))
-			sJ.Set(i, k, geom.J.At(vid, k)*math.Sqrt(
+			nx.Set(i, k, -el.Tx.At(vid, k))
+			ny.Set(i, k, -el.Ty.At(vid, k))
+			nz.Set(i, k, -el.Tz.At(vid, k))
+			sJ.Set(i, k, el.J.At(vid, k)*math.Sqrt(
 				nx.At(i, k)*nx.At(i, k)+ny.At(i, k)*ny.At(i, k)+nz.At(i, k)*nz.At(i, k)))
 
 			// Normalize
-			nx.Set(i, k, nx.At(i, k)/sJ.At(i, k)*geom.J.At(vid, k))
-			ny.Set(i, k, ny.At(i, k)/sJ.At(i, k)*geom.J.At(vid, k))
-			nz.Set(i, k, nz.At(i, k)/sJ.At(i, k)*geom.J.At(vid, k))
+			nx.Set(i, k, nx.At(i, k)/sJ.At(i, k)*el.J.At(vid, k))
+			ny.Set(i, k, ny.At(i, k)/sJ.At(i, k)*el.J.At(vid, k))
+			nz.Set(i, k, nz.At(i, k)/sJ.At(i, k)*el.J.At(vid, k))
 		}
 	}
 
@@ -147,16 +153,16 @@ func (el *Element3D) CalcFaceGeometry() *FaceGeometricFactors {
 	for k := 0; k < K; k++ {
 		for i := 0; i < Nfp; i++ {
 			vid := fmask[1][i]
-			nx.Set(Nfp+i, k, -geom.Sx.At(vid, k))
-			ny.Set(Nfp+i, k, -geom.Sy.At(vid, k))
-			nz.Set(Nfp+i, k, -geom.Sz.At(vid, k))
-			sJ.Set(Nfp+i, k, geom.J.At(vid, k)*math.Sqrt(
+			nx.Set(Nfp+i, k, -el.Sx.At(vid, k))
+			ny.Set(Nfp+i, k, -el.Sy.At(vid, k))
+			nz.Set(Nfp+i, k, -el.Sz.At(vid, k))
+			sJ.Set(Nfp+i, k, el.J.At(vid, k)*math.Sqrt(
 				nx.At(Nfp+i, k)*nx.At(Nfp+i, k)+ny.At(Nfp+i, k)*ny.At(Nfp+i, k)+nz.At(Nfp+i, k)*nz.At(Nfp+i, k)))
 
 			// Normalize
-			nx.Set(Nfp+i, k, nx.At(Nfp+i, k)/sJ.At(Nfp+i, k)*geom.J.At(vid, k))
-			ny.Set(Nfp+i, k, ny.At(Nfp+i, k)/sJ.At(Nfp+i, k)*geom.J.At(vid, k))
-			nz.Set(Nfp+i, k, nz.At(Nfp+i, k)/sJ.At(Nfp+i, k)*geom.J.At(vid, k))
+			nx.Set(Nfp+i, k, nx.At(Nfp+i, k)/sJ.At(Nfp+i, k)*el.J.At(vid, k))
+			ny.Set(Nfp+i, k, ny.At(Nfp+i, k)/sJ.At(Nfp+i, k)*el.J.At(vid, k))
+			nz.Set(Nfp+i, k, nz.At(Nfp+i, k)/sJ.At(Nfp+i, k)*el.J.At(vid, k))
 		}
 	}
 
@@ -164,16 +170,16 @@ func (el *Element3D) CalcFaceGeometry() *FaceGeometricFactors {
 	for k := 0; k < K; k++ {
 		for i := 0; i < Nfp; i++ {
 			vid := fmask[2][i]
-			nx.Set(2*Nfp+i, k, geom.Rx.At(vid, k)+geom.Sx.At(vid, k)+geom.Tx.At(vid, k))
-			ny.Set(2*Nfp+i, k, geom.Ry.At(vid, k)+geom.Sy.At(vid, k)+geom.Ty.At(vid, k))
-			nz.Set(2*Nfp+i, k, geom.Rz.At(vid, k)+geom.Sz.At(vid, k)+geom.Tz.At(vid, k))
-			sJ.Set(2*Nfp+i, k, geom.J.At(vid, k)*math.Sqrt(
+			nx.Set(2*Nfp+i, k, el.Rx.At(vid, k)+el.Sx.At(vid, k)+el.Tx.At(vid, k))
+			ny.Set(2*Nfp+i, k, el.Ry.At(vid, k)+el.Sy.At(vid, k)+el.Ty.At(vid, k))
+			nz.Set(2*Nfp+i, k, el.Rz.At(vid, k)+el.Sz.At(vid, k)+el.Tz.At(vid, k))
+			sJ.Set(2*Nfp+i, k, el.J.At(vid, k)*math.Sqrt(
 				nx.At(2*Nfp+i, k)*nx.At(2*Nfp+i, k)+ny.At(2*Nfp+i, k)*ny.At(2*Nfp+i, k)+nz.At(2*Nfp+i, k)*nz.At(2*Nfp+i, k)))
 
 			// Normalize
-			nx.Set(2*Nfp+i, k, nx.At(2*Nfp+i, k)/sJ.At(2*Nfp+i, k)*geom.J.At(vid, k))
-			ny.Set(2*Nfp+i, k, ny.At(2*Nfp+i, k)/sJ.At(2*Nfp+i, k)*geom.J.At(vid, k))
-			nz.Set(2*Nfp+i, k, nz.At(2*Nfp+i, k)/sJ.At(2*Nfp+i, k)*geom.J.At(vid, k))
+			nx.Set(2*Nfp+i, k, nx.At(2*Nfp+i, k)/sJ.At(2*Nfp+i, k)*el.J.At(vid, k))
+			ny.Set(2*Nfp+i, k, ny.At(2*Nfp+i, k)/sJ.At(2*Nfp+i, k)*el.J.At(vid, k))
+			nz.Set(2*Nfp+i, k, nz.At(2*Nfp+i, k)/sJ.At(2*Nfp+i, k)*el.J.At(vid, k))
 		}
 	}
 
@@ -181,16 +187,16 @@ func (el *Element3D) CalcFaceGeometry() *FaceGeometricFactors {
 	for k := 0; k < K; k++ {
 		for i := 0; i < Nfp; i++ {
 			vid := fmask[3][i]
-			nx.Set(3*Nfp+i, k, -geom.Rx.At(vid, k))
-			ny.Set(3*Nfp+i, k, -geom.Ry.At(vid, k))
-			nz.Set(3*Nfp+i, k, -geom.Rz.At(vid, k))
-			sJ.Set(3*Nfp+i, k, geom.J.At(vid, k)*math.Sqrt(
+			nx.Set(3*Nfp+i, k, -el.Rx.At(vid, k))
+			ny.Set(3*Nfp+i, k, -el.Ry.At(vid, k))
+			nz.Set(3*Nfp+i, k, -el.Rz.At(vid, k))
+			sJ.Set(3*Nfp+i, k, el.J.At(vid, k)*math.Sqrt(
 				nx.At(3*Nfp+i, k)*nx.At(3*Nfp+i, k)+ny.At(3*Nfp+i, k)*ny.At(3*Nfp+i, k)+nz.At(3*Nfp+i, k)*nz.At(3*Nfp+i, k)))
 
 			// Normalize
-			nx.Set(3*Nfp+i, k, nx.At(3*Nfp+i, k)/sJ.At(3*Nfp+i, k)*geom.J.At(vid, k))
-			ny.Set(3*Nfp+i, k, ny.At(3*Nfp+i, k)/sJ.At(3*Nfp+i, k)*geom.J.At(vid, k))
-			nz.Set(3*Nfp+i, k, nz.At(3*Nfp+i, k)/sJ.At(3*Nfp+i, k)*geom.J.At(vid, k))
+			nx.Set(3*Nfp+i, k, nx.At(3*Nfp+i, k)/sJ.At(3*Nfp+i, k)*el.J.At(vid, k))
+			ny.Set(3*Nfp+i, k, ny.At(3*Nfp+i, k)/sJ.At(3*Nfp+i, k)*el.J.At(vid, k))
+			nz.Set(3*Nfp+i, k, nz.At(3*Nfp+i, k)/sJ.At(3*Nfp+i, k)*el.J.At(vid, k))
 		}
 	}
 
@@ -200,7 +206,7 @@ func (el *Element3D) CalcFaceGeometry() *FaceGeometricFactors {
 		for i := 0; i < Nfp; i++ {
 			for k := 0; k < K; k++ {
 				vid := fmask[f%4][i]
-				Fscale.Set(f*Nfp+i, k, sJ.At(f*Nfp+i, k)/geom.J.At(vid, k))
+				Fscale.Set(f*Nfp+i, k, sJ.At(f*Nfp+i, k)/el.J.At(vid, k))
 			}
 		}
 	}
@@ -212,8 +218,14 @@ func (el *Element3D) CalcFaceGeometry() *FaceGeometricFactors {
 	}
 }
 
-func BuildMaps3D(K int, Np int, Nfp int, fmask [][]int, x, y, z utils.Matrix,
-	conn *ConnectivityArrays) (VmapM, VmapP, MapM, MapP []int) {
+func (el *Element3D) BuildMaps3D() {
+	var (
+		K       = el.K
+		Np      = el.Np
+		Nfp     = el.Nfp
+		fmask   = el.Fmask
+		x, y, z = el.X, el.Y, el.Z
+	)
 
 	Nfaces := 4
 
@@ -254,8 +266,8 @@ func BuildMaps3D(K int, Np int, Nfp int, fmask [][]int, x, y, z utils.Matrix,
 	// Create face to face mapping
 	for k1 := 0; k1 < K; k1++ {
 		for f1 := 0; f1 < Nfaces; f1++ {
-			k2 := conn.EToE[k1][f1]
-			f2 := conn.EToF[k1][f1]
+			k2 := el.EToE[k1][f1]
+			f2 := el.EToF[k1][f1]
 
 			if k2 < k1 || (k2 == k1 && f2 < f1) {
 				continue // Only process each face pair once
@@ -295,12 +307,18 @@ func BuildMaps3D(K int, Np int, Nfp int, fmask [][]int, x, y, z utils.Matrix,
 			}
 		}
 	}
-
-	return vmapM, vmapP, mapM, mapP
+	el.VmapM = vmapM
+	el.VmapP = vmapP
+	el.MapM = mapM
+	el.MapP = mapP
+	return
 }
 
-func Connect3D(EToV [][]int) *ConnectivityArrays {
-	K := len(EToV)
+func (el *Element3D) Connect3D() (ca *ConnectivityArrays) {
+	var (
+		EToV = el.EToV
+		K    = el.K
+	)
 	Nfaces := 4
 
 	// Build face to vertex mapping for tetrahedron
@@ -373,8 +391,9 @@ func Connect3D(EToV [][]int) *ConnectivityArrays {
 		}
 	}
 
-	return &ConnectivityArrays{
+	ca = &ConnectivityArrays{
 		EToE: EToE,
 		EToF: EToF,
 	}
+	return
 }
