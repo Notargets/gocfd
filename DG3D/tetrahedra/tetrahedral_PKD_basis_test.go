@@ -688,10 +688,7 @@ func TestLiftOperatorExactness(t *testing.T) {
 			// Get interpolation nodes
 			R, S := basis.R, basis.S
 
-			// Compute Vandermonde matrix and mass matrix
-			V := basis.V
-
-			M := V.Mul(V.Transpose()).InverseWithCheck() // Mass matrix M = (V*V')^{-1}
+			M := basis.M
 
 			// Get face masks
 			fmask := basis.Fmask
