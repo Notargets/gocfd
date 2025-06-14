@@ -75,7 +75,7 @@ func ReadGambitNeutral(filename string) (*Mesh, error) {
 			// Read elements
 			mesh.Elements = make([][]int, 0, nelem)
 			mesh.ElementTypes = make([]ElementType, 0, nelem)
-			mesh.ElementTags = make([]int, 0, nelem)
+			mesh.ElementTags = make([][]int, 0, nelem)
 
 			for scanner.Scan() {
 				line = strings.TrimSpace(scanner.Text())
@@ -122,7 +122,8 @@ func ReadGambitNeutral(filename string) (*Mesh, error) {
 
 						mesh.Elements = append(mesh.Elements, verts)
 						mesh.ElementTypes = append(mesh.ElementTypes, etype)
-						mesh.ElementTags = append(mesh.ElementTags, 0) // Default tag
+						mesh.ElementTags = append(mesh.ElementTags,
+							[]int{0}) // Default tag
 					}
 				}
 			}
@@ -132,10 +133,12 @@ func ReadGambitNeutral(filename string) (*Mesh, error) {
 			// Format: GROUP: NGP ELEMENTS: NELGP MATERIAL: MTYP NFLAGS: NFLAGS
 			if strings.HasPrefix(line, "GROUP:") {
 				parts := strings.Split(line, " ")
-				var groupID, numElems int
+				var groupID []int
+				var numElems int
 				for i := 0; i < len(parts)-1; i++ {
 					if parts[i] == "GROUP:" && i+1 < len(parts) {
-						groupID, _ = strconv.Atoi(parts[i+1])
+						iii, _ := strconv.Atoi(parts[i+1])
+						groupID = []int{iii}
 					}
 					if parts[i] == "ELEMENTS:" && i+1 < len(parts) {
 						numElems, _ = strconv.Atoi(parts[i+1])

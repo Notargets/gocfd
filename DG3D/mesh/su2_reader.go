@@ -42,7 +42,7 @@ func ReadSU2(filename string) (*Mesh, error) {
 			// Pre-allocate slices
 			mesh.Elements = make([][]int, 0, nelem)
 			mesh.ElementTypes = make([]ElementType, 0, nelem)
-			mesh.ElementTags = make([]int, 0, nelem)
+			mesh.ElementTags = make([][]int, 0, nelem)
 
 			// Read elements
 			for i := 0; i < nelem; i++ {
@@ -95,7 +95,8 @@ func ReadSU2(filename string) (*Mesh, error) {
 
 					mesh.Elements = append(mesh.Elements, verts)
 					mesh.ElementTypes = append(mesh.ElementTypes, etype)
-					mesh.ElementTags = append(mesh.ElementTags, 0) // Default tag
+					mesh.ElementTags = append(mesh.ElementTags,
+						[]int{0}) // Default tag
 				}
 			}
 
