@@ -96,7 +96,7 @@ The comparison gets much more interesting at orders higher than 1, with the
 GoCFD solution showing steepening shocks and expansions, which are generally 
 more monotone than the SU2 shock capturing.
 
-At orders 3 and 4, an interesting stair stepping of Mach and Cpis seen at the 
+At orders 3 and 4, an interesting stair stepping of Mach and Cp is seen at the 
 leading edge. I believe this is a manifestation of the airfoil geometry 
 being modeled as line segments with sharp corners between the elements. This 
 causes the flow to turn sharp corners as it accelerates over the leading 
