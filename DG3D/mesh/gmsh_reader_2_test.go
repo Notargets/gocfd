@@ -358,7 +358,6 @@ func TestReadGmsh22AllElementTypes(t *testing.T) {
 // TestReadGmsh22PhysicalNames tests physical entity names
 func TestReadGmsh22PhysicalNames(t *testing.T) {
 	// This test requires specific physical names, so we keep it with minimal hardcoding
-	// tm := GetStandardTestMeshes()
 
 	// Create a simple mesh with physical groups
 	content := `$MeshFormat

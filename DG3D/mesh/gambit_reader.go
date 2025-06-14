@@ -2,6 +2,7 @@ package mesh
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -18,7 +19,7 @@ func ReadGambitNeutral(filename string) (*Mesh, error) {
 	mesh := NewMesh()
 	scanner := bufio.NewScanner(file)
 
-	var numnp, nelem int
+	var numnp, nelem, ngrps, nbsets int
 
 	// Read until we find the problem size parameters
 	for scanner.Scan() {
@@ -29,9 +30,11 @@ func ReadGambitNeutral(filename string) (*Mesh, error) {
 			// Next line contains the actual values
 			if scanner.Scan() {
 				values := strings.Fields(scanner.Text())
-				if len(values) >= 2 {
+				if len(values) >= 4 {
 					numnp, _ = strconv.Atoi(values[0])
 					nelem, _ = strconv.Atoi(values[1])
+					ngrps, _ = strconv.Atoi(values[2])
+					nbsets, _ = strconv.Atoi(values[3])
 				}
 			}
 			break
@@ -122,38 +125,56 @@ func ReadGambitNeutral(filename string) (*Mesh, error) {
 
 						mesh.Elements = append(mesh.Elements, verts)
 						mesh.ElementTypes = append(mesh.ElementTypes, etype)
-						mesh.ElementTags = append(mesh.ElementTags,
-							[]int{0}) // Default tag
+						mesh.ElementTags = append(mesh.ElementTags, []int{0}) // Default tag
 					}
 				}
 			}
 
 		} else if strings.Contains(line, "ELEMENT GROUP") {
-			// Read element group information
-			// Format: GROUP: NGP ELEMENTS: NELGP MATERIAL: MTYP NFLAGS: NFLAGS
-			if strings.HasPrefix(line, "GROUP:") {
-				parts := strings.Split(line, " ")
-				var groupID []int
-				var numElems int
+			// Read element groups - process all groups
+			for groupIdx := 0; groupIdx < ngrps; groupIdx++ {
+				// Read the group header line
+				if !scanner.Scan() {
+					break
+				}
+				groupLine := strings.TrimSpace(scanner.Text())
+
+				// Parse GROUP: NGP ELEMENTS: NELGP MATERIAL: MTYP NFLAGS: NFLAGS
+				var groupID, numElems, nflags int
+				parts := strings.Fields(groupLine)
+
 				for i := 0; i < len(parts)-1; i++ {
 					if parts[i] == "GROUP:" && i+1 < len(parts) {
-						iii, _ := strconv.Atoi(parts[i+1])
-						groupID = []int{iii}
+						groupID, _ = strconv.Atoi(parts[i+1])
 					}
 					if parts[i] == "ELEMENTS:" && i+1 < len(parts) {
 						numElems, _ = strconv.Atoi(parts[i+1])
 					}
+					if parts[i] == "NFLAGS:" && i+1 < len(parts) {
+						nflags, _ = strconv.Atoi(parts[i+1])
+					}
 				}
 
-				// Skip entity name
-				scanner.Scan()
+				// Read entity name
+				if !scanner.Scan() {
+					break
+				}
+				// entityName := strings.TrimSpace(scanner.Text())
 
-				// Skip flags
-				scanner.Scan()
+				// Read flags if present
+				if nflags > 0 {
+					if !scanner.Scan() {
+						break
+					}
+					// flags := strings.TrimSpace(scanner.Text())
+				}
 
 				// Read element IDs in this group
 				elementsRead := 0
-				for scanner.Scan() && elementsRead < numElems {
+				for elementsRead < numElems {
+					if !scanner.Scan() {
+						break
+					}
 					line = strings.TrimSpace(scanner.Text())
 					if line == "ENDOFSECTION" {
 						break
@@ -161,10 +182,10 @@ func ReadGambitNeutral(filename string) (*Mesh, error) {
 
 					fields := strings.Fields(line)
 					for _, field := range fields {
-						elemID, _ := strconv.Atoi(field)
-						if elemID > 0 && elemID <= len(mesh.Elements) {
-							// Elements are 1-indexed in file
-							mesh.ElementTags[elemID-1] = groupID
+						elemID, err := strconv.Atoi(field)
+						if err == nil && elemID > 0 && elemID <= len(mesh.Elements) {
+							// Elements are 1-indexed in file, 0-indexed in mesh
+							mesh.ElementTags[elemID-1] = []int{groupID}
 						}
 						elementsRead++
 						if elementsRead >= numElems {
@@ -172,22 +193,39 @@ func ReadGambitNeutral(filename string) (*Mesh, error) {
 						}
 					}
 				}
+
+				// Check if we've reached ENDOFSECTION
+				if line == "ENDOFSECTION" {
+					break
+				}
 			}
 
 		} else if strings.Contains(line, "BOUNDARY CONDITIONS") {
 			// Read boundary conditions
-			scanner.Scan() // Read BC name and info
-			bcLine := strings.TrimSpace(scanner.Text())
-			parts := strings.Fields(bcLine)
-			if len(parts) >= 2 {
-				bcName := parts[0]
-				// Could parse ITYPE, NENTRY, etc. if needed
+			for bcIdx := 0; bcIdx < nbsets; bcIdx++ {
+				if !scanner.Scan() {
+					break
+				}
+				bcLine := strings.TrimSpace(scanner.Text())
 
-				// For now, just store the BC name
-				// You could extend this to read the actual boundary elements/nodes
-				mesh.BoundaryTags[len(mesh.BoundaryTags)] = bcName
+				// Parse boundary condition line
+				parts := strings.Fields(bcLine)
+				if len(parts) >= 2 {
+					bcName := parts[0]
+					// Could parse ITYPE, NENTRY, etc. if needed
+
+					// Store boundary condition name
+					mesh.BoundaryTags[bcIdx] = bcName
+				}
+
+				// Skip to ENDOFSECTION or next BC
+				// In a full implementation, we would read the BC data here
 			}
 		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading file: %v", err)
 	}
 
 	mesh.NumElements = len(mesh.Elements)
