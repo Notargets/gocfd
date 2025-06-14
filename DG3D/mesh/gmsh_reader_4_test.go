@@ -208,7 +208,7 @@ $Nodes
 0 1 1
 $EndNodes
 $Elements
-4 9 1 10
+4 9 1 9
 2 1 2 2
 1 1 2 3
 2 3 4 1
@@ -219,8 +219,8 @@ $Elements
 5 2 3 4 5 6
 6 3 4 5 6 7
 7 4 5 6 7 8
-3 1 5 2
-8 5 6 7 8
+3 1 7 2
+8 5 6 7 8 1
 9 1 2 3 4 8
 $EndElements`
 
@@ -239,10 +239,10 @@ $EndElements`
 
 	// Check element types
 	expectedTypes := []ElementType{
-		Triangle, Triangle, // 2D elements
-		Quad, Quad, // 2D elements
-		Tet, Tet, Tet, Tet, // 3D elements
-		Pyramid, // 3D element
+		Triangle, Triangle, // 2D elements (type 2)
+		Quad,               // 2D element (type 3)
+		Tet, Tet, Tet, Tet, // 3D elements (type 4)
+		Pyramid, Pyramid, // 3D elements (type 7)
 	}
 
 	for i, expected := range expectedTypes {
@@ -256,14 +256,14 @@ $EndElements`
 	}
 
 	// Check that 2D elements have physical tag 10
-	for i := 0; i < 4; i++ {
+	for i := 0; i < 3; i++ {
 		if len(mesh.ElementTags[i]) == 0 || mesh.ElementTags[i][0] != 10 {
 			t.Errorf("2D element %d: expected physical tag 10, got %v", i, mesh.ElementTags[i])
 		}
 	}
 
 	// Check that 3D elements have physical tag 20
-	for i := 4; i < 9; i++ {
+	for i := 3; i < 9; i++ {
 		if len(mesh.ElementTags[i]) == 0 || mesh.ElementTags[i][0] != 20 {
 			t.Errorf("3D element %d: expected physical tag 20, got %v", i, mesh.ElementTags[i])
 		}

@@ -145,7 +145,7 @@ func readGmsh4ASCII(file *os.File, mesh *Mesh) (*Mesh, error) {
 			}
 		}
 	}
-	_ = hasEntities
+	_ = hasEntities // $Entities section is optional in MSH 4.1
 
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("scanner error: %v", err)
@@ -398,43 +398,106 @@ func readNodes4(scanner *bufio.Scanner, mesh *Mesh, entities map[string]map[int]
 			return fmt.Errorf("invalid node block header")
 		}
 
-		// entityDim, _ := strconv.Atoi(blockHeader[0])
+		entityDim, _ := strconv.Atoi(blockHeader[0])
 		// entityTag, _ := strconv.Atoi(blockHeader[1])
 		parametric, _ := strconv.Atoi(blockHeader[2])
-		_ = parametric
 		numNodesInBlock, _ := strconv.Atoi(blockHeader[3])
 
 		// Read node tags
-		nodeTags := make([]int, numNodesInBlock)
-		for j := 0; j < numNodesInBlock; j++ {
-			if !scanner.Scan() {
-				return fmt.Errorf("unexpected EOF reading node tags")
+		nodeTags := make([]int, 0, numNodesInBlock)
+
+		// Check if parametric == 1
+		if parametric == 1 {
+			// With parametric coords, tags and coords may be on same lines
+			nodesRead := 0
+			for nodesRead < numNodesInBlock {
+				if !scanner.Scan() {
+					return fmt.Errorf("unexpected EOF reading nodes")
+				}
+
+				fields := strings.Fields(scanner.Text())
+
+				// Check if this line has both tag and coordinates
+				expectedFields := 4 // tag + x + y + z
+				if entityDim >= 1 {
+					expectedFields++ // + u
+				}
+				if entityDim >= 2 {
+					expectedFields++ // + v
+				}
+				if entityDim == 3 {
+					expectedFields++ // + w
+				}
+
+				fieldIdx := 0
+				for fieldIdx < len(fields) && nodesRead < numNodesInBlock {
+					// Read tag
+					tag, err := strconv.Atoi(fields[fieldIdx])
+					if err != nil {
+						return fmt.Errorf("invalid node tag: %v", err)
+					}
+					nodeTags = append(nodeTags, tag)
+					fieldIdx++
+
+					// Check if coordinates are on this line
+					if fieldIdx+2 < len(fields) {
+						// Read coordinates
+						coords := make([]float64, 3)
+						for k := 0; k < 3; k++ {
+							coords[k], err = strconv.ParseFloat(fields[fieldIdx+k], 64)
+							if err != nil {
+								return fmt.Errorf("invalid coordinate: %v", err)
+							}
+						}
+						mesh.AddNode(tag, coords)
+						fieldIdx += 3
+
+						// Skip parametric coordinates
+						if entityDim >= 1 && fieldIdx < len(fields) {
+							fieldIdx++ // Skip u
+						}
+						if entityDim >= 2 && fieldIdx < len(fields) {
+							fieldIdx++ // Skip v
+						}
+						if entityDim == 3 && fieldIdx < len(fields) {
+							fieldIdx++ // Skip w
+						}
+					}
+
+					nodesRead++
+				}
 			}
-			nodeTags[j], _ = strconv.Atoi(scanner.Text())
-		}
-
-		// Read coordinates
-		for j := 0; j < numNodesInBlock; j++ {
-			if !scanner.Scan() {
-				return fmt.Errorf("unexpected EOF reading node coordinates")
+		} else {
+			// Without parametric coords: tags on separate lines from coords
+			for j := 0; j < numNodesInBlock; j++ {
+				if !scanner.Scan() {
+					return fmt.Errorf("unexpected EOF reading node tags")
+				}
+				tag, err := strconv.Atoi(scanner.Text())
+				if err != nil {
+					return fmt.Errorf("invalid node tag: %v", err)
+				}
+				nodeTags = append(nodeTags, tag)
 			}
 
-			fields := strings.Fields(scanner.Text())
+			// Read coordinates
+			for j := 0; j < numNodesInBlock; j++ {
+				if !scanner.Scan() {
+					return fmt.Errorf("unexpected EOF reading node coordinates")
+				}
 
-			// Need at least 3 coordinates
-			if len(fields) < 3 {
-				return fmt.Errorf("invalid node coordinate line")
+				fields := strings.Fields(scanner.Text())
+				if len(fields) < 3 {
+					return fmt.Errorf("invalid node coordinate line")
+				}
+
+				coords := make([]float64, 3)
+				for k := 0; k < 3; k++ {
+					coords[k], _ = strconv.ParseFloat(fields[k], 64)
+				}
+
+				mesh.AddNode(nodeTags[j], coords)
 			}
-
-			coords := make([]float64, 3)
-			for k := 0; k < 3; k++ {
-				coords[k], _ = strconv.ParseFloat(fields[k], 64)
-			}
-
-			mesh.AddNode(nodeTags[j], coords)
-
-			// Skip parametric coordinates if present
-			// (they would be in fields[3:3+parametric])
 		}
 	}
 
@@ -506,26 +569,9 @@ func readElements4(scanner *bufio.Scanner, mesh *Mesh, entities map[string]map[i
 			}
 
 			fields := strings.Fields(scanner.Text())
-			actualNodes := len(fields) - 1
-
-			// Handle case where we have fewer nodes than expected
-			numNodesToRead := expectedNodes
-			if actualNodes < expectedNodes {
-				// For higher-order elements, might only have corner nodes
-				corners := elemType.GetCornerNodes()
-				if actualNodes == len(corners) {
-					numNodesToRead = actualNodes
-				} else if actualNodes > 0 {
-					// Allow reading partial node sets
-					numNodesToRead = actualNodes
-				} else {
-					return fmt.Errorf("element has no nodes")
-				}
-			}
-
-			if len(fields) < 1+numNodesToRead {
+			if len(fields) < 1+expectedNodes {
 				return fmt.Errorf("invalid element line: expected at least %d fields, got %d",
-					1+numNodesToRead, len(fields))
+					1+expectedNodes, len(fields))
 			}
 
 			elemTag, _ := strconv.Atoi(fields[0])
@@ -538,16 +584,9 @@ func readElements4(scanner *bufio.Scanner, mesh *Mesh, entities map[string]map[i
 			tags = append(tags, entityTag) // Elementary entity tag
 
 			// Read nodes
-			nodeIDs := make([]int, numNodesToRead)
-			for k := 0; k < numNodesToRead; k++ {
+			nodeIDs := make([]int, expectedNodes)
+			for k := 0; k < expectedNodes; k++ {
 				nodeIDs[k], _ = strconv.Atoi(fields[1+k])
-			}
-
-			// If we read fewer nodes than expected, pad with zeros
-			if numNodesToRead < expectedNodes {
-				paddedNodeIDs := make([]int, expectedNodes)
-				copy(paddedNodeIDs, nodeIDs)
-				nodeIDs = paddedNodeIDs
 			}
 
 			if err := mesh.AddElement(elemTag, elemType, tags, nodeIDs); err != nil {
@@ -599,29 +638,6 @@ func readPeriodic4(scanner *bufio.Scanner, mesh *Mesh) error {
 			NodeMap:   make(map[int]int),
 		}
 
-		// Next line: number of affine values (can be 0)
-		if !scanner.Scan() {
-			return fmt.Errorf("unexpected EOF reading number of affine values")
-		}
-
-		affineFields := strings.Fields(scanner.Text())
-		if len(affineFields) < 1 {
-			return fmt.Errorf("invalid affine line")
-		}
-
-		numAffine, _ := strconv.Atoi(affineFields[0])
-		if numAffine > 0 {
-			// Read affine values on the same line
-			if len(affineFields) >= 1+numAffine {
-				periodic.AffineTransform = make([]float64, numAffine)
-				for j := 0; j < numAffine; j++ {
-					periodic.AffineTransform[j], _ = strconv.ParseFloat(affineFields[1+j], 64)
-				}
-			} else {
-				return fmt.Errorf("insufficient affine values: expected %d, got %d", numAffine, len(affineFields)-1)
-			}
-		}
-
 		// Read number of corresponding nodes
 		if !scanner.Scan() {
 			return fmt.Errorf("unexpected EOF in Periodic nodes")
@@ -648,6 +664,79 @@ func readPeriodic4(scanner *bufio.Scanner, mesh *Mesh) error {
 			periodic.NodeMap[slaveNode] = masterNode
 		}
 
+		// Check for optional affine transformation line
+		linePos := scanner.Bytes()
+		if scanner.Scan() {
+			line := scanner.Text()
+			if strings.HasPrefix(line, "Affine") {
+				// Parse affine transformation
+				fields := strings.Fields(line)
+				if len(fields) > 1 {
+					periodic.AffineTransform = make([]float64, len(fields)-1)
+					for k := 0; k < len(fields)-1; k++ {
+						periodic.AffineTransform[k], _ = strconv.ParseFloat(fields[k+1], 64)
+					}
+				}
+			} else {
+				// Not an affine line - rewind
+				// Since we can't rewind a scanner, we need to process this line
+				// Check if it's the start of another periodic entity or end tag
+				if strings.Contains(line, "$EndPeriodic") ||
+					(len(strings.Fields(line)) >= 3 && isNumeric(strings.Fields(line)[0])) {
+					// Process this line in the next iteration
+					mesh.Periodics = append(mesh.Periodics, periodic)
+
+					// Handle the line we just read
+					if strings.Contains(line, "$EndPeriodic") {
+						return nil
+					}
+					// Otherwise, it's the next periodic entity - process it
+					fields := strings.Fields(line)
+					if len(fields) >= 3 {
+						i++ // Increment counter since we're processing next entity
+						dim, _ := strconv.Atoi(fields[0])
+						slaveTag, _ := strconv.Atoi(fields[1])
+						masterTag, _ := strconv.Atoi(fields[2])
+
+						periodic := Periodic{
+							Dimension: dim,
+							SlaveTag:  slaveTag,
+							MasterTag: masterTag,
+							NodeMap:   make(map[int]int),
+						}
+
+						// Continue reading this entity...
+						if !scanner.Scan() {
+							return fmt.Errorf("unexpected EOF in Periodic nodes")
+						}
+
+						numNodes, err := strconv.Atoi(scanner.Text())
+						if err != nil {
+							return fmt.Errorf("invalid number of periodic nodes: %v", err)
+						}
+
+						for j := 0; j < numNodes; j++ {
+							if !scanner.Scan() {
+								return fmt.Errorf("unexpected EOF in Periodic nodes")
+							}
+
+							fields := strings.Fields(scanner.Text())
+							if len(fields) < 2 {
+								return fmt.Errorf("invalid periodic node mapping")
+							}
+
+							slaveNode, _ := strconv.Atoi(fields[0])
+							masterNode, _ := strconv.Atoi(fields[1])
+							periodic.NodeMap[slaveNode] = masterNode
+						}
+						mesh.Periodics = append(mesh.Periodics, periodic)
+					}
+					continue
+				}
+			}
+		}
+		_ = linePos
+
 		mesh.Periodics = append(mesh.Periodics, periodic)
 	}
 
@@ -659,6 +748,12 @@ func readPeriodic4(scanner *bufio.Scanner, mesh *Mesh) error {
 	}
 
 	return nil
+}
+
+// Helper function to check if a string is numeric
+func isNumeric(s string) bool {
+	_, err := strconv.Atoi(s)
+	return err == nil
 }
 
 // readGmsh4Binary reads binary format for v4

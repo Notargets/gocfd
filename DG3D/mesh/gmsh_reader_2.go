@@ -352,39 +352,22 @@ func readElements(scanner *bufio.Scanner, mesh *Mesh) error {
 			continue
 		}
 
-		// In the readElements function, replace the node reading section with:
-
 		// Read nodes
 		expectedNodes := elemType.GetNumNodes()
 		startIdx := 3 + numTags
 		actualNodes := len(fields) - startIdx
 
-		// Use the actual number of nodes in the file if less than expected
-		// This handles cases where higher-order elements might be represented with fewer nodes
-		numNodesToRead := expectedNodes
+		// Check if we have enough nodes
 		if actualNodes < expectedNodes {
-			// For higher-order elements, we might only have corner nodes
-			corners := elemType.GetCornerNodes()
-			if actualNodes == len(corners) {
-				numNodesToRead = actualNodes
-			} else {
-				return fmt.Errorf("element type %v expects %d nodes, got %d", elemType, expectedNodes, actualNodes)
-			}
+			return fmt.Errorf("element type %v expects %d nodes, got %d", elemType, expectedNodes, actualNodes)
 		}
 
-		nodeIDs := make([]int, numNodesToRead)
-		for j := 0; j < numNodesToRead; j++ {
+		nodeIDs := make([]int, expectedNodes)
+		for j := 0; j < expectedNodes; j++ {
 			nodeIDs[j], err = strconv.Atoi(fields[startIdx+j])
 			if err != nil {
 				return fmt.Errorf("invalid node ID: %v", err)
 			}
-		}
-
-		// If we read fewer nodes than expected, pad with zeros
-		if numNodesToRead < expectedNodes {
-			paddedNodeIDs := make([]int, expectedNodes)
-			copy(paddedNodeIDs, nodeIDs)
-			nodeIDs = paddedNodeIDs
 		}
 
 		if err := mesh.AddElement(elemID, elemType, tags, nodeIDs); err != nil {
