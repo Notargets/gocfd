@@ -11,8 +11,30 @@ import (
 )
 
 // gmshElementType4 maps Gmsh 4.x element types to our ElementType
-// Note: Gmsh 4.x uses the same element type numbers as 2.2
-var gmshElementType4 = gmshElementType2_2
+// Gmsh 4.x uses the same element type numbers as 2.2
+var gmshElementType4 = map[int]ElementType{
+	1:  Line,
+	2:  Triangle,
+	3:  Quad,
+	4:  Tet,
+	5:  Hex,
+	6:  Prism,
+	7:  Pyramid,
+	8:  Line3,
+	9:  Triangle6,
+	10: Quad9,
+	11: Tet10,
+	12: Hex27,
+	13: Prism18,
+	14: Pyramid14,
+	15: Point,
+	16: Quad8,
+	17: Hex20,
+	18: Prism15,
+	19: Pyramid13,
+	20: Triangle9,
+	21: Triangle10,
+}
 
 // EntityInfo stores information about geometric entities
 type EntityInfo struct {
@@ -406,18 +428,77 @@ func readNodes4(scanner *bufio.Scanner, mesh *Mesh, entities map[string]map[int]
 		// Read node tags
 		nodeTags := make([]int, 0, numNodesInBlock)
 
-		// Check if parametric == 1
 		if parametric == 1 {
-			// With parametric coords, tags and coords may be on same lines
-			nodesRead := 0
-			for nodesRead < numNodesInBlock {
-				if !scanner.Scan() {
-					return fmt.Errorf("unexpected EOF reading nodes")
+			// With parametric coords, the format depends on the Gmsh version
+			// In some versions, tags and coords are on the same line
+			// In others, they are separate
+
+			// Try to detect the format by looking at the first line
+			if !scanner.Scan() {
+				return fmt.Errorf("unexpected EOF reading nodes")
+			}
+
+			firstLine := scanner.Text()
+			fields := strings.Fields(firstLine)
+
+			// Check if this looks like just a node tag or tag+coordinates
+			if len(fields) == 1 {
+				// Traditional format: tags and coordinates on separate lines
+				// Process first tag
+				tag, err := strconv.Atoi(fields[0])
+				if err != nil {
+					return fmt.Errorf("invalid node tag: %v", err)
+				}
+				nodeTags = append(nodeTags, tag)
+
+				// Read remaining tags
+				for j := 1; j < numNodesInBlock; j++ {
+					if !scanner.Scan() {
+						return fmt.Errorf("unexpected EOF reading node tags")
+					}
+					tag, err := strconv.Atoi(scanner.Text())
+					if err != nil {
+						return fmt.Errorf("invalid node tag: %v", err)
+					}
+					nodeTags = append(nodeTags, tag)
 				}
 
-				fields := strings.Fields(scanner.Text())
+				// Now read coordinates with parametric values
+				for j := 0; j < numNodesInBlock; j++ {
+					if !scanner.Scan() {
+						return fmt.Errorf("unexpected EOF reading node coordinates")
+					}
 
-				// Check if this line has both tag and coordinates
+					fields := strings.Fields(scanner.Text())
+					expectedFields := 3 // x y z
+					if entityDim >= 1 {
+						expectedFields++ // + u
+					}
+					if entityDim >= 2 {
+						expectedFields++ // + v
+					}
+					if entityDim == 3 {
+						expectedFields++ // + w
+					}
+
+					if len(fields) < expectedFields {
+						return fmt.Errorf("invalid coordinate line: expected %d fields, got %d",
+							expectedFields, len(fields))
+					}
+
+					coords := make([]float64, 3)
+					for k := 0; k < 3; k++ {
+						coords[k], err = strconv.ParseFloat(fields[k], 64)
+						if err != nil {
+							return fmt.Errorf("invalid coordinate: %v", err)
+						}
+					}
+
+					mesh.AddNode(nodeTags[j], coords)
+				}
+			} else {
+				// New format: tags and coordinates on same line
+				// expectedFields = 1 (tag) + 3 (xyz) + parametric
 				expectedFields := 4 // tag + x + y + z
 				if entityDim >= 1 {
 					expectedFields++ // + u
@@ -429,42 +510,53 @@ func readNodes4(scanner *bufio.Scanner, mesh *Mesh, entities map[string]map[int]
 					expectedFields++ // + w
 				}
 
-				fieldIdx := 0
-				for fieldIdx < len(fields) && nodesRead < numNodesInBlock {
-					// Read tag
-					tag, err := strconv.Atoi(fields[fieldIdx])
+				// Process first line
+				if len(fields) >= expectedFields {
+					tag, err := strconv.Atoi(fields[0])
 					if err != nil {
 						return fmt.Errorf("invalid node tag: %v", err)
 					}
-					nodeTags = append(nodeTags, tag)
-					fieldIdx++
 
-					// Check if coordinates are on this line
-					if fieldIdx+2 < len(fields) {
-						// Read coordinates
+					coords := make([]float64, 3)
+					for k := 0; k < 3; k++ {
+						coords[k], err = strconv.ParseFloat(fields[k+1], 64)
+						if err != nil {
+							return fmt.Errorf("invalid coordinate: %v", err)
+						}
+					}
+
+					mesh.AddNode(tag, coords)
+
+					// Read remaining nodes
+					for j := 1; j < numNodesInBlock; j++ {
+						if !scanner.Scan() {
+							return fmt.Errorf("unexpected EOF reading nodes")
+						}
+
+						fields := strings.Fields(scanner.Text())
+						if len(fields) < expectedFields {
+							return fmt.Errorf("invalid node line: expected %d fields, got %d",
+								expectedFields, len(fields))
+						}
+
+						tag, err := strconv.Atoi(fields[0])
+						if err != nil {
+							return fmt.Errorf("invalid node tag: %v", err)
+						}
+
 						coords := make([]float64, 3)
 						for k := 0; k < 3; k++ {
-							coords[k], err = strconv.ParseFloat(fields[fieldIdx+k], 64)
+							coords[k], err = strconv.ParseFloat(fields[k+1], 64)
 							if err != nil {
 								return fmt.Errorf("invalid coordinate: %v", err)
 							}
 						}
+
 						mesh.AddNode(tag, coords)
-						fieldIdx += 3
-
-						// Skip parametric coordinates
-						if entityDim >= 1 && fieldIdx < len(fields) {
-							fieldIdx++ // Skip u
-						}
-						if entityDim >= 2 && fieldIdx < len(fields) {
-							fieldIdx++ // Skip v
-						}
-						if entityDim == 3 && fieldIdx < len(fields) {
-							fieldIdx++ // Skip w
-						}
 					}
-
-					nodesRead++
+				} else {
+					return fmt.Errorf("invalid node line format: got %d fields, expected %d",
+						len(fields), expectedFields)
 				}
 			}
 		} else {
@@ -602,7 +694,7 @@ func readElements4(scanner *bufio.Scanner, mesh *Mesh, entities map[string]map[i
 				nodeIDs[k], _ = strconv.Atoi(fields[1+k])
 			}
 
-			if err := mesh.AddElement(elemTag, elemType, tags, nodeIDs); err != nil {
+			if err := mesh.AddElement(elemTag, ElementType(elemType), tags, nodeIDs); err != nil {
 				return err
 			}
 		}
@@ -722,12 +814,6 @@ func readPeriodic4(scanner *bufio.Scanner, mesh *Mesh) error {
 	}
 
 	return nil
-}
-
-// Helper function to check if a string is numeric
-func isNumeric(s string) bool {
-	_, err := strconv.Atoi(s)
-	return err == nil
 }
 
 // readGmsh4Binary reads binary format for v4
@@ -1080,7 +1166,7 @@ func readElements4Binary(reader *bufio.Reader, mesh *Mesh, entities map[string]m
 				}
 			}
 
-			if err := mesh.AddElement(elemTag, elemType, tags, nodeIDs); err != nil {
+			if err := mesh.AddElement(elemTag, ElementType(elemType), tags, nodeIDs); err != nil {
 				return err
 			}
 		}
