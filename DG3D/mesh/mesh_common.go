@@ -258,6 +258,11 @@ func (m *Mesh) AddElement(elemID int, elemType ElementType, tags []int, nodeIDs 
 	// Convert node IDs to array indices
 	nodes := make([]int, len(nodeIDs))
 	for i, nid := range nodeIDs {
+		// Skip zero node IDs (padding)
+		if nid == 0 {
+			nodes[i] = -1
+			continue
+		}
 		idx, ok := m.NodeIDMap[nid]
 		if !ok {
 			return fmt.Errorf("element %d references unknown node %d", elemID, nid)

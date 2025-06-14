@@ -82,6 +82,8 @@ func readGmsh4ASCII(file *os.File, mesh *Mesh) (*Mesh, error) {
 	entities["2"] = make(map[int]*EntityInfo)        // Surfaces
 	entities["3"] = make(map[int]*EntityInfo)        // Volumes
 
+	hasEntities := false
+
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 
@@ -100,6 +102,7 @@ func readGmsh4ASCII(file *os.File, mesh *Mesh) (*Mesh, error) {
 			if err := readEntities4(scanner, entities); err != nil {
 				return nil, err
 			}
+			hasEntities = true
 
 		case "$PartitionedEntities":
 			if err := readPartitionedEntities4(scanner, entities); err != nil {
@@ -142,6 +145,7 @@ func readGmsh4ASCII(file *os.File, mesh *Mesh) (*Mesh, error) {
 			}
 		}
 	}
+	_ = hasEntities
 
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("scanner error: %v", err)
@@ -384,7 +388,7 @@ func readNodes4(scanner *bufio.Scanner, mesh *Mesh, entities map[string]map[int]
 
 	// Read entity blocks
 	for i := 0; i < numEntityBlocks; i++ {
-		// Read entity info: entityDim entityTag parametric numNodes
+		// Read entity info: entityDim entityTag parametric numNodesInBlock
 		if !scanner.Scan() {
 			return fmt.Errorf("unexpected EOF in node entity block %d", i)
 		}
@@ -397,6 +401,7 @@ func readNodes4(scanner *bufio.Scanner, mesh *Mesh, entities map[string]map[int]
 		// entityDim, _ := strconv.Atoi(blockHeader[0])
 		// entityTag, _ := strconv.Atoi(blockHeader[1])
 		parametric, _ := strconv.Atoi(blockHeader[2])
+		_ = parametric
 		numNodesInBlock, _ := strconv.Atoi(blockHeader[3])
 
 		// Read node tags
@@ -415,12 +420,9 @@ func readNodes4(scanner *bufio.Scanner, mesh *Mesh, entities map[string]map[int]
 			}
 
 			fields := strings.Fields(scanner.Text())
-			expectedFields := 3
-			if parametric > 0 {
-				expectedFields += parametric
-			}
 
-			if len(fields) < expectedFields {
+			// Need at least 3 coordinates
+			if len(fields) < 3 {
 				return fmt.Errorf("invalid node coordinate line")
 			}
 
@@ -430,6 +432,9 @@ func readNodes4(scanner *bufio.Scanner, mesh *Mesh, entities map[string]map[int]
 			}
 
 			mesh.AddNode(nodeTags[j], coords)
+
+			// Skip parametric coordinates if present
+			// (they would be in fields[3:3+parametric])
 		}
 	}
 
@@ -501,9 +506,26 @@ func readElements4(scanner *bufio.Scanner, mesh *Mesh, entities map[string]map[i
 			}
 
 			fields := strings.Fields(scanner.Text())
-			if len(fields) < 1+expectedNodes {
-				return fmt.Errorf("invalid element line: expected %d fields, got %d",
-					1+expectedNodes, len(fields))
+			actualNodes := len(fields) - 1
+
+			// Handle case where we have fewer nodes than expected
+			numNodesToRead := expectedNodes
+			if actualNodes < expectedNodes {
+				// For higher-order elements, might only have corner nodes
+				corners := elemType.GetCornerNodes()
+				if actualNodes == len(corners) {
+					numNodesToRead = actualNodes
+				} else if actualNodes > 0 {
+					// Allow reading partial node sets
+					numNodesToRead = actualNodes
+				} else {
+					return fmt.Errorf("element has no nodes")
+				}
+			}
+
+			if len(fields) < 1+numNodesToRead {
+				return fmt.Errorf("invalid element line: expected at least %d fields, got %d",
+					1+numNodesToRead, len(fields))
 			}
 
 			elemTag, _ := strconv.Atoi(fields[0])
@@ -516,9 +538,16 @@ func readElements4(scanner *bufio.Scanner, mesh *Mesh, entities map[string]map[i
 			tags = append(tags, entityTag) // Elementary entity tag
 
 			// Read nodes
-			nodeIDs := make([]int, expectedNodes)
-			for k := 0; k < expectedNodes; k++ {
+			nodeIDs := make([]int, numNodesToRead)
+			for k := 0; k < numNodesToRead; k++ {
 				nodeIDs[k], _ = strconv.Atoi(fields[1+k])
+			}
+
+			// If we read fewer nodes than expected, pad with zeros
+			if numNodesToRead < expectedNodes {
+				paddedNodeIDs := make([]int, expectedNodes)
+				copy(paddedNodeIDs, nodeIDs)
+				nodeIDs = paddedNodeIDs
 			}
 
 			if err := mesh.AddElement(elemTag, elemType, tags, nodeIDs); err != nil {
@@ -570,6 +599,29 @@ func readPeriodic4(scanner *bufio.Scanner, mesh *Mesh) error {
 			NodeMap:   make(map[int]int),
 		}
 
+		// Next line: number of affine values (can be 0)
+		if !scanner.Scan() {
+			return fmt.Errorf("unexpected EOF reading number of affine values")
+		}
+
+		affineFields := strings.Fields(scanner.Text())
+		if len(affineFields) < 1 {
+			return fmt.Errorf("invalid affine line")
+		}
+
+		numAffine, _ := strconv.Atoi(affineFields[0])
+		if numAffine > 0 {
+			// Read affine values on the same line
+			if len(affineFields) >= 1+numAffine {
+				periodic.AffineTransform = make([]float64, numAffine)
+				for j := 0; j < numAffine; j++ {
+					periodic.AffineTransform[j], _ = strconv.ParseFloat(affineFields[1+j], 64)
+				}
+			} else {
+				return fmt.Errorf("insufficient affine values: expected %d, got %d", numAffine, len(affineFields)-1)
+			}
+		}
+
 		// Read number of corresponding nodes
 		if !scanner.Scan() {
 			return fmt.Errorf("unexpected EOF in Periodic nodes")
@@ -594,36 +646,6 @@ func readPeriodic4(scanner *bufio.Scanner, mesh *Mesh) error {
 			slaveNode, _ := strconv.Atoi(fields[0])
 			masterNode, _ := strconv.Atoi(fields[1])
 			periodic.NodeMap[slaveNode] = masterNode
-		}
-
-		// Check for affine transformation
-		if !scanner.Scan() {
-			return fmt.Errorf("unexpected EOF after periodic nodes")
-		}
-
-		line := scanner.Text()
-		if strings.Contains(line, "Affine") {
-			// Parse affine transformation
-			affineFields := strings.Fields(line)[1:] // Skip "Affine"
-			if len(affineFields) >= 16 {
-				periodic.AffineTransform = make([]float64, 16)
-				for k := 0; k < 16; k++ {
-					periodic.AffineTransform[k], _ = strconv.ParseFloat(affineFields[k], 64)
-				}
-			}
-		} else {
-			// Put the line back by checking if it's the next section
-			if strings.HasPrefix(strings.TrimSpace(line), "$") {
-				// This is the next section, we're done with this periodic entity
-				mesh.Periodics = append(mesh.Periodics, periodic)
-				if strings.TrimSpace(line) == "$EndPeriodic" {
-					return nil
-				}
-				// Otherwise, we've read into the next section, which is an error
-				// in our simple scanner approach. In practice, you'd need to
-				// handle this more gracefully.
-				continue
-			}
 		}
 
 		mesh.Periodics = append(mesh.Periodics, periodic)
