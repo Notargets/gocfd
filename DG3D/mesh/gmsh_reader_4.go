@@ -511,7 +511,7 @@ func readNodes4(scanner *bufio.Scanner, mesh *Mesh, entities map[string]map[int]
 	return nil
 }
 
-// readElements4 reads elements in v4 format
+// readElements4 reads elements in v4 format with debug output
 func readElements4(scanner *bufio.Scanner, mesh *Mesh, entities map[string]map[int]*EntityInfo) error {
 	if !scanner.Scan() {
 		return fmt.Errorf("unexpected EOF in Elements")
@@ -527,6 +527,8 @@ func readElements4(scanner *bufio.Scanner, mesh *Mesh, entities map[string]map[i
 	// totalElements, _ := strconv.Atoi(header[1])
 	// minElemTag, _ := strconv.Atoi(header[2])
 	// maxElemTag, _ := strconv.Atoi(header[3])
+
+	// fmt.Printf("DEBUG: Reading %d entity blocks\n", numEntityBlocks)
 
 	// Read entity blocks
 	for i := 0; i < numEntityBlocks; i++ {
@@ -545,9 +547,13 @@ func readElements4(scanner *bufio.Scanner, mesh *Mesh, entities map[string]map[i
 		gmshType, _ := strconv.Atoi(blockHeader[2])
 		numElemsInBlock, _ := strconv.Atoi(blockHeader[3])
 
+		// fmt.Printf("DEBUG: Block %d: entityDim=%d, entityTag=%d, gmshType=%d, numElems=%d\n",
+		// 	i, entityDim, entityTag, gmshType, numElemsInBlock)
+
 		// Get element type
 		elemType, ok := gmshElementType4[gmshType]
 		if !ok {
+			// fmt.Printf("DEBUG: Unknown element type %d, skipping\n", gmshType)
 			// Skip unknown element types
 			for j := 0; j < numElemsInBlock; j++ {
 				scanner.Scan()
@@ -563,12 +569,19 @@ func readElements4(scanner *bufio.Scanner, mesh *Mesh, entities map[string]map[i
 
 		// Read elements
 		expectedNodes := elemType.GetNumNodes()
+		// fmt.Printf("DEBUG: Element type %v expects %d nodes\n", elemType, expectedNodes)
+
 		for j := 0; j < numElemsInBlock; j++ {
 			if !scanner.Scan() {
 				return fmt.Errorf("unexpected EOF reading elements")
 			}
 
-			fields := strings.Fields(scanner.Text())
+			line := scanner.Text()
+			fields := strings.Fields(line)
+
+			// fmt.Printf("DEBUG: Element %d in block %d: line='%s', fields=%v, len=%d\n",
+			// 	j, i, line, fields, len(fields))
+
 			if len(fields) < 1+expectedNodes {
 				return fmt.Errorf("invalid element line: expected at least %d fields, got %d",
 					1+expectedNodes, len(fields))
@@ -595,9 +608,13 @@ func readElements4(scanner *bufio.Scanner, mesh *Mesh, entities map[string]map[i
 		}
 	}
 
+	// fmt.Printf("DEBUG: Finished reading all %d blocks\n", numEntityBlocks)
+
 	// Skip to end
 	for scanner.Scan() {
-		if strings.TrimSpace(scanner.Text()) == "$EndElements" {
+		line := strings.TrimSpace(scanner.Text())
+		// fmt.Printf("DEBUG: Reading line after elements: '%s'\n", line)
+		if line == "$EndElements" {
 			break
 		}
 	}
@@ -638,6 +655,36 @@ func readPeriodic4(scanner *bufio.Scanner, mesh *Mesh) error {
 			NodeMap:   make(map[int]int),
 		}
 
+		// Read number of affine values
+		if !scanner.Scan() {
+			return fmt.Errorf("unexpected EOF in Periodic affine count")
+		}
+
+		numAffine, err := strconv.Atoi(scanner.Text())
+		if err != nil {
+			return fmt.Errorf("invalid number of affine values: %v", err)
+		}
+
+		// Read affine values if present
+		if numAffine > 0 {
+			if !scanner.Scan() {
+				return fmt.Errorf("unexpected EOF in Periodic affine values")
+			}
+
+			affineFields := strings.Fields(scanner.Text())
+			if len(affineFields) != numAffine {
+				return fmt.Errorf("expected %d affine values, got %d", numAffine, len(affineFields))
+			}
+
+			periodic.AffineTransform = make([]float64, numAffine)
+			for j := 0; j < numAffine; j++ {
+				periodic.AffineTransform[j], err = strconv.ParseFloat(affineFields[j], 64)
+				if err != nil {
+					return fmt.Errorf("invalid affine value: %v", err)
+				}
+			}
+		}
+
 		// Read number of corresponding nodes
 		if !scanner.Scan() {
 			return fmt.Errorf("unexpected EOF in Periodic nodes")
@@ -664,83 +711,10 @@ func readPeriodic4(scanner *bufio.Scanner, mesh *Mesh) error {
 			periodic.NodeMap[slaveNode] = masterNode
 		}
 
-		// Check for optional affine transformation line
-		linePos := scanner.Bytes()
-		if scanner.Scan() {
-			line := scanner.Text()
-			if strings.HasPrefix(line, "Affine") {
-				// Parse affine transformation
-				fields := strings.Fields(line)
-				if len(fields) > 1 {
-					periodic.AffineTransform = make([]float64, len(fields)-1)
-					for k := 0; k < len(fields)-1; k++ {
-						periodic.AffineTransform[k], _ = strconv.ParseFloat(fields[k+1], 64)
-					}
-				}
-			} else {
-				// Not an affine line - rewind
-				// Since we can't rewind a scanner, we need to process this line
-				// Check if it's the start of another periodic entity or end tag
-				if strings.Contains(line, "$EndPeriodic") ||
-					(len(strings.Fields(line)) >= 3 && isNumeric(strings.Fields(line)[0])) {
-					// Process this line in the next iteration
-					mesh.Periodics = append(mesh.Periodics, periodic)
-
-					// Handle the line we just read
-					if strings.Contains(line, "$EndPeriodic") {
-						return nil
-					}
-					// Otherwise, it's the next periodic entity - process it
-					fields := strings.Fields(line)
-					if len(fields) >= 3 {
-						i++ // Increment counter since we're processing next entity
-						dim, _ := strconv.Atoi(fields[0])
-						slaveTag, _ := strconv.Atoi(fields[1])
-						masterTag, _ := strconv.Atoi(fields[2])
-
-						periodic := Periodic{
-							Dimension: dim,
-							SlaveTag:  slaveTag,
-							MasterTag: masterTag,
-							NodeMap:   make(map[int]int),
-						}
-
-						// Continue reading this entity...
-						if !scanner.Scan() {
-							return fmt.Errorf("unexpected EOF in Periodic nodes")
-						}
-
-						numNodes, err := strconv.Atoi(scanner.Text())
-						if err != nil {
-							return fmt.Errorf("invalid number of periodic nodes: %v", err)
-						}
-
-						for j := 0; j < numNodes; j++ {
-							if !scanner.Scan() {
-								return fmt.Errorf("unexpected EOF in Periodic nodes")
-							}
-
-							fields := strings.Fields(scanner.Text())
-							if len(fields) < 2 {
-								return fmt.Errorf("invalid periodic node mapping")
-							}
-
-							slaveNode, _ := strconv.Atoi(fields[0])
-							masterNode, _ := strconv.Atoi(fields[1])
-							periodic.NodeMap[slaveNode] = masterNode
-						}
-						mesh.Periodics = append(mesh.Periodics, periodic)
-					}
-					continue
-				}
-			}
-		}
-		_ = linePos
-
 		mesh.Periodics = append(mesh.Periodics, periodic)
 	}
 
-	// Skip to end if not already there
+	// Skip to end
 	for scanner.Scan() {
 		if strings.TrimSpace(scanner.Text()) == "$EndPeriodic" {
 			break

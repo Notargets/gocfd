@@ -304,9 +304,10 @@ $Nodes
 0 0 0.5
 $EndNodes
 $Elements
-1 2 1 2
-3 1 11 2
+2 2 1 2
+3 1 11 1
 1 1 2 3 4 5 6 7 8 9 10
+3 1 4 1
 2 1 2 3 4
 $EndElements`
 
@@ -368,16 +369,18 @@ $EndElements
 $Periodic
 2
 1 1 3
+0
 2
 1 4
 2 3
 2 1 2
+16
+1 0 0 1 0 1 0 0 0 0 1 0 0 0 0 1
 4
 5 9
 6 10
 7 11
 8 12
-Affine 1 0 0 1 0 1 0 0 0 0 1 0 0 0 0 1
 $EndPeriodic`
 
 	tmpFile := createTempMshFile(t, content)
@@ -401,6 +404,9 @@ $EndPeriodic`
 	if len(p1.NodeMap) != 2 {
 		t.Errorf("Periodic 1: expected 2 node pairs, got %d", len(p1.NodeMap))
 	}
+	if len(p1.AffineTransform) != 0 {
+		t.Errorf("Periodic 1: expected no affine transform, got %d values", len(p1.AffineTransform))
+	}
 
 	// Second periodic (surfaces, with affine)
 	p2 := mesh.Periodics[1]
@@ -411,7 +417,10 @@ $EndPeriodic`
 		t.Errorf("Periodic 2: expected 4 node pairs, got %d", len(p2.NodeMap))
 	}
 	if len(p2.AffineTransform) != 16 {
-		t.Errorf("Periodic 2: expected affine transform, got %d values", len(p2.AffineTransform))
+		t.Errorf("Periodic 2: expected affine transform with 16 values, got %d values", len(p2.AffineTransform))
+	}
+	if len(p2.AffineTransform) != 16 {
+		t.Errorf("Periodic 2: expected affine transform with 16 values, got %d values", len(p2.AffineTransform))
 	}
 }
 
@@ -556,7 +565,7 @@ $Entities
 1 0 0 0 1 1 1 1 20 3 1 2 3
 $EndEntities
 $Nodes
-8 15 1 15
+10 15 1 15
 0 1 0 1
 1
 0 0 0
@@ -599,7 +608,7 @@ $Nodes
 0.5 0.5 1
 $EndNodes
 $Elements
-8 15 1 15
+9 16 1 16
 0 1 15 1
 1 1
 0 2 15 1
@@ -611,19 +620,20 @@ $Elements
 1 1 1 2
 5 1 5
 6 5 6
-2 1 2 9
-7 9 1 5
-8 9 5 10
-9 10 5 6
-10 10 6 11
-11 11 6 7
-12 11 7 12
-13 12 7 8
-14 12 8 13
-15 13 8 2
+1 5 1 1
+7 7 2
+2 1 2 5
+8 1 5 9
+9 5 9 10
+10 9 10 11
+11 10 11 4
+12 11 4 1
+2 3 2 2
+13 6 12 13
+14 12 13 8
 3 1 4 2
-16 14 15
-17 14 15
+15 14 15 9 10
+16 14 15 10 11
 $EndElements`
 
 	tmpFile := createTempMshFile(t, content)
@@ -638,8 +648,8 @@ $EndElements`
 	if mesh.NumVertices != 15 {
 		t.Errorf("Expected 15 vertices, got %d", mesh.NumVertices)
 	}
-	if mesh.NumElements != 15 {
-		t.Errorf("Expected 15 elements, got %d", mesh.NumElements)
+	if mesh.NumElements != 16 {
+		t.Errorf("Expected 16 elements, got %d", mesh.NumElements)
 	}
 
 	// Check physical groups
@@ -669,7 +679,8 @@ $EndElements`
 
 	expectedDimCounts := map[int]int{
 		0: 4, // 4 points
-		1: 9, // 9 lines
+		1: 3, // 3 lines (2 on curve 1 + 1 on curve 5)
+		2: 7, // 7 triangles (5 on surface 1 + 2 on surface 3)
 		3: 2, // 2 tets
 	}
 
