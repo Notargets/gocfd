@@ -48,21 +48,29 @@ type FaceGeometricFactors struct {
 	Fscale     utils.Matrix // Face integration scaling = sJ/J(face)
 }
 
-func NewElement3D(order int, meshFile string) (el *Element3D) {
-	var err error
-	el = &Element3D{
-		TetBasis: NewTetBasis(order),
+// NewElement3D creates an Element3D from a mesh file
+func NewElement3D(order int, meshFile string) (el *Element3D, err error) {
+	// Read mesh file
+	m, err := readers.ReadMeshFile(meshFile)
+	if err != nil {
+		return nil, err
 	}
 
-	// Read mesh file
-	el.Mesh, err = readers.ReadMeshFile(meshFile)
-	if err != nil {
-		panic(err)
+	// Use the common constructor
+	return NewElement3DFromMesh(order, m)
+}
+
+// NewElement3DFromMesh creates an Element3D from an existing mesh
+// This is the core constructor that does all the work
+func NewElement3DFromMesh(order int, m *mesh.Mesh) (el *Element3D, err error) {
+	el = &Element3D{
+		TetBasis: NewTetBasis(order),
+		Mesh:     m,
 	}
 
 	// Extract tetrahedral elements from mesh
 	if err = el.extractTetElements(); err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	// Build physical coordinates from vertices and reference nodes
@@ -73,7 +81,8 @@ func NewElement3D(order int, meshFile string) (el *Element3D) {
 	el.GeometricFactors = el.GeometricFactors3D()
 	el.FaceGeometricFactors = el.CalcFaceGeometry()
 	el.BuildMaps3D()
-	return
+
+	return el, nil
 }
 
 // extractTetElements extracts tetrahedral elements from the mesh
@@ -150,12 +159,9 @@ func (el *Element3D) buildPhysicalCoordinates() {
 	// Extract vertex coordinates from mesh
 	for k := 0; k < K; k++ {
 		for v := 0; v < 4; v++ {
-			nodeID := el.EToV[k][v]
-			nodeIdx, ok := el.Mesh.GetNodeIndex(nodeID)
-			if !ok {
-				panic(fmt.Sprintf("node ID %d not found in mesh", nodeID))
-			}
+			nodeIdx := el.EToV[k][v] // This is already an array index, NOT a node ID!
 
+			// Direct access using the index - no GetNodeIndex needed!
 			coords := el.Mesh.Vertices[nodeIdx]
 			el.VX.Set(k*4+v, coords[0])
 			el.VY.Set(k*4+v, coords[1])
@@ -233,19 +239,55 @@ func (el *Element3D) buildFaceCoordinates() {
 	}
 }
 
-// ReadMesh is deprecated - use NewElement3D with mesh file instead
-func (el *Element3D) ReadMesh(meshfile string) (EtoV [][]int, BCType []int) {
-	panic("ReadMesh is deprecated - use NewElement3D with mesh file")
-}
-
+// This is the fixed Connect3D function that properly handles single-element meshes
 func (el *Element3D) Connect3D() *ConnectivityArrays {
+	// fmt.Printf("DEBUG Connect3D: Starting\n")
+	// fmt.Printf("  el.K = %d\n", el.K)
+	// fmt.Printf("  el.Mesh = %v\n", el.Mesh)
+	// if el.Mesh != nil {
+	// 	fmt.Printf("  el.Mesh.NumElements = %d\n", el.Mesh.NumElements)
+	// 	fmt.Printf("  el.Mesh.EToE = %v\n", el.Mesh.EToE)
+	// 	fmt.Printf("  el.Mesh.EToF = %v\n", el.Mesh.EToF)
+	// }
+	// fmt.Printf("  el.tetIndices = %v\n", el.tetIndices)
+
 	// Build connectivity if not available
 	if el.Mesh.EToE == nil || el.Mesh.EToF == nil {
+		// fmt.Printf("DEBUG: Building connectivity\n")
 		el.Mesh.BuildConnectivity()
+		// fmt.Printf("DEBUG: After BuildConnectivity:\n")
+		// fmt.Printf("  el.Mesh.EToE = %v\n", el.Mesh.EToE)
+		// fmt.Printf("  el.Mesh.EToF = %v\n", el.Mesh.EToF)
+	}
+
+	// Special case: if the mesh connectivity arrays are empty or nil after building,
+	// create default connectivity for boundary elements
+	if len(el.Mesh.EToE) == 0 {
+		// Create connectivity for all tets as boundary elements
+		el.EToE = make([][]int, el.K)
+		el.EToF = make([][]int, el.K)
+
+		for k := 0; k < el.K; k++ {
+			el.EToE[k] = make([]int, 4) // 4 faces per tet
+			el.EToF[k] = make([]int, 4)
+
+			// Initialize all as boundary (no neighbors)
+			for f := 0; f < 4; f++ {
+				el.EToE[k][f] = -1
+				el.EToF[k][f] = -1
+			}
+		}
+
+		return &ConnectivityArrays{
+			EToE: el.EToE,
+			EToF: el.EToF,
+		}
 	}
 
 	// If we filtered elements, we need to extract the relevant connectivity
 	if len(el.tetIndices) > 0 && len(el.tetIndices) < el.Mesh.NumElements {
+		// fmt.Printf("DEBUG: Filtering connectivity for %d tets out of %d elements\n",
+		// 	len(el.tetIndices), el.Mesh.NumElements)
 		// Create filtered connectivity arrays
 		filteredEToE := make([][]int, el.K)
 		filteredEToF := make([][]int, el.K)
@@ -261,32 +303,65 @@ func (el *Element3D) Connect3D() *ConnectivityArrays {
 			filteredEToE[newIdx] = make([]int, 4) // 4 faces per tet
 			filteredEToF[newIdx] = make([]int, 4)
 
+			// Check if original index is valid
+			if origIdx >= len(el.Mesh.EToE) {
+				// Element doesn't have connectivity - treat as boundary
+				for f := 0; f < 4; f++ {
+					filteredEToE[newIdx][f] = -1
+					filteredEToF[newIdx][f] = -1
+				}
+				continue
+			}
+
 			for f := 0; f < 4; f++ {
+				// Check if face connectivity exists
+				if f >= len(el.Mesh.EToE[origIdx]) {
+					// Face doesn't have connectivity - treat as boundary
+					filteredEToE[newIdx][f] = -1
+					filteredEToF[newIdx][f] = -1
+					continue
+				}
+
 				neighbor := el.Mesh.EToE[origIdx][f]
-				if mappedIdx, ok := indexMap[neighbor]; ok {
+				if neighbor == -1 {
+					// Boundary face
+					filteredEToE[newIdx][f] = -1
+					filteredEToF[newIdx][f] = -1
+				} else if mappedIdx, ok := indexMap[neighbor]; ok {
 					// Neighbor is also a tet in our filtered set
 					filteredEToE[newIdx][f] = mappedIdx
 					filteredEToF[newIdx][f] = el.Mesh.EToF[origIdx][f]
 				} else {
-					// Boundary or non-tet neighbor
+					// Neighbor is not a tet or not in filtered set - treat as boundary
 					filteredEToE[newIdx][f] = -1
 					filteredEToF[newIdx][f] = -1
 				}
 			}
 		}
 
-		el.EToE = filteredEToE
-		el.EToF = filteredEToF
+		el.ConnectivityArrays = &ConnectivityArrays{
+			EToE: filteredEToE,
+			EToF: filteredEToF,
+		}
 	} else {
+		// fmt.Printf("DEBUG: Using connectivity directly (all elements are tets)\n")
 		// All elements are tets, use connectivity directly
-		el.EToE = el.Mesh.EToE
-		el.EToF = el.Mesh.EToF
+		// Initialize ConnectivityArrays if nil
+		if el.ConnectivityArrays == nil {
+			el.ConnectivityArrays = &ConnectivityArrays{}
+		}
+		el.ConnectivityArrays.EToE = el.Mesh.EToE
+		el.ConnectivityArrays.EToF = el.Mesh.EToF
 	}
 
-	return &ConnectivityArrays{
-		EToE: el.EToE,
-		EToF: el.EToF,
-	}
+	// fmt.Printf("DEBUG: Final connectivity:\n")
+	// fmt.Printf("  el.ConnectivityArrays = %v\n", el.ConnectivityArrays)
+	// if el.ConnectivityArrays != nil {
+	// 	fmt.Printf("  el.ConnectivityArrays.EToE = %v\n", el.ConnectivityArrays.EToE)
+	// 	fmt.Printf("  el.ConnectivityArrays.EToF = %v\n", el.ConnectivityArrays.EToF)
+	// }
+
+	return el.ConnectivityArrays
 }
 
 func (el *Element3D) GeometricFactors3D() (gf *GeometricFactors) {

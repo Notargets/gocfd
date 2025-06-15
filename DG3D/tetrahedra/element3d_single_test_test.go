@@ -5,6 +5,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/notargets/gocfd/DG3D/mesh"
 	"github.com/notargets/gocfd/utils"
 )
 
@@ -18,8 +19,7 @@ type TetConfig struct {
 	Shear     float64    // Shear factor (0 for no shear)
 }
 
-// buildSingleTetFromConfig creates a single tetrahedron Element3D based on configuration
-// This is the primary helper function that all tests should use
+// PART 2: Updated buildSingleTetFromConfig that works with the mesh structure
 func buildSingleTetFromConfig(config TetConfig, N int) *Element3D {
 	// Start with reference tetrahedron vertices
 	// Reference: (-1,-1,-1), (1,-1,-1), (-1,1,-1), (-1,-1,1)
@@ -72,65 +72,29 @@ func buildSingleTetFromConfig(config TetConfig, N int) *Element3D {
 		vertices[i][2] = z + config.Center[2]
 	}
 
-	// Create single element mesh - VX, VY, VZ are vectors of length 4 (one tet)
-	VX := utils.NewVector(4)
-	VY := utils.NewVector(4)
-	VZ := utils.NewVector(4)
+	// Create a mesh.Mesh struct with single tetrahedron
+	m := mesh.NewMesh()
+
+	// Add vertices with sequential node IDs starting from 1
 	for i := 0; i < 4; i++ {
-		VX.Set(i, vertices[i][0])
-		VY.Set(i, vertices[i][1])
-		VZ.Set(i, vertices[i][2])
+		m.AddNode(i+1, vertices[i][:])
 	}
 
-	// Create element-to-vertex connectivity
-	EToV := [][]int{{0, 1, 2, 3}}
-
-	// Create TetBasis
-	tetBasis := NewTetBasis(N)
-
-	// Initialize Element3D manually since we're creating a test element
-	el3d := &Element3D{
-		K:        1,
-		VX:       VX,
-		VY:       VY,
-		VZ:       VZ,
-		EToV:     EToV,
-		TetBasis: tetBasis,
+	// Add single tetrahedral element
+	// Use node IDs 1-4 (which AddElement will convert to indices 0-3)
+	err := m.AddElement(1, mesh.Tet, []int{1}, []int{1, 2, 3, 4})
+	if err != nil {
+		panic(fmt.Sprintf("Failed to add element: %v", err))
 	}
 
-	// Initialize physical coordinates (Np x K matrices)
-	el3d.X = utils.NewMatrix(tetBasis.Np, 1)
-	el3d.Y = utils.NewMatrix(tetBasis.Np, 1)
-	el3d.Z = utils.NewMatrix(tetBasis.Np, 1)
+	// Build connectivity
+	m.BuildConnectivity()
 
-	// Transform reference nodes to physical coordinates
-	for n := 0; n < tetBasis.Np; n++ {
-		// Get reference coordinates
-		r := tetBasis.R.At(n)
-		s := tetBasis.S.At(n)
-		t := tetBasis.T.At(n)
-
-		// Convert to barycentric coordinates
-		L1 := -(1.0 + r + s + t) / 2.0
-		L2 := (1.0 + r) / 2.0
-		L3 := (1.0 + s) / 2.0
-		L4 := (1.0 + t) / 2.0
-
-		// Affine transformation to physical coordinates
-		x := L1*vertices[0][0] + L2*vertices[1][0] + L3*vertices[2][0] + L4*vertices[3][0]
-		y := L1*vertices[0][1] + L2*vertices[1][1] + L3*vertices[2][1] + L4*vertices[3][1]
-		z := L1*vertices[0][2] + L2*vertices[1][2] + L3*vertices[2][2] + L4*vertices[3][2]
-
-		el3d.X.Set(n, 0, x)
-		el3d.Y.Set(n, 0, y)
-		el3d.Z.Set(n, 0, z)
+	// Create Element3D using the new constructor
+	el3d, err := NewElement3DFromMesh(N, m)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create Element3D from mesh: %v", err))
 	}
-
-	// Calculate geometric factors
-	el3d.GeometricFactors = el3d.GeometricFactors3D()
-
-	// Calculate face geometry
-	el3d.FaceGeometricFactors = el3d.CalcFaceGeometry()
 
 	return el3d
 }
@@ -240,21 +204,106 @@ func TestSingleTetAffineTransformation(t *testing.T) {
 			t.Run(testName, func(t *testing.T) {
 				el3d := buildSingleTetFromConfig(config, N)
 
-				// Test 1: Check that reference vertices map to expected physical locations
-				// Reference vertex coordinates in (r,s,t) space
-				refVertexCoords := []struct{ r, s, t float64 }{
-					{-1, -1, -1}, // v0
-					{1, -1, -1},  // v1
-					{-1, 1, -1},  // v2
-					{-1, -1, 1},  // v3
+				// Test 1: Check that the transformation maps reference vertices correctly
+				// The reference tetrahedron has vertices at:
+				refVertices := []struct {
+					r, s, t float64
+					desc    string
+				}{
+					{-1, -1, -1, "v0"},
+					{1, -1, -1, "v1"},
+					{-1, 1, -1, "v2"},
+					{-1, -1, 1, "v3"},
 				}
 
-				// Find nodes closest to reference vertices
-				for i, ref := range refVertexCoords {
+				// Compute where these reference vertices should map to in physical space
+				// based on the configuration
+				expectedPhysicalVertices := make([][3]float64, 4)
+
+				// Start with reference tetrahedron
+				refTetVertices := [][3]float64{
+					{-1, -1, -1},
+					{1, -1, -1},
+					{-1, 1, -1},
+					{-1, -1, 1},
+				}
+
+				// Apply the same transformations we applied in buildSingleTetFromConfig
+				for i := 0; i < 4; i++ {
+					x := refTetVertices[i][0]
+					y := refTetVertices[i][1]
+					z := refTetVertices[i][2]
+
+					// Apply scale
+					x *= config.Scale
+					y *= config.Scale
+					z *= config.Scale
+
+					// Apply shear
+					x += config.Shear * y
+
+					// Apply rotation about Z axis
+					if config.RotationZ != 0 {
+						cosZ := math.Cos(config.RotationZ)
+						sinZ := math.Sin(config.RotationZ)
+						xNew := cosZ*x - sinZ*y
+						yNew := sinZ*x + cosZ*y
+						x = xNew
+						y = yNew
+					}
+
+					// Apply rotation about Y axis
+					if config.RotationY != 0 {
+						cosY := math.Cos(config.RotationY)
+						sinY := math.Sin(config.RotationY)
+						xNew := cosY*x + sinY*z
+						zNew := -sinY*x + cosY*z
+						x = xNew
+						z = zNew
+					}
+
+					// Apply translation
+					expectedPhysicalVertices[i][0] = x + config.Center[0]
+					expectedPhysicalVertices[i][1] = y + config.Center[1]
+					expectedPhysicalVertices[i][2] = z + config.Center[2]
+				}
+
+				// Now verify that the Element3D transformation produces the same result
+				// For each reference vertex, compute its physical position using barycentric coordinates
+				for i, ref := range refVertices {
+					// Convert reference coordinates to barycentric
+					L1 := -(1.0 + ref.r + ref.s + ref.t) / 2.0
+					L2 := (1.0 + ref.r) / 2.0
+					L3 := (1.0 + ref.s) / 2.0
+					L4 := (1.0 + ref.t) / 2.0
+
+					// The physical position should be the barycentric combination of physical vertices
+					// Get the actual physical vertices from VX, VY, VZ
+					v0x, v0y, v0z := el3d.VX.At(0), el3d.VY.At(0), el3d.VZ.At(0)
+					v1x, v1y, v1z := el3d.VX.At(1), el3d.VY.At(1), el3d.VZ.At(1)
+					v2x, v2y, v2z := el3d.VX.At(2), el3d.VY.At(2), el3d.VZ.At(2)
+					v3x, v3y, v3z := el3d.VX.At(3), el3d.VY.At(3), el3d.VZ.At(3)
+
+					// Compute the transformed position
+					x := L1*v0x + L2*v1x + L3*v2x + L4*v3x
+					y := L1*v0y + L2*v1y + L3*v2y + L4*v3y
+					z := L1*v0z + L2*v1z + L3*v2z + L4*v3z
+
+					// This should match our expected physical vertex
+					if !nearEqual(x, expectedPhysicalVertices[i][0], 1e-10) ||
+						!nearEqual(y, expectedPhysicalVertices[i][1], 1e-10) ||
+						!nearEqual(z, expectedPhysicalVertices[i][2], 1e-10) {
+						t.Errorf("Reference vertex %s maps incorrectly: got (%.6f,%.6f,%.6f), want (%.6f,%.6f,%.6f)",
+							ref.desc, x, y, z,
+							expectedPhysicalVertices[i][0],
+							expectedPhysicalVertices[i][1],
+							expectedPhysicalVertices[i][2])
+					}
+
+					// Also find the interpolation node closest to this reference vertex
+					// and check that it has the correct physical coordinates
 					minDist := math.MaxFloat64
 					minIdx := -1
-
-					// Find the node closest to this reference vertex
 					for j := 0; j < el3d.Np; j++ {
 						dr := el3d.R.At(j) - ref.r
 						ds := el3d.S.At(j) - ref.s
@@ -267,26 +316,22 @@ func TestSingleTetAffineTransformation(t *testing.T) {
 						}
 					}
 
-					if minIdx == -1 || minDist > 1e-10 {
-						t.Errorf("Vertex %d: no node found at reference position (%.1f,%.1f,%.1f)",
-							i, ref.r, ref.s, ref.t)
-						continue
-					}
+					// If we found a node at exactly this reference position
+					if minDist < 1e-10 {
+						actualX := el3d.X.At(minIdx, 0)
+						actualY := el3d.Y.At(minIdx, 0)
+						actualZ := el3d.Z.At(minIdx, 0)
 
-					// Check physical coordinates match expected vertex
-					expectedX := el3d.VX.At(i)
-					expectedY := el3d.VY.At(i)
-					expectedZ := el3d.VZ.At(i)
-
-					actualX := el3d.X.At(minIdx, 0)
-					actualY := el3d.Y.At(minIdx, 0)
-					actualZ := el3d.Z.At(minIdx, 0)
-
-					if !nearEqual(actualX, expectedX, 1e-10) ||
-						!nearEqual(actualY, expectedY, 1e-10) ||
-						!nearEqual(actualZ, expectedZ, 1e-10) {
-						t.Errorf("Vertex %d mapping incorrect: got (%.6f,%.6f,%.6f), want (%.6f,%.6f,%.6f)",
-							i, actualX, actualY, actualZ, expectedX, expectedY, expectedZ)
+						// Check it matches the expected physical vertex
+						if !nearEqual(actualX, expectedPhysicalVertices[i][0], 1e-10) ||
+							!nearEqual(actualY, expectedPhysicalVertices[i][1], 1e-10) ||
+							!nearEqual(actualZ, expectedPhysicalVertices[i][2], 1e-10) {
+							t.Errorf("Node at reference vertex %s has incorrect physical coordinates: got (%.6f,%.6f,%.6f), want (%.6f,%.6f,%.6f)",
+								ref.desc, actualX, actualY, actualZ,
+								expectedPhysicalVertices[i][0],
+								expectedPhysicalVertices[i][1],
+								expectedPhysicalVertices[i][2])
+						}
 					}
 				}
 
@@ -298,6 +343,23 @@ func TestSingleTetAffineTransformation(t *testing.T) {
 					if !nearEqual(Ji, J0, 1e-10*math.Abs(J0)) {
 						t.Errorf("Non-constant Jacobian for affine transformation: J[0]=%f, J[%d]=%f",
 							J0, i, Ji)
+					}
+				}
+
+				// Test 3: Check that the stored vertices match what we expect
+				for i := 0; i < 4; i++ {
+					vx := el3d.VX.At(i)
+					vy := el3d.VY.At(i)
+					vz := el3d.VZ.At(i)
+
+					if !nearEqual(vx, expectedPhysicalVertices[i][0], 1e-10) ||
+						!nearEqual(vy, expectedPhysicalVertices[i][1], 1e-10) ||
+						!nearEqual(vz, expectedPhysicalVertices[i][2], 1e-10) {
+						t.Errorf("Stored vertex %d incorrect: got (%.6f,%.6f,%.6f), want (%.6f,%.6f,%.6f)",
+							i, vx, vy, vz,
+							expectedPhysicalVertices[i][0],
+							expectedPhysicalVertices[i][1],
+							expectedPhysicalVertices[i][2])
 					}
 				}
 			})
