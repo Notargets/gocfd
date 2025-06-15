@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/notargets/gocfd/DG3D/mesh/readers"
 	"log"
 	"os"
 
@@ -29,7 +30,7 @@ func main() {
 
 	// Read mesh - use different variable name to avoid shadowing package
 	log.Printf("Reading mesh from %s", *meshFile)
-	m, err := mesh.ReadMeshFile(*meshFile)
+	m, err := readers.ReadMeshFile(*meshFile)
 	if err != nil {
 		log.Fatalf("Failed to read mesh: %v", err)
 	}

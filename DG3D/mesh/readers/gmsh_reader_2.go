@@ -1,9 +1,10 @@
-package mesh
+package readers
 
 import (
 	"bufio"
 	"encoding/binary"
 	"fmt"
+	"github.com/notargets/gocfd/DG3D/mesh"
 	"io"
 	"os"
 	"strconv"
@@ -11,33 +12,33 @@ import (
 )
 
 // gmshElementType2_2 maps Gmsh 2.2 element types to our ElementType
-var gmshElementType2_2 = map[int]ElementType{
-	1:  Line,
-	2:  Triangle,
-	3:  Quad,
-	4:  Tet,
-	5:  Hex,
-	6:  Prism,
-	7:  Pyramid,
-	8:  Line3,
-	9:  Triangle6,
-	10: Quad9,
-	11: Tet10,
-	12: Hex27,
-	13: Prism18,
-	14: Pyramid14,
-	15: Point,
-	16: Quad8,
-	17: Hex20,
-	18: Prism15,
-	19: Pyramid13,
-	20: Triangle9,
-	21: Triangle10,
+var gmshElementType2_2 = map[int]mesh.ElementType{
+	1:  mesh.Line,
+	2:  mesh.Triangle,
+	3:  mesh.Quad,
+	4:  mesh.Tet,
+	5:  mesh.Hex,
+	6:  mesh.Prism,
+	7:  mesh.Pyramid,
+	8:  mesh.Line3,
+	9:  mesh.Triangle6,
+	10: mesh.Quad9,
+	11: mesh.Tet10,
+	12: mesh.Hex27,
+	13: mesh.Prism18,
+	14: mesh.Pyramid14,
+	15: mesh.Point,
+	16: mesh.Quad8,
+	17: mesh.Hex20,
+	18: mesh.Prism15,
+	19: mesh.Pyramid13,
+	20: mesh.Triangle9,
+	21: mesh.Triangle10,
 	// Additional types exist but are less common
 }
 
 // ReadGmsh reads a Gmsh format file (auto-detects version)
-func ReadGmshAuto(filename string) (*Mesh, error) {
+func ReadGmshAuto(filename string) (*mesh.Mesh, error) {
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -74,14 +75,14 @@ func ReadGmshAuto(filename string) (*Mesh, error) {
 }
 
 // ReadGmsh22 reads a Gmsh 2.2 format file with full compliance
-func ReadGmsh22(filename string) (*Mesh, error) {
+func ReadGmsh22(filename string) (*mesh.Mesh, error) {
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 
-	mesh := NewMesh()
+	mesh := mesh.NewMesh()
 
 	// First pass: determine if binary
 	scanner := bufio.NewScanner(file)
@@ -115,7 +116,7 @@ func ReadGmsh22(filename string) (*Mesh, error) {
 }
 
 // readGmsh22ASCII reads ASCII format
-func readGmsh22ASCII(file *os.File, mesh *Mesh) (*Mesh, error) {
+func readGmsh22ASCII(file *os.File, mesh *mesh.Mesh) (*mesh.Mesh, error) {
 	scanner := bufio.NewScanner(file)
 
 	// Increase scanner buffer for large files
@@ -178,7 +179,7 @@ func readGmsh22ASCII(file *os.File, mesh *Mesh) (*Mesh, error) {
 }
 
 // readMeshFormat reads the MeshFormat section
-func readMeshFormat(scanner *bufio.Scanner, mesh *Mesh) error {
+func readMeshFormat(scanner *bufio.Scanner, mesh *mesh.Mesh) error {
 	if !scanner.Scan() {
 		return fmt.Errorf("unexpected EOF in MeshFormat")
 	}
@@ -204,7 +205,7 @@ func readMeshFormat(scanner *bufio.Scanner, mesh *Mesh) error {
 }
 
 // readPhysicalNames reads physical entity names
-func readPhysicalNames(scanner *bufio.Scanner, mesh *Mesh) error {
+func readPhysicalNames(scanner *bufio.Scanner, msh *mesh.Mesh) error {
 	if !scanner.Scan() {
 		return fmt.Errorf("unexpected EOF in PhysicalNames")
 	}
@@ -229,7 +230,7 @@ func readPhysicalNames(scanner *bufio.Scanner, mesh *Mesh) error {
 		name := strings.Trim(strings.Join(fields[2:], " "), "\"")
 
 		// Store as element group
-		mesh.ElementGroups[tag] = &ElementGroup{
+		msh.ElementGroups[tag] = &mesh.ElementGroup{
 			Dimension: dim,
 			Tag:       tag,
 			Name:      name,
@@ -237,7 +238,7 @@ func readPhysicalNames(scanner *bufio.Scanner, mesh *Mesh) error {
 		}
 
 		// Also store in boundary tags for compatibility
-		mesh.BoundaryTags[tag] = name
+		msh.BoundaryTags[tag] = name
 	}
 
 	// Skip to end
@@ -251,7 +252,7 @@ func readPhysicalNames(scanner *bufio.Scanner, mesh *Mesh) error {
 }
 
 // readNodes reads the Nodes section
-func readNodes(scanner *bufio.Scanner, mesh *Mesh) error {
+func readNodes(scanner *bufio.Scanner, mesh *mesh.Mesh) error {
 	if !scanner.Scan() {
 		return fmt.Errorf("unexpected EOF in Nodes")
 	}
@@ -298,7 +299,7 @@ func readNodes(scanner *bufio.Scanner, mesh *Mesh) error {
 }
 
 // readElements reads the Elements section
-func readElements(scanner *bufio.Scanner, mesh *Mesh) error {
+func readElements(scanner *bufio.Scanner, mesh *mesh.Mesh) error {
 	if !scanner.Scan() {
 		return fmt.Errorf("unexpected EOF in Elements")
 	}
@@ -386,7 +387,7 @@ func readElements(scanner *bufio.Scanner, mesh *Mesh) error {
 }
 
 // readPeriodic reads periodic boundary conditions
-func readPeriodic(scanner *bufio.Scanner, mesh *Mesh) error {
+func readPeriodic(scanner *bufio.Scanner, msh *mesh.Mesh) error {
 	if !scanner.Scan() {
 		return fmt.Errorf("unexpected EOF in Periodic")
 	}
@@ -410,7 +411,7 @@ func readPeriodic(scanner *bufio.Scanner, mesh *Mesh) error {
 		slaveTag, _ := strconv.Atoi(fields[1])
 		masterTag, _ := strconv.Atoi(fields[2])
 
-		periodic := Periodic{
+		periodic := mesh.Periodic{
 			Dimension: dim,
 			SlaveTag:  slaveTag,
 			MasterTag: masterTag,
@@ -462,7 +463,7 @@ func readPeriodic(scanner *bufio.Scanner, mesh *Mesh) error {
 			periodic.NodeMap[slaveNode] = masterNode
 		}
 
-		mesh.Periodics = append(mesh.Periodics, periodic)
+		msh.Periodics = append(msh.Periodics, periodic)
 	}
 
 	// Skip to end
@@ -486,7 +487,7 @@ func skipSection(scanner *bufio.Scanner, endTag string) error {
 }
 
 // readGmsh22Binary reads binary format (placeholder - implement if needed)
-func readGmsh22Binary(file *os.File, mesh *Mesh) (*Mesh, error) {
+func readGmsh22Binary(file *os.File, mesh *mesh.Mesh) (*mesh.Mesh, error) {
 	reader := bufio.NewReader(file)
 
 	// Read until $MeshFormat
@@ -577,7 +578,7 @@ func readGmsh22Binary(file *os.File, mesh *Mesh) (*Mesh, error) {
 }
 
 // readNodesBinary reads nodes in binary format
-func readNodesBinary(reader *bufio.Reader, mesh *Mesh, byteOrder binary.ByteOrder) error {
+func readNodesBinary(reader *bufio.Reader, mesh *mesh.Mesh, byteOrder binary.ByteOrder) error {
 	// Read number of nodes
 	line, err := reader.ReadString('\n')
 	if err != nil {
@@ -617,7 +618,7 @@ func readNodesBinary(reader *bufio.Reader, mesh *Mesh, byteOrder binary.ByteOrde
 }
 
 // readElementsBinary reads elements in binary format
-func readElementsBinary(reader *bufio.Reader, mesh *Mesh, byteOrder binary.ByteOrder) error {
+func readElementsBinary(reader *bufio.Reader, mesh *mesh.Mesh, byteOrder binary.ByteOrder) error {
 	// This is complex due to variable element sizes
 	// For now, return error indicating binary elements not yet supported
 	return fmt.Errorf("binary element reading not yet implemented")

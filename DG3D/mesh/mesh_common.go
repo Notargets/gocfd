@@ -2,9 +2,7 @@ package mesh
 
 import (
 	"fmt"
-	"path/filepath"
 	"sort"
-	"strings"
 )
 
 // ElementType represents different element types
@@ -298,23 +296,6 @@ func (m *Mesh) GetNodeIndex(nodeID int) (int, bool) {
 func (m *Mesh) GetNodeID(index int) (int, bool) {
 	id, ok := m.NodeArrayMap[index]
 	return id, ok
-}
-
-// ReadMeshFile reads a mesh file based on extension
-func ReadMeshFile(filename string) (*Mesh, error) {
-	ext := strings.ToLower(filepath.Ext(filename))
-
-	switch ext {
-	case ".neu":
-		return ReadGambitNeutral(filename)
-	case ".msh":
-		// Try to detect version by reading first few lines
-		return ReadGmshAuto(filename)
-	case ".su2":
-		return ReadSU2(filename)
-	default:
-		return nil, fmt.Errorf("unsupported mesh format: %s", ext)
-	}
 }
 
 // FilterByDimension returns elements of specified dimension

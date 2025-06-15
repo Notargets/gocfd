@@ -2,6 +2,7 @@ package tetrahedra
 
 import (
 	"github.com/notargets/gocfd/DG3D/mesh"
+	"github.com/notargets/gocfd/DG3D/mesh/readers"
 	"github.com/notargets/gocfd/utils"
 	"math"
 	"sort"
@@ -47,7 +48,7 @@ func NewElement3D(order int, meshFile string) (el *Element3D) {
 	el = &Element3D{
 		TetBasis: NewTetBasis(order),
 	}
-	el.Mesh, err = mesh.ReadMeshFile(meshFile)
+	el.Mesh, err = readers.ReadMeshFile(meshFile)
 	if err != nil {
 		panic(err)
 	}

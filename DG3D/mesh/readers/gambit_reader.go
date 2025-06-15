@@ -1,22 +1,23 @@
-package mesh
+package readers
 
 import (
 	"bufio"
 	"fmt"
+	"github.com/notargets/gocfd/DG3D/mesh"
 	"os"
 	"strconv"
 	"strings"
 )
 
 // ReadGambitNeutral reads a Gambit neutral file
-func ReadGambitNeutral(filename string) (*Mesh, error) {
+func ReadGambitNeutral(filename string) (*mesh.Mesh, error) {
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 
-	mesh := NewMesh()
+	msh := mesh.NewMesh()
 	scanner := bufio.NewScanner(file)
 
 	var numnp, nelem, ngrps, nbsets int
@@ -51,7 +52,7 @@ func ReadGambitNeutral(filename string) (*Mesh, error) {
 
 		if strings.Contains(line, "NODAL COORDINATES") {
 			// Read nodes
-			mesh.Vertices = make([][]float64, numnp)
+			msh.Vertices = make([][]float64, numnp)
 			nodeCount := 0
 
 			for scanner.Scan() {
@@ -68,7 +69,7 @@ func ReadGambitNeutral(filename string) (*Mesh, error) {
 					z, _ := strconv.ParseFloat(fields[3], 64)
 
 					if id >= 1 && id <= numnp {
-						mesh.Vertices[id-1] = []float64{x, y, z}
+						msh.Vertices[id-1] = []float64{x, y, z}
 						nodeCount++
 					}
 				}
@@ -76,9 +77,9 @@ func ReadGambitNeutral(filename string) (*Mesh, error) {
 
 		} else if strings.Contains(line, "ELEMENTS/CELLS") {
 			// Read elements
-			mesh.EtoV = make([][]int, 0, nelem)
-			mesh.ElementTypes = make([]ElementType, 0, nelem)
-			mesh.ElementTags = make([][]int, 0, nelem)
+			msh.EtoV = make([][]int, 0, nelem)
+			msh.ElementTypes = make([]mesh.ElementType, 0, nelem)
+			msh.ElementTags = make([][]int, 0, nelem)
 
 			for scanner.Scan() {
 				line = strings.TrimSpace(scanner.Text())
@@ -94,7 +95,7 @@ func ReadGambitNeutral(filename string) (*Mesh, error) {
 					numNodes, _ := strconv.Atoi(fields[2])
 
 					// Only process 3D elements
-					var etype ElementType
+					var etype mesh.ElementType
 					validElem := true
 					switch elemType {
 					case 1: // Edge - skip
@@ -104,13 +105,13 @@ func ReadGambitNeutral(filename string) (*Mesh, error) {
 					case 3: // Triangle - skip 2D
 						validElem = false
 					case 4: // Brick
-						etype = Hex
+						etype = mesh.Hex
 					case 5: // Wedge/Prism
-						etype = Prism
+						etype = mesh.Prism
 					case 6: // Tetrahedron
-						etype = Tet
+						etype = mesh.Tet
 					case 7: // Pyramid
-						etype = Pyramid
+						etype = mesh.Pyramid
 					default:
 						validElem = false
 					}
@@ -123,9 +124,9 @@ func ReadGambitNeutral(filename string) (*Mesh, error) {
 							verts[j] = v - 1
 						}
 
-						mesh.EtoV = append(mesh.EtoV, verts)
-						mesh.ElementTypes = append(mesh.ElementTypes, etype)
-						mesh.ElementTags = append(mesh.ElementTags, []int{0}) // Default tag
+						msh.EtoV = append(msh.EtoV, verts)
+						msh.ElementTypes = append(msh.ElementTypes, etype)
+						msh.ElementTags = append(msh.ElementTags, []int{0}) // Default tag
 					}
 				}
 			}
@@ -183,9 +184,9 @@ func ReadGambitNeutral(filename string) (*Mesh, error) {
 					fields := strings.Fields(line)
 					for _, field := range fields {
 						elemID, err := strconv.Atoi(field)
-						if err == nil && elemID > 0 && elemID <= len(mesh.EtoV) {
+						if err == nil && elemID > 0 && elemID <= len(msh.EtoV) {
 							// Elements are 1-indexed in file, 0-indexed in mesh
-							mesh.ElementTags[elemID-1] = []int{groupID}
+							msh.ElementTags[elemID-1] = []int{groupID}
 						}
 						elementsRead++
 						if elementsRead >= numElems {
@@ -215,7 +216,7 @@ func ReadGambitNeutral(filename string) (*Mesh, error) {
 					// Could parse ITYPE, NENTRY, etc. if needed
 
 					// Store boundary condition name
-					mesh.BoundaryTags[bcIdx] = bcName
+					msh.BoundaryTags[bcIdx] = bcName
 				}
 
 				// Skip to ENDOFSECTION or next BC
@@ -228,9 +229,9 @@ func ReadGambitNeutral(filename string) (*Mesh, error) {
 		return nil, fmt.Errorf("error reading file: %v", err)
 	}
 
-	mesh.NumElements = len(mesh.EtoV)
-	mesh.NumVertices = len(mesh.Vertices)
-	mesh.BuildConnectivity()
+	msh.NumElements = len(msh.EtoV)
+	msh.NumVertices = len(msh.Vertices)
+	msh.BuildConnectivity()
 
-	return mesh, nil
+	return msh, nil
 }

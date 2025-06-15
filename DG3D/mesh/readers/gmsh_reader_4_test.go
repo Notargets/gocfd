@@ -1,7 +1,8 @@
-package mesh
+package readers
 
 import (
 	"fmt"
+	mesh2 "github.com/notargets/gocfd/DG3D/mesh"
 	"os"
 	"path/filepath"
 	"strings"
@@ -89,7 +90,7 @@ $EndElements`
 
 // TestReadGmsh4NodesFormat tests the new node format in v4
 func TestReadGmsh4NodesFormat(t *testing.T) {
-	tm := GetStandardTestMeshes()
+	tm := mesh2.GetStandardTestMeshes()
 
 	// Use standard cube nodes from test helpers
 	content := `$MeshFormat
@@ -139,15 +140,15 @@ $EndElements`
 
 // TestReadGmsh4ElementsFormat tests the new element format in v4
 func TestReadGmsh4ElementsFormat(t *testing.T) {
-	tm := GetStandardTestMeshes()
+	tm := mesh2.GetStandardTestMeshes()
 
 	// Build content using test meshes
 	builder := NewGmsh4TestBuilder()
 
 	// Create a simple mesh with just one tet from the test helpers
-	simpleMesh := CompleteMesh{
+	simpleMesh := mesh2.CompleteMesh{
 		Nodes:       tm.TetraNodes,
-		Elements:    []ElementSet{tm.SingleTet},
+		Elements:    []mesh2.ElementSet{tm.SingleTet},
 		Dimension:   3,
 		BoundingBox: [2][3]float64{{0, 0, 0}, {1, 1, 1}},
 	}
@@ -168,7 +169,7 @@ func TestReadGmsh4ElementsFormat(t *testing.T) {
 	}
 
 	// Check element type
-	if mesh.ElementTypes[0] != Tet {
+	if mesh.ElementTypes[0] != mesh2.Tet {
 		t.Errorf("Expected Tet element, got %v", mesh.ElementTypes[0])
 	}
 
@@ -231,7 +232,7 @@ $EndElements`
 		t.Errorf("Expected 1 element, got %d", mesh.NumElements)
 	}
 
-	if mesh.ElementTypes[0] != Tet10 {
+	if mesh.ElementTypes[0] != mesh2.Tet10 {
 		t.Errorf("Expected Tet10 (second-order tet), got %v", mesh.ElementTypes[0])
 	}
 
@@ -357,13 +358,13 @@ $EndElements`
 
 // TestReadGmsh4GhostElements tests skipping ghost elements
 func TestReadGmsh4GhostElements(t *testing.T) {
-	tm := GetStandardTestMeshes()
+	tm := mesh2.GetStandardTestMeshes()
 
 	// Build a simple tet mesh
 	builder := NewGmsh4TestBuilder()
-	simpleMesh := CompleteMesh{
+	simpleMesh := mesh2.CompleteMesh{
 		Nodes:       tm.TetraNodes,
-		Elements:    []ElementSet{tm.SingleTet},
+		Elements:    []mesh2.ElementSet{tm.SingleTet},
 		Dimension:   3,
 		BoundingBox: [2][3]float64{{0, 0, 0}, {1, 1, 1}},
 	}
@@ -452,7 +453,7 @@ func TestReadGmsh4StandardMeshes(t *testing.T) {
 
 		// Check element types
 		for i := 0; i < 2; i++ {
-			if mesh.ElementTypes[i] != Tet {
+			if mesh.ElementTypes[i] != mesh2.Tet {
 				t.Errorf("Element %d: expected Tet, got %v", i, mesh.ElementTypes[i])
 			}
 		}
@@ -490,10 +491,10 @@ func TestReadGmsh4StandardMeshes(t *testing.T) {
 		}
 
 		// Get expected mesh for validation
-		tm := GetStandardTestMeshes()
+		tm := mesh2.GetStandardTestMeshes()
 
 		// Build expected types from the test mesh definition
-		var expectedTypes []ElementType
+		var expectedTypes []mesh2.ElementType
 		for _, elemSet := range tm.MixedMesh.Elements {
 			for range elemSet.Elements {
 				expectedTypes = append(expectedTypes, elemSet.Type)
@@ -524,7 +525,7 @@ func TestReadGmsh4StandardMeshes(t *testing.T) {
 
 	t.Run("CubeMesh", func(t *testing.T) {
 		// Build cube mesh from test infrastructure
-		tm := GetStandardTestMeshes()
+		tm := mesh2.GetStandardTestMeshes()
 		content := builder.BuildFromCompleteMesh(&tm.CubeMesh)
 
 		tmpFile := createTempMshFile(t, content)
@@ -541,7 +542,7 @@ func TestReadGmsh4StandardMeshes(t *testing.T) {
 		}
 
 		for i := 0; i < mesh.NumElements; i++ {
-			if mesh.ElementTypes[i] != Tet {
+			if mesh.ElementTypes[i] != mesh2.Tet {
 				t.Errorf("Cube element %d: expected Tet, got %v", i, mesh.ElementTypes[i])
 			}
 		}
@@ -567,8 +568,8 @@ func TestReadGmsh4ComplexMesh(t *testing.T) {
 	// and then converting it to Gmsh format
 
 	// Create a custom mesh
-	customMesh := CompleteMesh{
-		Nodes: NodeSet{
+	customMesh := mesh2.CompleteMesh{
+		Nodes: mesh2.NodeSet{
 			Nodes: [][]float64{
 				{0, 0, 0}, {1, 0, 0}, {0.5, 1, 0}, {0.5, 0.5, 1},
 			},
@@ -576,13 +577,13 @@ func TestReadGmsh4ComplexMesh(t *testing.T) {
 				"n0": 0, "n1": 1, "n2": 2, "n3": 3,
 			},
 		},
-		Elements: []ElementSet{
+		Elements: []mesh2.ElementSet{
 			{
-				Type: Tet,
+				Type: mesh2.Tet,
 				Elements: [][]string{
 					{"n0", "n1", "n2", "n3"},
 				},
-				Properties: []ElementProps{
+				Properties: []mesh2.ElementProps{
 					{PhysicalTag: 100, GeometricTag: 1},
 				},
 			},
@@ -616,7 +617,7 @@ func TestReadGmsh4ComplexMesh(t *testing.T) {
 	}
 
 	// Check element type
-	if mesh.ElementTypes[0] != Tet {
+	if mesh.ElementTypes[0] != mesh2.Tet {
 		t.Errorf("Expected Tet element, got %v", mesh.ElementTypes[0])
 	}
 
@@ -643,7 +644,7 @@ func TestReadGmsh4ComplexMesh(t *testing.T) {
 
 // TestReadGmsh4MixedElementTypes tests mixed element types using test helpers
 func TestReadGmsh4MixedElementTypes(t *testing.T) {
-	tm := GetStandardTestMeshes()
+	tm := mesh2.GetStandardTestMeshes()
 	builder := NewGmsh4TestBuilder()
 
 	// Use the standard mixed mesh which has one of each 3D element type
@@ -658,7 +659,7 @@ func TestReadGmsh4MixedElementTypes(t *testing.T) {
 	}
 
 	// Get expected types from the actual mixed mesh definition
-	var expectedTypes []ElementType
+	var expectedTypes []mesh2.ElementType
 	for _, elemSet := range tm.MixedMesh.Elements {
 		for range elemSet.Elements {
 			expectedTypes = append(expectedTypes, elemSet.Type)
@@ -776,7 +777,7 @@ $EndElements`
 
 // TestReadGmsh4UsingStandardMeshes demonstrates proper use of test helpers
 func TestReadGmsh4UsingStandardMeshes(t *testing.T) {
-	tm := GetStandardTestMeshes()
+	tm := mesh2.GetStandardTestMeshes()
 
 	// Test 1: Create a file with just the cube nodes
 	t.Run("CubeNodesOnly", func(t *testing.T) {
@@ -841,7 +842,7 @@ $EndEntities
 			t.Errorf("Expected 1 element, got %d", mesh.NumElements)
 		}
 
-		if mesh.ElementTypes[0] != Tet {
+		if mesh.ElementTypes[0] != mesh2.Tet {
 			t.Errorf("Expected Tet element, got %v", mesh.ElementTypes[0])
 		}
 
@@ -856,7 +857,7 @@ $EndEntities
 }
 
 // Helper to format nodes section from NodeSet
-func formatNodesSection(nodes NodeSet) string {
+func formatNodesSection(nodes mesh2.NodeSet) string {
 	numNodes := len(nodes.Nodes)
 	lines := []string{
 		"$Nodes",

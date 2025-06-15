@@ -1,9 +1,10 @@
-package mesh
+package readers
 
 import (
 	"bufio"
 	"encoding/binary"
 	"fmt"
+	"github.com/notargets/gocfd/DG3D/mesh"
 	"io"
 	"os"
 	"strconv"
@@ -12,28 +13,28 @@ import (
 
 // gmshElementType4 maps Gmsh 4.x element types to our ElementType
 // Gmsh 4.x uses the same element type numbers as 2.2
-var gmshElementType4 = map[int]ElementType{
-	1:  Line,
-	2:  Triangle,
-	3:  Quad,
-	4:  Tet,
-	5:  Hex,
-	6:  Prism,
-	7:  Pyramid,
-	8:  Line3,
-	9:  Triangle6,
-	10: Quad9,
-	11: Tet10,
-	12: Hex27,
-	13: Prism18,
-	14: Pyramid14,
-	15: Point,
-	16: Quad8,
-	17: Hex20,
-	18: Prism15,
-	19: Pyramid13,
-	20: Triangle9,
-	21: Triangle10,
+var gmshElementType4 = map[int]mesh.ElementType{
+	1:  mesh.Line,
+	2:  mesh.Triangle,
+	3:  mesh.Quad,
+	4:  mesh.Tet,
+	5:  mesh.Hex,
+	6:  mesh.Prism,
+	7:  mesh.Pyramid,
+	8:  mesh.Line3,
+	9:  mesh.Triangle6,
+	10: mesh.Quad9,
+	11: mesh.Tet10,
+	12: mesh.Hex27,
+	13: mesh.Prism18,
+	14: mesh.Pyramid14,
+	15: mesh.Point,
+	16: mesh.Quad8,
+	17: mesh.Hex20,
+	18: mesh.Prism15,
+	19: mesh.Pyramid13,
+	20: mesh.Triangle9,
+	21: mesh.Triangle10,
 }
 
 // EntityInfo stores information about geometric entities
@@ -48,14 +49,14 @@ type EntityInfo struct {
 }
 
 // ReadGmsh4 reads a Gmsh 4.x format file
-func ReadGmsh4(filename string) (*Mesh, error) {
+func ReadGmsh4(filename string) (*mesh.Mesh, error) {
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 
-	mesh := NewMesh()
+	mesh := mesh.NewMesh()
 
 	// Parse format to determine if binary
 	scanner := bufio.NewScanner(file)
@@ -89,7 +90,7 @@ func ReadGmsh4(filename string) (*Mesh, error) {
 }
 
 // readGmsh4ASCII reads ASCII format for version 4.x
-func readGmsh4ASCII(file *os.File, mesh *Mesh) (*Mesh, error) {
+func readGmsh4ASCII(file *os.File, mesh *mesh.Mesh) (*mesh.Mesh, error) {
 	scanner := bufio.NewScanner(file)
 
 	// Increase scanner buffer for large files
@@ -178,7 +179,7 @@ func readGmsh4ASCII(file *os.File, mesh *Mesh) (*Mesh, error) {
 }
 
 // readMeshFormat4 reads the MeshFormat section for v4
-func readMeshFormat4(scanner *bufio.Scanner, mesh *Mesh) error {
+func readMeshFormat4(scanner *bufio.Scanner, mesh *mesh.Mesh) error {
 	if !scanner.Scan() {
 		return fmt.Errorf("unexpected EOF in MeshFormat")
 	}
@@ -389,7 +390,7 @@ func readPartitionedEntities4(scanner *bufio.Scanner, entities map[string]map[in
 }
 
 // readNodes4 reads nodes in v4 format
-func readNodes4(scanner *bufio.Scanner, mesh *Mesh, entities map[string]map[int]*EntityInfo) error {
+func readNodes4(scanner *bufio.Scanner, mesh *mesh.Mesh, entities map[string]map[int]*EntityInfo) error {
 	if !scanner.Scan() {
 		return fmt.Errorf("unexpected EOF in Nodes")
 	}
@@ -604,7 +605,7 @@ func readNodes4(scanner *bufio.Scanner, mesh *Mesh, entities map[string]map[int]
 }
 
 // readElements4 reads elements in v4 format with debug output
-func readElements4(scanner *bufio.Scanner, mesh *Mesh, entities map[string]map[int]*EntityInfo) error {
+func readElements4(scanner *bufio.Scanner, msh *mesh.Mesh, entities map[string]map[int]*EntityInfo) error {
 	if !scanner.Scan() {
 		return fmt.Errorf("unexpected EOF in Elements")
 	}
@@ -694,7 +695,8 @@ func readElements4(scanner *bufio.Scanner, mesh *Mesh, entities map[string]map[i
 				nodeIDs[k], _ = strconv.Atoi(fields[1+k])
 			}
 
-			if err := mesh.AddElement(elemTag, ElementType(elemType), tags, nodeIDs); err != nil {
+			if err := msh.AddElement(elemTag, elemType, tags,
+				nodeIDs); err != nil {
 				return err
 			}
 		}
@@ -715,7 +717,7 @@ func readElements4(scanner *bufio.Scanner, mesh *Mesh, entities map[string]map[i
 }
 
 // readPeriodic4 reads periodic boundary conditions in v4 format
-func readPeriodic4(scanner *bufio.Scanner, mesh *Mesh) error {
+func readPeriodic4(scanner *bufio.Scanner, msh *mesh.Mesh) error {
 	if !scanner.Scan() {
 		return fmt.Errorf("unexpected EOF in Periodic")
 	}
@@ -740,7 +742,7 @@ func readPeriodic4(scanner *bufio.Scanner, mesh *Mesh) error {
 		slaveTag, _ := strconv.Atoi(fields[1])
 		masterTag, _ := strconv.Atoi(fields[2])
 
-		periodic := Periodic{
+		periodic := mesh.Periodic{
 			Dimension: dim,
 			SlaveTag:  slaveTag,
 			MasterTag: masterTag,
@@ -803,7 +805,7 @@ func readPeriodic4(scanner *bufio.Scanner, mesh *Mesh) error {
 			periodic.NodeMap[slaveNode] = masterNode
 		}
 
-		mesh.Periodics = append(mesh.Periodics, periodic)
+		msh.Periodics = append(msh.Periodics, periodic)
 	}
 
 	// Skip to end
@@ -817,7 +819,7 @@ func readPeriodic4(scanner *bufio.Scanner, mesh *Mesh) error {
 }
 
 // readGmsh4Binary reads binary format for v4
-func readGmsh4Binary(file *os.File, mesh *Mesh) (*Mesh, error) {
+func readGmsh4Binary(file *os.File, mesh *mesh.Mesh) (*mesh.Mesh, error) {
 	reader := bufio.NewReader(file)
 
 	// Read until $MeshFormat
@@ -967,7 +969,7 @@ func readEntities4Binary(reader *bufio.Reader, entities map[string]map[int]*Enti
 }
 
 // readNodes4Binary reads nodes in binary format for v4
-func readNodes4Binary(reader *bufio.Reader, mesh *Mesh, entities map[string]map[int]*EntityInfo, byteOrder binary.ByteOrder) error {
+func readNodes4Binary(reader *bufio.Reader, mesh *mesh.Mesh, entities map[string]map[int]*EntityInfo, byteOrder binary.ByteOrder) error {
 	// Read header line (ASCII)
 	line, err := reader.ReadString('\n')
 	if err != nil {
@@ -1050,7 +1052,7 @@ func readNodes4Binary(reader *bufio.Reader, mesh *Mesh, entities map[string]map[
 }
 
 // readElements4Binary reads elements in binary format for v4
-func readElements4Binary(reader *bufio.Reader, mesh *Mesh, entities map[string]map[int]*EntityInfo, byteOrder binary.ByteOrder) error {
+func readElements4Binary(reader *bufio.Reader, msh *mesh.Mesh, entities map[string]map[int]*EntityInfo, byteOrder binary.ByteOrder) error {
 	// Read header line (ASCII)
 	line, err := reader.ReadString('\n')
 	if err != nil {
@@ -1094,7 +1096,7 @@ func readElements4Binary(reader *bufio.Reader, mesh *Mesh, entities map[string]m
 
 			for j := 0; j < numElemsInBlock; j++ {
 				// Read element tag
-				if mesh.DataSize == 8 {
+				if msh.DataSize == 8 {
 					var tag int64
 					binary.Read(reader, byteOrder, &tag)
 				} else {
@@ -1104,7 +1106,7 @@ func readElements4Binary(reader *bufio.Reader, mesh *Mesh, entities map[string]m
 
 				// Read nodes
 				for k := 0; k < expectedNodes; k++ {
-					if mesh.DataSize == 8 {
+					if msh.DataSize == 8 {
 						var node int64
 						binary.Read(reader, byteOrder, &node)
 					} else {
@@ -1127,7 +1129,7 @@ func readElements4Binary(reader *bufio.Reader, mesh *Mesh, entities map[string]m
 		for j := 0; j < numElemsInBlock; j++ {
 			// Read element tag
 			var elemTag int
-			if mesh.DataSize == 8 {
+			if msh.DataSize == 8 {
 				var tag int64
 				if err := binary.Read(reader, byteOrder, &tag); err != nil {
 					return err
@@ -1151,7 +1153,7 @@ func readElements4Binary(reader *bufio.Reader, mesh *Mesh, entities map[string]m
 			// Read nodes
 			nodeIDs := make([]int, expectedNodes)
 			for k := 0; k < expectedNodes; k++ {
-				if mesh.DataSize == 8 {
+				if msh.DataSize == 8 {
 					var node int64
 					if err := binary.Read(reader, byteOrder, &node); err != nil {
 						return err
@@ -1166,7 +1168,8 @@ func readElements4Binary(reader *bufio.Reader, mesh *Mesh, entities map[string]m
 				}
 			}
 
-			if err := mesh.AddElement(elemTag, ElementType(elemType), tags, nodeIDs); err != nil {
+			if err := msh.AddElement(elemTag, elemType, tags,
+				nodeIDs); err != nil {
 				return err
 			}
 		}

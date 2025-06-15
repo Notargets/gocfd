@@ -1,19 +1,20 @@
-package mesh
+package readers
 
 import (
 	"fmt"
+	"github.com/notargets/gocfd/DG3D/mesh"
 	"strings"
 )
 
 // Gmsh4TestBuilder helps build Gmsh 4.1 format test files
 type Gmsh4TestBuilder struct {
-	tm *TestMeshes
+	tm *mesh.TestMeshes
 }
 
 // NewGmsh4TestBuilder creates a new builder with standard test meshes
 func NewGmsh4TestBuilder() *Gmsh4TestBuilder {
 	return &Gmsh4TestBuilder{
-		tm: GetStandardTestMeshes(),
+		tm: mesh.GetStandardTestMeshes(),
 	}
 }
 
@@ -30,7 +31,7 @@ func (b *Gmsh4TestBuilder) BuildTwoTetTest() string {
 }
 
 // BuildFromCompleteMesh creates a complete Gmsh 4.1 format file from a CompleteMesh
-func (b *Gmsh4TestBuilder) BuildFromCompleteMesh(mesh *CompleteMesh) string {
+func (b *Gmsh4TestBuilder) BuildFromCompleteMesh(mesh *mesh.CompleteMesh) string {
 	var sections []string
 
 	// Header
@@ -54,7 +55,7 @@ func (b *Gmsh4TestBuilder) buildHeader() string {
 $EndMeshFormat`
 }
 
-func (b *Gmsh4TestBuilder) buildEntities(mesh *CompleteMesh) string {
+func (b *Gmsh4TestBuilder) buildEntities(mesh *mesh.CompleteMesh) string {
 	// For simplicity, create one volume entity
 	minX, minY, minZ := mesh.BoundingBox[0][0], mesh.BoundingBox[0][1], mesh.BoundingBox[0][2]
 	maxX, maxY, maxZ := mesh.BoundingBox[1][0], mesh.BoundingBox[1][1], mesh.BoundingBox[1][2]
@@ -65,7 +66,7 @@ func (b *Gmsh4TestBuilder) buildEntities(mesh *CompleteMesh) string {
 $EndEntities`, minX, minY, minZ, maxX, maxY, maxZ)
 }
 
-func (b *Gmsh4TestBuilder) buildNodes(mesh *CompleteMesh) string {
+func (b *Gmsh4TestBuilder) buildNodes(mesh *mesh.CompleteMesh) string {
 	numNodes := len(mesh.Nodes.Nodes)
 
 	var lines []string
@@ -88,7 +89,7 @@ func (b *Gmsh4TestBuilder) buildNodes(mesh *CompleteMesh) string {
 	return strings.Join(lines, "\n")
 }
 
-func (b *Gmsh4TestBuilder) buildElements(mesh *CompleteMesh) string {
+func (b *Gmsh4TestBuilder) buildElements(mesh *mesh.CompleteMesh) string {
 	// Count total elements and blocks
 	totalElements := 0
 	numBlocks := 0
@@ -129,26 +130,26 @@ func (b *Gmsh4TestBuilder) buildElements(mesh *CompleteMesh) string {
 }
 
 // Helper to convert our ElementType to Gmsh element type number
-var elementTypeToGmsh4 = map[ElementType]int{
-	Point:      15,
-	Line:       1,
-	Line3:      8,
-	Triangle:   2,
-	Triangle6:  9,
-	Triangle9:  20,
-	Triangle10: 21,
-	Quad:       3,
-	Quad8:      16,
-	Quad9:      10,
-	Tet:        4,
-	Tet10:      11,
-	Hex:        5,
-	Hex20:      17,
-	Hex27:      12,
-	Prism:      6,
-	Prism15:    18,
-	Prism18:    13,
-	Pyramid:    7,
-	Pyramid13:  19,
-	Pyramid14:  14,
+var elementTypeToGmsh4 = map[mesh.ElementType]int{
+	mesh.Point:      15,
+	mesh.Line:       1,
+	mesh.Line3:      8,
+	mesh.Triangle:   2,
+	mesh.Triangle6:  9,
+	mesh.Triangle9:  20,
+	mesh.Triangle10: 21,
+	mesh.Quad:       3,
+	mesh.Quad8:      16,
+	mesh.Quad9:      10,
+	mesh.Tet:        4,
+	mesh.Tet10:      11,
+	mesh.Hex:        5,
+	mesh.Hex20:      17,
+	mesh.Hex27:      12,
+	mesh.Prism:      6,
+	mesh.Prism15:    18,
+	mesh.Prism18:    13,
+	mesh.Pyramid:    7,
+	mesh.Pyramid13:  19,
+	mesh.Pyramid14:  14,
 }

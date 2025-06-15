@@ -1,19 +1,20 @@
-package mesh
+package readers
 
 import (
 	"fmt"
+	"github.com/notargets/gocfd/DG3D/mesh"
 	"strings"
 )
 
 // Gmsh22TestBuilder helps build Gmsh 2.2 format test files
 type Gmsh22TestBuilder struct {
-	tm *TestMeshes
+	tm *mesh.TestMeshes
 }
 
 // NewGmsh22TestBuilder creates a new builder with standard test meshes
 func NewGmsh22TestBuilder() *Gmsh22TestBuilder {
 	return &Gmsh22TestBuilder{
-		tm: GetStandardTestMeshes(),
+		tm: mesh.GetStandardTestMeshes(),
 	}
 }
 
@@ -36,7 +37,7 @@ func (b *Gmsh22TestBuilder) BuildCubeTest() string {
 }
 
 // BuildFromCompleteMesh creates a complete Gmsh 2.2 format file from a CompleteMesh
-func (b *Gmsh22TestBuilder) BuildFromCompleteMesh(mesh *CompleteMesh) string {
+func (b *Gmsh22TestBuilder) BuildFromCompleteMesh(mesh *mesh.CompleteMesh) string {
 	var sections []string
 
 	// Header
@@ -57,7 +58,7 @@ func (b *Gmsh22TestBuilder) buildHeader() string {
 $EndMeshFormat`
 }
 
-func (b *Gmsh22TestBuilder) buildNodes(mesh *CompleteMesh) string {
+func (b *Gmsh22TestBuilder) buildNodes(mesh *mesh.CompleteMesh) string {
 	numNodes := len(mesh.Nodes.Nodes)
 
 	var lines []string
@@ -75,10 +76,10 @@ func (b *Gmsh22TestBuilder) buildNodes(mesh *CompleteMesh) string {
 	return strings.Join(lines, "\n")
 }
 
-func (b *Gmsh22TestBuilder) buildElements(mesh *CompleteMesh) string {
+func (b *Gmsh22TestBuilder) buildElements(msh *mesh.CompleteMesh) string {
 	// Count total elements
 	totalElements := 0
-	for _, elemSet := range mesh.Elements {
+	for _, elemSet := range msh.Elements {
 		totalElements += len(elemSet.Elements)
 	}
 
@@ -87,12 +88,12 @@ func (b *Gmsh22TestBuilder) buildElements(mesh *CompleteMesh) string {
 	lines = append(lines, fmt.Sprintf("%d", totalElements))
 
 	elemID := 1
-	for _, elemSet := range mesh.Elements {
+	for _, elemSet := range msh.Elements {
 		gmshType := elementTypeToGmsh22[elemSet.Type]
 
 		for i, elem := range elemSet.Elements {
 			// Get properties
-			props := ElementProps{}
+			props := mesh.ElementProps{}
 			if i < len(elemSet.Properties) {
 				props = elemSet.Properties[i]
 			}
@@ -114,7 +115,7 @@ func (b *Gmsh22TestBuilder) buildElements(mesh *CompleteMesh) string {
 			// Convert node names to IDs
 			nodeIDs := make([]string, len(elem))
 			for j, nodeName := range elem {
-				nodeIDs[j] = fmt.Sprintf("%d", mesh.Nodes.NodeIDMap[nodeName])
+				nodeIDs[j] = fmt.Sprintf("%d", msh.Nodes.NodeIDMap[nodeName])
 			}
 
 			// Format: elem-id elem-type num-tags tag1 tag2 ... node1 node2 ...
@@ -134,26 +135,26 @@ func (b *Gmsh22TestBuilder) buildElements(mesh *CompleteMesh) string {
 }
 
 // Helper to convert our ElementType to Gmsh 2.2 element type number
-var elementTypeToGmsh22 = map[ElementType]int{
-	Point:      15,
-	Line:       1,
-	Line3:      8,
-	Triangle:   2,
-	Triangle6:  9,
-	Triangle9:  20,
-	Triangle10: 21,
-	Quad:       3,
-	Quad8:      16,
-	Quad9:      10,
-	Tet:        4,
-	Tet10:      11,
-	Hex:        5,
-	Hex20:      17,
-	Hex27:      12,
-	Prism:      6,
-	Prism15:    18,
-	Prism18:    13,
-	Pyramid:    7,
-	Pyramid13:  19,
-	Pyramid14:  14,
+var elementTypeToGmsh22 = map[mesh.ElementType]int{
+	mesh.Point:      15,
+	mesh.Line:       1,
+	mesh.Line3:      8,
+	mesh.Triangle:   2,
+	mesh.Triangle6:  9,
+	mesh.Triangle9:  20,
+	mesh.Triangle10: 21,
+	mesh.Quad:       3,
+	mesh.Quad8:      16,
+	mesh.Quad9:      10,
+	mesh.Tet:        4,
+	mesh.Tet10:      11,
+	mesh.Hex:        5,
+	mesh.Hex20:      17,
+	mesh.Hex27:      12,
+	mesh.Prism:      6,
+	mesh.Prism15:    18,
+	mesh.Prism18:    13,
+	mesh.Pyramid:    7,
+	mesh.Pyramid13:  19,
+	mesh.Pyramid14:  14,
 }

@@ -1,7 +1,8 @@
-package mesh
+package readers
 
 import (
 	"fmt"
+	"github.com/notargets/gocfd/DG3D/mesh"
 	"os"
 	"path/filepath"
 	"sort"
@@ -11,13 +12,13 @@ import (
 
 // GambitTestBuilder helps build Gambit neutral format test files
 type GambitTestBuilder struct {
-	tm *TestMeshes
+	tm *mesh.TestMeshes
 }
 
 // NewGambitTestBuilder creates a new builder with standard test meshes
 func NewGambitTestBuilder() *GambitTestBuilder {
 	return &GambitTestBuilder{
-		tm: GetStandardTestMeshes(),
+		tm: mesh.GetStandardTestMeshes(),
 	}
 }
 
@@ -86,25 +87,25 @@ func TestReadGambitNeutralStandardMeshes(t *testing.T) {
 		tmpFile := createTempNeuFile(t, content)
 		defer os.Remove(tmpFile)
 
-		mesh, err := ReadGambitNeutral(tmpFile)
+		msh, err := ReadGambitNeutral(tmpFile)
 		if err != nil {
 			t.Fatalf("Failed to read Gambit neutral file: %v", err)
 		}
 
 		// Verify vertices
-		if mesh.NumVertices != 4 {
-			t.Errorf("Expected 4 vertices, got %d", mesh.NumVertices)
+		if msh.NumVertices != 4 {
+			t.Errorf("Expected 4 vertices, got %d", msh.NumVertices)
 		}
 
 		// Verify element
-		if mesh.NumElements != 1 {
-			t.Errorf("Expected 1 element, got %d", mesh.NumElements)
+		if msh.NumElements != 1 {
+			t.Errorf("Expected 1 element, got %d", msh.NumElements)
 		}
-		if mesh.ElementTypes[0] != Tet {
-			t.Errorf("Expected Tet element type, got %v", mesh.ElementTypes[0])
+		if msh.ElementTypes[0] != mesh.Tet {
+			t.Errorf("Expected Tet element type, got %v", msh.ElementTypes[0])
 		}
-		if len(mesh.EtoV[0]) != 4 {
-			t.Errorf("Expected 4 nodes for tet, got %d", len(mesh.EtoV[0]))
+		if len(msh.EtoV[0]) != 4 {
+			t.Errorf("Expected 4 nodes for tet, got %d", len(msh.EtoV[0]))
 		}
 	})
 
@@ -113,14 +114,14 @@ func TestReadGambitNeutralStandardMeshes(t *testing.T) {
 		tmpFile := createTempNeuFile(t, content)
 		defer os.Remove(tmpFile)
 
-		mesh, err := ReadGambitNeutral(tmpFile)
+		msh, err := ReadGambitNeutral(tmpFile)
 		if err != nil {
 			t.Fatalf("Failed to read Gambit neutral file: %v", err)
 		}
 
 		// Get expected element counts
-		tm := GetStandardTestMeshes()
-		var expectedTypes []ElementType
+		tm := mesh.GetStandardTestMeshes()
+		var expectedTypes []mesh.ElementType
 		for _, elemSet := range tm.MixedMesh.Elements {
 			for range elemSet.Elements {
 				expectedTypes = append(expectedTypes, elemSet.Type)
@@ -128,19 +129,19 @@ func TestReadGambitNeutralStandardMeshes(t *testing.T) {
 		}
 
 		// Verify element count
-		if mesh.NumElements != len(expectedTypes) {
-			t.Errorf("Expected %d elements, got %d", len(expectedTypes), mesh.NumElements)
+		if msh.NumElements != len(expectedTypes) {
+			t.Errorf("Expected %d elements, got %d", len(expectedTypes), msh.NumElements)
 		}
 
 		// Verify element types
 		for i, expectedType := range expectedTypes {
-			if i >= len(mesh.ElementTypes) {
+			if i >= len(msh.ElementTypes) {
 				t.Errorf("Missing element %d", i)
 				continue
 			}
-			if mesh.ElementTypes[i] != expectedType {
+			if msh.ElementTypes[i] != expectedType {
 				t.Errorf("Element %d: expected type %v, got %v",
-					i, expectedType, mesh.ElementTypes[i])
+					i, expectedType, msh.ElementTypes[i])
 			}
 		}
 	})
@@ -151,13 +152,13 @@ func TestReadGambitNeutralElementTypes(t *testing.T) {
 	testCases := []struct {
 		name         string
 		gambitType   int
-		expectedType ElementType
+		expectedType mesh.ElementType
 		numNodes     int
 	}{
-		{"Tetrahedron", 6, Tet, 4},
-		{"Hexahedron", 4, Hex, 8},
-		{"Wedge/Prism", 5, Prism, 6},
-		{"Pyramid", 7, Pyramid, 5},
+		{"Tetrahedron", 6, mesh.Tet, 4},
+		{"Hexahedron", 4, mesh.Hex, 8},
+		{"Wedge/Prism", 5, mesh.Prism, 6},
+		{"Pyramid", 7, mesh.Pyramid, 5},
 	}
 
 	for _, tc := range testCases {
@@ -241,23 +242,23 @@ ENDOFSECTION`
 	tmpFile := createTempNeuFile(t, content)
 	defer os.Remove(tmpFile)
 
-	mesh, err := ReadGambitNeutral(tmpFile)
+	msh, err := ReadGambitNeutral(tmpFile)
 	if err != nil {
 		t.Fatalf("Failed to read Gambit neutral file: %v", err)
 	}
 
 	// Should only have 2 3D elements (hex and tet)
-	if mesh.NumElements != 2 {
-		t.Errorf("Expected 2 3D elements (filtering out 2D), got %d", mesh.NumElements)
+	if msh.NumElements != 2 {
+		t.Errorf("Expected 2 3D elements (filtering out 2D), got %d", msh.NumElements)
 	}
 
 	// Check that we have the right element types
 	hasHex := false
 	hasTet := false
-	for _, elemType := range mesh.ElementTypes {
-		if elemType == Hex {
+	for _, elemType := range msh.ElementTypes {
+		if elemType == mesh.Hex {
 			hasHex = true
-		} else if elemType == Tet {
+		} else if elemType == mesh.Tet {
 			hasTet = true
 		}
 	}
@@ -539,10 +540,10 @@ func TestReadGambitNeutralRealFile(t *testing.T) {
 // Builder methods
 
 // Helper function to filter a CompleteMesh to only include used nodes
-func filterToUsedNodes(mesh *CompleteMesh) CompleteMesh {
+func filterToUsedNodes(msh *mesh.CompleteMesh) mesh.CompleteMesh {
 	// Collect all nodes used by elements
 	usedNodes := make(map[string]bool)
-	for _, elemSet := range mesh.Elements {
+	for _, elemSet := range msh.Elements {
 		for _, elem := range elemSet.Elements {
 			for _, nodeName := range elem {
 				usedNodes[nodeName] = true
@@ -558,7 +559,7 @@ func filterToUsedNodes(mesh *CompleteMesh) CompleteMesh {
 
 	// Create ordered list of used nodes
 	var orderedNames []string
-	for name := range mesh.Nodes.NodeMap {
+	for name := range msh.Nodes.NodeMap {
 		if usedNodes[name] {
 			orderedNames = append(orderedNames, name)
 		}
@@ -569,24 +570,24 @@ func filterToUsedNodes(mesh *CompleteMesh) CompleteMesh {
 
 	// Build new node arrays
 	for _, name := range orderedNames {
-		origIdx := mesh.Nodes.NodeMap[name]
-		nodes = append(nodes, mesh.Nodes.Nodes[origIdx])
+		origIdx := msh.Nodes.NodeMap[name]
+		nodes = append(nodes, msh.Nodes.Nodes[origIdx])
 		nodeMap[name] = idx
 		nodeIDMap[name] = idx + 1
 		idx++
 	}
 
-	filteredNodes := NodeSet{
+	filteredNodes := mesh.NodeSet{
 		Nodes:     nodes,
 		NodeMap:   nodeMap,
 		NodeIDMap: nodeIDMap,
 	}
 
-	return CompleteMesh{
+	return mesh.CompleteMesh{
 		Nodes:       filteredNodes,
-		Elements:    mesh.Elements,
-		Dimension:   mesh.Dimension,
-		BoundingBox: mesh.BoundingBox,
+		Elements:    msh.Elements,
+		Dimension:   msh.Dimension,
+		BoundingBox: msh.BoundingBox,
 	}
 }
 
@@ -594,9 +595,9 @@ func filterToUsedNodes(mesh *CompleteMesh) CompleteMesh {
 
 func (b *GambitTestBuilder) BuildSingleTetTest() string {
 	tm := b.tm
-	mesh := CompleteMesh{
+	mesh := mesh.CompleteMesh{
 		Nodes:       tm.TetraNodes,
-		Elements:    []ElementSet{tm.SingleTet},
+		Elements:    []mesh.ElementSet{tm.SingleTet},
 		Dimension:   3,
 		BoundingBox: [2][3]float64{{0, 0, 0}, {1, 1, 1}},
 	}
@@ -610,7 +611,7 @@ func (b *GambitTestBuilder) BuildMixedElementTest() string {
 	return b.BuildFromCompleteMesh(&filtered)
 }
 
-func (b *GambitTestBuilder) BuildFromCompleteMesh(mesh *CompleteMesh) string {
+func (b *GambitTestBuilder) BuildFromCompleteMesh(mesh *mesh.CompleteMesh) string {
 	var sections []string
 
 	// Count total elements
@@ -683,15 +684,15 @@ ENDOFSECTION`,
 }
 
 // elementTypeToGambit converts internal element types to Gambit type codes
-func elementTypeToGambit(et ElementType) int {
+func elementTypeToGambit(et mesh.ElementType) int {
 	switch et {
-	case Hex:
+	case mesh.Hex:
 		return 4 // Brick
-	case Prism:
+	case mesh.Prism:
 		return 5 // Wedge
-	case Tet:
+	case mesh.Tet:
 		return 6 // Tetrahedron
-	case Pyramid:
+	case mesh.Pyramid:
 		return 7 // Pyramid
 	default:
 		return 0

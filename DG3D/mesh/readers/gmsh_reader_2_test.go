@@ -1,7 +1,8 @@
-package mesh
+package readers
 
 import (
 	"fmt"
+	mesh2 "github.com/notargets/gocfd/DG3D/mesh"
 	"os"
 	"path/filepath"
 	"strings"
@@ -76,7 +77,7 @@ func TestReadGmsh22StandardMeshes(t *testing.T) {
 
 		// Check element types
 		for i := 0; i < 2; i++ {
-			if mesh.ElementTypes[i] != Tet {
+			if mesh.ElementTypes[i] != mesh2.Tet {
 				t.Errorf("Element %d: expected Tet, got %v", i, mesh.ElementTypes[i])
 			}
 			if len(mesh.EtoV[i]) != 4 {
@@ -97,8 +98,8 @@ func TestReadGmsh22StandardMeshes(t *testing.T) {
 		}
 
 		// Get expected types from test mesh
-		tm := GetStandardTestMeshes()
-		var expectedTypes []ElementType
+		tm := mesh2.GetStandardTestMeshes()
+		var expectedTypes []mesh2.ElementType
 		for _, elemSet := range tm.MixedMesh.Elements {
 			for range elemSet.Elements {
 				expectedTypes = append(expectedTypes, elemSet.Type)
@@ -128,7 +129,7 @@ func TestReadGmsh22StandardMeshes(t *testing.T) {
 	})
 
 	t.Run("CubeMesh", func(t *testing.T) {
-		tm := GetStandardTestMeshes()
+		tm := mesh2.GetStandardTestMeshes()
 		builder := NewGmsh22TestBuilder()
 		content := builder.BuildFromCompleteMesh(&tm.CubeMesh)
 
@@ -146,7 +147,7 @@ func TestReadGmsh22StandardMeshes(t *testing.T) {
 		}
 
 		for i := 0; i < mesh.NumElements; i++ {
-			if mesh.ElementTypes[i] != Tet {
+			if mesh.ElementTypes[i] != mesh2.Tet {
 				t.Errorf("Cube element %d: expected Tet, got %v", i, mesh.ElementTypes[i])
 			}
 		}
@@ -155,7 +156,7 @@ func TestReadGmsh22StandardMeshes(t *testing.T) {
 
 // TestReadGmsh22MixedElementTypes tests mixed element types using test helpers
 func TestReadGmsh22MixedElementTypes(t *testing.T) {
-	tm := GetStandardTestMeshes()
+	tm := mesh2.GetStandardTestMeshes()
 	builder := NewGmsh22TestBuilder()
 
 	content := builder.BuildMixedElementTest()
@@ -169,7 +170,7 @@ func TestReadGmsh22MixedElementTypes(t *testing.T) {
 	}
 
 	// Build expected types from the test mesh
-	var expectedTypes []ElementType
+	var expectedTypes []mesh2.ElementType
 	for _, elemSet := range tm.MixedMesh.Elements {
 		for range elemSet.Elements {
 			expectedTypes = append(expectedTypes, elemSet.Type)
@@ -275,53 +276,53 @@ $EndElements`
 func TestReadGmsh22AllElementTypes(t *testing.T) {
 	// This test validates that all element types are correctly read
 	// We'll create individual elements of each type using test helpers
-	tm := GetStandardTestMeshes()
+	tm := mesh2.GetStandardTestMeshes()
 
 	// Test single elements
 	testCases := []struct {
 		name     string
-		mesh     CompleteMesh
-		expected ElementType
+		mesh     mesh2.CompleteMesh
+		expected mesh2.ElementType
 	}{
 		{
 			name: "SingleTet",
-			mesh: CompleteMesh{
+			mesh: mesh2.CompleteMesh{
 				Nodes:       tm.TetraNodes,
-				Elements:    []ElementSet{tm.SingleTet},
+				Elements:    []mesh2.ElementSet{tm.SingleTet},
 				Dimension:   3,
 				BoundingBox: [2][3]float64{{0, 0, 0}, {1, 1, 1}},
 			},
-			expected: Tet,
+			expected: mesh2.Tet,
 		},
 		{
 			name: "SingleHex",
-			mesh: CompleteMesh{
+			mesh: mesh2.CompleteMesh{
 				Nodes:       tm.CubeNodes,
-				Elements:    []ElementSet{tm.SingleHex},
+				Elements:    []mesh2.ElementSet{tm.SingleHex},
 				Dimension:   3,
 				BoundingBox: [2][3]float64{{0, 0, 0}, {1, 1, 1}},
 			},
-			expected: Hex,
+			expected: mesh2.Hex,
 		},
 		{
 			name: "SinglePrism",
-			mesh: CompleteMesh{
+			mesh: mesh2.CompleteMesh{
 				Nodes:       tm.CubeNodes,
-				Elements:    []ElementSet{tm.SinglePrism},
+				Elements:    []mesh2.ElementSet{tm.SinglePrism},
 				Dimension:   3,
 				BoundingBox: [2][3]float64{{0, 0, 0}, {1, 1, 1}},
 			},
-			expected: Prism,
+			expected: mesh2.Prism,
 		},
 		{
 			name: "SinglePyramid",
-			mesh: CompleteMesh{
+			mesh: mesh2.CompleteMesh{
 				Nodes:       tm.PyramidNodes,
-				Elements:    []ElementSet{tm.SinglePyramid},
+				Elements:    []mesh2.ElementSet{tm.SinglePyramid},
 				Dimension:   3,
 				BoundingBox: [2][3]float64{{0, 0, 0}, {1, 1, 1}},
 			},
-			expected: Pyramid,
+			expected: mesh2.Pyramid,
 		},
 	}
 
@@ -421,18 +422,18 @@ $EndElements`
 // TestReadGmsh22MultipleTagsPerElement tests elements with multiple tags
 func TestReadGmsh22MultipleTagsPerElement(t *testing.T) {
 	// Use test helpers to create a mesh with specific tags
-	tm := GetStandardTestMeshes()
+	tm := mesh2.GetStandardTestMeshes()
 
 	// Create a custom mesh with multiple tags
-	customMesh := CompleteMesh{
+	customMesh := mesh2.CompleteMesh{
 		Nodes: tm.TetraNodes,
-		Elements: []ElementSet{
+		Elements: []mesh2.ElementSet{
 			{
-				Type: Tet,
+				Type: mesh2.Tet,
 				Elements: [][]string{
 					{"v0", "v1", "v2", "v3"},
 				},
-				Properties: []ElementProps{
+				Properties: []mesh2.ElementProps{
 					{PhysicalTag: 10, GeometricTag: 20},
 				},
 			},
@@ -540,7 +541,7 @@ $EndPeriodic`
 // TestReadGmsh22FilterByDimension tests filtering elements by dimension
 func TestReadGmsh22FilterByDimension(t *testing.T) {
 	// Use the mixed mesh which has elements of different dimensions
-	tm := GetStandardTestMeshes()
+	tm := mesh2.GetStandardTestMeshes()
 	builder := NewGmsh22TestBuilder()
 
 	content := builder.BuildMixedElementTest()
@@ -620,7 +621,7 @@ $EndElements`
 		t.Errorf("Expected 1 element, got %d", mesh.NumElements)
 	}
 
-	if mesh.ElementTypes[0] != Tet10 {
+	if mesh.ElementTypes[0] != mesh2.Tet10 {
 		t.Errorf("Expected Tet10, got %v", mesh.ElementTypes[0])
 	}
 
@@ -632,16 +633,16 @@ $EndElements`
 // TestReadGmsh22HigherOrderCornerNodes tests corner node extraction
 func TestReadGmsh22HigherOrderCornerNodes(t *testing.T) {
 	testCases := []struct {
-		elemType        ElementType
+		elemType        mesh2.ElementType
 		expectedCorners []int
 	}{
-		{Line3, []int{0, 1}},
-		{Triangle6, []int{0, 1, 2}},
-		{Quad8, []int{0, 1, 2, 3}},
-		{Tet10, []int{0, 1, 2, 3}},
-		{Hex20, []int{0, 1, 2, 3, 4, 5, 6, 7}},
-		{Prism15, []int{0, 1, 2, 3, 4, 5}},
-		{Pyramid13, []int{0, 1, 2, 3, 4}},
+		{mesh2.Line3, []int{0, 1}},
+		{mesh2.Triangle6, []int{0, 1, 2}},
+		{mesh2.Quad8, []int{0, 1, 2, 3}},
+		{mesh2.Tet10, []int{0, 1, 2, 3}},
+		{mesh2.Hex20, []int{0, 1, 2, 3, 4, 5, 6, 7}},
+		{mesh2.Prism15, []int{0, 1, 2, 3, 4, 5}},
+		{mesh2.Pyramid13, []int{0, 1, 2, 3, 4}},
 	}
 
 	for _, tc := range testCases {
@@ -664,12 +665,12 @@ func TestReadGmsh22HigherOrderCornerNodes(t *testing.T) {
 // TestReadGmsh22AutoDetection tests automatic version detection
 func TestReadGmsh22AutoDetection(t *testing.T) {
 	builder := NewGmsh22TestBuilder()
-	tm := GetStandardTestMeshes()
+	tm := mesh2.GetStandardTestMeshes()
 
 	// Use a simple test mesh
-	content := builder.BuildFromCompleteMesh(&CompleteMesh{
+	content := builder.BuildFromCompleteMesh(&mesh2.CompleteMesh{
 		Nodes:       tm.TetraNodes,
-		Elements:    []ElementSet{tm.SingleTet},
+		Elements:    []mesh2.ElementSet{tm.SingleTet},
 		Dimension:   3,
 		BoundingBox: [2][3]float64{{0, 0, 0}, {1, 1, 1}},
 	})

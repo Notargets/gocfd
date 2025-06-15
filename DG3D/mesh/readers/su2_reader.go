@@ -1,22 +1,23 @@
-package mesh
+package readers
 
 import (
 	"bufio"
 	"fmt"
+	"github.com/notargets/gocfd/DG3D/mesh"
 	"os"
 	"strconv"
 	"strings"
 )
 
 // ReadSU2 reads an SU2 native format file
-func ReadSU2(filename string) (*Mesh, error) {
+func ReadSU2(filename string) (*mesh.Mesh, error) {
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 
-	mesh := NewMesh()
+	msh := mesh.NewMesh()
 	scanner := bufio.NewScanner(file)
 
 	var ndime int
@@ -50,9 +51,9 @@ func ReadSU2(filename string) (*Mesh, error) {
 			var npoin int
 			fmt.Sscanf(line, "NPOIN=%d", &npoin)
 
-			mesh.Vertices = make([][]float64, npoin)
-			mesh.NodeIDMap = make(map[int]int)
-			mesh.NodeArrayMap = make(map[int]int)
+			msh.Vertices = make([][]float64, npoin)
+			msh.NodeIDMap = make(map[int]int)
+			msh.NodeArrayMap = make(map[int]int)
 
 			for i := 0; i < npoin; i++ {
 				if !scanner.Scan() {
@@ -74,9 +75,9 @@ func ReadSU2(filename string) (*Mesh, error) {
 
 				// Node ID is implicit (0-based) based on order
 				// Legacy format may have explicit ID at end of line (ignored)
-				mesh.Vertices[i] = coords
-				mesh.NodeIDMap[i] = i
-				mesh.NodeArrayMap[i] = i
+				msh.Vertices[i] = coords
+				msh.NodeIDMap[i] = i
+				msh.NodeArrayMap[i] = i
 			}
 
 		} else if strings.HasPrefix(line, "NELEM=") {
@@ -84,9 +85,9 @@ func ReadSU2(filename string) (*Mesh, error) {
 			fmt.Sscanf(line, "NELEM=%d", &nelem)
 
 			// Pre-allocate slices
-			mesh.EtoV = make([][]int, 0, nelem)
-			mesh.ElementTypes = make([]ElementType, 0, nelem)
-			mesh.ElementTags = make([][]int, 0, nelem)
+			msh.EtoV = make([][]int, 0, nelem)
+			msh.ElementTypes = make([]mesh.ElementType, 0, nelem)
+			msh.ElementTags = make([][]int, 0, nelem)
 
 			// Read elements
 			for i := 0; i < nelem; i++ {
@@ -124,24 +125,24 @@ func ReadSU2(filename string) (*Mesh, error) {
 						return nil, fmt.Errorf("invalid node index: %v", err)
 					}
 					// Validate node index
-					if nodes[j] < 0 || nodes[j] >= len(mesh.Vertices) {
+					if nodes[j] < 0 || nodes[j] >= len(msh.Vertices) {
 						return nil, fmt.Errorf("node index %d out of range [0,%d)",
-							nodes[j], len(mesh.Vertices))
+							nodes[j], len(msh.Vertices))
 					}
 				}
 
 				// Element ID is implicit (0-based) based on order
 				// Legacy format may have explicit ID at end of line (ignored)
-				mesh.EtoV = append(mesh.EtoV, nodes)
-				mesh.ElementTypes = append(mesh.ElementTypes, etype)
-				mesh.ElementTags = append(mesh.ElementTags, []int{0}) // Default tag
+				msh.EtoV = append(msh.EtoV, nodes)
+				msh.ElementTypes = append(msh.ElementTypes, etype)
+				msh.ElementTags = append(msh.ElementTags, []int{0}) // Default tag
 			}
 
 		} else if strings.HasPrefix(line, "NMARK=") {
 			var nmark int
 			fmt.Sscanf(line, "NMARK=%d", &nmark)
 
-			mesh.BoundaryTags = make(map[int]string)
+			msh.BoundaryTags = make(map[int]string)
 
 			// Read boundary markers
 			for i := 0; i < nmark; i++ {
@@ -169,7 +170,7 @@ func ReadSU2(filename string) (*Mesh, error) {
 				}
 
 				// Store boundary tag
-				mesh.BoundaryTags[i] = tagName
+				msh.BoundaryTags[i] = tagName
 
 				// Read boundary elements
 				// For now, we skip the actual boundary element data
@@ -200,20 +201,20 @@ func ReadSU2(filename string) (*Mesh, error) {
 		return nil, fmt.Errorf("missing required NPOIN= section")
 	}
 
-	mesh.NumElements = len(mesh.EtoV)
-	mesh.NumVertices = len(mesh.Vertices)
-	mesh.BuildConnectivity()
+	msh.NumElements = len(msh.EtoV)
+	msh.NumVertices = len(msh.Vertices)
+	msh.BuildConnectivity()
 
-	return mesh, nil
+	return msh, nil
 }
 
 // su2ElementTypeMap maps SU2/VTK element type identifiers to our ElementType
-var su2ElementTypeMap = map[int]ElementType{
-	3:  Line,     // VTK_LINE
-	5:  Triangle, // VTK_TRIANGLE
-	9:  Quad,     // VTK_QUAD
-	10: Tet,      // VTK_TETRA
-	12: Hex,      // VTK_HEXAHEDRON
-	13: Prism,    // VTK_WEDGE
-	14: Pyramid,  // VTK_PYRAMID
+var su2ElementTypeMap = map[int]mesh.ElementType{
+	3:  mesh.Line,     // VTK_LINE
+	5:  mesh.Triangle, // VTK_TRIANGLE
+	9:  mesh.Quad,     // VTK_QUAD
+	10: mesh.Tet,      // VTK_TETRA
+	12: mesh.Hex,      // VTK_HEXAHEDRON
+	13: mesh.Prism,    // VTK_WEDGE
+	14: mesh.Pyramid,  // VTK_PYRAMID
 }

@@ -1,7 +1,8 @@
-package mesh
+package readers
 
 import (
 	"fmt"
+	"github.com/notargets/gocfd/DG3D/mesh"
 	"os"
 	"path/filepath"
 	"sort"
@@ -11,13 +12,13 @@ import (
 
 // SU2TestBuilder helps build SU2 format test files
 type SU2TestBuilder struct {
-	tm *TestMeshes
+	tm *mesh.TestMeshes
 }
 
 // NewSU2TestBuilder creates a new builder with standard test meshes
 func NewSU2TestBuilder() *SU2TestBuilder {
 	return &SU2TestBuilder{
-		tm: GetStandardTestMeshes(),
+		tm: mesh.GetStandardTestMeshes(),
 	}
 }
 
@@ -107,25 +108,25 @@ func TestReadSU2StandardMeshes(t *testing.T) {
 		tmpFile := createTempSU2File(t, content)
 		defer os.Remove(tmpFile)
 
-		mesh, err := ReadSU2(tmpFile)
+		msh, err := ReadSU2(tmpFile)
 		if err != nil {
 			t.Fatalf("Failed to read SU2 file: %v", err)
 		}
 
 		// Verify vertices
-		if mesh.NumVertices != 4 {
-			t.Errorf("Expected 4 vertices, got %d", mesh.NumVertices)
+		if msh.NumVertices != 4 {
+			t.Errorf("Expected 4 vertices, got %d", msh.NumVertices)
 		}
 
 		// Verify element
-		if mesh.NumElements != 1 {
-			t.Errorf("Expected 1 element, got %d", mesh.NumElements)
+		if msh.NumElements != 1 {
+			t.Errorf("Expected 1 element, got %d", msh.NumElements)
 		}
-		if mesh.ElementTypes[0] != Tet {
-			t.Errorf("Expected Tet element type, got %v", mesh.ElementTypes[0])
+		if msh.ElementTypes[0] != mesh.Tet {
+			t.Errorf("Expected Tet element type, got %v", msh.ElementTypes[0])
 		}
-		if len(mesh.EtoV[0]) != 4 {
-			t.Errorf("Expected 4 nodes for tet, got %d", len(mesh.EtoV[0]))
+		if len(msh.EtoV[0]) != 4 {
+			t.Errorf("Expected 4 nodes for tet, got %d", len(msh.EtoV[0]))
 		}
 	})
 
@@ -134,14 +135,14 @@ func TestReadSU2StandardMeshes(t *testing.T) {
 		tmpFile := createTempSU2File(t, content)
 		defer os.Remove(tmpFile)
 
-		mesh, err := ReadSU2(tmpFile)
+		msh, err := ReadSU2(tmpFile)
 		if err != nil {
 			t.Fatalf("Failed to read SU2 file: %v", err)
 		}
 
 		// Get expected element counts from test mesh
-		tm := GetStandardTestMeshes()
-		var expectedTypes []ElementType
+		tm := mesh.GetStandardTestMeshes()
+		var expectedTypes []mesh.ElementType
 		for _, elemSet := range tm.MixedMesh.Elements {
 			for range elemSet.Elements {
 				expectedTypes = append(expectedTypes, elemSet.Type)
@@ -149,19 +150,19 @@ func TestReadSU2StandardMeshes(t *testing.T) {
 		}
 
 		// Verify element count
-		if mesh.NumElements != len(expectedTypes) {
-			t.Errorf("Expected %d elements, got %d", len(expectedTypes), mesh.NumElements)
+		if msh.NumElements != len(expectedTypes) {
+			t.Errorf("Expected %d elements, got %d", len(expectedTypes), msh.NumElements)
 		}
 
 		// Verify element types
 		for i, expectedType := range expectedTypes {
-			if i >= len(mesh.ElementTypes) {
+			if i >= len(msh.ElementTypes) {
 				t.Errorf("Missing element %d", i)
 				continue
 			}
-			if mesh.ElementTypes[i] != expectedType {
+			if msh.ElementTypes[i] != expectedType {
 				t.Errorf("Element %d: expected type %v, got %v",
-					i, expectedType, mesh.ElementTypes[i])
+					i, expectedType, msh.ElementTypes[i])
 			}
 		}
 	})
@@ -191,19 +192,19 @@ func TestReadSU2ElementTypes(t *testing.T) {
 	testCases := []struct {
 		name         string
 		su2Type      int
-		expectedType ElementType
+		expectedType mesh.ElementType
 		numNodes     int
 		dimension    int
 	}{
 		// 2D elements
-		{"Line", 3, Line, 2, 2},
-		{"Triangle", 5, Triangle, 3, 2},
-		{"Quadrilateral", 9, Quad, 4, 2},
+		{"Line", 3, mesh.Line, 2, 2},
+		{"Triangle", 5, mesh.Triangle, 3, 2},
+		{"Quadrilateral", 9, mesh.Quad, 4, 2},
 		// 3D elements
-		{"Tetrahedron", 10, Tet, 4, 3},
-		{"Hexahedron", 12, Hex, 8, 3},
-		{"Prism", 13, Prism, 6, 3},
-		{"Pyramid", 14, Pyramid, 5, 3},
+		{"Tetrahedron", 10, mesh.Tet, 4, 3},
+		{"Hexahedron", 12, mesh.Hex, 8, 3},
+		{"Prism", 13, mesh.Prism, 6, 3},
+		{"Pyramid", 14, mesh.Pyramid, 5, 3},
 	}
 
 	for _, tc := range testCases {
@@ -469,29 +470,29 @@ MARKER_ELEMS= 2
 	tmpFile := createTempSU2File(t, content)
 	defer os.Remove(tmpFile)
 
-	mesh, err := ReadSU2(tmpFile)
+	msh, err := ReadSU2(tmpFile)
 	if err != nil {
 		t.Fatalf("Failed to read SU2 file: %v", err)
 	}
 
 	// Verify the documented example
-	if mesh.NumVertices != 9 {
-		t.Errorf("Expected 9 vertices, got %d", mesh.NumVertices)
+	if msh.NumVertices != 9 {
+		t.Errorf("Expected 9 vertices, got %d", msh.NumVertices)
 	}
-	if mesh.NumElements != 8 {
-		t.Errorf("Expected 8 elements, got %d", mesh.NumElements)
+	if msh.NumElements != 8 {
+		t.Errorf("Expected 8 elements, got %d", msh.NumElements)
 	}
 
 	// All elements should be triangles
-	for i, elemType := range mesh.ElementTypes {
-		if elemType != Triangle {
+	for i, elemType := range msh.ElementTypes {
+		if elemType != mesh.Triangle {
 			t.Errorf("Element %d: expected Triangle, got %v", i, elemType)
 		}
 	}
 
 	// Check boundary markers
-	if len(mesh.BoundaryTags) != 4 {
-		t.Errorf("Expected 4 boundary markers, got %d", len(mesh.BoundaryTags))
+	if len(msh.BoundaryTags) != 4 {
+		t.Errorf("Expected 4 boundary markers, got %d", len(msh.BoundaryTags))
 	}
 }
 
@@ -511,17 +512,17 @@ NELEM= 2
 	tmpFile := createTempSU2File(t, content)
 	defer os.Remove(tmpFile)
 
-	mesh, err := ReadSU2(tmpFile)
+	msh, err := ReadSU2(tmpFile)
 	if err != nil {
 		t.Fatalf("Failed to read SU2 file: %v", err)
 	}
 
 	// Should still read correctly, ignoring the extra indices
-	if mesh.NumVertices != 4 {
-		t.Errorf("Expected 4 vertices, got %d", mesh.NumVertices)
+	if msh.NumVertices != 4 {
+		t.Errorf("Expected 4 vertices, got %d", msh.NumVertices)
 	}
-	if mesh.NumElements != 2 {
-		t.Errorf("Expected 2 elements, got %d", mesh.NumElements)
+	if msh.NumElements != 2 {
+		t.Errorf("Expected 2 elements, got %d", msh.NumElements)
 	}
 }
 
@@ -529,9 +530,9 @@ NELEM= 2
 
 func (b *SU2TestBuilder) BuildSingleTetTest() string {
 	tm := b.tm
-	mesh := CompleteMesh{
+	mesh := mesh.CompleteMesh{
 		Nodes:       tm.TetraNodes,
-		Elements:    []ElementSet{tm.SingleTet},
+		Elements:    []mesh.ElementSet{tm.SingleTet},
 		Dimension:   3,
 		BoundingBox: [2][3]float64{{0, 0, 0}, {1, 1, 1}},
 	}
@@ -547,7 +548,7 @@ func (b *SU2TestBuilder) BuildMixedElementTest() string {
 
 func (b *SU2TestBuilder) Build2DTriangleTest() string {
 	// Create a simple 2D triangle mesh
-	nodes := NodeSet{
+	nodes := mesh.NodeSet{
 		Nodes: [][]float64{
 			{0, 0},
 			{1, 0},
@@ -563,16 +564,16 @@ func (b *SU2TestBuilder) Build2DTriangleTest() string {
 		nodes.NodeIDMap[name] = idx + 1
 	}
 
-	elements := []ElementSet{
+	elements := []mesh.ElementSet{
 		{
-			Type: Triangle,
+			Type: mesh.Triangle,
 			Elements: [][]string{
 				{"v0", "v1", "v2"},
 			},
 		},
 	}
 
-	mesh := CompleteMesh{
+	mesh := mesh.CompleteMesh{
 		Nodes:       nodes,
 		Elements:    elements,
 		Dimension:   2,
@@ -582,7 +583,7 @@ func (b *SU2TestBuilder) Build2DTriangleTest() string {
 	return b.BuildFromCompleteMesh(&mesh)
 }
 
-func (b *SU2TestBuilder) BuildFromCompleteMesh(mesh *CompleteMesh) string {
+func (b *SU2TestBuilder) BuildFromCompleteMesh(mesh *mesh.CompleteMesh) string {
 	var lines []string
 
 	// Dimension
@@ -629,7 +630,7 @@ func (b *SU2TestBuilder) BuildFromCompleteMesh(mesh *CompleteMesh) string {
 	return strings.Join(lines, "\n")
 }
 
-func (b *SU2TestBuilder) add2DBoundaryMarkers(mesh *CompleteMesh) []string {
+func (b *SU2TestBuilder) add2DBoundaryMarkers(mesh *mesh.CompleteMesh) []string {
 	var lines []string
 
 	// For 2D meshes, add line boundary elements
@@ -644,7 +645,7 @@ func (b *SU2TestBuilder) add2DBoundaryMarkers(mesh *CompleteMesh) []string {
 	return lines
 }
 
-func (b *SU2TestBuilder) add3DBoundaryMarkers(mesh *CompleteMesh) []string {
+func (b *SU2TestBuilder) add3DBoundaryMarkers(mesh *mesh.CompleteMesh) []string {
 	var lines []string
 
 	// For 3D meshes, add triangular boundary elements
@@ -660,21 +661,21 @@ func (b *SU2TestBuilder) add3DBoundaryMarkers(mesh *CompleteMesh) []string {
 }
 
 // elementTypeToSU2 converts internal element types to SU2/VTK type codes
-func elementTypeToSU2(et ElementType) int {
+func elementTypeToSU2(et mesh.ElementType) int {
 	switch et {
-	case Line:
+	case mesh.Line:
 		return 3
-	case Triangle:
+	case mesh.Triangle:
 		return 5
-	case Quad:
+	case mesh.Quad:
 		return 9
-	case Tet:
+	case mesh.Tet:
 		return 10
-	case Hex:
+	case mesh.Hex:
 		return 12
-	case Prism:
+	case mesh.Prism:
 		return 13
-	case Pyramid:
+	case mesh.Pyramid:
 		return 14
 	default:
 		return 0
@@ -682,10 +683,10 @@ func elementTypeToSU2(et ElementType) int {
 }
 
 // Helper function to filter a CompleteMesh to only include used nodes
-func filterToUsedNodesSU2(mesh *CompleteMesh) CompleteMesh {
+func filterToUsedNodesSU2(msh *mesh.CompleteMesh) mesh.CompleteMesh {
 	// Collect all nodes used by elements
 	usedNodes := make(map[string]bool)
-	for _, elemSet := range mesh.Elements {
+	for _, elemSet := range msh.Elements {
 		for _, elem := range elemSet.Elements {
 			for _, nodeName := range elem {
 				usedNodes[nodeName] = true
@@ -701,7 +702,7 @@ func filterToUsedNodesSU2(mesh *CompleteMesh) CompleteMesh {
 
 	// Create ordered list of used nodes
 	var orderedNames []string
-	for name := range mesh.Nodes.NodeMap {
+	for name := range msh.Nodes.NodeMap {
 		if usedNodes[name] {
 			orderedNames = append(orderedNames, name)
 		}
@@ -712,23 +713,23 @@ func filterToUsedNodesSU2(mesh *CompleteMesh) CompleteMesh {
 
 	// Build new node arrays
 	for _, name := range orderedNames {
-		origIdx := mesh.Nodes.NodeMap[name]
-		nodes = append(nodes, mesh.Nodes.Nodes[origIdx])
+		origIdx := msh.Nodes.NodeMap[name]
+		nodes = append(nodes, msh.Nodes.Nodes[origIdx])
 		nodeMap[name] = idx
 		nodeIDMap[name] = idx + 1
 		idx++
 	}
 
-	filteredNodes := NodeSet{
+	filteredNodes := mesh.NodeSet{
 		Nodes:     nodes,
 		NodeMap:   nodeMap,
 		NodeIDMap: nodeIDMap,
 	}
 
-	return CompleteMesh{
+	return mesh.CompleteMesh{
 		Nodes:       filteredNodes,
-		Elements:    mesh.Elements,
-		Dimension:   mesh.Dimension,
-		BoundingBox: mesh.BoundingBox,
+		Elements:    msh.Elements,
+		Dimension:   msh.Dimension,
+		BoundingBox: msh.BoundingBox,
 	}
 }
