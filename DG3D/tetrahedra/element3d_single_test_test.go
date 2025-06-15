@@ -534,6 +534,159 @@ func TestSingleTetPhysicalDerivatives(t *testing.T) {
 						t.Errorf("∂y/∂z at node %d: got %f, expected 0.0", i, DzY.At(i, 0))
 					}
 				}
+
+				// Test polynomial exactness
+				// For order N element, we should exactly differentiate polynomials up to order N
+				t.Run("PolynomialExactness", func(t *testing.T) {
+					// Generate test polynomials up to order N
+					for p := 0; p <= N; p++ {
+						// Generate all monomials of total degree p
+						// i.e., all (i,j,k) such that i+j+k = p
+						for i := 0; i <= p; i++ {
+							for j := 0; j <= p-i; j++ {
+								k := p - i - j
+
+								// Skip if we've already tested this monomial
+								// (only test a representative subset to avoid too many tests)
+								if p > 3 && (i > 0 && j > 0 && k > 0) {
+									continue // For high orders, skip some mixed terms
+								}
+
+								testName := fmt.Sprintf("x%dy%dz%d", i, j, k)
+
+								// Define the monomial x^i * y^j * z^k
+								f := func(x, y, z float64) float64 {
+									result := 1.0
+									for n := 0; n < i; n++ {
+										result *= x
+									}
+									for n := 0; n < j; n++ {
+										result *= y
+									}
+									for n := 0; n < k; n++ {
+										result *= z
+									}
+									return result
+								}
+
+								// Define exact derivatives
+								dfdx := func(x, y, z float64) float64 {
+									if i == 0 {
+										return 0.0
+									}
+									result := float64(i)
+									for n := 0; n < i-1; n++ {
+										result *= x
+									}
+									for n := 0; n < j; n++ {
+										result *= y
+									}
+									for n := 0; n < k; n++ {
+										result *= z
+									}
+									return result
+								}
+
+								dfdy := func(x, y, z float64) float64 {
+									if j == 0 {
+										return 0.0
+									}
+									result := float64(j)
+									for n := 0; n < i; n++ {
+										result *= x
+									}
+									for n := 0; n < j-1; n++ {
+										result *= y
+									}
+									for n := 0; n < k; n++ {
+										result *= z
+									}
+									return result
+								}
+
+								dfdz := func(x, y, z float64) float64 {
+									if k == 0 {
+										return 0.0
+									}
+									result := float64(k)
+									for n := 0; n < i; n++ {
+										result *= x
+									}
+									for n := 0; n < j; n++ {
+										result *= y
+									}
+									for n := 0; n < k-1; n++ {
+										result *= z
+									}
+									return result
+								}
+
+								// Evaluate function at nodes
+								fVals := utils.NewMatrix(el3d.Np, 1)
+								for n := 0; n < el3d.Np; n++ {
+									x := el3d.X.At(n, 0)
+									y := el3d.Y.At(n, 0)
+									z := el3d.Z.At(n, 0)
+									fVals.Set(n, 0, f(x, y, z))
+								}
+
+								// Compute derivatives
+								Dxf := Dr.Mul(fVals).ElMul(el3d.Rx).Add(
+									Ds.Mul(fVals).ElMul(el3d.Sx)).Add(
+									Dt.Mul(fVals).ElMul(el3d.Tx))
+
+								Dyf := Dr.Mul(fVals).ElMul(el3d.Ry).Add(
+									Ds.Mul(fVals).ElMul(el3d.Sy)).Add(
+									Dt.Mul(fVals).ElMul(el3d.Ty))
+
+								Dzf := Dr.Mul(fVals).ElMul(el3d.Rz).Add(
+									Ds.Mul(fVals).ElMul(el3d.Sz)).Add(
+									Dt.Mul(fVals).ElMul(el3d.Tz))
+
+								// Check against exact derivatives
+								tol := 1e-10
+								if N >= 5 {
+									tol = 1e-8 * float64(N) // Scale tolerance with order
+								}
+
+								maxErrX, maxErrY, maxErrZ := 0.0, 0.0, 0.0
+								for n := 0; n < el3d.Np; n++ {
+									x := el3d.X.At(n, 0)
+									y := el3d.Y.At(n, 0)
+									z := el3d.Z.At(n, 0)
+
+									exactDx := dfdx(x, y, z)
+									exactDy := dfdy(x, y, z)
+									exactDz := dfdz(x, y, z)
+
+									errX := math.Abs(Dxf.At(n, 0) - exactDx)
+									errY := math.Abs(Dyf.At(n, 0) - exactDy)
+									errZ := math.Abs(Dzf.At(n, 0) - exactDz)
+
+									maxErrX = math.Max(maxErrX, errX)
+									maxErrY = math.Max(maxErrY, errY)
+									maxErrZ = math.Max(maxErrZ, errZ)
+								}
+
+								// Report errors if they exceed tolerance
+								if maxErrX > tol {
+									t.Errorf("%s: max ∂f/∂x error = %e (tol = %e)", testName, maxErrX, tol)
+								}
+								if maxErrY > tol {
+									t.Errorf("%s: max ∂f/∂y error = %e (tol = %e)", testName, maxErrY, tol)
+								}
+								if maxErrZ > tol {
+									t.Errorf("%s: max ∂f/∂z error = %e (tol = %e)", testName, maxErrZ, tol)
+								}
+
+								if testing.Verbose() && p <= 2 { // Only log low-order results
+									t.Logf("%s: errors (∂x=%e, ∂y=%e, ∂z=%e)",
+										testName, maxErrX, maxErrY, maxErrZ)
+								}
+							}
+						}
+					}
+				})
 			})
 		}
 	}
