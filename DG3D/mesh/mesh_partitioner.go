@@ -186,6 +186,9 @@ func (mp *MeshPartitioner) analyzePartition(objval int32) {
 	partStats := make([]PartitionStats, nparts)
 	for i := range partStats {
 		partStats[i].ID = i
+		// FIX: Initialize the maps
+		partStats[i].ElementTypes = make(map[ElementType]int)
+		partStats[i].NumNeighbors = make(map[int]int)
 	}
 
 	// Gather element statistics
