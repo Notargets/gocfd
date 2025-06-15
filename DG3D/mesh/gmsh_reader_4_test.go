@@ -173,8 +173,8 @@ func TestReadGmsh4ElementsFormat(t *testing.T) {
 	}
 
 	// Check connectivity
-	if len(mesh.Elements[0]) != 4 {
-		t.Errorf("Tet should have 4 nodes, got %d", len(mesh.Elements[0]))
+	if len(mesh.EtoV[0]) != 4 {
+		t.Errorf("Tet should have 4 nodes, got %d", len(mesh.EtoV[0]))
 	}
 }
 
@@ -235,8 +235,8 @@ $EndElements`
 		t.Errorf("Expected Tet10 (second-order tet), got %v", mesh.ElementTypes[0])
 	}
 
-	if len(mesh.Elements[0]) != 10 {
-		t.Errorf("Tet10 should have 10 nodes, got %d", len(mesh.Elements[0]))
+	if len(mesh.EtoV[0]) != 10 {
+		t.Errorf("Tet10 should have 10 nodes, got %d", len(mesh.EtoV[0]))
 	}
 }
 
@@ -459,15 +459,15 @@ func TestReadGmsh4StandardMeshes(t *testing.T) {
 
 		// Verify that elements have 4 nodes each
 		for i := 0; i < 2; i++ {
-			if len(mesh.Elements[i]) != 4 {
-				t.Errorf("Element %d: expected 4 nodes, got %d", i, len(mesh.Elements[i]))
+			if len(mesh.EtoV[i]) != 4 {
+				t.Errorf("Element %d: expected 4 nodes, got %d", i, len(mesh.EtoV[i]))
 			}
 		}
 
 		// The two tets should share some nodes
 		// This is a basic sanity check that the mesh was built correctly
 		nodesUsed := make(map[int]bool)
-		for _, elem := range mesh.Elements {
+		for _, elem := range mesh.EtoV {
 			for _, node := range elem {
 				nodesUsed[node] = true
 			}
@@ -514,7 +514,7 @@ func TestReadGmsh4StandardMeshes(t *testing.T) {
 
 			// Also check node count
 			expectedNodes := expectedType.GetNumNodes()
-			actualNodes := len(mesh.Elements[i])
+			actualNodes := len(mesh.EtoV[i])
 			if actualNodes != expectedNodes {
 				t.Errorf("Element %d (%v): expected %d nodes, got %d",
 					i, expectedType, expectedNodes, actualNodes)
@@ -548,7 +548,7 @@ func TestReadGmsh4StandardMeshes(t *testing.T) {
 
 		// The cube should use all 16 nodes
 		nodesUsed := make(map[int]bool)
-		for _, elem := range mesh.Elements {
+		for _, elem := range mesh.EtoV {
 			for _, node := range elem {
 				nodesUsed[node] = true
 			}
@@ -666,8 +666,8 @@ func TestReadGmsh4MixedElementTypes(t *testing.T) {
 	}
 
 	// Validate element count
-	if len(mesh.Elements) != len(expectedTypes) {
-		t.Fatalf("Expected %d elements, got %d", len(expectedTypes), len(mesh.Elements))
+	if len(mesh.EtoV) != len(expectedTypes) {
+		t.Fatalf("Expected %d elements, got %d", len(expectedTypes), len(mesh.EtoV))
 	}
 
 	// Validate each element
@@ -678,7 +678,7 @@ func TestReadGmsh4MixedElementTypes(t *testing.T) {
 		}
 
 		// Check node count matches expected for the type
-		actualNodes := len(mesh.Elements[i])
+		actualNodes := len(mesh.EtoV[i])
 		expectedNodes := expectedType.GetNumNodes()
 		if actualNodes != expectedNodes {
 			t.Errorf("Element %d (%v): expected %d nodes, got %d",
@@ -687,7 +687,7 @@ func TestReadGmsh4MixedElementTypes(t *testing.T) {
 	}
 
 	// Additional validation: check that elements reference valid nodes
-	for i, elem := range mesh.Elements {
+	for i, elem := range mesh.EtoV {
 		for j, nodeIdx := range elem {
 			if nodeIdx < 0 || nodeIdx >= mesh.NumVertices {
 				t.Errorf("Element %d, node %d: invalid node index %d (should be 0-%d)",
@@ -848,8 +848,8 @@ $EndEntities
 		// Check connectivity matches expected indices
 		expectedConn := []int{0, 1, 2, 3} // 0-indexed after conversion
 		for i, expected := range expectedConn {
-			if mesh.Elements[0][i] != expected {
-				t.Errorf("Tet node %d: expected %d, got %d", i, expected, mesh.Elements[0][i])
+			if mesh.EtoV[0][i] != expected {
+				t.Errorf("Tet node %d: expected %d, got %d", i, expected, mesh.EtoV[0][i])
 			}
 		}
 	})

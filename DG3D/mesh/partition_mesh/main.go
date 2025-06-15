@@ -112,7 +112,7 @@ func exportPartitionedMesh(m *mesh.Mesh, filename string) error {
 	fmt.Fprintf(file, "ELEMENTS %d\n", m.NumElements)
 	for i := 0; i < m.NumElements; i++ {
 		fmt.Fprintf(file, "%d %s %d", i, m.ElementTypes[i], m.EToP[i])
-		for _, v := range m.Elements[i] {
+		for _, v := range m.EtoV[i] {
 			fmt.Fprintf(file, " %d", v)
 		}
 		fmt.Fprintf(file, "\n")

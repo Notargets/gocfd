@@ -103,8 +103,8 @@ func TestReadGambitNeutralStandardMeshes(t *testing.T) {
 		if mesh.ElementTypes[0] != Tet {
 			t.Errorf("Expected Tet element type, got %v", mesh.ElementTypes[0])
 		}
-		if len(mesh.Elements[0]) != 4 {
-			t.Errorf("Expected 4 nodes for tet, got %d", len(mesh.Elements[0]))
+		if len(mesh.EtoV[0]) != 4 {
+			t.Errorf("Expected 4 nodes for tet, got %d", len(mesh.EtoV[0]))
 		}
 	})
 
@@ -202,9 +202,9 @@ ENDOFSECTION
 				t.Errorf("Expected element type %v, got %v",
 					tc.expectedType, mesh.ElementTypes[0])
 			}
-			if len(mesh.Elements[0]) != tc.numNodes {
+			if len(mesh.EtoV[0]) != tc.numNodes {
 				t.Errorf("Expected %d nodes, got %d",
-					tc.numNodes, len(mesh.Elements[0]))
+					tc.numNodes, len(mesh.EtoV[0]))
 			}
 		})
 	}
@@ -413,12 +413,12 @@ ENDOFSECTION`
 	}
 
 	// Check element connectivity uses 0-based indices
-	if len(mesh.Elements) != 1 {
-		t.Fatalf("Expected 1 element, got %d", len(mesh.Elements))
+	if len(mesh.EtoV) != 1 {
+		t.Fatalf("Expected 1 element, got %d", len(mesh.EtoV))
 	}
 
 	expectedConnectivity := []int{0, 1, 2, 3} // 0-based
-	elem := mesh.Elements[0]
+	elem := mesh.EtoV[0]
 	if len(elem) != len(expectedConnectivity) {
 		t.Fatalf("Expected %d nodes, got %d", len(expectedConnectivity), len(elem))
 	}

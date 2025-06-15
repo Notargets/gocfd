@@ -1,6 +1,7 @@
 package tetrahedra
 
 import (
+	"github.com/notargets/gocfd/DG3D/mesh"
 	"github.com/notargets/gocfd/utils"
 	"math"
 	"sort"
@@ -22,6 +23,7 @@ type Element3D struct {
 	*GeometricFactors
 	*FaceGeometricFactors
 	*ConnectivityArrays
+	Mesh *mesh.Mesh
 }
 type ConnectivityArrays struct {
 	EToE [][]int // Element to element connectivity
@@ -40,21 +42,20 @@ type FaceGeometricFactors struct {
 	Fscale     utils.Matrix // Face integration scaling = sJ/J(face)
 }
 
-func NewElement3D(order int) (el *Element3D) {
+func NewElement3D(order int, meshFile string) (el *Element3D) {
+	var err error
 	el = &Element3D{
 		TetBasis: NewTetBasis(order),
 	}
-	el.EToV, el.BCType = el.ReadMesh("MyMeshFile")
+	el.Mesh, err = mesh.ReadMeshFile(meshFile)
+	if err != nil {
+		panic(err)
+	}
+	// el.EToV, el.BCType = el.Mesh.EtoV, el.Mesh.BoundaryTags
 	el.ConnectivityArrays = el.Connect3D()
 	el.GeometricFactors = el.GeometricFactors3D()
 	el.FaceGeometricFactors = el.CalcFaceGeometry()
 	el.BuildMaps3D()
-	return
-}
-
-func (el *Element3D) ReadMesh(meshfile string) (EtoV [][]int, BCType []int) {
-	// TODO: Process X, Y, Z, K from input vertices
-	el.K = len(el.EToV)
 	return
 }
 

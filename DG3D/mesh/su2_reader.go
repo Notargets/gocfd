@@ -84,7 +84,7 @@ func ReadSU2(filename string) (*Mesh, error) {
 			fmt.Sscanf(line, "NELEM=%d", &nelem)
 
 			// Pre-allocate slices
-			mesh.Elements = make([][]int, 0, nelem)
+			mesh.EtoV = make([][]int, 0, nelem)
 			mesh.ElementTypes = make([]ElementType, 0, nelem)
 			mesh.ElementTags = make([][]int, 0, nelem)
 
@@ -132,7 +132,7 @@ func ReadSU2(filename string) (*Mesh, error) {
 
 				// Element ID is implicit (0-based) based on order
 				// Legacy format may have explicit ID at end of line (ignored)
-				mesh.Elements = append(mesh.Elements, nodes)
+				mesh.EtoV = append(mesh.EtoV, nodes)
 				mesh.ElementTypes = append(mesh.ElementTypes, etype)
 				mesh.ElementTags = append(mesh.ElementTags, []int{0}) // Default tag
 			}
@@ -200,7 +200,7 @@ func ReadSU2(filename string) (*Mesh, error) {
 		return nil, fmt.Errorf("missing required NPOIN= section")
 	}
 
-	mesh.NumElements = len(mesh.Elements)
+	mesh.NumElements = len(mesh.EtoV)
 	mesh.NumVertices = len(mesh.Vertices)
 	mesh.BuildConnectivity()
 

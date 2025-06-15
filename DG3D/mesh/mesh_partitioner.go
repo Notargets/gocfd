@@ -146,7 +146,7 @@ func (mp *MeshPartitioner) buildMetisGraph() (xadj, adjncy, vwgt, adjwgt []int32
 		for i := 0; i < ne; i++ {
 			vwgt[i] = mp.computeCostModel(
 				mp.mesh.ElementTypes[i],
-				len(mp.mesh.Elements[i]),
+				len(mp.mesh.EtoV[i]),
 			)
 		}
 	}
@@ -202,7 +202,7 @@ func (mp *MeshPartitioner) analyzePartition(objval int32) {
 		// Add computational cost
 		cost := mp.computeCostModel(
 			mp.mesh.ElementTypes[elem],
-			len(mp.mesh.Elements[elem]),
+			len(mp.mesh.EtoV[elem]),
 		)
 		stats.ComputeLoad += int64(cost)
 	}

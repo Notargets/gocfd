@@ -79,8 +79,8 @@ func TestReadGmsh22StandardMeshes(t *testing.T) {
 			if mesh.ElementTypes[i] != Tet {
 				t.Errorf("Element %d: expected Tet, got %v", i, mesh.ElementTypes[i])
 			}
-			if len(mesh.Elements[i]) != 4 {
-				t.Errorf("Element %d: expected 4 nodes, got %d", i, len(mesh.Elements[i]))
+			if len(mesh.EtoV[i]) != 4 {
+				t.Errorf("Element %d: expected 4 nodes, got %d", i, len(mesh.EtoV[i]))
 			}
 		}
 	})
@@ -119,7 +119,7 @@ func TestReadGmsh22StandardMeshes(t *testing.T) {
 
 			// Check node count
 			expectedNodes := expectedType.GetNumNodes()
-			actualNodes := len(mesh.Elements[i])
+			actualNodes := len(mesh.EtoV[i])
 			if actualNodes != expectedNodes {
 				t.Errorf("Element %d (%v): expected %d nodes, got %d",
 					i, expectedType, expectedNodes, actualNodes)
@@ -188,7 +188,7 @@ func TestReadGmsh22MixedElementTypes(t *testing.T) {
 		}
 
 		// Validate node count
-		actualNodes := len(mesh.Elements[i])
+		actualNodes := len(mesh.EtoV[i])
 		expectedNodes := expectedType.GetNumNodes()
 		if actualNodes != expectedNodes {
 			t.Errorf("Element %d (%v): expected %d nodes, got %d",
@@ -197,7 +197,7 @@ func TestReadGmsh22MixedElementTypes(t *testing.T) {
 	}
 
 	// Check that elements reference valid nodes
-	for i, elem := range mesh.Elements {
+	for i, elem := range mesh.EtoV {
 		for j, nodeIdx := range elem {
 			if nodeIdx < 0 || nodeIdx >= mesh.NumVertices {
 				t.Errorf("Element %d, node %d: invalid node index %d (should be 0-%d)",
@@ -266,8 +266,8 @@ $EndElements`
 	}
 
 	// Check element connectivity uses correct indices
-	if len(mesh.Elements) != 1 {
-		t.Fatalf("Expected 1 element, got %d", len(mesh.Elements))
+	if len(mesh.EtoV) != 1 {
+		t.Fatalf("Expected 1 element, got %d", len(mesh.EtoV))
 	}
 }
 
@@ -348,8 +348,8 @@ func TestReadGmsh22AllElementTypes(t *testing.T) {
 
 			// Check node count
 			expectedNodes := tc.expected.GetNumNodes()
-			if len(mesh.Elements[0]) != expectedNodes {
-				t.Errorf("Expected %d nodes, got %d", expectedNodes, len(mesh.Elements[0]))
+			if len(mesh.EtoV[0]) != expectedNodes {
+				t.Errorf("Expected %d nodes, got %d", expectedNodes, len(mesh.EtoV[0]))
 			}
 		})
 	}
@@ -624,8 +624,8 @@ $EndElements`
 		t.Errorf("Expected Tet10, got %v", mesh.ElementTypes[0])
 	}
 
-	if len(mesh.Elements[0]) != 10 {
-		t.Errorf("Tet10 should have 10 nodes, got %d", len(mesh.Elements[0]))
+	if len(mesh.EtoV[0]) != 10 {
+		t.Errorf("Tet10 should have 10 nodes, got %d", len(mesh.EtoV[0]))
 	}
 }
 

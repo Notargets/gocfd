@@ -165,7 +165,7 @@ func TestConvertToMesh(t *testing.T) {
 		// Verify node counts for each element
 		expectedNodeCounts := []int{4, 4, 8, 6, 5}
 		for i, expected := range expectedNodeCounts {
-			actual := len(mesh.Elements[i])
+			actual := len(mesh.EtoV[i])
 			if actual != expected {
 				t.Errorf("Element %d: expected %d nodes, got %d", i, expected, actual)
 			}

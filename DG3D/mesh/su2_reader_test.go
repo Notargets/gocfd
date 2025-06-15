@@ -124,8 +124,8 @@ func TestReadSU2StandardMeshes(t *testing.T) {
 		if mesh.ElementTypes[0] != Tet {
 			t.Errorf("Expected Tet element type, got %v", mesh.ElementTypes[0])
 		}
-		if len(mesh.Elements[0]) != 4 {
-			t.Errorf("Expected 4 nodes for tet, got %d", len(mesh.Elements[0]))
+		if len(mesh.EtoV[0]) != 4 {
+			t.Errorf("Expected 4 nodes for tet, got %d", len(mesh.EtoV[0]))
 		}
 	})
 
@@ -241,9 +241,9 @@ NPOIN= %d`, tc.dimension, tc.numNodes)
 				t.Errorf("Expected element type %v, got %v",
 					tc.expectedType, mesh.ElementTypes[0])
 			}
-			if len(mesh.Elements[0]) != tc.numNodes {
+			if len(mesh.EtoV[0]) != tc.numNodes {
 				t.Errorf("Expected %d nodes, got %d",
-					tc.numNodes, len(mesh.Elements[0]))
+					tc.numNodes, len(mesh.EtoV[0]))
 			}
 		})
 	}
@@ -343,13 +343,13 @@ NELEM= 1
 	}
 
 	// Check element connectivity
-	if len(mesh.Elements[0]) != 4 {
-		t.Fatalf("Expected 4 nodes in element, got %d", len(mesh.Elements[0]))
+	if len(mesh.EtoV[0]) != 4 {
+		t.Fatalf("Expected 4 nodes in element, got %d", len(mesh.EtoV[0]))
 	}
 	for i := 0; i < 4; i++ {
-		if mesh.Elements[0][i] != i {
+		if mesh.EtoV[0][i] != i {
 			t.Errorf("Element node %d: expected %d, got %d",
-				i, i, mesh.Elements[0][i])
+				i, i, mesh.EtoV[0][i])
 		}
 	}
 }

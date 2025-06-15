@@ -76,7 +76,7 @@ func ReadGambitNeutral(filename string) (*Mesh, error) {
 
 		} else if strings.Contains(line, "ELEMENTS/CELLS") {
 			// Read elements
-			mesh.Elements = make([][]int, 0, nelem)
+			mesh.EtoV = make([][]int, 0, nelem)
 			mesh.ElementTypes = make([]ElementType, 0, nelem)
 			mesh.ElementTags = make([][]int, 0, nelem)
 
@@ -123,7 +123,7 @@ func ReadGambitNeutral(filename string) (*Mesh, error) {
 							verts[j] = v - 1
 						}
 
-						mesh.Elements = append(mesh.Elements, verts)
+						mesh.EtoV = append(mesh.EtoV, verts)
 						mesh.ElementTypes = append(mesh.ElementTypes, etype)
 						mesh.ElementTags = append(mesh.ElementTags, []int{0}) // Default tag
 					}
@@ -183,7 +183,7 @@ func ReadGambitNeutral(filename string) (*Mesh, error) {
 					fields := strings.Fields(line)
 					for _, field := range fields {
 						elemID, err := strconv.Atoi(field)
-						if err == nil && elemID > 0 && elemID <= len(mesh.Elements) {
+						if err == nil && elemID > 0 && elemID <= len(mesh.EtoV) {
 							// Elements are 1-indexed in file, 0-indexed in mesh
 							mesh.ElementTags[elemID-1] = []int{groupID}
 						}
@@ -228,7 +228,7 @@ func ReadGambitNeutral(filename string) (*Mesh, error) {
 		return nil, fmt.Errorf("error reading file: %v", err)
 	}
 
-	mesh.NumElements = len(mesh.Elements)
+	mesh.NumElements = len(mesh.EtoV)
 	mesh.NumVertices = len(mesh.Vertices)
 	mesh.BuildConnectivity()
 

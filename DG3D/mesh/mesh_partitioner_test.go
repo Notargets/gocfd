@@ -341,7 +341,7 @@ func TestPartitionEmptyMesh(t *testing.T) {
 	mesh := &Mesh{
 		NumElements: 0,
 		NumVertices: 0,
-		Elements:    [][]int{},
+		EtoV:        [][]int{},
 		Vertices:    [][]float64{},
 	}
 

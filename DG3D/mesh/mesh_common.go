@@ -198,7 +198,7 @@ type Mesh struct {
 	NodeArrayMap map[int]int // Maps array indices to original node IDs
 
 	// Element data
-	Elements     [][]int       // Element to vertex connectivity [nelems][nverts_per_elem]
+	EtoV         [][]int       // Element to vertex connectivity [nelems][nverts_per_elem]
 	ElementTypes []ElementType // Element type for each element
 	ElementTags  [][]int       // All tags for each element (physical, elementary, etc.)
 	ElementIDMap map[int]int   // Maps original element IDs to array indices
@@ -270,12 +270,12 @@ func (m *Mesh) AddElement(elemID int, elemType ElementType, tags []int, nodeIDs 
 		nodes[i] = idx
 	}
 
-	idx := len(m.Elements)
-	m.Elements = append(m.Elements, nodes)
+	idx := len(m.EtoV)
+	m.EtoV = append(m.EtoV, nodes)
 	m.ElementTypes = append(m.ElementTypes, elemType)
 	m.ElementTags = append(m.ElementTags, tags)
 	m.ElementIDMap[elemID] = idx
-	m.NumElements = len(m.Elements)
+	m.NumElements = len(m.EtoV)
 
 	// Add to physical groups if applicable
 	if len(tags) > 0 && tags[0] > 0 {
@@ -326,7 +326,7 @@ func (m *Mesh) FilterByDimension(dim int) ([]int, [][]int, []ElementType) {
 	for i, etype := range m.ElementTypes {
 		if etype.GetDimension() == dim {
 			indices = append(indices, i)
-			elements = append(elements, m.Elements[i])
+			elements = append(elements, m.EtoV[i])
 			types = append(types, etype)
 		}
 	}
@@ -348,7 +348,7 @@ func (m *Mesh) BuildConnectivity() {
 			continue
 		}
 
-		vertices := m.Elements[elemID]
+		vertices := m.EtoV[elemID]
 
 		// Get faces for this element type
 		faceVertices := GetElementFaces(elemType, vertices)
