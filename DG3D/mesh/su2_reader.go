@@ -20,19 +20,63 @@ func ReadSU2(filename string) (*Mesh, error) {
 	scanner := bufio.NewScanner(file)
 
 	var ndime int
+	var hasNDIME, hasNPOIN bool
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 
-		// Skip comments
-		if strings.HasPrefix(line, "%") || line == "" {
+		// Skip empty lines
+		if line == "" {
 			continue
 		}
 
+		// Skip comments (text after %)
+		if idx := strings.Index(line, "%"); idx >= 0 {
+			line = strings.TrimSpace(line[:idx])
+			if line == "" {
+				continue
+			}
+		}
+
 		if strings.HasPrefix(line, "NDIME=") {
+			hasNDIME = true
 			fmt.Sscanf(line, "NDIME=%d", &ndime)
-			if ndime != 3 {
-				return nil, fmt.Errorf("only 3D meshes are supported, got NDIME=%d", ndime)
+			if ndime != 2 && ndime != 3 {
+				return nil, fmt.Errorf("unsupported dimension: NDIME=%d", ndime)
+			}
+
+		} else if strings.HasPrefix(line, "NPOIN=") {
+			hasNPOIN = true
+			var npoin int
+			fmt.Sscanf(line, "NPOIN=%d", &npoin)
+
+			mesh.Vertices = make([][]float64, npoin)
+			mesh.NodeIDMap = make(map[int]int)
+			mesh.NodeArrayMap = make(map[int]int)
+
+			for i := 0; i < npoin; i++ {
+				if !scanner.Scan() {
+					return nil, fmt.Errorf("unexpected EOF reading nodes")
+				}
+
+				fields := strings.Fields(scanner.Text())
+				if len(fields) < ndime {
+					return nil, fmt.Errorf("invalid node line: expected at least %d coordinates", ndime)
+				}
+
+				coords := make([]float64, 3) // Always store 3D coordinates
+				for j := 0; j < ndime; j++ {
+					coords[j], err = strconv.ParseFloat(fields[j], 64)
+					if err != nil {
+						return nil, fmt.Errorf("invalid coordinate: %v", err)
+					}
+				}
+
+				// Node ID is implicit (0-based) based on order
+				// Legacy format may have explicit ID at end of line (ignored)
+				mesh.Vertices[i] = coords
+				mesh.NodeIDMap[i] = i
+				mesh.NodeArrayMap[i] = i
 			}
 
 		} else if strings.HasPrefix(line, "NELEM=") {
@@ -46,113 +90,114 @@ func ReadSU2(filename string) (*Mesh, error) {
 
 			// Read elements
 			for i := 0; i < nelem; i++ {
-				scanner.Scan()
-				fields := strings.Fields(scanner.Text())
+				if !scanner.Scan() {
+					return nil, fmt.Errorf("unexpected EOF reading elements")
+				}
 
+				fields := strings.Fields(scanner.Text())
 				if len(fields) < 2 {
-					continue
+					return nil, fmt.Errorf("invalid element line")
 				}
 
-				su2Type, _ := strconv.Atoi(fields[0])
-
-				// Map SU2 element types to our types
-				var etype ElementType
-				var numNodes int
-				validElem := true
-
-				switch su2Type {
-				case 3: // Line
-					validElem = false // Skip 1D elements
-				case 5: // Triangle
-					validElem = false // Skip 2D elements
-				case 9: // Quad
-					validElem = false // Skip 2D elements
-				case 10: // Tet
-					etype = Tet
-					numNodes = 4
-				case 12: // Hex
-					etype = Hex
-					numNodes = 8
-				case 13: // Prism
-					etype = Prism
-					numNodes = 6
-				case 14: // Pyramid
-					etype = Pyramid
-					numNodes = 5
-				default:
-					validElem = false
+				su2Type, err := strconv.Atoi(fields[0])
+				if err != nil {
+					return nil, fmt.Errorf("invalid element type: %v", err)
 				}
 
-				if validElem && len(fields) >= numNodes+2 {
-					// Read vertices
-					verts := make([]int, numNodes)
-					for j := 0; j < numNodes; j++ {
-						verts[j], _ = strconv.Atoi(fields[1+j])
+				// Map SU2/VTK element types to our types
+				etype, ok := su2ElementTypeMap[su2Type]
+				if !ok {
+					return nil, fmt.Errorf("unknown element type: %d", su2Type)
+				}
+
+				numNodes := etype.GetNumNodes()
+				if len(fields) < numNodes+1 {
+					return nil, fmt.Errorf("element type %v expects %d nodes, got %d fields",
+						etype, numNodes, len(fields)-1)
+				}
+
+				// Read node indices
+				nodes := make([]int, numNodes)
+				for j := 0; j < numNodes; j++ {
+					nodes[j], err = strconv.Atoi(fields[1+j])
+					if err != nil {
+						return nil, fmt.Errorf("invalid node index: %v", err)
 					}
-
-					// Element ID is last field
-					// elemID, _ := strconv.Atoi(fields[len(fields)-1])
-
-					mesh.Elements = append(mesh.Elements, verts)
-					mesh.ElementTypes = append(mesh.ElementTypes, etype)
-					mesh.ElementTags = append(mesh.ElementTags,
-						[]int{0}) // Default tag
-				}
-			}
-
-		} else if strings.HasPrefix(line, "NPOIN=") {
-			var npoin int
-			fmt.Sscanf(line, "NPOIN=%d", &npoin)
-
-			mesh.Vertices = make([][]float64, npoin)
-
-			for i := 0; i < npoin; i++ {
-				scanner.Scan()
-				fields := strings.Fields(scanner.Text())
-
-				if len(fields) >= ndime+1 {
-					coords := make([]float64, 3)
-					for j := 0; j < ndime; j++ {
-						coords[j], _ = strconv.ParseFloat(fields[j], 64)
-					}
-
-					// Point ID is last field
-					ptID, _ := strconv.Atoi(fields[len(fields)-1])
-					if ptID >= 0 && ptID < npoin {
-						mesh.Vertices[ptID] = coords
+					// Validate node index
+					if nodes[j] < 0 || nodes[j] >= len(mesh.Vertices) {
+						return nil, fmt.Errorf("node index %d out of range [0,%d)",
+							nodes[j], len(mesh.Vertices))
 					}
 				}
+
+				// Element ID is implicit (0-based) based on order
+				// Legacy format may have explicit ID at end of line (ignored)
+				mesh.Elements = append(mesh.Elements, nodes)
+				mesh.ElementTypes = append(mesh.ElementTypes, etype)
+				mesh.ElementTags = append(mesh.ElementTags, []int{0}) // Default tag
 			}
 
 		} else if strings.HasPrefix(line, "NMARK=") {
 			var nmark int
 			fmt.Sscanf(line, "NMARK=%d", &nmark)
 
+			mesh.BoundaryTags = make(map[int]string)
+
 			// Read boundary markers
 			for i := 0; i < nmark; i++ {
-				scanner.Scan()
+				// Read MARKER_TAG= line
+				if !scanner.Scan() {
+					return nil, fmt.Errorf("unexpected EOF reading marker %d", i)
+				}
+
 				markerLine := strings.TrimSpace(scanner.Text())
+				if !strings.HasPrefix(markerLine, "MARKER_TAG=") {
+					return nil, fmt.Errorf("expected MARKER_TAG=, got: %s", markerLine)
+				}
 
-				if strings.HasPrefix(markerLine, "MARKER_TAG=") {
-					tagName := strings.TrimPrefix(markerLine, "MARKER_TAG=")
-					tagName = strings.Trim(tagName, " ")
+				tagName := strings.TrimSpace(strings.TrimPrefix(markerLine, "MARKER_TAG="))
 
-					// Read number of marker elements
-					scanner.Scan()
-					elemLine := strings.TrimSpace(scanner.Text())
-					var nMarkerElems int
-					fmt.Sscanf(elemLine, "MARKER_ELEMS=%d", &nMarkerElems)
+				// Read MARKER_ELEMS= line
+				if !scanner.Scan() {
+					return nil, fmt.Errorf("unexpected EOF reading marker elements for %s", tagName)
+				}
 
-					// Store boundary tag
-					mesh.BoundaryTags[i] = tagName
+				elemLine := strings.TrimSpace(scanner.Text())
+				var nMarkerElems int
+				if _, err := fmt.Sscanf(elemLine, "MARKER_ELEMS=%d", &nMarkerElems); err != nil {
+					return nil, fmt.Errorf("invalid MARKER_ELEMS line: %s", elemLine)
+				}
 
-					// Skip marker elements for now (could be extended to read them)
-					for j := 0; j < nMarkerElems; j++ {
-						scanner.Scan()
+				// Store boundary tag
+				mesh.BoundaryTags[i] = tagName
+
+				// Read boundary elements
+				// For now, we skip the actual boundary element data
+				// A full implementation would store these in a separate structure
+				for j := 0; j < nMarkerElems; j++ {
+					if !scanner.Scan() {
+						return nil, fmt.Errorf("unexpected EOF reading boundary elements")
 					}
+					// Parse boundary element if needed
+					// fields := strings.Fields(scanner.Text())
+					// boundaryType := fields[0]
+					// boundaryNodes := fields[1:]
 				}
 			}
 		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading file: %v", err)
+	}
+
+	// Validate that we read the required sections
+	if !hasNDIME {
+		return nil, fmt.Errorf("missing required NDIME= section")
+	}
+
+	if !hasNPOIN {
+		return nil, fmt.Errorf("missing required NPOIN= section")
 	}
 
 	mesh.NumElements = len(mesh.Elements)
@@ -162,24 +207,13 @@ func ReadSU2(filename string) (*Mesh, error) {
 	return mesh, nil
 }
 
-// getNumNodesSU2 returns the number of nodes for an SU2 element type
-func getNumNodesSU2(su2Type int) int {
-	switch su2Type {
-	case 3:
-		return 2 // Line
-	case 5:
-		return 3 // Triangle
-	case 9:
-		return 4 // Quad
-	case 10:
-		return 4 // Tet
-	case 12:
-		return 8 // Hex
-	case 13:
-		return 6 // Prism
-	case 14:
-		return 5 // Pyramid
-	default:
-		return 0
-	}
+// su2ElementTypeMap maps SU2/VTK element type identifiers to our ElementType
+var su2ElementTypeMap = map[int]ElementType{
+	3:  Line,     // VTK_LINE
+	5:  Triangle, // VTK_TRIANGLE
+	9:  Quad,     // VTK_QUAD
+	10: Tet,      // VTK_TETRA
+	12: Hex,      // VTK_HEXAHEDRON
+	13: Prism,    // VTK_WEDGE
+	14: Pyramid,  // VTK_PYRAMID
 }
