@@ -367,10 +367,9 @@ func (el *Element3D) CalcFaceGeometry() *FaceGeometricFactors {
 	for k := 0; k < K; k++ {
 		for i := 0; i < Nfp; i++ {
 			vid := fmask[0][i]
-			nx.Set(i, k, el.Tx.At(vid, k))
-			ny.Set(i, k, el.Ty.At(vid, k))
-			nz.Set(i, k, el.Tz.At(vid, k))
-			sJ.Set(i, k, math.Sqrt(nx.At(i, k)*nx.At(i, k)+ny.At(i, k)*ny.At(i, k)+nz.At(i, k)*nz.At(i, k)))
+			nx.Set(i, k, -el.Tx.At(vid, k))
+			ny.Set(i, k, -el.Ty.At(vid, k))
+			nz.Set(i, k, -el.Tz.At(vid, k))
 		}
 	}
 
@@ -378,10 +377,9 @@ func (el *Element3D) CalcFaceGeometry() *FaceGeometricFactors {
 	for k := 0; k < K; k++ {
 		for i := 0; i < Nfp; i++ {
 			vid := fmask[1][i]
-			nx.Set(Nfp+i, k, el.Sx.At(vid, k))
-			ny.Set(Nfp+i, k, el.Sy.At(vid, k))
-			nz.Set(Nfp+i, k, el.Sz.At(vid, k))
-			sJ.Set(Nfp+i, k, math.Sqrt(nx.At(Nfp+i, k)*nx.At(Nfp+i, k)+ny.At(Nfp+i, k)*ny.At(Nfp+i, k)+nz.At(Nfp+i, k)*nz.At(Nfp+i, k)))
+			nx.Set(Nfp+i, k, -el.Sx.At(vid, k))
+			ny.Set(Nfp+i, k, -el.Sy.At(vid, k))
+			nz.Set(Nfp+i, k, -el.Sz.At(vid, k))
 		}
 	}
 
@@ -392,7 +390,6 @@ func (el *Element3D) CalcFaceGeometry() *FaceGeometricFactors {
 			nx.Set(2*Nfp+i, k, el.Rx.At(vid, k)+el.Sx.At(vid, k)+el.Tx.At(vid, k))
 			ny.Set(2*Nfp+i, k, el.Ry.At(vid, k)+el.Sy.At(vid, k)+el.Ty.At(vid, k))
 			nz.Set(2*Nfp+i, k, el.Rz.At(vid, k)+el.Sz.At(vid, k)+el.Tz.At(vid, k))
-			sJ.Set(2*Nfp+i, k, math.Sqrt(nx.At(2*Nfp+i, k)*nx.At(2*Nfp+i, k)+ny.At(2*Nfp+i, k)*ny.At(2*Nfp+i, k)+nz.At(2*Nfp+i, k)*nz.At(2*Nfp+i, k)))
 		}
 	}
 
@@ -400,15 +397,34 @@ func (el *Element3D) CalcFaceGeometry() *FaceGeometricFactors {
 	for k := 0; k < K; k++ {
 		for i := 0; i < Nfp; i++ {
 			vid := fmask[3][i]
-			nx.Set(3*Nfp+i, k, el.Rx.At(vid, k))
-			ny.Set(3*Nfp+i, k, el.Ry.At(vid, k))
-			nz.Set(3*Nfp+i, k, el.Rz.At(vid, k))
-			sJ.Set(3*Nfp+i, k, math.Sqrt(nx.At(3*Nfp+i, k)*nx.At(3*Nfp+i, k)+ny.At(3*Nfp+i, k)*ny.At(3*Nfp+i, k)+nz.At(3*Nfp+i, k)*nz.At(3*Nfp+i, k)))
+			nx.Set(3*Nfp+i, k, -el.Rx.At(vid, k))
+			ny.Set(3*Nfp+i, k, -el.Ry.At(vid, k))
+			nz.Set(3*Nfp+i, k, -el.Rz.At(vid, k))
+		}
+	}
 
-			// Normalize
-			nx.Set(3*Nfp+i, k, nx.At(3*Nfp+i, k)/sJ.At(3*Nfp+i, k)*el.J.At(vid, k))
-			ny.Set(3*Nfp+i, k, ny.At(3*Nfp+i, k)/sJ.At(3*Nfp+i, k)*el.J.At(vid, k))
-			nz.Set(3*Nfp+i, k, nz.At(3*Nfp+i, k)/sJ.At(3*Nfp+i, k)*el.J.At(vid, k))
+	// Normalize all faces
+	for k := 0; k < K; k++ {
+		for i := 0; i < Nfp*Nfaces; i++ {
+			// Compute magnitude
+			mag := math.Sqrt(nx.At(i, k)*nx.At(i, k) + ny.At(i, k)*ny.At(i, k) + nz.At(i, k)*nz.At(i, k))
+			sJ.Set(i, k, mag)
+
+			// Normalize to unit vector
+			nx.Set(i, k, nx.At(i, k)/mag)
+			ny.Set(i, k, ny.At(i, k)/mag)
+			nz.Set(i, k, nz.At(i, k)/mag)
+		}
+	}
+
+	// Scale sJ by volume Jacobian at face nodes
+	for f := 0; f < Nfaces; f++ {
+		for i := 0; i < Nfp; i++ {
+			for k := 0; k < K; k++ {
+				vid := fmask[f][i]
+				idx := f*Nfp + i
+				sJ.Set(idx, k, sJ.At(idx, k)*el.J.At(vid, k))
+			}
 		}
 	}
 
@@ -417,7 +433,7 @@ func (el *Element3D) CalcFaceGeometry() *FaceGeometricFactors {
 	for f := 0; f < Nfaces; f++ {
 		for i := 0; i < Nfp; i++ {
 			for k := 0; k < K; k++ {
-				vid := fmask[f%4][i]
+				vid := fmask[f][i]
 				Fscale.Set(f*Nfp+i, k, sJ.At(f*Nfp+i, k)/el.J.At(vid, k))
 			}
 		}
