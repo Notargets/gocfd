@@ -2,79 +2,14 @@ package readers
 
 import (
 	"bufio"
-	"encoding/binary"
 	"fmt"
 	"github.com/notargets/gocfd/DG3D/mesh"
-	"io"
 	"os"
 	"strconv"
 	"strings"
 )
 
-// gmshElementType2_2 maps Gmsh 2.2 element types to our ElementType
-var gmshElementType2_2 = map[int]mesh.ElementType{
-	1:  mesh.Line,
-	2:  mesh.Triangle,
-	3:  mesh.Quad,
-	4:  mesh.Tet,
-	5:  mesh.Hex,
-	6:  mesh.Prism,
-	7:  mesh.Pyramid,
-	8:  mesh.Line3,
-	9:  mesh.Triangle6,
-	10: mesh.Quad9,
-	11: mesh.Tet10,
-	12: mesh.Hex27,
-	13: mesh.Prism18,
-	14: mesh.Pyramid14,
-	15: mesh.Point,
-	16: mesh.Quad8,
-	17: mesh.Hex20,
-	18: mesh.Prism15,
-	19: mesh.Pyramid13,
-	20: mesh.Triangle9,
-	21: mesh.Triangle10,
-	// Additional types exist but are less common
-}
-
-// ReadGmsh reads a Gmsh format file (auto-detects version)
-func ReadGmshAuto(filename string) (*mesh.Mesh, error) {
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-
-	// Read first section to determine version
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "$MeshFormat" {
-			if !scanner.Scan() {
-				return nil, fmt.Errorf("unexpected EOF after $MeshFormat")
-			}
-			versionLine := strings.Fields(scanner.Text())
-			if len(versionLine) < 1 {
-				return nil, fmt.Errorf("invalid version line")
-			}
-
-			version := versionLine[0]
-			file.Seek(0, 0) // Reset to beginning
-
-			if strings.HasPrefix(version, "2") {
-				return ReadGmsh22(filename)
-			} else if strings.HasPrefix(version, "4") {
-				return ReadGmsh4(filename)
-			}
-			return nil, fmt.Errorf("unsupported Gmsh version: %s", version)
-		}
-	}
-
-	return nil, fmt.Errorf("no $MeshFormat section found")
-}
-
-// ReadGmsh22 reads a Gmsh 2.2 format file with full compliance
+// ReadGmsh22 reads a Gmsh MSH file format version 2.2
 func ReadGmsh22(filename string) (*mesh.Mesh, error) {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -82,90 +17,48 @@ func ReadGmsh22(filename string) (*mesh.Mesh, error) {
 	}
 	defer file.Close()
 
-	mesh := mesh.NewMesh()
-
-	// First pass: determine if binary
 	scanner := bufio.NewScanner(file)
-	var isBinary bool
-	var dataSize int
+	msh := mesh.NewMesh()
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		if line == "$MeshFormat" {
-			scanner.Scan()
-			parts := strings.Fields(scanner.Text())
-			if len(parts) >= 3 {
-				mesh.FormatVersion = parts[0]
-				fileType, _ := strconv.Atoi(parts[1])
-				isBinary = fileType == 1
-				dataSize, _ = strconv.Atoi(parts[2])
-				mesh.IsBinary = isBinary
-				mesh.DataSize = dataSize
-			}
-			break
+		if line == "" {
+			continue
 		}
-	}
-
-	// Reset and read properly
-	file.Seek(0, 0)
-
-	if isBinary {
-		return readGmsh22Binary(file, mesh)
-	}
-	return readGmsh22ASCII(file, mesh)
-}
-
-// readGmsh22ASCII reads ASCII format
-func readGmsh22ASCII(file *os.File, mesh *mesh.Mesh) (*mesh.Mesh, error) {
-	scanner := bufio.NewScanner(file)
-
-	// Increase scanner buffer for large files
-	const maxScanTokenSize = 1024 * 1024 * 10 // 10MB
-	buf := make([]byte, maxScanTokenSize)
-	scanner.Buffer(buf, maxScanTokenSize)
-
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
 
 		switch line {
 		case "$MeshFormat":
-			if err := readMeshFormat(scanner, mesh); err != nil {
+			if err := readMeshFormat22(scanner, msh); err != nil {
 				return nil, err
 			}
 
 		case "$PhysicalNames":
-			if err := readPhysicalNames(scanner, mesh); err != nil {
+			if err := readPhysicalNames(scanner, msh); err != nil {
 				return nil, err
 			}
 
 		case "$Nodes":
-			if err := readNodes(scanner, mesh); err != nil {
+			if err := readNodes22(scanner, msh); err != nil {
 				return nil, err
 			}
 
 		case "$Elements":
-			if err := readElements(scanner, mesh); err != nil {
+			if err := readElements22(scanner, msh); err != nil {
 				return nil, err
 			}
 
 		case "$Periodic":
-			if err := readPeriodic(scanner, mesh); err != nil {
+			if err := readPeriodic22(scanner, msh); err != nil {
 				return nil, err
 			}
 
-		case "$NodeData":
-			if err := skipSection(scanner, "$EndNodeData"); err != nil {
-				return nil, err
-			}
-
-		case "$ElementData":
-			if err := skipSection(scanner, "$EndElementData"); err != nil {
-				return nil, err
-			}
-
-		case "$ElementNodeData":
-			if err := skipSection(scanner, "$EndElementNodeData"); err != nil {
-				return nil, err
+		case "$NodeData", "$ElementData", "$ElementNodeData":
+			// Skip data sections
+			endMarker := "$End" + line[1:]
+			for scanner.Scan() {
+				if strings.TrimSpace(scanner.Text()) == endMarker {
+					break
+				}
 			}
 		}
 	}
@@ -174,12 +67,12 @@ func readGmsh22ASCII(file *os.File, mesh *mesh.Mesh) (*mesh.Mesh, error) {
 		return nil, fmt.Errorf("scanner error: %v", err)
 	}
 
-	mesh.BuildConnectivity()
-	return mesh, nil
+	msh.BuildConnectivity()
+	return msh, nil
 }
 
-// readMeshFormat reads the MeshFormat section
-func readMeshFormat(scanner *bufio.Scanner, mesh *mesh.Mesh) error {
+// readMeshFormat22 reads the MeshFormat section
+func readMeshFormat22(scanner *bufio.Scanner, mesh *mesh.Mesh) error {
 	if !scanner.Scan() {
 		return fmt.Errorf("unexpected EOF in MeshFormat")
 	}
@@ -204,41 +97,38 @@ func readMeshFormat(scanner *bufio.Scanner, mesh *mesh.Mesh) error {
 	return nil
 }
 
-// readPhysicalNames reads physical entity names
+// readPhysicalNames reads physical group names (common to v2.2 and v4)
 func readPhysicalNames(scanner *bufio.Scanner, msh *mesh.Mesh) error {
 	if !scanner.Scan() {
 		return fmt.Errorf("unexpected EOF in PhysicalNames")
 	}
 
-	numPhysical, err := strconv.Atoi(scanner.Text())
-	if err != nil {
-		return fmt.Errorf("invalid number of physical names: %v", err)
-	}
+	numNames, _ := strconv.Atoi(strings.TrimSpace(scanner.Text()))
 
-	for i := 0; i < numPhysical; i++ {
+	for i := 0; i < numNames; i++ {
 		if !scanner.Scan() {
-			return fmt.Errorf("unexpected EOF in PhysicalNames")
+			return fmt.Errorf("unexpected EOF reading physical names")
 		}
 
-		fields := strings.Fields(scanner.Text())
-		if len(fields) < 3 {
-			return fmt.Errorf("invalid physical name entry")
+		parts := strings.Fields(scanner.Text())
+		if len(parts) >= 3 {
+			dimension, _ := strconv.Atoi(parts[0])
+			tag, _ := strconv.Atoi(parts[1])
+			name := strings.Trim(parts[2], "\"")
+
+			// Join remaining parts if name contains spaces
+			for j := 3; j < len(parts); j++ {
+				name += " " + strings.Trim(parts[j], "\"")
+			}
+
+			group := &mesh.ElementGroup{
+				Dimension: dimension,
+				Tag:       tag,
+				Name:      name,
+				Elements:  []int{},
+			}
+			msh.ElementGroups[tag] = group
 		}
-
-		dim, _ := strconv.Atoi(fields[0])
-		tag, _ := strconv.Atoi(fields[1])
-		name := strings.Trim(strings.Join(fields[2:], " "), "\"")
-
-		// Store as element group
-		msh.ElementGroups[tag] = &mesh.ElementGroup{
-			Dimension: dim,
-			Tag:       tag,
-			Name:      name,
-			Elements:  []int{},
-		}
-
-		// Also store in boundary tags for compatibility
-		msh.BoundaryTags[tag] = name
 	}
 
 	// Skip to end
@@ -251,41 +141,31 @@ func readPhysicalNames(scanner *bufio.Scanner, msh *mesh.Mesh) error {
 	return nil
 }
 
-// readNodes reads the Nodes section
-func readNodes(scanner *bufio.Scanner, mesh *mesh.Mesh) error {
+// readNodes22 reads nodes in v2.2 format
+func readNodes22(scanner *bufio.Scanner, mesh *mesh.Mesh) error {
 	if !scanner.Scan() {
 		return fmt.Errorf("unexpected EOF in Nodes")
 	}
 
-	numNodes, err := strconv.Atoi(scanner.Text())
-	if err != nil {
-		return fmt.Errorf("invalid number of nodes: %v", err)
-	}
+	numNodes, _ := strconv.Atoi(strings.TrimSpace(scanner.Text()))
+	mesh.Vertices = make([][]float64, 0, numNodes)
 
 	for i := 0; i < numNodes; i++ {
 		if !scanner.Scan() {
-			return fmt.Errorf("unexpected EOF in Nodes at node %d", i)
+			return fmt.Errorf("unexpected EOF reading nodes")
 		}
 
-		fields := strings.Fields(scanner.Text())
-		if len(fields) < 4 {
-			return fmt.Errorf("invalid node entry at line %d", i+1)
+		parts := strings.Fields(scanner.Text())
+		if len(parts) < 4 {
+			return fmt.Errorf("invalid node line: %s", scanner.Text())
 		}
 
-		nodeID, err := strconv.Atoi(fields[0])
-		if err != nil {
-			return fmt.Errorf("invalid node ID: %v", err)
-		}
+		nodeID, _ := strconv.Atoi(parts[0])
+		x, _ := strconv.ParseFloat(parts[1], 64)
+		y, _ := strconv.ParseFloat(parts[2], 64)
+		z, _ := strconv.ParseFloat(parts[3], 64)
 
-		coords := make([]float64, 3)
-		for j := 0; j < 3; j++ {
-			coords[j], err = strconv.ParseFloat(fields[j+1], 64)
-			if err != nil {
-				return fmt.Errorf("invalid coordinate: %v", err)
-			}
-		}
-
-		mesh.AddNode(nodeID, coords)
+		mesh.AddNode(nodeID, []float64{x, y, z})
 	}
 
 	// Skip to end
@@ -298,80 +178,66 @@ func readNodes(scanner *bufio.Scanner, mesh *mesh.Mesh) error {
 	return nil
 }
 
-// readElements reads the Elements section
-func readElements(scanner *bufio.Scanner, mesh *mesh.Mesh) error {
+// readElements22 reads elements in v2.2 format
+func readElements22(scanner *bufio.Scanner, msh *mesh.Mesh) error {
 	if !scanner.Scan() {
 		return fmt.Errorf("unexpected EOF in Elements")
 	}
 
-	numElems, err := strconv.Atoi(scanner.Text())
-	if err != nil {
-		return fmt.Errorf("invalid number of elements: %v", err)
-	}
+	numElements, _ := strconv.Atoi(strings.TrimSpace(scanner.Text()))
 
-	for i := 0; i < numElems; i++ {
+	for i := 0; i < numElements; i++ {
 		if !scanner.Scan() {
-			return fmt.Errorf("unexpected EOF in Elements at element %d", i)
+			return fmt.Errorf("unexpected EOF reading elements")
 		}
 
-		fields := strings.Fields(scanner.Text())
-		if len(fields) < 3 {
-			return fmt.Errorf("invalid element entry at line %d", i+1)
+		parts := strings.Fields(scanner.Text())
+		if len(parts) < 5 {
+			return fmt.Errorf("invalid element line")
 		}
 
-		elemID, err := strconv.Atoi(fields[0])
-		if err != nil {
-			return fmt.Errorf("invalid element ID: %v", err)
-		}
+		elemID, _ := strconv.Atoi(parts[0])
+		elemType, _ := strconv.Atoi(parts[1])
+		numTags, _ := strconv.Atoi(parts[2])
 
-		gmshType, err := strconv.Atoi(fields[1])
-		if err != nil {
-			return fmt.Errorf("invalid element type: %v", err)
-		}
-
-		numTags, err := strconv.Atoi(fields[2])
-		if err != nil {
-			return fmt.Errorf("invalid number of tags: %v", err)
+		if len(parts) < 3+numTags {
+			return fmt.Errorf("invalid element tags")
 		}
 
 		// Read tags
 		tags := make([]int, numTags)
 		for j := 0; j < numTags; j++ {
-			if 3+j >= len(fields) {
-				return fmt.Errorf("insufficient fields for tags")
-			}
-			tags[j], err = strconv.Atoi(fields[3+j])
-			if err != nil {
-				return fmt.Errorf("invalid tag: %v", err)
-			}
+			tags[j], _ = strconv.Atoi(parts[3+j])
 		}
 
-		// Get element type
-		elemType, ok := gmshElementType2_2[gmshType]
+		// Map element type
+		etype, ok := gmshElementType22[elemType]
 		if !ok {
 			// Skip unknown element types
 			continue
 		}
 
-		// Read nodes
-		expectedNodes := elemType.GetNumNodes()
-		startIdx := 3 + numTags
-		actualNodes := len(fields) - startIdx
+		// Check if it's a boundary element
+		if etype.GetDimension() < msh.GetMeshDimension() {
+			// This is a boundary element
+			handleBoundaryElement22(msh, etype, tags, parts[3+numTags:])
+			continue
+		}
 
-		// Check if we have enough nodes
-		if actualNodes < expectedNodes {
-			return fmt.Errorf("element type %v expects %d nodes, got %d", elemType, expectedNodes, actualNodes)
+		// Read nodes
+		expectedNodes := etype.GetNumNodes()
+		nodeStart := 3 + numTags
+		if len(parts) < nodeStart+expectedNodes {
+			return fmt.Errorf("element %d: expected %d nodes, got %d",
+				elemID, expectedNodes, len(parts)-nodeStart)
 		}
 
 		nodeIDs := make([]int, expectedNodes)
 		for j := 0; j < expectedNodes; j++ {
-			nodeIDs[j], err = strconv.Atoi(fields[startIdx+j])
-			if err != nil {
-				return fmt.Errorf("invalid node ID: %v", err)
-			}
+			nodeIDs[j], _ = strconv.Atoi(parts[nodeStart+j])
 		}
 
-		if err := mesh.AddElement(elemID, elemType, tags, nodeIDs); err != nil {
+		if err := msh.AddElement(elemID, etype, tags, nodeIDs); err != nil {
 			return err
 		}
 	}
@@ -386,81 +252,129 @@ func readElements(scanner *bufio.Scanner, mesh *mesh.Mesh) error {
 	return nil
 }
 
-// readPeriodic reads periodic boundary conditions
-func readPeriodic(scanner *bufio.Scanner, msh *mesh.Mesh) error {
+// handleBoundaryElement22 processes boundary elements
+func handleBoundaryElement22(msh *mesh.Mesh, etype mesh.ElementType, tags []int, nodeStrs []string) {
+	// Read nodes
+	numNodes := etype.GetNumNodes()
+	if len(nodeStrs) < numNodes {
+		return // Skip if not enough nodes
+	}
+
+	nodes := make([]int, numNodes)
+	for i := 0; i < numNodes; i++ {
+		nodeID, _ := strconv.Atoi(nodeStrs[i])
+		idx, ok := msh.GetNodeIndex(nodeID)
+		if !ok {
+			return // Skip if node not found
+		}
+		nodes[i] = idx
+	}
+
+	// Get physical tag if present
+	var physicalTag int
+	if len(tags) > 0 {
+		physicalTag = tags[0]
+	}
+
+	// Find or create boundary tag name
+	var tagName string
+	if group, ok := msh.ElementGroups[physicalTag]; ok {
+		tagName = group.Name
+	} else {
+		tagName = fmt.Sprintf("boundary_%d", physicalTag)
+	}
+
+	// Create boundary element
+	belem := mesh.BoundaryElement{
+		ElementType:   etype,
+		Nodes:         nodes,
+		ParentElement: -1, // Not tracked in v2.2
+		ParentFace:    -1, // Not tracked in v2.2
+	}
+
+	msh.AddBoundaryElement(tagName, belem)
+}
+
+// readPeriodic22 reads periodic boundary conditions in v2.2 format
+func readPeriodic22(scanner *bufio.Scanner, msh *mesh.Mesh) error {
 	if !scanner.Scan() {
 		return fmt.Errorf("unexpected EOF in Periodic")
 	}
 
-	numPeriodic, err := strconv.Atoi(scanner.Text())
-	if err != nil {
-		return fmt.Errorf("invalid number of periodic entities: %v", err)
-	}
+	numPeriodic, _ := strconv.Atoi(strings.TrimSpace(scanner.Text()))
 
 	for i := 0; i < numPeriodic; i++ {
+		// Read periodic header
 		if !scanner.Scan() {
-			return fmt.Errorf("unexpected EOF in Periodic entity %d", i)
+			return fmt.Errorf("unexpected EOF reading periodic %d", i)
 		}
 
-		fields := strings.Fields(scanner.Text())
-		if len(fields) < 3 {
-			return fmt.Errorf("invalid periodic entity header")
+		parts := strings.Fields(scanner.Text())
+		if len(parts) < 3 {
+			return fmt.Errorf("invalid periodic header")
 		}
 
-		dim, _ := strconv.Atoi(fields[0])
-		slaveTag, _ := strconv.Atoi(fields[1])
-		masterTag, _ := strconv.Atoi(fields[2])
+		dimension, _ := strconv.Atoi(parts[0])
+		slaveTag, _ := strconv.Atoi(parts[1])
+		masterTag, _ := strconv.Atoi(parts[2])
 
-		periodic := mesh.Periodic{
-			Dimension: dim,
-			SlaveTag:  slaveTag,
-			MasterTag: masterTag,
-			NodeMap:   make(map[int]int),
-		}
+		// Check for affine transformation
+		var affineTransform []float64
+		if len(parts) > 3 {
+			// Affine transformation present
+			numValues := (dimension + 1) * (dimension + 1)
+			affineTransform = make([]float64, numValues)
 
-		// Read affine transformation if present
-		if !scanner.Scan() {
-			return fmt.Errorf("unexpected EOF in Periodic affine")
-		}
+			// Read affine values from remaining parts or next lines
+			affineIdx := 0
+			for j := 3; j < len(parts) && affineIdx < numValues; j++ {
+				affineTransform[affineIdx], _ = strconv.ParseFloat(parts[j], 64)
+				affineIdx++
+			}
 
-		affineLine := scanner.Text()
-		if strings.Contains(affineLine, "Affine") {
-			// Read 16 values for 4x4 affine matrix
-			affineFields := strings.Fields(affineLine)[1:] // Skip "Affine"
-			if len(affineFields) >= 16 {
-				periodic.AffineTransform = make([]float64, 16)
-				for j := 0; j < 16; j++ {
-					periodic.AffineTransform[j], _ = strconv.ParseFloat(affineFields[j], 64)
+			// Read remaining affine values if needed
+			for affineIdx < numValues {
+				if !scanner.Scan() {
+					return fmt.Errorf("unexpected EOF reading affine transform")
+				}
+				affineFields := strings.Fields(scanner.Text())
+				for _, field := range affineFields {
+					if affineIdx < numValues {
+						affineTransform[affineIdx], _ = strconv.ParseFloat(field, 64)
+						affineIdx++
+					}
 				}
 			}
-
-			// Read number of nodes
-			if !scanner.Scan() {
-				return fmt.Errorf("unexpected EOF in Periodic nodes")
-			}
-			affineLine = scanner.Text()
 		}
 
-		// Now affineLine contains the number of corresponding nodes
-		numNodes, err := strconv.Atoi(affineLine)
-		if err != nil {
-			return fmt.Errorf("invalid number of periodic nodes: %v", err)
+		// Read number of node correspondences
+		if !scanner.Scan() {
+			return fmt.Errorf("unexpected EOF reading node count")
 		}
+		numNodes, _ := strconv.Atoi(strings.TrimSpace(scanner.Text()))
 
 		// Read node correspondences
+		nodeMap := make(map[int]int)
 		for j := 0; j < numNodes; j++ {
 			if !scanner.Scan() {
-				return fmt.Errorf("unexpected EOF in Periodic nodes")
+				return fmt.Errorf("unexpected EOF reading node correspondence")
 			}
 
 			fields := strings.Fields(scanner.Text())
-			if len(fields) < 2 {
-				return fmt.Errorf("invalid periodic node mapping")
+			if len(fields) >= 2 {
+				slaveNode, _ := strconv.Atoi(fields[0])
+				masterNode, _ := strconv.Atoi(fields[1])
+				nodeMap[slaveNode] = masterNode
 			}
+		}
 
-			slaveNode, _ := strconv.Atoi(fields[0])
-			masterNode, _ := strconv.Atoi(fields[1])
-			periodic.NodeMap[slaveNode] = masterNode
+		// Create periodic structure
+		periodic := mesh.Periodic{
+			Dimension:       dimension,
+			SlaveTag:        slaveTag,
+			MasterTag:       masterTag,
+			NodeMap:         nodeMap,
+			AffineTransform: affineTransform,
 		}
 
 		msh.Periodics = append(msh.Periodics, periodic)
@@ -476,150 +390,32 @@ func readPeriodic(scanner *bufio.Scanner, msh *mesh.Mesh) error {
 	return nil
 }
 
-// skipSection skips an unhandled section
-func skipSection(scanner *bufio.Scanner, endTag string) error {
-	for scanner.Scan() {
-		if strings.TrimSpace(scanner.Text()) == endTag {
-			return nil
-		}
-	}
-	return fmt.Errorf("unexpected EOF while looking for %s", endTag)
-}
-
-// readGmsh22Binary reads binary format (placeholder - implement if needed)
-func readGmsh22Binary(file *os.File, mesh *mesh.Mesh) (*mesh.Mesh, error) {
-	reader := bufio.NewReader(file)
-
-	// Read until $MeshFormat
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			return nil, err
-		}
-		if strings.TrimSpace(line) == "$MeshFormat" {
-			break
-		}
-	}
-
-	// Read format line
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return nil, err
-	}
-
-	parts := strings.Fields(line)
-	if len(parts) < 3 {
-		return nil, fmt.Errorf("invalid MeshFormat")
-	}
-
-	mesh.FormatVersion = parts[0]
-	mesh.IsBinary = true
-	mesh.DataSize, _ = strconv.Atoi(parts[2])
-
-	// Read binary endianness check
-	var one int32
-	if err := binary.Read(reader, binary.LittleEndian, &one); err != nil {
-		return nil, fmt.Errorf("failed to read endianness check: %v", err)
-	}
-
-	var byteOrder binary.ByteOrder = binary.LittleEndian
-	if one != 1 {
-		byteOrder = binary.BigEndian
-	}
-
-	// Read newline after binary data
-	reader.ReadString('\n')
-
-	// Continue with sections
-	for {
-		line, err := reader.ReadString('\n')
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		line = strings.TrimSpace(line)
-
-		switch line {
-		case "$EndMeshFormat":
-			continue
-
-		case "$Nodes":
-			if err := readNodesBinary(reader, mesh, byteOrder); err != nil {
-				return nil, err
-			}
-
-		case "$Elements":
-			if err := readElementsBinary(reader, mesh, byteOrder); err != nil {
-				return nil, err
-			}
-
-		default:
-			// Skip unknown sections in binary
-			if strings.HasPrefix(line, "$") && !strings.HasPrefix(line, "$End") {
-				endTag := "$End" + line[1:]
-				for {
-					skipLine, err := reader.ReadString('\n')
-					if err != nil {
-						return nil, err
-					}
-					if strings.TrimSpace(skipLine) == endTag {
-						break
-					}
-				}
-			}
-		}
-	}
-
-	mesh.BuildConnectivity()
-	return mesh, nil
-}
-
-// readNodesBinary reads nodes in binary format
-func readNodesBinary(reader *bufio.Reader, mesh *mesh.Mesh, byteOrder binary.ByteOrder) error {
-	// Read number of nodes
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return err
-	}
-
-	numNodes, err := strconv.Atoi(strings.TrimSpace(line))
-	if err != nil {
-		return err
-	}
-
-	// Read binary node data
-	for i := 0; i < numNodes; i++ {
-		var nodeID int32
-		var coords [3]float64
-
-		if err := binary.Read(reader, byteOrder, &nodeID); err != nil {
-			return err
-		}
-
-		for j := 0; j < 3; j++ {
-			if err := binary.Read(reader, byteOrder, &coords[j]); err != nil {
-				return err
-			}
-		}
-
-		mesh.AddNode(int(nodeID), coords[:])
-	}
-
-	// Read $EndNodes
-	line, err = reader.ReadString('\n')
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// readElementsBinary reads elements in binary format
-func readElementsBinary(reader *bufio.Reader, mesh *mesh.Mesh, byteOrder binary.ByteOrder) error {
-	// This is complex due to variable element sizes
-	// For now, return error indicating binary elements not yet supported
-	return fmt.Errorf("binary element reading not yet implemented")
+// gmshElementType22 maps Gmsh v2.2 element type numbers to our ElementType
+var gmshElementType22 = map[int]mesh.ElementType{
+	1:  mesh.Line,       // 2-node line
+	2:  mesh.Triangle,   // 3-node triangle
+	3:  mesh.Quad,       // 4-node quadrangle
+	4:  mesh.Tet,        // 4-node tetrahedron
+	5:  mesh.Hex,        // 8-node hexahedron
+	6:  mesh.Prism,      // 6-node prism
+	7:  mesh.Pyramid,    // 5-node pyramid
+	8:  mesh.Line3,      // 3-node line
+	9:  mesh.Triangle6,  // 6-node triangle
+	10: mesh.Quad9,      // 9-node quadrangle
+	11: mesh.Tet10,      // 10-node tetrahedron
+	15: mesh.Point,      // 1-node point
+	16: mesh.Quad8,      // 8-node quadrangle
+	17: mesh.Hex20,      // 20-node hexahedron
+	18: mesh.Prism15,    // 15-node prism
+	19: mesh.Pyramid13,  // 13-node pyramid
+	20: mesh.Triangle9,  // 9-node triangle
+	21: mesh.Triangle10, // 10-node triangle
+	22: mesh.Quad9,      // 9-node quadrangle (duplicate)
+	26: mesh.Line,       // 2-node line (duplicate)
+	27: mesh.Line3,      // 3-node line (duplicate)
+	28: mesh.Line,       // 2-node line (duplicate)
+	29: mesh.Tet10,      // 10-node tetrahedron (duplicate)
+	30: mesh.Prism18,    // 18-node prism
+	31: mesh.Pyramid14,  // 14-node pyramid
+	92: mesh.Hex27,      // 27-node hexahedron
 }

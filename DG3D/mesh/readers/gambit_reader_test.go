@@ -246,10 +246,24 @@ ENDOFSECTION`
 	if err != nil {
 		t.Fatalf("Failed to read Gambit neutral file: %v", err)
 	}
+	// Debug output
+	t.Logf("Total elements read: %d\n", msh.NumElements)
+	for i, elemType := range msh.ElementTypes {
+		t.Logf("Element %d: type=%v, dimension=%d\n", i, elemType,
+			elemType.GetDimension())
+	}
 
+	// Count 3D elements
+	count3D := 0
+	for _, elemType := range msh.ElementTypes {
+		if elemType.GetDimension() == 3 {
+			count3D++
+		}
+	}
+	fmt.Printf("3D elements found: %d\n", count3D)
 	// Should only have 2 3D elements (hex and tet)
-	if msh.NumElements != 2 {
-		t.Errorf("Expected 2 3D elements (filtering out 2D), got %d", msh.NumElements)
+	if count3D != 2 {
+		t.Errorf("Expected 2 3D elements (filtering out 2D), got %d", count3D)
 	}
 
 	// Check that we have the right element types

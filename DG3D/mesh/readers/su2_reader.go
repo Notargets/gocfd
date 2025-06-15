@@ -173,16 +173,59 @@ func ReadSU2(filename string) (*mesh.Mesh, error) {
 				msh.BoundaryTags[i] = tagName
 
 				// Read boundary elements
-				// For now, we skip the actual boundary element data
-				// A full implementation would store these in a separate structure
 				for j := 0; j < nMarkerElems; j++ {
 					if !scanner.Scan() {
 						return nil, fmt.Errorf("unexpected EOF reading boundary elements")
 					}
-					// Parse boundary element if needed
-					// fields := strings.Fields(scanner.Text())
-					// boundaryType := fields[0]
-					// boundaryNodes := fields[1:]
+
+					fields := strings.Fields(scanner.Text())
+					if len(fields) < 2 {
+						return nil, fmt.Errorf("invalid boundary element line")
+					}
+
+					// Parse boundary element type
+					boundaryType, err := strconv.Atoi(fields[0])
+					if err != nil {
+						return nil, fmt.Errorf("invalid boundary element type: %v", err)
+					}
+
+					// Map boundary element type
+					var btype mesh.ElementType
+					switch boundaryType {
+					case 3: // Line (2D boundary)
+						btype = mesh.Line
+					case 5: // Triangle (3D boundary)
+						btype = mesh.Triangle
+					case 9: // Quad (3D boundary)
+						btype = mesh.Quad
+					default:
+						return nil, fmt.Errorf("unknown boundary element type: %d", boundaryType)
+					}
+
+					numBoundaryNodes := btype.GetNumNodes()
+					if len(fields) < numBoundaryNodes+1 {
+						return nil, fmt.Errorf("boundary element type %v expects %d nodes",
+							btype, numBoundaryNodes)
+					}
+
+					// Read boundary nodes
+					boundaryNodes := make([]int, numBoundaryNodes)
+					for k := 0; k < numBoundaryNodes; k++ {
+						boundaryNodes[k], err = strconv.Atoi(fields[1+k])
+						if err != nil {
+							return nil, fmt.Errorf("invalid boundary node index: %v", err)
+						}
+					}
+
+					// Create boundary element
+					boundaryElem := mesh.BoundaryElement{
+						ElementType:   btype,
+						Nodes:         boundaryNodes,
+						ParentElement: -1, // Not tracked in SU2 format
+						ParentFace:    -1, // Not tracked in SU2 format
+					}
+
+					msh.AddBoundaryElement(tagName, boundaryElem)
 				}
 			}
 		}
