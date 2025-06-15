@@ -318,66 +318,75 @@ func readPeriodic22(scanner *bufio.Scanner, msh *mesh.Mesh) error {
 		slaveTag, _ := strconv.Atoi(parts[1])
 		masterTag, _ := strconv.Atoi(parts[2])
 
-		// Check for affine transformation
+		// Check if next line is affine transformation
 		var affineTransform []float64
-		if len(parts) > 3 {
-			// Affine transformation present
-			numValues := (dimension + 1) * (dimension + 1)
-			affineTransform = make([]float64, numValues)
+		if scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
 
-			// Read affine values from remaining parts or next lines
-			affineIdx := 0
-			for j := 3; j < len(parts) && affineIdx < numValues; j++ {
-				affineTransform[affineIdx], _ = strconv.ParseFloat(parts[j], 64)
-				affineIdx++
-			}
+			// Check if line starts with "Affine"
+			if strings.HasPrefix(line, "Affine") {
+				// Parse affine values
+				fields := strings.Fields(line)
+				numValues := (dimension + 1) * (dimension + 1)
+				affineTransform = make([]float64, numValues)
 
-			// Read remaining affine values if needed
-			for affineIdx < numValues {
-				if !scanner.Scan() {
-					return fmt.Errorf("unexpected EOF reading affine transform")
+				// Read values from the Affine line (skip "Affine" keyword)
+				affineIdx := 0
+				for j := 1; j < len(fields) && affineIdx < numValues; j++ {
+					affineTransform[affineIdx], _ = strconv.ParseFloat(fields[j], 64)
+					affineIdx++
 				}
-				affineFields := strings.Fields(scanner.Text())
-				for _, field := range affineFields {
-					if affineIdx < numValues {
-						affineTransform[affineIdx], _ = strconv.ParseFloat(field, 64)
-						affineIdx++
+
+				// Read remaining affine values if needed
+				for affineIdx < numValues {
+					if !scanner.Scan() {
+						return fmt.Errorf("unexpected EOF reading affine transform")
+					}
+					affineFields := strings.Fields(scanner.Text())
+					for _, field := range affineFields {
+						if affineIdx < numValues {
+							affineTransform[affineIdx], _ = strconv.ParseFloat(field, 64)
+							affineIdx++
+						}
 					}
 				}
-			}
-		}
 
-		// Read number of node correspondences
-		if !scanner.Scan() {
-			return fmt.Errorf("unexpected EOF reading node count")
-		}
-		numNodes, _ := strconv.Atoi(strings.TrimSpace(scanner.Text()))
-
-		// Read node correspondences
-		nodeMap := make(map[int]int)
-		for j := 0; j < numNodes; j++ {
-			if !scanner.Scan() {
-				return fmt.Errorf("unexpected EOF reading node correspondence")
+				// Now read the number of node correspondences
+				if !scanner.Scan() {
+					return fmt.Errorf("unexpected EOF reading node count")
+				}
+				line = strings.TrimSpace(scanner.Text())
 			}
 
-			fields := strings.Fields(scanner.Text())
-			if len(fields) >= 2 {
-				slaveNode, _ := strconv.Atoi(fields[0])
-				masterNode, _ := strconv.Atoi(fields[1])
-				nodeMap[slaveNode] = masterNode
+			// Parse number of node correspondences
+			numNodes, _ := strconv.Atoi(line)
+
+			// Read node correspondences
+			nodeMap := make(map[int]int)
+			for j := 0; j < numNodes; j++ {
+				if !scanner.Scan() {
+					return fmt.Errorf("unexpected EOF reading node correspondence")
+				}
+
+				fields := strings.Fields(scanner.Text())
+				if len(fields) >= 2 {
+					slaveNode, _ := strconv.Atoi(fields[0])
+					masterNode, _ := strconv.Atoi(fields[1])
+					nodeMap[slaveNode] = masterNode
+				}
 			}
-		}
 
-		// Create periodic structure
-		periodic := mesh.Periodic{
-			Dimension:       dimension,
-			SlaveTag:        slaveTag,
-			MasterTag:       masterTag,
-			NodeMap:         nodeMap,
-			AffineTransform: affineTransform,
-		}
+			// Create periodic structure
+			periodic := mesh.Periodic{
+				Dimension:       dimension,
+				SlaveTag:        slaveTag,
+				MasterTag:       masterTag,
+				NodeMap:         nodeMap,
+				AffineTransform: affineTransform,
+			}
 
-		msh.Periodics = append(msh.Periodics, periodic)
+			msh.Periodics = append(msh.Periodics, periodic)
+		}
 	}
 
 	// Skip to end

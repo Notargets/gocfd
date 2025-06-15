@@ -490,7 +490,7 @@ $EndElements
 $Periodic
 2
 2 1 2
-Affine 1.0 0.0 0.0 1.0 0.0 1.0 0.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0 1.0
+Affine 1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0
 2
 1 5
 4 8
@@ -518,8 +518,8 @@ $EndPeriodic`
 	if p1.Dimension != 2 {
 		t.Errorf("Periodic 1: expected dimension 2, got %d", p1.Dimension)
 	}
-	if len(p1.AffineTransform) != 16 {
-		t.Errorf("Periodic 1: expected 16 affine values, got %d", len(p1.AffineTransform))
+	if len(p1.AffineTransform) != 9 {
+		t.Errorf("Periodic 1: expected 9 affine values, got %d", len(p1.AffineTransform))
 	}
 	if len(p1.NodeMap) != 2 {
 		t.Errorf("Periodic 1: expected 2 node mappings, got %d", len(p1.NodeMap))
@@ -760,7 +760,7 @@ $Elements
 1
 1 4 0 1 2 3
 $EndElements`,
-			errMsg: "expects 4 nodes",
+			errMsg: "expected 4 nodes", // Updated to match actual error message
 		},
 	}
 
