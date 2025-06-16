@@ -16,6 +16,7 @@ type Element3D struct {
 	Fx, Fy, Fz []utils.Matrix // Physical coordinates on each face
 	// Connectivity
 	EToV       [][]int // Element to Vertex map from mesh file
+	EToP       []int   // Element to Partition map (optionally nil) [K]
 	BCType     []int   // Boundary condition types per face from mesh file
 	VmapM      []int   // Maps face nodes to volume nodes
 	VmapP      []int   // Maps face nodes to neighbor volume nodes
