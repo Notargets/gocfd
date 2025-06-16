@@ -93,9 +93,6 @@ func TestElement3D_MeshConnectivity(t *testing.T) {
 
 	for _, order := range orders {
 		t.Run(fmt.Sprintf("Order_%d", order), func(t *testing.T) {
-			// Skip if we know it will panic
-			t.Skip("Skipping until mesh connectivity issue is resolved")
-
 			// Create Element3D from mesh
 			el, err := NewElement3D(order, meshPath)
 			require.NoError(t, err, "Failed to create Element3D from mesh")
