@@ -1,6 +1,7 @@
 package facebuffer
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -122,197 +123,96 @@ func TestNewFaceBufferBuilder_NonPartitioned(t *testing.T) {
 	assert.Equal(t, uint32(0), builder.MyPartID)
 }
 
-func _TestBuildFromElement3D_ProcessesRealConnectivity(t *testing.T) {
+// Add these updated tests to face_buffer_builder_test.go
+// These tests properly use the split Element3D structures
+
+func TestBuildFromElement3D_ProcessesRealConnectivity_WithSplitMesh(t *testing.T) {
 	meshPath := getTestMeshPath()
 	el, err := tetrahedra.NewElement3D(1, meshPath)
-	if err != nil {
-		t.Skipf("Skipping test: failed to load mesh file: %v", err)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, el.SplitElement3D, "Mesh should be split")
 
-	builder := NewFaceBufferBuilder(el, 3)
+	// Test each partition separately
+	for _, partEl := range el.SplitElement3D {
+		partID := partEl.EToP[0]
+		t.Run(fmt.Sprintf("Partition_%d", partID), func(t *testing.T) {
+			builder := NewFaceBufferBuilder(partEl, 3)
 
-	err = builder.BuildFromElement3D(el)
-	require.NoError(t, err, "Should successfully process real mesh connectivity")
+			err = builder.BuildFromElement3D(partEl)
+			require.NoError(t, err, "Should successfully process partition %d connectivity", partID)
 
-	stats := builder.GetBuildStatistics()
+			stats := builder.GetBuildStatistics()
 
-	// Verify all face points were processed
-	expectedTotalPoints := uint32(el.K) * 4 * uint32(el.Nfp)
-	assert.Equal(t, expectedTotalPoints, stats["total_face_points"])
-	assert.Equal(t, stats["total_face_points"], stats["total_connections"])
+			// Verify all face points were processed
+			expectedTotalPoints := uint32(partEl.K) * 4 * uint32(partEl.Nfp)
+			assert.Equal(t, expectedTotalPoints, stats["total_face_points"])
+			assert.Equal(t, stats["total_face_points"], stats["total_connections"])
 
-	// Should have some interior connections (mesh has internal faces)
-	assert.Greater(t, stats["interior_points"], uint32(0), "Real mesh should have interior faces")
+			// Should have interior connections (faces between elements in same partition)
+			assert.Greater(t, stats["interior_points"], uint32(0),
+				"Partition %d should have interior faces", partID)
 
-	// Should have boundary faces
-	assert.Greater(t, stats["boundary_points"], uint32(0), "Real mesh should have boundary faces")
+			// Should have boundary faces (domain boundaries + partition boundaries)
+			assert.Greater(t, stats["boundary_points"], uint32(0),
+				"Partition %d should have boundary faces", partID)
 
-	// Should have remote connections if partitioned
-	if el.EToP != nil {
-		assert.Greater(t, stats["remote_partitions"], uint32(0), "Partitioned mesh should have remote connections")
-		assert.Greater(t, stats["remote_points"], uint32(0), "Should have remote face points")
+			// Should NOT have remote connections (partition boundaries marked as boundary)
+			assert.Equal(t, uint32(0), stats["remote_points"],
+				"Split mesh should not have remote points (partition boundaries are marked as boundary)")
+		})
 	}
 }
 
-// Add this test to your test file and run it to debug the issue
-func _TestBuildFromElement3D_ProcessesRealConnectivity_DEBUG(t *testing.T) {
+func TestBuildFromElement3D_SinglePartitionProcessing(t *testing.T) {
 	meshPath := getTestMeshPath()
-	el, err := tetrahedra.NewElement3D(1, meshPath)
-	if err != nil {
-		t.Skipf("Skipping test: failed to load mesh file: %v", err)
-	}
+	el, err := tetrahedra.NewElement3D(2, meshPath)
+	require.NoError(t, err)
 
-	// Debug: Print partition information
-	if el.EToP != nil {
-		t.Logf("DEBUG: Mesh has EToP data")
-		t.Logf("DEBUG: First element (el.EToP[0]) is in partition: %d", el.EToP[0])
+	// Test partition 4 specifically (141 elements)
+	partEl, err := el.GetPartition(4)
+	require.NoError(t, err)
 
-		// Count elements per partition
-		partitionCounts := make(map[int]int)
-		for i, p := range el.EToP {
-			partitionCounts[p]++
-			if i < 5 {
-				t.Logf("DEBUG: Element %d is in partition %d", i, p)
-			}
-		}
-		t.Logf("DEBUG: Partition distribution: %v", partitionCounts)
-	} else {
-		t.Logf("DEBUG: Mesh has NO partition data")
-	}
+	builder := NewFaceBufferBuilder(partEl, 3)
 
-	builder := NewFaceBufferBuilder(el, 3)
-	t.Logf("DEBUG: Builder MyPartID set to: %d", builder.MyPartID)
-	t.Logf("DEBUG: Builder NPart: %d", builder.NPart)
+	// Verify builder uses correct partition info
+	assert.Equal(t, uint32(4), builder.MyPartID)
+	assert.Equal(t, uint32(141), builder.K)
 
-	// Manually iterate through some elements to debug
-	if el.EToE != nil && el.EToF != nil && el.EToP != nil {
-		for k := 0; k < min(10, el.K); k++ { // Check first 10 elements
-			t.Logf("\nDEBUG: Processing element %d (partition %d)", k, el.EToP[k])
-
-			for f := 0; f < 4; f++ { // 4 faces for tetrahedra
-				if f < len(el.EToE[k]) {
-					neighbor := el.EToE[k][f]
-					neighborFace := el.EToF[k][f]
-
-					if neighbor == -1 {
-						t.Logf("  Face %d: BOUNDARY", f)
-					} else if neighbor < len(el.EToP) {
-						neighborPart := el.EToP[neighbor]
-						elemPart := el.EToP[k]
-
-						t.Logf("  Face %d: neighbor elem=%d (part %d), neighborFace=%d",
-							f, neighbor, neighborPart, neighborFace)
-
-						// This is the key logic from BuildFromElement3D
-						if neighborPart == elemPart {
-							t.Logf("    -> Would be LOCAL (same partition)")
-						} else {
-							t.Logf("    -> Would be REMOTE (different partition)")
-
-							// Check if this would trigger the error
-							if uint32(neighborPart) == builder.MyPartID {
-								t.Logf("    *** PROBLEM: Remote partition %d == MyPartID %d ***",
-									neighborPart, builder.MyPartID)
-								t.Logf("    *** This happens when elem %d (part %d) connects to elem %d (part %d)",
-									k, elemPart, neighbor, neighborPart)
-								t.Logf("    *** But MyPartID=%d was set from el.EToP[0]=%d",
-									builder.MyPartID, el.EToP[0])
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// Now run the actual build and see where it fails
-	err = builder.BuildFromElement3D(el)
-
-	if err != nil {
-		t.Logf("ERROR from BuildFromElement3D: %v", err)
-
-		// Try to identify exactly which element/face caused the problem
-		// by manually processing until we hit the error
-		manualProcessing := func() {
-			for k := 0; k < el.K; k++ {
-				for f := 0; f < 4; f++ {
-					for fp := 0; fp < el.Nfp; fp++ {
-						neighbor := el.EToE[k][f]
-
-						if neighbor != -1 && el.EToP != nil {
-							if el.EToP[neighbor] != el.EToP[k] {
-								// This would be a remote neighbor
-								remotePartID := uint32(el.EToP[neighbor])
-								if remotePartID == builder.MyPartID {
-									t.Logf("FOUND THE ISSUE:")
-									t.Logf("  Element %d (partition %d)", k, el.EToP[k])
-									t.Logf("  Face %d, point %d", f, fp)
-									t.Logf("  Neighbor element %d (partition %d)", neighbor, el.EToP[neighbor])
-									t.Logf("  MyPartID = %d (from el.EToP[0])", builder.MyPartID)
-									t.Logf("\nThe problem is that element %d is not in MyPartID's partition,", k)
-									t.Logf("but its neighbor IS in MyPartID's partition.")
-									t.Logf("This creates a 'remote' connection to the local partition.")
-									return
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-
-		manualProcessing()
-	}
-
-	require.NoError(t, err, "Should successfully process real mesh connectivity")
-}
-
-func _TestBuildFromElement3D_HandlesPartitionBoundaries(t *testing.T) {
-	meshPath := getTestMeshPath()
-	el, err := tetrahedra.NewElement3D(1, meshPath)
-	if err != nil {
-		t.Skipf("Skipping test: failed to load mesh file: %v", err)
-	}
-
-	if el.EToP == nil {
-		t.Skip("Need partitioned mesh for this test")
-	}
-
-	builder := NewFaceBufferBuilder(el, 4)
-	err = builder.BuildFromElement3D(el)
+	err = builder.BuildFromElement3D(partEl)
 	require.NoError(t, err)
 
 	stats := builder.GetBuildStatistics()
 
-	// Verify partition classification is working
-	totalConnections := stats["interior_points"] + stats["boundary_points"] + stats["remote_points"]
-	assert.Equal(t, stats["total_connections"], totalConnections, "All connections should be classified")
+	// All connections should be classified
+	totalClassified := stats["interior_points"] + stats["boundary_points"] + stats["remote_points"]
+	assert.Equal(t, stats["total_connections"], totalClassified)
 
-	// Check remote partition tracking
-	assert.Equal(t, uint32(len(builder.remotePartitions)), stats["remote_partitions"])
-
-	// Verify each remote partition has connections
-	for partID, rpi := range builder.remotePartitions {
-		assert.Greater(t, len(rpi.Connections), 0, "Remote partition %d should have connections", partID)
-		assert.Equal(t, partID, rpi.PartitionID)
-	}
+	// Log statistics for debugging
+	t.Logf("Partition 4 statistics:")
+	t.Logf("  Total face points: %d", stats["total_face_points"])
+	t.Logf("  Interior points: %d", stats["interior_points"])
+	t.Logf("  Boundary points: %d", stats["boundary_points"])
+	t.Logf("  Remote points: %d", stats["remote_points"])
 }
 
-func _TestBuild_CreatesValidRuntime(t *testing.T) {
+func TestBuild_CreatesValidRuntime_WithSplitMesh(t *testing.T) {
 	meshPath := getTestMeshPath()
 	el, err := tetrahedra.NewElement3D(1, meshPath)
-	if err != nil {
-		t.Skipf("Skipping test: failed to load mesh file: %v", err)
-	}
+	require.NoError(t, err)
 
-	builder := NewFaceBufferBuilder(el, 3)
-	runtime, err := builder.Build(el)
+	// Use partition 1 (142 elements)
+	partEl, err := el.GetPartition(1)
+	require.NoError(t, err)
+
+	builder := NewFaceBufferBuilder(partEl, 3)
+	runtime, err := builder.Build(partEl)
 	require.NoError(t, err)
 	require.NotNil(t, runtime)
 
-	// Verify runtime dimensions match source
-	assert.Equal(t, uint32(el.K), runtime.K)
-	assert.Equal(t, uint32(el.Nfp), runtime.Nfp)
+	// Verify runtime dimensions match partition
+	assert.Equal(t, uint32(partEl.K), runtime.K)
+	assert.Equal(t, uint32(142), runtime.K) // Partition 1 has 142 elements
+	assert.Equal(t, uint32(partEl.Nfp), runtime.Nfp)
 	assert.Equal(t, builder.totalFacePoints, runtime.TotalFacePoints)
 
 	// Verify arrays are properly sized
@@ -326,153 +226,196 @@ func _TestBuild_CreatesValidRuntime(t *testing.T) {
 	// Verify local indices count matches interior connections
 	stats := builder.GetBuildStatistics()
 	assert.Equal(t, int(stats["interior_points"]), len(runtime.LocalPIndices))
-
-	// Verify remote buffers match remote partitions
-	assert.Equal(t, len(builder.remotePartitions), len(runtime.RemoteBuffers))
 }
 
-func _TestBuild_ValidatesConnectivity(t *testing.T) {
+func TestPartitionBoundaryHandling_WithSplitMesh(t *testing.T) {
 	meshPath := getTestMeshPath()
 	el, err := tetrahedra.NewElement3D(1, meshPath)
-	if err != nil {
-		t.Skipf("Skipping test: failed to load mesh file: %v", err)
-	}
-
-	builder := NewFaceBufferBuilder(el, 3)
-
-	// Should auto-build and validate successfully
-	runtime, err := builder.Build(el)
 	require.NoError(t, err)
 
-	// Validate the runtime structure
-	err = runtime.ValidateRuntime()
-	assert.NoError(t, err, "Runtime structure should be valid")
-}
+	// Test that partition boundaries are handled correctly
+	// In the split mesh, connections to other partitions should be marked as boundary
+	for partIdx, partEl := range el.SplitElement3D {
+		partID := partEl.EToP[0]
 
-func _TestValidateBuild_WithRealMesh(t *testing.T) {
-	meshPath := getTestMeshPath()
-	el, err := tetrahedra.NewElement3D(1, meshPath)
-	if err != nil {
-		t.Skipf("Skipping test: failed to load mesh file: %v", err)
-	}
+		builder := NewFaceBufferBuilder(partEl, 3)
+		err = builder.BuildFromElement3D(partEl)
+		require.NoError(t, err)
 
-	builder := NewFaceBufferBuilder(el, 3)
-	err = builder.BuildFromElement3D(el)
-	require.NoError(t, err)
+		// Count boundary faces that were originally interior in the global mesh
+		partitionBoundaryCount := 0
 
-	// Real mesh should pass validation
-	err = builder.ValidateBuild()
-	assert.NoError(t, err, "Real mesh connectivity should validate successfully")
-}
+		for k := 0; k < partEl.K; k++ {
+			for f := 0; f < 4; f++ {
+				if partEl.EToE[k][f] == -1 {
+					// This is a boundary in the split mesh
+					// Check if it was interior in the original mesh
+					globalIdx, err := partEl.GetOriginalElementIndex(k)
+					require.NoError(t, err)
 
-func _TestPartitionClassification_WithRealMesh(t *testing.T) {
-	meshPath := getTestMeshPath()
-	el, err := tetrahedra.NewElement3D(1, meshPath)
-	if err != nil {
-		t.Skipf("Skipping test: failed to load mesh file: %v", err)
-	}
-
-	if el.EToP == nil {
-		t.Skip("Need partitioned mesh for this test")
-	}
-
-	builder := NewFaceBufferBuilder(el, 3)
-	err = builder.BuildFromElement3D(el)
-	require.NoError(t, err)
-
-	// Verify connections are properly classified based on real EToE/EToP data
-	for _, conn := range builder.connections {
-		elemID := conn.MPos / (builder.Nface * builder.Nfp)
-		faceID := (conn.MPos % (builder.Nface * builder.Nfp)) / builder.Nfp
-
-		if int(elemID) < len(el.EToE) && int(faceID) < len(el.EToE[elemID]) {
-			neighbor := el.EToE[elemID][faceID]
-
-			if neighbor == -1 {
-				// Should be boundary
-				assert.Equal(t, BoundaryFace, conn.Type, "Boundary face should be classified as boundary")
-			} else if el.EToP[neighbor] == el.EToP[elemID] {
-				// Should be local neighbor
-				assert.Equal(t, LocalNeighbor, conn.Type, "Local neighbor should be classified as local")
-			} else {
-				// Should be remote neighbor
-				assert.Equal(t, RemoteNeighbor, conn.Type, "Remote neighbor should be classified as remote")
-				assert.Equal(t, uint32(el.EToP[neighbor]), conn.PartitionID, "Remote partition ID should match EToP")
+					if globalIdx < el.K && f < len(el.EToE[globalIdx]) {
+						globalNeighbor := el.EToE[globalIdx][f]
+						if globalNeighbor != -1 {
+							// Was interior in global mesh, now boundary
+							partitionBoundaryCount++
+						}
+					}
+				}
 			}
 		}
+
+		t.Logf("Partition %d (idx %d): %d faces are partition boundaries",
+			partID, partIdx, partitionBoundaryCount)
+
+		// Each partition should have some partition boundary faces
+		assert.Greater(t, partitionBoundaryCount, 0,
+			"Partition %d should have partition boundary faces", partID)
 	}
 }
 
-func _TestGetBuildStatistics_WithRealMesh(t *testing.T) {
+func TestValidateBuild_WithSplitMesh(t *testing.T) {
 	meshPath := getTestMeshPath()
 	el, err := tetrahedra.NewElement3D(1, meshPath)
-	if err != nil {
-		t.Skipf("Skipping test: failed to load mesh file: %v", err)
-	}
+	require.NoError(t, err)
 
-	builder := NewFaceBufferBuilder(el, 4)
+	// Test validation for each partition
+	for _, partEl := range el.SplitElement3D {
+		partID := partEl.EToP[0]
+
+		builder := NewFaceBufferBuilder(partEl, 3)
+		err = builder.BuildFromElement3D(partEl)
+		require.NoError(t, err)
+
+		// Each partition should pass validation
+		err = builder.ValidateBuild()
+		assert.NoError(t, err, "Partition %d connectivity should validate successfully", partID)
+	}
+}
+
+func TestNonPartitionedMesh_StillWorks(t *testing.T) {
+	// Load the mesh but simulate non-partitioned by clearing partition data
+	meshPath := getTestMeshPath()
+	el, err := tetrahedra.NewElement3D(1, meshPath)
+	require.NoError(t, err)
+
+	// Clear partition data to simulate non-partitioned mesh
+	el.EToP = nil
+	el.SplitElement3D = nil
+
+	// Should not have split meshes
+	assert.Nil(t, el.SplitElement3D, "Non-partitioned mesh should not be split")
+	assert.Nil(t, el.EToP, "Should not have partition data")
+
+	// Face buffer should still work
+	builder := NewFaceBufferBuilder(el, 3)
+
+	// Verify it treats as single partition
+	assert.Equal(t, uint32(1), builder.NPart)
+	assert.Equal(t, uint32(0), builder.MyPartID)
+
 	err = builder.BuildFromElement3D(el)
 	require.NoError(t, err)
 
 	stats := builder.GetBuildStatistics()
 
-	// Check all expected statistics are present
-	expectedKeys := []string{
-		"total_face_points", "interior_points", "total_connections",
-		"remote_partitions", "boundary_points", "remote_points",
-	}
+	// Should have both interior and boundary faces
+	assert.Greater(t, stats["boundary_points"], uint32(0), "Should have boundary faces")
+	assert.Greater(t, stats["interior_points"], uint32(0), "Should have interior faces")
+	assert.Equal(t, uint32(0), stats["remote_points"], "Should have no remote points")
 
-	for _, key := range expectedKeys {
-		_, exists := stats[key]
-		assert.True(t, exists, "Missing statistic: %s", key)
-		assert.GreaterOrEqual(t, stats[key], uint32(0), "Statistic %s should be non-negative", key)
-	}
-
-	// Verify accounting is correct
-	assert.Equal(t, stats["total_face_points"], stats["total_connections"])
+	// All face points should be classified
 	totalClassified := stats["interior_points"] + stats["boundary_points"] + stats["remote_points"]
-	assert.Equal(t, stats["total_connections"], totalClassified, "All connections should be classified")
+	assert.Equal(t, stats["total_connections"], totalClassified)
 }
 
-func _TestRemotePartitionTracking_WithRealMesh(t *testing.T) {
+func TestConsistencyBetweenPartitions(t *testing.T) {
 	meshPath := getTestMeshPath()
-	el, err := tetrahedra.NewElement3D(1, meshPath)
-	if err != nil {
-		t.Skipf("Skipping test: failed to load mesh file: %v", err)
-	}
-
-	if el.EToP == nil {
-		t.Skip("Need partitioned mesh for this test")
-	}
-
-	builder := NewFaceBufferBuilder(el, 3)
-	err = builder.BuildFromElement3D(el)
+	el, err := tetrahedra.NewElement3D(2, meshPath)
 	require.NoError(t, err)
 
-	localPartID := builder.MyPartID
+	// Build face buffers for all partitions
+	builders := make([]*FaceBufferBuilder, len(el.SplitElement3D))
+	totalInterior := uint32(0)
+	totalBoundary := uint32(0)
+	totalFacePoints := uint32(0)
 
-	// Find all unique remote partitions from EToP
-	remotePartitions := make(map[int]bool)
-	for elemID := 0; elemID < el.K; elemID++ {
-		for faceID := 0; faceID < 4; faceID++ {
-			if faceID < len(el.EToE[elemID]) {
-				neighbor := el.EToE[elemID][faceID]
-				if neighbor >= 0 && neighbor < len(el.EToP) {
-					neighborPart := el.EToP[neighbor]
-					if uint32(neighborPart) != localPartID {
-						remotePartitions[neighborPart] = true
+	for i, partEl := range el.SplitElement3D {
+		builders[i] = NewFaceBufferBuilder(partEl, 3)
+		err = builders[i].BuildFromElement3D(partEl)
+		require.NoError(t, err)
+
+		stats := builders[i].GetBuildStatistics()
+		totalInterior += stats["interior_points"]
+		totalBoundary += stats["boundary_points"]
+		totalFacePoints += stats["total_face_points"]
+	}
+
+	// Total face points should match expected for entire mesh
+	expectedTotal := uint32(el.K) * 4 * uint32(el.Nfp)
+	assert.Equal(t, expectedTotal, totalFacePoints,
+		"Sum of partition face points should equal total mesh face points")
+
+	t.Logf("Mesh totals across all partitions:")
+	t.Logf("  Total interior points: %d", totalInterior)
+	t.Logf("  Total boundary points: %d", totalBoundary)
+	t.Logf("  Total face points: %d", totalFacePoints)
+}
+
+// Helper function to count faces between partitions in the original mesh
+func countInterPartitionFaces(el *tetrahedra.Element3D) map[string]int {
+	// Key format: "partA-partB" where partA < partB
+	interPartitionFaces := make(map[string]int)
+
+	for k := 0; k < el.K; k++ {
+		for f := 0; f < 4; f++ {
+			neighbor := el.EToE[k][f]
+			if neighbor != -1 && neighbor != k {
+				partA := el.EToP[k]
+				partB := el.EToP[neighbor]
+
+				if partA != partB {
+					// Create consistent key
+					var key string
+					if partA < partB {
+						key = fmt.Sprintf("%d-%d", partA, partB)
+					} else {
+						key = fmt.Sprintf("%d-%d", partB, partA)
 					}
+					interPartitionFaces[key]++
 				}
 			}
 		}
 	}
 
-	// Verify builder found all remote partitions
-	assert.Equal(t, len(remotePartitions), len(builder.remotePartitions),
-		"Should track all remote partitions found in mesh")
-
-	for partID := range remotePartitions {
-		_, exists := builder.remotePartitions[uint32(partID)]
-		assert.True(t, exists, "Should track remote partition %d", partID)
+	// Each face is counted twice (once from each side)
+	for key := range interPartitionFaces {
+		interPartitionFaces[key] /= 2
 	}
+
+	return interPartitionFaces
+}
+
+func TestInterPartitionFaceCount(t *testing.T) {
+	meshPath := getTestMeshPath()
+	el, err := tetrahedra.NewElement3D(1, meshPath)
+	require.NoError(t, err)
+
+	if el.EToP == nil {
+		t.Skip("Need partitioned mesh for this test")
+	}
+
+	// Count inter-partition faces in original mesh
+	interPartitionFaces := countInterPartitionFaces(el)
+
+	totalInterPartitionFaces := 0
+	for key, count := range interPartitionFaces {
+		t.Logf("Faces between partitions %s: %d", key, count)
+		totalInterPartitionFaces += count
+	}
+
+	t.Logf("Total inter-partition faces: %d", totalInterPartitionFaces)
+
+	// This information helps verify that partition boundaries are handled correctly
+	assert.Greater(t, totalInterPartitionFaces, 0,
+		"Partitioned mesh should have faces between partitions")
 }
