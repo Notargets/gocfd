@@ -61,8 +61,46 @@ func NewElement3D(order int, meshFile string) (el *Element3D, err error) {
 	return NewElement3DFromMesh(order, m)
 }
 
-// NewElement3DFromMesh creates an Element3D from an existing mesh
-// This is the core constructor that does all the work
+// In extractTetElements(), it should verify ALL elements are tets:
+func (el *Element3D) extractTetElements() error {
+	// Verify ALL elements are tetrahedral - no filtering!
+	for i := 0; i < el.Mesh.NumElements; i++ {
+		elemType := el.Mesh.ElementTypes[i]
+
+		// Check if element is 3D
+		if elemType.GetDimension() != 3 {
+			return fmt.Errorf("element %d is not 3D (type=%v)", i, elemType)
+		}
+
+		// Check if element is tetrahedral
+		if elemType != mesh.Tet && elemType != mesh.Tet10 {
+			return fmt.Errorf("element %d is not tetrahedral (type=%v) - only tetrahedral meshes supported", i, elemType)
+		}
+	}
+
+	// Store number of elements
+	el.K = el.Mesh.NumElements
+
+	// Build EToV connectivity - direct copy since all are tets
+	el.EToV = make([][]int, el.K)
+	for i := 0; i < el.K; i++ {
+		// Get corner nodes only (first 4 nodes for tet)
+		nodes := el.Mesh.EtoV[i]
+		if len(nodes) >= 4 {
+			el.EToV[i] = nodes[:4]
+		} else {
+			return fmt.Errorf("tetrahedral element %d has insufficient nodes", i)
+		}
+	}
+
+	// Extract boundary conditions if available
+	// TODO: Implement BCType extraction from mesh boundary tags
+	el.BCType = make([]int, el.K*4) // 4 faces per tet
+
+	return nil
+}
+
+// In NewElement3DFromMesh, add partition copying after extractTetElements:
 func NewElement3DFromMesh(order int, m *mesh.Mesh) (el *Element3D, err error) {
 	el = &Element3D{
 		TetBasis: NewTetBasis(order),
@@ -72,6 +110,13 @@ func NewElement3DFromMesh(order int, m *mesh.Mesh) (el *Element3D, err error) {
 	// Extract tetrahedral elements from mesh
 	if err = el.extractTetElements(); err != nil {
 		return nil, err
+	}
+
+	// Copy partition data from mesh if it exists
+	// Direct copy since we verified ALL elements are tets
+	if m.EToP != nil && len(m.EToP) > 0 {
+		el.EToP = make([]int, el.K)
+		copy(el.EToP, m.EToP)
 	}
 
 	// Build physical coordinates from vertices and reference nodes
@@ -84,66 +129,6 @@ func NewElement3DFromMesh(order int, m *mesh.Mesh) (el *Element3D, err error) {
 	el.BuildMaps3D()
 
 	return el, nil
-}
-
-// extractTetElements extracts tetrahedral elements from the mesh
-func (el *Element3D) extractTetElements() error {
-	// Filter to get only 3D tetrahedral elements
-	tetCount := 0
-	var tetIndices []int
-
-	for i := 0; i < el.Mesh.NumElements; i++ {
-		elemType := el.Mesh.ElementTypes[i]
-
-		// Check if element is 3D
-		if elemType.GetDimension() != 3 {
-			continue
-		}
-
-		// Check if element is tetrahedral
-		if elemType != mesh.Tet && elemType != mesh.Tet10 {
-			return fmt.Errorf("multi-element meshes not supported here - found %v element", elemType)
-		}
-
-		tetIndices = append(tetIndices, i)
-		tetCount++
-	}
-
-	if tetCount == 0 {
-		return fmt.Errorf("no tetrahedral elements found in mesh")
-	}
-
-	// Store number of elements
-	el.K = tetCount
-
-	// Initialize mesh element count if not set
-	if el.Mesh.NumElements == 0 {
-		el.Mesh.NumElements = len(el.Mesh.EtoV)
-	}
-	if el.Mesh.NumVertices == 0 {
-		el.Mesh.NumVertices = len(el.Mesh.Vertices)
-	}
-
-	// Build EToV connectivity for tets only
-	el.EToV = make([][]int, tetCount)
-	for i, idx := range tetIndices {
-		// Get corner nodes only (first 4 nodes for tet)
-		nodes := el.Mesh.EtoV[idx]
-		if len(nodes) >= 4 {
-			el.EToV[i] = nodes[:4]
-		} else {
-			return fmt.Errorf("tetrahedral element %d has insufficient nodes", idx)
-		}
-	}
-
-	// Extract boundary conditions if available
-	// TODO: Implement BCType extraction from mesh boundary tags
-	el.BCType = make([]int, tetCount*4) // 4 faces per tet
-
-	// Store the filtered indices for later use if needed
-	el.tetIndices = tetIndices
-
-	return nil
 }
 
 // buildPhysicalCoordinates builds the physical coordinates by transforming reference nodes

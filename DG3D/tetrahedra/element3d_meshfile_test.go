@@ -315,3 +315,30 @@ func TestMeshConnectivityBug_Regression(t *testing.T) {
 
 	assert.True(t, sharedFaceFound, "Should find the shared face between the two tets")
 }
+
+func TestElement3D_ReadsPartitionData(t *testing.T) {
+	// Test that Element3D correctly reads partition data from cube-partitioned.neu
+	meshPath := getTestMeshPath()
+
+	// Create Element3D from partitioned mesh
+	el, err := NewElement3D(2, meshPath)
+	require.NoError(t, err, "Failed to create Element3D from partitioned mesh")
+	require.NotNil(t, el)
+
+	// The critical test: EToP must be populated
+	require.NotNil(t, el.EToP, "Element3D.EToP MUST be populated from partitioned mesh file")
+	assert.Equal(t, el.K, len(el.EToP), "EToP must have an entry for each element")
+
+	// Verify the partitions are correct (p1=142, p2=141, p3=141, p4=141 elements)
+	partitionCounts := make(map[int]int)
+	for _, p := range el.EToP {
+		partitionCounts[p]++
+	}
+
+	// Should have partitions 1,2,3,4
+	assert.Equal(t, 4, len(partitionCounts))
+	assert.Equal(t, 142, partitionCounts[1])
+	assert.Equal(t, 141, partitionCounts[2])
+	assert.Equal(t, 141, partitionCounts[3])
+	assert.Equal(t, 141, partitionCounts[4])
+}
