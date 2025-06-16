@@ -92,15 +92,16 @@ func (el *Element3D) extractTetElements() error {
 			return fmt.Errorf("tetrahedral element %d has insufficient nodes", i)
 		}
 	}
-
-	// Extract boundary conditions if available
-	// TODO: Implement BCType extraction from mesh boundary tags
-	el.BCType = make([]int, el.K*4) // 4 faces per tet
-
+	// Copy partition data if available
+	if el.Mesh.EToP != nil {
+		el.EToP = make([]int, el.K)
+		copy(el.EToP, el.Mesh.EToP)
+	}
 	return nil
 }
 
-// In NewElement3DFromMesh, add partition copying after extractTetElements:
+// NewElement3DFromMesh creates an Element3D from an existing mesh
+// This is the core constructor that does all the work
 func NewElement3DFromMesh(order int, m *mesh.Mesh) (el *Element3D, err error) {
 	el = &Element3D{
 		TetBasis: NewTetBasis(order),
@@ -112,13 +113,6 @@ func NewElement3DFromMesh(order int, m *mesh.Mesh) (el *Element3D, err error) {
 		return nil, err
 	}
 
-	// Copy partition data from mesh if it exists
-	// Direct copy since we verified ALL elements are tets
-	if m.EToP != nil && len(m.EToP) > 0 {
-		el.EToP = make([]int, el.K)
-		copy(el.EToP, m.EToP)
-	}
-
 	// Build physical coordinates from vertices and reference nodes
 	el.buildPhysicalCoordinates()
 
@@ -127,6 +121,16 @@ func NewElement3DFromMesh(order int, m *mesh.Mesh) (el *Element3D, err error) {
 	el.GeometricFactors = el.GeometricFactors3D()
 	el.FaceGeometricFactors = el.CalcFaceGeometry()
 	el.BuildMaps3D()
+
+	// Extract boundary conditions from mesh
+	if err = el.extractBoundaryConditions(); err != nil {
+		return nil, fmt.Errorf("failed to extract boundary conditions: %v", err)
+	}
+
+	// Extract periodic boundaries if present
+	if err = el.extractPeriodicBoundaries(); err != nil {
+		return nil, fmt.Errorf("failed to extract periodic boundaries: %v", err)
+	}
 
 	return el, nil
 }
