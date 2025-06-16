@@ -27,7 +27,8 @@ type Element3D struct {
 	*GeometricFactors
 	*FaceGeometricFactors
 	*ConnectivityArrays
-	Mesh *mesh.Mesh
+	Mesh           *mesh.Mesh
+	SplitElement3D []*Element3D
 }
 
 type ConnectivityArrays struct {
@@ -132,6 +133,13 @@ func NewElement3DFromMesh(order int, m *mesh.Mesh) (el *Element3D, err error) {
 		return nil, fmt.Errorf("failed to extract periodic boundaries: %v", err)
 	}
 
+	// Split mesh by partition if EToP is present
+	if el.EToP != nil {
+		if err = el.SplitByPartition(); err != nil {
+			return nil, fmt.Errorf("failed to split mesh by partition: %v", err)
+		}
+	}
+
 	return el, nil
 }
 
@@ -229,7 +237,6 @@ func (el *Element3D) buildFaceCoordinates() {
 	}
 }
 
-// This is the fixed Connect3D function that properly handles single-element meshes
 func (el *Element3D) Connect3D() *ConnectivityArrays {
 	// fmt.Printf("DEBUG Connect3D: Starting\n")
 	// fmt.Printf("  el.K = %d\n", el.K)
