@@ -389,6 +389,8 @@ func (m *Mesh) FilterByDimension(dim int) ([]int, [][]int, []ElementType) {
 	return indices, elements, types
 }
 
+// This is the fixed BuildConnectivity function that should replace the buggy one in mesh_common.go
+
 // BuildConnectivity builds element-to-element and face connectivity
 func (m *Mesh) BuildConnectivity() {
 	m.EToE = make([][]int, m.NumElements)
@@ -440,11 +442,11 @@ func (m *Mesh) BuildConnectivity() {
 
 				// Set connectivity
 				m.EToE[elemID][localFaceID] = otherElem
-				m.EToF[elemID][localFaceID] = faceID
+				m.EToF[elemID][localFaceID] = otherLocalID // FIX: Use local face ID, not global
 
 				// Set reverse connectivity
 				m.EToE[otherElem][otherLocalID] = elemID
-				m.EToF[otherElem][otherLocalID] = faceID
+				m.EToF[otherElem][otherLocalID] = localFaceID // FIX: Use local face ID, not global
 			} else {
 				// New face
 				faceID := len(m.Faces)
@@ -454,7 +456,7 @@ func (m *Mesh) BuildConnectivity() {
 					LocalID:  localFaceID,
 				})
 				m.FaceMap[key] = faceID
-				m.EToF[elemID][localFaceID] = faceID
+				// Note: EToE and EToF remain -1 for boundary faces
 			}
 		}
 	}

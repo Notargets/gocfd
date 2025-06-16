@@ -141,77 +141,91 @@ func ReadGambitNeutral(filename string) (*mesh.Mesh, error) {
 				msh.ElementGroups = make(map[int]*mesh.ElementGroup)
 			}
 
-			// Read element group information
-			for grpIdx := 0; grpIdx < ngrps; grpIdx++ {
-				if !scanner.Scan() {
+			// Initialize EToP array if we have partitions (ngrps > 1)
+			if ngrps > 1 && msh.EToP == nil {
+				msh.EToP = make([]int, nelem)
+				// Initialize all elements to partition -1 (unassigned)
+				for i := range msh.EToP {
+					msh.EToP[i] = -1
+				}
+			}
+
+			// Read GROUP line
+			if !scanner.Scan() {
+				continue
+			}
+			groupLine := scanner.Text()
+
+			// Parse GROUP line: GROUP: <id> ELEMENTS: <count> MATERIAL: <mat> NFLAGS: <flags>
+			var groupID, elemCount int
+			fields := strings.Fields(groupLine)
+			for i := 0; i < len(fields); i++ {
+				if fields[i] == "GROUP:" && i+1 < len(fields) {
+					groupID, _ = strconv.Atoi(fields[i+1])
+				} else if fields[i] == "ELEMENTS:" && i+1 < len(fields) {
+					elemCount, _ = strconv.Atoi(fields[i+1])
+				}
+			}
+
+			// Read group name
+			if !scanner.Scan() {
+				continue
+			}
+			groupName := strings.TrimSpace(scanner.Text())
+
+			// Skip flags line
+			if !scanner.Scan() {
+				continue
+			}
+
+			// Create element group
+			group := &mesh.ElementGroup{
+				Tag:       groupID,
+				Name:      groupName,
+				Dimension: 3, // Assuming 3D for now
+				Elements:  make([]int, 0, elemCount),
+			}
+
+			// Determine partition ID from group name if it matches pattern p0, p1, p2, etc.
+			partitionID := -1
+			if strings.HasPrefix(groupName, "p") && len(groupName) > 1 {
+				// Try to parse partition number
+				partNum, err := strconv.Atoi(groupName[1:])
+				if err == nil {
+					partitionID = partNum
+				}
+			}
+
+			// Read element IDs
+			elementsRead := 0
+			for scanner.Scan() && elementsRead < elemCount {
+				line := strings.TrimSpace(scanner.Text())
+				if line == "ENDOFSECTION" {
 					break
 				}
-				groupLine := strings.TrimSpace(scanner.Text())
 
-				// Parse GROUP line
-				// Format: GROUP: NGP ELEMENTS: NELGP MATERIAL: MTYP NFLAGS: NFLAGS
-				var groupID, numElems, material, flags int
-				parts := strings.Fields(groupLine)
-				for i := 0; i < len(parts)-1; i++ {
-					if parts[i] == "GROUP:" && i+1 < len(parts) {
-						groupID, _ = strconv.Atoi(parts[i+1])
-					} else if parts[i] == "ELEMENTS:" && i+1 < len(parts) {
-						numElems, _ = strconv.Atoi(parts[i+1])
-					} else if parts[i] == "MATERIAL:" && i+1 < len(parts) {
-						material, _ = strconv.Atoi(parts[i+1])
-					} else if parts[i] == "NFLAGS:" && i+1 < len(parts) {
-						flags, _ = strconv.Atoi(parts[i+1])
-					}
-				}
+				fields := strings.Fields(line)
+				for _, field := range fields {
+					elemID, err := strconv.Atoi(field)
+					if err == nil && elemID > 0 {
+						// Convert to 0-based index
+						if idx, ok := msh.ElementIDMap[elemID]; ok {
+							group.Elements = append(group.Elements, idx)
 
-				_ = material
-				// Read entity name
-				var entityName string
-				if scanner.Scan() {
-					entityName = strings.TrimSpace(scanner.Text())
-				}
-
-				// Skip flags if present
-				if flags > 0 && scanner.Scan() {
-					// Skip flags line
-				}
-
-				// Create element group
-				group := &mesh.ElementGroup{
-					Tag:      groupID,
-					Name:     entityName,
-					Elements: []int{},
-				}
-				msh.ElementGroups[groupID] = group
-
-				// Read element IDs in this group
-				elementsRead := 0
-				for elementsRead < numElems {
-					if !scanner.Scan() {
-						break
-					}
-					line = strings.TrimSpace(scanner.Text())
-					if line == "ENDOFSECTION" {
-						break
-					}
-
-					fields := strings.Fields(line)
-					for _, field := range fields {
-						elemID, err := strconv.Atoi(field)
-						if err == nil {
-							// Convert element ID to 0-based index
-							if elemIdx, ok := msh.ElementIDMap[elemID]; ok {
-								msh.ElementTags[elemIdx] = []int{groupID}
-								group.Elements = append(group.Elements, elemIdx)
+							// If this is a partition group, update EToP
+							if partitionID >= 0 && msh.EToP != nil {
+								msh.EToP[idx] = partitionID
 							}
 						}
 						elementsRead++
-						if elementsRead >= numElems {
+						if elementsRead >= elemCount {
 							break
 						}
 					}
 				}
 			}
+
+			msh.ElementGroups[groupID] = group
 
 		} else if strings.Contains(line, "BOUNDARY CONDITIONS") {
 			// Initialize BoundaryTags map if needed
@@ -270,55 +284,40 @@ func ReadGambitNeutral(filename string) (*mesh.Mesh, error) {
 							faceID, err3 := strconv.Atoi(fields[2])
 
 							if err1 != nil || err2 != nil || err3 != nil {
-								return nil, fmt.Errorf("invalid element boundary data: expected integers for element ID, type, and face ID")
+								return nil, fmt.Errorf("invalid boundary condition format")
 							}
 
-							_ = elemType
-
 							// Convert element ID to 0-based index
-							if elemIdx, ok := msh.ElementIDMap[elemID]; ok {
-								// Determine boundary element type based on parent element
-								if elemIdx >= 0 && elemIdx < len(msh.ElementTypes) {
-									parentType := msh.ElementTypes[elemIdx]
-									var boundaryType mesh.ElementType
-
-									// Map face to boundary element type
-									switch parentType {
-									case mesh.Tet:
-										boundaryType = mesh.Triangle
-									case mesh.Hex:
-										boundaryType = mesh.Quad
-									case mesh.Prism:
-										if faceID <= 2 {
-											boundaryType = mesh.Triangle
-										} else {
-											boundaryType = mesh.Quad
-										}
-									case mesh.Pyramid:
-										if faceID == 1 {
-											boundaryType = mesh.Quad
-										} else {
-											boundaryType = mesh.Triangle
-										}
-									}
-
-									// Get face vertices
-									faceVerts := mesh.GetElementFaces(parentType, msh.EtoV[elemIdx])
-									if faceID > 0 && faceID <= len(faceVerts) {
-										belem := mesh.BoundaryElement{
-											ElementType:   boundaryType,
-											Nodes:         faceVerts[faceID-1], // Face IDs are 1-based
-											ParentElement: elemIdx,
-											ParentFace:    faceID - 1, // Store as 0-based
-										}
-										msh.AddBoundaryElement(bcName, belem)
-									}
+							if idx, ok := msh.ElementIDMap[elemID]; ok {
+								// Initialize BoundaryElements if needed
+								if msh.BoundaryElements == nil {
+									msh.BoundaryElements = make(map[string][]mesh.BoundaryElement)
 								}
+
+								// Create boundary element
+								be := mesh.BoundaryElement{
+									ParentElement: idx,
+									ParentFace:    faceID - 1, // Convert to 0-based
+								}
+
+								// Map element type to boundary element type
+								switch elemType {
+								case 3:
+									be.ElementType = mesh.Quad
+								case 2:
+									be.ElementType = mesh.Triangle
+								case 10:
+									be.ElementType = mesh.Triangle
+								case 11:
+									be.ElementType = mesh.Quad
+								}
+
+								msh.BoundaryElements[bcName] = append(msh.BoundaryElements[bcName], be)
 							}
 						}
 					}
 				} else {
-					// Node boundary conditions - skip reading for now
+					// Node boundary conditions - skip for now
 					for i := 0; i < nentry; i++ {
 						if !scanner.Scan() {
 							break
@@ -329,13 +328,9 @@ func ReadGambitNeutral(filename string) (*mesh.Mesh, error) {
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading file: %v", err)
-	}
-
-	msh.NumElements = len(msh.EtoV)
+	// Set mesh properties
 	msh.NumVertices = len(msh.Vertices)
-	msh.BuildConnectivity()
+	msh.NumElements = len(msh.EtoV)
 
-	return msh, nil
+	return msh, scanner.Err()
 }
