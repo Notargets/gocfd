@@ -2,6 +2,7 @@ package gonudg
 
 import (
 	"fmt"
+	"github.com/notargets/gocfd/utils"
 	"math"
 )
 
@@ -21,39 +22,39 @@ type DG3D struct {
 	r, s, t []float64
 
 	// Physical coordinates
-	x, y, z [][]float64 // [Np][K] arrays
+	x, y, z utils.Matrix // [Np][K] matrices
 
 	// Vandermonde matrix and inverse
-	V, invV [][]float64
+	V, invV utils.Matrix
 
 	// Mass matrix
-	MassMatrix [][]float64
+	MassMatrix utils.Matrix
 
 	// Differentiation matrices
-	Dr, Ds, Dt [][]float64
+	Dr, Ds, Dt utils.Matrix
 
 	// Weak differentiation matrices
-	Drw, Dsw, Dtw [][]float64
+	Drw, Dsw, Dtw utils.Matrix
 
 	// Face mask
 	Fmask [][]int // [Nfp][Nfaces]
 
 	// Face coordinates
-	Fx, Fy, Fz [][]float64
+	Fx, Fy, Fz utils.Matrix
 
 	// Lift matrix
-	LIFT [][]float64
+	LIFT utils.Matrix
 
 	// Geometric factors
-	rx, ry, rz [][]float64
-	sx, sy, sz [][]float64
-	tx, ty, tz [][]float64
-	J          [][]float64
+	rx, ry, rz utils.Matrix
+	sx, sy, sz utils.Matrix
+	tx, ty, tz utils.Matrix
+	J          utils.Matrix
 
 	// Surface geometric factors
-	nx, ny, nz [][]float64
-	sJ         [][]float64
-	Fscale     [][]float64
+	nx, ny, nz utils.Matrix
+	sJ         utils.Matrix
+	Fscale     utils.Matrix
 
 	// Connectivity
 	EToV   [][]int // Element to vertex
@@ -104,22 +105,16 @@ func (dg *DG3D) StartUp3D() error {
 
 	// Build reference element matrices
 	dg.V = Vandermonde3D(dg.N, dg.r, dg.s, dg.t)
-	dg.invV = MatrixInverse(dg.V)
-	dg.MassMatrix = MatrixMultiply(MatrixTranspose(dg.invV), dg.invV)
+	dg.invV = dg.V.InverseWithCheck()
+	dg.MassMatrix = dg.invV.Transpose().Mul(dg.invV)
 
 	// Build differentiation matrices
 	dg.Dr, dg.Ds, dg.Dt = Dmatrices3D(dg.N, dg.r, dg.s, dg.t, dg.V)
 
 	// Build coordinates of all the nodes
-	dg.x = make([][]float64, dg.Np)
-	dg.y = make([][]float64, dg.Np)
-	dg.z = make([][]float64, dg.Np)
-
-	for i := 0; i < dg.Np; i++ {
-		dg.x[i] = make([]float64, dg.K)
-		dg.y[i] = make([]float64, dg.K)
-		dg.z[i] = make([]float64, dg.K)
-	}
+	dg.x = utils.NewMatrix(dg.Np, dg.K)
+	dg.y = utils.NewMatrix(dg.Np, dg.K)
+	dg.z = utils.NewMatrix(dg.Np, dg.K)
 
 	// Map from reference to physical elements
 	for k := 0; k < dg.K; k++ {
@@ -129,20 +124,20 @@ func (dg *DG3D) StartUp3D() error {
 		vd := dg.EToV[k][3]
 
 		for i := 0; i < dg.Np; i++ {
-			dg.x[i][k] = 0.5 * (-(1.0+dg.r[i]+dg.s[i]+dg.t[i])*dg.VX[va] +
-				(1.0+dg.r[i])*dg.VX[vb] +
-				(1.0+dg.s[i])*dg.VX[vc] +
-				(1.0+dg.t[i])*dg.VX[vd])
+			dg.x.Set(i, k, 0.5*(-(1.0+dg.r[i]+dg.s[i]+dg.t[i])*dg.VX[va]+
+				(1.0+dg.r[i])*dg.VX[vb]+
+				(1.0+dg.s[i])*dg.VX[vc]+
+				(1.0+dg.t[i])*dg.VX[vd]))
 
-			dg.y[i][k] = 0.5 * (-(1.0+dg.r[i]+dg.s[i]+dg.t[i])*dg.VY[va] +
-				(1.0+dg.r[i])*dg.VY[vb] +
-				(1.0+dg.s[i])*dg.VY[vc] +
-				(1.0+dg.t[i])*dg.VY[vd])
+			dg.y.Set(i, k, 0.5*(-(1.0+dg.r[i]+dg.s[i]+dg.t[i])*dg.VY[va]+
+				(1.0+dg.r[i])*dg.VY[vb]+
+				(1.0+dg.s[i])*dg.VY[vc]+
+				(1.0+dg.t[i])*dg.VY[vd]))
 
-			dg.z[i][k] = 0.5 * (-(1.0+dg.r[i]+dg.s[i]+dg.t[i])*dg.VZ[va] +
-				(1.0+dg.r[i])*dg.VZ[vb] +
-				(1.0+dg.s[i])*dg.VZ[vc] +
-				(1.0+dg.t[i])*dg.VZ[vd])
+			dg.z.Set(i, k, 0.5*(-(1.0+dg.r[i]+dg.s[i]+dg.t[i])*dg.VZ[va]+
+				(1.0+dg.r[i])*dg.VZ[vb]+
+				(1.0+dg.s[i])*dg.VZ[vc]+
+				(1.0+dg.t[i])*dg.VZ[vd]))
 		}
 	}
 
@@ -153,150 +148,127 @@ func (dg *DG3D) StartUp3D() error {
 	dg.ExtractFaceCoordinates()
 
 	// Create surface integral terms
-	dg.Lift3D()
+	if err := dg.Lift3D(); err != nil {
+		return fmt.Errorf("Lift3D failed: %v", err)
+	}
 
 	// Calculate geometric factors and normals
-	dg.GeometricFactors3D()
-	dg.Normals3D()
+	if err := dg.Normals3D(); err != nil {
+		return fmt.Errorf("Normals3D failed: %v", err)
+	}
 
-	// Compute face scale factor
+	// Compute Fscale = sJ ./ J(Fmask,:)
 	dg.ComputeFscale()
 
 	// Build connectivity matrix
-	dg.Connect3D()
+	dg.tiConnect3D()
 
 	// Build connectivity maps
 	dg.BuildMaps3D()
 
 	// Compute weak operators
-	Vr, Vs, Vt := GradVandermonde3D(dg.N, dg.r, dg.s, dg.t)
-	VVT := MatrixMultiply(dg.V, MatrixTranspose(dg.V))
-
-	dg.Drw = MatrixDivide(MatrixMultiply(dg.V, MatrixTranspose(Vr)), VVT)
-	dg.Dsw = MatrixDivide(MatrixMultiply(dg.V, MatrixTranspose(Vs)), VVT)
-	dg.Dtw = MatrixDivide(MatrixMultiply(dg.V, MatrixTranspose(Vt)), VVT)
+	dg.ComputeWeakOperators()
 
 	return nil
 }
 
-// BuildFmask finds all nodes on each face
+// BuildFmask finds all nodes that lie on each face
 func (dg *DG3D) BuildFmask() {
-	dg.Fmask = make([][]int, dg.Nfaces)
+	dg.Fmask = make([][]int, 4)
 
 	// Face 1: t = -1
-	dg.Fmask[0] = findNodes(dg.t, -1.0, dg.NODETOL)
+	for i := 0; i < dg.Np; i++ {
+		if math.Abs(1.0+dg.t[i]) < dg.NODETOL {
+			dg.Fmask[0] = append(dg.Fmask[0], i)
+		}
+	}
 
 	// Face 2: s = -1
-	dg.Fmask[1] = findNodes(dg.s, -1.0, dg.NODETOL)
+	for i := 0; i < dg.Np; i++ {
+		if math.Abs(1.0+dg.s[i]) < dg.NODETOL {
+			dg.Fmask[1] = append(dg.Fmask[1], i)
+		}
+	}
 
 	// Face 3: r+s+t = -1
-	rst := make([]float64, dg.Np)
 	for i := 0; i < dg.Np; i++ {
-		rst[i] = dg.r[i] + dg.s[i] + dg.t[i]
+		if math.Abs(1.0+dg.r[i]+dg.s[i]+dg.t[i]) < dg.NODETOL {
+			dg.Fmask[2] = append(dg.Fmask[2], i)
+		}
 	}
-	dg.Fmask[2] = findNodes(rst, -1.0, dg.NODETOL)
 
 	// Face 4: r = -1
-	dg.Fmask[3] = findNodes(dg.r, -1.0, dg.NODETOL)
+	for i := 0; i < dg.Np; i++ {
+		if math.Abs(1.0+dg.r[i]) < dg.NODETOL {
+			dg.Fmask[3] = append(dg.Fmask[3], i)
+		}
+	}
 }
 
-// ExtractFaceCoordinates gets x,y,z coordinates on all faces
+// ExtractFaceCoordinates extracts coordinates at face nodes
 func (dg *DG3D) ExtractFaceCoordinates() {
-	totalFaceNodes := dg.Nfp * dg.Nfaces
-
-	dg.Fx = make([][]float64, totalFaceNodes)
-	dg.Fy = make([][]float64, totalFaceNodes)
-	dg.Fz = make([][]float64, totalFaceNodes)
-
-	for i := 0; i < totalFaceNodes; i++ {
-		dg.Fx[i] = make([]float64, dg.K)
-		dg.Fy[i] = make([]float64, dg.K)
-		dg.Fz[i] = make([]float64, dg.K)
-	}
+	// Create face coordinate matrices
+	dg.Fx = utils.NewMatrix(dg.Nfp*4, dg.K)
+	dg.Fy = utils.NewMatrix(dg.Nfp*4, dg.K)
+	dg.Fz = utils.NewMatrix(dg.Nfp*4, dg.K)
 
 	// Extract coordinates for each face
-	for f := 0; f < dg.Nfaces; f++ {
-		for i := 0; i < dg.Nfp; i++ {
-			node := dg.Fmask[f][i]
-			idx := f*dg.Nfp + i
-
-			for k := 0; k < dg.K; k++ {
-				dg.Fx[idx][k] = dg.x[node][k]
-				dg.Fy[idx][k] = dg.y[node][k]
-				dg.Fz[idx][k] = dg.z[node][k]
+	for face := 0; face < 4; face++ {
+		for k := 0; k < dg.K; k++ {
+			for i, nodeIdx := range dg.Fmask[face] {
+				row := face*dg.Nfp + i
+				dg.Fx.Set(row, k, dg.x.At(nodeIdx, k))
+				dg.Fy.Set(row, k, dg.y.At(nodeIdx, k))
+				dg.Fz.Set(row, k, dg.z.At(nodeIdx, k))
 			}
 		}
 	}
 }
 
-// Connect3D builds element connectivity
-func (dg *DG3D) Connect3D() {
-	// This would call the Connect3D function to build EToE, EToF
-	// For now, initialize with self-connectivity
-	dg.EToE = make([][]int, dg.K)
-	dg.EToF = make([][]int, dg.K)
-
-	for k := 0; k < dg.K; k++ {
-		dg.EToE[k] = []int{k, k, k, k}
-		dg.EToF[k] = []int{0, 1, 2, 3}
-	}
-
-	// TODO: Implement actual connectivity
-}
-
-// BuildMaps3D builds node connectivity maps
-func (dg *DG3D) BuildMaps3D() {
-	// Flatten coordinates for BuildMaps3D function
-	xFlat := make([]float64, dg.Np*dg.K)
-	yFlat := make([]float64, dg.Np*dg.K)
-	zFlat := make([]float64, dg.Np*dg.K)
-
-	for i := 0; i < dg.Np; i++ {
-		for k := 0; k < dg.K; k++ {
-			idx := k*dg.Np + i
-			xFlat[idx] = dg.x[i][k]
-			yFlat[idx] = dg.y[i][k]
-			zFlat[idx] = dg.z[i][k]
-		}
-	}
-
-	dg.vmapM, dg.vmapP, dg.mapB, dg.vmapB = BuildMaps3D(
-		dg.K, dg.Np, dg.Nfp, dg.Nfaces,
-		xFlat, yFlat, zFlat,
-		dg.EToE, dg.EToF, dg.Fmask)
-}
-
-// Helper functions
-
-func findNodes(arr []float64, val float64, tol float64) []int {
-	nodes := []int{}
-	for i, v := range arr {
-		if math.Abs(v-val) < tol {
-			nodes = append(nodes, i)
-		}
-	}
-	return nodes
-}
-
-func MatrixDivide(A, B [][]float64) [][]float64 {
-	// A / B = A * B^{-1}
-	Binv := MatrixInverse(B)
-	return MatrixMultiply(A, Binv)
-}
-
-// Placeholder functions - these need implementation
-func (dg *DG3D) Lift3D() {
-	fmt.Println("TODO: Implement Lift3D")
-}
-
-func (dg *DG3D) GeometricFactors3D() {
-	fmt.Println("TODO: Implement GeometricFactors3D")
-}
-
-func (dg *DG3D) Normals3D() {
-	fmt.Println("TODO: Implement Normals3D")
-}
-
+// ComputeFscale computes Fscale = sJ ./ J(Fmask,:)
 func (dg *DG3D) ComputeFscale() {
-	fmt.Println("TODO: Implement Fscale computation")
+	dg.Fscale = utils.NewMatrix(dg.Nfp*4, dg.K)
+
+	for face := 0; face < 4; face++ {
+		for k := 0; k < dg.K; k++ {
+			for i, nodeIdx := range dg.Fmask[face] {
+				row := face*dg.Nfp + i
+				dg.Fscale.Set(row, k, dg.sJ.At(row, k)/dg.J.At(nodeIdx, k))
+			}
+		}
+	}
+}
+
+// ComputeWeakOperators computes weak differentiation operators
+func (dg *DG3D) ComputeWeakOperators() {
+	// Compute V*V^T
+	VVT := dg.V.Mul(dg.V.Transpose())
+	VVTinv := VVT.InverseWithCheck()
+
+	// Get gradient Vandermonde matrices
+	Vr, Vs, Vt := GradVandermonde3D(dg.N, dg.r, dg.s, dg.t)
+
+	// Drw = (V*Vr^T)/(V*V^T), etc.
+	dg.Drw = dg.V.Mul(Vr.Transpose()).Mul(VVTinv)
+	dg.Dsw = dg.V.Mul(Vs.Transpose()).Mul(VVTinv)
+	dg.Dtw = dg.V.Mul(Vt.Transpose()).Mul(VVTinv)
+}
+
+// Placeholder methods - these need to be implemented
+func (dg *DG3D) Lift3D() error {
+	// TODO: Implement Lift3D
+	return nil
+}
+
+func (dg *DG3D) Normals3D() error {
+	// TODO: Implement Normals3D
+	return nil
+}
+
+func (dg *DG3D) tiConnect3D() {
+	// TODO: Implement tiConnect3D
+}
+
+func (dg *DG3D) BuildMaps3D() {
+	// TODO: Implement BuildMaps3D
 }

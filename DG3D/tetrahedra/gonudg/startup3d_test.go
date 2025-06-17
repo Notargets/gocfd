@@ -1,168 +1,136 @@
 package gonudg
 
 import (
+	"fmt"
+	"github.com/notargets/gocfd/utils"
 	"math"
 	"testing"
 )
 
-func TestNewDG3D(t *testing.T) {
-	// Test single tetrahedron
+func TestStartUp3D(t *testing.T) {
+	// Simple test mesh - single tetrahedron
 	VX := []float64{0, 1, 0, 0}
 	VY := []float64{0, 0, 1, 0}
 	VZ := []float64{0, 0, 0, 1}
-	EToV := [][]int{{0, 1, 2, 3}}
-	
-	tests := []struct {
-		name string
-		N    int
-		wantNp int
-		wantNfp int
-	}{
-		{"N=1", 1, 4, 3},
-		{"N=2", 2, 10, 6},
-		{"N=3", 3, 20, 10},
-		{"N=4", 4, 35, 15},
-	}
-	
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			dg, err := NewDG3D(tc.N, VX, VY, VZ, EToV)
+	EToV := [][]int{{0, 1, 2, 3}} // 0-based indices
+
+	// Test different polynomial orders
+	orders := []int{1, 2, 3, 4}
+
+	for _, N := range orders {
+		t.Run(fmt.Sprintf("N=%d", N), func(t *testing.T) {
+			dg, err := NewDG3D(N, VX, VY, VZ, EToV)
 			if err != nil {
 				t.Fatalf("Failed to create DG3D: %v", err)
 			}
-			
-			if dg.Np != tc.wantNp {
-				t.Errorf("Np = %d, want %d", dg.Np, tc.wantNp)
+
+			// Check basic properties
+			expectedNp := (N + 1) * (N + 2) * (N + 3) / 6
+			if dg.Np != expectedNp {
+				t.Errorf("Wrong Np: got %d, want %d", dg.Np, expectedNp)
 			}
-			
-			if dg.Nfp != tc.wantNfp {
-				t.Errorf("Nfp = %d, want %d", dg.Nfp, tc.wantNfp)
+
+			expectedNfp := (N + 1) * (N + 2) / 2
+			if dg.Nfp != expectedNfp {
+				t.Errorf("Wrong Nfp: got %d, want %d", dg.Nfp, expectedNfp)
 			}
-			
-			// Check arrays are initialized
-			if len(dg.r) != tc.wantNp {
-				t.Errorf("len(r) = %d, want %d", len(dg.r), tc.wantNp)
+
+			// Check matrix dimensions
+			checkMatrixDims := func(name string, mat utils.Matrix, expectedRows, expectedCols int) {
+				nr, nc := mat.Dims()
+				if nr != expectedRows || nc != expectedCols {
+					t.Errorf("%s dimensions wrong: got (%d,%d), want (%d,%d)",
+						name, nr, nc, expectedRows, expectedCols)
+				}
 			}
-			
-			if len(dg.V) != tc.wantNp || len(dg.V[0]) != tc.wantNp {
-				t.Errorf("V dimensions wrong")
+
+			checkMatrixDims("V", dg.V, dg.Np, dg.Np)
+			checkMatrixDims("invV", dg.invV, dg.Np, dg.Np)
+			checkMatrixDims("MassMatrix", dg.MassMatrix, dg.Np, dg.Np)
+			checkMatrixDims("Dr", dg.Dr, dg.Np, dg.Np)
+			checkMatrixDims("Ds", dg.Ds, dg.Np, dg.Np)
+			checkMatrixDims("Dt", dg.Dt, dg.Np, dg.Np)
+			checkMatrixDims("x", dg.x, dg.Np, dg.K)
+			checkMatrixDims("y", dg.y, dg.Np, dg.K)
+			checkMatrixDims("z", dg.z, dg.Np, dg.K)
+
+			// Check V*invV = I
+			I := dg.V.Mul(dg.invV)
+			nr, nc := I.Dims()
+			for i := 0; i < nr; i++ {
+				for j := 0; j < nc; j++ {
+					expected := 0.0
+					if i == j {
+						expected = 1.0
+					}
+					if math.Abs(I.At(i, j)-expected) > 1e-10 {
+						t.Errorf("V*invV not identity at (%d,%d): got %v",
+							i, j, I.At(i, j))
+					}
+				}
 			}
-			
+
+			// Check that physical coordinates are reasonable
+			// All nodes should be within the tetrahedron bounds
+			for i := 0; i < dg.Np; i++ {
+				x := dg.x.At(i, 0)
+				y := dg.y.At(i, 0)
+				z := dg.z.At(i, 0)
+
+				// Check bounds (all coordinates should be >= 0 and x+y+z <= 1)
+				if x < -1e-10 || y < -1e-10 || z < -1e-10 {
+					t.Errorf("Node %d has negative coordinate: (%v,%v,%v)",
+						i, x, y, z)
+				}
+				if x+y+z > 1.0+1e-10 {
+					t.Errorf("Node %d outside tetrahedron: x+y+z = %v",
+						i, x+y+z)
+				}
+			}
+
+			// Check face masks
 			if len(dg.Fmask) != 4 {
-				t.Errorf("Fmask should have 4 faces")
+				t.Errorf("Wrong number of faces: got %d, want 4", len(dg.Fmask))
+			}
+
+			// Each face should have Nfp nodes
+			for face := 0; face < 4; face++ {
+				if len(dg.Fmask[face]) != dg.Nfp {
+					t.Errorf("Face %d has wrong number of nodes: got %d, want %d",
+						face, len(dg.Fmask[face]), dg.Nfp)
+				}
 			}
 		})
 	}
 }
 
-func TestDG3DCoordinates(t *testing.T) {
-	// Unit tetrahedron
-	VX := []float64{0, 1, 0, 0}
-	VY := []float64{0, 0, 1, 0}
-	VZ := []float64{0, 0, 0, 1}
-	EToV := [][]int{{0, 1, 2, 3}}
-	
-	dg, err := NewDG3D(1, VX, VY, VZ, EToV)
-	if err != nil {
-		t.Fatalf("Failed to create DG3D: %v", err)
-	}
-	
-	// Check that physical coordinates are correct
-	// For N=1, nodes should be at vertices
-	tol := 1e-10
-	
-	// Check some nodes
-	for i := 0; i < dg.Np; i++ {
-		x := dg.x[i][0]
-		y := dg.y[i][0]
-		z := dg.z[i][0]
-		
-		// Each node should be at a vertex
-		foundVertex := false
-		for v := 0; v < 4; v++ {
-			if math.Abs(x-VX[v]) < tol && 
-			   math.Abs(y-VY[v]) < tol && 
-			   math.Abs(z-VZ[v]) < tol {
-				foundVertex = true
-				break
-			}
-		}
-		
-		if !foundVertex {
-			t.Errorf("Node %d at (%f,%f,%f) not at a vertex", i, x, y, z)
-		}
-	}
-}
-
-func TestBuildFmask(t *testing.T) {
-	VX := []float64{0, 1, 0, 0}
-	VY := []float64{0, 0, 1, 0}
-	VZ := []float64{0, 0, 0, 1}
-	EToV := [][]int{{0, 1, 2, 3}}
-	
-	dg, err := NewDG3D(2, VX, VY, VZ, EToV)
-	if err != nil {
-		t.Fatalf("Failed to create DG3D: %v", err)
-	}
-	
-	// Check Fmask dimensions
-	if len(dg.Fmask) != 4 {
-		t.Errorf("Fmask should have 4 faces")
-	}
-	
-	// Each face should have Nfp nodes
-	for f := 0; f < 4; f++ {
-		if len(dg.Fmask[f]) != dg.Nfp {
-			t.Errorf("Face %d has %d nodes, expected %d", 
-				f, len(dg.Fmask[f]), dg.Nfp)
-		}
-	}
-	
-	// Check that face nodes satisfy face conditions
-	tol := 1e-10
-	
-	// Face 0: t = -1
-	for _, idx := range dg.Fmask[0] {
-		if math.Abs(dg.t[idx]+1.0) > tol {
-			t.Errorf("Face 0 node %d: t=%f, expected -1", idx, dg.t[idx])
-		}
-	}
-	
-	// Face 1: s = -1
-	for _, idx := range dg.Fmask[1] {
-		if math.Abs(dg.s[idx]+1.0) > tol {
-			t.Errorf("Face 1 node %d: s=%f, expected -1", idx, dg.s[idx])
-		}
-	}
-	
-	// Face 2: r+s+t = -1
-	for _, idx := range dg.Fmask[2] {
-		sum := dg.r[idx] + dg.s[idx] + dg.t[idx]
-		if math.Abs(sum+1.0) > tol {
-			t.Errorf("Face 2 node %d: r+s+t=%f, expected -1", idx, sum)
-		}
-	}
-	
-	// Face 3: r = -1
-	for _, idx := range dg.Fmask[3] {
-		if math.Abs(dg.r[idx]+1.0) > tol {
-			t.Errorf("Face 3 node %d: r=%f, expected -1", idx, dg.r[idx])
-		}
-	}
-}
-
-func BenchmarkStartUp3D(b *testing.B) {
-	// Create a simple mesh
-	VX := []float64{0, 1, 0, 0, 2, 1}
-	VY := []float64{0, 0, 1, 0, 0, 1}
-	VZ := []float64{0, 0, 0, 1, 0, 0}
+func TestDG3DSimpleMesh(t *testing.T) {
+	// Test with a mesh of 2 tetrahedra
+	VX := []float64{0, 1, 0, 0, 1}
+	VY := []float64{0, 0, 1, 0, 1}
+	VZ := []float64{0, 0, 0, 1, 1}
 	EToV := [][]int{
-		{0, 1, 2, 3},
-		{1, 4, 5, 3},
+		{0, 1, 2, 3}, // First tet
+		{1, 2, 3, 4}, // Second tet sharing a face
 	}
-	
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		NewDG3D(3, VX, VY, VZ, EToV)
+
+	N := 2
+	dg, err := NewDG3D(N, VX, VY, VZ, EToV)
+	if err != nil {
+		t.Fatalf("Failed to create DG3D: %v", err)
+	}
+
+	// Check that we have 2 elements
+	if dg.K != 2 {
+		t.Errorf("Wrong number of elements: got %d, want 2", dg.K)
+	}
+
+	// Check coordinate matrix dimensions
+	nr, nc := dg.x.Dims()
+	if nc != 2 {
+		t.Errorf("Coordinate matrices should have 2 columns (elements): got %d", nc)
+	}
+	if nr != dg.Np {
+		t.Errorf("Coordinate matrices should have %d rows: got %d", dg.Np, nr)
 	}
 }

@@ -197,6 +197,12 @@ func EquiNodes3D(p int) (r, s, t []float64) {
 	return r, s, t
 }
 
+// EquidistributedNodes3D creates evenly spaced nodes in the reference tetrahedron
+// Alias for EquiNodes3D for compatibility
+func EquidistributedNodes3D(N int) (r, s, t []float64) {
+	return EquiNodes3D(N)
+}
+
 // WarpShiftFace3D computes warp shift for a face
 func WarpShiftFace3D(p int, pval, pval2 float64, La, Lb, Lc, Ld []float64) (warpx, warpy []float64) {
 	// Use evalshift with the appropriate parameters

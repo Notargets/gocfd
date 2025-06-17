@@ -1,18 +1,17 @@
 package gonudg
 
-import "math"
+import (
+	"github.com/notargets/gocfd/utils"
+)
 
 // Vandermonde3D initializes the 3D Vandermonde Matrix V_{ij} = phi_j(r_i, s_i, t_i)
 // This is the 0-based index version of the C++ Vandermonde3D function
-func Vandermonde3D(N int, r, s, t []float64) [][]float64 {
+func Vandermonde3D(N int, r, s, t []float64) utils.Matrix {
 	Np := len(r)
 	Ncol := (N + 1) * (N + 2) * (N + 3) / 6
 
 	// Initialize the Vandermonde matrix
-	V3D := make([][]float64, Np)
-	for i := range V3D {
-		V3D[i] = make([]float64, Ncol)
-	}
+	V3D := utils.NewMatrix(Np, Ncol)
 
 	// Transfer to (a,b,c) coordinates
 	a, b, c := RSTtoABC(r, s, t)
@@ -26,9 +25,7 @@ func Vandermonde3D(N int, r, s, t []float64) [][]float64 {
 				col := Simplex3DP(a, b, c, i, j, k)
 
 				// Copy to matrix column
-				for row := 0; row < Np; row++ {
-					V3D[row][sk] = col[row]
-				}
+				V3D.SetCol(sk, col)
 				sk++
 			}
 		}
@@ -39,19 +36,14 @@ func Vandermonde3D(N int, r, s, t []float64) [][]float64 {
 
 // GradVandermonde3D builds the gradient Vandermonde matrices
 // Returns Vr, Vs, Vt where (Vr)_{ij} = dphi_j/dr at point i
-func GradVandermonde3D(N int, r, s, t []float64) (Vr, Vs, Vt [][]float64) {
+func GradVandermonde3D(N int, r, s, t []float64) (Vr, Vs, Vt utils.Matrix) {
 	Np := len(r)
 	Ncol := (N + 1) * (N + 2) * (N + 3) / 6
 
 	// Initialize the gradient matrices
-	Vr = make([][]float64, Np)
-	Vs = make([][]float64, Np)
-	Vt = make([][]float64, Np)
-	for i := range Vr {
-		Vr[i] = make([]float64, Ncol)
-		Vs[i] = make([]float64, Ncol)
-		Vt[i] = make([]float64, Ncol)
-	}
+	Vr = utils.NewMatrix(Np, Ncol)
+	Vs = utils.NewMatrix(Np, Ncol)
+	Vt = utils.NewMatrix(Np, Ncol)
 
 	// Build the gradient Vandermonde matrices
 	sk := 0 // 0-based column index
@@ -62,11 +54,9 @@ func GradVandermonde3D(N int, r, s, t []float64) (Vr, Vs, Vt [][]float64) {
 				dr, ds, dt := GradSimplex3DP(r, s, t, i, j, k)
 
 				// Copy to matrix columns
-				for row := 0; row < Np; row++ {
-					Vr[row][sk] = dr[row]
-					Vs[row][sk] = ds[row]
-					Vt[row][sk] = dt[row]
-				}
+				Vr.SetCol(sk, dr)
+				Vs.SetCol(sk, ds)
+				Vt.SetCol(sk, dt)
 				sk++
 			}
 		}
@@ -77,111 +67,17 @@ func GradVandermonde3D(N int, r, s, t []float64) (Vr, Vs, Vt [][]float64) {
 
 // Dmatrices3D computes the differentiation matrices Dr, Ds, Dt
 // Given the Vandermonde matrix V and points (r,s,t)
-func Dmatrices3D(N int, r, s, t []float64, V [][]float64) (Dr, Ds, Dt [][]float64) {
+func Dmatrices3D(N int, r, s, t []float64, V utils.Matrix) (Dr, Ds, Dt utils.Matrix) {
 	// Get gradient Vandermonde matrices
 	Vr, Vs, Vt := GradVandermonde3D(N, r, s, t)
 
 	// Compute V inverse
-	Vinv := MatrixInverse(V)
+	Vinv := V.InverseWithCheck()
 
 	// Dr = Vr * V^{-1}, etc.
-	Dr = MatrixMultiply(Vr, Vinv)
-	Ds = MatrixMultiply(Vs, Vinv)
-	Dt = MatrixMultiply(Vt, Vinv)
+	Dr = Vr.Mul(Vinv)
+	Ds = Vs.Mul(Vinv)
+	Dt = Vt.Mul(Vinv)
 
 	return Dr, Ds, Dt
-}
-
-// Helper matrix operations
-
-// MatrixMultiply computes C = A * B
-func MatrixMultiply(A, B [][]float64) [][]float64 {
-	m := len(A)
-	n := len(B[0])
-	k := len(B)
-
-	C := make([][]float64, m)
-	for i := range C {
-		C[i] = make([]float64, n)
-	}
-
-	for i := 0; i < m; i++ {
-		for j := 0; j < n; j++ {
-			sum := 0.0
-			for l := 0; l < k; l++ {
-				sum += A[i][l] * B[l][j]
-			}
-			C[i][j] = sum
-		}
-	}
-
-	return C
-}
-
-// MatrixInverse computes the inverse of a square matrix using Gauss-Jordan elimination
-func MatrixInverse(A [][]float64) [][]float64 {
-	n := len(A)
-
-	// Create augmented matrix [A | I]
-	aug := make([][]float64, n)
-	for i := range aug {
-		aug[i] = make([]float64, 2*n)
-		copy(aug[i], A[i])
-		aug[i][n+i] = 1.0
-	}
-
-	// Gauss-Jordan elimination
-	for i := 0; i < n; i++ {
-		// Find pivot
-		maxRow := i
-		for k := i + 1; k < n; k++ {
-			if math.Abs(aug[k][i]) > math.Abs(aug[maxRow][i]) {
-				maxRow = k
-			}
-		}
-
-		// Swap rows
-		aug[i], aug[maxRow] = aug[maxRow], aug[i]
-
-		// Make diagonal 1
-		pivot := aug[i][i]
-		for j := 0; j < 2*n; j++ {
-			aug[i][j] /= pivot
-		}
-
-		// Eliminate column
-		for k := 0; k < n; k++ {
-			if k != i {
-				factor := aug[k][i]
-				for j := 0; j < 2*n; j++ {
-					aug[k][j] -= factor * aug[i][j]
-				}
-			}
-		}
-	}
-
-	// Extract inverse from augmented matrix
-	inv := make([][]float64, n)
-	for i := range inv {
-		inv[i] = make([]float64, n)
-		copy(inv[i], aug[i][n:])
-	}
-
-	return inv
-}
-
-// MatrixTranspose computes A^T
-func MatrixTranspose(A [][]float64) [][]float64 {
-	m := len(A)
-	n := len(A[0])
-
-	AT := make([][]float64, n)
-	for i := range AT {
-		AT[i] = make([]float64, m)
-		for j := 0; j < m; j++ {
-			AT[i][j] = A[j][i]
-		}
-	}
-
-	return AT
 }
