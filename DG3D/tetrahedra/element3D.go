@@ -6,7 +6,6 @@ import (
 	"github.com/notargets/gocfd/DG3D/mesh/readers"
 	"github.com/notargets/gocfd/utils"
 	"math"
-	"sort"
 )
 
 type Element3D struct {
@@ -529,26 +528,6 @@ func (el *Element3D) BuildMaps3D() {
 	Nfaces := 4
 	NF := Nfp * Nfaces // Total face points per element
 
-	// Build global face to node mapping
-	nodeIds := make(map[[3]float64]int)
-	NODETOL := 1e-7
-
-	// Unique node identification
-	Nnodes := 0
-	for k := 0; k < K; k++ {
-		for n := 0; n < Np; n++ {
-			key := [3]float64{
-				math.Round(x.At(n, k)/NODETOL) * NODETOL,
-				math.Round(y.At(n, k)/NODETOL) * NODETOL,
-				math.Round(z.At(n, k)/NODETOL) * NODETOL,
-			}
-			if _, exists := nodeIds[key]; !exists {
-				nodeIds[key] = Nnodes
-				Nnodes++
-			}
-		}
-	}
-
 	// Initialize arrays
 	vmapM := make([]int, Nfp*Nfaces*K)
 	vmapP := make([]int, Nfp*Nfaces*K)
@@ -581,45 +560,44 @@ func (el *Element3D) BuildMaps3D() {
 	copy(vmapP, vmapM)
 
 	// Create face to face mapping
+	NODETOL := 1e-7
+
 	for k1 := 0; k1 < K; k1++ {
 		for f1 := 0; f1 < Nfaces; f1++ {
-			// Check if connectivity exists
-			if k1 >= len(el.EToE) || f1 >= len(el.EToE[k1]) {
-				continue
-			}
-
-			// Find neighbor
+			// find neighbor
 			k2 := el.EToE[k1][f1]
 			f2 := el.EToF[k1][f1]
 
-			// Skip boundary faces (where neighbor is self)
-			if k2 == k1 && f2 == f1 {
+			// Skip boundary faces
+			// Handle both conventions: -1 or self-reference
+			if k2 < 0 || (k2 == k1 && f2 == f1) {
 				continue
 			}
 
-			// Skip invalid neighbors
-			if k2 < 0 || k2 >= K {
+			// Also skip if k2 is out of range
+			if k2 >= K {
 				continue
 			}
 
-			// Skip if we've already processed this face pair
-			if k2 < k1 || (k2 == k1 && f2 < f1) {
-				continue
-			}
+			skM := k1 * NF // offset to element k1
+			skP := k2 * NF // offset to element k2
 
-			// Define ranges for face nodes
-			skM := k1 * NF
-			skP := k2 * NF
+			// Define index ranges (C++ uses 1-based, we use 0-based)
+			// idsM.range((f1-1)*Nfp+1+skM, f1*Nfp+skM)
+			// idsP.range((f2-1)*Nfp+1+skP, f2*Nfp+skP)
 
-			// Get indices for all nodes on both faces
+			// Build index lists for this face pair
+			// C++ uses 1-based indexing: idsM.range((f1-1)*Nfp+1+skM, f1*Nfp+skM)
+			// Go uses 0-based, so no +1 needed
 			idsM := make([]int, Nfp)
 			idsP := make([]int, Nfp)
 			for i := 0; i < Nfp; i++ {
-				idsM[i] = skM + f1*Nfp + i
-				idsP[i] = skP + f2*Nfp + i
+				idsM[i] = f1*Nfp + i + skM
+				idsP[i] = f2*Nfp + i + skP
 			}
 
 			// Find volume node numbers of left and right nodes
+			// C++: vidM = vmapM(idsM); vidP = vmapM(idsP)
 			vidM := make([]int, Nfp)
 			vidP := make([]int, Nfp)
 			for i := 0; i < Nfp; i++ {
@@ -627,7 +605,8 @@ func (el *Element3D) BuildMaps3D() {
 				vidP[i] = vmapM[idsP[i]]
 			}
 
-			// Extract coordinates using the global volume node indices
+			// Extract coordinates using volume node numbers
+			// C++: x1=x(vidM); y1=y(vidM); z1=z(vidM)
 			x1 := make([]float64, Nfp)
 			y1 := make([]float64, Nfp)
 			z1 := make([]float64, Nfp)
@@ -636,21 +615,23 @@ func (el *Element3D) BuildMaps3D() {
 			z2 := make([]float64, Nfp)
 
 			for i := 0; i < Nfp; i++ {
-				// Convert global volume node index to (element, local_node)
-				elemM := vidM[i] / Np
+				// M side
 				nodeM := vidM[i] % Np
+				elemM := vidM[i] / Np
 				x1[i] = x.At(nodeM, elemM)
 				y1[i] = y.At(nodeM, elemM)
 				z1[i] = z.At(nodeM, elemM)
 
-				elemP := vidP[i] / Np
+				// P side
 				nodeP := vidP[i] % Np
+				elemP := vidP[i] / Np
 				x2[i] = x.At(nodeP, elemP)
 				y2[i] = y.At(nodeP, elemP)
 				z2[i] = z.At(nodeP, elemP)
 			}
 
-			// Find matching nodes using distance matrix
+			// Compute distance matrix and find matches
+			// C++: D = sqr(xM-trans(xP)) + sqr(yM-trans(yP)) + sqr(zM-trans(zP))
 			for i := 0; i < Nfp; i++ {
 				for j := 0; j < Nfp; j++ {
 					dx := x1[i] - x2[j]
@@ -659,32 +640,187 @@ func (el *Element3D) BuildMaps3D() {
 					dist := math.Sqrt(dx*dx + dy*dy + dz*dz)
 
 					if dist < NODETOL {
-						// Found matching nodes
-						// Update VmapP for both elements
-						vmapP[idsM[i]] = vidP[j]
-						vmapP[idsP[j]] = vidM[i]
+						// C++: idM += (f1-1)*Nfp + skM; vmapP(idM) = vidP(idP)
+						idM := idsM[i]
+						vmapP[idM] = vidP[j]
 
-						// Update MapP
-						mapP[idsM[i]] = idsP[j]
-						mapP[idsP[j]] = idsM[i]
-						break // Only match once per node
+						// C++: idP += (f2-1)*Nfp + skP; mapP(idM) = idP
+						idP := idsP[j]
+						mapP[idM] = idP
 					}
 				}
 			}
 		}
 	}
 
-	// Create unique face node list
-	var uniqueMapM []int
-	mapMSet := make(map[int]bool)
-	for _, v := range mapM {
-		if !mapMSet[v] {
-			mapMSet[v] = true
-			uniqueMapM = append(uniqueMapM, v)
+	// Assign to element
+	el.VmapM = vmapM
+	el.VmapP = vmapP
+	el.MapM = mapM
+	el.MapP = mapP
+}
+func (el *Element3D) BuildMaps3D_Diagnostic() {
+	var (
+		K       = el.K
+		Np      = el.Np
+		Nfp     = el.Nfp
+		fmask   = el.Fmask
+		x, y, z = el.X, el.Y, el.Z
+	)
+
+	Nfaces := 4
+	NF := Nfp * Nfaces // Total face points per element
+
+	// Initialize arrays
+	vmapM := make([]int, Nfp*Nfaces*K)
+	vmapP := make([]int, Nfp*Nfaces*K)
+	mapM := make([]int, Nfp*Nfaces*K)
+	mapP := make([]int, Nfp*Nfaces*K)
+
+	// Initialize mapM and mapP as identity
+	for i := 0; i < len(mapM); i++ {
+		mapM[i] = i
+		mapP[i] = i
+	}
+
+	// Find index of face nodes with respect to volume node ordering
+	for k1 := 0; k1 < K; k1++ {
+		iL1 := k1 * NF
+		for f := 0; f < Nfaces; f++ {
+			for i := 0; i < Nfp; i++ {
+				idsL := iL1 + f*Nfp + i
+				volumeNode := fmask[f][i] + k1*Np
+				vmapM[idsL] = volumeNode
+			}
 		}
 	}
-	sort.Ints(uniqueMapM)
 
+	// Initialize vmapP to vmapM (for boundary faces)
+	copy(vmapP, vmapM)
+
+	// Create face to face mapping
+	NODETOL := 1e-7
+
+	// Track statistics
+	matchesFound := 0
+	facesProcessed := 0
+	minDist := 1e10
+	maxMatchDist := 0.0
+
+	// Debug first few elements
+	debugElements := 3
+
+	for k1 := 0; k1 < K && k1 < debugElements; k1++ {
+		for f1 := 0; f1 < Nfaces; f1++ {
+			k2 := el.EToE[k1][f1]
+			f2 := el.EToF[k1][f1]
+
+			if k2 < 0 || (k2 == k1 && f2 == f1) || k2 >= K {
+				continue
+			}
+
+			facesProcessed++
+			fmt.Printf("\nProcessing face: elem %d face %d -> elem %d face %d\n", k1, f1, k2, f2)
+
+			skM := k1 * NF
+			skP := k2 * NF
+
+			// Build index lists
+			idsM := make([]int, Nfp)
+			idsP := make([]int, Nfp)
+			for i := 0; i < Nfp; i++ {
+				idsM[i] = f1*Nfp + i + skM
+				idsP[i] = f2*Nfp + i + skP
+			}
+
+			// Get volume node numbers
+			vidM := make([]int, Nfp)
+			vidP := make([]int, Nfp)
+			for i := 0; i < Nfp; i++ {
+				vidM[i] = vmapM[idsM[i]]
+				vidP[i] = vmapM[idsP[i]]
+			}
+
+			// Extract coordinates
+			x1 := make([]float64, Nfp)
+			y1 := make([]float64, Nfp)
+			z1 := make([]float64, Nfp)
+			x2 := make([]float64, Nfp)
+			y2 := make([]float64, Nfp)
+			z2 := make([]float64, Nfp)
+
+			fmt.Printf("  M side coordinates:\n")
+			for i := 0; i < Nfp; i++ {
+				nodeM := vidM[i] % Np
+				elemM := vidM[i] / Np
+				x1[i] = x.At(nodeM, elemM)
+				y1[i] = y.At(nodeM, elemM)
+				z1[i] = z.At(nodeM, elemM)
+				fmt.Printf("    Point %d: vidM=%d (elem %d, node %d) -> (%.6f, %.6f, %.6f)\n",
+					i, vidM[i], elemM, nodeM, x1[i], y1[i], z1[i])
+			}
+
+			fmt.Printf("  P side coordinates:\n")
+			for i := 0; i < Nfp; i++ {
+				nodeP := vidP[i] % Np
+				elemP := vidP[i] / Np
+				x2[i] = x.At(nodeP, elemP)
+				y2[i] = y.At(nodeP, elemP)
+				z2[i] = z.At(nodeP, elemP)
+				fmt.Printf("    Point %d: vidP=%d (elem %d, node %d) -> (%.6f, %.6f, %.6f)\n",
+					i, vidP[i], elemP, nodeP, x2[i], y2[i], z2[i])
+			}
+
+			// Compute distance matrix
+			fmt.Printf("  Distance matrix:\n")
+			fmt.Printf("        ")
+			for j := 0; j < Nfp; j++ {
+				fmt.Printf("   P%d     ", j)
+			}
+			fmt.Printf("\n")
+
+			faceMatches := 0
+			for i := 0; i < Nfp; i++ {
+				fmt.Printf("    M%d: ", i)
+				for j := 0; j < Nfp; j++ {
+					dx := x1[i] - x2[j]
+					dy := y1[i] - y2[j]
+					dz := z1[i] - z2[j]
+					dist := math.Sqrt(dx*dx + dy*dy + dz*dz)
+
+					if dist < minDist {
+						minDist = dist
+					}
+
+					if dist < NODETOL {
+						fmt.Printf(" MATCH   ")
+						idM := idsM[i]
+						vmapP[idM] = vidP[j]
+						idP := idsP[j]
+						mapP[idM] = idP
+						matchesFound++
+						faceMatches++
+						if dist > maxMatchDist {
+							maxMatchDist = dist
+						}
+					} else {
+						fmt.Printf(" %.2e ", dist)
+					}
+				}
+				fmt.Printf("\n")
+			}
+			fmt.Printf("  Matches found on this face: %d/%d\n", faceMatches, Nfp)
+		}
+	}
+
+	fmt.Printf("\n=== SUMMARY ===\n")
+	fmt.Printf("Faces processed: %d\n", facesProcessed)
+	fmt.Printf("Total matches found: %d\n", matchesFound)
+	fmt.Printf("Minimum distance seen: %.2e\n", minDist)
+	fmt.Printf("Maximum match distance: %.2e\n", maxMatchDist)
+	fmt.Printf("NODETOL: %.2e\n", NODETOL)
+
+	// Assign to element
 	el.VmapM = vmapM
 	el.VmapP = vmapP
 	el.MapM = mapM

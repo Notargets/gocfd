@@ -621,3 +621,502 @@ func DebugVmapP(el *Element3D) {
 
 	fmt.Printf("\n=== End Debug Information ===\n")
 }
+
+// TestBuildMaps3D_Debug provides detailed debugging for BuildMaps3D
+func TestBuildMaps3D_Debug(t *testing.T) {
+	meshPath := getTestMeshPath()
+	el, err := NewElement3D(1, meshPath) // Order 1 for simplicity
+	if err != nil {
+		t.Fatalf("Failed to create Element3D: %v", err)
+	}
+
+	// Focus on element 0, face 0 -> element 433, face 0
+	k1 := 0
+	f1 := 0
+	k2 := el.EToE[k1][f1] // Should be 433
+	f2 := el.EToF[k1][f1] // Should be 0
+
+	t.Logf("=== Debugging Element %d, Face %d ===", k1, f1)
+	t.Logf("Neighbor: Element %d, Face %d", k2, f2)
+	t.Logf("Nfp=%d, Np=%d", el.Nfp, el.Np)
+
+	// Get face nodes for both faces
+	t.Logf("\nFace nodes on element %d, face %d:", k1, f1)
+	for p := 0; p < el.Nfp; p++ {
+		idx := k1*4*el.Nfp + f1*el.Nfp + p
+		vmapM := el.VmapM[idx]
+		elemM := vmapM / el.Np
+		nodeM := vmapM % el.Np
+		t.Logf("  Point %d: VmapM[%d]=%d (elem %d, node %d) -> (%.6f, %.6f, %.6f)",
+			p, idx, vmapM, elemM, nodeM,
+			el.X.At(nodeM, elemM), el.Y.At(nodeM, elemM), el.Z.At(nodeM, elemM))
+	}
+
+	t.Logf("\nFace nodes on element %d, face %d:", k2, f2)
+	for p := 0; p < el.Nfp; p++ {
+		// Get the face nodes from element k2, face f2
+		nodeIdx := el.Fmask[f2][p]
+		x := el.X.At(nodeIdx, k2)
+		y := el.Y.At(nodeIdx, k2)
+		z := el.Z.At(nodeIdx, k2)
+		globalIdx := k2*el.Np + nodeIdx
+		t.Logf("  Point %d: node %d, global %d -> (%.6f, %.6f, %.6f)",
+			p, nodeIdx, globalIdx, x, y, z)
+	}
+
+	// Now check what VmapP was set to
+	t.Logf("\nVmapP values for element %d, face %d:", k1, f1)
+	for p := 0; p < el.Nfp; p++ {
+		idx := k1*4*el.Nfp + f1*el.Nfp + p
+		vmapP := el.VmapP[idx]
+		elemP := vmapP / el.Np
+		nodeP := vmapP % el.Np
+
+		// Also check MapP
+		mapP := el.MapP[idx]
+
+		t.Logf("  Point %d: VmapP[%d]=%d (elem %d, node %d), MapP[%d]=%d",
+			p, idx, vmapP, elemP, nodeP, idx, mapP)
+	}
+
+	// Let's manually check distances between face nodes
+	t.Logf("\nManual distance check between faces:")
+	NODETOL := 1e-7
+	for p1 := 0; p1 < el.Nfp; p1++ {
+		idx1 := k1*4*el.Nfp + f1*el.Nfp + p1
+		vmapM := el.VmapM[idx1]
+		nodeM := vmapM % el.Np
+		elemM := vmapM / el.Np
+		x1 := el.X.At(nodeM, elemM)
+		y1 := el.Y.At(nodeM, elemM)
+		z1 := el.Z.At(nodeM, elemM)
+
+		t.Logf("\n  M point %d at (%.6f, %.6f, %.6f)", p1, x1, y1, z1)
+
+		// Check against all nodes on the neighbor face
+		for p2 := 0; p2 < el.Nfp; p2++ {
+			nodeP := el.Fmask[f2][p2]
+			x2 := el.X.At(nodeP, k2)
+			y2 := el.Y.At(nodeP, k2)
+			z2 := el.Z.At(nodeP, k2)
+
+			dist := math.Sqrt((x1-x2)*(x1-x2) + (y1-y2)*(y1-y2) + (z1-z2)*(z1-z2))
+			if dist < NODETOL {
+				t.Logf("    MATCH with P point %d: dist=%.2e", p2, dist)
+			} else {
+				t.Logf("    P point %d: dist=%.6f", p2, dist)
+			}
+		}
+	}
+}
+
+// TestBuildMaps3D_Order2Debug examines face node ordering for order 2 elements
+func TestBuildMaps3D_Order2Debug(t *testing.T) {
+	meshPath := getTestMeshPath()
+	el, err := NewElement3D(2, meshPath) // Order 2 - where the problem occurs
+	if err != nil {
+		t.Fatalf("Failed to create Element3D: %v", err)
+	}
+
+	// Focus on element 0, face 0 -> element 433, face 0
+	k1 := 0
+	f1 := 0
+	k2 := el.EToE[k1][f1] // Should be 433
+	f2 := el.EToF[k1][f1] // Should be 0
+
+	t.Logf("=== Order 2 Face Node Debug ===")
+	t.Logf("Element %d, Face %d -> Element %d, Face %d", k1, f1, k2, f2)
+	t.Logf("Nfp=%d (nodes per face), Np=%d (nodes per element)", el.Nfp, el.Np)
+
+	// Collect all face nodes for both faces
+	type FaceNode struct {
+		localIdx  int     // Node index within element
+		globalIdx int     // Global node index
+		x, y, z   float64 // Coordinates
+	}
+
+	// Get face nodes for element k1, face f1
+	face1Nodes := make([]FaceNode, el.Nfp)
+	t.Logf("\nFace nodes on element %d, face %d:", k1, f1)
+	for p := 0; p < el.Nfp; p++ {
+		idx := k1*4*el.Nfp + f1*el.Nfp + p
+		vmapM := el.VmapM[idx]
+		nodeM := vmapM % el.Np
+		elemM := vmapM / el.Np
+
+		face1Nodes[p] = FaceNode{
+			localIdx:  nodeM,
+			globalIdx: vmapM,
+			x:         el.X.At(nodeM, elemM),
+			y:         el.Y.At(nodeM, elemM),
+			z:         el.Z.At(nodeM, elemM),
+		}
+
+		t.Logf("  Point %d: local node %2d, global %4d -> (%.6f, %.6f, %.6f)",
+			p, nodeM, vmapM, face1Nodes[p].x, face1Nodes[p].y, face1Nodes[p].z)
+	}
+
+	// Get face nodes for element k2, face f2
+	face2Nodes := make([]FaceNode, el.Nfp)
+	t.Logf("\nFace nodes on element %d, face %d:", k2, f2)
+	for p := 0; p < el.Nfp; p++ {
+		nodeIdx := el.Fmask[f2][p]
+		globalIdx := k2*el.Np + nodeIdx
+
+		face2Nodes[p] = FaceNode{
+			localIdx:  nodeIdx,
+			globalIdx: globalIdx,
+			x:         el.X.At(nodeIdx, k2),
+			y:         el.Y.At(nodeIdx, k2),
+			z:         el.Z.At(nodeIdx, k2),
+		}
+
+		t.Logf("  Point %d: local node %2d, global %4d -> (%.6f, %.6f, %.6f)",
+			p, nodeIdx, globalIdx, face2Nodes[p].x, face2Nodes[p].y, face2Nodes[p].z)
+	}
+
+	// Find the actual node correspondence by distance
+	t.Logf("\nNode correspondence matrix (distances):")
+	NODETOL := 1e-7
+	correspondence := make(map[int]int) // face1 point -> face2 point
+
+	t.Logf("        ")
+	for p2 := 0; p2 < el.Nfp; p2++ {
+		t.Logf("   P%d    ", p2)
+	}
+	t.Logf("")
+
+	for p1 := 0; p1 < el.Nfp; p1++ {
+		t.Logf("  M%d: ", p1)
+		for p2 := 0; p2 < el.Nfp; p2++ {
+			dx := face1Nodes[p1].x - face2Nodes[p2].x
+			dy := face1Nodes[p1].y - face2Nodes[p2].y
+			dz := face1Nodes[p1].z - face2Nodes[p2].z
+			dist := math.Sqrt(dx*dx + dy*dy + dz*dz)
+
+			if dist < NODETOL {
+				t.Logf(" MATCH  ")
+				correspondence[p1] = p2
+			} else {
+				t.Logf(" %6.2e ", dist)
+			}
+		}
+		t.Logf("")
+	}
+
+	// Now check what VmapP was actually set to
+	t.Logf("\nVmapP assignments vs expected:")
+	t.Logf("Point | VmapM -> VmapP  | Expected VmapP | Status")
+	t.Logf("------|-----------------|----------------|-------")
+
+	for p := 0; p < el.Nfp; p++ {
+		idx := k1*4*el.Nfp + f1*el.Nfp + p
+		vmapM := el.VmapM[idx]
+		vmapP := el.VmapP[idx]
+
+		// What should VmapP be?
+		if matchP, ok := correspondence[p]; ok {
+			expectedVmapP := face2Nodes[matchP].globalIdx
+			status := "OK"
+			if vmapP != expectedVmapP {
+				status = "WRONG!"
+			}
+			t.Logf("  %2d  | %4d -> %4d  |     %4d      | %s",
+				p, vmapM, vmapP, expectedVmapP, status)
+		} else {
+			t.Logf("  %2d  | %4d -> %4d  |   NO MATCH    | ERROR",
+				p, vmapM, vmapP)
+		}
+	}
+
+	// Special focus on point 4 which is failing
+	t.Logf("\n=== Focus on failing point 4 ===")
+	idx4 := k1*4*el.Nfp + f1*el.Nfp + 4
+	vmapM4 := el.VmapM[idx4]
+	vmapP4 := el.VmapP[idx4]
+	nodeM4 := vmapM4 % el.Np
+
+	t.Logf("VmapM[4] = %d (local node %d in elem %d)", vmapM4, nodeM4, k1)
+	t.Logf("VmapP[4] = %d (should point to elem %d but points to elem %d)",
+		vmapP4, k2, vmapP4/el.Np)
+
+	if match4, ok := correspondence[4]; ok {
+		t.Logf("Point 4 matches with face 2 point %d (global %d)",
+			match4, face2Nodes[match4].globalIdx)
+		t.Logf("Distance between matched points: %.2e",
+			math.Sqrt(math.Pow(face1Nodes[4].x-face2Nodes[match4].x, 2)+
+				math.Pow(face1Nodes[4].y-face2Nodes[match4].y, 2)+
+				math.Pow(face1Nodes[4].z-face2Nodes[match4].z, 2)))
+	} else {
+		t.Logf("Point 4 has NO MATCH within NODETOL!")
+	}
+}
+
+// TestFmaskValidity checks if Fmask correctly identifies face nodes
+func TestFmaskValidity(t *testing.T) {
+	meshPath := getTestMeshPath()
+	el, err := NewElement3D(2, meshPath) // Order 2
+	if err != nil {
+		t.Fatalf("Failed to create Element3D: %v", err)
+	}
+
+	// Check element 0
+	k := 0
+	t.Logf("=== Fmask validation for element %d (order 2) ===", k)
+	t.Logf("Np = %d (total nodes), Nfp = %d (nodes per face)", el.Np, el.Nfp)
+
+	// Get all node positions in element 0
+	t.Logf("\nAll nodes in element %d:", k)
+	for n := 0; n < el.Np; n++ {
+		t.Logf("  Node %d: (%.6f, %.6f, %.6f)",
+			n, el.X.At(n, k), el.Y.At(n, k), el.Z.At(n, k))
+	}
+
+	// Get the 4 vertices of the tetrahedron
+	v := make([][3]float64, 4)
+	for i := 0; i < 4; i++ {
+		v[i] = [3]float64{
+			el.VX.At(k*4 + i),
+			el.VY.At(k*4 + i),
+			el.VZ.At(k*4 + i),
+		}
+	}
+	t.Logf("\nVertices of element %d:", k)
+	for i := 0; i < 4; i++ {
+		t.Logf("  V%d: (%.6f, %.6f, %.6f)", i, v[i][0], v[i][1], v[i][2])
+	}
+
+	// For each face, check if the nodes in Fmask are actually on that face
+	// Tetrahedron faces: [1,2,3], [0,2,3], [0,1,3], [0,1,2]
+	faceVertices := [][]int{
+		{1, 2, 3}, // face 0
+		{0, 2, 3}, // face 1
+		{0, 1, 3}, // face 2
+		{0, 1, 2}, // face 3
+	}
+
+	t.Logf("\nChecking Fmask for each face:")
+	for f := 0; f < 4; f++ {
+		t.Logf("\nFace %d (vertices %v):", f, faceVertices[f])
+		t.Logf("  Fmask[%d] = %v", f, el.Fmask[f])
+
+		// Check each node in Fmask
+		for p, nodeIdx := range el.Fmask[f] {
+			x := el.X.At(nodeIdx, k)
+			y := el.Y.At(nodeIdx, k)
+			z := el.Z.At(nodeIdx, k)
+
+			// Check if this point is coplanar with the face vertices
+			// Get the three face vertices
+			v0 := v[faceVertices[f][0]]
+			v1 := v[faceVertices[f][1]]
+			v2 := v[faceVertices[f][2]]
+
+			// Compute normal to the face
+			edge1 := [3]float64{v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]}
+			edge2 := [3]float64{v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]}
+			normal := [3]float64{
+				edge1[1]*edge2[2] - edge1[2]*edge2[1],
+				edge1[2]*edge2[0] - edge1[0]*edge2[2],
+				edge1[0]*edge2[1] - edge1[1]*edge2[0],
+			}
+
+			// Normalize
+			mag := math.Sqrt(normal[0]*normal[0] + normal[1]*normal[1] + normal[2]*normal[2])
+			normal[0] /= mag
+			normal[1] /= mag
+			normal[2] /= mag
+
+			// Check distance from point to plane
+			vec := [3]float64{x - v0[0], y - v0[1], z - v0[2]}
+			dist := math.Abs(vec[0]*normal[0] + vec[1]*normal[1] + vec[2]*normal[2])
+
+			status := "ON FACE"
+			if dist > 1e-10 {
+				status = fmt.Sprintf("OFF by %.2e", dist)
+			}
+
+			t.Logf("    Point %d: node %d at (%.6f, %.6f, %.6f) - %s",
+				p, nodeIdx, x, y, z, status)
+		}
+	}
+
+	// Special check for node 4
+	t.Logf("\n=== Special check for problematic node 4 ===")
+	node4x := el.X.At(4, k)
+	node4y := el.Y.At(4, k)
+	node4z := el.Z.At(4, k)
+	t.Logf("Node 4 coordinates: (%.6f, %.6f, %.6f)", node4x, node4y, node4z)
+
+	// Check which faces node 4 appears in
+	for f := 0; f < 4; f++ {
+		for p, nodeIdx := range el.Fmask[f] {
+			if nodeIdx == 4 {
+				t.Logf("Node 4 appears in Fmask[%d] at position %d", f, p)
+			}
+		}
+	}
+}
+func TestBuildMaps3D_Diagnostic(t *testing.T) {
+	meshPath := getTestMeshPath()
+	el, err := NewElement3D(2, meshPath) // Order 2 to match the failing test
+	if err != nil {
+		t.Fatalf("Failed to create Element3D: %v", err)
+	}
+
+	t.Logf("Running diagnostic BuildMaps3D...")
+	t.Logf("K=%d, Np=%d, Nfp=%d", el.K, el.Np, el.Nfp)
+
+	// Run the diagnostic version
+	el.BuildMaps3D_Diagnostic()
+
+	// Check if any interior faces were updated
+	updatedCount := 0
+	for i := 0; i < len(el.VmapP); i++ {
+		if el.VmapP[i] != el.VmapM[i] {
+			updatedCount++
+		}
+	}
+
+	t.Logf("\nVmapP update statistics:")
+	t.Logf("Total face points: %d", len(el.VmapP))
+	t.Logf("Updated points: %d (%.1f%%)", updatedCount,
+		float64(updatedCount)*100/float64(len(el.VmapP)))
+}
+func TestOrder2FaceNodes(t *testing.T) {
+	// Create order 2 basis
+	tb := NewTetBasis(2)
+
+	t.Logf("Order 2 tetrahedron:")
+	t.Logf("Total nodes (Np): %d", tb.Np)
+	t.Logf("Expected nodes per face (Nfp): %d", tb.Nfp)
+
+	// List all nodes with their (r,s,t) coordinates
+	t.Logf("\nAll nodes in reference element:")
+	for i := 0; i < tb.Np; i++ {
+		r := tb.R.At(i)
+		s := tb.S.At(i)
+		tt := tb.T.At(i)
+		t.Logf("  Node %d: (r=%.6f, s=%.6f, t=%.6f)", i, r, s, tt)
+	}
+
+	// Check each face equation
+	NODETOL := 1e-10
+	faces := []struct {
+		name     string
+		equation string
+		check    func(r, s, t float64) float64
+	}{
+		{"Face 0", "t = -1", func(r, s, t float64) float64 { return math.Abs(1.0 + t) }},
+		{"Face 1", "s = -1", func(r, s, t float64) float64 { return math.Abs(1.0 + s) }},
+		{"Face 2", "r+s+t = -1", func(r, s, t float64) float64 { return math.Abs(1.0 + r + s + t) }},
+		{"Face 3", "r = -1", func(r, s, t float64) float64 { return math.Abs(1.0 + r) }},
+	}
+
+	for _, face := range faces {
+		t.Logf("\n%s (%s):", face.name, face.equation)
+		count := 0
+		for i := 0; i < tb.Np; i++ {
+			r := tb.R.At(i)
+			s := tb.S.At(i)
+			tt := tb.T.At(i)
+			residual := face.check(r, s, tt)
+
+			if residual < NODETOL {
+				t.Logf("  Node %d: ON FACE (residual=%.2e)", i, residual)
+				count++
+			} else {
+				t.Logf("  Node %d: OFF by %.6f", i, residual)
+			}
+		}
+		t.Logf("  Total nodes on %s: %d", face.name, count)
+	}
+
+	// Check what Fmask claims
+	t.Logf("\nFmask contents:")
+	for f := 0; f < 4; f++ {
+		t.Logf("  Face %d: %v (count=%d)", f, tb.Fmask[f], len(tb.Fmask[f]))
+	}
+
+	// Verify Fmask accuracy
+	t.Logf("\nVerifying Fmask accuracy:")
+	for f := 0; f < 4; f++ {
+		t.Logf("  Face %d:", f)
+		for _, nodeIdx := range tb.Fmask[f] {
+			r := tb.R.At(nodeIdx)
+			s := tb.S.At(nodeIdx)
+			tt := tb.T.At(nodeIdx)
+			residual := faces[f].check(r, s, tt)
+
+			if residual < NODETOL {
+				t.Logf("    Node %d: CORRECT (on face)", nodeIdx)
+			} else {
+				t.Logf("    Node %d: WRONG! Off by %.6f", nodeIdx, residual)
+			}
+		}
+	}
+}
+func TestReferenceTetBounds(t *testing.T) {
+	// Standard reference tetrahedron vertices
+	refVertices := [][3]float64{
+		{-1, -1, -1}, // v0
+		{1, -1, -1},  // v1
+		{-1, 1, -1},  // v2
+		{-1, -1, 1},  // v3
+	}
+
+	t.Logf("Standard reference tetrahedron vertices:")
+	for i, v := range refVertices {
+		t.Logf("  v%d: (%.1f, %.1f, %.1f)", i, v[0], v[1], v[2])
+	}
+
+	// Check what Nodes3D produces for different orders
+	for N := 1; N <= 3; N++ {
+		t.Logf("\nOrder %d nodes from Nodes3D:", N)
+		r, s, tt := Nodes3D(N)
+
+		// Check bounds
+		minR, maxR := r.Min(), r.Max()
+		minS, maxS := s.Min(), s.Max()
+		minT, maxT := tt.Min(), tt.Max()
+
+		t.Logf("  R range: [%.3f, %.3f]", minR, maxR)
+		t.Logf("  S range: [%.3f, %.3f]", minS, maxS)
+		t.Logf("  T range: [%.3f, %.3f]", minT, maxT)
+
+		// Check if any nodes are outside [-1,1] cube
+		outOfBounds := 0
+		for i := 0; i < r.Len(); i++ {
+			ri, si, ti := r.At(i), s.At(i), tt.At(i)
+			if ri < -1-1e-10 || ri > 1+1e-10 ||
+				si < -1-1e-10 || si > 1+1e-10 ||
+				ti < -1-1e-10 || ti > 1+1e-10 {
+				outOfBounds++
+				if outOfBounds <= 5 {
+					t.Logf("  Node %d OUT OF BOUNDS: (%.3f, %.3f, %.3f)", i, ri, si, ti)
+				}
+			}
+		}
+
+		if outOfBounds > 5 {
+			t.Logf("  ... and %d more out of bounds nodes", outOfBounds-5)
+		}
+
+		// Check if nodes satisfy tet constraint: r+s+t <= -1
+		constraint := 0
+		for i := 0; i < r.Len(); i++ {
+			ri, si, ti := r.At(i), s.At(i), tt.At(i)
+			sum := ri + si + ti
+			if sum > -1+1e-10 {
+				constraint++
+				if constraint <= 5 {
+					t.Logf("  Node %d VIOLATES r+s+t<=-1: sum=%.3f", i, sum)
+				}
+			}
+		}
+
+		if constraint > 5 {
+			t.Logf("  ... and %d more constraint violations", constraint-5)
+		}
+	}
+}

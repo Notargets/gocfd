@@ -26,28 +26,6 @@ type TetBasis struct {
 	Nfp        int          // Number of face points per face
 }
 
-func NewTetBasis(N int) (tb *TetBasis) {
-	tb = &TetBasis{
-		N:  N,
-		Np: (N + 1) * (N + 2) * (N + 3) / 6,
-	}
-	tb.R, tb.S, tb.T = Nodes3D(N)
-	tb.V = tb.ComputeVandermonde(tb.R, tb.S, tb.T)
-	tb.VInv = tb.V.InverseWithCheck()
-	tb.LIFT = tb.Lift3D()
-	Vr, Vs, Vt := tb.ComputeGradVandermonde(tb.R, tb.S, tb.T)
-	tb.Dr = Vr.Mul(tb.VInv)
-	tb.Ds = Vs.Mul(tb.VInv)
-	tb.Dt = Vt.Mul(tb.VInv)
-	tb.M = tb.VInv.Transpose().Mul(tb.VInv)
-	inverse, err := tb.M.Inverse()
-	if err != nil {
-		return nil
-	}
-	tb.MInv = inverse
-	return
-}
-
 func JacobiGL(alpha, beta float64, N int) []float64 {
 	if N == 0 {
 		return []float64{0.0}
