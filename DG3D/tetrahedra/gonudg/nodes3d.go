@@ -174,6 +174,14 @@ func EquiNodes3D(p int) (r, s, t []float64) {
 	s = make([]float64, Np)
 	t = make([]float64, Np)
 
+	// Special case for p=0: single node at centroid
+	if p == 0 {
+		r[0] = -0.5
+		s[0] = -0.5
+		t[0] = -0.5
+		return r, s, t
+	}
+
 	sk := 0
 	for n := 0; n <= p; n++ {
 		for m := 0; m <= p-n; m++ {
@@ -344,4 +352,3 @@ func vecNormalize(v []float64) []float64 {
 	}
 	return result
 }
-
