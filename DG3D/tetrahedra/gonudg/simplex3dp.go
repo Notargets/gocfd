@@ -74,51 +74,40 @@ func GradSimplex3DP(r, s, t []float64, id, jd, kd int) (dmodedr, dmodeds, dmoded
 		bi := b[i]
 		ci := c[i]
 
-		// Helper terms
-		oneMb := 1.0 - bi
-		oneMc := 1.0 - ci
-		oneMbPowId := math.Pow(oneMb, float64(id))
-		oneMbPowIdM1 := 1.0
-		if id > 0 {
-			oneMbPowIdM1 = math.Pow(oneMb, float64(id-1))
-		}
-		oneMcPowIJK := math.Pow(oneMc, float64(id+jd))
-		oneMcPowIJKM1 := 1.0
-		if id+jd > 0 {
-			oneMcPowIJKM1 = math.Pow(oneMc, float64(id+jd-1))
-		}
-
 		// r-derivative
 		V3Dr := dfa[i] * gb[i] * hc[i]
 		if id > 0 {
-			V3Dr *= oneMbPowIdM1
+			V3Dr *= math.Pow(0.5*(1.0-bi), float64(id-1))
 		}
 		if id+jd > 0 {
-			V3Dr *= oneMcPowIJKM1
+			V3Dr *= math.Pow(0.5*(1.0-ci), float64(id+jd-1))
 		}
-		dmodedr[i] = V3Dr * normFactor
 
 		// s-derivative
-		V3Ds := 0.5 * (1 + ai) * V3Dr
-		tmp := dgb[i] * oneMbPowId
+		V3Ds := 0.5 * (1.0 + ai) * V3Dr
+		tmp := dgb[i] * math.Pow(0.5*(1.0-bi), float64(id))
 		if id > 0 {
-			tmp += (-0.5 * float64(id)) * gb[i] * oneMbPowIdM1
+			tmp -= (0.5 * float64(id)) * gb[i] * math.Pow(0.5*(1.0-bi), float64(id-1))
 		}
 		if id+jd > 0 {
-			tmp *= oneMcPowIJKM1
+			tmp *= math.Pow(0.5*(1.0-ci), float64(id+jd-1))
 		}
 		tmp = fa[i] * tmp * hc[i]
 		V3Ds += tmp
-		dmodeds[i] = V3Ds * normFactor
 
 		// t-derivative
-		V3Dt := 0.5*(1+ai)*V3Dr + 0.5*(1+bi)*tmp
-		tmp2 := dhc[i] * oneMcPowIJK
+		V3Dt := 0.5*(1.0+ai)*V3Dr + 0.5*(1.0+bi)*tmp
+		tmp2 := dhc[i] * math.Pow(0.5*(1.0-ci), float64(id+jd))
 		if id+jd > 0 {
-			tmp2 -= 0.5 * float64(id+jd) * hc[i] * oneMcPowIJKM1
+			tmp2 -= (0.5 * float64(id+jd)) * hc[i] * math.Pow(0.5*(1.0-ci), float64(id+jd-1))
 		}
-		tmp2 = fa[i] * gb[i] * tmp2 * oneMbPowId
+		tmp2 = fa[i] * gb[i] * tmp2
+		tmp2 *= math.Pow(0.5*(1.0-bi), float64(id))
 		V3Dt += tmp2
+
+		// Apply normalization
+		dmodedr[i] = V3Dr * normFactor
+		dmodeds[i] = V3Ds * normFactor
 		dmodedt[i] = V3Dt * normFactor
 	}
 
