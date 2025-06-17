@@ -345,3 +345,41 @@ func TestCombinedFixes(t *testing.T) {
 		}
 	})
 }
+
+// TestRSTtoABCFormula tests the actual formula implementation
+func TestRSTtoABCFormula(t *testing.T) {
+	// Check if there's a bug in RSTtoABC by implementing it manually
+	fmt.Println("\nManual calculation vs RSTtoABC:")
+
+	// Node 8: r=-1, s=0, tt=0
+	r, s, tt := -1.0, 0.0, 0.0
+
+	// Manual calculation
+	var a_manual, b_manual, c_manual float64
+
+	// Check singularity conditions
+	if math.Abs(s+tt-1) < 1e-10 {
+		a_manual = -1.0
+	} else {
+		a_manual = 2.0*(1.0+r)/(1.0-s-tt) - 1.0
+	}
+
+	if math.Abs(tt-1) < 1e-10 {
+		b_manual = -1.0
+	} else {
+		b_manual = 2.0*(1.0+s)/(1.0-tt) - 1.0
+	}
+
+	c_manual = tt
+
+	// Function calculation
+	a_func, b_func, c_func := RSTtoABCSingle(r, s, tt)
+
+	fmt.Printf("Node 8: r=%.1f, s=%.1f, tt=%.1f\n", r, s, tt)
+	fmt.Printf("Manual: a=%.3f, b=%.3f, c=%.3f\n", a_manual, b_manual, c_manual)
+	fmt.Printf("Function: a=%.3f, b=%.3f, c=%.3f\n", a_func, b_func, c_func)
+
+	if math.Abs(b_manual-b_func) > 1e-10 {
+		fmt.Println("\nERROR: Function doesn't match manual calculation!")
+	}
+}

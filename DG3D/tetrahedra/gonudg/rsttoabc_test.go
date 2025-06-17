@@ -1,6 +1,7 @@
 package gonudg
 
 import (
+	"fmt"
 	"math"
 	"testing"
 )
@@ -103,5 +104,238 @@ func TestRSTtoABC(t *testing.T) {
 				t.Errorf("RSTtoABC: c[0] = %v, want %v", cArr[0], tc.wantC)
 			}
 		})
+	}
+}
+
+// TestRSTtoABCFix verifies the fix for the coordinate transformation
+
+func TestRSTtoABCFix(t *testing.T) {
+	// Test the specific case that was failing
+	testCases := []struct {
+		name                            string
+		r, s, t                         float64
+		expectedA, expectedB, expectedC float64
+	}{
+		{
+			name: "Node 6",
+			r:    -1, s: -1, t: 0,
+			expectedA: -1, expectedB: -1, expectedC: 0,
+		},
+		{
+			name: "Node 8 (was failing)",
+			r:    -1, s: 0, t: 0,
+			expectedA: -1, expectedB: 1, expectedC: 0,
+		},
+		{
+			name: "Vertex 1",
+			r:    -1, s: -1, t: -1,
+			expectedA: -1, expectedB: -1, expectedC: -1,
+		},
+		{
+			name: "Vertex 2",
+			r:    1, s: -1, t: -1,
+			expectedA: 1, expectedB: -1, expectedC: -1,
+		},
+		{
+			name: "Vertex 3",
+			r:    -1, s: 1, t: -1,
+			expectedA: -1, expectedB: 1, expectedC: -1,
+		},
+		{
+			name: "Vertex 4",
+			r:    -1, s: -1, t: 1,
+			expectedA: -1, expectedB: -1, expectedC: 1,
+		},
+	}
+
+	for _, tc := range testCases {
+		a, b, c := RSTtoABCSingle(tc.r, tc.s, tc.t)
+
+		passed := math.Abs(a-tc.expectedA) < 1e-10 &&
+			math.Abs(b-tc.expectedB) < 1e-10 &&
+			math.Abs(c-tc.expectedC) < 1e-10
+
+		status := "PASS"
+		if !passed {
+			status = "FAIL"
+		}
+
+		fmt.Printf("%s: (r,s,t)=(%.1f,%.1f,%.1f) -> (a,b,c)=(%.1f,%.1f,%.1f) [%s]\n",
+			tc.name, tc.r, tc.s, tc.t, a, b, c, status)
+
+		if !passed {
+			fmt.Printf("  Expected: (a,b,c)=(%.1f,%.1f,%.1f)\n",
+				tc.expectedA, tc.expectedB, tc.expectedC)
+			t.Errorf("%s: transformation incorrect", tc.name)
+		}
+	}
+}
+
+// TestRSTtoABCComprehensive verifies all cases work correctly
+func TestRSTtoABCComprehensive(t *testing.T) {
+	testCases := []struct {
+		name    string
+		r, s, t float64
+		a, b, c float64
+	}{
+		// Origin special case
+		{
+			name: "Origin",
+			r:    0, s: 0, t: 0,
+			a: -1.0 / 3.0, b: -1.0 / 3.0, c: 0,
+		},
+		// The problematic nodes from N=2
+		{
+			name: "Node 6",
+			r:    -1, s: -1, t: 0,
+			a: -1, b: -1, c: 0,
+		},
+		{
+			name: "Node 8 (was broken)",
+			r:    -1, s: 0, t: 0,
+			a: -1, b: 1, c: 0, // This should be b=1, not b=-1!
+		},
+		// Vertices
+		{
+			name: "Vertex 1",
+			r:    -1, s: -1, t: -1,
+			a: -1, b: -1, c: -1,
+		},
+		{
+			name: "Vertex 2",
+			r:    1, s: -1, t: -1,
+			a: 1, b: -1, c: -1,
+		},
+		{
+			name: "Vertex 3",
+			r:    -1, s: 1, t: -1,
+			a: -1, b: 1, c: -1,
+		},
+		{
+			name: "Vertex 4",
+			r:    -1, s: -1, t: 1,
+			a: -1, b: -1, c: 1,
+		},
+		// Edge and face centers
+		{
+			name: "Edge center",
+			r:    0, s: -1, t: -1,
+			a: 0, b: -1, c: -1,
+		},
+		{
+			name: "Face center",
+			r:    -1.0 / 3.0, s: -1.0 / 3.0, t: -1,
+			a: -1.0 / 3.0, b: -1.0 / 2.0, c: -1,
+		},
+	}
+
+	fmt.Println("Comprehensive RSTtoABC transformation test:")
+	fmt.Println("==========================================")
+
+	allPassed := true
+	for _, tc := range testCases {
+		// Test single point version
+		a, b, c := RSTtoABCSingle(tc.r, tc.s, tc.t)
+
+		errA := math.Abs(a - tc.a)
+		errB := math.Abs(b - tc.b)
+		errC := math.Abs(c - tc.c)
+
+		passed := errA < 1e-10 && errB < 1e-10 && errC < 1e-10
+
+		status := "PASS"
+		if !passed {
+			status = "FAIL"
+			allPassed = false
+		}
+
+		fmt.Printf("%-20s: (%.3f,%.3f,%.3f) -> (%.3f,%.3f,%.3f) [%s]\n",
+			tc.name, tc.r, tc.s, tc.t, a, b, c, status)
+
+		if !passed {
+			fmt.Printf("  Expected: (%.3f,%.3f,%.3f)\n", tc.a, tc.b, tc.c)
+			fmt.Printf("  Errors: a=%.2e, b=%.2e, c=%.2e\n", errA, errB, errC)
+			t.Errorf("%s: transformation incorrect", tc.name)
+		}
+
+		// Also test array version
+		rArr := []float64{tc.r}
+		sArr := []float64{tc.s}
+		tArr := []float64{tc.t}
+		aArr, bArr, cArr := RSTtoABC(rArr, sArr, tArr)
+
+		if math.Abs(aArr[0]-tc.a) > 1e-10 ||
+			math.Abs(bArr[0]-tc.b) > 1e-10 ||
+			math.Abs(cArr[0]-tc.c) > 1e-10 {
+			t.Errorf("%s: array version differs from single version", tc.name)
+		}
+	}
+
+	if allPassed {
+		fmt.Println("\nAll transformation tests passed!")
+	}
+}
+
+// TestVandermonde3DWithAllFixes tests the complete solution
+func TestVandermonde3DWithAllFixes(t *testing.T) {
+	fmt.Println("\nTesting Vandermonde3D with all fixes applied:")
+	fmt.Println("=============================================")
+
+	for N := 1; N <= 3; N++ {
+		fmt.Printf("\nTesting N=%d:\n", N)
+
+		// Generate nodes
+		X, Y, Z := Nodes3D(N)
+		r, s, tt := XYZtoRST(X, Y, Z)
+
+		// Build Vandermonde matrix
+		V := Vandermonde3D(N, r, s, tt)
+
+		// Try to invert
+		nr, nc := V.Dims()
+		fmt.Printf("  Matrix size: %dx%d\n", nr, nc)
+
+		// Check for duplicates in (a,b,c) space
+		a, b, c := RSTtoABC(r, s, tt)
+		duplicates := make(map[string][]int)
+
+		for i := 0; i < len(a); i++ {
+			key := fmt.Sprintf("%.10f,%.10f,%.10f", a[i], b[i], c[i])
+			duplicates[key] = append(duplicates[key], i)
+		}
+
+		hasDuplicates := false
+		for key, nodes := range duplicates {
+			if len(nodes) > 1 {
+				fmt.Printf("  DUPLICATE nodes in (a,b,c): %v -> %s\n", nodes, key)
+				hasDuplicates = true
+			}
+		}
+
+		if !hasDuplicates {
+			fmt.Printf("  No duplicate nodes in (a,b,c) space\n")
+
+			// Try to invert
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Printf("  Matrix inversion failed: %v\n", r)
+					t.Errorf("N=%d: Vandermonde matrix is still singular", N)
+				}
+			}()
+
+			Vinv := V.InverseWithCheck()
+			fmt.Printf("  Matrix inverted successfully!\n")
+
+			// Verify it's a good inverse
+			I := V.Mul(Vinv)
+			sumCols := I.SumCols()
+			var sum float64
+			for i := 0; i < sumCols.Len(); i++ {
+				sum += sumCols.AtVec(i)
+			}
+			fmt.Printf("  Sum check: %.6f (expected %d)\n", sum, nr)
+		} else {
+			t.Errorf("N=%d: Still have duplicate nodes", N)
+		}
 	}
 }

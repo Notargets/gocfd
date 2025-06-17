@@ -3,7 +3,7 @@ package gonudg
 import "math"
 
 // RSTtoABC transfers from (r,s,t) to (a,b,c) coordinates in tetrahedron
-// This is the 0-based index version of the C++ rsttoabc function
+// This correctly handles the origin special case
 func RSTtoABC(r, s, t []float64) (a, b, c []float64) {
 	Np := len(r)
 	a = make([]float64, Np)
@@ -13,41 +13,31 @@ func RSTtoABC(r, s, t []float64) (a, b, c []float64) {
 	const tol = 1e-12
 
 	for n := 0; n < Np; n++ {
-		// Special case for origin
-		if r[n] == 0.0 && s[n] == 0.0 && t[n] == 0.0 {
+		// Special case for origin - must check first!
+		if math.Abs(r[n]) < tol && math.Abs(s[n]) < tol && math.Abs(t[n]) < tol {
 			a[n] = -1.0 / 3.0
 			b[n] = -1.0 / 3.0
-			// c[n] will be set by copy(c, t) below
+			c[n] = 0.0
 			continue
 		}
 
-		// Check if this is a vertex
-		isVertex := isTetrahedronVertex(r[n], s[n], t[n])
-
 		// Handle a coordinate
 		if math.Abs(s[n]+t[n]) < tol {
-			a[n] = -1.0
-			// For b: if s+t=0 and NOT a vertex, then b=-1
-			if !isVertex {
-				b[n] = -1.0
-				// c[n] will be set by copy(c, t) below
-				continue
-			}
-		} else if math.Abs(t[n]-1.0) < tol {
-			// When t=1, a should be -1
 			a[n] = -1.0
 		} else {
 			a[n] = 2.0*(1.0+r[n])/(-s[n]-t[n]) - 1.0
 		}
 
-		// Handle b coordinate (for vertices and normal cases)
+		// Handle b coordinate
 		if math.Abs(t[n]-1.0) < tol {
 			b[n] = -1.0
 		} else {
 			b[n] = 2.0*(1.0+s[n])/(1.0-t[n]) - 1.0
 		}
+
+		c[n] = t[n]
 	}
-	copy(c, t)
+
 	return
 }
 
@@ -55,34 +45,22 @@ func RSTtoABC(r, s, t []float64) (a, b, c []float64) {
 func RSTtoABCSingle(r, s, t float64) (a, b, c float64) {
 	const tol = 1e-12
 
-	// Special case for origin
-	if r == 0.0 && s == 0.0 && t == 0.0 {
+	// Special case for origin - must check first!
+	if math.Abs(r) < tol && math.Abs(s) < tol && math.Abs(t) < tol {
 		a = -1.0 / 3.0
 		b = -1.0 / 3.0
 		c = 0.0
 		return
 	}
 
-	// Check if this is a vertex
-	isVertex := isTetrahedronVertex(r, s, t)
-
 	// Handle a coordinate
 	if math.Abs(s+t) < tol {
-		a = -1.0
-		// For b: if s+t=0 and NOT a vertex, then b=-1
-		if !isVertex {
-			b = -1.0
-			c = t
-			return
-		}
-	} else if math.Abs(t-1.0) < tol {
-		// When t=1, a should be -1
 		a = -1.0
 	} else {
 		a = 2.0*(1.0+r)/(-s-t) - 1.0
 	}
 
-	// Handle b coordinate (for vertices and normal cases)
+	// Handle b coordinate
 	if math.Abs(t-1.0) < tol {
 		b = -1.0
 	} else {

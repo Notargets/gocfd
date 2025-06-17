@@ -1,6 +1,7 @@
 package gonudg
 
 import (
+	"fmt"
 	"github.com/notargets/gocfd/utils"
 	"math"
 	"testing"
@@ -103,7 +104,7 @@ func TestGradVandermonde3D(t *testing.T) {
 	}
 }
 
-func _TestDmatrices3D(t *testing.T) {
+func TestDmatrices3D(t *testing.T) {
 	// Test differentiation matrices
 	N := 2
 	X, Y, Z := Nodes3D(N)
@@ -150,5 +151,35 @@ func BenchmarkVandermonde3D(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		Vandermonde3D(N, r, s, t)
+	}
+}
+
+// TestVandermonde3DAfterFix tests if the Vandermonde matrix is invertible after fixing RSTtoABC
+func TestVandermonde3DAfterFix(t *testing.T) {
+	N := 2
+
+	// Generate nodes
+	X, Y, Z := Nodes3D(N)
+	r, s, tt := XYZtoRST(X, Y, Z)
+	a, b, c := RSTtoABC(r, s, tt)
+
+	// Check for duplicates in (a,b,c) space
+	duplicates := make(map[string][]int)
+
+	for i := 0; i < len(a); i++ {
+		key := fmt.Sprintf("%.10f,%.10f,%.10f", a[i], b[i], c[i])
+		duplicates[key] = append(duplicates[key], i)
+	}
+
+	foundDuplicates := false
+	for key, nodes := range duplicates {
+		if len(nodes) > 1 {
+			fmt.Printf("  DUPLICATE: Nodes %v all map to %s\n", nodes, key)
+			foundDuplicates = true
+		}
+	}
+
+	if foundDuplicates {
+		t.Error("Still have duplicate nodes after fix")
 	}
 }
