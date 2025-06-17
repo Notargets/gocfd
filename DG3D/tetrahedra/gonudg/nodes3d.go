@@ -180,11 +180,11 @@ func EquiNodes3D(p int) (r, s, t []float64) {
 	s = make([]float64, Np)
 	t = make([]float64, Np)
 
-	// Special case for p=0: single node at centroid
+	// FIXED: For p=0, single node should be at vertex (-1,-1,-1), not centroid
 	if p == 0 {
-		r[0] = -0.5
-		s[0] = -0.5
-		t[0] = -0.5
+		r[0] = -1.0
+		s[0] = -1.0
+		t[0] = -1.0
 		return r, s, t
 	}
 
