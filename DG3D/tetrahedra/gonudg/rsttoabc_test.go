@@ -13,12 +13,7 @@ func TestRSTtoABC(t *testing.T) {
 		wantA, wantB, wantC float64
 		tol                 float64
 	}{
-		{
-			name: "origin",
-			r:    0, s: 0, t: 0,
-			wantA: -1.0 / 3.0, wantB: -1.0 / 3.0, wantC: 0,
-			tol: 1e-14,
-		},
+		// REMOVED "origin" test case - (0,0,0) is outside the reference tetrahedron
 		{
 			name: "vertex1",
 			r:    -1, s: -1, t: -1,
@@ -43,18 +38,8 @@ func TestRSTtoABC(t *testing.T) {
 			wantA: -1, wantB: -1, wantC: 1,
 			tol: 1e-14,
 		},
-		{
-			name: "degenerate_case_s_plus_t_zero",
-			r:    0.5, s: -0.5, t: 0.5,
-			wantA: -1, wantB: -1, wantC: 0.5,
-			tol: 1e-14,
-		},
-		{
-			name: "degenerate_case_t_one",
-			r:    0, s: 0, t: 1,
-			wantA: -1, wantB: -1, wantC: 1,
-			tol: 1e-14,
-		},
+		// REMOVED invalid test cases that were outside the reference tetrahedron
+		// The following are valid interior points:
 		{
 			name: "face_center_bottom",
 			r:    -0.5, s: -0.5, t: -1,
@@ -73,10 +58,41 @@ func TestRSTtoABC(t *testing.T) {
 			wantA: 1.0, wantB: 1.0 / 3.0, wantC: -0.2,
 			tol: 1e-14,
 		},
+		// Test actual degenerate cases with VALID points
+		{
+			name: "degenerate_s_plus_t_zero_valid",
+			r:    0.5, s: -0.75, t: -0.75, // r+s+t = -1, s+t = -1.5
+			wantA: 1.0, wantB: -5.0 / 7.0, wantC: -0.75, // b = -5/7 ≈ -0.714
+			tol: 1e-14,
+		},
+		{
+			name: "edge_midpoint_v1_v2",
+			r:    0, s: -1, t: -1, // Midpoint of edge between vertices 1 and 2
+			wantA: 0, wantB: -1, wantC: -1,
+			tol: 1e-14,
+		},
+		{
+			name: "edge_midpoint_v1_v3",
+			r:    -1, s: 0, t: -1, // Midpoint of edge between vertices 1 and 3
+			wantA: -1, wantB: 0, wantC: -1,
+			tol: 1e-14,
+		},
+		{
+			name: "edge_midpoint_v1_v4",
+			r:    -1, s: -1, t: 0, // Midpoint of edge between vertices 1 and 4
+			wantA: -1, wantB: -1, wantC: 0,
+			tol: 1e-14,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			// First verify the point is valid
+			if !isValidRST(tc.r, tc.s, tc.t) {
+				t.Errorf("Test point (r,s,t)=(%v,%v,%v) is outside reference tetrahedron", tc.r, tc.s, tc.t)
+				return
+			}
+
 			// Test single point version
 			a, b, c := RSTtoABCSingle(tc.r, tc.s, tc.t)
 			if math.Abs(a-tc.wantA) > tc.tol {
@@ -107,7 +123,31 @@ func TestRSTtoABC(t *testing.T) {
 	}
 }
 
-// TestRSTtoABCFix verifies the fix for the coordinate transformation
+// Helper function to check if (r,s,t) is inside the reference tetrahedron
+// The reference tetrahedron has vertices at:
+// v1: (-1, -1, -1)
+// v2: ( 1, -1, -1)
+// v3: (-1,  1, -1)
+// v4: (-1, -1,  1)
+// Using barycentric coordinates, a point is inside if:
+// λ₁ = -(1+r+s+t)/2, λ₂ = (1+r)/2, λ₃ = (1+s)/2, λ₄ = (1+t)/2
+// with all λᵢ ≥ 0 and Σλᵢ = 1
+func isValidRST(r, s, t float64) bool {
+	const tol = 1e-10
+
+	// Check bounds
+	if r < -1-tol || s < -1-tol || t < -1-tol {
+		return false
+	}
+
+	// Check the constraint from λ₁ ≥ 0
+	// λ₁ = -(1+r+s+t)/2 ≥ 0 means 1+r+s+t ≤ 0, or r+s+t ≤ -1
+	if r+s+t > -1+tol {
+		return false
+	}
+
+	return true
+}
 
 func TestRSTtoABCFix(t *testing.T) {
 	// Test the specific case that was failing
@@ -178,12 +218,6 @@ func TestRSTtoABCComprehensive(t *testing.T) {
 		r, s, t float64
 		a, b, c float64
 	}{
-		// Origin special case
-		{
-			name: "Origin",
-			r:    0, s: 0, t: 0,
-			a: -1.0 / 3.0, b: -1.0 / 3.0, c: 0,
-		},
 		// The problematic nodes from N=2
 		{
 			name: "Node 6",
@@ -193,7 +227,7 @@ func TestRSTtoABCComprehensive(t *testing.T) {
 		{
 			name: "Node 8 (was broken)",
 			r:    -1, s: 0, t: 0,
-			a: -1, b: 1, c: 0, // This should be b=1, not b=-1!
+			a: -1, b: 1, c: 0,
 		},
 		// Vertices
 		{
@@ -225,7 +259,7 @@ func TestRSTtoABCComprehensive(t *testing.T) {
 		{
 			name: "Face center",
 			r:    -1.0 / 3.0, s: -1.0 / 3.0, t: -1,
-			a: -1.0 / 3.0, b: -1.0 / 2.0, c: -1,
+			a: 0, b: -1.0 / 3.0, c: -1, // FIXED expected values
 		},
 	}
 
