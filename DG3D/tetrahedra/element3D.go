@@ -2,10 +2,13 @@ package tetrahedra
 
 import (
 	"fmt"
+	"math"
+	"sort"
+
 	"github.com/notargets/gocfd/DG3D/mesh"
 	"github.com/notargets/gocfd/DG3D/mesh/readers"
+	"github.com/notargets/gocfd/DG3D/tetrahedra/gonudg"
 	"github.com/notargets/gocfd/utils"
-	"math"
 )
 
 type Element3D struct {
@@ -21,8 +24,10 @@ type Element3D struct {
 	VmapP      []int   // Maps face nodes to neighbor volume nodes
 	MapM       []int   // Maps face nodes to unique face nodes
 	MapP       []int   // Maps to neighbor face nodes
+	MapB       []int   // Boundary nodes map
+	VmapB      []int   // Boundary nodes map
 	tetIndices []int   // Original indices of tet elements in full mesh
-	*TetBasis          // Hesthaven tetrahedron PKD basis
+	*TetBasis          // Basis functions and matrices
 	*GeometricFactors
 	*FaceGeometricFactors
 	*ConnectivityArrays
@@ -49,6 +54,124 @@ type FaceGeometricFactors struct {
 	Fscale     utils.Matrix // Face integration scaling = sJ/J(face)
 }
 
+// TetBasis represents the basis functions on reference tetrahedron
+// Now uses gonudg functions internally
+type TetBasis struct {
+	N       int
+	Np      int // Number of basis functions = (P+1)(P+2)(P+3)/6
+	R, S, T utils.Vector
+	V, VInv utils.Matrix // Vandermonde matrix and inverse
+	// Mass and differentiation matrices
+	M, MInv    utils.Matrix // Mass matrix, Inverse mass matrix
+	Dr, Ds, Dt utils.Matrix // Differentiation matrices
+	LIFT       utils.Matrix // Lift matrix for surface integrals
+	Fmask      [][]int      // Face node indices
+	Nfp        int          // Number of face points per face
+}
+
+// NewTetBasis creates a new tetrahedral basis using gonudg functions
+func NewTetBasis(N int) (tb *TetBasis) {
+	tb = &TetBasis{
+		N:  N,
+		Np: (N + 1) * (N + 2) * (N + 3) / 6,
+	}
+
+	// Get nodes in equilateral tetrahedron coordinates using gonudg
+	XVec, YVec, ZVec := gonudg.Nodes3D(N)
+
+	// Convert to reference tetrahedron coordinates using gonudg
+	r, s, t := gonudg.XYZtoRST(XVec, YVec, ZVec)
+	tb.R = utils.NewVector(len(r), r)
+	tb.S = utils.NewVector(len(s), s)
+	tb.T = utils.NewVector(len(t), t)
+
+	// Build Vandermonde matrix using gonudg
+	tb.V = gonudg.Vandermonde3D(N, r, s, t)
+	tb.VInv = tb.V.InverseWithCheck()
+
+	// Build differentiation matrices using gonudg
+	tb.Dr, tb.Ds, tb.Dt = gonudg.Dmatrices3D(N, r, s, t, tb.V)
+
+	// Build mass matrix
+	tb.M = tb.VInv.Transpose().Mul(tb.VInv)
+	tb.MInv = tb.M.InverseWithCheck()
+
+	// Build face mask and lift matrix
+	tb.buildFaceMask()
+	tb.LIFT = tb.Lift3D()
+
+	return
+}
+
+// buildFaceMask finds nodes on each face
+func (tb *TetBasis) buildFaceMask() {
+	NODETOL := 1e-7
+	tb.Fmask = make([][]int, 4)
+
+	r := tb.R.DataP
+	s := tb.S.DataP
+	t := tb.T.DataP
+
+	// Face 1: t = -1
+	for i := 0; i < tb.Np; i++ {
+		if math.Abs(1.0+t[i]) < NODETOL {
+			tb.Fmask[0] = append(tb.Fmask[0], i)
+		}
+	}
+
+	// Face 2: s = -1
+	for i := 0; i < tb.Np; i++ {
+		if math.Abs(1.0+s[i]) < NODETOL {
+			tb.Fmask[1] = append(tb.Fmask[1], i)
+		}
+	}
+
+	// Face 3: r+s+t = -1
+	for i := 0; i < tb.Np; i++ {
+		if math.Abs(1.0+r[i]+s[i]+t[i]) < NODETOL {
+			tb.Fmask[2] = append(tb.Fmask[2], i)
+		}
+	}
+
+	// Face 4: r = -1
+	for i := 0; i < tb.Np; i++ {
+		if math.Abs(1.0+r[i]) < NODETOL {
+			tb.Fmask[3] = append(tb.Fmask[3], i)
+		}
+	}
+
+	tb.Nfp = (tb.N + 1) * (tb.N + 2) / 2
+}
+
+// Lift3D computes the surface integral lift matrix
+func (tb *TetBasis) Lift3D() utils.Matrix {
+	Nfaces := 4
+	Nfp := tb.Nfp
+	Np := tb.Np
+
+	Emat := utils.NewMatrix(Np, Nfaces*Nfp)
+
+	// Build matrix of face nodes
+	for face := 0; face < Nfaces; face++ {
+		if len(tb.Fmask[face]) != Nfp {
+			panic(fmt.Sprintf("Face %d has %d nodes, expected %d",
+				face, len(tb.Fmask[face]), Nfp))
+		}
+
+		for i := 0; i < Nfp; i++ {
+			Emat.Set(tb.Fmask[face][i], face*Nfp+i, 1.0)
+		}
+	}
+
+	// Lift = M^{-1} * E * (E^T * M^{-1} * E)^{-1}
+	MinvE := tb.MInv.Mul(Emat)
+	temp := Emat.Transpose().Mul(MinvE)
+	tempInv := temp.InverseWithCheck()
+	LIFT := MinvE.Mul(tempInv)
+
+	return LIFT
+}
+
 // NewElement3D creates an Element3D from a mesh file
 func NewElement3D(order int, meshFile string) (el *Element3D, err error) {
 	// Read mesh file
@@ -61,7 +184,49 @@ func NewElement3D(order int, meshFile string) (el *Element3D, err error) {
 	return NewElement3DFromMesh(order, m)
 }
 
-// In extractTetElements(), it should verify ALL elements are tets:
+// NewElement3DFromMesh creates an Element3D from an existing mesh
+func NewElement3DFromMesh(order int, m *mesh.Mesh) (el *Element3D, err error) {
+	el = &Element3D{
+		TetBasis: NewTetBasis(order),
+		Mesh:     m,
+	}
+
+	// Extract tetrahedral elements from mesh
+	if err = el.extractTetElements(); err != nil {
+		return nil, err
+	}
+
+	// Build physical coordinates from vertices and reference nodes
+	el.buildPhysicalCoordinates()
+
+	// Build connectivity and geometric factors
+	el.ConnectivityArrays = el.Connect3D()
+	el.GeometricFactors = el.GeometricFactors3D()
+	el.FaceGeometricFactors = el.CalcFaceGeometry()
+
+	el.BuildMaps3D()
+
+	// Extract boundary conditions from mesh
+	if err = el.extractBoundaryConditions(); err != nil {
+		return nil, fmt.Errorf("failed to extract boundary conditions: %v", err)
+	}
+
+	// Extract periodic boundaries if present
+	if err = el.extractPeriodicBoundaries(); err != nil {
+		return nil, fmt.Errorf("failed to extract periodic boundaries: %v", err)
+	}
+
+	// Split mesh by partition if EToP is present
+	if el.EToP != nil {
+		if err = el.SplitByPartition(); err != nil {
+			return nil, fmt.Errorf("failed to split mesh by partition: %v", err)
+		}
+	}
+
+	return el, nil
+}
+
+// extractTetElements verifies all elements are tetrahedral
 func (el *Element3D) extractTetElements() error {
 	// Verify ALL elements are tetrahedral - no filtering!
 	for i := 0; i < el.Mesh.NumElements; i++ {
@@ -92,54 +257,14 @@ func (el *Element3D) extractTetElements() error {
 			return fmt.Errorf("tetrahedral element %d has insufficient nodes", i)
 		}
 	}
+
 	// Copy partition data if available
 	if el.Mesh.EToP != nil {
 		el.EToP = make([]int, el.K)
 		copy(el.EToP, el.Mesh.EToP)
 	}
+
 	return nil
-}
-
-// NewElement3DFromMesh creates an Element3D from an existing mesh
-// This is the core constructor that does all the work
-func NewElement3DFromMesh(order int, m *mesh.Mesh) (el *Element3D, err error) {
-	el = &Element3D{
-		TetBasis: NewTetBasis(order),
-		Mesh:     m,
-	}
-
-	// Extract tetrahedral elements from mesh
-	if err = el.extractTetElements(); err != nil {
-		return nil, err
-	}
-
-	// Build physical coordinates from vertices and reference nodes
-	el.buildPhysicalCoordinates()
-
-	// Build connectivity and geometric factors
-	el.ConnectivityArrays = el.Connect3D()
-	el.GeometricFactors = el.GeometricFactors3D()
-	el.FaceGeometricFactors = el.CalcFaceGeometry()
-	el.BuildMaps3D()
-
-	// Extract boundary conditions from mesh
-	if err = el.extractBoundaryConditions(); err != nil {
-		return nil, fmt.Errorf("failed to extract boundary conditions: %v", err)
-	}
-
-	// Extract periodic boundaries if present
-	if err = el.extractPeriodicBoundaries(); err != nil {
-		return nil, fmt.Errorf("failed to extract periodic boundaries: %v", err)
-	}
-
-	// Split mesh by partition if EToP is present
-	if el.EToP != nil {
-		if err = el.SplitByPartition(); err != nil {
-			return nil, fmt.Errorf("failed to split mesh by partition: %v", err)
-		}
-	}
-
-	return el, nil
 }
 
 // buildPhysicalCoordinates builds the physical coordinates by transforming reference nodes
@@ -158,215 +283,84 @@ func (el *Element3D) buildPhysicalCoordinates() {
 		for v := 0; v < 4; v++ {
 			nodeIdx := el.EToV[k][v] // This is already an array index, NOT a node ID!
 
-			// Direct access using the index - no GetNodeIndex needed!
-			coords := el.Mesh.Vertices[nodeIdx]
-			el.VX.Set(k*4+v, coords[0])
-			el.VY.Set(k*4+v, coords[1])
-			el.VZ.Set(k*4+v, coords[2])
+			// Direct access using the index
+			coord := el.Mesh.Vertices[nodeIdx]
+			idx := k*4 + v
+			el.VX.Set(idx, coord[0])
+			el.VY.Set(idx, coord[1])
+			el.VZ.Set(idx, coord[2])
 		}
 	}
 
-	// Allocate physical coordinate matrices (Np x K)
+	// Initialize physical coordinate matrices
 	el.X = utils.NewMatrix(Np, K)
 	el.Y = utils.NewMatrix(Np, K)
 	el.Z = utils.NewMatrix(Np, K)
 
-	// Get reference nodes from basis
-	r, s, t := el.R, el.S, el.T
+	// Reference nodes in [-1,1]^3
+	r := el.R.DataP
+	s := el.S.DataP
+	t := el.T.DataP
 
-	// Transform reference nodes to physical coordinates for each element
+	// Map reference to physical for each element
 	for k := 0; k < K; k++ {
-		// Get vertices for this element
-		v1x, v1y, v1z := el.VX.At(k*4+0), el.VY.At(k*4+0), el.VZ.At(k*4+0)
-		v2x, v2y, v2z := el.VX.At(k*4+1), el.VY.At(k*4+1), el.VZ.At(k*4+1)
-		v3x, v3y, v3z := el.VX.At(k*4+2), el.VY.At(k*4+2), el.VZ.At(k*4+2)
-		v4x, v4y, v4z := el.VX.At(k*4+3), el.VY.At(k*4+3), el.VZ.At(k*4+3)
+		// Get vertex indices for this element
+		va := k*4 + 0
+		vb := k*4 + 1
+		vc := k*4 + 2
+		vd := k*4 + 3
 
-		// Transform each node using affine mapping
-		for n := 0; n < Np; n++ {
-			// Convert reference coordinates to barycentric
-			// Reference tet vertices: v1=(-1,-1,-1), v2=(1,-1,-1), v3=(-1,1,-1), v4=(-1,-1,1)
-			rn, sn, tn := r.At(n), s.At(n), t.At(n)
+		// Transform each node
+		for i := 0; i < Np; i++ {
+			// Barycentric coordinates
+			L1 := 0.5 * (1.0 + t[i])
+			L2 := 0.5 * (1.0 + s[i])
+			L3 := -0.5 * (1.0 + r[i] + s[i] + t[i])
+			L4 := 0.5 * (1.0 + r[i])
 
-			// Barycentric coordinates (matching vertex ordering)
-			L1 := -(1.0 + rn + sn + tn) / 2.0
-			L2 := (1.0 + rn) / 2.0
-			L3 := (1.0 + sn) / 2.0
-			L4 := (1.0 + tn) / 2.0
-
-			// Affine transformation to physical coordinates
-			x := L1*v1x + L2*v2x + L3*v3x + L4*v4x
-			y := L1*v1y + L2*v2y + L3*v3y + L4*v4y
-			z := L1*v1z + L2*v2z + L3*v3z + L4*v4z
-
-			// Store in matrix format (Np x K)
-			el.X.Set(n, k, x)
-			el.Y.Set(n, k, y)
-			el.Z.Set(n, k, z)
+			// Physical coordinates
+			el.X.Set(i, k, L3*el.VX.At(va)+L4*el.VX.At(vb)+L2*el.VX.At(vc)+L1*el.VX.At(vd))
+			el.Y.Set(i, k, L3*el.VY.At(va)+L4*el.VY.At(vb)+L2*el.VY.At(vc)+L1*el.VY.At(vd))
+			el.Z.Set(i, k, L3*el.VZ.At(va)+L4*el.VZ.At(vb)+L2*el.VZ.At(vc)+L1*el.VZ.At(vd))
 		}
 	}
 
-	// Build face coordinates
+	// Build face coordinate arrays
 	el.buildFaceCoordinates()
 }
 
-// buildFaceCoordinates extracts physical coordinates on each face
+// buildFaceCoordinates extracts coordinates at face nodes
 func (el *Element3D) buildFaceCoordinates() {
-	K := el.K
-	Nfp := el.Nfp // From TetBasis
 	Nfaces := 4
-
 	el.Fx = make([]utils.Matrix, Nfaces)
 	el.Fy = make([]utils.Matrix, Nfaces)
 	el.Fz = make([]utils.Matrix, Nfaces)
 
-	for f := 0; f < Nfaces; f++ {
-		el.Fx[f] = utils.NewMatrix(Nfp, K)
-		el.Fy[f] = utils.NewMatrix(Nfp, K)
-		el.Fz[f] = utils.NewMatrix(Nfp, K)
-
-		for k := 0; k < K; k++ {
-			for i := 0; i < Nfp; i++ {
-				vid := el.Fmask[f][i] // Volume node index for this face node
-				el.Fx[f].Set(i, k, el.X.At(vid, k))
-				el.Fy[f].Set(i, k, el.Y.At(vid, k))
-				el.Fz[f].Set(i, k, el.Z.At(vid, k))
-			}
-		}
-	}
-}
-
-func (el *Element3D) Connect3D() *ConnectivityArrays {
-	// fmt.Printf("DEBUG Connect3D: Starting\n")
-	// fmt.Printf("  el.K = %d\n", el.K)
-	// fmt.Printf("  el.Mesh = %v\n", el.Mesh)
-	// if el.Mesh != nil {
-	// 	fmt.Printf("  el.Mesh.NumElements = %d\n", el.Mesh.NumElements)
-	// 	fmt.Printf("  el.Mesh.EToE = %v\n", el.Mesh.EToE)
-	// 	fmt.Printf("  el.Mesh.EToF = %v\n", el.Mesh.EToF)
-	// }
-	// fmt.Printf("  el.tetIndices = %v\n", el.tetIndices)
-
-	// Build connectivity if not available
-	if el.Mesh.EToE == nil || el.Mesh.EToF == nil {
-		// fmt.Printf("DEBUG: Building connectivity\n")
-		el.Mesh.BuildConnectivity()
-		// fmt.Printf("DEBUG: After BuildConnectivity:\n")
-		// fmt.Printf("  el.Mesh.EToE = %v\n", el.Mesh.EToE)
-		// fmt.Printf("  el.Mesh.EToF = %v\n", el.Mesh.EToF)
-	}
-
-	// Special case: if the mesh connectivity arrays are empty or nil after building,
-	// create default connectivity for boundary elements
-	if len(el.Mesh.EToE) == 0 {
-		// Create connectivity for all tets as boundary elements
-		el.EToE = make([][]int, el.K)
-		el.EToF = make([][]int, el.K)
+	for face := 0; face < Nfaces; face++ {
+		Nfp := len(el.Fmask[face])
+		el.Fx[face] = utils.NewMatrix(Nfp, el.K)
+		el.Fy[face] = utils.NewMatrix(Nfp, el.K)
+		el.Fz[face] = utils.NewMatrix(Nfp, el.K)
 
 		for k := 0; k < el.K; k++ {
-			el.EToE[k] = make([]int, 4) // 4 faces per tet
-			el.EToF[k] = make([]int, 4)
-
-			// Initialize all as boundary (no neighbors)
-			for f := 0; f < 4; f++ {
-				el.EToE[k][f] = -1
-				el.EToF[k][f] = -1
+			for i, nodeIdx := range el.Fmask[face] {
+				el.Fx[face].Set(i, k, el.X.At(nodeIdx, k))
+				el.Fy[face].Set(i, k, el.Y.At(nodeIdx, k))
+				el.Fz[face].Set(i, k, el.Z.At(nodeIdx, k))
 			}
-		}
-
-		return &ConnectivityArrays{
-			EToE: el.EToE,
-			EToF: el.EToF,
 		}
 	}
-
-	// If we filtered elements, we need to extract the relevant connectivity
-	if len(el.tetIndices) > 0 && len(el.tetIndices) < el.Mesh.NumElements {
-		// fmt.Printf("DEBUG: Filtering connectivity for %d tets out of %d elements\n",
-		// 	len(el.tetIndices), el.Mesh.NumElements)
-		// Create filtered connectivity arrays
-		filteredEToE := make([][]int, el.K)
-		filteredEToF := make([][]int, el.K)
-
-		// Map from original indices to filtered indices
-		indexMap := make(map[int]int)
-		for newIdx, origIdx := range el.tetIndices {
-			indexMap[origIdx] = newIdx
-		}
-
-		// Extract connectivity for tet elements only
-		for newIdx, origIdx := range el.tetIndices {
-			filteredEToE[newIdx] = make([]int, 4) // 4 faces per tet
-			filteredEToF[newIdx] = make([]int, 4)
-
-			// Check if original index is valid
-			if origIdx >= len(el.Mesh.EToE) {
-				// Element doesn't have connectivity - treat as boundary
-				for f := 0; f < 4; f++ {
-					filteredEToE[newIdx][f] = -1
-					filteredEToF[newIdx][f] = -1
-				}
-				continue
-			}
-
-			for f := 0; f < 4; f++ {
-				// Check if face connectivity exists
-				if f >= len(el.Mesh.EToE[origIdx]) {
-					// Face doesn't have connectivity - treat as boundary
-					filteredEToE[newIdx][f] = -1
-					filteredEToF[newIdx][f] = -1
-					continue
-				}
-
-				neighbor := el.Mesh.EToE[origIdx][f]
-				if neighbor == -1 {
-					// Boundary face
-					filteredEToE[newIdx][f] = -1
-					filteredEToF[newIdx][f] = -1
-				} else if mappedIdx, ok := indexMap[neighbor]; ok {
-					// Neighbor is also a tet in our filtered set
-					filteredEToE[newIdx][f] = mappedIdx
-					filteredEToF[newIdx][f] = el.Mesh.EToF[origIdx][f]
-				} else {
-					// Neighbor is not a tet or not in filtered set - treat as boundary
-					filteredEToE[newIdx][f] = -1
-					filteredEToF[newIdx][f] = -1
-				}
-			}
-		}
-
-		el.ConnectivityArrays = &ConnectivityArrays{
-			EToE: filteredEToE,
-			EToF: filteredEToF,
-		}
-	} else {
-		// fmt.Printf("DEBUG: Using connectivity directly (all elements are tets)\n")
-		// All elements are tets, use connectivity directly
-		// Initialize ConnectivityArrays if nil
-		if el.ConnectivityArrays == nil {
-			el.ConnectivityArrays = &ConnectivityArrays{}
-		}
-		el.ConnectivityArrays.EToE = el.Mesh.EToE
-		el.ConnectivityArrays.EToF = el.Mesh.EToF
-	}
-
-	// fmt.Printf("DEBUG: Final connectivity:\n")
-	// fmt.Printf("  el.ConnectivityArrays = %v\n", el.ConnectivityArrays)
-	// if el.ConnectivityArrays != nil {
-	// 	fmt.Printf("  el.ConnectivityArrays.EToE = %v\n", el.ConnectivityArrays.EToE)
-	// 	fmt.Printf("  el.ConnectivityArrays.EToF = %v\n", el.ConnectivityArrays.EToF)
-	// }
-
-	return el.ConnectivityArrays
 }
 
+// GeometricFactors3D computes metric terms using gonudg-based differentiation
 func (el *Element3D) GeometricFactors3D() (gf *GeometricFactors) {
 	// Get physical coordinate matrices
 	x, y, z := el.X, el.Y, el.Z
 
-	// Get differentiation matrices
+	// Get differentiation matrices (already computed in TetBasis)
 	Dr, Ds, Dt := el.Dr, el.Ds, el.Dt
 
+	// Compute derivatives
 	xr := Dr.Mul(x)
 	xs := Ds.Mul(x)
 	xt := Dt.Mul(x)
@@ -377,7 +371,7 @@ func (el *Element3D) GeometricFactors3D() (gf *GeometricFactors) {
 	zs := Ds.Mul(z)
 	zt := Dt.Mul(z)
 
-	// Compute Jacobian
+	// Compute Jacobian determinant
 	J := utils.NewMatrix(xr.Rows(), xr.Cols())
 	for i := 0; i < xr.Rows(); i++ {
 		for j := 0; j < xr.Cols(); j++ {
@@ -423,6 +417,7 @@ func (el *Element3D) GeometricFactors3D() (gf *GeometricFactors) {
 	}
 }
 
+// CalcFaceGeometry computes face normals and surface Jacobians
 func (el *Element3D) CalcFaceGeometry() *FaceGeometricFactors {
 	fmask := el.Fmask
 	K := el.K
@@ -474,27 +469,17 @@ func (el *Element3D) CalcFaceGeometry() *FaceGeometricFactors {
 		}
 	}
 
-	// Normalize all faces
-	for k := 0; k < K; k++ {
-		for i := 0; i < Nfp*Nfaces; i++ {
-			// Compute magnitude
-			mag := math.Sqrt(nx.At(i, k)*nx.At(i, k) + ny.At(i, k)*ny.At(i, k) + nz.At(i, k)*nz.At(i, k))
-			sJ.Set(i, k, mag)
+	// Normalize and compute surface Jacobian
+	for i := 0; i < Nfp*Nfaces; i++ {
+		for k := 0; k < K; k++ {
+			sJ.Set(i, k, math.Sqrt(nx.At(i, k)*nx.At(i, k)+
+				ny.At(i, k)*ny.At(i, k)+
+				nz.At(i, k)*nz.At(i, k)))
 
-			// Normalize to unit vector
-			nx.Set(i, k, nx.At(i, k)/mag)
-			ny.Set(i, k, ny.At(i, k)/mag)
-			nz.Set(i, k, nz.At(i, k)/mag)
-		}
-	}
-
-	// Scale sJ by volume Jacobian at face nodes
-	for f := 0; f < Nfaces; f++ {
-		for i := 0; i < Nfp; i++ {
-			for k := 0; k < K; k++ {
-				vid := fmask[f][i]
-				idx := f*Nfp + i
-				sJ.Set(idx, k, sJ.At(idx, k)*el.J.At(vid, k))
+			if sJ.At(i, k) > 0 {
+				nx.Set(i, k, nx.At(i, k)/sJ.At(i, k))
+				ny.Set(i, k, ny.At(i, k)/sJ.At(i, k))
+				nz.Set(i, k, nz.At(i, k)/sJ.At(i, k))
 			}
 		}
 	}
@@ -516,313 +501,113 @@ func (el *Element3D) CalcFaceGeometry() *FaceGeometricFactors {
 		Fscale: Fscale,
 	}
 }
+
+// BuildMaps3D builds connectivity maps for DG using gonudg
 func (el *Element3D) BuildMaps3D() {
-	var (
-		K       = el.K
-		Np      = el.Np
-		Nfp     = el.Nfp
-		fmask   = el.Fmask
-		x, y, z = el.X, el.Y, el.Z
-	)
+	// Convert data to format expected by gonudg.BuildMaps3D
+	K := el.K
+	Np := el.Np
+	Nfp := el.Nfp
 
-	Nfaces := 4
-	NF := Nfp * Nfaces // Total face points per element
+	// Convert utils.Matrix to []float64 slices for x, y, z
+	xData := make([]float64, Np*K)
+	yData := make([]float64, Np*K)
+	zData := make([]float64, Np*K)
 
-	// Initialize arrays
-	vmapM := make([]int, Nfp*Nfaces*K)
-	vmapP := make([]int, Nfp*Nfaces*K)
-	mapM := make([]int, Nfp*Nfaces*K)
-	mapP := make([]int, Nfp*Nfaces*K)
-
-	// Initialize mapM and mapP as identity (following C++: mapM.range(1,Nfp*Nfaces*K); mapP = mapM;)
-	for i := 0; i < len(mapM); i++ {
-		mapM[i] = i
-		mapP[i] = i
-	}
-
-	// Find index of face nodes with respect to volume node ordering
-	// (C++ loop: for k1=1; k1<=K; ++k1)
-	for k1 := 0; k1 < K; k1++ {
-		// Define target range in vmapM for element k1
-		iL1 := k1 * NF
-
-		// Map face nodes in element k1
-		for f := 0; f < Nfaces; f++ {
-			for i := 0; i < Nfp; i++ {
-				idsL := iL1 + f*Nfp + i           // Index in vmapM array
-				volumeNode := fmask[f][i] + k1*Np // Global volume node index
-				vmapM[idsL] = volumeNode
-			}
+	// Copy data in column-major order (element by element)
+	for k := 0; k < K; k++ {
+		for n := 0; n < Np; n++ {
+			idx := k*Np + n
+			xData[idx] = el.X.At(n, k)
+			yData[idx] = el.Y.At(n, k)
+			zData[idx] = el.Z.At(n, k)
 		}
 	}
 
-	// Initialize vmapP to vmapM (for boundary faces)
-	copy(vmapP, vmapM)
-
-	// Create face to face mapping
-	NODETOL := 1e-7
-
-	for k1 := 0; k1 < K; k1++ {
-		for f1 := 0; f1 < Nfaces; f1++ {
-			// find neighbor
-			k2 := el.EToE[k1][f1]
-			f2 := el.EToF[k1][f1]
-
-			// Skip boundary faces
-			// Handle both conventions: -1 or self-reference
-			if k2 < 0 || (k2 == k1 && f2 == f1) {
-				continue
-			}
-
-			// Also skip if k2 is out of range
-			if k2 >= K {
-				continue
-			}
-
-			skM := k1 * NF // offset to element k1
-			skP := k2 * NF // offset to element k2
-
-			// Define index ranges (C++ uses 1-based, we use 0-based)
-			// idsM.range((f1-1)*Nfp+1+skM, f1*Nfp+skM)
-			// idsP.range((f2-1)*Nfp+1+skP, f2*Nfp+skP)
-
-			// Build index lists for this face pair
-			// C++ uses 1-based indexing: idsM.range((f1-1)*Nfp+1+skM, f1*Nfp+skM)
-			// Go uses 0-based, so no +1 needed
-			idsM := make([]int, Nfp)
-			idsP := make([]int, Nfp)
-			for i := 0; i < Nfp; i++ {
-				idsM[i] = f1*Nfp + i + skM
-				idsP[i] = f2*Nfp + i + skP
-			}
-
-			// Find volume node numbers of left and right nodes
-			// C++: vidM = vmapM(idsM); vidP = vmapM(idsP)
-			vidM := make([]int, Nfp)
-			vidP := make([]int, Nfp)
-			for i := 0; i < Nfp; i++ {
-				vidM[i] = vmapM[idsM[i]]
-				vidP[i] = vmapM[idsP[i]]
-			}
-
-			// Extract coordinates using volume node numbers
-			// C++: x1=x(vidM); y1=y(vidM); z1=z(vidM)
-			x1 := make([]float64, Nfp)
-			y1 := make([]float64, Nfp)
-			z1 := make([]float64, Nfp)
-			x2 := make([]float64, Nfp)
-			y2 := make([]float64, Nfp)
-			z2 := make([]float64, Nfp)
-
-			for i := 0; i < Nfp; i++ {
-				// M side
-				nodeM := vidM[i] % Np
-				elemM := vidM[i] / Np
-				x1[i] = x.At(nodeM, elemM)
-				y1[i] = y.At(nodeM, elemM)
-				z1[i] = z.At(nodeM, elemM)
-
-				// P side
-				nodeP := vidP[i] % Np
-				elemP := vidP[i] / Np
-				x2[i] = x.At(nodeP, elemP)
-				y2[i] = y.At(nodeP, elemP)
-				z2[i] = z.At(nodeP, elemP)
-			}
-
-			// Compute distance matrix and find matches
-			// C++: D = sqr(xM-trans(xP)) + sqr(yM-trans(yP)) + sqr(zM-trans(zP))
-			for i := 0; i < Nfp; i++ {
-				for j := 0; j < Nfp; j++ {
-					dx := x1[i] - x2[j]
-					dy := y1[i] - y2[j]
-					dz := z1[i] - z2[j]
-					dist := math.Sqrt(dx*dx + dy*dy + dz*dz)
-
-					if dist < NODETOL {
-						// C++: idM += (f1-1)*Nfp + skM; vmapP(idM) = vidP(idP)
-						idM := idsM[i]
-						vmapP[idM] = vidP[j]
-
-						// C++: idP += (f2-1)*Nfp + skP; mapP(idM) = idP
-						idP := idsP[j]
-						mapP[idM] = idP
-					}
-				}
-			}
-		}
-	}
-
-	// Assign to element
-	el.VmapM = vmapM
-	el.VmapP = vmapP
-	el.MapM = mapM
-	el.MapP = mapP
+	// Call gonudg BuildMaps3D
+	Nfaces := 4 // tet
+	el.VmapM, el.VmapP, el.MapB, el.VmapB = gonudg.BuildMaps3D(K, Np,
+		Nfp, Nfaces, xData, yData, zData, el.EToE, el.EToF, el.Fmask)
 }
-func (el *Element3D) BuildMaps3D_Diagnostic() {
-	var (
-		K       = el.K
-		Np      = el.Np
-		Nfp     = el.Nfp
-		fmask   = el.Fmask
-		x, y, z = el.X, el.Y, el.Z
-	)
 
+// Connect3D builds element connectivity arrays
+func (el *Element3D) Connect3D() (ca *ConnectivityArrays) {
+	EToV := el.EToV
+	K := el.K
 	Nfaces := 4
-	NF := Nfp * Nfaces // Total face points per element
 
-	// Initialize arrays
-	vmapM := make([]int, Nfp*Nfaces*K)
-	vmapP := make([]int, Nfp*Nfaces*K)
-	mapM := make([]int, Nfp*Nfaces*K)
-	mapP := make([]int, Nfp*Nfaces*K)
-
-	// Initialize mapM and mapP as identity
-	for i := 0; i < len(mapM); i++ {
-		mapM[i] = i
-		mapP[i] = i
+	// Build face to vertex mapping for tetrahedron
+	vn := [][]int{
+		{0, 1, 2}, // Face 1
+		{0, 1, 3}, // Face 2
+		{1, 2, 3}, // Face 3
+		{0, 2, 3}, // Face 4
 	}
 
-	// Find index of face nodes with respect to volume node ordering
-	for k1 := 0; k1 < K; k1++ {
-		iL1 := k1 * NF
+	// Create face to element+face mapping
+	faces := make(map[[3]int]struct{ elem, face int })
+
+	for k := 0; k < K; k++ {
 		for f := 0; f < Nfaces; f++ {
-			for i := 0; i < Nfp; i++ {
-				idsL := iL1 + f*Nfp + i
-				volumeNode := fmask[f][i] + k1*Np
-				vmapM[idsL] = volumeNode
-			}
-		}
-	}
-
-	// Initialize vmapP to vmapM (for boundary faces)
-	copy(vmapP, vmapM)
-
-	// Create face to face mapping
-	NODETOL := 1e-7
-
-	// Track statistics
-	matchesFound := 0
-	facesProcessed := 0
-	minDist := 1e10
-	maxMatchDist := 0.0
-
-	// Debug first few elements
-	debugElements := 3
-
-	for k1 := 0; k1 < K && k1 < debugElements; k1++ {
-		for f1 := 0; f1 < Nfaces; f1++ {
-			k2 := el.EToE[k1][f1]
-			f2 := el.EToF[k1][f1]
-
-			if k2 < 0 || (k2 == k1 && f2 == f1) || k2 >= K {
-				continue
+			// Get vertices of this face
+			v := make([]int, 3)
+			for i := 0; i < 3; i++ {
+				v[i] = EToV[k][vn[f][i]]
 			}
 
-			facesProcessed++
-			fmt.Printf("\nProcessing face: elem %d face %d -> elem %d face %d\n", k1, f1, k2, f2)
+			// Sort vertices to create unique key
+			sort.Ints(v)
+			key := [3]int{v[0], v[1], v[2]}
 
-			skM := k1 * NF
-			skP := k2 * NF
-
-			// Build index lists
-			idsM := make([]int, Nfp)
-			idsP := make([]int, Nfp)
-			for i := 0; i < Nfp; i++ {
-				idsM[i] = f1*Nfp + i + skM
-				idsP[i] = f2*Nfp + i + skP
-			}
-
-			// Get volume node numbers
-			vidM := make([]int, Nfp)
-			vidP := make([]int, Nfp)
-			for i := 0; i < Nfp; i++ {
-				vidM[i] = vmapM[idsM[i]]
-				vidP[i] = vmapM[idsP[i]]
-			}
-
-			// Extract coordinates
-			x1 := make([]float64, Nfp)
-			y1 := make([]float64, Nfp)
-			z1 := make([]float64, Nfp)
-			x2 := make([]float64, Nfp)
-			y2 := make([]float64, Nfp)
-			z2 := make([]float64, Nfp)
-
-			fmt.Printf("  M side coordinates:\n")
-			for i := 0; i < Nfp; i++ {
-				nodeM := vidM[i] % Np
-				elemM := vidM[i] / Np
-				x1[i] = x.At(nodeM, elemM)
-				y1[i] = y.At(nodeM, elemM)
-				z1[i] = z.At(nodeM, elemM)
-				fmt.Printf("    Point %d: vidM=%d (elem %d, node %d) -> (%.6f, %.6f, %.6f)\n",
-					i, vidM[i], elemM, nodeM, x1[i], y1[i], z1[i])
-			}
-
-			fmt.Printf("  P side coordinates:\n")
-			for i := 0; i < Nfp; i++ {
-				nodeP := vidP[i] % Np
-				elemP := vidP[i] / Np
-				x2[i] = x.At(nodeP, elemP)
-				y2[i] = y.At(nodeP, elemP)
-				z2[i] = z.At(nodeP, elemP)
-				fmt.Printf("    Point %d: vidP=%d (elem %d, node %d) -> (%.6f, %.6f, %.6f)\n",
-					i, vidP[i], elemP, nodeP, x2[i], y2[i], z2[i])
-			}
-
-			// Compute distance matrix
-			fmt.Printf("  Distance matrix:\n")
-			fmt.Printf("        ")
-			for j := 0; j < Nfp; j++ {
-				fmt.Printf("   P%d     ", j)
-			}
-			fmt.Printf("\n")
-
-			faceMatches := 0
-			for i := 0; i < Nfp; i++ {
-				fmt.Printf("    M%d: ", i)
-				for j := 0; j < Nfp; j++ {
-					dx := x1[i] - x2[j]
-					dy := y1[i] - y2[j]
-					dz := z1[i] - z2[j]
-					dist := math.Sqrt(dx*dx + dy*dy + dz*dz)
-
-					if dist < minDist {
-						minDist = dist
-					}
-
-					if dist < NODETOL {
-						fmt.Printf(" MATCH   ")
-						idM := idsM[i]
-						vmapP[idM] = vidP[j]
-						idP := idsP[j]
-						mapP[idM] = idP
-						matchesFound++
-						faceMatches++
-						if dist > maxMatchDist {
-							maxMatchDist = dist
-						}
-					} else {
-						fmt.Printf(" %.2e ", dist)
-					}
+			if match, exists := faces[key]; exists {
+				// Found matching face
+				if k != match.elem {
+					// Different elements share this face
+					// This is an internal face
 				}
-				fmt.Printf("\n")
+			} else {
+				faces[key] = struct{ elem, face int }{k, f}
 			}
-			fmt.Printf("  Matches found on this face: %d/%d\n", faceMatches, Nfp)
 		}
 	}
 
-	fmt.Printf("\n=== SUMMARY ===\n")
-	fmt.Printf("Faces processed: %d\n", facesProcessed)
-	fmt.Printf("Total matches found: %d\n", matchesFound)
-	fmt.Printf("Minimum distance seen: %.2e\n", minDist)
-	fmt.Printf("Maximum match distance: %.2e\n", maxMatchDist)
-	fmt.Printf("NODETOL: %.2e\n", NODETOL)
+	// Build connectivity arrays
+	EToE := make([][]int, K)
+	EToF := make([][]int, K)
 
-	// Assign to element
-	el.VmapM = vmapM
-	el.VmapP = vmapP
-	el.MapM = mapM
-	el.MapP = mapP
+	for k := 0; k < K; k++ {
+		EToE[k] = make([]int, Nfaces)
+		EToF[k] = make([]int, Nfaces)
+
+		// Initialize with self-connectivity
+		for f := 0; f < Nfaces; f++ {
+			EToE[k][f] = k
+			EToF[k][f] = f
+		}
+
+		// Find actual connections
+		for f := 0; f < Nfaces; f++ {
+			v := make([]int, 3)
+			for i := 0; i < 3; i++ {
+				v[i] = EToV[k][vn[f][i]]
+			}
+			sort.Ints(v)
+			key := [3]int{v[0], v[1], v[2]}
+
+			// Search all faces for match
+			for fkey, fdata := range faces {
+				if fkey == key && fdata.elem != k {
+					EToE[k][f] = fdata.elem
+					EToF[k][f] = fdata.face
+					break
+				}
+			}
+		}
+	}
+
+	ca = &ConnectivityArrays{
+		EToE: EToE,
+		EToF: EToF,
+	}
+	return
 }

@@ -957,32 +957,7 @@ func TestFmaskValidity(t *testing.T) {
 		}
 	}
 }
-func TestBuildMaps3D_Diagnostic(t *testing.T) {
-	meshPath := getTestMeshPath()
-	el, err := NewElement3D(2, meshPath) // Order 2 to match the failing test
-	if err != nil {
-		t.Fatalf("Failed to create Element3D: %v", err)
-	}
 
-	t.Logf("Running diagnostic BuildMaps3D...")
-	t.Logf("K=%d, Np=%d, Nfp=%d", el.K, el.Np, el.Nfp)
-
-	// Run the diagnostic version
-	el.BuildMaps3D_Diagnostic()
-
-	// Check if any interior faces were updated
-	updatedCount := 0
-	for i := 0; i < len(el.VmapP); i++ {
-		if el.VmapP[i] != el.VmapM[i] {
-			updatedCount++
-		}
-	}
-
-	t.Logf("\nVmapP update statistics:")
-	t.Logf("Total face points: %d", len(el.VmapP))
-	t.Logf("Updated points: %d (%.1f%%)", updatedCount,
-		float64(updatedCount)*100/float64(len(el.VmapP)))
-}
 func TestOrder2FaceNodes(t *testing.T) {
 	// Create order 2 basis
 	tb := NewTetBasis(2)
@@ -1053,70 +1028,6 @@ func TestOrder2FaceNodes(t *testing.T) {
 			} else {
 				t.Logf("    Node %d: WRONG! Off by %.6f", nodeIdx, residual)
 			}
-		}
-	}
-}
-func TestReferenceTetBounds(t *testing.T) {
-	// Standard reference tetrahedron vertices
-	refVertices := [][3]float64{
-		{-1, -1, -1}, // v0
-		{1, -1, -1},  // v1
-		{-1, 1, -1},  // v2
-		{-1, -1, 1},  // v3
-	}
-
-	t.Logf("Standard reference tetrahedron vertices:")
-	for i, v := range refVertices {
-		t.Logf("  v%d: (%.1f, %.1f, %.1f)", i, v[0], v[1], v[2])
-	}
-
-	// Check what Nodes3D produces for different orders
-	for N := 1; N <= 3; N++ {
-		t.Logf("\nOrder %d nodes from Nodes3D:", N)
-		r, s, tt := Nodes3D(N)
-
-		// Check bounds
-		minR, maxR := r.Min(), r.Max()
-		minS, maxS := s.Min(), s.Max()
-		minT, maxT := tt.Min(), tt.Max()
-
-		t.Logf("  R range: [%.3f, %.3f]", minR, maxR)
-		t.Logf("  S range: [%.3f, %.3f]", minS, maxS)
-		t.Logf("  T range: [%.3f, %.3f]", minT, maxT)
-
-		// Check if any nodes are outside [-1,1] cube
-		outOfBounds := 0
-		for i := 0; i < r.Len(); i++ {
-			ri, si, ti := r.At(i), s.At(i), tt.At(i)
-			if ri < -1-1e-10 || ri > 1+1e-10 ||
-				si < -1-1e-10 || si > 1+1e-10 ||
-				ti < -1-1e-10 || ti > 1+1e-10 {
-				outOfBounds++
-				if outOfBounds <= 5 {
-					t.Logf("  Node %d OUT OF BOUNDS: (%.3f, %.3f, %.3f)", i, ri, si, ti)
-				}
-			}
-		}
-
-		if outOfBounds > 5 {
-			t.Logf("  ... and %d more out of bounds nodes", outOfBounds-5)
-		}
-
-		// Check if nodes satisfy tet constraint: r+s+t <= -1
-		constraint := 0
-		for i := 0; i < r.Len(); i++ {
-			ri, si, ti := r.At(i), s.At(i), tt.At(i)
-			sum := ri + si + ti
-			if sum > -1+1e-10 {
-				constraint++
-				if constraint <= 5 {
-					t.Logf("  Node %d VIOLATES r+s+t<=-1: sum=%.3f", i, sum)
-				}
-			}
-		}
-
-		if constraint > 5 {
-			t.Logf("  ... and %d more constraint violations", constraint-5)
 		}
 	}
 }
