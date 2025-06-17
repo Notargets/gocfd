@@ -5,6 +5,55 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
+// GlobalToLocal represents the mapping from global element ID to partition-local coordinates
+type GlobalToLocal struct {
+	mapping map[int]struct {
+		PartitionID int
+		LocalIndex  int
+	}
+}
+
+// NewGlobalToLocal builds the mapping from the partition assignments
+func NewGlobalToLocal(EToP []int) *GlobalToLocal {
+	g2l := &GlobalToLocal{
+		mapping: make(map[int]struct {
+			PartitionID int
+			LocalIndex  int
+		}),
+	}
+
+	// First pass: count elements per partition to assign local indices
+	partitionCounts := make(map[int]int)
+
+	// Second pass: build the mapping
+	for globalIdx, partID := range EToP {
+		localIdx := partitionCounts[partID]
+		g2l.mapping[globalIdx] = struct {
+			PartitionID int
+			LocalIndex  int
+		}{partID, localIdx}
+		partitionCounts[partID]++
+	}
+
+	return g2l
+}
+
+// Get returns the partition ID and local index for a global element
+func (g2l *GlobalToLocal) Get(globalIdx int) (partitionID, localIndex int, ok bool) {
+	if info, exists := g2l.mapping[globalIdx]; exists {
+		return info.PartitionID, info.LocalIndex, true
+	}
+	return -1, -1, false
+}
+
+// GetLocalIndex returns just the local index for a global element
+func (g2l *GlobalToLocal) GetLocalIndex(globalIdx int) int {
+	if info, exists := g2l.mapping[globalIdx]; exists {
+		return info.LocalIndex
+	}
+	return -1
+}
+
 // SplitByPartition splits the Element3D into separate Element3D instances for each partition
 // This should be called after EToP is populated and before face_buffer or other parallel processing
 func (el *Element3D) SplitByPartition() error {
@@ -12,6 +61,9 @@ func (el *Element3D) SplitByPartition() error {
 		// Nothing to split - non-partitioned mesh
 		return nil
 	}
+
+	// Build global to local mapping for ALL partitions
+	g2l := NewGlobalToLocal(el.EToP)
 
 	// Count elements per partition and create partition mapping
 	partitionCount := make(map[int]int)
@@ -26,7 +78,7 @@ func (el *Element3D) SplitByPartition() error {
 	el.SplitElement3D = make([]*Element3D, 0, len(partitionCount))
 
 	for partID, elemList := range partitionElements {
-		splitEl, err := el.createPartitionElement(partID, elemList)
+		splitEl, err := el.createPartitionElement(partID, elemList, g2l)
 		if err != nil {
 			return fmt.Errorf("failed to create partition %d: %v", partID, err)
 		}
@@ -37,10 +89,10 @@ func (el *Element3D) SplitByPartition() error {
 }
 
 // createPartitionElement creates a new Element3D for a specific partition
-func (el *Element3D) createPartitionElement(partitionID int, elemIndices []int) (*Element3D, error) {
+func (el *Element3D) createPartitionElement(partitionID int, elemIndices []int, g2l *GlobalToLocal) (*Element3D, error) {
 	localK := len(elemIndices)
 
-	// Create global to local element mapping
+	// Create global to local element mapping for this partition
 	globalToLocal := make(map[int]int)
 	for localIdx, globalIdx := range elemIndices {
 		globalToLocal[globalIdx] = localIdx
@@ -115,6 +167,7 @@ func (el *Element3D) createPartitionElement(partitionID int, elemIndices []int) 
 	}
 
 	// Copy and remap connectivity arrays
+	nfaces := 4
 	if el.ConnectivityArrays != nil {
 		partEl.ConnectivityArrays = &ConnectivityArrays{
 			EToE: make([][]int, localK),
@@ -122,25 +175,93 @@ func (el *Element3D) createPartitionElement(partitionID int, elemIndices []int) 
 		}
 
 		for localIdx, globalIdx := range elemIndices {
-			partEl.EToE[localIdx] = make([]int, len(el.EToE[globalIdx]))
-			partEl.EToF[localIdx] = make([]int, len(el.EToF[globalIdx]))
+			partEl.EToE[localIdx] = make([]int, nfaces)
+			partEl.EToF[localIdx] = make([]int, nfaces)
 
-			for f := 0; f < len(el.EToE[globalIdx]); f++ {
+			for f := 0; f < nfaces; f++ {
 				neighborGlobal := el.EToE[globalIdx][f]
 
 				if neighborGlobal == -1 {
-					// Boundary face
+					// True boundary face
 					partEl.EToE[localIdx][f] = -1
-					partEl.EToF[localIdx][f] = el.EToF[globalIdx][f]
-				} else if localNeighbor, isLocal := globalToLocal[neighborGlobal]; isLocal {
-					// Local neighbor within this partition
-					partEl.EToE[localIdx][f] = localNeighbor
 					partEl.EToF[localIdx][f] = el.EToF[globalIdx][f]
 				} else {
-					// Remote neighbor in different partition
-					// Mark as boundary for now - face_buffer will handle remote connections
-					partEl.EToE[localIdx][f] = -1
+					// Get neighbor's local index in its partition
+					_, neighborLocal, ok := g2l.Get(neighborGlobal)
+					if !ok {
+						return nil, fmt.Errorf("neighbor element %d not found in global mapping", neighborGlobal)
+					}
+
+					// Always use local index
+					partEl.EToE[localIdx][f] = neighborLocal
 					partEl.EToF[localIdx][f] = el.EToF[globalIdx][f]
+				}
+			}
+		}
+	}
+
+	// Copy and transform face mappings
+	if el.VmapM != nil && el.VmapP != nil {
+		nfp := el.Nfp
+		totalFaceNodes := nfp * nfaces * localK
+
+		partEl.VmapM = make([]int, totalFaceNodes)
+		partEl.VmapP = make([]int, totalFaceNodes)
+		partEl.MapM = make([]int, totalFaceNodes)
+		partEl.MapP = make([]int, totalFaceNodes)
+
+		// For each element in this partition
+		for localIdx, globalIdx := range elemIndices {
+			// For each face of the element
+			for f := 0; f < nfaces; f++ {
+				// Get the neighbor element
+				neighborGlobal := el.EToE[globalIdx][f]
+
+				// For each point on the face
+				for p := 0; p < nfp; p++ {
+					// Calculate indices
+					localFaceIdx := localIdx*nfaces*nfp + f*nfp + p
+
+					// For VmapM, we need to map from the current element's face nodes
+					// to volume nodes. Since we're processing element by element,
+					// VmapM should point to nodes on the current element.
+					// Use the face mask to get the correct volume node
+					faceNode := el.Fmask[f][p] // Node index on face f
+					partEl.VmapM[localFaceIdx] = localIdx*el.Np + faceNode
+
+					// Copy MapM - it's a unique node ID (unchanged)
+					globalFaceIdx := globalIdx*nfaces*nfp + f*nfp + p
+					partEl.MapM[localFaceIdx] = el.MapM[globalFaceIdx]
+
+					// Transform VmapP based on neighbor type
+					if neighborGlobal == -1 {
+						// Boundary face - VmapP = VmapM
+						partEl.VmapP[localFaceIdx] = partEl.VmapM[localFaceIdx]
+						partEl.MapP[localFaceIdx] = partEl.MapM[localFaceIdx]
+					} else {
+						// Interior face - get VmapP from global mesh
+						globalVmapP := el.VmapP[globalFaceIdx]
+						globalElemP := globalVmapP / el.Np
+						nodeP := globalVmapP % el.Np
+
+						// Check if VmapP points to a valid element
+						if globalElemP >= el.K {
+							return nil, fmt.Errorf("VmapP references non-existent element %d (mesh has %d elements) at element %d, face %d, point %d. BuildMaps3D created invalid mappings",
+								globalElemP, el.K, globalIdx, f, p)
+						}
+
+						// Get the local index of the element that VmapP points to
+						_, vpointLocalIdx, ok := g2l.Get(globalElemP)
+						if !ok {
+							return nil, fmt.Errorf("VmapP references element %d not found in global mapping", globalElemP)
+						}
+
+						// VmapP uses the neighbor partition's local coordinates
+						partEl.VmapP[localFaceIdx] = vpointLocalIdx*el.Np + nodeP
+
+						// Copy MapP
+						partEl.MapP[localFaceIdx] = el.MapP[globalFaceIdx]
+					}
 				}
 			}
 		}
@@ -148,7 +269,6 @@ func (el *Element3D) createPartitionElement(partitionID int, elemIndices []int) 
 
 	// Copy boundary conditions
 	if el.BCType != nil {
-		nfaces := 4 // Tetrahedra
 		partEl.BCType = make([]int, localK*nfaces)
 
 		for localIdx, globalIdx := range elemIndices {
@@ -193,9 +313,7 @@ func (el *Element3D) createPartitionElement(partitionID int, elemIndices []int) 
 
 	// Copy face geometric factors
 	if el.FaceGeometricFactors != nil {
-		nfp := el.Nfp
-		nfaces := 4
-		totalFaceNodes := nfp * nfaces
+		totalFaceNodes := el.Nfp * nfaces
 
 		partEl.FaceGeometricFactors = &FaceGeometricFactors{
 			Nx:     utils.NewMatrix(totalFaceNodes, localK),
@@ -216,8 +334,7 @@ func (el *Element3D) createPartitionElement(partitionID int, elemIndices []int) 
 		}
 	}
 
-	// Rebuild face mappings for the local partition
-	partEl.BuildMaps3D()
+	// DO NOT call BuildMaps3D() - we've already transformed the mappings correctly!
 
 	// Store original element indices for reference
 	partEl.tetIndices = make([]int, localK)
