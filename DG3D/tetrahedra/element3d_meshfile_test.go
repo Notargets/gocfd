@@ -2,6 +2,7 @@ package tetrahedra
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -338,4 +339,285 @@ func TestElement3D_ReadsPartitionData(t *testing.T) {
 	assert.Equal(t, 141, partitionCounts[2])
 	assert.Equal(t, 141, partitionCounts[3])
 	assert.Equal(t, 141, partitionCounts[4])
+}
+
+// NEW TESTS FOR BUILDMAPS3D FIX
+
+func TestBuildMaps3D_ValidVmapP(t *testing.T) {
+	// Load the problematic mesh
+	meshPath := getTestMeshPath()
+	el, err := NewElement3D(2, meshPath)
+	if err != nil {
+		t.Fatalf("Failed to create Element3D: %v", err)
+	}
+
+	// Check all VmapP values
+	invalidCount := 0
+	boundaryCount := 0
+	interiorCount := 0
+
+	for i := 0; i < len(el.VmapP); i++ {
+		elemP := el.VmapP[i] / el.Np
+
+		// Check if VmapP points to a valid element
+		if elemP >= el.K {
+			invalidCount++
+			// Get details about this invalid mapping
+			elem := i / (el.Nfp * 4)
+			face := (i / el.Nfp) % 4
+			point := i % el.Nfp
+
+			t.Errorf("Invalid VmapP[%d] = %d points to element %d (max valid: %d) at elem=%d, face=%d, point=%d",
+				i, el.VmapP[i], elemP, el.K-1, elem, face, point)
+		}
+
+		// Check if this is a boundary face (VmapP == VmapM)
+		if el.VmapP[i] == el.VmapM[i] {
+			boundaryCount++
+		} else {
+			interiorCount++
+		}
+	}
+
+	// Report results
+	t.Logf("Total face points: %d", len(el.VmapP))
+	t.Logf("Boundary points: %d", boundaryCount)
+	t.Logf("Interior points: %d", interiorCount)
+	t.Logf("Invalid points: %d", invalidCount)
+
+	if invalidCount > 0 {
+		t.Fatalf("Found %d invalid VmapP entries", invalidCount)
+	}
+
+	// Additional validation: check boundary faces
+	for k := 0; k < el.K; k++ {
+		for f := 0; f < 4; f++ {
+			// Check if this is a boundary face
+			if el.EToE[k][f] == k && el.EToF[k][f] == f {
+				// Verify all points on this face have VmapP = VmapM
+				for p := 0; p < el.Nfp; p++ {
+					idx := k*4*el.Nfp + f*el.Nfp + p
+					if el.VmapP[idx] != el.VmapM[idx] {
+						t.Errorf("Boundary face (elem=%d, face=%d) should have VmapP=VmapM at point %d", k, f, p)
+					}
+				}
+			}
+		}
+	}
+}
+
+// TestBuildMaps3D_InteriorFaceConnectivity verifies interior face mappings
+func TestBuildMaps3D_InteriorFaceConnectivity(t *testing.T) {
+	meshPath := getTestMeshPath()
+	el, err := NewElement3D(2, meshPath)
+	if err != nil {
+		t.Fatalf("Failed to create Element3D: %v", err)
+	}
+
+	// For debugging, print first few elements' connectivity
+	t.Logf("First few elements' connectivity:")
+	for k := 0; k < min(3, el.K); k++ {
+		t.Logf("Element %d: EToE=%v, EToF=%v", k, el.EToE[k], el.EToF[k])
+	}
+
+	// For each interior face, verify connectivity
+	connectivityErrors := 0
+	checkedFaces := 0
+
+	for k1 := 0; k1 < el.K; k1++ {
+		for f1 := 0; f1 < 4; f1++ {
+			k2 := el.EToE[k1][f1]
+			f2 := el.EToF[k1][f1]
+
+			// Skip boundary faces
+			if k2 == k1 && f2 == f1 {
+				continue
+			}
+
+			// Skip invalid neighbors
+			if k2 < 0 || k2 >= el.K {
+				continue
+			}
+
+			checkedFaces++
+
+			// For each point on the face
+			hasError := false
+			for p1 := 0; p1 < el.Nfp; p1++ {
+				idx1 := k1*4*el.Nfp + f1*el.Nfp + p1
+
+				// VmapP should point to a node in element k2
+				vmapP1 := el.VmapP[idx1]
+				elemP := vmapP1 / el.Np
+
+				if elemP != k2 {
+					if !hasError && connectivityErrors < 5 { // Limit debug output
+						t.Errorf("Face (elem=%d,face=%d) -> (elem=%d,face=%d):", k1, f1, k2, f2)
+						hasError = true
+					}
+					connectivityErrors++
+					if connectivityErrors <= 20 {
+						t.Errorf("  Point %d: VmapP=%d points to elem %d, expected %d",
+							p1, vmapP1, elemP, k2)
+					}
+				}
+			}
+		}
+	}
+
+	t.Logf("Checked %d interior faces", checkedFaces)
+	if connectivityErrors > 0 {
+		t.Fatalf("Found %d connectivity errors", connectivityErrors)
+	}
+}
+
+// TestBuildMaps3D_NodeMatching verifies that matching nodes have same coordinates
+func TestBuildMaps3D_NodeMatching(t *testing.T) {
+	meshPath := getTestMeshPath()
+	el, err := NewElement3D(1, meshPath) // Use order 1 for simpler debugging
+	if err != nil {
+		t.Fatalf("Failed to create Element3D: %v", err)
+	}
+
+	NODETOL := 1e-7
+	mismatchCount := 0
+
+	// For each face point
+	for i := 0; i < len(el.VmapM); i++ {
+		// Skip boundary faces
+		if el.VmapM[i] == el.VmapP[i] {
+			continue
+		}
+
+		// Get coordinates of M and P nodes
+		vmapM := el.VmapM[i]
+		vmapP := el.VmapP[i]
+
+		elemM := vmapM / el.Np
+		nodeM := vmapM % el.Np
+		elemP := vmapP / el.Np
+		nodeP := vmapP % el.Np
+
+		// Get coordinates
+		xM := el.X.At(nodeM, elemM)
+		yM := el.Y.At(nodeM, elemM)
+		zM := el.Z.At(nodeM, elemM)
+
+		xP := el.X.At(nodeP, elemP)
+		yP := el.Y.At(nodeP, elemP)
+		zP := el.Z.At(nodeP, elemP)
+
+		// Check distance
+		dx := xM - xP
+		dy := yM - yP
+		dz := zM - zP
+		dist := math.Sqrt(dx*dx + dy*dy + dz*dz)
+
+		if dist > NODETOL {
+			mismatchCount++
+			if mismatchCount <= 5 { // Limit output
+				elem := i / (el.Nfp * 4)
+				face := (i / el.Nfp) % 4
+				point := i % el.Nfp
+
+				t.Errorf("Node mismatch at face point %d (elem=%d,face=%d,point=%d):",
+					i, elem, face, point)
+				t.Errorf("  M: elem %d, node %d -> (%g, %g, %g)",
+					elemM, nodeM, xM, yM, zM)
+				t.Errorf("  P: elem %d, node %d -> (%g, %g, %g)",
+					elemP, nodeP, xP, yP, zP)
+				t.Errorf("  Distance: %g", dist)
+			}
+		}
+	}
+
+	if mismatchCount > 0 {
+		t.Fatalf("Found %d node coordinate mismatches", mismatchCount)
+	}
+}
+
+// DebugVmapP provides detailed debugging information
+func DebugVmapP(el *Element3D) {
+	fmt.Printf("=== VmapP Debug Information ===\n")
+	fmt.Printf("Total elements (K): %d\n", el.K)
+	fmt.Printf("Nodes per element (Np): %d\n", el.Np)
+	fmt.Printf("Face points (Nfp): %d\n", el.Nfp)
+	fmt.Printf("Total VmapP entries: %d\n", len(el.VmapP))
+
+	// Count different types of mappings
+	boundaryCount := 0
+	interiorCount := 0
+	invalidCount := 0
+
+	// Track invalid entries for detailed reporting
+	type invalidEntry struct {
+		index, elem, face, point int
+		vmapP, targetElem        int
+	}
+	var invalidEntries []invalidEntry
+
+	for i := 0; i < len(el.VmapP); i++ {
+		// Decode position
+		elem := i / (el.Nfp * 4)
+		face := (i / el.Nfp) % 4
+		point := i % el.Nfp
+
+		// Check where VmapP points
+		targetElem := el.VmapP[i] / el.Np
+
+		if targetElem >= el.K {
+			invalidCount++
+			if len(invalidEntries) < 10 { // Limit output
+				invalidEntries = append(invalidEntries, invalidEntry{
+					index: i, elem: elem, face: face, point: point,
+					vmapP: el.VmapP[i], targetElem: targetElem,
+				})
+			}
+		} else if el.VmapP[i] == el.VmapM[i] {
+			boundaryCount++
+		} else {
+			interiorCount++
+		}
+	}
+
+	fmt.Printf("\nMapping Statistics:\n")
+	fmt.Printf("- Boundary face points: %d (%.1f%%)\n",
+		boundaryCount, float64(boundaryCount)*100/float64(len(el.VmapP)))
+	fmt.Printf("- Interior face points: %d (%.1f%%)\n",
+		interiorCount, float64(interiorCount)*100/float64(len(el.VmapP)))
+	fmt.Printf("- Invalid mappings: %d\n", invalidCount)
+
+	if invalidCount > 0 {
+		fmt.Printf("\n!!! FOUND %d INVALID VmapP ENTRIES !!!\n", invalidCount)
+		fmt.Printf("First %d invalid entries:\n", len(invalidEntries))
+		for _, inv := range invalidEntries {
+			fmt.Printf("  VmapP[%d] = %d -> element %d (invalid!) at elem=%d, face=%d, point=%d\n",
+				inv.index, inv.vmapP, inv.targetElem, inv.elem, inv.face, inv.point)
+		}
+	}
+
+	// Check boundary face consistency
+	fmt.Printf("\nBoundary Face Validation:\n")
+	boundaryFaces := 0
+	for k := 0; k < el.K && k < len(el.EToE); k++ {
+		for f := 0; f < 4 && f < len(el.EToE[k]); f++ {
+			if el.EToE[k][f] == k && el.EToF[k][f] == f {
+				boundaryFaces++
+				// Check all points on this boundary face
+				allCorrect := true
+				for p := 0; p < el.Nfp; p++ {
+					idx := k*4*el.Nfp + f*el.Nfp + p
+					if idx < len(el.VmapP) && el.VmapP[idx] != el.VmapM[idx] {
+						allCorrect = false
+					}
+				}
+				if !allCorrect {
+					fmt.Printf("  WARNING: Boundary face (elem=%d, face=%d) has incorrect VmapP\n", k, f)
+				}
+			}
+		}
+	}
+	fmt.Printf("Total boundary faces detected: %d\n", boundaryFaces)
+
+	fmt.Printf("\n=== End Debug Information ===\n")
 }

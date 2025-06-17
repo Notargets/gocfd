@@ -517,17 +517,17 @@ func (el *Element3D) CalcFaceGeometry() *FaceGeometricFactors {
 		Fscale: Fscale,
 	}
 }
-
 func (el *Element3D) BuildMaps3D() {
-	K := el.K
-	Np := el.Np
-	Nfp := el.Nfp
-	fmask := el.Fmask
-
-	// Get physical coordinate matrices
-	x, y, z := el.X, el.Y, el.Z
+	var (
+		K       = el.K
+		Np      = el.Np
+		Nfp     = el.Nfp
+		fmask   = el.Fmask
+		x, y, z = el.X, el.Y, el.Z
+	)
 
 	Nfaces := 4
+	NF := Nfp * Nfaces // Total face points per element
 
 	// Build global face to node mapping
 	nodeIds := make(map[[3]float64]int)
@@ -549,19 +549,36 @@ func (el *Element3D) BuildMaps3D() {
 		}
 	}
 
-	// Volume to global node mapping
+	// Initialize arrays
 	vmapM := make([]int, Nfp*Nfaces*K)
 	vmapP := make([]int, Nfp*Nfaces*K)
 	mapM := make([]int, Nfp*Nfaces*K)
 	mapP := make([]int, Nfp*Nfaces*K)
 
-	// Initialize with identity mapping
-	for i := range vmapM {
-		vmapM[i] = i
-		vmapP[i] = i
+	// Initialize mapM and mapP as identity (following C++: mapM.range(1,Nfp*Nfaces*K); mapP = mapM;)
+	for i := 0; i < len(mapM); i++ {
 		mapM[i] = i
 		mapP[i] = i
 	}
+
+	// Find index of face nodes with respect to volume node ordering
+	// (C++ loop: for k1=1; k1<=K; ++k1)
+	for k1 := 0; k1 < K; k1++ {
+		// Define target range in vmapM for element k1
+		iL1 := k1 * NF
+
+		// Map face nodes in element k1
+		for f := 0; f < Nfaces; f++ {
+			for i := 0; i < Nfp; i++ {
+				idsL := iL1 + f*Nfp + i           // Index in vmapM array
+				volumeNode := fmask[f][i] + k1*Np // Global volume node index
+				vmapM[idsL] = volumeNode
+			}
+		}
+	}
+
+	// Initialize vmapP to vmapM (for boundary faces)
+	copy(vmapP, vmapM)
 
 	// Create face to face mapping
 	for k1 := 0; k1 < K; k1++ {
@@ -571,51 +588,86 @@ func (el *Element3D) BuildMaps3D() {
 				continue
 			}
 
+			// Find neighbor
 			k2 := el.EToE[k1][f1]
 			f2 := el.EToF[k1][f1]
 
-			// Skip boundary faces
+			// Skip boundary faces (where neighbor is self)
+			if k2 == k1 && f2 == f1 {
+				continue
+			}
+
+			// Skip invalid neighbors
 			if k2 < 0 || k2 >= K {
 				continue
 			}
 
+			// Skip if we've already processed this face pair
 			if k2 < k1 || (k2 == k1 && f2 < f1) {
-				continue // Only process each face pair once
+				continue
 			}
 
-			// Find matching nodes
+			// Define ranges for face nodes
+			skM := k1 * NF
+			skP := k2 * NF
+
+			// Get indices for all nodes on both faces
+			idsM := make([]int, Nfp)
+			idsP := make([]int, Nfp)
 			for i := 0; i < Nfp; i++ {
-				n1 := fmask[f1][i]
-				key1 := [3]float64{
-					math.Round(x.At(n1, k1)/NODETOL) * NODETOL,
-					math.Round(y.At(n1, k1)/NODETOL) * NODETOL,
-					math.Round(z.At(n1, k1)/NODETOL) * NODETOL,
-				}
+				idsM[i] = skM + f1*Nfp + i
+				idsP[i] = skP + f2*Nfp + i
+			}
 
+			// Find volume node numbers of left and right nodes
+			vidM := make([]int, Nfp)
+			vidP := make([]int, Nfp)
+			for i := 0; i < Nfp; i++ {
+				vidM[i] = vmapM[idsM[i]]
+				vidP[i] = vmapM[idsP[i]]
+			}
+
+			// Extract coordinates using the global volume node indices
+			x1 := make([]float64, Nfp)
+			y1 := make([]float64, Nfp)
+			z1 := make([]float64, Nfp)
+			x2 := make([]float64, Nfp)
+			y2 := make([]float64, Nfp)
+			z2 := make([]float64, Nfp)
+
+			for i := 0; i < Nfp; i++ {
+				// Convert global volume node index to (element, local_node)
+				elemM := vidM[i] / Np
+				nodeM := vidM[i] % Np
+				x1[i] = x.At(nodeM, elemM)
+				y1[i] = y.At(nodeM, elemM)
+				z1[i] = z.At(nodeM, elemM)
+
+				elemP := vidP[i] / Np
+				nodeP := vidP[i] % Np
+				x2[i] = x.At(nodeP, elemP)
+				y2[i] = y.At(nodeP, elemP)
+				z2[i] = z.At(nodeP, elemP)
+			}
+
+			// Find matching nodes using distance matrix
+			for i := 0; i < Nfp; i++ {
 				for j := 0; j < Nfp; j++ {
-					n2 := fmask[f2][j]
-					key2 := [3]float64{
-						math.Round(x.At(n2, k2)/NODETOL) * NODETOL,
-						math.Round(y.At(n2, k2)/NODETOL) * NODETOL,
-						math.Round(z.At(n2, k2)/NODETOL) * NODETOL,
-					}
+					dx := x1[i] - x2[j]
+					dy := y1[i] - y2[j]
+					dz := z1[i] - z2[j]
+					dist := math.Sqrt(dx*dx + dy*dy + dz*dz)
 
-					if key1 == key2 {
-						id1 := f1*Nfp + i + k1*Nfp*Nfaces
-						id2 := f2*Nfp + j + k2*Nfp*Nfaces
+					if dist < NODETOL {
+						// Found matching nodes
+						// Update VmapP for both elements
+						vmapP[idsM[i]] = vidP[j]
+						vmapP[idsP[j]] = vidM[i]
 
-						vmapM[id1] = fmask[f1][i] + k1*Np
-						vmapP[id1] = fmask[f2][j] + k2*Np
-
-						mapM[id1] = nodeIds[key1]
-						mapP[id1] = nodeIds[key2]
-
-						// Set for the other element too
-						vmapM[id2] = fmask[f2][j] + k2*Np
-						vmapP[id2] = fmask[f1][i] + k1*Np
-
-						mapM[id2] = nodeIds[key2]
-						mapP[id2] = nodeIds[key1]
+						// Update MapP
+						mapP[idsM[i]] = idsP[j]
+						mapP[idsP[j]] = idsM[i]
+						break // Only match once per node
 					}
 				}
 			}
