@@ -7,51 +7,69 @@ import (
 
 func TestRSTtoABC(t *testing.T) {
 	tests := []struct {
-		name string
-		r, s, t float64
+		name                string
+		r, s, t             float64
 		wantA, wantB, wantC float64
-		tol float64
+		tol                 float64
 	}{
 		{
 			name: "origin",
-			r: 0, s: 0, t: 0,
-			wantA: -1.0/3.0, wantB: -1.0/3.0, wantC: 0,
+			r:    0, s: 0, t: 0,
+			wantA: -1.0 / 3.0, wantB: -1.0 / 3.0, wantC: 0,
 			tol: 1e-14,
 		},
 		{
 			name: "vertex1",
-			r: -1, s: -1, t: -1,
+			r:    -1, s: -1, t: -1,
 			wantA: -1, wantB: -1, wantC: -1,
 			tol: 1e-14,
 		},
 		{
 			name: "vertex2",
-			r: 1, s: -1, t: -1,
+			r:    1, s: -1, t: -1,
 			wantA: 1, wantB: -1, wantC: -1,
 			tol: 1e-14,
 		},
 		{
 			name: "vertex3",
-			r: -1, s: 1, t: -1,
+			r:    -1, s: 1, t: -1,
 			wantA: -1, wantB: 1, wantC: -1,
 			tol: 1e-14,
 		},
 		{
 			name: "vertex4",
-			r: -1, s: -1, t: 1,
+			r:    -1, s: -1, t: 1,
 			wantA: -1, wantB: -1, wantC: 1,
 			tol: 1e-14,
 		},
 		{
 			name: "degenerate_case_s_plus_t_zero",
-			r: 0.5, s: -0.5, t: 0.5,
+			r:    0.5, s: -0.5, t: 0.5,
 			wantA: -1, wantB: -1, wantC: 0.5,
 			tol: 1e-14,
 		},
 		{
 			name: "degenerate_case_t_one",
-			r: 0, s: 0, t: 1,
+			r:    0, s: 0, t: 1,
 			wantA: -1, wantB: -1, wantC: 1,
+			tol: 1e-14,
+		},
+		{
+			name: "face_center_bottom",
+			r:    -0.5, s: -0.5, t: -1,
+			wantA: -1.0 / 3.0, wantB: -0.5, wantC: -1,
+			tol: 1e-14,
+		},
+		{
+			name: "interior_point_1",
+			r:    0, s: -0.5, t: -0.5,
+			wantA: 1.0, wantB: -1.0 / 3.0, wantC: -0.5,
+			tol: 1e-14,
+		},
+		{
+			name: "interior_point_2",
+			r:    -0.6, s: -0.2, t: -0.2,
+			wantA: 1.0, wantB: 1.0 / 3.0, wantC: -0.2,
 			tol: 1e-14,
 		},
 	}
@@ -87,4 +105,3 @@ func TestRSTtoABC(t *testing.T) {
 		})
 	}
 }
-

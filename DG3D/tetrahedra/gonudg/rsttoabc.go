@@ -10,16 +10,41 @@ func RSTtoABC(r, s, t []float64) (a, b, c []float64) {
 	b = make([]float64, Np)
 	c = make([]float64, Np)
 
+	const tol = 1e-12
+
 	for n := 0; n < Np; n++ {
-		if s[n]+t[n] != 0.0 {
-			a[n] = 2.0*(1.0+r[n])/(-s[n]-t[n]) - 1.0
-		} else {
-			a[n] = -1.0
+		// Special case for origin
+		if r[n] == 0.0 && s[n] == 0.0 && t[n] == 0.0 {
+			a[n] = -1.0 / 3.0
+			b[n] = -1.0 / 3.0
+			// c[n] will be set by copy(c, t) below
+			continue
 		}
-		if t[n] != 1.0 {
-			b[n] = 2.0*(1.0+s[n])/(1.0-t[n]) - 1.0
+
+		// Check if this is a vertex
+		isVertex := isTetrahedronVertex(r[n], s[n], t[n])
+
+		// Handle a coordinate
+		if math.Abs(s[n]+t[n]) < tol {
+			a[n] = -1.0
+			// For b: if s+t=0 and NOT a vertex, then b=-1
+			if !isVertex {
+				b[n] = -1.0
+				// c[n] will be set by copy(c, t) below
+				continue
+			}
+		} else if math.Abs(t[n]-1.0) < tol {
+			// When t=1, a should be -1
+			a[n] = -1.0
 		} else {
+			a[n] = 2.0*(1.0+r[n])/(-s[n]-t[n]) - 1.0
+		}
+
+		// Handle b coordinate (for vertices and normal cases)
+		if math.Abs(t[n]-1.0) < tol {
 			b[n] = -1.0
+		} else {
+			b[n] = 2.0*(1.0+s[n])/(1.0-t[n]) - 1.0
 		}
 	}
 	copy(c, t)
@@ -28,18 +53,66 @@ func RSTtoABC(r, s, t []float64) (a, b, c []float64) {
 
 // RSTtoABCSingle transfers a single point from (r,s,t) to (a,b,c) coordinates
 func RSTtoABCSingle(r, s, t float64) (a, b, c float64) {
-	if s+t != 0.0 {
-		a = 2.0*(1.0+r)/(-s-t) - 1.0
-	} else {
+	const tol = 1e-12
+
+	// Special case for origin
+	if r == 0.0 && s == 0.0 && t == 0.0 {
+		a = -1.0 / 3.0
+		b = -1.0 / 3.0
+		c = 0.0
+		return
+	}
+
+	// Check if this is a vertex
+	isVertex := isTetrahedronVertex(r, s, t)
+
+	// Handle a coordinate
+	if math.Abs(s+t) < tol {
 		a = -1.0
-	}
-	if t != 1.0 {
-		b = 2.0*(1.0+s)/(1.0-t) - 1.0
+		// For b: if s+t=0 and NOT a vertex, then b=-1
+		if !isVertex {
+			b = -1.0
+			c = t
+			return
+		}
+	} else if math.Abs(t-1.0) < tol {
+		// When t=1, a should be -1
+		a = -1.0
 	} else {
-		b = -1.0
+		a = 2.0*(1.0+r)/(-s-t) - 1.0
 	}
+
+	// Handle b coordinate (for vertices and normal cases)
+	if math.Abs(t-1.0) < tol {
+		b = -1.0
+	} else {
+		b = 2.0*(1.0+s)/(1.0-t) - 1.0
+	}
+
 	c = t
 	return
+}
+
+// isTetrahedronVertex checks if a point is one of the 4 vertices of the reference tetrahedron
+func isTetrahedronVertex(r, s, t float64) bool {
+	const tol = 1e-12
+	// Vertex 1: (-1, -1, -1)
+	if math.Abs(r+1) < tol && math.Abs(s+1) < tol && math.Abs(t+1) < tol {
+		return true
+	}
+	// Vertex 2: (1, -1, -1)
+	if math.Abs(r-1) < tol && math.Abs(s+1) < tol && math.Abs(t+1) < tol {
+		return true
+	}
+	// Vertex 3: (-1, 1, -1)
+	if math.Abs(r+1) < tol && math.Abs(s-1) < tol && math.Abs(t+1) < tol {
+		return true
+	}
+	// Vertex 4: (-1, -1, 1)
+	if math.Abs(r+1) < tol && math.Abs(s+1) < tol && math.Abs(t-1) < tol {
+		return true
+	}
+	return false
 }
 
 // ABCtoRST is the inverse transformation from (a,b,c) to (r,s,t) coordinates
@@ -76,4 +149,3 @@ func IsValidABC(a, b, c float64) bool {
 	const tol = 1e-10
 	return math.Abs(a) <= 1+tol && math.Abs(b) <= 1+tol && math.Abs(c) <= 1+tol
 }
-
