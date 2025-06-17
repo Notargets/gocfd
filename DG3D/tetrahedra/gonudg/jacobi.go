@@ -2,7 +2,6 @@ package gonudg
 
 import (
 	"github.com/notargets/gocfd/DG1D"
-	"github.com/notargets/gocfd/DG2D"
 	"github.com/notargets/gocfd/utils"
 )
 
@@ -11,10 +10,10 @@ import (
 func JacobiP(x []float64, alpha, beta float64, N int) []float64 {
 	// Convert to utils.Vector
 	xVec := utils.NewVector(len(x), x)
-	
+
 	// Call DG1D function
 	result := DG1D.JacobiP(xVec, alpha, beta, N)
-	
+
 	// Convert back to slice
 	return result
 }
@@ -32,10 +31,10 @@ func JacobiPSingle(x, alpha, beta float64, N int) float64 {
 func GradJacobiP(x []float64, alpha, beta float64, N int) []float64 {
 	// Convert to utils.Vector
 	xVec := utils.NewVector(len(x), x)
-	
+
 	// Call DG1D function
 	result := DG1D.GradJacobiP(xVec, alpha, beta, N)
-	
+
 	// Convert back to slice
 	return result
 }
@@ -54,20 +53,20 @@ func JacobiGL(alpha, beta float64, N int) []float64 {
 	if N == 0 {
 		return []float64{0.0}
 	}
-	
+
 	if N == 1 {
 		return []float64{-1.0, 1.0}
 	}
 
 	// Get the interior Gauss-Jacobi points
 	xint := JacobiGQ(alpha+1, beta+1, N-1)
-	
+
 	// Combine with endpoints
 	x := make([]float64, N+1)
 	x[0] = -1.0
 	copy(x[1:N], xint)
 	x[N] = 1.0
-	
+
 	return x
 }
 
@@ -77,9 +76,8 @@ func JacobiGQ(alpha, beta float64, N int) []float64 {
 	if N == 0 {
 		return []float64{-(alpha - beta) / (alpha + beta + 2)}
 	}
-	
-	// Use DG2D.JacobiGQ if available
-	x, _ := DG2D.JacobiGQ(alpha, beta, N)
-	return x
-}
 
+	// Use DG2D.JacobiGQ if available
+	x, _ := DG1D.JacobiGQ(alpha, beta, N)
+	return x.DataP
+}

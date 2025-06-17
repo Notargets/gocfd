@@ -1,20 +1,22 @@
 package gonudg
 
+import "math"
+
 // Vandermonde3D initializes the 3D Vandermonde Matrix V_{ij} = phi_j(r_i, s_i, t_i)
 // This is the 0-based index version of the C++ Vandermonde3D function
 func Vandermonde3D(N int, r, s, t []float64) [][]float64 {
 	Np := len(r)
 	Ncol := (N + 1) * (N + 2) * (N + 3) / 6
-	
+
 	// Initialize the Vandermonde matrix
 	V3D := make([][]float64, Np)
 	for i := range V3D {
 		V3D[i] = make([]float64, Ncol)
 	}
-	
+
 	// Transfer to (a,b,c) coordinates
 	a, b, c := RSTtoABC(r, s, t)
-	
+
 	// Build the Vandermonde matrix
 	sk := 0 // 0-based column index
 	for i := 0; i <= N; i++ {
@@ -22,7 +24,7 @@ func Vandermonde3D(N int, r, s, t []float64) [][]float64 {
 			for k := 0; k <= N-i-j; k++ {
 				// Evaluate basis function at all points
 				col := Simplex3DP(a, b, c, i, j, k)
-				
+
 				// Copy to matrix column
 				for row := 0; row < Np; row++ {
 					V3D[row][sk] = col[row]
@@ -31,7 +33,7 @@ func Vandermonde3D(N int, r, s, t []float64) [][]float64 {
 			}
 		}
 	}
-	
+
 	return V3D
 }
 
@@ -40,7 +42,7 @@ func Vandermonde3D(N int, r, s, t []float64) [][]float64 {
 func GradVandermonde3D(N int, r, s, t []float64) (Vr, Vs, Vt [][]float64) {
 	Np := len(r)
 	Ncol := (N + 1) * (N + 2) * (N + 3) / 6
-	
+
 	// Initialize the gradient matrices
 	Vr = make([][]float64, Np)
 	Vs = make([][]float64, Np)
@@ -50,7 +52,7 @@ func GradVandermonde3D(N int, r, s, t []float64) (Vr, Vs, Vt [][]float64) {
 		Vs[i] = make([]float64, Ncol)
 		Vt[i] = make([]float64, Ncol)
 	}
-	
+
 	// Build the gradient Vandermonde matrices
 	sk := 0 // 0-based column index
 	for i := 0; i <= N; i++ {
@@ -58,7 +60,7 @@ func GradVandermonde3D(N int, r, s, t []float64) (Vr, Vs, Vt [][]float64) {
 			for k := 0; k <= N-i-j; k++ {
 				// Evaluate gradient of basis function at all points
 				dr, ds, dt := GradSimplex3DP(r, s, t, i, j, k)
-				
+
 				// Copy to matrix columns
 				for row := 0; row < Np; row++ {
 					Vr[row][sk] = dr[row]
@@ -69,7 +71,7 @@ func GradVandermonde3D(N int, r, s, t []float64) (Vr, Vs, Vt [][]float64) {
 			}
 		}
 	}
-	
+
 	return Vr, Vs, Vt
 }
 
@@ -78,15 +80,15 @@ func GradVandermonde3D(N int, r, s, t []float64) (Vr, Vs, Vt [][]float64) {
 func Dmatrices3D(N int, r, s, t []float64, V [][]float64) (Dr, Ds, Dt [][]float64) {
 	// Get gradient Vandermonde matrices
 	Vr, Vs, Vt := GradVandermonde3D(N, r, s, t)
-	
+
 	// Compute V inverse
 	Vinv := MatrixInverse(V)
-	
+
 	// Dr = Vr * V^{-1}, etc.
 	Dr = MatrixMultiply(Vr, Vinv)
 	Ds = MatrixMultiply(Vs, Vinv)
 	Dt = MatrixMultiply(Vt, Vinv)
-	
+
 	return Dr, Ds, Dt
 }
 
@@ -97,12 +99,12 @@ func MatrixMultiply(A, B [][]float64) [][]float64 {
 	m := len(A)
 	n := len(B[0])
 	k := len(B)
-	
+
 	C := make([][]float64, m)
 	for i := range C {
 		C[i] = make([]float64, n)
 	}
-	
+
 	for i := 0; i < m; i++ {
 		for j := 0; j < n; j++ {
 			sum := 0.0
@@ -112,14 +114,14 @@ func MatrixMultiply(A, B [][]float64) [][]float64 {
 			C[i][j] = sum
 		}
 	}
-	
+
 	return C
 }
 
 // MatrixInverse computes the inverse of a square matrix using Gauss-Jordan elimination
 func MatrixInverse(A [][]float64) [][]float64 {
 	n := len(A)
-	
+
 	// Create augmented matrix [A | I]
 	aug := make([][]float64, n)
 	for i := range aug {
@@ -127,7 +129,7 @@ func MatrixInverse(A [][]float64) [][]float64 {
 		copy(aug[i], A[i])
 		aug[i][n+i] = 1.0
 	}
-	
+
 	// Gauss-Jordan elimination
 	for i := 0; i < n; i++ {
 		// Find pivot
@@ -137,16 +139,16 @@ func MatrixInverse(A [][]float64) [][]float64 {
 				maxRow = k
 			}
 		}
-		
+
 		// Swap rows
 		aug[i], aug[maxRow] = aug[maxRow], aug[i]
-		
+
 		// Make diagonal 1
 		pivot := aug[i][i]
 		for j := 0; j < 2*n; j++ {
 			aug[i][j] /= pivot
 		}
-		
+
 		// Eliminate column
 		for k := 0; k < n; k++ {
 			if k != i {
@@ -157,14 +159,14 @@ func MatrixInverse(A [][]float64) [][]float64 {
 			}
 		}
 	}
-	
+
 	// Extract inverse from augmented matrix
 	inv := make([][]float64, n)
 	for i := range inv {
 		inv[i] = make([]float64, n)
 		copy(inv[i], aug[i][n:])
 	}
-	
+
 	return inv
 }
 
@@ -172,7 +174,7 @@ func MatrixInverse(A [][]float64) [][]float64 {
 func MatrixTranspose(A [][]float64) [][]float64 {
 	m := len(A)
 	n := len(A[0])
-	
+
 	AT := make([][]float64, n)
 	for i := range AT {
 		AT[i] = make([]float64, m)
@@ -180,7 +182,6 @@ func MatrixTranspose(A [][]float64) [][]float64 {
 			AT[i][j] = A[j][i]
 		}
 	}
-	
+
 	return AT
 }
-
