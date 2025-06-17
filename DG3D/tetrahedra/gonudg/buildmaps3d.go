@@ -1,5 +1,11 @@
 package gonudg
 
+// INDEXING NOTE: Original C++ code uses 1-based indexing to emulate Matlab behavior.
+// This Go port uses standard 0-based indexing. Example conversions:
+//   C++: sk = 1; V3D(All,sk) = ...    ->    Go: sk = 0; V3D.SetCol(sk, ...)
+//   C++: Fmask[1] (first face)        ->    Go: Fmask[0] (first face)
+// The indexing has been correctly translated throughout this port.
+
 import (
 	"math"
 )
@@ -7,9 +13,9 @@ import (
 // BuildMaps3D builds connectivity and boundary tables for nodes
 // This is the 0-based index version of the C++ BuildMaps3D function
 // Returns vmapM, vmapP, mapB, vmapB
-func BuildMaps3D(K, Np, Nfp int, Nfaces int, x, y, z []float64, 
+func BuildMaps3D(K, Np, Nfp int, Nfaces int, x, y, z []float64,
 	EToE, EToF [][]int, Fmask [][]int) (vmapM, vmapP, mapB, vmapB []int) {
-	
+
 	NODETOL := 1e-7
 	NF := Nfp * Nfaces
 
@@ -59,8 +65,8 @@ func BuildMaps3D(K, Np, Nfp int, Nfaces int, x, y, z []float64,
 				continue
 			}
 
-			skM := k1 * NF  // offset to element k1
-			skP := k2 * NF  // offset to element k2
+			skM := k1 * NF // offset to element k1
+			skP := k2 * NF // offset to element k2
 
 			// Build index lists for faces
 			idsM := make([]int, Nfp)
@@ -108,11 +114,11 @@ func BuildMaps3D(K, Np, Nfp int, Nfaces int, x, y, z []float64,
 					if dist < NODETOL {
 						// Found matching nodes
 						idM := idsM[i]
-						vmapP[idM] = vidP[j]  // Set external element node
+						vmapP[idM] = vidP[j] // Set external element node
 
 						idP := idsP[j]
-						mapP[idM] = idP       // Set external face node
-						break                 // Only one match per node
+						mapP[idM] = idP // Set external face node
+						break           // Only one match per node
 					}
 				}
 			}
@@ -154,4 +160,3 @@ func findFaceMatches(x1, y1, z1, x2, y2, z2 []float64, tol float64) [][]int {
 
 	return matches
 }
-

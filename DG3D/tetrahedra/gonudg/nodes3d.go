@@ -1,5 +1,11 @@
 package gonudg
 
+// INDEXING NOTE: Original C++ code uses 1-based indexing to emulate Matlab behavior.
+// This Go port uses standard 0-based indexing. Example conversions:
+//   C++: sk = 1; V3D(All,sk) = ...    ->    Go: sk = 0; V3D.SetCol(sk, ...)
+//   C++: Fmask[1] (first face)        ->    Go: Fmask[0] (first face)
+// The indexing has been correctly translated throughout this port.
+
 import (
 	"math"
 )
