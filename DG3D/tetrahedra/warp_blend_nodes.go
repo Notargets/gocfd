@@ -251,40 +251,6 @@ func xyztorst(X, Y, Z utils.Vector) (r, s, t utils.Vector) {
 	return r, s, t
 }
 
-// Update NewTetBasis to match C++ flow
-func NewTetBasis(N int) (tb *TetBasis) {
-	tb = &TetBasis{
-		N:  N,
-		Np: (N + 1) * (N + 2) * (N + 3) / 6,
-	}
-
-	// Get nodes in equilateral tetrahedron coordinates
-	X, Y, Z := Nodes3D(N)
-
-	// Convert to reference tetrahedron coordinates
-	tb.R, tb.S, tb.T = xyztorst(X, Y, Z)
-
-	// Build basis matrices
-	tb.V = tb.ComputeVandermonde(tb.R, tb.S, tb.T)
-	tb.VInv = tb.V.InverseWithCheck()
-	tb.LIFT = tb.Lift3D()
-
-	// Build differentiation matrices
-	Vr, Vs, Vt := tb.ComputeGradVandermonde(tb.R, tb.S, tb.T)
-	tb.Dr = Vr.Mul(tb.VInv)
-	tb.Ds = Vs.Mul(tb.VInv)
-	tb.Dt = Vt.Mul(tb.VInv)
-
-	// Build mass matrix
-	tb.M = tb.VInv.Transpose().Mul(tb.VInv)
-	inverse, err := tb.M.Inverse()
-	if err != nil {
-		return nil
-	}
-	tb.MInv = inverse
-
-	return
-}
 func EquiNodes3D(N int) (r, s, t utils.Vector) {
 	Np := (N + 1) * (N + 2) * (N + 3) / 6
 	rr := make([]float64, Np)
@@ -314,55 +280,6 @@ func WarpShiftFace3D(p int, pval, pval2 float64, L1, L2, L3, L4 []float64) (warp
 	// Compute warp factors using evalshift
 	warpx, warpy = evalshift(p, pval, L2, L3, L4)
 	return warpx, warpy
-}
-
-func XYZtoRST(X, Y, Z []float64) (r, s, t utils.Vector) {
-	n := len(X)
-	rr := make([]float64, n)
-	ss := make([]float64, n)
-	tt := make([]float64, n)
-
-	v1 := []float64{-1, -1 / math.Sqrt(3), -1 / math.Sqrt(6)}
-	v2 := []float64{1, -1 / math.Sqrt(3), -1 / math.Sqrt(6)}
-	v3 := []float64{0, 2 / math.Sqrt(3), -1 / math.Sqrt(6)}
-	v4 := []float64{0, 0, 3 / math.Sqrt(6)}
-
-	for i := 0; i < n; i++ {
-		// Solve for barycentric coordinates
-		A := utils.NewMatrix(3, 3)
-		A.Set(0, 0, v2[0]-v1[0])
-		A.Set(0, 1, v3[0]-v1[0])
-		A.Set(0, 2, v4[0]-v1[0])
-		A.Set(1, 0, v2[1]-v1[1])
-		A.Set(1, 1, v3[1]-v1[1])
-		A.Set(1, 2, v4[1]-v1[1])
-		A.Set(2, 0, v2[2]-v1[2])
-		A.Set(2, 1, v3[2]-v1[2])
-		A.Set(2, 2, v4[2]-v1[2])
-
-		b := utils.NewMatrix(3, 1)
-		b.Set(0, 0, X[i]-v1[0])
-		b.Set(1, 0, Y[i]-v1[1])
-		b.Set(2, 0, Z[i]-v1[2])
-
-		lambda := A.LUSolve(b)
-
-		L1 := lambda.At(0, 0)
-		L2 := lambda.At(1, 0)
-		L3 := lambda.At(2, 0)
-		L4 := 1 - L1 - L2 - L3
-
-		// Convert to reference coordinates
-		rr[i] = -L4 - L2 - L3 + L1
-		ss[i] = -L4 - L1 + L2 - L3
-		tt[i] = -L4 - L1 - L2 + L3
-	}
-
-	r = utils.NewVector(n, rr)
-	s = utils.NewVector(n, ss)
-	t = utils.NewVector(n, tt)
-
-	return
 }
 
 func RSTtoABC(r, s, t utils.Vector) (a, b, c utils.Vector) {
