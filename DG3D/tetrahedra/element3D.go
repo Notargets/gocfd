@@ -98,7 +98,7 @@ func NewTetBasis(N int) (tb *TetBasis) {
 
 	// Build face mask and lift matrix
 	tb.buildFaceMask()
-	tb.LIFT = tb.Lift3D()
+	tb.LIFT = gonudg.Lift3D(tb.N, tb.R.DataP, tb.S.DataP, tb.T.DataP, tb.V, tb.Fmask)
 
 	return
 }
@@ -141,35 +141,6 @@ func (tb *TetBasis) buildFaceMask() {
 	}
 
 	tb.Nfp = (tb.N + 1) * (tb.N + 2) / 2
-}
-
-// Lift3D computes the surface integral lift matrix
-func (tb *TetBasis) Lift3D() utils.Matrix {
-	Nfaces := 4
-	Nfp := tb.Nfp
-	Np := tb.Np
-
-	Emat := utils.NewMatrix(Np, Nfaces*Nfp)
-
-	// Build matrix of face nodes
-	for face := 0; face < Nfaces; face++ {
-		if len(tb.Fmask[face]) != Nfp {
-			panic(fmt.Sprintf("Face %d has %d nodes, expected %d",
-				face, len(tb.Fmask[face]), Nfp))
-		}
-
-		for i := 0; i < Nfp; i++ {
-			Emat.Set(tb.Fmask[face][i], face*Nfp+i, 1.0)
-		}
-	}
-
-	// Lift = M^{-1} * E * (E^T * M^{-1} * E)^{-1}
-	MinvE := tb.MInv.Mul(Emat)
-	temp := Emat.Transpose().Mul(MinvE)
-	tempInv := temp.InverseWithCheck()
-	LIFT := MinvE.Mul(tempInv)
-
-	return LIFT
 }
 
 // NewElement3D creates an Element3D from a mesh file
