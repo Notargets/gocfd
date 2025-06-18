@@ -342,8 +342,6 @@ func TestElement3D_ReadsPartitionData(t *testing.T) {
 	assert.Equal(t, 141, partitionCounts[4])
 }
 
-// NEW TESTS FOR BUILDMAPS3D FIX
-
 func TestBuildMaps3D_ValidVmapP(t *testing.T) {
 	// Load the problematic mesh
 	meshPath := getTestMeshPath()
