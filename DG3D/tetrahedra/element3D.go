@@ -499,6 +499,14 @@ func (el *Element3D) BuildMaps3D() {
 	Nfaces := 4 // tet
 	el.VmapM, el.VmapP, el.MapB, el.VmapB = gonudg.BuildMaps3D(K, Np,
 		Nfp, Nfaces, xData, yData, zData, el.EToE, el.EToF, el.Fmask)
+
+	// Set MapM and MapP to the whole face range, emulating nudg++
+	el.MapM = make([]int, Nfp*Nfaces*K)
+	el.MapP = make([]int, Nfp*Nfaces*K)
+	for i := 0; i < Nfp*Nfaces*K; i++ {
+		el.MapM[i] = i
+		el.MapP[i] = i
+	}
 }
 
 // Connect3D builds element connectivity arrays
