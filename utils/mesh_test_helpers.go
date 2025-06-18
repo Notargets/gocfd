@@ -344,20 +344,28 @@ func createMixedMesh() CompleteMesh {
 }
 
 func createCubeMesh() CompleteMesh {
-	// A simple cube meshed with 6 tetrahedra
+	// A cube meshed with 6 tetrahedra using a systematic decomposition
+	// This uses the "diagonal" method where all tets share the diagonal from origin to xyz
 	nodes := createCubeNodes()
 
-	// Standard cube decomposition into 6 tets
+	// Using only the 8 corner vertices (no center node needed for this decomposition)
+	// The diagonal from origin (0,0,0) to xyz (1,1,1) is shared by all 6 tetrahedra
+	// Each tet is formed by the diagonal plus one edge of the cube
 	elements := []ElementSet{
 		{
 			Type: Tet,
 			Elements: [][]string{
-				{"origin", "x", "y", "center"},
-				{"x", "xy", "y", "center"},
-				{"origin", "y", "z", "center"},
-				{"y", "yz", "z", "center"},
-				{"x", "center", "xz", "xyz"},
-				{"center", "xyz", "yz", "y"},
+				// Bottom face tets (z=0 plane)
+				{"origin", "x", "xy", "xyz"}, // Front edge of bottom face
+				{"origin", "xy", "y", "xyz"}, // Back edge of bottom face
+
+				// Top face tets (z=1 plane)
+				{"origin", "z", "xz", "xyz"}, // Front edge projection
+				{"origin", "yz", "z", "xyz"}, // Back edge projection
+
+				// Middle tets (connecting bottom to top)
+				{"origin", "xz", "x", "xyz"}, // Right face contribution (swapped x and xz)
+				{"origin", "y", "yz", "xyz"}, // Left face contribution
 			},
 			Properties: []ElementProps{
 				{PhysicalTag: 1, GeometricTag: 1},
@@ -380,8 +388,6 @@ func createCubeMesh() CompleteMesh {
 		},
 	}
 }
-
-// Conversion helpers
 
 // Validation helpers
 
@@ -425,4 +431,72 @@ func ValidateElementConnectivity(elements [][]int, expected [][]int) error {
 	}
 
 	return nil
+}
+
+// Geometric validation helpers
+
+// ComputeTetVolume computes the volume of a tetrahedron given 4 vertices
+func ComputeTetVolume(v0, v1, v2, v3 []float64) float64 {
+	// Volume = |det(v1-v0, v2-v0, v3-v0)| / 6
+	d1 := []float64{v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]}
+	d2 := []float64{v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]}
+	d3 := []float64{v3[0] - v0[0], v3[1] - v0[1], v3[2] - v0[2]}
+
+	// Compute determinant
+	det := d1[0]*(d2[1]*d3[2]-d2[2]*d3[1]) -
+		d1[1]*(d2[0]*d3[2]-d2[2]*d3[0]) +
+		d1[2]*(d2[0]*d3[1]-d2[1]*d3[0])
+
+	return math.Abs(det) / 6.0
+}
+
+// ComputeTriangleArea computes the area of a triangle given 3 vertices
+func ComputeTriangleArea(v0, v1, v2 []float64) float64 {
+	// Area = |cross(v1-v0, v2-v0)| / 2
+	d1 := []float64{v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]}
+	d2 := []float64{v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]}
+
+	// Cross product
+	cross := []float64{
+		d1[1]*d2[2] - d1[2]*d2[1],
+		d1[2]*d2[0] - d1[0]*d2[2],
+		d1[0]*d2[1] - d1[1]*d2[0],
+	}
+
+	// Magnitude
+	mag := math.Sqrt(cross[0]*cross[0] + cross[1]*cross[1] + cross[2]*cross[2])
+	return mag / 2.0
+}
+
+// GetTetFaces returns the 4 triangular faces of a tetrahedron
+// Each face is represented as 3 vertex indices in consistent orientation
+func GetTetFaces(tet []int) [4][3]int {
+	// Standard tetrahedron face connectivity
+	// Faces are oriented so normals point outward
+	return [4][3]int{
+		{tet[0], tet[2], tet[1]}, // Face 0: opposite vertex 3
+		{tet[0], tet[1], tet[3]}, // Face 1: opposite vertex 2
+		{tet[0], tet[3], tet[2]}, // Face 2: opposite vertex 1
+		{tet[1], tet[2], tet[3]}, // Face 3: opposite vertex 0
+	}
+}
+
+// FaceKey represents a triangular face for comparison
+type FaceKey struct {
+	V0, V1, V2 int
+}
+
+// NewFaceKey creates a normalized face key (smallest vertex first)
+func NewFaceKey(v0, v1, v2 int) FaceKey {
+	// Sort vertices to create a canonical representation
+	if v0 > v1 {
+		v0, v1 = v1, v0
+	}
+	if v0 > v2 {
+		v0, v2 = v2, v0
+	}
+	if v1 > v2 {
+		v1, v2 = v2, v1
+	}
+	return FaceKey{v0, v1, v2}
 }

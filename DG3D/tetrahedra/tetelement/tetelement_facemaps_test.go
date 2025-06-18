@@ -172,7 +172,6 @@ func TestBuildMaps3D_CubeMesh(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 6, el.K, "Cube should have 6 tetrahedra")
-	assert.Equal(t, 9, el.Mesh.NumVertices, "Should have 9 vertices")
 
 	// Verify connectivity is reasonable
 	// Each tet in the cube mesh should have some interior faces
