@@ -73,9 +73,9 @@ type DG3D struct {
 	VX, VY, VZ []float64 // Vertex coordinates
 
 	// Maps
-	vmapM, vmapP []int // Volume to surface node maps
-	mapM, mapP   []int // Surface node maps
-	vmapB, mapB  []int // Boundary node maps
+	VmapM, VmapP []int // Volume to surface node maps
+	MapM, MapP   []int // Surface node maps
+	VmapB, MapB  []int // Boundary node maps
 }
 
 // NewDG3D creates and initializes a new 3D DG solver
@@ -258,12 +258,6 @@ func (dg *DG3D) ComputeWeakOperators() {
 	dg.Drw = dg.V.Mul(Vr.Transpose()).Mul(VVTinv)
 	dg.Dsw = dg.V.Mul(Vs.Transpose()).Mul(VVTinv)
 	dg.Dtw = dg.V.Mul(Vt.Transpose()).Mul(VVTinv)
-}
-
-// Placeholder methods - these need to be implemented
-func (dg *DG3D) Lift3D() error {
-	// TODO: Implement Lift3D
-	return nil
 }
 
 func (dg *DG3D) tiConnect3D() {

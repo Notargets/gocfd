@@ -181,119 +181,7 @@ func (fb *FaceBufferBuilder) ProcessRemoteIndices(remotePartID uint32, theirSend
 
 // BuildFromElement3D automatically constructs face buffer from Element3D connectivity
 func (fb *FaceBufferBuilder) BuildFromElement3D(el *tetelement.Element3D) error {
-	// Ensure connectivity is built
-	if el.EToE == nil || el.EToF == nil {
-		if el.ConnectivityArrays == nil {
-			el.ConnectivityArrays = el.Connect3D()
-		}
-	}
-
-	nfaces := 4 // Tetrahedra
-
-	// Process all faces in natural traversal order
-	for k := 0; k < el.K; k++ {
-		for f := 0; f < nfaces; f++ {
-			for fp := 0; fp < el.Nfp; fp++ {
-				neighbor := el.EToE[k][f]
-
-				if neighbor == -1 {
-					// Boundary face - determine BC type from mesh data
-					bcType := uint32(1) // Default wall BC
-					if len(el.BCType) > k*nfaces+f {
-						bcType = uint32(el.BCType[k*nfaces+f])
-					}
-
-					// Check if this is a partition boundary
-					if bcType == uint32(tetelement.BCPartitionBoundary) {
-						// For now, treat partition boundaries as regular boundaries
-						// In a distributed implementation, these would trigger special handling
-					}
-
-					err := fb.AddBoundaryFace(uint32(k), uint32(f), uint32(fp), bcType)
-					if err != nil {
-						return fmt.Errorf("error adding boundary face: %v", err)
-					}
-
-				} else if el.EToP == nil || el.EToP[neighbor] == el.EToP[k] {
-					// Local interior neighbor (same partition or non-partitioned)
-					neighborFace := el.EToF[k][f]
-
-					// CRITICAL FIX: Use VmapP to get the correct face point mapping
-					// VmapP contains the proper face-to-face node correspondence
-					faceIdx := k*nfaces*el.Nfp + f*el.Nfp + fp
-					vmapP := el.VmapP[faceIdx]
-
-					// Extract element and node from VmapP
-					neighborElem := vmapP / el.Np
-					neighborNode := vmapP % el.Np
-
-					// Verify the neighbor element matches
-					if neighborElem != neighbor {
-						return fmt.Errorf("VmapP inconsistency: expected element %d, got %d at k=%d, f=%d, fp=%d",
-							neighbor, neighborElem, k, f, fp)
-					}
-
-					// Find which face point on the neighbor face has this node
-					var neighborFP int = -1
-					for nfp := 0; nfp < el.Nfp; nfp++ {
-						if el.Fmask[neighborFace][nfp] == neighborNode {
-							neighborFP = nfp
-							break
-						}
-					}
-
-					if neighborFP == -1 {
-						return fmt.Errorf("could not find face point for node %d on face %d of element %d",
-							neighborNode, neighborFace, neighbor)
-					}
-
-					// Now we have the correct face point correspondence
-					err := fb.AddLocalNeighbor(
-						uint32(k), uint32(f), uint32(fp),
-						uint32(neighbor), uint32(neighborFace), uint32(neighborFP))
-					if err != nil {
-						return fmt.Errorf("error adding local neighbor: %v", err)
-					}
-
-				} else {
-					// Remote neighbor (different partition)
-					remotePartID := uint32(el.EToP[neighbor])
-					neighborFace := el.EToF[k][f]
-
-					// For remote neighbors, we also need to use VmapP to get the correct mapping
-					faceIdx := k*nfaces*el.Nfp + f*el.Nfp + fp
-					vmapP := el.VmapP[faceIdx]
-
-					// Extract node from VmapP
-					neighborNode := vmapP % el.Np
-
-					// Find which face point on the neighbor face corresponds to this node
-					var neighborFP int = -1
-					for nfp := 0; nfp < el.Nfp; nfp++ {
-						if el.Fmask[neighborFace][nfp] == neighborNode {
-							neighborFP = nfp
-							break
-						}
-					}
-
-					if neighborFP == -1 {
-						// For remote neighbors, the face point might not be directly findable
-						// due to different element numbering in remote partition
-						// Use the same face point index as a fallback
-						neighborFP = fp
-					}
-
-					err := fb.AddRemoteNeighbor(
-						uint32(k), uint32(f), uint32(fp),
-						remotePartID, uint32(neighbor), uint32(neighborFace), uint32(neighborFP))
-					if err != nil {
-						return fmt.Errorf("error adding remote neighbor: %v", err)
-					}
-				}
-			}
-		}
-	}
-
+	// TODO: Implement this
 	return fb.ValidateBuild()
 }
 
@@ -395,11 +283,12 @@ func (fb *FaceBufferBuilder) GetBuildStatistics() map[string]uint32 {
 		switch conn.Type {
 		case BoundaryFace:
 			boundaryPoints++
-			if conn.BCType == uint32(tetelement.BCPartitionBoundary) {
-				partitionBoundaryPoints++
-			} else {
-				domainBoundaryPoints++
-			}
+			// if conn.BCType == uint32(tetelement.BCPartitionBoundary) {
+			// 	partitionBoundaryPoints++
+			// } else {
+			// 	domainBoundaryPoints++
+			// }
+			// TODO: Implement
 		case RemoteNeighbor:
 			remotePoints++
 		}

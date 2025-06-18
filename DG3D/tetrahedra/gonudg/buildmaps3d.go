@@ -1,19 +1,19 @@
 package gonudg
 
 // BuildMaps3D builds connectivity and boundary tables for nodes
-// This populates vmapM, vmapP, mapM, mapP, mapB, and vmapB in the DG3D struct
+// This populates VmapM, VmapP, MapM, MapP, MapB, and VmapB in the DG3D struct
 func (dg *DG3D) BuildMaps3D() {
 	// Initialize arrays
 	NF := dg.Nfp * dg.Nfaces
-	dg.vmapM = make([]int, NF*dg.K)
-	dg.vmapP = make([]int, NF*dg.K)
-	dg.mapM = make([]int, NF*dg.K)
-	dg.mapP = make([]int, NF*dg.K)
+	dg.VmapM = make([]int, NF*dg.K)
+	dg.VmapP = make([]int, NF*dg.K)
+	dg.MapM = make([]int, NF*dg.K)
+	dg.MapP = make([]int, NF*dg.K)
 
-	// Initialize mapM and mapP as sequential indices
-	for i := 0; i < len(dg.mapM); i++ {
-		dg.mapM[i] = i
-		dg.mapP[i] = i
+	// Initialize MapM and MapP as sequential indices
+	for i := 0; i < len(dg.MapM); i++ {
+		dg.MapM[i] = i
+		dg.MapP[i] = i
 	}
 
 	// Number volume nodes consecutively
@@ -25,13 +25,13 @@ func (dg *DG3D) BuildMaps3D() {
 				idsL := iL1 + f*dg.Nfp + i
 				// Fmask contains node indices within element (0-based)
 				volumeNode := dg.Fmask[f][i] + k1*dg.Np
-				dg.vmapM[idsL] = volumeNode
+				dg.VmapM[idsL] = volumeNode
 			}
 		}
 	}
 
-	// Initialize vmapP to vmapM (for boundary faces)
-	copy(dg.vmapP, dg.vmapM)
+	// Initialize VmapP to VmapM (for boundary faces)
+	copy(dg.VmapP, dg.VmapM)
 
 	// Create face to face mapping if connectivity information exists
 	if dg.EToE != nil && dg.EToF != nil {
@@ -92,8 +92,8 @@ func (dg *DG3D) buildFaceConnectivity() {
 			vidM := make([]int, dg.Nfp)
 			vidP := make([]int, dg.Nfp)
 			for i := 0; i < dg.Nfp; i++ {
-				vidM[i] = dg.vmapM[idsM[i]]
-				vidP[i] = dg.vmapM[idsP[i]]
+				vidM[i] = dg.VmapM[idsM[i]]
+				vidP[i] = dg.VmapM[idsP[i]]
 			}
 
 			// Extract coordinates
@@ -144,8 +144,8 @@ func (dg *DG3D) buildFaceConnectivity() {
 
 				// Map to neighbor if within tolerance
 				if minDist < dg.NODETOL*dg.NODETOL {
-					dg.vmapP[idsM[i]] = vidP[minJ]
-					dg.mapP[idsM[i]] = idsP[minJ]
+					dg.VmapP[idsM[i]] = vidP[minJ]
+					dg.MapP[idsM[i]] = idsP[minJ]
 				}
 			}
 		}
@@ -161,15 +161,15 @@ func (dg *DG3D) buildBoundaryMaps() {
 	// Check each face node
 	NF := dg.Nfp * dg.Nfaces
 	for i := 0; i < dg.K*NF; i++ {
-		if dg.mapP[i] == i {
+		if dg.MapP[i] == i {
 			// This is a boundary node
 			mapB = append(mapB, i)
-			vmapB = append(vmapB, dg.vmapM[i])
+			vmapB = append(vmapB, dg.VmapM[i])
 		}
 	}
 
-	dg.mapB = mapB
-	dg.vmapB = vmapB
+	dg.MapB = mapB
+	dg.VmapB = vmapB
 }
 
 // GetBoundaryFaces returns the element and face indices for all boundary faces

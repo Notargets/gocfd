@@ -61,11 +61,11 @@ func TestBuildMaps3D_SingleTet_FaceProperties(t *testing.T) {
 				t.Fatalf("Failed to create DG3D: %v", err)
 			}
 
-			// Test 1: Verify vmapM maps to valid volume nodes
+			// Test 1: Verify VmapM maps to valid volume nodes
 			// Mathematical property: Face nodes must be subset of volume nodes
-			for i, volIdx := range dg.vmapM {
+			for i, volIdx := range dg.VmapM {
 				if volIdx < 0 || volIdx >= dg.Np*dg.K {
-					t.Errorf("vmapM[%d] = %d is out of bounds [0, %d)", i, volIdx, dg.Np*dg.K)
+					t.Errorf("VmapM[%d] = %d is out of bounds [0, %d)", i, volIdx, dg.Np*dg.K)
 				}
 			}
 
@@ -75,18 +75,18 @@ func TestBuildMaps3D_SingleTet_FaceProperties(t *testing.T) {
 			testFaceNodeConstraints(t, dg, tolerance)
 
 			// Test 3: For boundary element, all faces are self-connected
-			// Mathematical property: mapP[i] = mapM[i] for all boundary faces
-			for i := range dg.mapM {
-				if dg.mapP[i] != dg.mapM[i] {
-					t.Errorf("Boundary face node %d: mapP should equal mapM", i)
+			// Mathematical property: MapP[i] = MapM[i] for all boundary faces
+			for i := range dg.MapM {
+				if dg.MapP[i] != dg.MapM[i] {
+					t.Errorf("Boundary face node %d: MapP should equal MapM", i)
 				}
 			}
 
-			// Test 4: Verify all mapB entries correspond to actual face nodes
+			// Test 4: Verify all MapB entries correspond to actual face nodes
 			// Mathematical property: Boundary map contains all and only boundary nodes
-			for _, bIdx := range dg.mapB {
-				if bIdx < 0 || bIdx >= len(dg.mapM) {
-					t.Errorf("mapB contains invalid index %d", bIdx)
+			for _, bIdx := range dg.MapB {
+				if bIdx < 0 || bIdx >= len(dg.MapM) {
+					t.Errorf("MapB contains invalid index %d", bIdx)
 				}
 			}
 		})
@@ -175,7 +175,7 @@ func testFaceNodeConstraints(t *testing.T, dg *DG3D, tolerance float64) {
 	for f := 0; f < dg.Nfaces; f++ {
 		for i := 0; i < dg.Nfp; i++ {
 			faceIdx := f*dg.Nfp + i
-			volIdx := dg.vmapM[faceIdx]
+			volIdx := dg.VmapM[faceIdx]
 			localIdx := volIdx % dg.Np
 
 			rCoord := dg.r[localIdx]
@@ -233,10 +233,10 @@ func testConnectedNodeCoordinates(t *testing.T, dg *DG3D) {
 	tolerance := math.Sqrt(dg.NODETOL)
 
 	for idx := 0; idx < dg.K*NF; idx++ {
-		if dg.mapP[idx] != dg.mapM[idx] {
+		if dg.MapP[idx] != dg.MapM[idx] {
 			// This is a connected (interior) node
-			vidM := dg.vmapM[idx]
-			vidP := dg.vmapP[idx]
+			vidM := dg.VmapM[idx]
+			vidP := dg.VmapP[idx]
 
 			// Extract physical coordinates
 			kM := vidM / dg.Np
@@ -265,14 +265,14 @@ func testConnectedNodeCoordinates(t *testing.T, dg *DG3D) {
 func testBoundaryInteriorExclusion(t *testing.T, dg *DG3D) {
 	// Create a set of boundary indices
 	boundarySet := make(map[int]bool)
-	for _, bIdx := range dg.mapB {
+	for _, bIdx := range dg.MapB {
 		boundarySet[bIdx] = true
 	}
 
 	// Check that no interior node is in boundary set
 	NF := dg.Nfp * dg.Nfaces
 	for idx := 0; idx < dg.K*NF; idx++ {
-		if dg.mapP[idx] != dg.mapM[idx] {
+		if dg.MapP[idx] != dg.MapM[idx] {
 			// This is an interior node
 			if boundarySet[idx] {
 				t.Errorf("Node %d is both interior and boundary", idx)
@@ -321,7 +321,7 @@ func testGlobalCoordinateContinuity(t *testing.T, dg *DG3D) {
 					idx := k*dg.Nfp*dg.Nfaces + f*dg.Nfp + i
 
 					// Get coordinates from this element
-					vidM := dg.vmapM[idx]
+					vidM := dg.VmapM[idx]
 					kM := vidM / dg.Np
 					iM := vidM % dg.Np
 
@@ -330,7 +330,7 @@ func testGlobalCoordinateContinuity(t *testing.T, dg *DG3D) {
 					zM := dg.z.At(iM, kM)
 
 					// Get coordinates from neighbor
-					vidP := dg.vmapP[idx]
+					vidP := dg.VmapP[idx]
 					kP := vidP / dg.Np
 					iP := vidP % dg.Np
 
@@ -394,9 +394,9 @@ func TestBuildMaps3D_BoundaryNodeOrdering(t *testing.T) {
 					dg.BuildMaps3D()
 
 					// Test: Every boundary node should map to itself
-					for _, bIdx := range dg.mapB {
-						if dg.mapP[bIdx] != bIdx {
-							t.Errorf("Boundary node %d: mapP should equal mapM", bIdx)
+					for _, bIdx := range dg.MapB {
+						if dg.MapP[bIdx] != bIdx {
+							t.Errorf("Boundary node %d: MapP should equal MapM", bIdx)
 						}
 					}
 
@@ -413,7 +413,7 @@ func TestBuildMaps3D_BoundaryNodeOrdering(t *testing.T) {
 func verifyBoundaryFaceCompleteness(t *testing.T, dg *DG3D) {
 	// Create set of boundary indices for quick lookup
 	boundarySet := make(map[int]bool)
-	for _, bIdx := range dg.mapB {
+	for _, bIdx := range dg.MapB {
 		boundarySet[bIdx] = true
 	}
 

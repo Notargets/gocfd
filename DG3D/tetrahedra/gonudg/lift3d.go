@@ -7,10 +7,10 @@ import (
 
 // Lift3D computes the 3D surface to volume lift operator used in DG formulation
 // Purpose: Compute 3D surface to volume lift operator used in DG formulation
-func Lift3D(N int, r, s, t []float64, V utils.Matrix, Fmask [][]int) utils.Matrix {
-	Np := len(r)
-	Nfp := (N + 1) * (N + 2) / 2
-	Nfaces := 4
+func (dg *DG3D) Lift3D() error {
+	Np := dg.Np
+	Nfp := dg.Nfp
+	Nfaces := dg.Nfaces
 
 	// Initialize Emat - this will hold face mass matrices
 	Emat := utils.NewMatrix(Np, Nfaces*Nfp)
@@ -22,40 +22,40 @@ func Lift3D(N int, r, s, t []float64, V utils.Matrix, Fmask [][]int) utils.Matri
 
 		switch face {
 		case 0: // Face 1: t = -1, use (r, s)
-			faceR = utils.NewVector(len(Fmask[face]))
-			faceS = utils.NewVector(len(Fmask[face]))
-			for i, idx := range Fmask[face] {
-				faceR.Set(i, r[idx])
-				faceS.Set(i, s[idx])
+			faceR = utils.NewVector(len(dg.Fmask[face]))
+			faceS = utils.NewVector(len(dg.Fmask[face]))
+			for i, idx := range dg.Fmask[face] {
+				faceR.Set(i, dg.r[idx])
+				faceS.Set(i, dg.s[idx])
 			}
 
 		case 1: // Face 2: s = -1, use (r, t)
-			faceR = utils.NewVector(len(Fmask[face]))
-			faceS = utils.NewVector(len(Fmask[face]))
-			for i, idx := range Fmask[face] {
-				faceR.Set(i, r[idx])
-				faceS.Set(i, t[idx])
+			faceR = utils.NewVector(len(dg.Fmask[face]))
+			faceS = utils.NewVector(len(dg.Fmask[face]))
+			for i, idx := range dg.Fmask[face] {
+				faceR.Set(i, dg.r[idx])
+				faceS.Set(i, dg.t[idx])
 			}
 
 		case 2: // Face 3: r+s+t = -1, use (s, t)
-			faceR = utils.NewVector(len(Fmask[face]))
-			faceS = utils.NewVector(len(Fmask[face]))
-			for i, idx := range Fmask[face] {
-				faceR.Set(i, s[idx])
-				faceS.Set(i, t[idx])
+			faceR = utils.NewVector(len(dg.Fmask[face]))
+			faceS = utils.NewVector(len(dg.Fmask[face]))
+			for i, idx := range dg.Fmask[face] {
+				faceR.Set(i, dg.s[idx])
+				faceS.Set(i, dg.t[idx])
 			}
 
 		case 3: // Face 4: r = -1, use (s, t)
-			faceR = utils.NewVector(len(Fmask[face]))
-			faceS = utils.NewVector(len(Fmask[face]))
-			for i, idx := range Fmask[face] {
-				faceR.Set(i, s[idx])
-				faceS.Set(i, t[idx])
+			faceR = utils.NewVector(len(dg.Fmask[face]))
+			faceS = utils.NewVector(len(dg.Fmask[face]))
+			for i, idx := range dg.Fmask[face] {
+				faceR.Set(i, dg.s[idx])
+				faceS.Set(i, dg.t[idx])
 			}
 		}
 
 		// Compute 2D Vandermonde matrix for the face
-		VFace := DG2D.Vandermonde2D(N, faceR, faceS)
+		VFace := DG2D.Vandermonde2D(dg.N, faceR, faceS)
 
 		// Compute face mass matrix: massFace = inv(VFace * VFace^T)
 		massFace := VFace.Mul(VFace.Transpose()).InverseWithCheck()
@@ -65,7 +65,7 @@ func Lift3D(N int, r, s, t []float64, V utils.Matrix, Fmask [][]int) utils.Matri
 		// This sets a block of Emat where:
 		// - rows are the face node indices (Fmask[face])
 		// - columns are [face*Nfp : (face+1)*Nfp)
-		for i, nodeIdx := range Fmask[face] {
+		for i, nodeIdx := range dg.Fmask[face] {
 			for j := 0; j < Nfp; j++ {
 				colIdx := face*Nfp + j
 				Emat.Set(nodeIdx, colIdx, massFace.At(i, j))
@@ -74,8 +74,8 @@ func Lift3D(N int, r, s, t []float64, V utils.Matrix, Fmask [][]int) utils.Matri
 	}
 
 	// Compute LIFT = V * (V^T * Emat)
-	VtE := V.Transpose().Mul(Emat)
-	LIFT := V.Mul(VtE)
+	VtE := dg.V.Transpose().Mul(Emat)
+	dg.LIFT = dg.V.Mul(VtE)
 
-	return LIFT
+	return nil
 }
