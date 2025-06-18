@@ -2,7 +2,7 @@ package facebuffer
 
 import (
 	"fmt"
-	"github.com/notargets/gocfd/DG3D/tetrahedra/element3d"
+	"github.com/notargets/gocfd/DG3D/tetrahedra/tetelement"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,7 +12,7 @@ import (
 // TestPartitionBoundaryBCTypes verifies partition boundaries are correctly marked with BCType=255
 func _TestPartitionBoundaryBCTypes(t *testing.T) {
 	meshPath := getTestMeshPath()
-	el, err := element3d.NewElement3D(1, meshPath)
+	el, err := tetelement.NewElement3D(1, meshPath)
 	require.NoError(t, err)
 	require.NotNil(t, el.SplitElement3D, "Need split mesh")
 
@@ -29,7 +29,7 @@ func _TestPartitionBoundaryBCTypes(t *testing.T) {
 					bcIdx := k*4 + f
 					bcType := partEl.BCType[bcIdx]
 
-					if bcType == element3d.BCPartitionBoundary {
+					if bcType == tetelement.BCPartitionBoundary {
 						partitionBoundaryCount++
 					} else {
 						domainBoundaryCount++
@@ -51,7 +51,7 @@ func _TestPartitionBoundaryBCTypes(t *testing.T) {
 // TestBuildStatisticsWithPartitionBoundaries verifies statistics distinguish partition vs domain boundaries
 func _TestBuildStatisticsWithPartitionBoundaries(t *testing.T) {
 	meshPath := getTestMeshPath()
-	el, err := element3d.NewElement3D(1, meshPath)
+	el, err := tetelement.NewElement3D(1, meshPath)
 	require.NoError(t, err)
 	require.NotNil(t, el.SplitElement3D, "Need split mesh")
 
@@ -82,7 +82,7 @@ func _TestBuildStatisticsWithPartitionBoundaries(t *testing.T) {
 // TestPartitionBoundaryProcessing verifies partition boundaries are processed correctly
 func _TestPartitionBoundaryProcessing(t *testing.T) {
 	meshPath := getTestMeshPath()
-	el, err := element3d.NewElement3D(2, meshPath)
+	el, err := tetelement.NewElement3D(2, meshPath)
 	require.NoError(t, err)
 	require.NotNil(t, el.SplitElement3D, "Need split mesh")
 
@@ -108,25 +108,25 @@ func _TestPartitionBoundaryProcessing(t *testing.T) {
 
 	t.Logf("Partition 4 BC type distribution:")
 	for bcType, count := range bcTypeCounts {
-		bcName := element3d.GetBCTypeName(int(bcType))
+		bcName := tetelement.GetBCTypeName(int(bcType))
 		t.Logf("  BC Type %d (%s): %d faces", bcType, bcName, count)
 	}
 
 	// Should have partition boundaries
-	assert.Greater(t, bcTypeCounts[uint32(element3d.BCPartitionBoundary)], 0,
+	assert.Greater(t, bcTypeCounts[uint32(tetelement.BCPartitionBoundary)], 0,
 		"Partition 4 should have partition boundary faces (BCType=255)")
 }
 
 // TestNoPartitionBoundariesInGlobalMesh verifies global mesh doesn't have partition boundaries
 func TestNoPartitionBoundariesInGlobalMesh(t *testing.T) {
 	meshPath := getTestMeshPath()
-	el, err := element3d.NewElement3D(1, meshPath)
+	el, err := tetelement.NewElement3D(1, meshPath)
 	require.NoError(t, err)
 
 	// Check the global mesh before splitting
 	partitionBoundaryCount := 0
 	for i := 0; i < len(el.BCType); i++ {
-		if el.BCType[i] == element3d.BCPartitionBoundary {
+		if el.BCType[i] == tetelement.BCPartitionBoundary {
 			partitionBoundaryCount++
 		}
 	}
@@ -138,7 +138,7 @@ func TestNoPartitionBoundariesInGlobalMesh(t *testing.T) {
 // TestPartitionBoundarySymmetry verifies partition boundaries are symmetric between partitions
 func _TestPartitionBoundarySymmetry(t *testing.T) {
 	meshPath := getTestMeshPath()
-	el, err := element3d.NewElement3D(1, meshPath)
+	el, err := tetelement.NewElement3D(1, meshPath)
 	require.NoError(t, err)
 	require.NotNil(t, el.SplitElement3D, "Need split mesh")
 
@@ -178,7 +178,7 @@ func _TestPartitionBoundarySymmetry(t *testing.T) {
 			for f := 0; f < 4; f++ {
 				if partEl.EToE[k][f] == -1 {
 					bcIdx := k*4 + f
-					if partEl.BCType[bcIdx] == element3d.BCPartitionBoundary {
+					if partEl.BCType[bcIdx] == tetelement.BCPartitionBoundary {
 						totalPartitionBoundaries++
 					}
 				}
@@ -197,7 +197,7 @@ func _TestPartitionBoundarySymmetry(t *testing.T) {
 // TestPartition4HasBoundaryFaces verifies the specific failing test case
 func _TestPartition4HasBoundaryFaces(t *testing.T) {
 	meshPath := getTestMeshPath()
-	el, err := element3d.NewElement3D(1, meshPath)
+	el, err := tetelement.NewElement3D(1, meshPath)
 	require.NoError(t, err)
 	require.NotNil(t, el.SplitElement3D, "Mesh should be split")
 

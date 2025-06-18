@@ -1,4 +1,4 @@
-package element3d
+package tetelement
 
 import (
 	"fmt"

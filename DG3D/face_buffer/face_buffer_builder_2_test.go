@@ -2,7 +2,7 @@ package facebuffer
 
 import (
 	"fmt"
-	"github.com/notargets/gocfd/DG3D/tetrahedra/element3d"
+	"github.com/notargets/gocfd/DG3D/tetrahedra/tetelement"
 	"math"
 	"testing"
 
@@ -13,7 +13,7 @@ import (
 // TestLocalNeighborReciprocity verifies that M-P connections are reciprocal for local neighbors
 func _TestLocalNeighborReciprocity(t *testing.T) {
 	meshPath := getTestMeshPath()
-	el, err := element3d.NewElement3D(2, meshPath)
+	el, err := tetelement.NewElement3D(2, meshPath)
 	require.NoError(t, err)
 	require.NotNil(t, el.SplitElement3D, "Need split mesh")
 
@@ -89,7 +89,7 @@ func _TestLocalNeighborReciprocity(t *testing.T) {
 // TestLocalNeighborPhysicalCoordinates verifies M and P sides have matching physical coordinates
 func _TestLocalNeighborPhysicalCoordinates(t *testing.T) {
 	meshPath := getTestMeshPath()
-	el, err := element3d.NewElement3D(1, meshPath) // Order 1 for simpler testing
+	el, err := tetelement.NewElement3D(1, meshPath) // Order 1 for simpler testing
 	require.NoError(t, err)
 	require.NotNil(t, el.SplitElement3D, "Need split mesh")
 
@@ -157,7 +157,7 @@ func _TestLocalNeighborPhysicalCoordinates(t *testing.T) {
 // TestFacePointOrdering verifies that face points are correctly matched despite orientation differences
 func TestFacePointOrdering(t *testing.T) {
 	meshPath := getTestMeshPath()
-	el, err := element3d.NewElement3D(2, meshPath)
+	el, err := tetelement.NewElement3D(2, meshPath)
 	require.NoError(t, err)
 	require.NotNil(t, el.SplitElement3D, "Need split mesh")
 
@@ -218,7 +218,7 @@ func TestFacePointOrdering(t *testing.T) {
 // TestBoundaryFaceClassification verifies boundary faces are correctly identified
 func TestBoundaryFaceClassification(t *testing.T) {
 	meshPath := getTestMeshPath()
-	el, err := element3d.NewElement3D(1, meshPath)
+	el, err := tetelement.NewElement3D(1, meshPath)
 	require.NoError(t, err)
 	require.NotNil(t, el.SplitElement3D, "Need split mesh")
 
@@ -268,7 +268,7 @@ func TestBoundaryFaceClassification(t *testing.T) {
 // TestIndexRangeValidity verifies all indices are within valid ranges
 func TestIndexRangeValidity(t *testing.T) {
 	meshPath := getTestMeshPath()
-	el, err := element3d.NewElement3D(3, meshPath) // Higher order for more face points
+	el, err := tetelement.NewElement3D(3, meshPath) // Higher order for more face points
 	require.NoError(t, err)
 	require.NotNil(t, el.SplitElement3D, "Need split mesh")
 
@@ -322,7 +322,7 @@ func unflattenFaceIndex(idx, nface, nfp uint32) (elem, face, point uint32) {
 }
 
 // getFacePointCoordinates gets the physical coordinates of a face point
-func getFacePointCoordinates(el *element3d.Element3D, elem, face, point uint32) (x, y, z float64) {
+func getFacePointCoordinates(el *tetelement.Element3D, elem, face, point uint32) (x, y, z float64) {
 	// Get the volume node index for this face point
 	faceNodeIdx := el.Fmask[face][point]
 
@@ -347,7 +347,7 @@ func countLocalNeighborsBeforeIndex(faceTypes []FaceType, idx int) int {
 // TestNaturalTraversalOrder verifies the face buffer follows the expected traversal order
 func TestNaturalTraversalOrder(t *testing.T) {
 	meshPath := getTestMeshPath()
-	el, err := element3d.NewElement3D(1, meshPath)
+	el, err := tetelement.NewElement3D(1, meshPath)
 	require.NoError(t, err)
 
 	partEl := el.SplitElement3D[0]
@@ -374,7 +374,7 @@ func TestNaturalTraversalOrder(t *testing.T) {
 // This test is included for completeness but expects no remote connections.
 func TestPartitionBoundaryAsRemote(t *testing.T) {
 	meshPath := getTestMeshPath()
-	el, err := element3d.NewElement3D(1, meshPath)
+	el, err := tetelement.NewElement3D(1, meshPath)
 	require.NoError(t, err)
 	require.NotNil(t, el.SplitElement3D, "Need split mesh")
 
