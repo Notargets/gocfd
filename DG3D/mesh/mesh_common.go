@@ -389,9 +389,16 @@ func (m *Mesh) FilterByDimension(dim int) ([]int, [][]int, []ElementType) {
 	return indices, elements, types
 }
 
-// This is the fixed BuildConnectivity function that should replace the buggy one in mesh_common.go
-
 // BuildConnectivity builds element-to-element and face connectivity
+//
+// EToE[elem][face] = neighbor element ID (or -1 for boundary)
+// EToF[elem][face] = neighbor's LOCAL face index (or -1 for boundary)
+//
+// This creates reciprocal connectivity where:
+// - If element A's face i connects to element B's face j
+// - Then element B's face j connects to element A's face i
+//
+// CRITICAL: EToF stores the neighbor's LOCAL face index, not global face IDs
 func (m *Mesh) BuildConnectivity() {
 	m.EToE = make([][]int, m.NumElements)
 	m.EToF = make([][]int, m.NumElements)
@@ -440,13 +447,15 @@ func (m *Mesh) BuildConnectivity() {
 				otherElem := face.Element
 				otherLocalID := face.LocalID
 
-				// Set connectivity
+				// Set connectivity - CRITICAL FIX HERE
+				// EToE stores the neighbor element ID
+				// EToF stores the neighbor's LOCAL face ID (not global face ID)
 				m.EToE[elemID][localFaceID] = otherElem
-				m.EToF[elemID][localFaceID] = otherLocalID // FIX: Use local face ID, not global
+				m.EToF[elemID][localFaceID] = otherLocalID // Store neighbor's local face ID
 
 				// Set reverse connectivity
 				m.EToE[otherElem][otherLocalID] = elemID
-				m.EToF[otherElem][otherLocalID] = localFaceID // FIX: Use local face ID, not global
+				m.EToF[otherElem][otherLocalID] = localFaceID // Store this element's local face ID
 			} else {
 				// New face
 				faceID := len(m.Faces)
