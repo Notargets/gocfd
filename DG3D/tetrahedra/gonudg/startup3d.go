@@ -269,7 +269,3 @@ func (dg *DG3D) Lift3D() error {
 func (dg *DG3D) tiConnect3D() {
 	// TODO: Implement tiConnect3D
 }
-
-func (dg *DG3D) BuildMaps3D() {
-	// TODO: Implement BuildMaps3D
-}

@@ -1,59 +1,71 @@
 package gonudg
 
-// INDEXING NOTE: Original C++ code uses 1-based indexing to emulate Matlab behavior.
-// This Go port uses standard 0-based indexing. Example conversions:
-//   C++: sk = 1; V3D(All,sk) = ...    ->    Go: sk = 0; V3D.SetCol(sk, ...)
-//   C++: Fmask[1] (first face)        ->    Go: Fmask[0] (first face)
-// The indexing has been correctly translated throughout this port.
-
-import (
-	"math"
-)
-
 // BuildMaps3D builds connectivity and boundary tables for nodes
-// This is the 0-based index version of the C++ BuildMaps3D function
-// Returns vmapM, vmapP, mapB, vmapB
-func BuildMaps3D(K, Np, Nfp int, Nfaces int, x, y, z []float64,
-	EToE, EToF [][]int, Fmask [][]int) (vmapM, vmapP, mapB, vmapB []int) {
-
-	NODETOL := 1e-7
-	NF := Nfp * Nfaces
-
+// This populates vmapM, vmapP, mapM, mapP, mapB, and vmapB in the DG3D struct
+func (dg *DG3D) BuildMaps3D() {
 	// Initialize arrays
-	vmapM = make([]int, Nfp*Nfaces*K)
-	vmapP = make([]int, Nfp*Nfaces*K)
-	mapM := make([]int, Nfp*Nfaces*K)
-	mapP := make([]int, Nfp*Nfaces*K)
+	NF := dg.Nfp * dg.Nfaces
+	dg.vmapM = make([]int, NF*dg.K)
+	dg.vmapP = make([]int, NF*dg.K)
+	dg.mapM = make([]int, NF*dg.K)
+	dg.mapP = make([]int, NF*dg.K)
 
 	// Initialize mapM and mapP as sequential indices
-	for i := 0; i < len(mapM); i++ {
-		mapM[i] = i
-		mapP[i] = i
+	for i := 0; i < len(dg.mapM); i++ {
+		dg.mapM[i] = i
+		dg.mapP[i] = i
 	}
 
 	// Number volume nodes consecutively
 	// Find index of face nodes with respect to volume node ordering
-	for k1 := 0; k1 < K; k1++ {
+	for k1 := 0; k1 < dg.K; k1++ {
 		iL1 := k1 * NF
-		for f := 0; f < Nfaces; f++ {
-			for i := 0; i < Nfp; i++ {
-				idsL := iL1 + f*Nfp + i
+		for f := 0; f < dg.Nfaces; f++ {
+			for i := 0; i < dg.Nfp; i++ {
+				idsL := iL1 + f*dg.Nfp + i
 				// Fmask contains node indices within element (0-based)
-				volumeNode := Fmask[f][i] + k1*Np
-				vmapM[idsL] = volumeNode
+				volumeNode := dg.Fmask[f][i] + k1*dg.Np
+				dg.vmapM[idsL] = volumeNode
 			}
 		}
 	}
 
 	// Initialize vmapP to vmapM (for boundary faces)
-	copy(vmapP, vmapM)
+	copy(dg.vmapP, dg.vmapM)
+
+	// Create face to face mapping if connectivity information exists
+	if dg.EToE != nil && dg.EToF != nil {
+		dg.buildFaceConnectivity()
+	}
+
+	// Find boundary nodes
+	dg.buildBoundaryMaps()
+}
+
+// buildFaceConnectivity creates face-to-face mappings for interior faces
+func (dg *DG3D) buildFaceConnectivity() {
+	NF := dg.Nfp * dg.Nfaces
+
+	// Extract coordinate data into flat arrays for compatibility
+	x := make([]float64, dg.Np*dg.K)
+	y := make([]float64, dg.Np*dg.K)
+	z := make([]float64, dg.Np*dg.K)
+
+	for k := 0; k < dg.K; k++ {
+		for i := 0; i < dg.Np; i++ {
+			idx := k*dg.Np + i
+			x[idx] = dg.x.At(i, k)
+			y[idx] = dg.y.At(i, k)
+			z[idx] = dg.z.At(i, k)
+		}
+	}
 
 	// Create face to face mapping
-	for k1 := 0; k1 < K; k1++ {
-		for f1 := 0; f1 < Nfaces; f1++ {
+	for k1 := 0; k1 < dg.K; k1++ {
+		for f1 := 0; f1 < dg.Nfaces; f1++ {
 			// Find neighbor
-			k2 := EToE[k1][f1]
-			f2 := EToF[k1][f1]
+			k2 := dg.EToE[k1][f1]
+			f2 := dg.EToF[k1][f1]
 
 			// Skip boundary faces (self-connected)
 			if k2 == k1 && f2 == f1 {
@@ -61,7 +73,7 @@ func BuildMaps3D(K, Np, Nfp int, Nfaces int, x, y, z []float64,
 			}
 
 			// Skip invalid neighbors
-			if k2 < 0 || k2 >= K {
+			if k2 < 0 || k2 >= dg.K {
 				continue
 			}
 
@@ -69,30 +81,30 @@ func BuildMaps3D(K, Np, Nfp int, Nfaces int, x, y, z []float64,
 			skP := k2 * NF // offset to element k2
 
 			// Build index lists for faces
-			idsM := make([]int, Nfp)
-			idsP := make([]int, Nfp)
-			for i := 0; i < Nfp; i++ {
-				idsM[i] = f1*Nfp + i + skM
-				idsP[i] = f2*Nfp + i + skP
+			idsM := make([]int, dg.Nfp)
+			idsP := make([]int, dg.Nfp)
+			for i := 0; i < dg.Nfp; i++ {
+				idsM[i] = f1*dg.Nfp + i + skM
+				idsP[i] = f2*dg.Nfp + i + skP
 			}
 
 			// Find volume node numbers of left and right nodes
-			vidM := make([]int, Nfp)
-			vidP := make([]int, Nfp)
-			for i := 0; i < Nfp; i++ {
-				vidM[i] = vmapM[idsM[i]]
-				vidP[i] = vmapM[idsP[i]]
+			vidM := make([]int, dg.Nfp)
+			vidP := make([]int, dg.Nfp)
+			for i := 0; i < dg.Nfp; i++ {
+				vidM[i] = dg.vmapM[idsM[i]]
+				vidP[i] = dg.vmapM[idsP[i]]
 			}
 
 			// Extract coordinates
-			x1 := make([]float64, Nfp)
-			y1 := make([]float64, Nfp)
-			z1 := make([]float64, Nfp)
-			x2 := make([]float64, Nfp)
-			y2 := make([]float64, Nfp)
-			z2 := make([]float64, Nfp)
+			x1 := make([]float64, dg.Nfp)
+			y1 := make([]float64, dg.Nfp)
+			z1 := make([]float64, dg.Nfp)
+			x2 := make([]float64, dg.Nfp)
+			y2 := make([]float64, dg.Nfp)
+			z2 := make([]float64, dg.Nfp)
 
-			for i := 0; i < Nfp; i++ {
+			for i := 0; i < dg.Nfp; i++ {
 				// vidM[i] is the global node index
 				x1[i] = x[vidM[i]]
 				y1[i] = y[vidM[i]]
@@ -103,60 +115,116 @@ func BuildMaps3D(K, Np, Nfp int, Nfaces int, x, y, z []float64,
 				z2[i] = z[vidP[i]]
 			}
 
-			// Compute distance matrix and find matches
-			for i := 0; i < Nfp; i++ {
-				for j := 0; j < Nfp; j++ {
-					dx := x1[i] - x2[j]
-					dy := y1[i] - y2[j]
-					dz := z1[i] - z2[j]
-					dist := math.Sqrt(dx*dx + dy*dy + dz*dz)
+			// Compute distance matrix
+			D := make([][]float64, dg.Nfp)
+			for i := range D {
+				D[i] = make([]float64, dg.Nfp)
+			}
 
-					if dist < NODETOL {
-						// Found matching nodes
-						idM := idsM[i]
-						vmapP[idM] = vidP[j] // Set external element node
+			for i := 0; i < dg.Nfp; i++ {
+				for j := 0; j < dg.Nfp; j++ {
+					dx := x2[j] - x1[i]
+					dy := y2[j] - y1[i]
+					dz := z2[j] - z1[i]
+					D[i][j] = dx*dx + dy*dy + dz*dz
+				}
+			}
 
-						idP := idsP[j]
-						mapP[idM] = idP // Set external face node
-						break           // Only one match per node
+			// Find matching nodes
+			for i := 0; i < dg.Nfp; i++ {
+				// Find minimum distance
+				minDist := D[i][0]
+				minJ := 0
+				for j := 1; j < dg.Nfp; j++ {
+					if D[i][j] < minDist {
+						minDist = D[i][j]
+						minJ = j
 					}
+				}
+
+				// Map to neighbor if within tolerance
+				if minDist < dg.NODETOL*dg.NODETOL {
+					dg.vmapP[idsM[i]] = vidP[minJ]
+					dg.mapP[idsM[i]] = idsP[minJ]
 				}
 			}
 		}
 	}
+}
 
-	// Create list of boundary nodes
-	mapB = []int{}
-	vmapB = []int{}
+// buildBoundaryMaps finds and stores boundary node information
+func (dg *DG3D) buildBoundaryMaps() {
+	// Create lists of boundary nodes
+	mapB := make([]int, 0)
+	vmapB := make([]int, 0)
 
-	for i := 0; i < len(vmapP); i++ {
-		if vmapP[i] == vmapM[i] {
+	// Check each face node
+	NF := dg.Nfp * dg.Nfaces
+	for i := 0; i < dg.K*NF; i++ {
+		if dg.mapP[i] == i {
+			// This is a boundary node
 			mapB = append(mapB, i)
-			vmapB = append(vmapB, vmapM[i])
+			vmapB = append(vmapB, dg.vmapM[i])
 		}
 	}
 
-	return vmapM, vmapP, mapB, vmapB
+	dg.mapB = mapB
+	dg.vmapB = vmapB
 }
 
-// Helper function to find matching nodes between two faces
-func findFaceMatches(x1, y1, z1, x2, y2, z2 []float64, tol float64) [][]int {
-	n1 := len(x1)
-	n2 := len(x2)
-	matches := [][]int{}
+// GetBoundaryFaces returns the element and face indices for all boundary faces
+func (dg *DG3D) GetBoundaryFaces() (elements []int, faces []int) {
+	elements = make([]int, 0)
+	faces = make([]int, 0)
 
-	for i := 0; i < n1; i++ {
-		for j := 0; j < n2; j++ {
-			dx := x1[i] - x2[j]
-			dy := y1[i] - y2[j]
-			dz := z1[i] - z2[j]
-			dist := math.Sqrt(dx*dx + dy*dy + dz*dz)
+	if dg.EToE == nil {
+		return
+	}
 
-			if dist < tol {
-				matches = append(matches, []int{i, j})
+	for k := 0; k < dg.K; k++ {
+		for f := 0; f < dg.Nfaces; f++ {
+			// Check if this is a boundary face
+			if dg.EToE[k][f] == k && dg.EToF[k][f] == f {
+				elements = append(elements, k)
+				faces = append(faces, f)
 			}
 		}
 	}
 
-	return matches
+	return
+}
+
+// GetSharedFaces returns pairs of elements/faces that share a face
+func (dg *DG3D) GetSharedFaces() (elem1 []int, face1 []int, elem2 []int, face2 []int) {
+	elem1 = make([]int, 0)
+	face1 = make([]int, 0)
+	elem2 = make([]int, 0)
+	face2 = make([]int, 0)
+
+	if dg.EToE == nil {
+		return
+	}
+
+	// To avoid duplicates, only record when k1 < k2
+	for k1 := 0; k1 < dg.K; k1++ {
+		for f1 := 0; f1 < dg.Nfaces; f1++ {
+			k2 := dg.EToE[k1][f1]
+			f2 := dg.EToF[k1][f1]
+
+			// Skip boundary faces
+			if k2 == k1 && f2 == f1 {
+				continue
+			}
+
+			// Only record if k1 < k2 to avoid duplicates
+			if k1 < k2 {
+				elem1 = append(elem1, k1)
+				face1 = append(face1, f1)
+				elem2 = append(elem2, k2)
+				face2 = append(face2, f2)
+			}
+		}
+	}
+
+	return
 }
