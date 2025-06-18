@@ -11,10 +11,10 @@ func TestBuildMaps3D(t *testing.T) {
 
 	// Setup for order N=1 (linear elements)
 	N := 1
-	Np := (N + 1) * (N + 2) * (N + 3) / 6  // 4 nodes per tet
-	Nfp := (N + 1) * (N + 2) / 2           // 3 nodes per face
+	Np := (N + 1) * (N + 2) * (N + 3) / 6 // 4 nodes per tet
+	Nfp := (N + 1) * (N + 2) / 2          // 3 nodes per face
 	Nfaces := 4
-	K := 2  // 2 elements
+	K := 2 // 2 elements
 
 	// Create two tetrahedra that share a face
 	// Tet 1: vertices at (0,0,0), (1,0,0), (0,1,0), (0,0,1)
@@ -88,7 +88,7 @@ func TestBuildMaps3D(t *testing.T) {
 	// Test 3: For connected faces, vmapP should point to matching nodes
 	// We know Tet 0 face 2 connects to Tet 1 face 3
 	// The nodes should match geometrically
-	
+
 	// Test 4: For boundary faces, vmapP should equal vmapM
 	for k := 0; k < K; k++ {
 		for f := 0; f < Nfaces; f++ {
@@ -122,20 +122,20 @@ func TestBuildMaps3D(t *testing.T) {
 
 func TestBuildMaps3DSingleTet(t *testing.T) {
 	// Test with a single tetrahedron (all boundary)
-	N := 2  // quadratic element
-	Np := (N + 1) * (N + 2) * (N + 3) / 6  // 10 nodes
-	Nfp := (N + 1) * (N + 2) / 2           // 6 nodes per face
+	N := 2                                // quadratic element
+	Np := (N + 1) * (N + 2) * (N + 3) / 6 // 10 nodes
+	Nfp := (N + 1) * (N + 2) / 2          // 6 nodes per face
 	Nfaces := 4
 	K := 1
 
 	// Create node coordinates for a single tet
 	r, s, tt := EquiNodes3D(N)
 	X, Y, Z := RSTtoXYZ(r, s, tt)
-	
+
 	// Create Fmask using the face detection logic
 	Fmask := make([][]int, Nfaces)
 	tol := 1e-10
-	
+
 	// Face 0: t = -1
 	Fmask[0] = []int{}
 	for i := 0; i < Np; i++ {
@@ -143,7 +143,7 @@ func TestBuildMaps3DSingleTet(t *testing.T) {
 			Fmask[0] = append(Fmask[0], i)
 		}
 	}
-	
+
 	// Face 1: s = -1
 	Fmask[1] = []int{}
 	for i := 0; i < Np; i++ {
@@ -151,7 +151,7 @@ func TestBuildMaps3DSingleTet(t *testing.T) {
 			Fmask[1] = append(Fmask[1], i)
 		}
 	}
-	
+
 	// Face 2: r+s+t = -1
 	Fmask[2] = []int{}
 	for i := 0; i < Np; i++ {
@@ -159,7 +159,7 @@ func TestBuildMaps3DSingleTet(t *testing.T) {
 			Fmask[2] = append(Fmask[2], i)
 		}
 	}
-	
+
 	// Face 3: r = -1
 	Fmask[3] = []int{}
 	for i := 0; i < Np; i++ {
@@ -194,7 +194,7 @@ func TestBuildMaps3DSingleTet(t *testing.T) {
 func BenchmarkBuildMaps3D(b *testing.B) {
 	// Setup for a moderate size problem
 	N := 3
-	K := 100  // 100 elements
+	K := 100 // 100 elements
 	Np := (N + 1) * (N + 2) * (N + 3) / 6
 	Nfp := (N + 1) * (N + 2) / 2
 	Nfaces := 4
@@ -203,7 +203,7 @@ func BenchmarkBuildMaps3D(b *testing.B) {
 	x := make([]float64, Np*K)
 	y := make([]float64, Np*K)
 	z := make([]float64, Np*K)
-	
+
 	// Simple connectivity - mostly self-connected
 	EToE := make([][]int, K)
 	EToF := make([][]int, K)
@@ -211,13 +211,13 @@ func BenchmarkBuildMaps3D(b *testing.B) {
 		EToE[i] = []int{i, i, i, i}
 		EToF[i] = []int{0, 1, 2, 3}
 	}
-	
+
 	// Create Fmask
 	Fmask := make([][]int, Nfaces)
 	for f := 0; f < Nfaces; f++ {
 		Fmask[f] = make([]int, Nfp)
 		for i := 0; i < Nfp; i++ {
-			Fmask[f][i] = i  // Simplified
+			Fmask[f][i] = i // Simplified
 		}
 	}
 
@@ -226,4 +226,3 @@ func BenchmarkBuildMaps3D(b *testing.B) {
 		BuildMaps3D(K, Np, Nfp, Nfaces, x, y, z, EToE, EToF, Fmask)
 	}
 }
-

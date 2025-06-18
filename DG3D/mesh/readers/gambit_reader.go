@@ -333,5 +333,7 @@ func ReadGambitNeutral(filename string) (*mesh.Mesh, error) {
 	msh.NumVertices = len(msh.Vertices)
 	msh.NumElements = len(msh.EtoV)
 
+	msh.BuildConnectivity()
+
 	return msh, scanner.Err()
 }
