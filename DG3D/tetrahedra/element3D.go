@@ -473,39 +473,124 @@ func (el *Element3D) CalcFaceGeometry() *FaceGeometricFactors {
 	}
 }
 
-// BuildMaps3D builds connectivity maps for DG using gonudg
+// BuildMaps3D builds connectivity maps for DG
 func (el *Element3D) BuildMaps3D() {
-	// Convert data to format expected by gonudg.BuildMaps3D
+	// Use the existing implementation that properly computes face mappings
 	K := el.K
 	Np := el.Np
 	Nfp := el.Nfp
+	Nfaces := 4
+	x, y, z := el.X, el.Y, el.Z
 
-	// Convert utils.Matrix to []float64 slices for x, y, z
-	xData := make([]float64, Np*K)
-	yData := make([]float64, Np*K)
-	zData := make([]float64, Np*K)
+	// Build node-to-node mappings
+	NODETOL := 1e-7
+	nodeIds := make(map[[3]float64]int)
+	Nnodes := 0
 
-	// Copy data in column-major order (element by element)
+	// Assign unique IDs to nodes
 	for k := 0; k < K; k++ {
 		for n := 0; n < Np; n++ {
-			idx := k*Np + n
-			xData[idx] = el.X.At(n, k)
-			yData[idx] = el.Y.At(n, k)
-			zData[idx] = el.Z.At(n, k)
+			key := [3]float64{
+				math.Round(x.At(n, k)/NODETOL) * NODETOL,
+				math.Round(y.At(n, k)/NODETOL) * NODETOL,
+				math.Round(z.At(n, k)/NODETOL) * NODETOL,
+			}
+			if _, exists := nodeIds[key]; !exists {
+				nodeIds[key] = Nnodes
+				Nnodes++
+			}
 		}
 	}
 
-	// Call gonudg BuildMaps3D
-	Nfaces := 4 // tet
-	el.VmapM, el.VmapP, el.MapB, el.VmapB = gonudg.BuildMaps3D(K, Np,
-		Nfp, Nfaces, xData, yData, zData, el.EToE, el.EToF, el.Fmask)
-
-	// Set MapM and MapP to the whole face range, emulating nudg++
+	// Initialize mappings
+	el.VmapM = make([]int, Nfp*Nfaces*K)
+	el.VmapP = make([]int, Nfp*Nfaces*K)
 	el.MapM = make([]int, Nfp*Nfaces*K)
 	el.MapP = make([]int, Nfp*Nfaces*K)
-	for i := 0; i < Nfp*Nfaces*K; i++ {
+
+	// Build VmapM - maps face nodes to volume nodes
+	for k := 0; k < K; k++ {
+		for f := 0; f < Nfaces; f++ {
+			for i := 0; i < Nfp; i++ {
+				faceIdx := k*Nfaces*Nfp + f*Nfp + i
+				volNode := el.Fmask[f][i] + k*Np
+				el.VmapM[faceIdx] = volNode
+			}
+		}
+	}
+
+	// Initialize VmapP to VmapM (for boundaries)
+	copy(el.VmapP, el.VmapM)
+
+	// Initialize MapM and MapP as identity
+	for i := 0; i < len(el.MapM); i++ {
 		el.MapM[i] = i
 		el.MapP[i] = i
+	}
+
+	// Build face-to-face mappings for interior faces
+	for k1 := 0; k1 < K; k1++ {
+		for f1 := 0; f1 < Nfaces; f1++ {
+			k2 := el.EToE[k1][f1]
+			f2 := el.EToF[k1][f1]
+
+			// Skip boundary faces
+			if k2 == k1 && f2 == f1 {
+				continue
+			}
+
+			// Skip invalid neighbors
+			if k2 < 0 || k2 >= K {
+				continue
+			}
+
+			// Match nodes between faces
+			for i := 0; i < Nfp; i++ {
+				// Get node on face f1 of element k1
+				n1 := el.Fmask[f1][i]
+				key1 := [3]float64{
+					math.Round(x.At(n1, k1)/NODETOL) * NODETOL,
+					math.Round(y.At(n1, k1)/NODETOL) * NODETOL,
+					math.Round(z.At(n1, k1)/NODETOL) * NODETOL,
+				}
+
+				// Find matching node on face f2 of element k2
+				for j := 0; j < Nfp; j++ {
+					n2 := el.Fmask[f2][j]
+					key2 := [3]float64{
+						math.Round(x.At(n2, k2)/NODETOL) * NODETOL,
+						math.Round(y.At(n2, k2)/NODETOL) * NODETOL,
+						math.Round(z.At(n2, k2)/NODETOL) * NODETOL,
+					}
+
+					if key1 == key2 {
+						// Found matching nodes
+						id1 := k1*Nfaces*Nfp + f1*Nfp + i
+						id2 := k2*Nfaces*Nfp + f2*Nfp + j
+
+						// Set VmapP
+						el.VmapP[id1] = k2*Np + n2
+						el.VmapP[id2] = k1*Np + n1
+
+						// Set MapP
+						el.MapP[id1] = id2
+						el.MapP[id2] = id1
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// Build boundary mappings
+	el.MapB = []int{}
+	el.VmapB = []int{}
+
+	for i := 0; i < len(el.VmapP); i++ {
+		if el.VmapP[i] == el.VmapM[i] {
+			el.MapB = append(el.MapB, i)
+			el.VmapB = append(el.VmapB, el.VmapM[i])
+		}
 	}
 }
 
@@ -517,14 +602,33 @@ func (el *Element3D) Connect3D() (ca *ConnectivityArrays) {
 
 	// Build face to vertex mapping for tetrahedron
 	vn := [][]int{
-		{0, 1, 2}, // Face 1
-		{0, 1, 3}, // Face 2
-		{1, 2, 3}, // Face 3
-		{0, 2, 3}, // Face 4
+		{0, 1, 2}, // Face 0
+		{0, 1, 3}, // Face 1
+		{1, 2, 3}, // Face 2
+		{0, 2, 3}, // Face 3
 	}
 
-	// Create face to element+face mapping
-	faces := make(map[[3]int]struct{ elem, face int })
+	// Initialize connectivity arrays
+	EToE := make([][]int, K)
+	EToF := make([][]int, K)
+
+	for k := 0; k < K; k++ {
+		EToE[k] = make([]int, Nfaces)
+		EToF[k] = make([]int, Nfaces)
+
+		// Initialize with self-connectivity (boundary)
+		for f := 0; f < Nfaces; f++ {
+			EToE[k][f] = k
+			EToF[k][f] = f
+		}
+	}
+
+	// Build face map and connectivity simultaneously
+	type faceInfo struct {
+		elem int
+		face int
+	}
+	faces := make(map[[3]int]faceInfo)
 
 	for k := 0; k < K; k++ {
 		for f := 0; f < Nfaces; f++ {
@@ -539,47 +643,18 @@ func (el *Element3D) Connect3D() (ca *ConnectivityArrays) {
 			key := [3]int{v[0], v[1], v[2]}
 
 			if match, exists := faces[key]; exists {
-				// Found matching face
-				if k != match.elem {
-					// Different elements share this face
-					// This is an internal face
-				}
+				// Found matching face - set RECIPROCAL connectivity
+				// Element k, face f connects to match.elem, face match.face
+				EToE[k][f] = match.elem
+				EToF[k][f] = match.face
+
+				// CRITICAL FIX: Set reverse connectivity
+				// match.elem, face match.face connects back to element k, face f
+				EToE[match.elem][match.face] = k
+				EToF[match.elem][match.face] = f
 			} else {
-				faces[key] = struct{ elem, face int }{k, f}
-			}
-		}
-	}
-
-	// Build connectivity arrays
-	EToE := make([][]int, K)
-	EToF := make([][]int, K)
-
-	for k := 0; k < K; k++ {
-		EToE[k] = make([]int, Nfaces)
-		EToF[k] = make([]int, Nfaces)
-
-		// Initialize with self-connectivity
-		for f := 0; f < Nfaces; f++ {
-			EToE[k][f] = k
-			EToF[k][f] = f
-		}
-
-		// Find actual connections
-		for f := 0; f < Nfaces; f++ {
-			v := make([]int, 3)
-			for i := 0; i < 3; i++ {
-				v[i] = EToV[k][vn[f][i]]
-			}
-			sort.Ints(v)
-			key := [3]int{v[0], v[1], v[2]}
-
-			// Search all faces for match
-			for fkey, fdata := range faces {
-				if fkey == key && fdata.elem != k {
-					EToE[k][f] = fdata.elem
-					EToF[k][f] = fdata.face
-					break
-				}
+				// First time seeing this face
+				faces[key] = faceInfo{elem: k, face: f}
 			}
 		}
 	}

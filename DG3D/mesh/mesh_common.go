@@ -391,8 +391,9 @@ func (m *Mesh) FilterByDimension(dim int) ([]int, [][]int, []ElementType) {
 
 // BuildConnectivity builds element-to-element and face connectivity
 //
-// EToE[elem][face] = neighbor element ID (or -1 for boundary)
-// EToF[elem][face] = neighbor's LOCAL face index (or -1 for boundary)
+// For each element and face, this function populates:
+// - EToE[elem][face] = neighbor element ID (or -1 for boundary)
+// - EToF[elem][face] = neighbor's LOCAL face index (or -1 for boundary)
 //
 // This creates reciprocal connectivity where:
 // - If element A's face i connects to element B's face j
@@ -473,6 +474,12 @@ func (m *Mesh) BuildConnectivity() {
 	m.NumFaces = len(m.Faces)
 }
 
+// Required imports for this function:
+// import (
+//     "sort"
+//     "strconv"
+//     "strings"
+// )
 // GetElementFaces returns the faces of an element as vertex lists
 func GetElementFaces(elemType ElementType, vertices []int) [][]int {
 	switch elemType {
