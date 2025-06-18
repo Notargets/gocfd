@@ -266,11 +266,6 @@ func (dg *DG3D) Lift3D() error {
 	return nil
 }
 
-func (dg *DG3D) Normals3D() error {
-	// TODO: Implement Normals3D
-	return nil
-}
-
 func (dg *DG3D) tiConnect3D() {
 	// TODO: Implement tiConnect3D
 }
