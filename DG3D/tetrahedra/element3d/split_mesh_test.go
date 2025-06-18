@@ -1,4 +1,4 @@
-package tetrahedra
+package element3d
 
 import (
 	"testing"

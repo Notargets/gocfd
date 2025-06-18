@@ -4,7 +4,7 @@ package facebuffer
 
 import (
 	"fmt"
-	"github.com/notargets/gocfd/DG3D/tetrahedra"
+	"github.com/notargets/gocfd/DG3D/tetrahedra/element3d"
 	"sort"
 )
 
@@ -52,7 +52,7 @@ type FaceBufferBuilder struct {
 }
 
 // NewFaceBufferBuilder creates a new builder from Element3D
-func NewFaceBufferBuilder(el *tetrahedra.Element3D, neq uint32) *FaceBufferBuilder {
+func NewFaceBufferBuilder(el *element3d.Element3D, neq uint32) *FaceBufferBuilder {
 	// Extract dimensions from Element3D
 	nface := uint32(4) // Tetrahedra have 4 faces
 	nfp := uint32(el.Nfp)
@@ -180,7 +180,7 @@ func (fb *FaceBufferBuilder) ProcessRemoteIndices(remotePartID uint32, theirSend
 }
 
 // BuildFromElement3D automatically constructs face buffer from Element3D connectivity
-func (fb *FaceBufferBuilder) BuildFromElement3D(el *tetrahedra.Element3D) error {
+func (fb *FaceBufferBuilder) BuildFromElement3D(el *element3d.Element3D) error {
 	// Ensure connectivity is built
 	if el.EToE == nil || el.EToF == nil {
 		if el.ConnectivityArrays == nil {
@@ -204,7 +204,7 @@ func (fb *FaceBufferBuilder) BuildFromElement3D(el *tetrahedra.Element3D) error 
 					}
 
 					// Check if this is a partition boundary
-					if bcType == uint32(tetrahedra.BCPartitionBoundary) {
+					if bcType == uint32(element3d.BCPartitionBoundary) {
 						// For now, treat partition boundaries as regular boundaries
 						// In a distributed implementation, these would trigger special handling
 					}
@@ -298,7 +298,7 @@ func (fb *FaceBufferBuilder) BuildFromElement3D(el *tetrahedra.Element3D) error 
 }
 
 // Build creates the runtime structure from Element3D
-func (fb *FaceBufferBuilder) Build(el *tetrahedra.Element3D) (*FaceBufferRuntime, error) {
+func (fb *FaceBufferBuilder) Build(el *element3d.Element3D) (*FaceBufferRuntime, error) {
 	// Auto-build connections from Element3D if no manual connections added
 	if len(fb.connections) == 0 {
 		err := fb.BuildFromElement3D(el)
@@ -395,7 +395,7 @@ func (fb *FaceBufferBuilder) GetBuildStatistics() map[string]uint32 {
 		switch conn.Type {
 		case BoundaryFace:
 			boundaryPoints++
-			if conn.BCType == uint32(tetrahedra.BCPartitionBoundary) {
+			if conn.BCType == uint32(element3d.BCPartitionBoundary) {
 				partitionBoundaryPoints++
 			} else {
 				domainBoundaryPoints++
