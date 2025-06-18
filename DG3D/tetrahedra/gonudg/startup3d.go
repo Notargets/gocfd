@@ -259,7 +259,3 @@ func (dg *DG3D) ComputeWeakOperators() {
 	dg.Dsw = dg.V.Mul(Vs.Transpose()).Mul(VVTinv)
 	dg.Dtw = dg.V.Mul(Vt.Transpose()).Mul(VVTinv)
 }
-
-func (dg *DG3D) tiConnect3D() {
-	// TODO: Implement tiConnect3D
-}
