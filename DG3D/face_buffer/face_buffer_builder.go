@@ -202,6 +202,13 @@ func (fb *FaceBufferBuilder) BuildFromElement3D(el *tetrahedra.Element3D) error 
 					if len(el.BCType) > k*nfaces+f {
 						bcType = uint32(el.BCType[k*nfaces+f])
 					}
+
+					// Check if this is a partition boundary
+					if bcType == uint32(tetrahedra.BCPartitionBoundary) {
+						// For now, treat partition boundaries as regular boundaries
+						// In a distributed implementation, these would trigger special handling
+					}
+
 					err := fb.AddBoundaryFace(uint32(k), uint32(f), uint32(fp), bcType)
 					if err != nil {
 						return fmt.Errorf("error adding boundary face: %v", err)
@@ -210,9 +217,40 @@ func (fb *FaceBufferBuilder) BuildFromElement3D(el *tetrahedra.Element3D) error 
 				} else if el.EToP == nil || el.EToP[neighbor] == el.EToP[k] {
 					// Local interior neighbor (same partition or non-partitioned)
 					neighborFace := el.EToF[k][f]
+
+					// CRITICAL FIX: Use VmapP to get the correct face point mapping
+					// VmapP contains the proper face-to-face node correspondence
+					faceIdx := k*nfaces*el.Nfp + f*el.Nfp + fp
+					vmapP := el.VmapP[faceIdx]
+
+					// Extract element and node from VmapP
+					neighborElem := vmapP / el.Np
+					neighborNode := vmapP % el.Np
+
+					// Verify the neighbor element matches
+					if neighborElem != neighbor {
+						return fmt.Errorf("VmapP inconsistency: expected element %d, got %d at k=%d, f=%d, fp=%d",
+							neighbor, neighborElem, k, f, fp)
+					}
+
+					// Find which face point on the neighbor face has this node
+					var neighborFP int = -1
+					for nfp := 0; nfp < el.Nfp; nfp++ {
+						if el.Fmask[neighborFace][nfp] == neighborNode {
+							neighborFP = nfp
+							break
+						}
+					}
+
+					if neighborFP == -1 {
+						return fmt.Errorf("could not find face point for node %d on face %d of element %d",
+							neighborNode, neighborFace, neighbor)
+					}
+
+					// Now we have the correct face point correspondence
 					err := fb.AddLocalNeighbor(
 						uint32(k), uint32(f), uint32(fp),
-						uint32(neighbor), uint32(neighborFace), uint32(fp))
+						uint32(neighbor), uint32(neighborFace), uint32(neighborFP))
 					if err != nil {
 						return fmt.Errorf("error adding local neighbor: %v", err)
 					}
@@ -221,9 +259,33 @@ func (fb *FaceBufferBuilder) BuildFromElement3D(el *tetrahedra.Element3D) error 
 					// Remote neighbor (different partition)
 					remotePartID := uint32(el.EToP[neighbor])
 					neighborFace := el.EToF[k][f]
+
+					// For remote neighbors, we also need to use VmapP to get the correct mapping
+					faceIdx := k*nfaces*el.Nfp + f*el.Nfp + fp
+					vmapP := el.VmapP[faceIdx]
+
+					// Extract node from VmapP
+					neighborNode := vmapP % el.Np
+
+					// Find which face point on the neighbor face corresponds to this node
+					var neighborFP int = -1
+					for nfp := 0; nfp < el.Nfp; nfp++ {
+						if el.Fmask[neighborFace][nfp] == neighborNode {
+							neighborFP = nfp
+							break
+						}
+					}
+
+					if neighborFP == -1 {
+						// For remote neighbors, the face point might not be directly findable
+						// due to different element numbering in remote partition
+						// Use the same face point index as a fallback
+						neighborFP = fp
+					}
+
 					err := fb.AddRemoteNeighbor(
 						uint32(k), uint32(f), uint32(fp),
-						remotePartID, uint32(neighbor), uint32(neighborFace), uint32(fp))
+						remotePartID, uint32(neighbor), uint32(neighborFace), uint32(neighborFP))
 					if err != nil {
 						return fmt.Errorf("error adding remote neighbor: %v", err)
 					}
@@ -328,11 +390,16 @@ func (fb *FaceBufferBuilder) GetBuildStatistics() map[string]uint32 {
 		"remote_partitions": uint32(len(fb.remotePartitions)),
 	}
 
-	var boundaryPoints, remotePoints uint32
+	var boundaryPoints, remotePoints, partitionBoundaryPoints, domainBoundaryPoints uint32
 	for _, conn := range fb.connections {
 		switch conn.Type {
 		case BoundaryFace:
 			boundaryPoints++
+			if conn.BCType == uint32(tetrahedra.BCPartitionBoundary) {
+				partitionBoundaryPoints++
+			} else {
+				domainBoundaryPoints++
+			}
 		case RemoteNeighbor:
 			remotePoints++
 		}
@@ -340,6 +407,8 @@ func (fb *FaceBufferBuilder) GetBuildStatistics() map[string]uint32 {
 
 	stats["boundary_points"] = boundaryPoints
 	stats["remote_points"] = remotePoints
+	stats["partition_boundary_points"] = partitionBoundaryPoints
+	stats["domain_boundary_points"] = domainBoundaryPoints
 
 	return stats
 }

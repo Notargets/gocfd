@@ -8,11 +8,28 @@ import (
 	"github.com/notargets/gocfd/DG3D/mesh"
 )
 
+// Boundary condition type constants
+const (
+	BCInterior          = 0
+	BCWall              = 1
+	BCInlet             = 2
+	BCOutlet            = 3
+	BCFarfield          = 4
+	BCSymmetry          = 5
+	BCPeriodic          = 6
+	BCPartitionBoundary = 255 // Special marker for partition interfaces
+)
+
 // BoundaryFaceInfo stores information about a boundary face
 type BoundaryFaceInfo struct {
 	ElementIndex int
 	FaceIndex    int
 	BCType       int
+}
+
+// IsPartitionBoundary checks if a BC type is a partition boundary
+func IsPartitionBoundary(bcType int) bool {
+	return bcType == BCPartitionBoundary
 }
 
 // extractBoundaryConditions extracts boundary condition types from mesh boundary elements
@@ -236,8 +253,6 @@ func (el *Element3D) markPeriodicFaces(slaveNode, masterNode int, bcType int) {
 				if localVertexIdx < len(el.EToV[k]) {
 					globalVertexIdx := el.EToV[k][localVertexIdx]
 					faceVertices[i] = globalVertexIdx
-
-					// Check if this vertex is the slave node
 					if globalVertexIdx == slaveNode {
 						faceContainsSlaveNode = true
 					}
@@ -251,17 +266,16 @@ func (el *Element3D) markPeriodicFaces(slaveNode, masterNode int, bcType int) {
 					el.BCType[bcIdx] = bcType
 				}
 
-				// Also update VmapP to point to the master face if we can find it
-				// This requires finding the corresponding face with the master node
-				el.updatePeriodicMapping(k, f, slaveNode, masterNode, faceVertices)
+				// Update periodic mapping in VmapP
+				el.updatePeriodicMapping(k, f, slaveNode, masterNode)
 			}
 		}
 	}
 }
 
-// updatePeriodicMapping updates VmapP to connect periodic face pairs
-func (el *Element3D) updatePeriodicMapping(slaveElem, slaveFace int, slaveNode, masterNode int, slaveFaceVerts []int) {
-	// Standard tet face definitions
+// updatePeriodicMapping updates VmapP for periodic faces
+func (el *Element3D) updatePeriodicMapping(slaveElem, slaveFace int, slaveNode, masterNode int) {
+	// Find the master element and face that contains the master node
 	tetFaces := [][]int{
 		{0, 2, 1}, // Face 0
 		{0, 1, 3}, // Face 1
@@ -269,49 +283,31 @@ func (el *Element3D) updatePeriodicMapping(slaveElem, slaveFace int, slaveNode, 
 		{0, 3, 2}, // Face 3
 	}
 
-	// Find which periodic boundary this belongs to
-	var periodicMap map[int]int
-	for _, periodic := range el.Mesh.Periodics {
-		if _, exists := periodic.NodeMap[slaveNode]; exists {
-			periodicMap = periodic.NodeMap
-			break
-		}
-	}
-
-	if periodicMap == nil {
-		return // No periodic mapping found
-	}
-
-	// Build the master face vertices using the periodic node map
-	masterFaceVerts := make([]int, 3)
-	for i, v := range slaveFaceVerts {
-		if masterV, exists := periodicMap[v]; exists {
-			masterFaceVerts[i] = masterV
-		} else {
-			// This vertex is not in the periodic map - shouldn't happen for a proper periodic face
-			return
-		}
-	}
-
-	// Search for the master face in all elements
 	for k2 := 0; k2 < el.K; k2++ {
 		if k2 >= len(el.EToV) {
 			continue
 		}
 
 		for f2 := 0; f2 < 4; f2++ {
-			// Get vertices of this potential master face
-			faceVerts := make([]int, 3)
+			// Skip if same element/face
+			if k2 == slaveElem && f2 == slaveFace {
+				continue
+			}
+
+			// Check if this face contains the master node
+			faceContainsMasterNode := false
 			for i := 0; i < 3; i++ {
 				localVertexIdx := tetFaces[f2][i]
 				if localVertexIdx < len(el.EToV[k2]) {
-					faceVerts[i] = el.EToV[k2][localVertexIdx]
+					if el.EToV[k2][localVertexIdx] == masterNode {
+						faceContainsMasterNode = true
+						break
+					}
 				}
 			}
 
-			// Check if this face matches the master face
-			if facesMatch(faceVerts, masterFaceVerts) {
-				// Found the master face! Update VmapP for all nodes on the slave face
+			if faceContainsMasterNode {
+				// Update VmapP for all nodes on the slave face
 				for i := 0; i < el.Nfp; i++ {
 					// Index into VmapP for slave face
 					slaveIdx := slaveFace*el.Nfp + i + slaveElem*el.Nfp*4
@@ -391,13 +387,14 @@ func (el *Element3D) PrintBoundaryStatistics() {
 	fmt.Printf("  Total faces: %d\n", totalFaces)
 
 	bcNames := map[int]string{
-		0: "Interior",
-		1: "Wall",
-		2: "Inlet",
-		3: "Outlet",
-		4: "Farfield",
-		5: "Symmetry",
-		6: "Periodic",
+		0:   "Interior",
+		1:   "Wall",
+		2:   "Inlet",
+		3:   "Outlet",
+		4:   "Farfield",
+		5:   "Symmetry",
+		6:   "Periodic",
+		255: "PartitionBoundary",
 	}
 
 	for bcType, count := range bcCounts {
@@ -475,26 +472,28 @@ func (el *Element3D) ValidateBoundaryConditions() error {
 // GetBCTypeMap returns the default mapping of BC names to type integers
 func GetBCTypeMap() map[string]int {
 	return map[string]int{
-		"interior": 0,
-		"wall":     1,
-		"inlet":    2,
-		"outlet":   3,
-		"farfield": 4,
-		"symmetry": 5,
-		"periodic": 6,
+		"interior":           0,
+		"wall":               1,
+		"inlet":              2,
+		"outlet":             3,
+		"farfield":           4,
+		"symmetry":           5,
+		"periodic":           6,
+		"partition_boundary": 255,
 	}
 }
 
 // GetBCTypeName returns the name for a given BC type integer
 func GetBCTypeName(bcType int) string {
 	names := map[int]string{
-		0: "Interior",
-		1: "Wall",
-		2: "Inlet",
-		3: "Outlet",
-		4: "Farfield",
-		5: "Symmetry",
-		6: "Periodic",
+		0:   "Interior",
+		1:   "Wall",
+		2:   "Inlet",
+		3:   "Outlet",
+		4:   "Farfield",
+		5:   "Symmetry",
+		6:   "Periodic",
+		255: "PartitionBoundary",
 	}
 
 	if name, ok := names[bcType]; ok {
