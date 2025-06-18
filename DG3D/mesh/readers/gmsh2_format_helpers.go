@@ -2,19 +2,19 @@ package readers
 
 import (
 	"fmt"
-	"github.com/notargets/gocfd/DG3D/mesh"
+	"github.com/notargets/gocfd/utils"
 	"strings"
 )
 
 // Gmsh22TestBuilder helps build Gmsh 2.2 format test files
 type Gmsh22TestBuilder struct {
-	tm *mesh.TestMeshes
+	tm *utils.TestMeshes
 }
 
 // NewGmsh22TestBuilder creates a new builder with standard test meshes
 func NewGmsh22TestBuilder() *Gmsh22TestBuilder {
 	return &Gmsh22TestBuilder{
-		tm: mesh.GetStandardTestMeshes(),
+		tm: utils.GetStandardTestMeshes(),
 	}
 }
 
@@ -37,7 +37,7 @@ func (b *Gmsh22TestBuilder) BuildCubeTest() string {
 }
 
 // BuildFromCompleteMesh creates a complete Gmsh 2.2 format file from a CompleteMesh
-func (b *Gmsh22TestBuilder) BuildFromCompleteMesh(mesh *mesh.CompleteMesh) string {
+func (b *Gmsh22TestBuilder) BuildFromCompleteMesh(mesh *utils.CompleteMesh) string {
 	var sections []string
 
 	// Header
@@ -58,7 +58,7 @@ func (b *Gmsh22TestBuilder) buildHeader() string {
 $EndMeshFormat`
 }
 
-func (b *Gmsh22TestBuilder) buildNodes(mesh *mesh.CompleteMesh) string {
+func (b *Gmsh22TestBuilder) buildNodes(mesh *utils.CompleteMesh) string {
 	numNodes := len(mesh.Nodes.Nodes)
 
 	var lines []string
@@ -76,7 +76,7 @@ func (b *Gmsh22TestBuilder) buildNodes(mesh *mesh.CompleteMesh) string {
 	return strings.Join(lines, "\n")
 }
 
-func (b *Gmsh22TestBuilder) buildElements(msh *mesh.CompleteMesh) string {
+func (b *Gmsh22TestBuilder) buildElements(msh *utils.CompleteMesh) string {
 	// Count total elements
 	totalElements := 0
 	for _, elemSet := range msh.Elements {
@@ -93,7 +93,7 @@ func (b *Gmsh22TestBuilder) buildElements(msh *mesh.CompleteMesh) string {
 
 		for i, elem := range elemSet.Elements {
 			// Get properties
-			props := mesh.ElementProps{}
+			props := utils.ElementProps{}
 			if i < len(elemSet.Properties) {
 				props = elemSet.Properties[i]
 			}
@@ -135,26 +135,26 @@ func (b *Gmsh22TestBuilder) buildElements(msh *mesh.CompleteMesh) string {
 }
 
 // Helper to convert our ElementType to Gmsh 2.2 element type number
-var elementTypeToGmsh22 = map[mesh.ElementType]int{
-	mesh.Point:      15,
-	mesh.Line:       1,
-	mesh.Line3:      8,
-	mesh.Triangle:   2,
-	mesh.Triangle6:  9,
-	mesh.Triangle9:  20,
-	mesh.Triangle10: 21,
-	mesh.Quad:       3,
-	mesh.Quad8:      16,
-	mesh.Quad9:      10,
-	mesh.Tet:        4,
-	mesh.Tet10:      11,
-	mesh.Hex:        5,
-	mesh.Hex20:      17,
-	mesh.Hex27:      12,
-	mesh.Prism:      6,
-	mesh.Prism15:    18,
-	mesh.Prism18:    13,
-	mesh.Pyramid:    7,
-	mesh.Pyramid13:  19,
-	mesh.Pyramid14:  14,
+var elementTypeToGmsh22 = map[utils.ElementType]int{
+	utils.Point:      15,
+	utils.Line:       1,
+	utils.Line3:      8,
+	utils.Triangle:   2,
+	utils.Triangle6:  9,
+	utils.Triangle9:  20,
+	utils.Triangle10: 21,
+	utils.Quad:       3,
+	utils.Quad8:      16,
+	utils.Quad9:      10,
+	utils.Tet:        4,
+	utils.Tet10:      11,
+	utils.Hex:        5,
+	utils.Hex20:      17,
+	utils.Hex27:      12,
+	utils.Prism:      6,
+	utils.Prism15:    18,
+	utils.Prism18:    13,
+	utils.Pyramid:    7,
+	utils.Pyramid13:  19,
+	utils.Pyramid14:  14,
 }

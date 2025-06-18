@@ -2,6 +2,7 @@ package mesh
 
 import (
 	"fmt"
+	"github.com/notargets/gocfd/utils"
 	"log"
 	"math"
 
@@ -34,7 +35,7 @@ type MeshPartitioner struct {
 	config *PartitionConfig
 
 	// Cost models
-	computeCostModel func(elemType ElementType, numVertices int) int32
+	computeCostModel func(elemType utils.ElementType, numVertices int) int32
 	commCostModel    func(faceVertices int, isBoundary bool) int32
 }
 
@@ -46,13 +47,13 @@ func NewMeshPartitioner(mesh *Mesh, config *PartitionConfig) *MeshPartitioner {
 	}
 
 	// Default compute cost model
-	mp.computeCostModel = func(elemType ElementType, numVertices int) int32 {
+	mp.computeCostModel = func(elemType utils.ElementType, numVertices int) int32 {
 		// Base costs reflect relative computational expense
-		baseCost := map[ElementType]int32{
-			Tet:     1,
-			Hex:     8, // Hex has 8 vertices vs 4 for tet
-			Prism:   6,
-			Pyramid: 5,
+		baseCost := map[utils.ElementType]int32{
+			utils.Tet:     1,
+			utils.Hex:     8, // Hex has 8 vertices vs 4 for tet
+			utils.Prism:   6,
+			utils.Pyramid: 5,
 		}
 
 		// Could be enhanced with polynomial order information
@@ -187,7 +188,7 @@ func (mp *MeshPartitioner) analyzePartition(objval int32) {
 	for i := range partStats {
 		partStats[i].ID = i
 		// FIX: Initialize the maps
-		partStats[i].ElementTypes = make(map[ElementType]int)
+		partStats[i].ElementTypes = make(map[utils.ElementType]int)
 		partStats[i].NumNeighbors = make(map[int]int)
 	}
 
@@ -293,7 +294,7 @@ type PartitionStats struct {
 	ID           int
 	NumElements  int
 	ComputeLoad  int64
-	ElementTypes map[ElementType]int
+	ElementTypes map[utils.ElementType]int
 	NumNeighbors map[int]int // neighbor partition -> shared faces
 }
 

@@ -13,6 +13,7 @@ package facebuffer
 
 import (
 	"github.com/notargets/gocfd/DG3D/tetrahedra/tetelement"
+	"github.com/notargets/gocfd/utils"
 	"testing"
 
 	"github.com/notargets/gocfd/DG3D/mesh"
@@ -25,10 +26,10 @@ import (
 
 func _TestLevel0_SingleTetAllBoundary(t *testing.T) {
 	// Create a single tetrahedron mesh using test helpers
-	tm := mesh.GetStandardTestMeshes()
-	singleTetMesh := &mesh.CompleteMesh{
+	tm := utils.GetStandardTestMeshes()
+	singleTetMesh := &utils.CompleteMesh{
 		Nodes:     tm.TetraNodes,
-		Elements:  []mesh.ElementSet{tm.SingleTet},
+		Elements:  []utils.ElementSet{tm.SingleTet},
 		Dimension: 3,
 		BoundingBox: [2][3]float64{
 			{0, 0, 0},
@@ -37,7 +38,7 @@ func _TestLevel0_SingleTetAllBoundary(t *testing.T) {
 	}
 
 	// Convert to mesh and create Element3D
-	meshObj := singleTetMesh.ConvertToMesh()
+	meshObj := mesh.ConvertToMesh(*singleTetMesh)
 
 	// Create Element3D from mesh - order 1 for simplicity
 	el, err := createElementFromMesh(meshObj, 1)
@@ -104,8 +105,8 @@ func _TestLevel0_SingleTetAllBoundary(t *testing.T) {
 
 func _TestLevel0_TwoTetsSharedFace(t *testing.T) {
 	// Create two tetrahedra sharing one face
-	tm := mesh.GetStandardTestMeshes()
-	twoTetMesh := tm.TwoTetMesh.ConvertToMesh()
+	tm := utils.GetStandardTestMeshes()
+	twoTetMesh := mesh.ConvertToMesh(tm.TwoTetMesh)
 
 	// Create Element3D
 	el, err := createElementFromMesh(twoTetMesh, 1)
@@ -187,8 +188,8 @@ func _TestLevel0_TwoTetsSharedFace(t *testing.T) {
 
 func _TestLevel0_CubeMeshNonPartitioned(t *testing.T) {
 	// Use the standard cube mesh (6 tets)
-	tm := mesh.GetStandardTestMeshes()
-	cubeMesh := tm.CubeMesh.ConvertToMesh()
+	tm := utils.GetStandardTestMeshes()
+	cubeMesh := mesh.ConvertToMesh(tm.CubeMesh)
 
 	// Create Element3D
 	el, err := createElementFromMesh(cubeMesh, 1)

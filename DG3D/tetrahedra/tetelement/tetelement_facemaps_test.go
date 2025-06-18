@@ -2,10 +2,11 @@ package tetelement
 
 import (
 	"fmt"
+	"github.com/notargets/gocfd/DG3D/mesh"
+	"github.com/notargets/gocfd/utils"
 	"math"
 	"testing"
 
-	"github.com/notargets/gocfd/DG3D/mesh"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -13,10 +14,10 @@ import (
 // Level 0: Single tetrahedron - simplest possible case
 func TestBuildMaps3D_SingleTet(t *testing.T) {
 	// Create a single tetrahedron using test helpers
-	tm := mesh.GetStandardTestMeshes()
-	singleTetMesh := &mesh.CompleteMesh{
+	tm := utils.GetStandardTestMeshes()
+	singleTetMesh := &utils.CompleteMesh{
 		Nodes:     tm.TetraNodes,
-		Elements:  []mesh.ElementSet{tm.SingleTet},
+		Elements:  []utils.ElementSet{tm.SingleTet},
 		Dimension: 3,
 		BoundingBox: [2][3]float64{
 			{0, 0, 0},
@@ -25,7 +26,7 @@ func TestBuildMaps3D_SingleTet(t *testing.T) {
 	}
 
 	// Convert to mesh
-	meshObj := singleTetMesh.ConvertToMesh()
+	meshObj := mesh.ConvertToMesh(*singleTetMesh)
 
 	// Test multiple polynomial orders
 	orders := []int{1, 2, 3}
@@ -98,8 +99,8 @@ func TestBuildMaps3D_SingleTet(t *testing.T) {
 // Level 1: Two tetrahedra sharing a face
 func TestBuildMaps3D_TwoTetsSharedFace(t *testing.T) {
 	// Use the standard two-tet mesh
-	tm := mesh.GetStandardTestMeshes()
-	meshObj := tm.TwoTetMesh.ConvertToMesh()
+	tm := utils.GetStandardTestMeshes()
+	meshObj := mesh.ConvertToMesh(tm.TwoTetMesh)
 
 	// Test with order 1 and 2
 	orders := []int{1, 2}
@@ -163,8 +164,8 @@ func TestBuildMaps3D_TwoTetsSharedFace(t *testing.T) {
 
 // Level 2: Cube mesh with 6 tetrahedra
 func TestBuildMaps3D_CubeMesh(t *testing.T) {
-	tm := mesh.GetStandardTestMeshes()
-	meshObj := tm.CubeMesh.ConvertToMesh()
+	tm := utils.GetStandardTestMeshes()
+	meshObj := mesh.ConvertToMesh(tm.CubeMesh)
 
 	// Test with order 1
 	el, err := NewElement3DFromMesh(1, meshObj)
@@ -353,8 +354,8 @@ func verifyNodeCoordinateMatching(t *testing.T, el *Element3D) {
 func TestBuildMaps3D_SpecificMappings_Order1(t *testing.T) {
 	// Create a two-tet mesh with known connectivity
 	// We'll verify specific node mappings
-	tm := mesh.GetStandardTestMeshes()
-	meshObj := tm.TwoTetMesh.ConvertToMesh()
+	tm := utils.GetStandardTestMeshes()
+	meshObj := mesh.ConvertToMesh(tm.TwoTetMesh)
 
 	el, err := NewElement3DFromMesh(1, meshObj)
 	require.NoError(t, err)
@@ -414,8 +415,8 @@ func TestBuildMaps3D_DebuggingExample(t *testing.T) {
 	// This test shows how to debug face mapping issues
 	// using a simple, known configuration
 
-	tm := mesh.GetStandardTestMeshes()
-	meshObj := tm.TwoTetMesh.ConvertToMesh()
+	tm := utils.GetStandardTestMeshes()
+	meshObj := mesh.ConvertToMesh(tm.TwoTetMesh)
 
 	el, err := NewElement3DFromMesh(1, meshObj)
 	require.NoError(t, err)

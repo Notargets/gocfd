@@ -1,4 +1,4 @@
-package mesh
+package utils
 
 import (
 	"testing"
@@ -111,64 +111,6 @@ func TestStandardTestMeshes(t *testing.T) {
 		if len(tm.CubeMesh.Elements[0].Elements) != 6 {
 			t.Errorf("CubeMesh should have 6 tets, got %d",
 				len(tm.CubeMesh.Elements[0].Elements))
-		}
-	})
-}
-
-func TestConvertToMesh(t *testing.T) {
-	tm := GetStandardTestMeshes()
-
-	t.Run("TwoTetMesh", func(t *testing.T) {
-		mesh := tm.TwoTetMesh.ConvertToMesh()
-
-		// Check node count
-		if mesh.NumVertices != 5 {
-			t.Errorf("Expected 5 vertices, got %d", mesh.NumVertices)
-		}
-
-		// Check element count
-		if mesh.NumElements != 2 {
-			t.Errorf("Expected 2 elements, got %d", mesh.NumElements)
-		}
-
-		// Check element types
-		for i := 0; i < 2; i++ {
-			if mesh.ElementTypes[i] != Tet {
-				t.Errorf("Element %d: expected Tet, got %v", i, mesh.ElementTypes[i])
-			}
-		}
-
-		// Check connectivity was built
-		if len(mesh.EToE) != 2 {
-			t.Errorf("Connectivity not built properly")
-		}
-	})
-
-	t.Run("MixedMesh", func(t *testing.T) {
-		mesh := tm.MixedMesh.ConvertToMesh()
-
-		// Check element count
-		expectedElements := 2 + 1 + 1 + 1 // 2 tets + 1 hex + 1 prism + 1 pyramid
-		if mesh.NumElements != expectedElements {
-			t.Errorf("Expected %d elements, got %d", expectedElements, mesh.NumElements)
-		}
-
-		// Check element types in order
-		expectedTypes := []ElementType{Tet, Tet, Hex, Prism, Pyramid}
-		for i, expectedType := range expectedTypes {
-			if mesh.ElementTypes[i] != expectedType {
-				t.Errorf("Element %d: expected %v, got %v",
-					i, expectedType, mesh.ElementTypes[i])
-			}
-		}
-
-		// Verify node counts for each element
-		expectedNodeCounts := []int{4, 4, 8, 6, 5}
-		for i, expected := range expectedNodeCounts {
-			actual := len(mesh.EtoV[i])
-			if actual != expected {
-				t.Errorf("Element %d: expected %d nodes, got %d", i, expected, actual)
-			}
 		}
 	})
 }

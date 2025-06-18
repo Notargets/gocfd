@@ -82,7 +82,7 @@ func buildSingleTetFromConfig(config TetConfig, N int) *Element3D {
 
 	// Add single tetrahedral element
 	// Use node IDs 1-4 (which AddElement will convert to indices 0-3)
-	err := m.AddElement(1, mesh.Tet, []int{1}, []int{1, 2, 3, 4})
+	err := m.AddElement(1, utils.Tet, []int{1}, []int{1, 2, 3, 4})
 	if err != nil {
 		panic(fmt.Sprintf("Failed to add element: %v", err))
 	}

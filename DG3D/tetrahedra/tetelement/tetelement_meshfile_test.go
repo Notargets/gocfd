@@ -2,6 +2,7 @@ package tetelement
 
 import (
 	"fmt"
+	"github.com/notargets/gocfd/utils"
 	"math"
 	"os"
 	"path/filepath"
@@ -60,7 +61,7 @@ func TestElement3D_MeshConnectivity(t *testing.T) {
 		// Check for invalid face indices
 		invalidFound := false
 		for elemID := 0; elemID < m.NumElements; elemID++ {
-			if m.ElementTypes[elemID] == mesh.Tet {
+			if m.ElementTypes[elemID] == utils.Tet {
 				for faceID := 0; faceID < len(m.EToF[elemID]); faceID++ {
 					neighborFace := m.EToF[elemID][faceID]
 					neighborElem := m.EToE[elemID][faceID]
@@ -71,7 +72,7 @@ func TestElement3D_MeshConnectivity(t *testing.T) {
 					}
 
 					// Check if neighbor is also a tet
-					if neighborElem < m.NumElements && m.ElementTypes[neighborElem] == mesh.Tet {
+					if neighborElem < m.NumElements && m.ElementTypes[neighborElem] == utils.Tet {
 						if neighborFace >= 4 {
 							t.Errorf("Invalid face index: Element %d (tet) face %d connects to Element %d (tet) face %d (>= 4)",
 								elemID, faceID, neighborElem, neighborFace)
@@ -255,9 +256,9 @@ func TestMeshConnectivityBug_Regression(t *testing.T) {
 			{0, 1, 2, 3}, // Tet 0
 			{1, 2, 3, 4}, // Tet 1 - shares face {1,2,3} with Tet 0
 		},
-		ElementTypes: []mesh.ElementType{
-			mesh.Tet,
-			mesh.Tet,
+		ElementTypes: []utils.ElementType{
+			utils.Tet,
+			utils.Tet,
 		},
 		NumElements: 2,
 		NumVertices: 5,

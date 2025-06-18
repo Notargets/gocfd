@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/notargets/gocfd/DG3D/mesh"
+	"github.com/notargets/gocfd/utils"
 	"os"
 	"strconv"
 	"strings"
@@ -728,21 +729,21 @@ func skipSection(scanner *bufio.Scanner, endMarker string) error {
 }
 
 // gmshElementType4 maps Gmsh v4 element type numbers to our ElementType
-var gmshElementType4 = map[int]mesh.ElementType{
-	1:  mesh.Line,      // 2-node line
-	2:  mesh.Triangle,  // 3-node triangle
-	3:  mesh.Quad,      // 4-node quadrangle
-	4:  mesh.Tet,       // 4-node tetrahedron
-	5:  mesh.Hex,       // 8-node hexahedron
-	6:  mesh.Prism,     // 6-node prism
-	7:  mesh.Pyramid,   // 5-node pyramid
-	8:  mesh.Line3,     // 3-node line
-	9:  mesh.Triangle6, // 6-node triangle
-	10: mesh.Quad9,     // 9-node quadrangle
-	11: mesh.Tet10,     // 10-node tetrahedron
-	12: mesh.Hex27,     // 27-node hexahedron
-	13: mesh.Prism18,   // 18-node prism
-	14: mesh.Pyramid14, // 14-node pyramid
+var gmshElementType4 = map[int]utils.ElementType{
+	1:  utils.Line,      // 2-node line
+	2:  utils.Triangle,  // 3-node triangle
+	3:  utils.Quad,      // 4-node quadrangle
+	4:  utils.Tet,       // 4-node tetrahedron
+	5:  utils.Hex,       // 8-node hexahedron
+	6:  utils.Prism,     // 6-node prism
+	7:  utils.Pyramid,   // 5-node pyramid
+	8:  utils.Line3,     // 3-node line
+	9:  utils.Triangle6, // 6-node triangle
+	10: utils.Quad9,     // 9-node quadrangle
+	11: utils.Tet10,     // 10-node tetrahedron
+	12: utils.Hex27,     // 27-node hexahedron
+	13: utils.Prism18,   // 18-node prism
+	14: utils.Pyramid14, // 14-node pyramid
 	// Add more as needed
 }
 

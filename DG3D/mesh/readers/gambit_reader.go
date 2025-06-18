@@ -3,6 +3,7 @@ package readers
 import (
 	"bufio"
 	"fmt"
+	"github.com/notargets/gocfd/utils"
 	"os"
 	"strconv"
 	"strings"
@@ -80,7 +81,7 @@ func ReadGambitNeutral(filename string) (*mesh.Mesh, error) {
 		} else if strings.Contains(line, "ELEMENTS/CELLS") {
 			// Read elements
 			msh.EtoV = make([][]int, nelem)
-			msh.ElementTypes = make([]mesh.ElementType, nelem)
+			msh.ElementTypes = make([]utils.ElementType, nelem)
 			msh.ElementTags = make([][]int, nelem)
 			msh.ElementIDMap = make(map[int]int)
 
@@ -96,20 +97,20 @@ func ReadGambitNeutral(filename string) (*mesh.Mesh, error) {
 					numNodes, _ := strconv.Atoi(fields[2])
 
 					// Map Gambit element types to mesh types
-					var meshType mesh.ElementType
+					var meshType utils.ElementType
 					switch elemType {
 					case 4: // Hexahedron
-						meshType = mesh.Hex
+						meshType = utils.Hex
 					case 5: // Prism/Wedge
-						meshType = mesh.Prism
+						meshType = utils.Prism
 					case 6: // Tetrahedron
-						meshType = mesh.Tet
+						meshType = utils.Tet
 					case 7: // Pyramid
-						meshType = mesh.Pyramid
+						meshType = utils.Pyramid
 					case 3: // Quadrilateral (2D)
-						meshType = mesh.Quad
+						meshType = utils.Quad
 					case 2: // Triangle (2D)
-						meshType = mesh.Triangle
+						meshType = utils.Triangle
 					default:
 						continue // Skip unsupported element types
 					}
@@ -303,13 +304,13 @@ func ReadGambitNeutral(filename string) (*mesh.Mesh, error) {
 								// Map element type to boundary element type
 								switch elemType {
 								case 3:
-									be.ElementType = mesh.Quad
+									be.ElementType = utils.Quad
 								case 2:
-									be.ElementType = mesh.Triangle
+									be.ElementType = utils.Triangle
 								case 10:
-									be.ElementType = mesh.Triangle
+									be.ElementType = utils.Triangle
 								case 11:
-									be.ElementType = mesh.Quad
+									be.ElementType = utils.Quad
 								}
 
 								msh.BoundaryElements[bcName] = append(msh.BoundaryElements[bcName], be)

@@ -1,13 +1,14 @@
 package mesh
 
 import (
+	"github.com/notargets/gocfd/utils"
 	"testing"
 )
 
 func TestNewMeshPartitioner(t *testing.T) {
 	// Get test meshes
-	tm := GetStandardTestMeshes()
-	mesh := tm.TwoTetMesh.ConvertToMesh()
+	tm := utils.GetStandardTestMeshes().TwoTetMesh
+	mesh := ConvertToMesh(tm)
 
 	config := &PartitionConfig{
 		NumPartitions:    2,
@@ -30,8 +31,8 @@ func TestNewMeshPartitioner(t *testing.T) {
 
 func TestBuildMetisGraph(t *testing.T) {
 	// Create a simple mesh with known connectivity
-	tm := GetStandardTestMeshes()
-	mesh := tm.TwoTetMesh.ConvertToMesh()
+	tm := utils.GetStandardTestMeshes()
+	mesh := ConvertToMesh(tm.TwoTetMesh)
 
 	config := &PartitionConfig{
 		NumPartitions:    2,
@@ -89,24 +90,24 @@ func TestComputeCostModel(t *testing.T) {
 	mp := NewMeshPartitioner(mesh, config)
 
 	// Override the default cost model to include all element types
-	mp.computeCostModel = func(elemType ElementType, numVertices int) int32 {
+	mp.computeCostModel = func(elemType utils.ElementType, numVertices int) int32 {
 		// For this test, just return the number of vertices as the cost
 		return int32(numVertices)
 	}
 
 	tests := []struct {
-		elemType     ElementType
+		elemType     utils.ElementType
 		numNodes     int
 		expectedCost int32
 	}{
-		{Tet, 4, 4},      // Linear tet
-		{Tet10, 10, 10},  // Second-order tet
-		{Hex, 8, 8},      // Linear hex
-		{Hex20, 20, 20},  // Second-order hex
-		{Prism, 6, 6},    // Linear prism
-		{Pyramid, 5, 5},  // Linear pyramid
-		{Triangle, 3, 3}, // Linear triangle
-		{Quad, 4, 4},     // Linear quad
+		{utils.Tet, 4, 4},      // Linear tet
+		{utils.Tet10, 10, 10},  // Second-order tet
+		{utils.Hex, 8, 8},      // Linear hex
+		{utils.Hex20, 20, 20},  // Second-order hex
+		{utils.Prism, 6, 6},    // Linear prism
+		{utils.Pyramid, 5, 5},  // Linear pyramid
+		{utils.Triangle, 3, 3}, // Linear triangle
+		{utils.Quad, 4, 4},     // Linear quad
 	}
 
 	for _, tt := range tests {
@@ -152,8 +153,8 @@ func TestPartitionSimpleMesh(t *testing.T) {
 	}
 
 	// Create a simple mesh
-	tm := GetStandardTestMeshes()
-	mesh := tm.CubeMesh.ConvertToMesh()
+	tm := utils.GetStandardTestMeshes().TwoTetMesh
+	mesh := ConvertToMesh(tm)
 
 	config := &PartitionConfig{
 		NumPartitions:    2,
@@ -198,8 +199,8 @@ func TestPartitionSimpleMesh(t *testing.T) {
 
 func TestAnalyzePartition(t *testing.T) {
 	// Create a mesh with known partition assignment
-	tm := GetStandardTestMeshes()
-	mesh := tm.MixedMesh.ConvertToMesh()
+	tm := utils.GetStandardTestMeshes().TwoTetMesh
+	mesh := ConvertToMesh(tm)
 
 	// Manually assign partitions for testing
 	mesh.EToP = make([]int, mesh.NumElements)
@@ -230,8 +231,8 @@ func TestAnalyzePartition(t *testing.T) {
 
 func TestGetPartitionBoundaryFaces(t *testing.T) {
 	// Create a simple mesh
-	tm := GetStandardTestMeshes()
-	mesh := tm.TwoTetMesh.ConvertToMesh()
+	tm := utils.GetStandardTestMeshes().TwoTetMesh
+	mesh := ConvertToMesh(tm)
 
 	// Manually assign partitions
 	mesh.EToP = []int{0, 1} // Each tet in different partition
@@ -258,8 +259,8 @@ func TestGetPartitionBoundaryFaces(t *testing.T) {
 }
 
 func TestGetPartitionElements(t *testing.T) {
-	tm := GetStandardTestMeshes()
-	mesh := tm.CubeMesh.ConvertToMesh()
+	tm := utils.GetStandardTestMeshes().TwoTetMesh
+	mesh := ConvertToMesh(tm)
 
 	// Manually assign partitions
 	mesh.EToP = make([]int, mesh.NumElements)
@@ -305,13 +306,13 @@ func TestPartitionWithDifferentObjectives(t *testing.T) {
 		t.Skip("METIS not available")
 	}
 
-	tm := GetStandardTestMeshes()
+	tm := utils.GetStandardTestMeshes()
 
 	objectives := []string{"cut", "vol"}
 
 	for _, obj := range objectives {
 		t.Run(obj, func(t *testing.T) {
-			mesh := tm.CubeMesh.ConvertToMesh()
+			mesh := ConvertToMesh(tm.CubeMesh)
 
 			config := &PartitionConfig{
 				NumPartitions:    4,

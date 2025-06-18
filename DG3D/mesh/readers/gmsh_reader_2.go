@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/notargets/gocfd/DG3D/mesh"
+	"github.com/notargets/gocfd/utils"
 	"os"
 	"strconv"
 	"strings"
@@ -253,7 +254,7 @@ func readElements22(scanner *bufio.Scanner, msh *mesh.Mesh) error {
 }
 
 // handleBoundaryElement22 processes boundary elements
-func handleBoundaryElement22(msh *mesh.Mesh, etype mesh.ElementType, tags []int, nodeStrs []string) {
+func handleBoundaryElement22(msh *mesh.Mesh, etype utils.ElementType, tags []int, nodeStrs []string) {
 	// Read nodes
 	numNodes := etype.GetNumNodes()
 	if len(nodeStrs) < numNodes {
@@ -400,31 +401,31 @@ func readPeriodic22(scanner *bufio.Scanner, msh *mesh.Mesh) error {
 }
 
 // gmshElementType22 maps Gmsh v2.2 element type numbers to our ElementType
-var gmshElementType22 = map[int]mesh.ElementType{
-	1:  mesh.Line,       // 2-node line
-	2:  mesh.Triangle,   // 3-node triangle
-	3:  mesh.Quad,       // 4-node quadrangle
-	4:  mesh.Tet,        // 4-node tetrahedron
-	5:  mesh.Hex,        // 8-node hexahedron
-	6:  mesh.Prism,      // 6-node prism
-	7:  mesh.Pyramid,    // 5-node pyramid
-	8:  mesh.Line3,      // 3-node line
-	9:  mesh.Triangle6,  // 6-node triangle
-	10: mesh.Quad9,      // 9-node quadrangle
-	11: mesh.Tet10,      // 10-node tetrahedron
-	15: mesh.Point,      // 1-node point
-	16: mesh.Quad8,      // 8-node quadrangle
-	17: mesh.Hex20,      // 20-node hexahedron
-	18: mesh.Prism15,    // 15-node prism
-	19: mesh.Pyramid13,  // 13-node pyramid
-	20: mesh.Triangle9,  // 9-node triangle
-	21: mesh.Triangle10, // 10-node triangle
-	22: mesh.Quad9,      // 9-node quadrangle (duplicate)
-	26: mesh.Line,       // 2-node line (duplicate)
-	27: mesh.Line3,      // 3-node line (duplicate)
-	28: mesh.Line,       // 2-node line (duplicate)
-	29: mesh.Tet10,      // 10-node tetrahedron (duplicate)
-	30: mesh.Prism18,    // 18-node prism
-	31: mesh.Pyramid14,  // 14-node pyramid
-	92: mesh.Hex27,      // 27-node hexahedron
+var gmshElementType22 = map[int]utils.ElementType{
+	1:  utils.Line,       // 2-node line
+	2:  utils.Triangle,   // 3-node triangle
+	3:  utils.Quad,       // 4-node quadrangle
+	4:  utils.Tet,        // 4-node tetrahedron
+	5:  utils.Hex,        // 8-node hexahedron
+	6:  utils.Prism,      // 6-node prism
+	7:  utils.Pyramid,    // 5-node pyramid
+	8:  utils.Line3,      // 3-node line
+	9:  utils.Triangle6,  // 6-node triangle
+	10: utils.Quad9,      // 9-node quadrangle
+	11: utils.Tet10,      // 10-node tetrahedron
+	15: utils.Point,      // 1-node point
+	16: utils.Quad8,      // 8-node quadrangle
+	17: utils.Hex20,      // 20-node hexahedron
+	18: utils.Prism15,    // 15-node prism
+	19: utils.Pyramid13,  // 13-node pyramid
+	20: utils.Triangle9,  // 9-node triangle
+	21: utils.Triangle10, // 10-node triangle
+	22: utils.Quad9,      // 9-node quadrangle (duplicate)
+	26: utils.Line,       // 2-node line (duplicate)
+	27: utils.Line3,      // 3-node line (duplicate)
+	28: utils.Line,       // 2-node line (duplicate)
+	29: utils.Tet10,      // 10-node tetrahedron (duplicate)
+	30: utils.Prism18,    // 18-node prism
+	31: utils.Pyramid14,  // 14-node pyramid
+	92: utils.Hex27,      // 27-node hexahedron
 }

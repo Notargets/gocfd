@@ -1,4 +1,4 @@
-package mesh
+package utils
 
 import (
 	"fmt"
@@ -382,47 +382,6 @@ func createCubeMesh() CompleteMesh {
 }
 
 // Conversion helpers
-
-// ConvertToMesh converts a CompleteMesh to an actual Mesh structure
-func (cm *CompleteMesh) ConvertToMesh() *Mesh {
-	mesh := NewMesh()
-
-	// Add nodes
-	for name, idx := range cm.Nodes.NodeMap {
-		nodeID := cm.Nodes.NodeIDMap[name]
-		coords := cm.Nodes.Nodes[idx]
-		mesh.AddNode(nodeID, coords)
-	}
-
-	// Add elements
-	elemID := 1
-	for _, elemSet := range cm.Elements {
-		for i, elemNodes := range elemSet.Elements {
-			// Convert logical names to node IDs
-			nodeIDs := make([]int, len(elemNodes))
-			for j, nodeName := range elemNodes {
-				nodeIDs[j] = cm.Nodes.NodeIDMap[nodeName]
-			}
-
-			// Get properties
-			props := ElementProps{}
-			if i < len(elemSet.Properties) {
-				props = elemSet.Properties[i]
-			}
-
-			tags := []int{props.PhysicalTag, props.GeometricTag}
-			if props.PartitionTag > 0 {
-				tags = append(tags, 1, props.PartitionTag)
-			}
-
-			mesh.AddElement(elemID, elemSet.Type, tags, nodeIDs)
-			elemID++
-		}
-	}
-
-	mesh.BuildConnectivity()
-	return mesh
-}
 
 // Validation helpers
 

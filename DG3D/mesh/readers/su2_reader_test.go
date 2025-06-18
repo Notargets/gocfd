@@ -2,7 +2,7 @@ package readers
 
 import (
 	"fmt"
-	"github.com/notargets/gocfd/DG3D/mesh"
+	"github.com/notargets/gocfd/utils"
 	"os"
 	"path/filepath"
 	"sort"
@@ -12,13 +12,13 @@ import (
 
 // SU2TestBuilder helps build SU2 format test files
 type SU2TestBuilder struct {
-	tm *mesh.TestMeshes
+	tm *utils.TestMeshes
 }
 
 // NewSU2TestBuilder creates a new builder with standard test meshes
 func NewSU2TestBuilder() *SU2TestBuilder {
 	return &SU2TestBuilder{
-		tm: mesh.GetStandardTestMeshes(),
+		tm: utils.GetStandardTestMeshes(),
 	}
 }
 
@@ -122,7 +122,7 @@ func TestReadSU2StandardMeshes(t *testing.T) {
 		if msh.NumElements != 1 {
 			t.Errorf("Expected 1 element, got %d", msh.NumElements)
 		}
-		if msh.ElementTypes[0] != mesh.Tet {
+		if msh.ElementTypes[0] != utils.Tet {
 			t.Errorf("Expected Tet element type, got %v", msh.ElementTypes[0])
 		}
 		if len(msh.EtoV[0]) != 4 {
@@ -141,8 +141,8 @@ func TestReadSU2StandardMeshes(t *testing.T) {
 		}
 
 		// Get expected element counts from test mesh
-		tm := mesh.GetStandardTestMeshes()
-		var expectedTypes []mesh.ElementType
+		tm := utils.GetStandardTestMeshes()
+		var expectedTypes []utils.ElementType
 		for _, elemSet := range tm.MixedMesh.Elements {
 			for range elemSet.Elements {
 				expectedTypes = append(expectedTypes, elemSet.Type)
@@ -192,19 +192,19 @@ func TestReadSU2ElementTypes(t *testing.T) {
 	testCases := []struct {
 		name         string
 		su2Type      int
-		expectedType mesh.ElementType
+		expectedType utils.ElementType
 		numNodes     int
 		dimension    int
 	}{
 		// 2D elements
-		{"Line", 3, mesh.Line, 2, 2},
-		{"Triangle", 5, mesh.Triangle, 3, 2},
-		{"Quadrilateral", 9, mesh.Quad, 4, 2},
+		{"Line", 3, utils.Line, 2, 2},
+		{"Triangle", 5, utils.Triangle, 3, 2},
+		{"Quadrilateral", 9, utils.Quad, 4, 2},
 		// 3D elements
-		{"Tetrahedron", 10, mesh.Tet, 4, 3},
-		{"Hexahedron", 12, mesh.Hex, 8, 3},
-		{"Prism", 13, mesh.Prism, 6, 3},
-		{"Pyramid", 14, mesh.Pyramid, 5, 3},
+		{"Tetrahedron", 10, utils.Tet, 4, 3},
+		{"Hexahedron", 12, utils.Hex, 8, 3},
+		{"Prism", 13, utils.Prism, 6, 3},
+		{"Pyramid", 14, utils.Pyramid, 5, 3},
 	}
 
 	for _, tc := range testCases {
@@ -485,7 +485,7 @@ MARKER_ELEMS= 2
 
 	// All elements should be triangles
 	for i, elemType := range msh.ElementTypes {
-		if elemType != mesh.Triangle {
+		if elemType != utils.Triangle {
 			t.Errorf("Element %d: expected Triangle, got %v", i, elemType)
 		}
 	}
@@ -530,9 +530,9 @@ NELEM= 2
 
 func (b *SU2TestBuilder) BuildSingleTetTest() string {
 	tm := b.tm
-	mesh := mesh.CompleteMesh{
+	mesh := utils.CompleteMesh{
 		Nodes:       tm.TetraNodes,
-		Elements:    []mesh.ElementSet{tm.SingleTet},
+		Elements:    []utils.ElementSet{tm.SingleTet},
 		Dimension:   3,
 		BoundingBox: [2][3]float64{{0, 0, 0}, {1, 1, 1}},
 	}
@@ -548,7 +548,7 @@ func (b *SU2TestBuilder) BuildMixedElementTest() string {
 
 func (b *SU2TestBuilder) Build2DTriangleTest() string {
 	// Create a simple 2D triangle mesh
-	nodes := mesh.NodeSet{
+	nodes := utils.NodeSet{
 		Nodes: [][]float64{
 			{0, 0},
 			{1, 0},
@@ -564,16 +564,16 @@ func (b *SU2TestBuilder) Build2DTriangleTest() string {
 		nodes.NodeIDMap[name] = idx + 1
 	}
 
-	elements := []mesh.ElementSet{
+	elements := []utils.ElementSet{
 		{
-			Type: mesh.Triangle,
+			Type: utils.Triangle,
 			Elements: [][]string{
 				{"v0", "v1", "v2"},
 			},
 		},
 	}
 
-	mesh := mesh.CompleteMesh{
+	mesh := utils.CompleteMesh{
 		Nodes:       nodes,
 		Elements:    elements,
 		Dimension:   2,
@@ -583,7 +583,7 @@ func (b *SU2TestBuilder) Build2DTriangleTest() string {
 	return b.BuildFromCompleteMesh(&mesh)
 }
 
-func (b *SU2TestBuilder) BuildFromCompleteMesh(mesh *mesh.CompleteMesh) string {
+func (b *SU2TestBuilder) BuildFromCompleteMesh(mesh *utils.CompleteMesh) string {
 	var lines []string
 
 	// Dimension
@@ -630,7 +630,7 @@ func (b *SU2TestBuilder) BuildFromCompleteMesh(mesh *mesh.CompleteMesh) string {
 	return strings.Join(lines, "\n")
 }
 
-func (b *SU2TestBuilder) add2DBoundaryMarkers(mesh *mesh.CompleteMesh) []string {
+func (b *SU2TestBuilder) add2DBoundaryMarkers(mesh *utils.CompleteMesh) []string {
 	var lines []string
 
 	// For 2D meshes, add line boundary elements
@@ -645,7 +645,7 @@ func (b *SU2TestBuilder) add2DBoundaryMarkers(mesh *mesh.CompleteMesh) []string 
 	return lines
 }
 
-func (b *SU2TestBuilder) add3DBoundaryMarkers(mesh *mesh.CompleteMesh) []string {
+func (b *SU2TestBuilder) add3DBoundaryMarkers(mesh *utils.CompleteMesh) []string {
 	var lines []string
 
 	// For 3D meshes, add triangular boundary elements
@@ -661,21 +661,21 @@ func (b *SU2TestBuilder) add3DBoundaryMarkers(mesh *mesh.CompleteMesh) []string 
 }
 
 // elementTypeToSU2 converts internal element types to SU2/VTK type codes
-func elementTypeToSU2(et mesh.ElementType) int {
+func elementTypeToSU2(et utils.ElementType) int {
 	switch et {
-	case mesh.Line:
+	case utils.Line:
 		return 3
-	case mesh.Triangle:
+	case utils.Triangle:
 		return 5
-	case mesh.Quad:
+	case utils.Quad:
 		return 9
-	case mesh.Tet:
+	case utils.Tet:
 		return 10
-	case mesh.Hex:
+	case utils.Hex:
 		return 12
-	case mesh.Prism:
+	case utils.Prism:
 		return 13
-	case mesh.Pyramid:
+	case utils.Pyramid:
 		return 14
 	default:
 		return 0
@@ -683,7 +683,7 @@ func elementTypeToSU2(et mesh.ElementType) int {
 }
 
 // Helper function to filter a CompleteMesh to only include used nodes
-func filterToUsedNodesSU2(msh *mesh.CompleteMesh) mesh.CompleteMesh {
+func filterToUsedNodesSU2(msh *utils.CompleteMesh) utils.CompleteMesh {
 	// Collect all nodes used by elements
 	usedNodes := make(map[string]bool)
 	for _, elemSet := range msh.Elements {
@@ -720,13 +720,13 @@ func filterToUsedNodesSU2(msh *mesh.CompleteMesh) mesh.CompleteMesh {
 		idx++
 	}
 
-	filteredNodes := mesh.NodeSet{
+	filteredNodes := utils.NodeSet{
 		Nodes:     nodes,
 		NodeMap:   nodeMap,
 		NodeIDMap: nodeIDMap,
 	}
 
-	return mesh.CompleteMesh{
+	return utils.CompleteMesh{
 		Nodes:       filteredNodes,
 		Elements:    msh.Elements,
 		Dimension:   msh.Dimension,

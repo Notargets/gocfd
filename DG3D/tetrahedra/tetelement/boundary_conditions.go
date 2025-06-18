@@ -2,10 +2,9 @@ package tetelement
 
 import (
 	"fmt"
+	"github.com/notargets/gocfd/utils"
 	"sort"
 	"strings"
-
-	"github.com/notargets/gocfd/DG3D/mesh"
 )
 
 // Boundary condition type constants
@@ -80,7 +79,7 @@ func (el *Element3D) extractBoundaryConditions() error {
 		// Process each boundary element
 		for _, belem := range boundaryElems {
 			// Skip if not a triangular face (tets have triangular faces)
-			if belem.ElementType != mesh.Triangle {
+			if belem.ElementType != utils.Triangle {
 				continue
 			}
 

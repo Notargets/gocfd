@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/notargets/gocfd/DG3D/mesh"
+	"github.com/notargets/gocfd/utils"
 	"os"
 	"strconv"
 	"strings"
@@ -86,7 +87,7 @@ func ReadSU2(filename string) (*mesh.Mesh, error) {
 
 			// Pre-allocate slices
 			msh.EtoV = make([][]int, 0, nelem)
-			msh.ElementTypes = make([]mesh.ElementType, 0, nelem)
+			msh.ElementTypes = make([]utils.ElementType, 0, nelem)
 			msh.ElementTags = make([][]int, 0, nelem)
 
 			// Read elements
@@ -190,14 +191,14 @@ func ReadSU2(filename string) (*mesh.Mesh, error) {
 					}
 
 					// Map boundary element type
-					var btype mesh.ElementType
+					var btype utils.ElementType
 					switch boundaryType {
 					case 3: // Line (2D boundary)
-						btype = mesh.Line
+						btype = utils.Line
 					case 5: // Triangle (3D boundary)
-						btype = mesh.Triangle
+						btype = utils.Triangle
 					case 9: // Quad (3D boundary)
-						btype = mesh.Quad
+						btype = utils.Quad
 					default:
 						return nil, fmt.Errorf("unknown boundary element type: %d", boundaryType)
 					}
@@ -252,12 +253,12 @@ func ReadSU2(filename string) (*mesh.Mesh, error) {
 }
 
 // su2ElementTypeMap maps SU2/VTK element type identifiers to our ElementType
-var su2ElementTypeMap = map[int]mesh.ElementType{
-	3:  mesh.Line,     // VTK_LINE
-	5:  mesh.Triangle, // VTK_TRIANGLE
-	9:  mesh.Quad,     // VTK_QUAD
-	10: mesh.Tet,      // VTK_TETRA
-	12: mesh.Hex,      // VTK_HEXAHEDRON
-	13: mesh.Prism,    // VTK_WEDGE
-	14: mesh.Pyramid,  // VTK_PYRAMID
+var su2ElementTypeMap = map[int]utils.ElementType{
+	3:  utils.Line,     // VTK_LINE
+	5:  utils.Triangle, // VTK_TRIANGLE
+	9:  utils.Quad,     // VTK_QUAD
+	10: utils.Tet,      // VTK_TETRA
+	12: utils.Hex,      // VTK_HEXAHEDRON
+	13: utils.Prism,    // VTK_WEDGE
+	14: utils.Pyramid,  // VTK_PYRAMID
 }

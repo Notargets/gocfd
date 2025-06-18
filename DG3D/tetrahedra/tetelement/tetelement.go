@@ -209,7 +209,7 @@ func (el *Element3D) extractTetElements() error {
 		}
 
 		// Check if element is tetrahedral
-		if elemType != mesh.Tet && elemType != mesh.Tet10 {
+		if elemType != utils.Tet && elemType != utils.Tet10 {
 			return fmt.Errorf("element %d is not tetrahedral (type=%v) - only tetrahedral meshes supported", i, elemType)
 		}
 	}
