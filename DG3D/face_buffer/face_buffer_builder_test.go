@@ -1,3 +1,9 @@
+// Package facebuffer tests
+// Tests the face buffer builder which uses ONLY:
+// - VmapM/VmapP: To identify face connections and boundary faces
+// - EToE: To find neighbor elements
+// - EToP: To detect remote partitions
+// Note: EToF is NOT used - we find P positions by searching for matching volume nodes
 package facebuffer
 
 import (
@@ -73,6 +79,8 @@ func TestFaceBuffer_SingleTetBoundary(t *testing.T) {
 
 // TestFaceBuffer_TwoTetsInterior tests interior face connections
 // Following Unit Testing Principle: Build systematically
+// Verifies that the face buffer correctly identifies interior connections
+// using only VmapM/VmapP/EToE connectivity data
 func TestFaceBuffer_TwoTetsInterior(t *testing.T) {
 	// Get standard test meshes
 	tm := utils.GetStandardTestMeshes()
@@ -195,14 +203,12 @@ func TestFaceBuffer_SimpleParallel(t *testing.T) {
 	origVmapM := el.VmapM
 	origVmapP := el.VmapP
 	origEToE := el.EToE
-	origEToF := el.EToF
 
 	// Modify to represent only partition 0
 	el.K = 1                         // Only element 0
 	el.VmapM = el.VmapM[:1*4*el.Nfp] // First element's face points
 	el.VmapP = el.VmapP[:1*4*el.Nfp]
 	el.EToE = el.EToE[:1]
-	el.EToF = el.EToF[:1]
 	// Keep full EToP to check partition membership
 
 	// Build face buffer for partition 0
@@ -216,7 +222,6 @@ func TestFaceBuffer_SimpleParallel(t *testing.T) {
 	el.VmapM = origVmapM
 	el.VmapP = origVmapP
 	el.EToE = origEToE
-	el.EToF = origEToF
 
 	stats := fb.GetStats()
 

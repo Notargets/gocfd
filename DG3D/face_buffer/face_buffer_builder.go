@@ -34,7 +34,10 @@ type FaceBuffer struct {
 }
 
 // BuildFaceBuffer creates face buffer from Element3D connectivity
-// Uses ONLY VmapM/VmapP/EToE/EToP to determine face connections
+// Uses ONLY VmapM/VmapP/EToE/EToP to determine face connections:
+// - VmapM/VmapP: Identify boundary faces and find connecting volume nodes
+// - EToE: Determine neighbor elements
+// - EToP: Identify remote partitions (if present)
 func BuildFaceBuffer(el *tetelement.Element3D) (*FaceBuffer, error) {
 	// Extract dimensions
 	nfp := uint32(el.Nfp)
