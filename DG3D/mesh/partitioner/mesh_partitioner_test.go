@@ -1,6 +1,7 @@
-package mesh
+package partitioner
 
 import (
+	mesh2 "github.com/notargets/gocfd/DG3D/mesh"
 	"github.com/notargets/gocfd/utils"
 	"testing"
 )
@@ -8,7 +9,7 @@ import (
 func TestNewMeshPartitioner(t *testing.T) {
 	// Get test meshes
 	tm := utils.GetStandardTestMeshes().TwoTetMesh
-	mesh := ConvertToMesh(tm)
+	mesh := mesh2.ConvertToMesh(tm)
 
 	config := &PartitionConfig{
 		NumPartitions:    2,
@@ -32,7 +33,7 @@ func TestNewMeshPartitioner(t *testing.T) {
 func TestBuildMetisGraph(t *testing.T) {
 	// Create a simple mesh with known connectivity
 	tm := utils.GetStandardTestMeshes()
-	mesh := ConvertToMesh(tm.TwoTetMesh)
+	mesh := mesh2.ConvertToMesh(tm.TwoTetMesh)
 
 	config := &PartitionConfig{
 		NumPartitions:    2,
@@ -83,7 +84,7 @@ func TestBuildMetisGraph(t *testing.T) {
 
 func TestComputeCostModel(t *testing.T) {
 	// Create a mesh partitioner with a complete cost model
-	mesh := &Mesh{} // Dummy mesh
+	mesh := &mesh2.Mesh{} // Dummy mesh
 	config := &PartitionConfig{
 		NumPartitions: 2,
 	}
@@ -121,7 +122,7 @@ func TestComputeCostModel(t *testing.T) {
 
 func TestCommCostModel(t *testing.T) {
 	// Create a mesh partitioner properly to ensure commCostModel is initialized
-	mesh := &Mesh{} // Dummy mesh
+	mesh := &mesh2.Mesh{} // Dummy mesh
 	config := &PartitionConfig{
 		NumPartitions: 2,
 	}
@@ -154,7 +155,7 @@ func TestPartitionSimpleMesh(t *testing.T) {
 
 	// Create a simple mesh
 	tm := utils.GetStandardTestMeshes().TwoTetMesh
-	mesh := ConvertToMesh(tm)
+	mesh := mesh2.ConvertToMesh(tm)
 
 	config := &PartitionConfig{
 		NumPartitions:    2,
@@ -200,7 +201,7 @@ func TestPartitionSimpleMesh(t *testing.T) {
 func TestAnalyzePartition(t *testing.T) {
 	// Create a mesh with known partition assignment
 	tm := utils.GetStandardTestMeshes().TwoTetMesh
-	mesh := ConvertToMesh(tm)
+	mesh := mesh2.ConvertToMesh(tm)
 
 	// Manually assign partitions for testing
 	mesh.EToP = make([]int, mesh.NumElements)
@@ -232,7 +233,7 @@ func TestAnalyzePartition(t *testing.T) {
 func TestGetPartitionBoundaryFaces(t *testing.T) {
 	// Create a simple mesh
 	tm := utils.GetStandardTestMeshes().TwoTetMesh
-	mesh := ConvertToMesh(tm)
+	mesh := mesh2.ConvertToMesh(tm)
 
 	// Manually assign partitions
 	mesh.EToP = []int{0, 1} // Each tet in different partition
@@ -260,7 +261,7 @@ func TestGetPartitionBoundaryFaces(t *testing.T) {
 
 func TestGetPartitionElements(t *testing.T) {
 	tm := utils.GetStandardTestMeshes().TwoTetMesh
-	mesh := ConvertToMesh(tm)
+	mesh := mesh2.ConvertToMesh(tm)
 
 	// Manually assign partitions
 	mesh.EToP = make([]int, mesh.NumElements)
@@ -312,7 +313,7 @@ func TestPartitionWithDifferentObjectives(t *testing.T) {
 
 	for _, obj := range objectives {
 		t.Run(obj, func(t *testing.T) {
-			mesh := ConvertToMesh(tm.CubeMesh)
+			mesh := mesh2.ConvertToMesh(tm.CubeMesh)
 
 			config := &PartitionConfig{
 				NumPartitions:    4,
@@ -339,7 +340,7 @@ func TestPartitionWithDifferentObjectives(t *testing.T) {
 
 func TestPartitionEmptyMesh(t *testing.T) {
 	// Create an empty mesh
-	mesh := &Mesh{
+	mesh := &mesh2.Mesh{
 		NumElements: 0,
 		NumVertices: 0,
 		EtoV:        [][]int{},

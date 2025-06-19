@@ -1,7 +1,8 @@
-package mesh
+package partitioner
 
 import (
 	"fmt"
+	mesh2 "github.com/notargets/gocfd/DG3D/mesh"
 	"github.com/notargets/gocfd/utils"
 	"log"
 	"math"
@@ -31,7 +32,7 @@ func DefaultPartitionConfig(nparts int32) *PartitionConfig {
 
 // MeshPartitioner handles partitioning of mixed element meshes
 type MeshPartitioner struct {
-	mesh   *Mesh
+	mesh   *mesh2.Mesh
 	config *PartitionConfig
 
 	// Cost models
@@ -40,7 +41,7 @@ type MeshPartitioner struct {
 }
 
 // NewMeshPartitioner creates a new partition_mesh for the given mesh
-func NewMeshPartitioner(mesh *Mesh, config *PartitionConfig) *MeshPartitioner {
+func NewMeshPartitioner(mesh *mesh2.Mesh, config *PartitionConfig) *MeshPartitioner {
 	mp := &MeshPartitioner{
 		mesh:   mesh,
 		config: config,

@@ -61,32 +61,11 @@ func NewElement3DFromMesh(order int, m *mesh.Mesh) (el *Element3D, err error) {
 
 	// Split mesh by partition if EToP is present
 	if el.EToP != nil {
-		if err = el.SplitByPartition(); err != nil {
-			return nil, fmt.Errorf("failed to split mesh by partition: %v", err)
-		}
+		fmt.Printf("Partitioning not implemented yet")
+		// if err = el.SplitByPartition(); err != nil {
+		// 	return nil, fmt.Errorf("failed to split mesh by partition: %v", err)
+		// }
 	}
 
 	return el, nil
-}
-
-// GetBoundaryFaces returns the element and face indices for all boundary faces
-func (el *Element3D) GetBoundaryFaces() (elements []int, faces []int) {
-	elements = make([]int, 0)
-	faces = make([]int, 0)
-
-	if el.EToE == nil {
-		return
-	}
-
-	for k := 0; k < el.K; k++ {
-		for f := 0; f < el.Nfaces; f++ {
-			// Check if this is a boundary face
-			if el.EToE[k][f] == k && el.EToF[k][f] == f {
-				elements = append(elements, k)
-				faces = append(faces, f)
-			}
-		}
-	}
-
-	return
 }

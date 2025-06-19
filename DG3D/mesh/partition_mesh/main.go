@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/notargets/gocfd/DG3D/mesh/partitioner"
 	"github.com/notargets/gocfd/DG3D/mesh/readers"
 	"log"
 	"os"
@@ -41,7 +42,7 @@ func main() {
 	}
 
 	// Create partition configuration
-	config := &mesh.PartitionConfig{
+	config := &partitioner.PartitionConfig{
 		NumPartitions:    int32(*nparts),
 		ImbalanceFactor:  float32(1.0 + *imbalance),
 		UseEdgeWeights:   true,
@@ -50,7 +51,7 @@ func main() {
 	}
 
 	// Create partitioner
-	partitioner := mesh.NewMeshPartitioner(m, config)
+	partitioner := partitioner.NewMeshPartitioner(m, config)
 
 	// Perform partitioning
 	log.Printf("Partitioning mesh into %d parts", *nparts)
