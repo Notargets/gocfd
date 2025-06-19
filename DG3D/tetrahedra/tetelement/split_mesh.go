@@ -7,68 +7,43 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-// MeshSplitter handles splitting a global mesh into partition-local Element3D structures
-type MeshSplitter struct {
-	// Inputs
-	GlobalMesh *mesh.Mesh
-	VX, VY, VZ []float64 // Global vertex coordinates
-	EToP       []int     // Element to partition mapping
-	Order      int       // Polynomial order for DG3D
-
-	// Outputs
-	PartitionElements []*Element3D  // Split elements with DG3D initialized
-	PEToE             map[int][]int // Partition element to global element mapping
-	EToP_0based       []int         // Normalized to 0-based indexing
-}
-
-// NewMeshSplitter creates a new mesh splitter
-func NewMeshSplitter(order int, globalMesh *mesh.Mesh, vx, vy, vz []float64, eToP []int) *MeshSplitter {
-	return &MeshSplitter{
-		Order:      order,
-		GlobalMesh: globalMesh,
-		VX:         vx,
-		VY:         vy,
-		VZ:         vz,
-		EToP:       eToP,
-		PEToE:      make(map[int][]int),
-	}
-}
-
 // SplitMesh splits the global mesh into partition Element3D structures
-func (ms *MeshSplitter) SplitMesh() ([]*Element3D, map[int][]int, error) {
+func (el *Element3D) SplitMesh() (err error) {
 	// Normalize EToP to 0-based
-	ms.EToP_0based = normalizeToZeroBased(ms.EToP)
+	el.EToP = normalizeToZeroBased(el.EToP)
 
 	// Find number of partitions
 	numPartitions := 0
-	for _, partID := range ms.EToP_0based {
+	for _, partID := range el.EToP {
 		if partID >= numPartitions {
 			numPartitions = partID + 1
 		}
 	}
 
 	if numPartitions == 0 {
-		return nil, nil, fmt.Errorf("no partitions found")
+		err = fmt.Errorf("no partitions found")
+		return
 	}
 
 	// Initialize partition data structures
-	ms.PEToE = make(map[int][]int)
+	el.PEToE = make(map[int][]int)
 	partEToV := make(map[int][][]int)
 	partElementTypes := make(map[int][]utils.ElementType)
 	partBCs := make(map[int]map[string][]mesh.BoundaryElement)
 
 	// Build PEToE and partition element data
-	for elemID := 0; elemID < ms.GlobalMesh.NumElements; elemID++ {
-		partID := ms.EToP_0based[elemID]
+	for elemID := 0; elemID < el.Mesh.NumElements; elemID++ {
+		partID := el.EToP[elemID]
 
 		// Track element mapping
-		ms.PEToE[partID] = append(ms.PEToE[partID], elemID)
+		el.PEToE[partID] = append(el.PEToE[partID], elemID)
 
 		// Copy element connectivity (keeping global vertex IDs!)
-		partEToV[partID] = append(partEToV[partID], ms.GlobalMesh.EtoV[elemID])
+		partEToV[partID] = append(partEToV[partID], el.Mesh.EtoV[elemID])
 
 		// Copy element type
-		partElementTypes[partID] = append(partElementTypes[partID], ms.GlobalMesh.ElementTypes[elemID])
+		partElementTypes[partID] = append(partElementTypes[partID],
+			el.Mesh.ElementTypes[elemID])
 	}
 
 	// Transform BCs to local element indices
@@ -77,12 +52,12 @@ func (ms *MeshSplitter) SplitMesh() ([]*Element3D, map[int][]int, error) {
 
 		// Create global to local element mapping for this partition
 		globalToLocal := make(map[int]int)
-		for localIdx, globalIdx := range ms.PEToE[partID] {
+		for localIdx, globalIdx := range el.PEToE[partID] {
 			globalToLocal[globalIdx] = localIdx
 		}
 
 		// Transform each BC
-		for bcTag, bcs := range ms.GlobalMesh.BoundaryElements {
+		for bcTag, bcs := range el.Mesh.BoundaryElements {
 			for _, bc := range bcs {
 				// Check if this BC's parent element belongs to this partition
 				if localElemID, exists := globalToLocal[bc.ParentElement]; exists {
@@ -100,16 +75,18 @@ func (ms *MeshSplitter) SplitMesh() ([]*Element3D, map[int][]int, error) {
 	}
 
 	// Create partition Element3D structures
-	ms.PartitionElements = make([]*Element3D, numPartitions)
+	el.Split = make([]*Element3D, numPartitions)
 	for partID := 0; partID < numPartitions; partID++ {
 		// Create DG3D for this partition
-		dg3d, err := gonudg.NewDG3D(ms.Order, ms.VX, ms.VY, ms.VZ, partEToV[partID])
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create DG3D for partition %d: %v", partID, err)
+		dg3d, err2 := gonudg.NewDG3D(el.N, el.VX, el.VY, el.VZ, partEToV[partID])
+		if err2 != nil {
+			err = fmt.Errorf("failed to create DG3D for partition %d: %v",
+				partID, err2)
+			return
 		}
 
 		// Create Element3D
-		el := &Element3D{
+		elNew := &Element3D{
 			K:    len(partEToV[partID]),
 			DG3D: dg3d,
 			Mesh: nil, // As requested
@@ -117,7 +94,7 @@ func (ms *MeshSplitter) SplitMesh() ([]*Element3D, map[int][]int, error) {
 		}
 
 		// Initialize BC maps
-		el.BCMaps = &BCFaceMap{
+		elNew.BCMaps = &BCFaceMap{
 			NodeBC: make(map[int]utils.BCType),
 			FaceBC: make(map[FaceKey]utils.BCType),
 		}
@@ -131,19 +108,21 @@ func (ms *MeshSplitter) SplitMesh() ([]*Element3D, map[int][]int, error) {
 					Element: be.ParentElement,
 					Face:    be.ParentFace,
 				}
-				el.BCMaps.FaceBC[faceKey] = bcType
+				elNew.BCMaps.FaceBC[faceKey] = bcType
 			}
 		}
 
 		// Map nodes to BC types (similar to mapNodesToBC in bc_mapping.go)
-		if err := mapNodesToBCForPartition(el); err != nil {
-			return nil, nil, fmt.Errorf("failed to map nodes to BC for partition %d: %v", partID, err)
+		if err = mapNodesToBCForPartition(elNew); err != nil {
+			err = fmt.Errorf("failed to map nodes to BC for partition %d: %v",
+				partID, err)
+			return
 		}
 
-		ms.PartitionElements[partID] = el
+		el.Split[partID] = elNew
 	}
 
-	return ms.PartitionElements, ms.PEToE, nil
+	return
 }
 
 // mapNodesToBCForPartition maps boundary node indices to their BC types for a partition

@@ -125,8 +125,9 @@ func TestBCMapping(t *testing.T) {
 			}
 
 			// Create splitter and split
-			splitter := NewMeshSplitter(order, globalMesh, vx, vy, vz, tc.eToP)
-			partElements, peToE, err := splitter.SplitMesh()
+			globalMesh.EToP = tc.eToP
+			el2, err := NewElement3DFromMesh(order, globalMesh)
+			partElements, peToE, err := el2.Split, el2.PEToE, err
 			if err != nil {
 				t.Fatalf("SplitMesh failed: %v", err)
 			}
@@ -307,8 +308,9 @@ func TestVolumeConservation(t *testing.T) {
 			}
 
 			// Split mesh
-			splitter := NewMeshSplitter(order, globalMesh, vx, vy, vz, tc.eToP)
-			partElements, _, err := splitter.SplitMesh()
+			globalMesh.EToP = tc.eToP
+			el2, err := NewElement3DFromMesh(order, globalMesh)
+			partElements, _, err := el2.Split, el2.PEToE, err
 			if err != nil {
 				t.Fatalf("SplitMesh failed: %v", err)
 			}
@@ -354,8 +356,9 @@ func TestElementDistribution(t *testing.T) {
 
 	eToP := []int{0, 1, 0, 2, 1, 2}
 
-	splitter := NewMeshSplitter(order, globalMesh, vx, vy, vz, eToP)
-	_, peToE, err := splitter.SplitMesh()
+	globalMesh.EToP = eToP
+	el2, err := NewElement3DFromMesh(order, globalMesh)
+	_, peToE, err := el2.Split, el2.PEToE, err
 	if err != nil {
 		t.Fatalf("SplitMesh failed: %v", err)
 	}
@@ -404,8 +407,9 @@ func TestIncrementalPartitions(t *testing.T) {
 				eToP[i] = i % numParts
 			}
 
-			splitter := NewMeshSplitter(order, globalMesh, vx, vy, vz, eToP)
-			partElements, _, err := splitter.SplitMesh()
+			globalMesh.EToP = eToP
+			el2, err := NewElement3DFromMesh(order, globalMesh)
+			partElements, _, err := el2.Split, el2.PEToE, err
 			if err != nil {
 				t.Fatalf("SplitMesh failed: %v", err)
 			}
@@ -491,8 +495,9 @@ func TestDegeneratePartitions(t *testing.T) {
 				vz[i] = v[2]
 			}
 
-			splitter := NewMeshSplitter(order, globalMesh, vx, vy, vz, tc.eToP)
-			_, peToE, err := splitter.SplitMesh()
+			globalMesh.EToP = tc.eToP
+			el2, err := NewElement3DFromMesh(order, globalMesh)
+			_, peToE, err := el2.Split, el2.PEToE, err
 			if err != nil {
 				t.Fatalf("SplitMesh failed for %s: %v", tc.desc, err)
 			}
