@@ -1,11 +1,9 @@
 // Package facebuffer implements efficient face data indexing for DG methods
-// Separates build-time complexity from runtime execution structures
 package facebuffer
 
 import (
 	"fmt"
 	"github.com/notargets/gocfd/DG3D/tetrahedra/tetelement"
-	"sort"
 )
 
 // FaceType identifies the type of face connection
@@ -13,317 +11,192 @@ type FaceType uint8
 
 const (
 	BoundaryFace FaceType = iota
-	LocalNeighbor
-	RemoteNeighbor
+	InteriorFace
+	RemoteFace
 )
 
-// BuildTimeConnection represents a face connection during build phase
-type BuildTimeConnection struct {
-	MPos        uint32   // M-side position in natural traversal order
-	Type        FaceType // Type of connection
-	BCType      uint32   // Boundary condition type (if boundary)
-	PartitionID uint32   // Remote partition ID (if remote)
-	PPos        uint32   // P-side position (local index or remote index)
+// FaceBuffer holds the runtime face indexing data
+type FaceBuffer struct {
+	// Dimensions
+	Nfp             uint32 // Face points per face
+	Nfaces          uint32 // Faces per element (4 for tetrahedra)
+	K               uint32 // Number of elements in this partition
+	TotalFacePoints uint32 // Total M buffer size = Nfp * Nfaces * K
+
+	// Face classification
+	FaceTypes []FaceType // Type of each face point connection
+
+	// Local interior P indices
+	LocalPIndices []uint32 // P position in M buffer for each interior point
+
+	// Remote partition send indices
+	RemoteSendIndices map[uint32][]uint32 // [partitionID] -> indices into M buffer
 }
 
-// RemotePartitionInfo holds build-time info for one remote partition
-type RemotePartitionInfo struct {
-	PartitionID   uint32
-	Connections   []BuildTimeConnection
-	SendIndices   []uint32 // Will become runtime SendIndices
-	ExpectedRecvs uint32   // Number of values expected from this partition
-}
-
-// FaceBufferBuilder handles the complex build-time logic
-type FaceBufferBuilder struct {
-	// Problem dimensions
-	Nface    uint32 // Number of faces per element
-	Nfp      uint32 // Number of face points per face
-	K        uint32 // Number of elements in this partition
-	Neq      uint32 // Number of equations
-	NPart    uint32 // Total number of partitions
-	MyPartID uint32 // This partition's ID
-
-	// Build-time data structures
-	connections        []BuildTimeConnection
-	remotePartitions   map[uint32]*RemotePartitionInfo
-	totalFacePoints    uint32
-	interiorPointCount uint32
-}
-
-// NewFaceBufferBuilder creates a new builder from Element3D
-func NewFaceBufferBuilder(el *tetelement.Element3D, neq uint32) *FaceBufferBuilder {
-	// Extract dimensions from Element3D
-	nface := uint32(4) // Tetrahedra have 4 faces
+// BuildFaceBuffer creates face buffer from Element3D connectivity
+// Uses ONLY VmapM/VmapP/EToE/EToP to determine face connections
+func BuildFaceBuffer(el *tetelement.Element3D) (*FaceBuffer, error) {
+	// Extract dimensions
 	nfp := uint32(el.Nfp)
+	nfaces := uint32(4) // Tetrahedra
 	k := uint32(el.K)
+	totalFacePoints := nfp * nfaces * k
 
-	// Determine partition info
-	var npart, myPartID uint32
-	if el.EToP != nil {
-		// Partitioned mesh - find max partition ID and determine local partition
-		maxPartID := uint32(0)
-		myPartID = uint32(el.EToP[0]) // Assume all local elements have same partition ID
-		for _, partID := range el.EToP {
-			if uint32(partID) > maxPartID {
-				maxPartID = uint32(partID)
+	// Initialize result
+	fb := &FaceBuffer{
+		Nfp:               nfp,
+		Nfaces:            nfaces,
+		K:                 k,
+		TotalFacePoints:   totalFacePoints,
+		FaceTypes:         make([]FaceType, totalFacePoints),
+		LocalPIndices:     make([]uint32, 0, totalFacePoints/2), // Estimate ~half are interior
+		RemoteSendIndices: make(map[uint32][]uint32),
+	}
+
+	// Determine if this is a parallel run
+	isParallel := el.EToP != nil
+	var myPartID int
+	if isParallel {
+		// Find this partition's ID (all local elements should have same partition ID)
+		myPartID = el.EToP[0]
+	}
+
+	// Process each face point in natural traversal order
+	for idx := uint32(0); idx < totalFacePoints; idx++ {
+		// VmapM and VmapP tell us the volume nodes
+		volM := el.VmapM[idx]
+		volP := el.VmapP[idx]
+
+		// Check if boundary (self-reference)
+		if volM == volP {
+			fb.FaceTypes[idx] = BoundaryFace
+			continue
+		}
+
+		// Interior or remote connection
+		// Find which element and face we're on
+		elem := idx / (nfaces * nfp)
+		face := (idx % (nfaces * nfp)) / nfp
+
+		// Get neighbor element from EToE
+		neighborElem := el.EToE[elem][face]
+
+		// Check if this is actually a self-reference (boundary)
+		if neighborElem == int(elem) {
+			fb.FaceTypes[idx] = BoundaryFace
+			continue
+		}
+
+		// Check if remote connection
+		if isParallel {
+			// Check if neighbor is outside our partition's element range
+			if uint32(neighborElem) >= k {
+				// Neighbor is in a different partition
+				fb.FaceTypes[idx] = RemoteFace
+				continue
+			}
+
+			// Check if neighbor is in a different partition ID
+			if neighborElem < len(el.EToP) && el.EToP[neighborElem] != myPartID {
+				fb.FaceTypes[idx] = RemoteFace
+				continue
 			}
 		}
-		npart = maxPartID + 1
-	} else {
-		// Non-partitioned mesh - single partition
-		npart = 1
-		myPartID = 0
+
+		// Interior connection within this partition
+		fb.FaceTypes[idx] = InteriorFace
+
+		// Find P position in local M array
+		pPos := findPPositionInNeighbor(el, idx, uint32(neighborElem))
+		fb.LocalPIndices = append(fb.LocalPIndices, pPos)
 	}
 
-	return &FaceBufferBuilder{
-		Nface:            nface,
-		Nfp:              nfp,
-		K:                k,
-		Neq:              neq,
-		NPart:            npart,
-		MyPartID:         myPartID,
-		connections:      make([]BuildTimeConnection, 0),
-		remotePartitions: make(map[uint32]*RemotePartitionInfo),
-		totalFacePoints:  nface * nfp * k,
-	}
+	return fb, nil
 }
 
-// AddBoundaryFace adds a boundary condition face point
-func (fb *FaceBufferBuilder) AddBoundaryFace(elem, face, point uint32, bcType uint32) error {
-	mPos := fb.computeMPos(elem, face, point)
-	if mPos >= fb.totalFacePoints {
-		return fmt.Errorf("M position %d exceeds total face points %d", mPos, fb.totalFacePoints)
+// findPPositionInNeighbor finds where the P point is located in neighbor's M array
+// Note: This only works for neighbors within the same partition
+func findPPositionInNeighbor(el *tetelement.Element3D, mIdx uint32, neighborElem uint32) uint32 {
+	// The P volume node we're looking for
+	targetVolNode := el.VmapP[mIdx]
+
+	// Search through neighbor element's face points
+	nfp := uint32(el.Nfp)
+	nfaces := uint32(4)
+	k := uint32(el.K)
+
+	// Make sure neighbor element is within our partition
+	if neighborElem >= k {
+		panic(fmt.Sprintf("Neighbor element %d is outside partition range [0,%d)", neighborElem, k))
 	}
 
-	conn := BuildTimeConnection{
-		MPos:   mPos,
-		Type:   BoundaryFace,
-		BCType: bcType,
-	}
-	fb.connections = append(fb.connections, conn)
-	return nil
-}
-
-// AddLocalNeighbor adds a local interior face connection
-func (fb *FaceBufferBuilder) AddLocalNeighbor(elemM, faceM, pointM, elemP, faceP, pointP uint32) error {
-	mPos := fb.computeMPos(elemM, faceM, pointM)
-	pPos := fb.computeMPos(elemP, faceP, pointP) // P position in same M array
-
-	if mPos >= fb.totalFacePoints || pPos >= fb.totalFacePoints {
-		return fmt.Errorf("face positions out of range: M=%d, P=%d, total=%d",
-			mPos, pPos, fb.totalFacePoints)
-	}
-
-	conn := BuildTimeConnection{
-		MPos: mPos,
-		Type: LocalNeighbor,
-		PPos: pPos,
-	}
-	fb.connections = append(fb.connections, conn)
-	fb.interiorPointCount++
-	return nil
-}
-
-// AddRemoteNeighbor adds a remote face connection
-func (fb *FaceBufferBuilder) AddRemoteNeighbor(elemM, faceM, pointM uint32,
-	remotePartID, remoteElemP, remoteFaceP, remotePointP uint32) error {
-
-	mPos := fb.computeMPos(elemM, faceM, pointM)
-	if mPos >= fb.totalFacePoints {
-		return fmt.Errorf("M position %d exceeds total face points %d", mPos, fb.totalFacePoints)
-	}
-
-	if remotePartID == fb.MyPartID {
-		return fmt.Errorf("remote partition ID cannot be same as local partition %d", fb.MyPartID)
-	}
-
-	// Compute P position in remote partition's M array indexing
-	remotePPos := fb.computeMPos(remoteElemP, remoteFaceP, remotePointP)
-
-	conn := BuildTimeConnection{
-		MPos:        mPos,
-		Type:        RemoteNeighbor,
-		PartitionID: remotePartID,
-		PPos:        remotePPos,
-	}
-	fb.connections = append(fb.connections, conn)
-
-	// Track remote partition info
-	if _, exists := fb.remotePartitions[remotePartID]; !exists {
-		fb.remotePartitions[remotePartID] = &RemotePartitionInfo{
-			PartitionID: remotePartID,
-			Connections: make([]BuildTimeConnection, 0),
-			SendIndices: make([]uint32, 0),
-		}
-	}
-	fb.remotePartitions[remotePartID].Connections = append(
-		fb.remotePartitions[remotePartID].Connections, conn)
-
-	return nil
-}
-
-// ProcessRemoteIndices processes the remote indices that other partitions will send us
-// This is called when we receive the send indices from remote partitions
-func (fb *FaceBufferBuilder) ProcessRemoteIndices(remotePartID uint32, theirSendIndices []uint32) error {
-	rpi, exists := fb.remotePartitions[remotePartID]
-	if !exists {
-		return fmt.Errorf("unknown remote partition %d", remotePartID)
-	}
-
-	// Store the indices they will use to send us data
-	rpi.SendIndices = make([]uint32, len(theirSendIndices))
-	copy(rpi.SendIndices, theirSendIndices)
-	rpi.ExpectedRecvs = uint32(len(theirSendIndices))
-
-	return nil
-}
-
-// BuildFromElement3D automatically constructs face buffer from Element3D connectivity
-func (fb *FaceBufferBuilder) BuildFromElement3D(el *tetelement.Element3D) error {
-	// TODO: Implement this
-	return fb.ValidateBuild()
-}
-
-// Build creates the runtime structure from Element3D
-func (fb *FaceBufferBuilder) Build(el *tetelement.Element3D) (*FaceBufferRuntime, error) {
-	// Auto-build connections from Element3D if no manual connections added
-	if len(fb.connections) == 0 {
-		err := fb.BuildFromElement3D(el)
-		if err != nil {
-			return nil, fmt.Errorf("failed to build from Element3D: %v", err)
+	// Search all face points of neighbor element
+	for face := uint32(0); face < nfaces; face++ {
+		for point := uint32(0); point < nfp; point++ {
+			neighborIdx := neighborElem*nfaces*nfp + face*nfp + point
+			if neighborIdx < uint32(len(el.VmapM)) && el.VmapM[neighborIdx] == targetVolNode {
+				return neighborIdx
+			}
 		}
 	}
 
-	// Sort connections by M position for natural traversal order
-	sort.Slice(fb.connections, func(i, j int) bool {
-		return fb.connections[i].MPos < fb.connections[j].MPos
-	})
+	// This should never happen with valid connectivity
+	panic(fmt.Sprintf("No matching P position found for M index %d", mIdx))
+}
 
-	// Validate we have connections for all face points
-	if uint32(len(fb.connections)) != fb.totalFacePoints {
-		return nil, fmt.Errorf("connection count %d does not match total face points %d",
-			len(fb.connections), fb.totalFacePoints)
+// GetStats returns face buffer statistics for validation
+func (fb *FaceBuffer) GetStats() map[string]int {
+	stats := map[string]int{
+		"total_face_points": int(fb.TotalFacePoints),
+		"boundary_points":   0,
+		"interior_points":   0,
+		"remote_points":     0,
+		"remote_partitions": len(fb.RemoteSendIndices),
 	}
 
-	// Build runtime arrays
-	faceTypes := make([]FaceType, fb.totalFacePoints)
-	bcTypes := make([]uint32, fb.totalFacePoints)
-	partitionIDs := make([]uint32, fb.totalFacePoints)
-	localPIndices := make([]uint32, 0, fb.interiorPointCount)
-
-	// Process connections in M traversal order
-	for i, conn := range fb.connections {
-		if uint32(i) != conn.MPos {
-			return nil, fmt.Errorf("connection order mismatch at position %d", i)
-		}
-
-		faceTypes[i] = conn.Type
-
-		switch conn.Type {
+	for _, ft := range fb.FaceTypes {
+		switch ft {
 		case BoundaryFace:
-			bcTypes[i] = conn.BCType
-
-		case LocalNeighbor:
-			localPIndices = append(localPIndices, conn.PPos)
-
-		case RemoteNeighbor:
-			partitionIDs[i] = conn.PartitionID
+			stats["boundary_points"]++
+		case InteriorFace:
+			stats["interior_points"]++
+		case RemoteFace:
+			stats["remote_points"]++
 		}
 	}
-
-	// Build remote partition data
-	remoteBuffers := make(map[uint32]*RemoteBufferData)
-	for partID, rpi := range fb.remotePartitions {
-		remoteBuffers[partID] = &RemoteBufferData{
-			PartitionID:   partID,
-			SendIndices:   make([]uint32, len(rpi.SendIndices)),
-			ExpectedRecvs: rpi.ExpectedRecvs,
-		}
-		copy(remoteBuffers[partID].SendIndices, rpi.SendIndices)
-	}
-
-	runtime := &FaceBufferRuntime{
-		// Dimensions
-		Nface:           fb.Nface,
-		Nfp:             fb.Nfp,
-		K:               fb.K,
-		Neq:             fb.Neq,
-		NPart:           fb.NPart,
-		MyPartID:        fb.MyPartID,
-		TotalFacePoints: fb.totalFacePoints,
-
-		// Runtime arrays
-		FaceTypes:     faceTypes,
-		BCTypes:       bcTypes,
-		PartitionIDs:  partitionIDs,
-		LocalPIndices: localPIndices,
-		RemoteBuffers: remoteBuffers,
-	}
-
-	return runtime, runtime.Initialize("golang")
-}
-
-// computeMPos calculates M position in natural traversal order
-func (fb *FaceBufferBuilder) computeMPos(elem, face, point uint32) uint32 {
-	return elem*fb.Nface*fb.Nfp + face*fb.Nfp + point
-}
-
-// GetBuildStatistics returns build-time statistics
-func (fb *FaceBufferBuilder) GetBuildStatistics() map[string]uint32 {
-	stats := map[string]uint32{
-		"total_face_points": fb.totalFacePoints,
-		"interior_points":   fb.interiorPointCount,
-		"total_connections": uint32(len(fb.connections)),
-		"remote_partitions": uint32(len(fb.remotePartitions)),
-	}
-
-	var boundaryPoints, remotePoints, partitionBoundaryPoints, domainBoundaryPoints uint32
-	for _, conn := range fb.connections {
-		switch conn.Type {
-		case BoundaryFace:
-			boundaryPoints++
-			// if conn.BCType == uint32(tetelement.BCPartitionBoundary) {
-			// 	partitionBoundaryPoints++
-			// } else {
-			// 	domainBoundaryPoints++
-			// }
-			// TODO: Implement
-		case RemoteNeighbor:
-			remotePoints++
-		}
-	}
-
-	stats["boundary_points"] = boundaryPoints
-	stats["remote_points"] = remotePoints
-	stats["partition_boundary_points"] = partitionBoundaryPoints
-	stats["domain_boundary_points"] = domainBoundaryPoints
 
 	return stats
 }
 
-// ValidateBuild performs validation checks
-func (fb *FaceBufferBuilder) ValidateBuild() error {
-	// Check all positions are covered
-	positionsSeen := make(map[uint32]bool)
-	for _, conn := range fb.connections {
-		if positionsSeen[conn.MPos] {
-			return fmt.Errorf("duplicate M position %d", conn.MPos)
-		}
-		positionsSeen[conn.MPos] = true
-	}
-
-	// Check for gaps
-	for i := uint32(0); i < fb.totalFacePoints; i++ {
-		if !positionsSeen[i] {
-			return fmt.Errorf("missing connection for M position %d", i)
+// ValidateFaceBuffer performs consistency checks
+func (fb *FaceBuffer) ValidateFaceBuffer() error {
+	// Check that interior points equals length of LocalPIndices
+	interiorCount := 0
+	for _, ft := range fb.FaceTypes {
+		if ft == InteriorFace {
+			interiorCount++
 		}
 	}
 
-	// Validate local P indices are in range
-	for _, conn := range fb.connections {
-		if conn.Type == LocalNeighbor && conn.PPos >= fb.totalFacePoints {
-			return fmt.Errorf("local P position %d out of range", conn.PPos)
+	if interiorCount != len(fb.LocalPIndices) {
+		return fmt.Errorf("interior point count %d doesn't match LocalPIndices length %d",
+			interiorCount, len(fb.LocalPIndices))
+	}
+
+	// Check all local P indices are in range
+	for i, pIdx := range fb.LocalPIndices {
+		if pIdx >= fb.TotalFacePoints {
+			return fmt.Errorf("LocalPIndices[%d] = %d out of range", i, pIdx)
+		}
+	}
+
+	// Check remote indices are in range
+	for partID, indices := range fb.RemoteSendIndices {
+		for i, idx := range indices {
+			if idx >= fb.TotalFacePoints {
+				return fmt.Errorf("RemoteSendIndices[%d][%d] = %d out of range",
+					partID, i, idx)
+			}
 		}
 	}
 

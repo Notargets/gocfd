@@ -34,6 +34,7 @@ func NewElement3DFromMesh(order int, m *mesh.Mesh) (el *Element3D, err error) {
 		Mesh: m,
 		K:    m.NumElements,
 	}
+
 	nverts := len(m.Vertices)
 	VX, VY, VZ := make([]float64, nverts), make([]float64, nverts), make([]float64, nverts)
 
