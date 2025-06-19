@@ -45,17 +45,17 @@ func TestStartUp3D(t *testing.T) {
 			}
 
 			checkMatrixDims("V", dg.V, dg.Np, dg.Np)
-			checkMatrixDims("invV", dg.invV, dg.Np, dg.Np)
+			checkMatrixDims("Vinv", dg.Vinv, dg.Np, dg.Np)
 			checkMatrixDims("MassMatrix", dg.MassMatrix, dg.Np, dg.Np)
 			checkMatrixDims("Dr", dg.Dr, dg.Np, dg.Np)
 			checkMatrixDims("Ds", dg.Ds, dg.Np, dg.Np)
 			checkMatrixDims("Dt", dg.Dt, dg.Np, dg.Np)
-			checkMatrixDims("x", dg.x, dg.Np, dg.K)
-			checkMatrixDims("y", dg.y, dg.Np, dg.K)
-			checkMatrixDims("z", dg.z, dg.Np, dg.K)
+			checkMatrixDims("X", dg.X, dg.Np, dg.K)
+			checkMatrixDims("Y", dg.Y, dg.Np, dg.K)
+			checkMatrixDims("Z", dg.Z, dg.Np, dg.K)
 
-			// Check V*invV = I
-			I := dg.V.Mul(dg.invV)
+			// Check V*Vinv = I
+			I := dg.V.Mul(dg.Vinv)
 			nr, nc := I.Dims()
 			for i := 0; i < nr; i++ {
 				for j := 0; j < nc; j++ {
@@ -64,7 +64,7 @@ func TestStartUp3D(t *testing.T) {
 						expected = 1.0
 					}
 					if math.Abs(I.At(i, j)-expected) > 1e-10 {
-						t.Errorf("V*invV not identity at (%d,%d): got %v",
+						t.Errorf("V*Vinv not identity at (%d,%d): got %v",
 							i, j, I.At(i, j))
 					}
 				}
@@ -73,17 +73,17 @@ func TestStartUp3D(t *testing.T) {
 			// Check that physical coordinates are reasonable
 			// All nodes should be within the tetrahedron bounds
 			for i := 0; i < dg.Np; i++ {
-				x := dg.x.At(i, 0)
-				y := dg.y.At(i, 0)
-				z := dg.z.At(i, 0)
+				x := dg.X.At(i, 0)
+				y := dg.Y.At(i, 0)
+				z := dg.Z.At(i, 0)
 
-				// Check bounds (all coordinates should be >= 0 and x+y+z <= 1)
+				// Check bounds (all coordinates should be >= 0 and X+Y+Z <= 1)
 				if x < -1e-10 || y < -1e-10 || z < -1e-10 {
 					t.Errorf("Node %d has negative coordinate: (%v,%v,%v)",
 						i, x, y, z)
 				}
 				if x+y+z > 1.0+1e-10 {
-					t.Errorf("Node %d outside tetrahedron: x+y+z = %v",
+					t.Errorf("Node %d outside tetrahedron: X+Y+Z = %v",
 						i, x+y+z)
 				}
 			}
@@ -126,7 +126,7 @@ func TestDG3DSimpleMesh(t *testing.T) {
 	}
 
 	// Check coordinate matrix dimensions
-	nr, nc := dg.x.Dims()
+	nr, nc := dg.X.Dims()
 	if nc != 2 {
 		t.Errorf("Coordinate matrices should have 2 columns (elements): got %d", nc)
 	}

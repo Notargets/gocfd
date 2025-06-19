@@ -11,9 +11,9 @@ type Element3D struct {
 	K    int   // Number of elements
 	EToP []int // Element to Parallel partitions
 	*gonudg.DG3D
-	Mesh           *mesh.Mesh
-	SplitElement3D []*Element3D
-	BCMaps         *BCFaceMap // Boundary condition mapping
+	Mesh      *mesh.Mesh
+	SplitMesh []*Element3D
+	BCMaps    *BCFaceMap // Boundary condition mapping
 }
 
 // NewElement3D creates an Element3D from a mesh file
@@ -61,7 +61,12 @@ func NewElement3DFromMesh(order int, m *mesh.Mesh) (el *Element3D, err error) {
 
 	// Split mesh by partition if EToP is present
 	if el.EToP != nil {
-		fmt.Printf("Partitioning not implemented yet")
+		// ms := mesh.NewMeshSplitter(el.Mesh, VX, VY, VZ, el.EToP)
+		// splitMesh, PEToE, err := ms.SplitMesh()
+		// if err != nil {
+		// 	panic(err)
+		// }
+		// el.SplitElement3D = splitMesh
 		// if err = el.SplitByPartition(); err != nil {
 		// 	return nil, fmt.Errorf("failed to split mesh by partition: %v", err)
 		// }

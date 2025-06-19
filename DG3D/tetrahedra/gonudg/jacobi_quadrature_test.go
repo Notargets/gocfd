@@ -61,7 +61,7 @@ func TestJacobiGL(t *testing.T) {
 			alpha: 0.0,
 			beta:  0.0,
 			N:     5,
-			// These are zeros of (1-x^2)*P'_5(x)
+			// These are zeros of (1-X^2)*P'_5(X)
 			expected: []float64{-1.0, -0.7650553239294647, -0.2852315164806451,
 				0.2852315164806451, 0.7650553239294647, 1.0},
 			tol: 1e-14,
@@ -111,7 +111,7 @@ func TestJacobiGL(t *testing.T) {
 					for i := 0; i < mid; i++ {
 						expected := -result[tc.N-i]
 						if math.Abs(result[i]-expected) > tc.tol {
-							t.Errorf("Symmetry violated: x[%d]=%v, -x[%d]=%v",
+							t.Errorf("Symmetry violated: X[%d]=%v, -X[%d]=%v",
 								i, result[i], tc.N-i, expected)
 						}
 					}
@@ -120,7 +120,7 @@ func TestJacobiGL(t *testing.T) {
 				// Check ordering (should be strictly increasing)
 				for i := 1; i < len(result); i++ {
 					if result[i] <= result[i-1] {
-						t.Errorf("Points not in increasing order: x[%d]=%v >= x[%d]=%v",
+						t.Errorf("Points not in increasing order: X[%d]=%v >= X[%d]=%v",
 							i-1, result[i-1], i, result[i])
 					}
 				}
@@ -197,7 +197,7 @@ func TestJacobiGQ(t *testing.T) {
 			// Check ordering (should be strictly increasing)
 			for i := 1; i < len(x); i++ {
 				if x[i] <= x[i-1] {
-					t.Errorf("Points not in increasing order: x[%d]=%v >= x[%d]=%v",
+					t.Errorf("Points not in increasing order: X[%d]=%v >= X[%d]=%v",
 						i-1, x[i-1], i, x[i])
 				}
 			}
@@ -208,7 +208,7 @@ func TestJacobiGQ(t *testing.T) {
 				for i := 0; i < mid; i++ {
 					expected := -x[len(x)-1-i]
 					if math.Abs(x[i]-expected) > tc.tol {
-						t.Errorf("Symmetry violated: x[%d]=%v, -x[%d]=%v",
+						t.Errorf("Symmetry violated: X[%d]=%v, -X[%d]=%v",
 							i, x[i], len(x)-1-i, expected)
 					}
 				}
@@ -276,25 +276,25 @@ func BenchmarkJacobiGL(b *testing.B) {
 }
 
 // TestJacobiGLAccuracy tests the accuracy of computed points by checking
-// that they satisfy the equation (1-x^2)*P'_N(x) = 0
+// that they satisfy the equation (1-X^2)*P'_N(X) = 0
 func TestJacobiGLAccuracy(t *testing.T) {
 	// Test for Legendre polynomials (alpha=beta=0)
 	for N := 2; N <= 6; N++ {
 		t.Run(fmt.Sprintf("N=%d", N), func(t *testing.T) {
 			x := JacobiGL(0.0, 0.0, N)
 
-			// For each interior point, check that it's a zero of P'_N(x)
+			// For each interior point, check that it's a zero of P'_N(X)
 			for i := 1; i < N; i++ {
-				// Evaluate P'_N(x[i]) using recurrence relation
+				// Evaluate P'_N(X[i]) using recurrence relation
 				// This is an approximation - in practice you'd use the
 				// actual derivative evaluation
 				xi := x[i]
 
-				// For interior points, (1-x^2) != 0, so P'_N(x) should be 0
+				// For interior points, (1-X^2) != 0, so P'_N(X) should be 0
 				// We can't easily check this without implementing P'_N,
-				// but we can at least verify |x| < 1
+				// but we can at least verify |X| < 1
 				if math.Abs(xi) >= 1.0 {
-					t.Errorf("Interior point %d has |x|>=1: x=%v", i, xi)
+					t.Errorf("Interior point %d has |X|>=1: X=%v", i, xi)
 				}
 			}
 		})

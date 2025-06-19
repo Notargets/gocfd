@@ -304,7 +304,7 @@ func evalwarp(p int, gaussX []float64, xnodes []float64) []float64 {
 		// Compute Lagrange interpolation from equidistant to GLL nodes
 		warpval := 0.0
 		for j := 0; j <= p; j++ {
-			// Lagrange basis at xeq[j] evaluated at x
+			// Lagrange basis at xeq[j] evaluated at X
 			lagrange := 1.0
 			for k := 0; k <= p; k++ {
 				if k != j {

@@ -28,9 +28,9 @@ func TestNormals3DBasicProperties(t *testing.T) {
 			for face := 0; face < Nfaces; face++ {
 				for i := 0; i < Nfp; i++ {
 					row := face*Nfp + i
-					nx := dg.nx.At(row, 0)
-					ny := dg.ny.At(row, 0)
-					nz := dg.nz.At(row, 0)
+					nx := dg.Nx.At(row, 0)
+					ny := dg.Ny.At(row, 0)
+					nz := dg.Nz.At(row, 0)
 
 					norm := math.Sqrt(nx*nx + ny*ny + nz*nz)
 					if math.Abs(norm-1.0) > 1e-14 {
@@ -41,7 +41,7 @@ func TestNormals3DBasicProperties(t *testing.T) {
 
 			// Test 2: Surface Jacobians should be positive
 			for i := 0; i < Nfp*Nfaces; i++ {
-				sJ := dg.sJ.At(i, 0)
+				sJ := dg.SJ.At(i, 0)
 				if sJ <= 0 {
 					t.Errorf("Negative or zero surface Jacobian at node %d: %f", i, sJ)
 				}
@@ -82,15 +82,15 @@ func TestNormals3DOutwardPointing(t *testing.T) {
 	for face := 0; face < 4; face++ {
 		// Get a representative normal (they should all be the same on a face for affine elements)
 		row := face * Nfp
-		nx := dg.nx.At(row, 0)
-		ny := dg.ny.At(row, 0)
-		nz := dg.nz.At(row, 0)
+		nx := dg.Nx.At(row, 0)
+		ny := dg.Ny.At(row, 0)
+		nz := dg.Nz.At(row, 0)
 
 		// Get a point on the face
 		faceNodeIdx := dg.Fmask[face][0]
-		px := dg.x.At(faceNodeIdx, 0)
-		py := dg.y.At(faceNodeIdx, 0)
-		pz := dg.z.At(faceNodeIdx, 0)
+		px := dg.X.At(faceNodeIdx, 0)
+		py := dg.Y.At(faceNodeIdx, 0)
+		pz := dg.Z.At(faceNodeIdx, 0)
 
 		// Compute n·(p-c)
 		dot := nx*(px-cx) + ny*(py-cy) + nz*(pz-cz)
@@ -113,7 +113,7 @@ func TestNormals3DMetricIdentities(t *testing.T) {
 	v2 := [3]float64{-1, 1, -1}
 	v3 := [3]float64{-1, -1, 1}
 
-	// Apply rotation around z-axis and scaling
+	// Apply rotation around Z-axis and scaling
 	cos_a, sin_a := math.Cos(angle), math.Sin(angle)
 
 	VX := make([]float64, 4)
@@ -122,7 +122,7 @@ func TestNormals3DMetricIdentities(t *testing.T) {
 
 	vertices := [4][3]float64{v0, v1, v2, v3}
 	for i, v := range vertices {
-		// Rotate around z-axis
+		// Rotate around Z-axis
 		x_rot := cos_a*v[0] - sin_a*v[1]
 		y_rot := sin_a*v[0] + cos_a*v[1]
 		z_rot := v[2]
@@ -142,42 +142,42 @@ func TestNormals3DMetricIdentities(t *testing.T) {
 	}
 
 	// Test metric identities
-	// The metric tensor satisfies: [rx ry rz; sx sy sz; tx ty tz] * [xr xs xt; yr ys yt; zr zs zt] = I
+	// The metric tensor satisfies: [Rx Ry Rz; Sx Sy Sz; Tx Ty Tz] * [xr xs xt; yr ys yt; zr zs zt] = I
 
 	// Compute derivatives of physical coordinates
-	xr := dg.Dr.Mul(dg.x)
-	xs := dg.Ds.Mul(dg.x)
-	xt := dg.Dt.Mul(dg.x)
-	yr := dg.Dr.Mul(dg.y)
-	ys := dg.Ds.Mul(dg.y)
-	yt := dg.Dt.Mul(dg.y)
-	zr := dg.Dr.Mul(dg.z)
-	zs := dg.Ds.Mul(dg.z)
-	zt := dg.Dt.Mul(dg.z)
+	xr := dg.Dr.Mul(dg.X)
+	xs := dg.Ds.Mul(dg.X)
+	xt := dg.Dt.Mul(dg.X)
+	yr := dg.Dr.Mul(dg.Y)
+	ys := dg.Ds.Mul(dg.Y)
+	yt := dg.Dt.Mul(dg.Y)
+	zr := dg.Dr.Mul(dg.Z)
+	zs := dg.Ds.Mul(dg.Z)
+	zt := dg.Dt.Mul(dg.Z)
 
 	// Check identities at each node
 	for i := 0; i < dg.Np; i++ {
-		// Row 1: rx*xr + ry*yr + rz*zr = 1, rx*xs + ry*ys + rz*zs = 0, etc.
-		val := dg.rx.At(i, 0)*xr.At(i, 0) + dg.ry.At(i, 0)*yr.At(i, 0) + dg.rz.At(i, 0)*zr.At(i, 0)
+		// Row 1: Rx*xr + Ry*yr + Rz*zr = 1, Rx*xs + Ry*ys + Rz*zs = 0, etc.
+		val := dg.Rx.At(i, 0)*xr.At(i, 0) + dg.Ry.At(i, 0)*yr.At(i, 0) + dg.Rz.At(i, 0)*zr.At(i, 0)
 		if math.Abs(val-1.0) > 1e-10 {
-			t.Errorf("Node %d: rx*xr + ry*yr + rz*zr = %f, expected 1.0", i, val)
+			t.Errorf("Node %d: Rx*xr + Ry*yr + Rz*zr = %f, expected 1.0", i, val)
 		}
 
-		val = dg.rx.At(i, 0)*xs.At(i, 0) + dg.ry.At(i, 0)*ys.At(i, 0) + dg.rz.At(i, 0)*zs.At(i, 0)
+		val = dg.Rx.At(i, 0)*xs.At(i, 0) + dg.Ry.At(i, 0)*ys.At(i, 0) + dg.Rz.At(i, 0)*zs.At(i, 0)
 		if math.Abs(val) > 1e-10 {
-			t.Errorf("Node %d: rx*xs + ry*ys + rz*zs = %f, expected 0.0", i, val)
+			t.Errorf("Node %d: Rx*xs + Ry*ys + Rz*zs = %f, expected 0.0", i, val)
 		}
 
-		// Row 2: sx*xr + sy*yr + sz*zr = 0, sx*xs + sy*ys + sz*zs = 1, etc.
-		val = dg.sx.At(i, 0)*xs.At(i, 0) + dg.sy.At(i, 0)*ys.At(i, 0) + dg.sz.At(i, 0)*zs.At(i, 0)
+		// Row 2: Sx*xr + Sy*yr + Sz*zr = 0, Sx*xs + Sy*ys + Sz*zs = 1, etc.
+		val = dg.Sx.At(i, 0)*xs.At(i, 0) + dg.Sy.At(i, 0)*ys.At(i, 0) + dg.Sz.At(i, 0)*zs.At(i, 0)
 		if math.Abs(val-1.0) > 1e-10 {
-			t.Errorf("Node %d: sx*xs + sy*ys + sz*zs = %f, expected 1.0", i, val)
+			t.Errorf("Node %d: Sx*xs + Sy*ys + Sz*zs = %f, expected 1.0", i, val)
 		}
 
-		// Row 3: tx*xt + ty*yt + tz*zt = 1
-		val = dg.tx.At(i, 0)*xt.At(i, 0) + dg.ty.At(i, 0)*yt.At(i, 0) + dg.tz.At(i, 0)*zt.At(i, 0)
+		// Row 3: Tx*xt + Ty*yt + Tz*zt = 1
+		val = dg.Tx.At(i, 0)*xt.At(i, 0) + dg.Ty.At(i, 0)*yt.At(i, 0) + dg.Tz.At(i, 0)*zt.At(i, 0)
 		if math.Abs(val-1.0) > 1e-10 {
-			t.Errorf("Node %d: tx*xt + ty*yt + tz*zt = %f, expected 1.0", i, val)
+			t.Errorf("Node %d: Tx*xt + Ty*yt + Tz*zt = %f, expected 1.0", i, val)
 		}
 	}
 }
@@ -206,23 +206,23 @@ func TestNormals3DSurfaceArea(t *testing.T) {
 	expectedAreas := []float64{0.5, 0.5, math.Sqrt(3) / 2, 0.5}
 
 	// Compute actual face areas by integrating surface Jacobian
-	// For affine elements, sJ should be constant on each face
+	// For affine elements, SJ should be constant on each face
 	Nfp := dg.Nfp
 	for face := 0; face < 4; face++ {
 		// Get surface Jacobian at first node (should be constant)
 		row := face * Nfp
-		sJ := dg.sJ.At(row, 0)
+		sJ := dg.SJ.At(row, 0)
 
-		// Check that sJ is constant across the face
+		// Check that SJ is constant across the face
 		for i := 1; i < Nfp; i++ {
 			row_i := face*Nfp + i
-			sJ_i := dg.sJ.At(row_i, 0)
+			sJ_i := dg.SJ.At(row_i, 0)
 			if math.Abs(sJ_i-sJ) > 1e-10*sJ {
 				t.Errorf("Face %d: non-constant surface Jacobian", face)
 			}
 		}
 
-		// For the reference triangle with area 2, physical area = sJ * 2
+		// For the reference triangle with area 2, physical area = SJ * 2
 		// But our reference triangle has vertices at (-1,-1), (1,-1), (-1,1)
 		// which has area = 0.5 * base * height = 0.5 * 2 * 2 = 2
 		refArea := 2.0
@@ -274,7 +274,7 @@ func TestNormals3DJacobianScaling(t *testing.T) {
 
 			// Surface Jacobian should scale as scale^2
 			// But it's also multiplied by volume Jacobian, so total scaling is scale^2 * (scale^3/refVol)
-			// Actually, sJ includes the volume Jacobian factor, so we need to check the actual face areas
+			// Actually, SJ includes the volume Jacobian factor, so we need to check the actual face areas
 		})
 	}
 }
@@ -304,16 +304,16 @@ func TestNormals3DHigherOrder(t *testing.T) {
 			for face := 0; face < 4; face++ {
 				// Get first normal as reference
 				row0 := face * Nfp
-				nx0 := dg.nx.At(row0, 0)
-				ny0 := dg.ny.At(row0, 0)
-				nz0 := dg.nz.At(row0, 0)
+				nx0 := dg.Nx.At(row0, 0)
+				ny0 := dg.Ny.At(row0, 0)
+				nz0 := dg.Nz.At(row0, 0)
 
 				// Check variation from reference
 				for i := 1; i < Nfp; i++ {
 					row := face*Nfp + i
-					nx := dg.nx.At(row, 0)
-					ny := dg.ny.At(row, 0)
-					nz := dg.nz.At(row, 0)
+					nx := dg.Nx.At(row, 0)
+					ny := dg.Ny.At(row, 0)
+					nz := dg.Nz.At(row, 0)
 
 					// Compute angle between normals
 					dot := nx0*nx + ny0*ny + nz0*nz
@@ -376,9 +376,9 @@ func TestNormals3DMultipleElements(t *testing.T) {
 		for face := 0; face < Nfaces; face++ {
 			for i := 0; i < Nfp; i++ {
 				row := face*Nfp + i
-				nx := dg.nx.At(row, k)
-				ny := dg.ny.At(row, k)
-				nz := dg.nz.At(row, k)
+				nx := dg.Nx.At(row, k)
+				ny := dg.Ny.At(row, k)
+				nz := dg.Nz.At(row, k)
 
 				norm := math.Sqrt(nx*nx + ny*ny + nz*nz)
 				if math.Abs(norm-1.0) > 1e-14 {

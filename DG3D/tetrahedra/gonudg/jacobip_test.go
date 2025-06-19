@@ -13,11 +13,11 @@ func TestJacobiPSpecificValuesCorrected(t *testing.T) {
 	// - C++ implementation JacobiP.cpp in this project
 	//
 	// Formula: gamma0 = 2^(α+β+1)/(α+β+1) * Γ(α+1) * Γ(β+1) / Γ(α+β+1)
-	//          P_0^{α,β}(x) = 1/√gamma0  (constant for all x)
+	//          P_0^{α,β}(X) = 1/√gamma0  (constant for all X)
 
 	x := []float64{-1.0, 0.0, 1.0}
 
-	// Test P_0^{0,0}(x) = 1/sqrt(2)
+	// Test P_0^{0,0}(X) = 1/sqrt(2)
 	// gamma0 = 2^1/1 * 1 * 1 / 1 = 2
 	P0_00 := JacobiP(x, 0.0, 0.0, 0)
 	expected0_00 := 1.0 / math.Sqrt(2.0)
@@ -27,7 +27,7 @@ func TestJacobiPSpecificValuesCorrected(t *testing.T) {
 		}
 	}
 
-	// Test P_0^{1,0}(x) = 1/sqrt(2)
+	// Test P_0^{1,0}(X) = 1/sqrt(2)
 	// gamma0 = 2^2/2 * 1 * 1 / 1 = 2
 	P0_10 := JacobiP(x, 1.0, 0.0, 0)
 	expected0_10 := 1.0 / math.Sqrt(2.0) // CORRECTED from 1/sqrt(3)
@@ -37,7 +37,7 @@ func TestJacobiPSpecificValuesCorrected(t *testing.T) {
 		}
 	}
 
-	// Test P_0^{2,0}(x) = sqrt(3/8)
+	// Test P_0^{2,0}(X) = sqrt(3/8)
 	// gamma0 = 2^3/3 * 2 * 1 / 2 = 8/3
 	P0_20 := JacobiP(x, 2.0, 0.0, 0)
 	expected0_20 := math.Sqrt(3.0 / 8.0)

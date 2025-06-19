@@ -244,13 +244,13 @@ func testConnectedNodeCoordinates(t *testing.T, dg *DG3D) {
 			kP := vidP / dg.Np
 			iP := vidP % dg.Np
 
-			xM := dg.x.At(iM, kM)
-			yM := dg.y.At(iM, kM)
-			zM := dg.z.At(iM, kM)
+			xM := dg.X.At(iM, kM)
+			yM := dg.Y.At(iM, kM)
+			zM := dg.Z.At(iM, kM)
 
-			xP := dg.x.At(iP, kP)
-			yP := dg.y.At(iP, kP)
-			zP := dg.z.At(iP, kP)
+			xP := dg.X.At(iP, kP)
+			yP := dg.Y.At(iP, kP)
+			zP := dg.Z.At(iP, kP)
 
 			// Verify coordinates match
 			dist := math.Sqrt((xP-xM)*(xP-xM) + (yP-yM)*(yP-yM) + (zP-zM)*(zP-zM))
@@ -325,18 +325,18 @@ func testGlobalCoordinateContinuity(t *testing.T, dg *DG3D) {
 					kM := vidM / dg.Np
 					iM := vidM % dg.Np
 
-					xM := dg.x.At(iM, kM)
-					yM := dg.y.At(iM, kM)
-					zM := dg.z.At(iM, kM)
+					xM := dg.X.At(iM, kM)
+					yM := dg.Y.At(iM, kM)
+					zM := dg.Z.At(iM, kM)
 
 					// Get coordinates from neighbor
 					vidP := dg.VmapP[idx]
 					kP := vidP / dg.Np
 					iP := vidP % dg.Np
 
-					xP := dg.x.At(iP, kP)
-					yP := dg.y.At(iP, kP)
-					zP := dg.z.At(iP, kP)
+					xP := dg.X.At(iP, kP)
+					yP := dg.Y.At(iP, kP)
+					zP := dg.Z.At(iP, kP)
 
 					// Check continuity
 					if math.Abs(xP-xM) > tolerance ||

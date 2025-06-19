@@ -54,9 +54,9 @@ func (dg *DG3D) buildFaceConnectivity() {
 	for k := 0; k < dg.K; k++ {
 		for i := 0; i < dg.Np; i++ {
 			idx := k*dg.Np + i
-			x[idx] = dg.x.At(i, k)
-			y[idx] = dg.y.At(i, k)
-			z[idx] = dg.z.At(i, k)
+			x[idx] = dg.X.At(i, k)
+			y[idx] = dg.Y.At(i, k)
+			z[idx] = dg.Z.At(i, k)
 		}
 	}
 

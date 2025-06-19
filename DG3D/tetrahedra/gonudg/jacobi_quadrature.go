@@ -11,7 +11,7 @@ import (
 )
 
 // JacobiGL computes the Gauss-Lobatto quadrature points for Jacobi polynomials
-// These are the zeros of (1-x^2)*P'_N^{alpha,beta}(x)
+// These are the zeros of (1-X^2)*P'_N^{alpha,beta}(X)
 func JacobiGL(alpha, beta float64, N int) []float64 {
 	if N == 0 {
 		return []float64{0.0}
@@ -36,7 +36,7 @@ func JacobiGL(alpha, beta float64, N int) []float64 {
 }
 
 // JacobiGQ computes the Gauss quadrature points for Jacobi polynomials
-// These are the zeros of P_N^{alpha,beta}(x)
+// These are the zeros of P_N^{alpha,beta}(X)
 func JacobiGQ(alpha, beta float64, N int) []float64 {
 	if N == 0 {
 		return []float64{-(alpha - beta) / (alpha + beta + 2)}

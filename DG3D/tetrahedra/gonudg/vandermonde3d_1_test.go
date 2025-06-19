@@ -8,7 +8,7 @@ import (
 	"github.com/notargets/gocfd/utils"
 )
 
-// monomialValue evaluates x^i * y^j * z^k at a point
+// monomialValue evaluates X^i * Y^j * Z^k at a point
 func monomialValue(x, y, z float64, i, j, k int) float64 {
 	result := 1.0
 	for n := 0; n < i; n++ {
@@ -23,21 +23,21 @@ func monomialValue(x, y, z float64, i, j, k int) float64 {
 	return result
 }
 
-// monomialDerivative computes the derivative of x^i * y^j * z^k
-// with respect to x (deriv=0), y (deriv=1), or z (deriv=2)
+// monomialDerivative computes the derivative of X^i * Y^j * Z^k
+// with respect to X (deriv=0), Y (deriv=1), or Z (deriv=2)
 func monomialDerivative(x, y, z float64, i, j, k, deriv int) float64 {
 	switch deriv {
-	case 0: // ∂/∂x
+	case 0: // ∂/∂X
 		if i == 0 {
 			return 0.0
 		}
 		return float64(i) * monomialValue(x, y, z, i-1, j, k)
-	case 1: // ∂/∂y
+	case 1: // ∂/∂Y
 		if j == 0 {
 			return 0.0
 		}
 		return float64(j) * monomialValue(x, y, z, i, j-1, k)
-	case 2: // ∂/∂z
+	case 2: // ∂/∂Z
 		if k == 0 {
 			return 0.0
 		}
@@ -106,7 +106,7 @@ func TestVandermonde3DPolynomialInterpolation(t *testing.T) {
 						}
 
 						if maxError > tol {
-							t.Errorf("Monomial x^%d*y^%d*z^%d: max interpolation error = %e",
+							t.Errorf("Monomial X^%d*Y^%d*Z^%d: max interpolation error = %e",
 								i, j, k, maxError)
 						} else {
 							successCount++
@@ -151,18 +151,18 @@ func TestDmatrices3DPolynomialDifferentiation(t *testing.T) {
 						}
 
 						// Compute derivatives using matrices
-						// Note: These are derivatives w.r.t. (r,s,t), not (x,y,z)
+						// Note: These are derivatives w.r.t. (r,s,t), not (X,Y,Z)
 						// We need to transform using chain rule
 						dfdr := Dr.Mul(fVec.ToMatrix())
 						dfds := Ds.Mul(fVec.ToMatrix())
 						dfdt := Dt.Mul(fVec.ToMatrix())
 
 						// For physical derivatives, we need:
-						// ∂f/∂x = ∂f/∂r * ∂r/∂x + ∂f/∂s * ∂s/∂x + ∂f/∂t * ∂t/∂x
+						// ∂f/∂X = ∂f/∂r * ∂r/∂X + ∂f/∂s * ∂s/∂X + ∂f/∂t * ∂t/∂X
 						// For a regular tetrahedron, the transformation is:
-						// x = -r/2 - s/2 - t/2 + 1/2
-						// y = s*√3/2 - t*√3/6 + √3/6
-						// z = t*√(2/3) + 1/(2√6)
+						// X = -r/2 - s/2 - t/2 + 1/2
+						// Y = s*√3/2 - t*√3/6 + √3/6
+						// Z = t*√(2/3) + 1/(2√6)
 
 						// For simplicity, test reference derivative accuracy
 						// Test at a few sample points
@@ -184,12 +184,12 @@ func TestDmatrices3DPolynomialDifferentiation(t *testing.T) {
 							// Basic sanity check: derivatives should be finite
 							if math.IsNaN(dfdr.At(idx, 0)) || math.IsNaN(dfds.At(idx, 0)) ||
 								math.IsNaN(dfdt.At(idx, 0)) {
-								t.Errorf("NaN derivative for monomial x^%d*y^%d*z^%d at node %d",
+								t.Errorf("NaN derivative for monomial X^%d*Y^%d*Z^%d at node %d",
 									i, j, k, idx)
 							} else if math.IsInf(dfdr.At(idx, 0), 0) ||
 								math.IsInf(dfds.At(idx, 0), 0) ||
 								math.IsInf(dfdt.At(idx, 0), 0) {
-								t.Errorf("Infinite derivative for monomial x^%d*y^%d*z^%d at node %d",
+								t.Errorf("Infinite derivative for monomial X^%d*Y^%d*Z^%d at node %d",
 									i, j, k, idx)
 							} else {
 								successCount++
@@ -219,7 +219,7 @@ func TestHierarchicalPolynomialProperties(t *testing.T) {
 			V := Vandermonde3D(N, r, s, tt)
 			Vinv := V.InverseWithCheck()
 
-			// Test constant function f(x,y,z) = 1
+			// Test constant function f(X,Y,Z) = 1
 			Np := len(X)
 			f := make([]float64, Np)
 			for i := 0; i < Np; i++ {
@@ -348,13 +348,13 @@ func TestPolynomialOrderConvergence(t *testing.T) {
 		i, j, k int
 	}{
 		{"constant", 0, 0, 0},
-		{"x", 1, 0, 0},
-		{"y", 0, 1, 0},
-		{"z", 0, 0, 1},
+		{"X", 1, 0, 0},
+		{"Y", 0, 1, 0},
+		{"Z", 0, 0, 1},
 		{"xy", 1, 1, 0},
-		{"x²", 2, 0, 0},
+		{"X²", 2, 0, 0},
 		{"xyz", 1, 1, 1},
-		{"x³", 3, 0, 0},
+		{"X³", 3, 0, 0},
 	}
 
 	tol := 1e-10

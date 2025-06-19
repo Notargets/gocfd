@@ -5,7 +5,7 @@ import (
 )
 
 // JacobiPNormalized evaluates normalized Jacobi polynomial of type (alpha,beta) > -1
-// at points x for order N. This is a direct port of JacobiP.cpp.
+// at points X for order N. This is a direct port of JacobiP.cpp.
 // Note: They are normalized to be orthonormal.
 func JacobiPNormalized(x []float64, alpha, beta float64, N int) []float64 {
 	Nc := len(x)
@@ -16,7 +16,7 @@ func JacobiPNormalized(x []float64, alpha, beta float64, N int) []float64 {
 	a1 := alpha + 1.0
 	b1 := beta + 1.0
 
-	// Initial values P_0(x) and P_1(x)
+	// Initial values P_0(X) and P_1(X)
 	gamma0 := math.Pow(2.0, ab1) / ab1 * gamma(a1) * gamma(b1) / gamma(ab1)
 
 	if N == 0 {
@@ -64,7 +64,7 @@ func JacobiPNormalized(x []float64, alpha, beta float64, N int) []float64 {
 		anew := 2.0 / (h1 + 2.0) * math.Sqrt((fi+1.0)*(fi+ab1)*(fi+a1)*(fi+b1)/(h1+1.0)/(h1+3.0))
 		bnew := -(alpha*alpha - beta*beta) / h1 / (h1 + 2.0)
 
-		// PL[i+1] = 1/anew * (-aold*PL[i-1] + (x-bnew)*PL[i])
+		// PL[i+1] = 1/anew * (-aold*PL[i-1] + (X-bnew)*PL[i])
 		for j := 0; j < Nc; j++ {
 			PL[i+1][j] = 1.0 / anew * (-aold*PL[i-1][j] + (x[j]-bnew)*PL[i][j])
 		}
@@ -89,7 +89,7 @@ func GradJacobiPNormalized(x []float64, alpha, beta float64, N int) []float64 {
 		return make([]float64, len(x))
 	}
 
-	// dP_n/dx = sqrt(n(n+alpha+beta+1)) * P_{n-1}^{(alpha+1,beta+1)}(x)
+	// dP_n/dx = sqrt(n(n+alpha+beta+1)) * P_{n-1}^{(alpha+1,beta+1)}(X)
 	p := JacobiPNormalized(x, alpha+1, beta+1, N-1)
 	fN := float64(N)
 	fac := math.Sqrt(fN * (fN + alpha + beta + 1))

@@ -28,10 +28,10 @@ type DG3D struct {
 	r, s, t []float64
 
 	// Physical coordinates
-	x, y, z utils.Matrix // [Np][K] matrices
+	X, Y, Z utils.Matrix // [Np][K] matrices
 
 	// Vandermonde matrix and inverse
-	V, invV utils.Matrix
+	V, Vinv utils.Matrix
 
 	// Mass matrix
 	MassMatrix utils.Matrix
@@ -52,14 +52,14 @@ type DG3D struct {
 	LIFT utils.Matrix
 
 	// Geometric factors
-	rx, ry, rz utils.Matrix
-	sx, sy, sz utils.Matrix
-	tx, ty, tz utils.Matrix
+	Rx, Ry, Rz utils.Matrix
+	Sx, Sy, Sz utils.Matrix
+	Tx, Ty, Tz utils.Matrix
 	J          utils.Matrix
 
 	// Surface geometric factors
-	nx, ny, nz utils.Matrix
-	sJ         utils.Matrix
+	Nx, Ny, Nz utils.Matrix
+	SJ         utils.Matrix
 	Fscale     utils.Matrix
 
 	// Connectivity
@@ -111,16 +111,16 @@ func (dg *DG3D) StartUp3D() error {
 
 	// Build reference element matrices
 	dg.V = Vandermonde3D(dg.N, dg.r, dg.s, dg.t)
-	dg.invV = dg.V.InverseWithCheck()
-	dg.MassMatrix = dg.invV.Transpose().Mul(dg.invV)
+	dg.Vinv = dg.V.InverseWithCheck()
+	dg.MassMatrix = dg.Vinv.Transpose().Mul(dg.Vinv)
 
 	// Build differentiation matrices
 	dg.Dr, dg.Ds, dg.Dt = Dmatrices3D(dg.N, dg.r, dg.s, dg.t, dg.V)
 
 	// Build coordinates of all the nodes
-	dg.x = utils.NewMatrix(dg.Np, dg.K)
-	dg.y = utils.NewMatrix(dg.Np, dg.K)
-	dg.z = utils.NewMatrix(dg.Np, dg.K)
+	dg.X = utils.NewMatrix(dg.Np, dg.K)
+	dg.Y = utils.NewMatrix(dg.Np, dg.K)
+	dg.Z = utils.NewMatrix(dg.Np, dg.K)
 
 	// Map from reference to physical elements
 	for k := 0; k < dg.K; k++ {
@@ -130,17 +130,17 @@ func (dg *DG3D) StartUp3D() error {
 		vd := dg.EToV[k][3]
 
 		for i := 0; i < dg.Np; i++ {
-			dg.x.Set(i, k, 0.5*(-(1.0+dg.r[i]+dg.s[i]+dg.t[i])*dg.VX[va]+
+			dg.X.Set(i, k, 0.5*(-(1.0+dg.r[i]+dg.s[i]+dg.t[i])*dg.VX[va]+
 				(1.0+dg.r[i])*dg.VX[vb]+
 				(1.0+dg.s[i])*dg.VX[vc]+
 				(1.0+dg.t[i])*dg.VX[vd]))
 
-			dg.y.Set(i, k, 0.5*(-(1.0+dg.r[i]+dg.s[i]+dg.t[i])*dg.VY[va]+
+			dg.Y.Set(i, k, 0.5*(-(1.0+dg.r[i]+dg.s[i]+dg.t[i])*dg.VY[va]+
 				(1.0+dg.r[i])*dg.VY[vb]+
 				(1.0+dg.s[i])*dg.VY[vc]+
 				(1.0+dg.t[i])*dg.VY[vd]))
 
-			dg.z.Set(i, k, 0.5*(-(1.0+dg.r[i]+dg.s[i]+dg.t[i])*dg.VZ[va]+
+			dg.Z.Set(i, k, 0.5*(-(1.0+dg.r[i]+dg.s[i]+dg.t[i])*dg.VZ[va]+
 				(1.0+dg.r[i])*dg.VZ[vb]+
 				(1.0+dg.s[i])*dg.VZ[vc]+
 				(1.0+dg.t[i])*dg.VZ[vd]))
@@ -163,7 +163,7 @@ func (dg *DG3D) StartUp3D() error {
 		return fmt.Errorf("Normals3D failed: %v", err)
 	}
 
-	// Compute Fscale = sJ ./ J(Fmask,:)
+	// Compute Fscale = SJ ./ J(Fmask,:)
 	dg.ComputeFscale()
 
 	// Build connectivity matrix
@@ -223,15 +223,15 @@ func (dg *DG3D) ExtractFaceCoordinates() {
 		for k := 0; k < dg.K; k++ {
 			for i, nodeIdx := range dg.Fmask[face] {
 				row := face*dg.Nfp + i
-				dg.Fx.Set(row, k, dg.x.At(nodeIdx, k))
-				dg.Fy.Set(row, k, dg.y.At(nodeIdx, k))
-				dg.Fz.Set(row, k, dg.z.At(nodeIdx, k))
+				dg.Fx.Set(row, k, dg.X.At(nodeIdx, k))
+				dg.Fy.Set(row, k, dg.Y.At(nodeIdx, k))
+				dg.Fz.Set(row, k, dg.Z.At(nodeIdx, k))
 			}
 		}
 	}
 }
 
-// ComputeFscale computes Fscale = sJ ./ J(Fmask,:)
+// ComputeFscale computes Fscale = SJ ./ J(Fmask,:)
 func (dg *DG3D) ComputeFscale() {
 	dg.Fscale = utils.NewMatrix(dg.Nfp*4, dg.K)
 
@@ -239,7 +239,7 @@ func (dg *DG3D) ComputeFscale() {
 		for k := 0; k < dg.K; k++ {
 			for i, nodeIdx := range dg.Fmask[face] {
 				row := face*dg.Nfp + i
-				dg.Fscale.Set(row, k, dg.sJ.At(row, k)/dg.J.At(nodeIdx, k))
+				dg.Fscale.Set(row, k, dg.SJ.At(row, k)/dg.J.At(nodeIdx, k))
 			}
 		}
 	}

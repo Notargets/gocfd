@@ -35,7 +35,7 @@ func TestLift3DSimpleCase(t *testing.T) {
 		t.Logf("Face %d nodes: %v", face, dg.Fmask[face])
 	}
 
-	// Check LIFT dimensions: should be 4 x 12 (Np x 4*Nfp)
+	// Check LIFT dimensions: should be 4 X 12 (Np X 4*Nfp)
 	nrows, ncols := dg.LIFT.Dims()
 	if nrows != 4 || ncols != 12 {
 		t.Errorf("Expected 4x12 LIFT matrix, got %dx%d", nrows, ncols)
