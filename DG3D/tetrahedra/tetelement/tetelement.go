@@ -50,13 +50,6 @@ func NewElement3DFromMesh(order int, m *mesh.Mesh) (el *Element3D, err error) {
 		panic(err)
 	}
 
-	// Set up connectivity on DG3D object before BuildMaps3D
-	el.DG3D.EToE = m.EToE
-	el.DG3D.EToF = m.EToF
-
-	// Build DG3D maps (needs connectivity to identify boundary faces)
-	el.DG3D.BuildMaps3D()
-
 	// Build boundary condition maps
 	if err = el.BuildBCMaps(); err != nil {
 		return nil, fmt.Errorf("failed to build BC maps: %v", err)
