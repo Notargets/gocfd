@@ -215,17 +215,20 @@ func (kp *KernelProgram) generateUtilityFunctions() string {
 }
 
 // generateMatMulFunction creates a matrix multiplication function for a specific static matrix
+// This version uses element-blocked data layout where all nodes of an element are consecutive
 func (kp *KernelProgram) generateMatMulFunction(matrixName string) string {
-	return fmt.Sprintf(`// Matrix multiplication using static %s
+	return fmt.Sprintf(`// Matrix multiplication using static %s (element-blocked layout)
 inline void matMul_%s_Large(const real_t* U, real_t* result, int K) {
-    for (int i = 0; i < NP; ++i) {
-        for (int k = 0; k < K; ++k) {
+    // K is the number of elements
+    // Data layout: [elem0_node0, elem0_node1, ..., elem0_nodeNP-1, elem1_node0, ...]
+    for (int elem = 0; elem < K; ++elem) {
+        for (int i = 0; i < NP; ++i) {
             real_t sum = REAL_ZERO;
             #pragma unroll
             for (int j = 0; j < NP; ++j) {
-                sum += %s[i][j] * U[j*K + k];
+                sum += %s[i][j] * U[elem*NP + j];
             }
-            result[i*K + k] = sum;
+            result[elem*NP + i] = sum;
         }
     }
 }
