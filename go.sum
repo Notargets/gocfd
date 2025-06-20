@@ -155,6 +155,8 @@ github.com/notargets/avs v0.0.8-0.20250301163939-3d7704630871 h1:mcof9mMxh/EX8fs
 github.com/notargets/avs v0.0.8-0.20250301163939-3d7704630871/go.mod h1:yidK4pKUoes861WXxRVscwFZFU9cnnxSUifrwA6PfX8=
 github.com/notargets/go-metis v0.0.0-20250613231942-b5c31423c384 h1:lJK2BPBmtac38EgaF+kmf1/rdgknUEqAvzFC58vSBgM=
 github.com/notargets/go-metis v0.0.0-20250613231942-b5c31423c384/go.mod h1:WiytKa3Uq5SMwZvSeI+XvnAzgu2lhCKG8bl5WTJM3q4=
+github.com/notargets/gocca v0.9.1 h1:AkQ6CLGJbt9wCVQOzfkewY1FtMRWuEbLMosJTkj6Lv8=
+github.com/notargets/gocca v0.9.1/go.mod h1:LcEyY0y/JXdvg2Ad5Uo6V8oGHs7WaqMD5dB9/ecaeTM=
 github.com/oklog/ulid v1.3.1/go.mod h1:CirwcVhetQ6Lv90oh/F+FBtV6XMibvdAFo93nm5qn4U=
 github.com/pascaldekloe/goe v0.0.0-20180627143212-57f6aae5913c/go.mod h1:lzWF7FIEvWOWxwDKqyGYQf6ZUaNfKdP144TG7ZOy1lc=
 github.com/pelletier/go-toml v1.2.0/go.mod h1:5z9KED0ma1S8pY6P1sdut58dfprrGBbd/94hg7ilaic=
