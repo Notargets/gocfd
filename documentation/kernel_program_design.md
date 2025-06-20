@@ -83,31 +83,31 @@ Kernels use partition-level parallelism as the primary @outer loop:
 
 ```go
 type KernelProgram struct {
-    // Partition configuration
-    NumPartitions   int      // Npart - number of partitions
-    ElementsPerPart int      // K - elements per partition
-    TotalElements   int      // Kglobal - total elements across all partitions
-    
-    // Element configuration
-    Order           int      // Polynomial order (N)
-    Np              int      // Nodes per element
-    Nfp             int      // Face points per element face
-    Nfaces          int      // Faces per element (4 for tet)
-    
-    // Data precision
-    FloatType       DataType // Float32 or Float64
-    IntType         DataType // Int32 or Int64
-    
-    // Static data (shared across all partitions)
-    StaticMatrices  map[string]utils.Matrix
-    
-    // Generated code
-    kernelPreamble  string
-    
-    // Runtime resources
-    device          *gocca.OCCADevice
-    kernels         map[string]*gocca.OCCAKernel
-    memory          map[string]*gocca.OCCAMemory  // Partition-blocked arrays
+// Partition configuration
+NumPartitions   int      // Npart - number of partitions
+ElementsPerPart int      // K - elements per partition
+TotalElements   int      // Kglobal - total elements across all partitions
+
+// Element configuration
+Order           int      // Polynomial order (N)
+Np              int      // Nodes per element
+Nfp             int      // Face points per element face
+Nfaces          int      // Faces per element (4 for tet)
+
+// Data precision
+FloatType       DataType // Float32 or Float64
+IntType         DataType // Int32 or Int64
+
+// Static data (shared across all partitions)
+StaticMatrices  map[string]utils.Matrix
+
+// Generated code
+kernelPreamble  string
+
+// Runtime resources
+device          *gocca.OCCADevice
+kernels         map[string]*gocca.OCCAKernel
+memory          map[string]*gocca.OCCAMemory  // Partition-blocked arrays
 }
 ```
 
@@ -254,31 +254,31 @@ Allocates memory for all partitions in contiguous blocks:
 
 ```go
 func (kp *KernelProgram) AllocateKernelMemory() error {
-    floatSize := kp.GetFloatSize()
-    intSize := kp.GetIntSize()
-    
-    // Total counts across all partitions
-    totalNodes := kp.NumPartitions * kp.ElementsPerPart * kp.Np
-    totalFaces := kp.NumPartitions * kp.ElementsPerPart * kp.Nfaces * kp.Nfp
-    
-    // Solution arrays - partition-blocked
-    kp.memory["U"] = kp.device.Malloc(int64(totalNodes * floatSize), nil, nil)
-    kp.memory["RHS"] = kp.device.Malloc(int64(totalNodes * floatSize), nil, nil)
-    
-    // Geometric factors - partition-blocked
-    // Store as structure of arrays for better access patterns
-    geoSize := totalNodes * 9 * floatSize  // 9 factors: rx,ry,rz,sx,sy,sz,tx,ty,tz
-    kp.memory["geoFactors"] = kp.device.Malloc(int64(geoSize), nil, nil)
-    
-    // Face data - partition-blocked
-    kp.memory["faceDataSend"] = kp.device.Malloc(int64(totalFaces * floatSize), nil, nil)
-    kp.memory["faceDataRecv"] = kp.device.Malloc(int64(totalFaces * floatSize), nil, nil)
-    
-    // Partition connectivity for face exchange
-    connSize := kp.NumPartitions * kp.ElementsPerPart * kp.Nfaces * 2  // (neighbor_part, neighbor_elem)
-    kp.memory["partitionConn"] = kp.device.Malloc(int64(connSize * intSize), nil, nil)
-    
-    return nil
+floatSize := kp.GetFloatSize()
+intSize := kp.GetIntSize()
+
+// Total counts across all partitions
+totalNodes := kp.NumPartitions * kp.ElementsPerPart * kp.Np
+totalFaces := kp.NumPartitions * kp.ElementsPerPart * kp.Nfaces * kp.Nfp
+
+// Solution arrays - partition-blocked
+kp.memory["U"] = kp.device.Malloc(int64(totalNodes * floatSize), nil, nil)
+kp.memory["RHS"] = kp.device.Malloc(int64(totalNodes * floatSize), nil, nil)
+
+// Geometric factors - partition-blocked
+// Store as structure of arrays for better access patterns
+geoSize := totalNodes * 9 * floatSize  // 9 factors: rx,ry,rz,sx,sy,sz,tx,ty,tz
+kp.memory["geoFactors"] = kp.device.Malloc(int64(geoSize), nil, nil)
+
+// Face data - partition-blocked
+kp.memory["faceDataSend"] = kp.device.Malloc(int64(totalFaces * floatSize), nil, nil)
+kp.memory["faceDataRecv"] = kp.device.Malloc(int64(totalFaces * floatSize), nil, nil)
+
+// Partition connectivity for face exchange
+connSize := kp.NumPartitions * kp.ElementsPerPart * kp.Nfaces * 2  // (neighbor_part, neighbor_elem)
+kp.memory["partitionConn"] = kp.device.Malloc(int64(connSize * intSize), nil, nil)
+
+return nil
 }
 ```
 
@@ -288,29 +288,29 @@ func (kp *KernelProgram) AllocateKernelMemory() error {
 
 ```go
 func (kp *KernelProgram) RunKernel(name string, args ...interface{}) error {
-    kernel, exists := kp.kernels[name]
-    if !exists {
-        return fmt.Errorf("kernel %s not found", name)
-    }
-    
-    // Configure for partition-parallel execution
-    // Each partition runs on its own GPU block / CPU thread
-    outerDims := gocca.OCCADim{
-        X: uint64(kp.NumPartitions),  // Partitions map to blocks
-        Y: 1,
-        Z: 1,
-    }
-    
-    // Inner parallelism over nodes
-    innerDims := gocca.OCCADim{
-        X: uint64(kp.Np),  // Nodes map to threads
-        Y: 1,
-        Z: 1,
-    }
-    
-    kernel.SetRunDims(outerDims, innerDims)
-    
-    return kernel.RunWithArgs(args...)
+kernel, exists := kp.kernels[name]
+if !exists {
+return fmt.Errorf("kernel %s not found", name)
+}
+
+// Configure for partition-parallel execution
+// Each partition runs on its own GPU block / CPU thread
+outerDims := gocca.OCCADim{
+X: uint64(kp.NumPartitions),  // Partitions map to blocks
+Y: 1,
+Z: 1,
+}
+
+// Inner parallelism over nodes
+innerDims := gocca.OCCADim{
+X: uint64(kp.Np),  // Nodes map to threads
+Y: 1,
+Z: 1,
+}
+
+kernel.SetRunDims(outerDims, innerDims)
+
+return kernel.RunWithArgs(args...)
 }
 ```
 
@@ -405,53 +405,56 @@ Inter-partition communication uses a separate kernel:
 
 ### Hardware Mapping Examples
 
-Consider a 3D Navier-Stokes solver with 100,000 elements at polynomial order 5 (Np = 56 nodes per element):
+Consider a 3D compressible flow solver with shocked flows using 100,000 elements:
 
-**Memory per element (realistic)**:
-- Solution variables: 5 fields × 56 nodes × 8 bytes = 2,240 bytes
-- Viscous stresses: 6 components × 56 nodes × 8 bytes = 2,688 bytes
-- Velocity/temperature gradients: 12 fields × 56 nodes × 8 bytes = 5,376 bytes
-- Geometric factors: 10 fields × 56 nodes × 8 bytes = 4,480 bytes
-- Working arrays & auxiliary data: ~15 fields × 56 nodes × 8 bytes = 6,720 bytes
-- **Total: ~21.5 KB per element**
+**Memory per element estimates:**
+
+For **tetrahedral elements** (order 5, Np = 56):
+- Conservation variables: 5 × 56 × 8 bytes = 2,240 bytes
+- Gradients (12 fields): 12 × 56 × 8 bytes = 5,376 bytes
+- Geometric factors: 9 × 56 × 8 bytes = 4,032 bytes
+- Shock capturing/limiting: 3 × 56 × 8 bytes = 1,344 bytes
+- Working arrays: ~10 × 56 × 8 bytes = 4,480 bytes
+- **Total: ~17.5 KB per element**
+
+For **hexahedral elements** (order 5, Np = 216):
+- Conservation variables: 5 × 216 × 8 bytes = 8,640 bytes
+- Gradients (12 fields): 12 × 216 × 8 bytes = 20,736 bytes
+- Geometric factors: 9 × 216 × 8 bytes = 15,552 bytes
+- Shock capturing/limiting: 3 × 216 × 8 bytes = 5,184 bytes
+- Working arrays: ~15 × 216 × 8 bytes = 25,920 bytes
+- **Total: ~76 KB per element**
 
 #### NVIDIA RTX 5090 GPU
-- **Hardware**: ~128 SMs, 16 GB memory
-- **Configuration**:
+- **Hardware**: ~128 SMs, 32 GB GDDR7 memory
+- **Configuration** (tetrahedral mesh):
     - Npart = 128 (one partition per SM)
     - K = 781 elements per partition
-    - Memory per partition: 781 × 21.5 KB = **16.8 MB**
-    - Total memory: 128 × 16.8 MB = 2.15 GB (fits comfortably in 16 GB)
+    - Memory per partition: 781 × 17.5 KB = **13.7 MB**
+    - Total memory: 128 × 13.7 MB = 1.75 GB (uses ~5% of available)
 - **Cache Reality**:
     - L2 cache: 96 MB total (0.75 MB per SM) - partition won't fit
     - Streaming memory access pattern required
     - Element-blocked layout ensures coalesced memory transactions
-- **Execution Strategy**:
-    - Process elements in cache-sized tiles
-    - Rely on high memory bandwidth (1+ TB/s)
 
 #### AMD Threadripper PRO 7965WX CPU
 - **Hardware**: 24 cores, 48 threads, 512 GB RAM
-- **Configuration**:
+- **Configuration** (tetrahedral mesh):
     - Npart = 48 (one partition per thread)
     - K = 2,083 elements per partition
-    - Memory per partition: 2,083 × 21.5 KB = **44.8 MB**
-    - Total memory: 48 × 44.8 MB = 2.15 GB
+    - Memory per partition: 2,083 × 17.5 KB = **36.5 MB**
+    - Total memory: 48 × 36.5 MB = 1.75 GB
 - **Cache Reality**:
-    - L3 cache: 128 MB total (shared) - can hold ~3 partitions
-    - L2 cache: 1 MB per core - holds ~47 elements
+    - L3 cache: 128 MB total - can hold ~3 partitions
+    - L2 cache: 1 MB per core - holds ~58 elements
     - Must stream from RAM (460+ GB/s bandwidth)
-- **Optimization Strategy**:
-    - Process elements in L2-sized blocks (~40-50 elements)
-    - Prefetch next element block while computing
-    - NUMA-aware allocation critical
 
 ### Implications
 
 1. **Memory Bandwidth Bound**: Both architectures will be bandwidth-limited (expected for DG methods)
 2. **Cache Blocking**: Must process partitions in cache-friendly chunks
 3. **Prefetching**: Critical for hiding memory latency
-4. **Element Blocking Advantage**: Consecutive memory access within elements maximizes bandwidth efficiency
+4. **Element Type Matters**: Hexahedral elements use ~4× more memory but typically need 3-5× fewer elements for equivalent accuracy
 5. **Partition Benefits**: Despite exceeding cache, partitioning still provides:
     - Independent execution units (no synchronization)
     - Controlled working set size
@@ -481,10 +484,10 @@ Consider a 3D Navier-Stokes solver with 100,000 elements at polynomial order 5 (
 ```go
 // Configure for large 3D mesh
 kp := NewKernelProgram(device, Config{
-    NumPartitions:   64,      // 64 GPU blocks
-    ElementsPerPart: 10000,   // 10K elements per partition
-    Order:           4,       // 4th order polynomials
-    FloatType:       Float64,
+NumPartitions:   64,      // 64 GPU blocks
+ElementsPerPart: 10000,   // 10K elements per partition
+Order:           4,       // 4th order polynomials
+FloatType:       Float64,
 })
 
 // Add DG operators
@@ -503,20 +506,20 @@ kp.AllocateKernelMemory()
 
 // Time stepping loop
 for step := 0; step < nSteps; step++ {
-    // Exchange face data between partitions
-    kp.RunKernel("exchangeFaceData", ...)
-    
-    // Compute RHS with all partitions in parallel
-    kp.RunKernel("computeRHS", 
-        kp.NumPartitions,
-        kp.ElementsPerPart,
-        kp.GetMemory("U"),
-        kp.GetMemory("geoFactors"),
-        kp.GetMemory("faceDataRecv"),
-        kp.GetMemory("RHS"))
-    
-    // Time integration
-    kp.RunKernel("timeStep", ...)
+// Exchange face data between partitions
+kp.RunKernel("exchangeFaceData", ...)
+
+// Compute RHS with all partitions in parallel
+kp.RunKernel("computeRHS",
+kp.NumPartitions,
+kp.ElementsPerPart,
+kp.GetMemory("U"),
+kp.GetMemory("geoFactors"),
+kp.GetMemory("faceDataRecv"),
+kp.GetMemory("RHS"))
+
+// Time integration
+kp.RunKernel("timeStep", ...)
 }
 ```
 
