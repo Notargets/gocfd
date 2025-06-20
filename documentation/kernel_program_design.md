@@ -2,151 +2,235 @@
 
 ## Overview
 
-The KernelProgram system provides a high-level abstraction for generating and executing GPU/accelerator kernels for Discontinuous Galerkin (DG) methods. It automates the generation of static data initialization, utility functions, and specialized operators while managing memory allocation and kernel execution through the gocca wrapper.
+The KernelProgram system provides a high-level abstraction for generating and executing GPU/accelerator kernels for Discontinuous Galerkin (DG) methods using a **partition-parallel execution model**. The system divides large meshes into partitions that execute simultaneously on parallel hardware, with each partition processing its elements independently.
 
 ## Core Design Principles
 
-1. **Element-Blocked Data Layout**: All arrays use element-blocked layout where nodes within an element are contiguous in memory. This is the universal DG pattern enabling optimal element-local operations.
-2. **Partition-Based Parallelism**: Total elements divided into partitions, each executed as a single vectorized kernel
-3. **Static Data Embedding**: Small matrices (Dr, Ds, Dt, LIFT) are compiled directly into kernel source as static arrays for optimal performance
-4. **Vector Chaining**: Operations are designed to maximize throughput on long vectors (dimension K within each partition)
-5. **Memory Persistence**: Device memory allocations persist across kernel executions
-6. **Code Generation**: Kernel preambles containing static data and utilities are generated programmatically with layout-optimized operations
+1. **Partition-Parallel Execution**: Global mesh divided into Npart partitions that execute simultaneously on GPU blocks or CPU threads
+2. **Element-Blocked Data Layout**: Within each partition, nodes of an element are contiguous for cache efficiency
+3. **Partition-Blocked Memory**: Partitions are contiguous in memory to enable coalesced access across parallel units
+4. **Static Data Embedding**: Small matrices (Dr, Ds, Dt, LIFT) compiled into kernels as constants
+5. **OCCA-Native Parallelism**: Partitions map directly to OCCA @outer annotations for hardware parallelism
 
-## Data Layout Convention
+## Execution Model
 
-KernelProgram uses **element-blocked layout** throughout:
+### Mesh Partitioning
+
+The global mesh with Kglobal elements is divided into Npart partitions:
+
 ```
-Array layout: [elem0_node0, elem0_node1, ..., elem0_nodeNP-1, elem1_node0, elem1_node1, ...]
-```
+Global Mesh (Kglobal elements)
+    ├── Partition 0: K elements
+    ├── Partition 1: K elements
+    ├── ...
+    └── Partition Npart-1: K elements
 
-This layout provides:
-- **Cache efficiency**: All nodes of an element are accessed together during element-local operations
-- **Vectorization**: Inner loops over nodes can be fully vectorized
-- **Memory coalescing**: Adjacent threads access adjacent memory in GPU implementations
-- **Natural DG structure**: Matches the mathematical formulation of DG methods
-
-## Architecture
-
-### Partitioning Model
-
-The system divides the total number of elements (K_total) into partitions:
-- Each partition contains K elements
-- Each partition runs as a separate kernel execution or on a separate parallel unit
-- Partitions communicate through face buffer exchanges
-- Within each partition, operations are fully vectorized over element-blocked K×NP data
-
-### KernelProgram Structure
-
-```go
-type KernelProgram struct {
-    // Configuration
-    Order           int                        // Polynomial order (N)
-    Np              int                        // Number of nodes per element
-    Nfp             int                        // Number of face points
-    NumElements     int                        // Number of elements in this partition (K)
-    
-    // Data precision (default: Float64)
-    FloatType       DataType                   // Float32 or Float64
-    IntType         DataType                   // Int32 or Int64
-    
-    // Static data to embed
-    StaticMatrices  map[string]utils.Matrix    // Dr, Ds, Dt, LIFT, etc.
-    
-    // Generated code
-    kernelPreamble  string                     // Generated static data and utilities
-    
-    // Runtime resources
-    device          *gocca.OCCADevice
-    kernels         map[string]*gocca.OCCAKernel
-    memory          map[string]*gocca.OCCAMemory
-}
+where: Kglobal = Npart × K (approximately)
 ```
 
-### Memory Layout
+### Parallel Execution
 
-The system manages two types of data:
+All partitions execute simultaneously:
+- **GPU**: Each partition runs on a separate CUDA block / OpenCL work-group
+- **CPU**: Each partition runs on a separate thread
+- **Vectorization**: Within each partition, operations are vectorized over elements
 
-1. **Static Data** (compiled into kernels):
-   - Differentiation matrices: Dr, Ds, Dt (Np × Np)
-   - Lift matrix: LIFT (Np × 4*Nfp)
-   - Small working arrays
+### OCCA Kernel Structure
 
-2. **Dynamic Data** (allocated per partition with element-blocked layout):
-   - Solution arrays: U[K][Np] - stored as contiguous array
-   - Geometric factors: rx[K][Np], ry[K][Np], etc.
-   - Face data buffers for inter-partition communication
-   - Index arrays for connectivity
+Kernels use partition-level parallelism as the primary @outer loop:
 
-## Code Generation
-
-### GenerateKernelMain()
-
-This function generates the kernel preamble containing layout-optimized operations:
-
-1. **Constants and Macros**
 ```c
-#define ORDER 4
-#define NP 35      // (N+1)*(N+2)*(N+3)/6
-#define NFP 15     // (N+1)*(N+2)/2
-
-// Type definitions based on precision setting
-typedef double real_t;    // or float for Float32
-typedef long   int_t;     // or int for Int32
-
-// Element-blocked indexing helper
-#define NODE_INDEX(elem, node) ((elem)*NP + (node))
-```
-
-2. **Layout-Optimized Matrix Operations**
-```c
-// Generated matrix multiplication for element-blocked data
-// Optimized for cache efficiency with element-local operations
-inline void matMul_Dr_Large(const real_t* U, real_t* result, int K) {
-    for (int elem = 0; elem < K; ++elem) {
-        for (int i = 0; i < NP; ++i) {
-            real_t sum = REAL_ZERO;
-            #pragma unroll
-            for (int j = 0; j < NP; ++j) {
-                sum += Dr[i][j] * U[elem*NP + j];
+@kernel void computeRHS(
+    const int Npart,          // Number of partitions
+    const int K,              // Elements per partition  
+    const real_t* U,          // Input: [Npart][K][NP]
+    const real_t* geoFactors, // Geometric factors: [Npart][K][NP]
+    real_t* RHS               // Output: [Npart][K][NP]
+) {
+    // Each partition executes on its own GPU block / CPU thread
+    for (int part = 0; part < Npart; ++part; @outer(0)) {
+        
+        // Process all elements in this partition
+        for (int elem = 0; elem < K; ++elem) {
+            
+            // Vectorize over nodes within element
+            for (int node = 0; node < NP; ++node; @inner(0)) {
+                
+                // Global index for partition-blocked data
+                int idx = part*K*NP + elem*NP + node;
+                
+                // Partition-local operations
+                // All data access is within this partition's memory region
             }
-            result[elem*NP + i] = sum;
         }
     }
 }
 ```
 
-The element-blocked layout enables:
-- **Perfect cache reuse**: The static matrix Dr stays in cache while streaming through elements
-- **Vectorization**: Modern compilers can vectorize the inner loop over nodes
-- **Minimal memory movement**: Each element's data is accessed once in a contiguous block
+## Architecture
 
-3. **Specialized DG Operations**
+### KernelProgram Structure
+
+```go
+type KernelProgram struct {
+    // Partition configuration
+    NumPartitions   int      // Npart - number of partitions
+    ElementsPerPart int      // K - elements per partition
+    TotalElements   int      // Kglobal - total elements across all partitions
+    
+    // Element configuration
+    Order           int      // Polynomial order (N)
+    Np              int      // Nodes per element
+    Nfp             int      // Face points per element face
+    Nfaces          int      // Faces per element (4 for tet)
+    
+    // Data precision
+    FloatType       DataType // Float32 or Float64
+    IntType         DataType // Int32 or Int64
+    
+    // Static data (shared across all partitions)
+    StaticMatrices  map[string]utils.Matrix
+    
+    // Generated code
+    kernelPreamble  string
+    
+    // Runtime resources
+    device          *gocca.OCCADevice
+    kernels         map[string]*gocca.OCCAKernel
+    memory          map[string]*gocca.OCCAMemory  // Partition-blocked arrays
+}
+```
+
+### Memory Layout
+
+#### Partition-Blocked Organization
+
+All dynamic data uses partition-blocked layout:
+
+```
+Array U[Npart][K][NP] stored contiguously as:
+[partition0_elem0_node0, ..., partition0_elem0_nodeNP-1,  // First element of first partition
+ partition0_elem1_node0, ..., partition0_elem1_nodeNP-1,  // Second element
+ ...
+ partition0_elemK-1_node0, ...,                           // Last element of first partition
+ partition1_elem0_node0, ...,                             // First element of second partition
+ ...]
+
+Index calculation: idx = part*K*NP + elem*NP + node
+```
+
+This layout ensures:
+- **Coalesced access**: Adjacent partitions (GPU blocks) access adjacent memory regions
+- **Cache efficiency**: Element nodes remain contiguous for element-local operations
+- **Minimal conflicts**: Partitions work on separate memory regions
+
+#### Memory Allocation Sizes
+
+```go
+nodeCount := Npart * K * Np           // Total nodes across all partitions
+faceCount := Npart * K * Nfaces * Nfp // Total face nodes
+```
+
+## Code Generation
+
+### Partition-Aware Preamble
+
+The generated preamble includes partition-aware utilities:
+
 ```c
-// Compute physical derivatives using element-blocked layout
-inline void computePhysicalDerivatives(
-    const real_t* U,         // Element-blocked: U[K][NP]
-    const real_t* rx, const real_t* ry, const real_t* rz,
-    const real_t* sx, const real_t* sy, const real_t* sz,
-    const real_t* tx, const real_t* ty, const real_t* tz,
-    real_t* DX, real_t* DY, real_t* DZ,
-    int K
+// Constants
+#define NPART @NumPartitions@    // Total partitions
+#define K @ElementsPerPart@       // Elements per partition
+#define NP @Np@                   // Nodes per element
+#define NFP @Nfp@                 // Face nodes per element
+#define NFACES 4                  // Faces per tet
+
+// Indexing macros for partition-blocked data
+#define PART_OFFSET(part) ((part) * K * NP)
+#define ELEM_OFFSET(part, elem) (PART_OFFSET(part) + (elem) * NP)
+#define NODE_INDEX(part, elem, node) (ELEM_OFFSET(part, elem) + (node))
+
+// Type definitions
+typedef @FloatType@ real_t;
+typedef @IntType@ int_t;
+```
+
+### Partition-Aware Matrix Operations
+
+Generated matrix operations handle partition offsets:
+
+```c
+// Matrix multiplication for partition-blocked data
+inline void matMul_Dr_Partition(
+    const real_t* U,      // [Npart][K][NP]
+    real_t* result,       // [Npart][K][NP]
+    int part,             // Current partition ID
+    int K                 // Elements in partition
 ) {
-    // Temporary arrays maintain element-blocked layout
+    int partOffset = PART_OFFSET(part);
+    
+    // Process all elements in this partition
+    for (int elem = 0; elem < K; ++elem) {
+        // Apply Dr to each element
+        for (int i = 0; i < NP; ++i) {
+            real_t sum = REAL_ZERO;
+            #pragma unroll
+            for (int j = 0; j < NP; ++j) {
+                sum += Dr[i][j] * U[partOffset + elem*NP + j];
+            }
+            result[partOffset + elem*NP + i] = sum;
+        }
+    }
+}
+
+// Convenience function that extracts partition ID from kernel context
+inline void matMul_Dr_Auto(const real_t* U, real_t* result, int K) {
+    // In OCCA kernels, can get partition ID from loop index
+    extern int part;  // Set by @outer loop
+    matMul_Dr_Partition(U, result, part, K);
+}
+```
+
+### Physical Derivative Operations
+
+```c
+// Compute derivatives for one partition
+inline void computePhysDerivPartition(
+    const real_t* U,          // Solution data
+    const real_t* geoFactors, // rx,ry,rz,sx,sy,sz,tx,ty,tz
+    real_t* DX,               // Output derivatives
+    real_t* DY,
+    real_t* DZ,
+    int part,                 // Partition ID
+    int K                     // Elements per partition
+) {
+    int partOffset = PART_OFFSET(part);
+    
+    // Temporary storage for reference derivatives
     real_t dUdr[K*NP], dUds[K*NP], dUdt[K*NP];
     
     // Apply differentiation matrices
-    matMul_Dr_Large(U, dUdr, K);
-    matMul_Ds_Large(U, dUds, K);
-    matMul_Dt_Large(U, dUdt, K);
+    matMul_Dr_Partition(U, dUdr, part, K);
+    matMul_Ds_Partition(U, dUds, part, K);
+    matMul_Dt_Partition(U, dUdt, part, K);
     
-    // Apply chain rule - perfect memory access pattern
+    // Apply chain rule for physical derivatives
     for (int elem = 0; elem < K; ++elem) {
         for (int node = 0; node < NP; ++node) {
-            int idx = elem*NP + node;
-            DX[idx] = rx[idx]*dUdr[idx] + sx[idx]*dUds[idx] + tx[idx]*dUdt[idx];
-            DY[idx] = ry[idx]*dUdr[idx] + sy[idx]*dUds[idx] + ty[idx]*dUdt[idx];
-            DZ[idx] = rz[idx]*dUdr[idx] + sz[idx]*dUds[idx] + tz[idx]*dUdt[idx];
+            int idx = partOffset + elem*NP + node;
+            int geoIdx = idx * 9;  // 9 geometric factors per node
+            
+            DX[idx] = geoFactors[geoIdx+0]*dUdr[idx] + 
+                      geoFactors[geoIdx+3]*dUds[idx] + 
+                      geoFactors[geoIdx+6]*dUdt[idx];
+                      
+            DY[idx] = geoFactors[geoIdx+1]*dUdr[idx] + 
+                      geoFactors[geoIdx+4]*dUds[idx] + 
+                      geoFactors[geoIdx+7]*dUdt[idx];
+                      
+            DZ[idx] = geoFactors[geoIdx+2]*dUdr[idx] + 
+                      geoFactors[geoIdx+5]*dUds[idx] + 
+                      geoFactors[geoIdx+8]*dUdt[idx];
         }
     }
 }
@@ -156,182 +240,244 @@ inline void computePhysicalDerivatives(
 
 ### AllocateKernelMemory()
 
-Allocates persistent device memory for element-blocked runtime data:
+Allocates memory for all partitions in contiguous blocks:
 
 ```go
 func (kp *KernelProgram) AllocateKernelMemory() error {
     floatSize := kp.GetFloatSize()
     intSize := kp.GetIntSize()
     
-    // All arrays sized for element-blocked layout
-    nodeCount := kp.Np * kp.NumElements  // Total nodes = Np × K
+    // Total counts across all partitions
+    totalNodes := kp.NumPartitions * kp.ElementsPerPart * kp.Np
+    totalFaces := kp.NumPartitions * kp.ElementsPerPart * kp.Nfaces * kp.Nfp
     
-    // Solution arrays
-    kp.memory["U"] = kp.device.Malloc(
-        int64(nodeCount * floatSize),
-        nil, 
-        nil,
-    )
+    // Solution arrays - partition-blocked
+    kp.memory["U"] = kp.device.Malloc(int64(totalNodes * floatSize), nil, nil)
+    kp.memory["RHS"] = kp.device.Malloc(int64(totalNodes * floatSize), nil, nil)
     
-    // Geometric factors maintain element-blocked layout
-    geoFactors := []string{"rx", "ry", "rz", "sx", "sy", "sz", "tx", "ty", "tz"}
-    for _, factor := range geoFactors {
-        kp.memory[factor] = kp.device.Malloc(
-            int64(nodeCount * floatSize),
-            nil,
-            nil,
-        )
-    }
+    // Geometric factors - partition-blocked
+    // Store as structure of arrays for better access patterns
+    geoSize := totalNodes * 9 * floatSize  // 9 factors: rx,ry,rz,sx,sy,sz,tx,ty,tz
+    kp.memory["geoFactors"] = kp.device.Malloc(int64(geoSize), nil, nil)
     
-    // Face data also element-blocked
-    faceCount := 4 * kp.Nfp * kp.NumElements
-    kp.memory["faceM"] = kp.device.Malloc(
-        int64(faceCount * floatSize),
-        nil,
-        nil,
-    )
+    // Face data - partition-blocked
+    kp.memory["faceDataSend"] = kp.device.Malloc(int64(totalFaces * floatSize), nil, nil)
+    kp.memory["faceDataRecv"] = kp.device.Malloc(int64(totalFaces * floatSize), nil, nil)
+    
+    // Partition connectivity for face exchange
+    connSize := kp.NumPartitions * kp.ElementsPerPart * kp.Nfaces * 2  // (neighbor_part, neighbor_elem)
+    kp.memory["partitionConn"] = kp.device.Malloc(int64(connSize * intSize), nil, nil)
     
     return nil
 }
 ```
 
-## Kernel Design Patterns
+## Kernel Execution
 
-### Element-Local Operations
+### RunKernel Implementation
 
-The element-blocked layout makes element-local operations extremely efficient:
-
-```c
-@kernel void elementLocalOperation(
-    const int K,
-    const real_t* U,      // U[K][NP]
-    real_t* result        // result[K][NP]
-) {
-    for (int elem = 0; elem < K; ++elem; @outer) {
-        // All nodes of element 'elem' are contiguous
-        // Perfect for cache and vectorization
-        for (int node = 0; node < NP; ++node; @inner) {
-            int idx = elem*NP + node;
-            result[idx] = someOperation(U[idx]);
-        }
+```go
+func (kp *KernelProgram) RunKernel(name string, args ...interface{}) error {
+    kernel, exists := kp.kernels[name]
+    if !exists {
+        return fmt.Errorf("kernel %s not found", name)
     }
+    
+    // Configure for partition-parallel execution
+    // Each partition runs on its own GPU block / CPU thread
+    outerDims := gocca.OCCADim{
+        X: uint64(kp.NumPartitions),  // Partitions map to blocks
+        Y: 1,
+        Z: 1,
+    }
+    
+    // Inner parallelism over nodes
+    innerDims := gocca.OCCADim{
+        X: uint64(kp.Np),  // Nodes map to threads
+        Y: 1,
+        Z: 1,
+    }
+    
+    kernel.SetRunDims(outerDims, innerDims)
+    
+    return kernel.RunWithArgs(args...)
 }
 ```
 
-### Face Operations
+### Face Exchange Pattern
 
-Face data extraction is straightforward with element-blocked layout:
+Inter-partition communication uses a separate kernel:
 
 ```c
-@kernel void extractFaceData(
+@kernel void exchangeFaceData(
+    const int Npart,
     const int K,
-    const real_t* U,           // U[K][NP]
-    const int_t* faceNodes,    // Face node indices within element
-    real_t* faceData          // faceData[K][Nfaces][Nfp]
+    const real_t* U,              // Solution data
+    real_t* faceDataSend,         // Outgoing face data
+    real_t* faceDataRecv,         // Incoming face data  
+    const int_t* partitionConn,   // Connectivity info
+    const int_t* faceNodeMap      // Maps volume nodes to face nodes
 ) {
-    for (int elem = 0; elem < K; ++elem; @outer) {
-        for (int face = 0; face < 4; ++face) {
-            for (int fp = 0; fp < NFP; ++fp; @inner) {
-                int volumeNode = faceNodes[face*NFP + fp];
-                int volumeIdx = elem*NP + volumeNode;
-                int faceIdx = elem*4*NFP + face*NFP + fp;
-                faceData[faceIdx] = U[volumeIdx];
+    // Each partition prepares its boundary data
+    for (int part = 0; part < Npart; ++part; @outer(0)) {
+        
+        // Extract face data for boundary elements
+        for (int elem = 0; elem < K; ++elem) {
+            for (int face = 0; face < NFACES; ++face) {
+                
+                // Check if this face is on partition boundary
+                int connIdx = part*K*NFACES*2 + elem*NFACES*2 + face*2;
+                int neighborPart = partitionConn[connIdx];
+                
+                if (neighborPart != part) {  // Inter-partition face
+                    // Copy face data to send buffer
+                    for (int fp = 0; fp < NFP; ++fp; @inner(0)) {
+                        int volNode = faceNodeMap[face*NFP + fp];
+                        int volIdx = ELEM_OFFSET(part, elem) + volNode;
+                        int faceIdx = part*K*NFACES*NFP + elem*NFACES*NFP + face*NFP + fp;
+                        
+                        faceDataSend[faceIdx] = U[volIdx];
+                    }
+                }
+            }
+        }
+    }
+    
+    // Actual communication happens between kernel calls
+    // via CPU memcpy or GPU peer-to-peer transfers
+}
+```
+
+## Example Kernels
+
+### Complete RHS Computation
+
+```c
+@kernel void computeRHS(
+    const int Npart,
+    const int K,
+    const real_t* U,
+    const real_t* geoFactors,
+    const real_t* faceDataRecv,
+    real_t* RHS
+) {
+    // Partition-parallel execution
+    for (int part = 0; part < Npart; ++part; @outer(0)) {
+        
+        // Allocate partition-local temporary arrays
+        real_t DX[K*NP], DY[K*NP], DZ[K*NP];
+        
+        // Compute volume derivatives for this partition
+        computePhysDerivPartition(U, geoFactors, DX, DY, DZ, part, K);
+        
+        // Process all elements in partition
+        for (int elem = 0; elem < K; ++elem) {
+            
+            // Apply DG operations element-by-element
+            for (int node = 0; node < NP; ++node; @inner(0)) {
+                int idx = NODE_INDEX(part, elem, node);
+                
+                // Volume integral contribution
+                real_t divF = computeDivergence(DX[idx], DY[idx], DZ[idx]);
+                
+                // Surface integral contribution
+                real_t surfF = computeSurfaceFlux(elem, node, part, faceDataRecv);
+                
+                // Combine for RHS
+                RHS[idx] = divF - surfF;
             }
         }
     }
 }
 ```
 
-## Performance Benefits
+## Performance Characteristics
 
-The element-blocked layout provides significant performance advantages:
+### GPU Execution
 
-1. **Cache Efficiency**:
-   - Static matrices remain in L1/L2 cache
-   - Element data accessed in contiguous blocks
-   - Minimal cache misses during element-local operations
+For a typical problem on a modern GPU:
+- **Global mesh**: 1,000,000 elements
+- **GPU memory**: Can hold ~100,000 elements
+- **Configuration**: Npart = 10, K = 100,000
+- **Execution**:
+   - 10 GPU blocks (one per partition)
+   - Each block processes 100,000 elements
+   - 35-100 threads per block (depending on polynomial order)
+   - All partitions execute simultaneously
 
-2. **Vectorization**:
-   - Inner loops over NP nodes can be fully vectorized
-   - Compiler can optimize for SIMD instructions
-   - Natural alignment for vector loads/stores
+### Advantages
 
-3. **Memory Bandwidth**:
-   - Contiguous memory access maximizes bandwidth utilization
-   - Coalesced memory access on GPUs
-   - Reduced memory latency
+1. **Full GPU Utilization**: All streaming multiprocessors engaged
+2. **Coalesced Memory Access**: Partition-blocked layout ensures adjacent threads access adjacent memory
+3. **Minimal Synchronization**: Partitions execute independently
+4. **Scalable**: Easy to adjust Npart based on problem size and hardware
 
-4. **Parallelization**:
-   - Elements are independent computational units
-   - Perfect for GPU thread blocks or CPU SIMD lanes
-   - No false sharing between elements
+### Design Decisions
+
+1. **Why Partitions at @outer Level**:
+   - Natural mapping to GPU blocks
+   - Enables partition-independent execution
+   - Simplifies face exchange pattern
+
+2. **Why Element-Blocked Within Partitions**:
+   - Maximizes cache reuse for element-local operations
+   - Enables vectorization over nodes
+   - Standard DG data layout
+
+3. **Why Not Elements at @outer Level**:
+   - Would require 1M blocks for 1M elements (exceeds GPU limits)
+   - Partitioning provides right granularity for GPU blocks
 
 ## Usage Example
 
 ```go
-func main() {
-    // Create KernelProgram with element-blocked layout
-    device, _ := gocca.NewDevice(`{"mode": "CUDA"}`)
-    kp := NewKernelProgram(device, Config{
-        Order:       4,
-        NumElements: 1000,  // K elements in this partition
-        FloatType:   Float64,
-    })
+// Configure for large 3D mesh
+kp := NewKernelProgram(device, Config{
+    NumPartitions:   64,      // 64 GPU blocks
+    ElementsPerPart: 10000,   // 10K elements per partition
+    Order:           4,       // 4th order polynomials
+    FloatType:       Float64,
+})
+
+// Add DG operators
+kp.AddStaticMatrix("Dr", Dr)
+kp.AddStaticMatrix("Ds", Ds)
+kp.AddStaticMatrix("Dt", Dt)
+
+// Generate partition-aware code
+preamble := kp.GenerateKernelMain()
+
+// Build RHS kernel
+kp.BuildKernel(rhsKernelSource, "computeRHS")
+
+// Allocate memory for all partitions
+kp.AllocateKernelMemory()
+
+// Time stepping loop
+for step := 0; step < nSteps; step++ {
+    // Exchange face data between partitions
+    kp.RunKernel("exchangeFaceData", ...)
     
-    // Add DG operators
-    kp.AddStaticMatrix("Dr", Dr)
-    kp.AddStaticMatrix("Ds", Ds)
-    kp.AddStaticMatrix("Dt", Dt)
+    // Compute RHS with all partitions in parallel
+    kp.RunKernel("computeRHS", 
+        kp.NumPartitions,
+        kp.ElementsPerPart,
+        kp.GetMemory("U"),
+        kp.GetMemory("geoFactors"),
+        kp.GetMemory("faceDataRecv"),
+        kp.GetMemory("RHS"))
     
-    // Generate optimized code for element-blocked layout
-    preamble := kp.GenerateKernelMain()
-    
-    // User kernels work with element-blocked data
-    rhsKernel := `
-    @kernel void computeRHS(
-        const int K,
-        const real_t* U,      // Element-blocked
-        real_t* RHS           // Element-blocked
-    ) {
-        // Temporary storage
-        real_t DX[NP*K], DY[NP*K], DZ[NP*K];
-        
-        // Compute derivatives - optimized for element-blocked layout
-        computePhysicalDerivatives(U, rx, ry, rz, sx, sy, sz, tx, ty, tz,
-                                  DX, DY, DZ, K);
-        
-        // Further operations maintain element-blocked pattern
-        for (int elem = 0; elem < K; ++elem) {
-            for (int node = 0; node < NP; ++node) {
-                int idx = elem*NP + node;
-                RHS[idx] = /* flux divergence using DX, DY, DZ */;
-            }
-        }
-    }
-    `
-    
-    // Build and execute
-    kp.BuildKernel(rhsKernel, "computeRHS")
-    kp.AllocateKernelMemory()
-    
-    // Initialize with element-blocked data
-    hostU := make([]float64, kp.Np * kp.NumElements)
-    // Fill hostU with element-blocked layout
-    kp.GetMemory("U").CopyFrom(unsafe.Pointer(&hostU[0]))
-    
-    // Execute optimized kernel
-    kp.RunKernel("computeRHS", kp.NumElements, 
-                 kp.GetMemory("U"), kp.GetMemory("RHS"))
+    // Time integration
+    kp.RunKernel("timeStep", ...)
 }
 ```
 
 ## Conclusion
 
-The KernelProgram system's commitment to element-blocked data layout enables the generation of highly optimized kernels for DG methods. By standardizing on this layout pattern, the system can:
+The partition-parallel execution model in KernelProgram provides:
+- Efficient utilization of GPU/parallel hardware
+- Natural mapping to OCCA's parallelism model
+- Scalability from small to very large meshes
+- Clear separation between independent partitions
 
-- Generate cache-optimal matrix operations
-- Enable aggressive compiler optimizations
-- Maximize hardware utilization
-- Simplify kernel development
-
-This design choice reflects the reality that all production DG codes use element-blocked layout, making it the natural choice for a DG-focused kernel generation system.
+This design enables high-performance DG computations while maintaining code clarity and portability across different parallel backends.
