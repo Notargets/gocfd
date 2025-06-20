@@ -28,12 +28,22 @@ Global Mesh (Kglobal elements)
 where: Kglobal = Npart × K (approximately)
 ```
 
+Partitioning is performed using METIS or similar graph partitioning libraries to ensure:
+- **Load balance**: Each partition has approximately equal elements
+- **Minimal edge cuts**: Reduced inter-partition communication
+- **Partition count**: Chosen to match target hardware parallelism
+
 ### Parallel Execution
 
-All partitions execute simultaneously:
+All partitions execute simultaneously on available hardware:
 - **GPU**: Each partition runs on a separate CUDA block / OpenCL work-group
-- **CPU**: Each partition runs on a separate thread
+- **CPU**: Each partition runs on a separate OpenMP thread
 - **Vectorization**: Within each partition, operations are vectorized over elements
+
+The partition count is configured to match the target hardware:
+- **GPU**: Npart ≈ number of streaming multiprocessors (40-128)
+- **CPU**: Npart ≈ number of CPU threads (16-128)
+- **METIS partitioning**: Ensures equal load regardless of partition count
 
 ### OCCA Kernel Structure
 
@@ -393,40 +403,78 @@ Inter-partition communication uses a separate kernel:
 
 ## Performance Characteristics
 
-### GPU Execution
+### Hardware Mapping Examples
 
-For a typical problem on a modern GPU:
-- **Global mesh**: 1,000,000 elements
-- **GPU memory**: Can hold ~100,000 elements
-- **Configuration**: Npart = 10, K = 100,000
-- **Execution**:
-   - 10 GPU blocks (one per partition)
-   - Each block processes 100,000 elements
-   - 35-100 threads per block (depending on polynomial order)
-   - All partitions execute simultaneously
+Consider a 3D Navier-Stokes solver with 100,000 elements at polynomial order 5 (Np = 56 nodes per element):
 
-### Advantages
+**Memory per element (realistic)**:
+- Solution variables: 5 fields × 56 nodes × 8 bytes = 2,240 bytes
+- Viscous stresses: 6 components × 56 nodes × 8 bytes = 2,688 bytes
+- Velocity/temperature gradients: 12 fields × 56 nodes × 8 bytes = 5,376 bytes
+- Geometric factors: 10 fields × 56 nodes × 8 bytes = 4,480 bytes
+- Working arrays & auxiliary data: ~15 fields × 56 nodes × 8 bytes = 6,720 bytes
+- **Total: ~21.5 KB per element**
 
-1. **Full GPU Utilization**: All streaming multiprocessors engaged
-2. **Coalesced Memory Access**: Partition-blocked layout ensures adjacent threads access adjacent memory
-3. **Minimal Synchronization**: Partitions execute independently
-4. **Scalable**: Easy to adjust Npart based on problem size and hardware
+#### NVIDIA RTX 5090 GPU
+- **Hardware**: ~128 SMs, 16 GB memory
+- **Configuration**:
+    - Npart = 128 (one partition per SM)
+    - K = 781 elements per partition
+    - Memory per partition: 781 × 21.5 KB = **16.8 MB**
+    - Total memory: 128 × 16.8 MB = 2.15 GB (fits comfortably in 16 GB)
+- **Cache Reality**:
+    - L2 cache: 96 MB total (0.75 MB per SM) - partition won't fit
+    - Streaming memory access pattern required
+    - Element-blocked layout ensures coalesced memory transactions
+- **Execution Strategy**:
+    - Process elements in cache-sized tiles
+    - Rely on high memory bandwidth (1+ TB/s)
+
+#### AMD Threadripper PRO 7965WX CPU
+- **Hardware**: 24 cores, 48 threads, 512 GB RAM
+- **Configuration**:
+    - Npart = 48 (one partition per thread)
+    - K = 2,083 elements per partition
+    - Memory per partition: 2,083 × 21.5 KB = **44.8 MB**
+    - Total memory: 48 × 44.8 MB = 2.15 GB
+- **Cache Reality**:
+    - L3 cache: 128 MB total (shared) - can hold ~3 partitions
+    - L2 cache: 1 MB per core - holds ~47 elements
+    - Must stream from RAM (460+ GB/s bandwidth)
+- **Optimization Strategy**:
+    - Process elements in L2-sized blocks (~40-50 elements)
+    - Prefetch next element block while computing
+    - NUMA-aware allocation critical
+
+### Implications
+
+1. **Memory Bandwidth Bound**: Both architectures will be bandwidth-limited (expected for DG methods)
+2. **Cache Blocking**: Must process partitions in cache-friendly chunks
+3. **Prefetching**: Critical for hiding memory latency
+4. **Element Blocking Advantage**: Consecutive memory access within elements maximizes bandwidth efficiency
+5. **Partition Benefits**: Despite exceeding cache, partitioning still provides:
+    - Independent execution units (no synchronization)
+    - Controlled working set size
+    - Natural parallelism mapping
+    - Efficient face exchange patterns
 
 ### Design Decisions
 
 1. **Why Partitions at @outer Level**:
-   - Natural mapping to GPU blocks
-   - Enables partition-independent execution
-   - Simplifies face exchange pattern
+    - Natural mapping to GPU blocks and CPU threads
+    - Enables partition-independent execution
+    - Simplifies face exchange pattern
+    - Allows hardware-specific partition counts
 
 2. **Why Element-Blocked Within Partitions**:
-   - Maximizes cache reuse for element-local operations
-   - Enables vectorization over nodes
-   - Standard DG data layout
+    - Maximizes cache reuse for element-local operations
+    - Enables vectorization over nodes
+    - Standard DG data layout
 
-3. **Why Not Elements at @outer Level**:
-   - Would require 1M blocks for 1M elements (exceeds GPU limits)
-   - Partitioning provides right granularity for GPU blocks
+3. **Partition Count Selection**:
+    - **GPU**: Npart = number of SMs (typically 40-128)
+    - **CPU**: Npart = number of threads (typically 16-128)
+    - METIS ensures load balance regardless of partition count
 
 ## Usage Example
 
