@@ -19,6 +19,9 @@ const (
 
 // KernelProgram manages code generation and execution for DG kernels
 type KernelProgram struct {
+	// KernelProgram uses element-blocked data layout throughout:
+	// Data arrays are organized as [elem0_node0, elem0_node1, ..., elem0_nodeNP-1, elem1_node0, ...]
+	// This is the standard DG layout for optimal element-local operations.
 	// Configuration
 	Order       int      // Polynomial order (N)
 	Np          int      // Number of nodes per element
@@ -215,12 +218,11 @@ func (kp *KernelProgram) generateUtilityFunctions() string {
 }
 
 // generateMatMulFunction creates a matrix multiplication function for a specific static matrix
-// This version uses element-blocked data layout where all nodes of an element are consecutive
+// Uses element-blocked data layout (standard DG layout where nodes within an element are contiguous)
 func (kp *KernelProgram) generateMatMulFunction(matrixName string) string {
-	return fmt.Sprintf(`// Matrix multiplication using static %s (element-blocked layout)
+	return fmt.Sprintf(`// Matrix multiplication using static %s
+// Data layout: element-blocked [elem0_node0, elem0_node1, ..., elem0_nodeNP-1, elem1_node0, ...]
 inline void matMul_%s_Large(const real_t* U, real_t* result, int K) {
-    // K is the number of elements
-    // Data layout: [elem0_node0, elem0_node1, ..., elem0_nodeNP-1, elem1_node0, ...]
     for (int elem = 0; elem < K; ++elem) {
         for (int i = 0; i < NP; ++i) {
             real_t sum = REAL_ZERO;
