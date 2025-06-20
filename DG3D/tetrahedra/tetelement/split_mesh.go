@@ -28,7 +28,6 @@ func (el *Element3D) SplitMesh() (err error) {
 	// Initialize partition data structures
 	el.PEToE = make(map[int][]int)
 	partEToV := make(map[int][][]int)
-	partElementTypes := make(map[int][]utils.ElementType)
 	partBCs := make(map[int]map[string][]mesh.BoundaryElement)
 
 	// Build PEToE and partition element data
@@ -40,10 +39,6 @@ func (el *Element3D) SplitMesh() (err error) {
 
 		// Copy element connectivity (keeping global vertex IDs!)
 		partEToV[partID] = append(partEToV[partID], el.Mesh.EtoV[elemID])
-
-		// Copy element type
-		partElementTypes[partID] = append(partElementTypes[partID],
-			el.Mesh.ElementTypes[elemID])
 	}
 
 	// Transform BCs to local element indices
