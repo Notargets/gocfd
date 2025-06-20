@@ -125,7 +125,7 @@ func TestKernelProgram_StaticMatrixGeneration(t *testing.T) {
 
 	// Verify preamble contains expected content
 	expectedPatterns := []string{
-		"const double TestMatrix[3][3]",
+		"const double TestMatrix[3][3]", // OCCA uses 'const' not '__constant__'
 		"1.000000000000000e+00",
 		"matMul_TestMatrix_Large",
 		"typedef double real_t",
@@ -165,7 +165,7 @@ func TestKernelProgram_StaticMatrixGeneration(t *testing.T) {
 	}
 
 	float32Patterns := []string{
-		"__constant__ float SmallMat[2][2]",
+		"const float SmallMat[2][2]", // OCCA uses 'const' not '__constant__'
 		"typedef float real_t",
 		"typedef int int_t",
 		"1.5000000e+00f", // %.7ef format gives 7 digits after decimal
@@ -269,14 +269,20 @@ func TestKernelProgram_MatrixVectorProduct(t *testing.T) {
 			kp.AddStaticMatrix("Dr", Dr)
 			kp.GenerateKernelMain()
 
-			// Kernel that applies Dr to data
+			// Kernel that applies Dr to data - MUST have @outer loop
 			kernelSource := `
 			@kernel void applyDr(
 				const int K,
 				const real_t* U,
 				real_t* dU
 			) {
-				matMul_Dr_Large(U, dU, K);
+				// OCCA requires at least one @outer loop
+				for (int elem = 0; elem < 1; ++elem; @outer(0)) {
+					// Optional @inner loop for work items
+					for (int work = 0; work < 1; ++work; @inner(0)) {
+						matMul_Dr_Large(U, dU, K);
+					}
+				}
 			}
 			`
 
@@ -338,31 +344,38 @@ func TestKernelProgram_ChainedOperations(t *testing.T) {
 
 	// Complex kernel with index indirection and chained ops
 	kernelSource := `
-	@kernel void chainedPattern(
-		const int K,
-		const int_t* permutation,
-		const real_t* input,
-		real_t* temp1,
-		real_t* temp2,
-		real_t* output
-	) {
-		// Step 1: Apply matrix A
-		matMul_A_Large(input, temp1, K);
-		
-		// Step 2: Permute using indices
-		for (int i = 0; i < NP*K; ++i) {
-			temp2[permutation[i]] = temp1[i];
-		}
-		
-		// Step 3: Apply matrix B
-		matMul_B_Large(temp2, output, K);
-		
-		// Step 4: Add signature pattern
-		for (int i = 0; i < NP*K; ++i) {
-			output[i] += (real_t)(i % NP);
-		}
-	}
-	`
+@kernel void chainedPattern(
+    const int K,
+    const int_t* permutation,
+    const real_t* input,
+    real_t* temp1,
+    real_t* temp2,
+    real_t* output
+) {
+    // OCCA requires at least one @outer loop
+    for (int block = 0; block < 1; ++block; @outer(0)) {
+        // Optional @inner loop for work items
+        for (int work = 0; work < 1; ++work; @inner(0)) {
+            // Step 1: Apply matrix A
+            matMul_A_Large(input, temp1, K);
+            
+            // Step 2: Permute using indices
+            for (int i = 0; i < NP*K; ++i) {
+                temp2[permutation[i]] = temp1[i];
+            }
+            
+            // Step 3: Apply matrix B
+            matMul_B_Large(temp2, output, K);
+            
+            // Step 4: Add signature pattern
+            for (int i = 0; i < NP*K; ++i) {
+                int mod_val = i % NP;
+                output[i] += (real_t)mod_val;
+            }
+        }
+    }
+}
+`
 
 	_, err := kp.BuildKernel(kernelSource, "chainedPattern")
 	if err != nil {

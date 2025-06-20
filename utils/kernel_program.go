@@ -168,7 +168,7 @@ func (kp *KernelProgram) formatStaticMatrix(name string, m Matrix) string {
 		typeStr = "float"
 	}
 
-	// Use const instead of __constant__ for OCCA
+	// Use const for OCCA (it will translate to __constant__ for GPU backends)
 	sb.WriteString(fmt.Sprintf("const %s %s[%d][%d] = {\n",
 		typeStr, name, rows, cols))
 
@@ -178,14 +178,19 @@ func (kp *KernelProgram) formatStaticMatrix(name string, m Matrix) string {
 			if j > 0 {
 				sb.WriteString(", ")
 			}
-			// Use appropriate precision
+			// Format the value
+			val := m.At(i, j)
 			if kp.FloatType == Float32 {
-				sb.WriteString(fmt.Sprintf("%.7ef", m.At(i, j)))
+				sb.WriteString(fmt.Sprintf("%.7ef", val))
 			} else {
-				sb.WriteString(fmt.Sprintf("%.15e", m.At(i, j)))
+				sb.WriteString(fmt.Sprintf("%.15e", val))
 			}
 		}
-		sb.WriteString("},\n")
+		sb.WriteString("}")
+		if i < rows-1 {
+			sb.WriteString(",")
+		}
+		sb.WriteString("\n")
 	}
 	sb.WriteString("};\n\n")
 
@@ -355,28 +360,6 @@ func (kp *KernelProgram) AllocateKernelMemory() error {
 	return nil
 }
 
-// RegisterKernel adds a compiled kernel to the program
-func (kp *KernelProgram) RegisterKernel(name string, kernel *gocca.OCCAKernel) {
-	kp.kernels[name] = kernel
-}
-
-// BuildKernel compiles a kernel from source with the generated preamble
-func (kp *KernelProgram) BuildKernel(kernelSource, kernelName string) (*gocca.OCCAKernel, error) {
-	// Combine preamble with kernel source
-	fullSource := kp.kernelPreamble + "\n" + kernelSource
-
-	// Build kernel
-	kernel, err := kp.device.BuildKernelFromString(fullSource, kernelName, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build kernel %s: %w", kernelName, err)
-	}
-
-	// Register it
-	kp.RegisterKernel(kernelName, kernel)
-
-	return kernel, nil
-}
-
 // RunKernel executes a registered kernel with the given arguments
 func (kp *KernelProgram) RunKernel(name string, args ...interface{}) error {
 	kernel, exists := kp.kernels[name]
@@ -399,19 +382,6 @@ func (kp *KernelProgram) GetMemory(name string) *gocca.OCCAMemory {
 	return kp.memory[name]
 }
 
-// Free releases all allocated resources
-func (kp *KernelProgram) Free() {
-	// Free kernels
-	for _, kernel := range kp.kernels {
-		kernel.Free()
-	}
-
-	// Free memory
-	for _, mem := range kp.memory {
-		mem.Free()
-	}
-}
-
 // GetKernelPreamble returns the generated preamble (useful for debugging)
 func (kp *KernelProgram) GetKernelPreamble() string {
 	return kp.kernelPreamble
@@ -431,4 +401,54 @@ func (kp *KernelProgram) GetIntSize() int {
 		return 4
 	}
 	return 8
+}
+
+// Free releases all allocated resources
+func (kp *KernelProgram) Free() {
+	// Free kernels safely
+	for _, kernel := range kp.kernels {
+		if kernel != nil {
+			kernel.Free()
+		}
+	}
+
+	// Free memory safely
+	for _, mem := range kp.memory {
+		if mem != nil {
+			mem.Free()
+		}
+	}
+}
+
+// BuildKernel compiles a kernel from source with the generated preamble
+func (kp *KernelProgram) BuildKernel(kernelSource, kernelName string) (*gocca.OCCAKernel, error) {
+	// Ensure preamble is generated
+	if kp.kernelPreamble == "" {
+		kp.GenerateKernelMain()
+	}
+
+	// Combine preamble with kernel source
+	fullSource := kp.kernelPreamble + "\n" + kernelSource
+
+	// Build kernel
+	kernel, err := kp.device.BuildKernelFromString(fullSource, kernelName, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build kernel %s: %w", kernelName, err)
+	}
+
+	// Only register if build succeeded
+	if kernel != nil {
+		kp.RegisterKernel(kernelName, kernel)
+		return kernel, nil
+	}
+
+	return nil, fmt.Errorf("kernel build returned nil for %s", kernelName)
+}
+
+// RegisterKernel adds a compiled kernel to the program
+func (kp *KernelProgram) RegisterKernel(name string, kernel *gocca.OCCAKernel) {
+	if kernel == nil {
+		return
+	}
+	kp.kernels[name] = kernel
 }
