@@ -49,7 +49,7 @@ type Config struct {
 
 // New creates a new KernelProgram with the given configuration
 func NewKernelProgram(device *gocca.OCCADevice, cfg Config) *KernelProgram {
-	// Set defaults
+	// Set defaults only if both are zero
 	if cfg.FloatType == 0 && cfg.IntType == 0 {
 		cfg.FloatType = Float64
 		cfg.IntType = Int64
@@ -59,7 +59,7 @@ func NewKernelProgram(device *gocca.OCCADevice, cfg Config) *KernelProgram {
 	np := (cfg.Order + 1) * (cfg.Order + 2) * (cfg.Order + 3) / 6
 	nfp := (cfg.Order + 1) * (cfg.Order + 2) / 2
 
-	return &KernelProgram{
+	kp := &KernelProgram{
 		Order:          cfg.Order,
 		Np:             np,
 		Nfp:            nfp,
@@ -71,6 +71,8 @@ func NewKernelProgram(device *gocca.OCCADevice, cfg Config) *KernelProgram {
 		kernels:        make(map[string]*gocca.OCCAKernel),
 		memory:         make(map[string]*gocca.OCCAMemory),
 	}
+
+	return kp
 }
 
 // AddStaticMatrix adds a matrix that will be compiled into kernels as static data
@@ -166,7 +168,8 @@ func (kp *KernelProgram) formatStaticMatrix(name string, m Matrix) string {
 		typeStr = "float"
 	}
 
-	sb.WriteString(fmt.Sprintf("__constant__ %s %s[%d][%d] = {\n",
+	// Use const instead of __constant__ for OCCA
+	sb.WriteString(fmt.Sprintf("const %s %s[%d][%d] = {\n",
 		typeStr, name, rows, cols))
 
 	for i := 0; i < rows; i++ {
