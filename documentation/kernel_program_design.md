@@ -7,7 +7,7 @@ The KernelProgram system provides a high-level abstraction for generating and ex
 ## Core Design Principles
 
 1. **Partition-Parallel Execution**: Global mesh divided into Npart partitions that execute simultaneously on GPU blocks or CPU threads
-2. **Variable Partition Sizes**: Each partition may have different element counts K[part]
+2. **Variable Partition Sizes**: Each partition may have different element counts; kArray[part] gives elements for partition part
 3. **Pooled Memory Allocation**: Single allocation per array type with aligned partition offsets
 4. **Tagged Alignment**: Different arrays use different alignment boundaries for performance
 5. **OCCA-Native Parallelism**: Partitions map directly to OCCA @outer annotations
@@ -22,12 +22,12 @@ The global mesh with Kglobal elements is divided into Npart partitions with vari
 
 ```
 Global Mesh (Kglobal elements)
-    ├── Partition 0: K[0] elements
-    ├── Partition 1: K[1] elements
+    ├── Partition 0: kArray[0] elements
+    ├── Partition 1: kArray[1] elements
     ├── ...
-    └── Partition Npart-1: K[Npart-1] elements
+    └── Partition Npart-1: kArray[Npart-1] elements
 
-where: Kglobal = sum(K[0] + K[1] + ... + K[Npart-1])
+where: Kglobal = sum(kArray[0] + kArray[1] + ... + kArray[Npart-1])
 ```
 
 Partitioning is performed using METIS or similar graph partitioning libraries to ensure:
@@ -53,7 +53,7 @@ The partition count is configured to match the target hardware:
 The M buffer stores all face point data for a partition in **natural traversal order**, following the nested loop structure:
 
 ```
-for element in 0..K-1:
+for element in 0..K-1:    // K is the local element count for this partition
     for face in 0..NFACES-1:
         for point in 0..NFP-1:
             M[index++] = face_data[element][face][point]
@@ -85,8 +85,8 @@ type FaceBuffer struct {
     // Dimensions
     Nfp             uint32 // Face points per face
     Nfaces          uint32 // Faces per element (4 for tetrahedra)
-    K               uint32 // Number of elements in this partition
-    TotalFacePoints uint32 // Total M buffer size = Nfp * Nfaces * K
+    K               uint32 // Number of elements in this partition (local K value)
+    TotalFacePoints uint32 // Total M buffer size = K * Nfaces * Nfp
 
     // Face classification
     FaceTypes []FaceType // Type of each face point connection
@@ -111,7 +111,19 @@ The system uses OCCA's device memory allocation API:
 
 ```go
 func (kp *KernelProgram) AllocatePooledMemory() error {
-    // Calculate total sizes for each array type
+    // First, allocate the kArray (element counts per partition)
+    // This is a global array, not per-partition
+    kArrayData := make([]int32, kp.NumPartitions)
+    for i := 0; i < kp.NumPartitions; i++ {
+        kArrayData[i] = int32(kp.ElementsPerPartition[i])
+    }
+    kp.memory["kArray"] = kp.device.Malloc(
+        int64(kp.NumPartitions * 4), // 4 bytes per int32
+        unsafe.Pointer(&kArrayData[0]),
+        nil,
+    )
+    
+    // Calculate total sizes for each per-partition array type
     for _, spec := range memoryLayout {
         totalSize := 0
         offsets := make([]int, kp.NumPartitions)
@@ -122,7 +134,7 @@ func (kp *KernelProgram) AllocatePooledMemory() error {
             offsets[part] = totalSize
             
             // Add this partition's data
-            K := kp.K[part]
+            K := kp.ElementsPerPartition[part]  // Local K value for this partition
             partSize := spec.SizeFunc(K, kp.Np, kp.Nfp, kp.Nfaces)
             totalSize += partSize
         }
@@ -162,6 +174,7 @@ const (
 ```go
 var memoryLayout = []MemorySpec{
     // Solution arrays - cache line aligned to prevent false sharing
+    // Note: K parameter in SizeFunc is the partition-local element count
     {"U",          func(K, Np, _, _ int) int { return K * Np * 8 },           CacheLineAlign},
     {"RHS",        func(K, Np, _, _ int) int { return K * Np * 8 },           CacheLineAlign},
     
@@ -170,11 +183,11 @@ var memoryLayout = []MemorySpec{
     {"faceTypes",  func(K, _, Nfp, Nfaces int) int { return K * Nfaces * Nfp * 1 }, NoAlignment},
     
     // Communication buffers - page aligned for efficient memcpy
+    {"sendBuffer", func(K, _, Nfp, Nfaces int) int { return K * Nfaces * Nfp * 8 }, PageAlign},
     {"recvBuffer", func(K, _, Nfp, Nfaces int) int { return K * Nfaces * Nfp * 8 }, PageAlign},
     
     // Index arrays - no special alignment needed
     {"localPIndices", func(K, _, Nfp, Nfaces int) int { return K * Nfaces * Nfp * 4 }, NoAlignment},
-    {"K",            func(_, _, _, _ int) int { return 8 }, NoAlignment},
 }
 ```
 
@@ -187,7 +200,7 @@ Kernels use OCCA's @outer/@inner parallelism model:
 ```c
 @kernel void computeRHS(
     const int Npart,              // Number of partitions
-    const int* K,                 // Elements per partition (variable)
+    const int* kArray,            // Array of elements per partition (kArray[0], kArray[1], ..., kArray[Npart-1])
     const real_t* U,              // Pooled solution array
     const int* U_offsets,         // Partition offsets into U
     const real_t* M_buffer,       // Face data in natural order
@@ -210,14 +223,14 @@ Kernels use OCCA's @outer/@inner parallelism model:
         const FaceType* myFaceTypes = faceTypes + faceTypes_offsets[part];
         const int* myLocalP = localPIndices + localP_offsets[part];
         real_t* myRHS = RHS + RHS_offsets[part];
-        const int myK = K[part];
+        const int K = kArray[part];  // Extract partition-local element count
         
         // Initialize per-partition counters for sequential buffer access
         int interiorCounter = 0;
         int remoteCounters[MAX_NEIGHBORS] = {0};  // One counter per neighbor partition
         
         // Process face contributions
-        for (int elem = 0; elem < myK; ++elem) {
+        for (int elem = 0; elem < K; ++elem) {
             for (int face = 0; face < NFACES; ++face) {
                 
                 // Vectorize over face points
@@ -268,42 +281,6 @@ Kernels use OCCA's @outer/@inner parallelism model:
 2. No intermediate loops allowed between `@outer` and `@inner`
 3. All loops over elements must be inside the `@inner` loop
 4. Multiple `@inner` loops are allowed but must have the same iteration count
-
-### Face Data Exchange Kernel
-
-The exchange kernel performs indexed memcpy within shared memory:
-
-```c
-@kernel void exchangeFaceData(
-    const int Npart,
-    const real_t* M_buffer,              // Global M buffer (all partitions)
-    const int* M_offsets,                // Partition offsets
-    real_t* recvBuffers,                 // Receive buffers for each partition
-    const int* recv_offsets,             
-    const int** remoteSendIndices,       // Precomputed send patterns
-    const int* sendCounts                // How many values to send
-) {
-    // Each partition copies data it needs from other partitions
-    for (int recvPart = 0; recvPart < Npart; ++recvPart; @outer(0)) {
-        
-        // Copy from each sending partition
-        for (int sendPart = 0; sendPart < Npart; ++sendPart) {
-            if (sendCounts[sendPart][recvPart] > 0) {
-                const real_t* srcM = M_buffer + M_offsets[sendPart];
-                real_t* destBuf = recvBuffers + recv_offsets[recvPart] + 
-                                 getNeighborOffset(recvPart, sendPart);
-                const int* indices = remoteSendIndices[sendPart][recvPart];
-                int count = sendCounts[sendPart][recvPart];
-                
-                // Simple indexed memcpy with inner parallelism
-                for (int i = 0; i < count; ++i; @inner(0)) {
-                    destBuf[i] = srcM[indices[i]];
-                }
-            }
-        }
-    }
-}
-```
 
 ## Kernel Execution
 
@@ -374,35 +351,42 @@ __constant__ real_t Dr[@Np@][@Np@] = { ... };
 __constant__ real_t Ds[@Np@][@Np@] = { ... };
 __constant__ real_t Dt[@Np@][@Np@] = { ... };
 __constant__ real_t LIFT[@Np@][@Nfp@*@Nfaces@] = { ... };
+
+// Note: K (elements per partition) is passed as the runtime array kArray since each partition has different element counts
 ```
 
 ## Communication Architecture
 
-The face buffer exchange system leverages shared memory for optimal performance:
+The face buffer exchange system uses a two-phase approach for optimal performance:
 
 1. **Build-Time Index Generation**: face_buffer_builder.go creates:
    - **LocalPIndices**: Maps each interior M position to its P position within the partition
-   - **RemoteSendIndices**: For each neighbor partition, lists which M values to copy
+   - **RemoteSendIndices**: For each neighbor partition, lists which M values to gather and send
 
-2. **Shared Memory Copy**: The exchangeFaceData kernel performs indexed memcpy from each partition's M buffer to receive buffers using precomputed indices.
+2. **Runtime Data Movement** (two kernels):
+   - **gatherSendBuffers**: Each partition gathers its M values into contiguous send buffers using RemoteSendIndices
+   - **copySendToReceiveBuffers**: Send buffers are copied to receive buffers in shared memory
 
-3. **Natural Order Preservation**: RemoteSendIndices are ordered to match the receiving partition's traversal order, enabling sequential access.
+3. **Natural Order Preservation**: RemoteSendIndices are ordered to match the receiving partition's traversal order, enabling sequential access of receive buffers.
 
 4. **Sequential Runtime Access**: During flux computation:
    - Interior P values: Look up using LocalPIndices[interiorCounter++]
    - Remote P values: Access using recvBuffers[neighbor][remoteCounter[neighbor]++]
 
+This design creates contiguous buffers for efficient memcpy and eliminates all runtime indexing during the performance-critical flux computation phase.
+
+**Note**: In a shared memory system, we could potentially skip the send-to-receive buffer copy by having partitions read directly from each other's send buffers. This optimization is left for future implementation.
+
 ## Usage Example
 
 ```go
-// Create kernel program with variable partitions
-partitionElementCounts := []int{102, 98, 105, 97, 103, ...} // From METIS
-kp := NewKernelProgram(device, Config{
-    NumPartitions: 64,
-    K:             partitionElementCounts,
-    Order:         4,
-    FloatType:     Float64,
-})
+type Config struct {
+    Order                int
+    NumPartitions        int   // Number of partitions (Npart)
+    ElementsPerPartition []int // Array of element counts per partition (kArray)
+    FloatType           DataType
+    IntType             DataType
+}
 
 // Generate static data and type definitions
 kp.AddStaticMatrix("Dr", Dr)
@@ -411,7 +395,8 @@ kp.AddStaticMatrix("Dt", Dt)
 kp.GenerateKernelPreamble()
 
 // Build kernels
-kp.BuildKernel(exchangeFaceKernel, "exchangeFaceData")
+kp.BuildKernel(gatherKernel, "gatherSendBuffers")
+kp.BuildKernel(copyKernel, "copySendToReceiveBuffers") 
 kp.BuildKernel(rhsKernelSource, "computeRHS")
 
 // Allocate pooled memory with proper alignment
@@ -460,7 +445,7 @@ for step := 0; step < nSteps; step++ {
     // Phase 2: Compute RHS with purely sequential traversal
     kp.RunKernel("computeRHS",
         kp.NumPartitions,
-        kp.GetMemory("K"),
+        kp.GetMemory("kArray"),  // Array of elements per partition
         kp.GetMemory("U"), kp.GetMemory("U_offsets"),
         kp.GetMemory("M_buffer"), kp.GetMemory("M_offsets"),
         kp.GetMemory("faceTypes"), kp.GetMemory("faceTypes_offsets"),
@@ -475,7 +460,7 @@ for step := 0; step < nSteps; step++ {
 ## Design Benefits
 
 1. **OCCA Compliance**: Uses standard OCCA memory allocation and kernel execution APIs
-2. **Variable Partition Support**: Natural handling of non-uniform mesh partitions through K array
+2. **Variable Partition Support**: Natural handling of non-uniform mesh partitions through kArray
 3. **Single Allocation Per Array**: Avoids memory fragmentation, uses OCCA's pooled allocation
 4. **Optimal Alignment**: Each array type gets appropriate alignment for its access pattern
 5. **OKL Parallelism**: Proper @outer/@inner loop nesting for GPU/CPU portability
