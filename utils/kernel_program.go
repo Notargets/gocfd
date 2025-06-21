@@ -19,16 +19,23 @@ const (
 
 // KernelProgram manages code generation and execution for DG kernels
 type KernelProgram struct {
-	// KernelProgram uses element-blocked data layout throughout:
-	// Data arrays are organized as [elem0_node0, elem0_node1, ..., elem0_nodeNP-1, elem1_node0, ...]
-	// This is the standard DG layout for optimal element-local operations.
-	// Configuration
-	Order       int      // Polynomial order (N)
-	Np          int      // Number of nodes per element
-	Nfp         int      // Number of face points
-	NumElements int      // Number of elements in this partition (K)
-	FloatType   DataType // Float32 or Float64 (default: Float64)
-	IntType     DataType // Int32 or Int64 (default: Int64)
+	// KernelProgram uses partition-blocked, element-blocked data layout:
+	// Data arrays are organized as [part0_elem0_node0, ..., part0_elem0_nodeNP-1,
+	//                               part0_elem1_node0, ..., part0_elemK-1_nodeNP-1,
+	//                               part1_elem0_node0, ..., partNpart-1_elemK-1_nodeNP-1]
+	// This enables partition-parallel execution on GPU blocks/CPU threads.
+
+	// Partition configuration
+	NumPartitions   int // Npart - number of partitions
+	ElementsPerPart int // K - elements per partition
+
+	// Element configuration
+	Order     int      // Polynomial order (N)
+	Np        int      // Number of nodes per element
+	Nfp       int      // Number of face points
+	Nfaces    int      // Number of faces per element (4 for tet)
+	FloatType DataType // Float32 or Float64 (default: Float64)
+	IntType   DataType // Int32 or Int64 (default: Int64)
 
 	// Static data to embed
 	StaticMatrices map[string]Matrix // Dr, Ds, Dt, LIFT, etc.
@@ -44,15 +51,21 @@ type KernelProgram struct {
 
 // Config holds configuration for creating a KernelProgram
 type Config struct {
-	Order       int
-	NumElements int
-	FloatType   DataType
-	IntType     DataType
+	Order           int
+	NumPartitions   int // Number of partitions (default: 1)
+	ElementsPerPart int // Elements per partition
+	FloatType       DataType
+	IntType         DataType
 }
 
-// New creates a new KernelProgram with the given configuration
+// NewKernelProgram creates a new KernelProgram with the given configuration
 func NewKernelProgram(device *gocca.OCCADevice, cfg Config) *KernelProgram {
-	// Set defaults only if both are zero
+	// Set defaults
+	if cfg.NumPartitions == 0 {
+		cfg.NumPartitions = 1 // Default to single partition
+	}
+
+	// Set type defaults only if both are zero
 	if cfg.FloatType == 0 && cfg.IntType == 0 {
 		cfg.FloatType = Float64
 		cfg.IntType = Int64
@@ -63,16 +76,18 @@ func NewKernelProgram(device *gocca.OCCADevice, cfg Config) *KernelProgram {
 	nfp := (cfg.Order + 1) * (cfg.Order + 2) / 2
 
 	kp := &KernelProgram{
-		Order:          cfg.Order,
-		Np:             np,
-		Nfp:            nfp,
-		NumElements:    cfg.NumElements,
-		FloatType:      cfg.FloatType,
-		IntType:        cfg.IntType,
-		StaticMatrices: make(map[string]Matrix),
-		device:         device,
-		kernels:        make(map[string]*gocca.OCCAKernel),
-		memory:         make(map[string]*gocca.OCCAMemory),
+		Order:           cfg.Order,
+		NumPartitions:   cfg.NumPartitions,
+		ElementsPerPart: cfg.ElementsPerPart,
+		Np:              np,
+		Nfp:             nfp,
+		Nfaces:          4, // Tetrahedral elements
+		FloatType:       cfg.FloatType,
+		IntType:         cfg.IntType,
+		StaticMatrices:  make(map[string]Matrix),
+		device:          device,
+		kernels:         make(map[string]*gocca.OCCAKernel),
+		memory:          make(map[string]*gocca.OCCAMemory),
 	}
 
 	return kp
@@ -108,6 +123,11 @@ func (kp *KernelProgram) generateTypeDefinitions() string {
 	sb.WriteString(fmt.Sprintf("#define ORDER %d\n", kp.Order))
 	sb.WriteString(fmt.Sprintf("#define NP %d\n", kp.Np))
 	sb.WriteString(fmt.Sprintf("#define NFP %d\n", kp.Nfp))
+	sb.WriteString(fmt.Sprintf("#define NFACES %d\n", kp.Nfaces))
+
+	// Partition-aware constants
+	sb.WriteString(fmt.Sprintf("#define NPART %d\n", kp.NumPartitions))
+	sb.WriteString(fmt.Sprintf("#define K %d\n", kp.ElementsPerPart))
 	sb.WriteString("\n")
 
 	// Type definitions
@@ -127,6 +147,13 @@ func (kp *KernelProgram) generateTypeDefinitions() string {
 	sb.WriteString(fmt.Sprintf("typedef %s int_t;\n", intTypeStr))
 	sb.WriteString(fmt.Sprintf("#define REAL_ZERO 0.0%s\n", floatSuffix))
 	sb.WriteString(fmt.Sprintf("#define REAL_ONE 1.0%s\n", floatSuffix))
+	sb.WriteString("\n")
+
+	// Partition indexing macros
+	sb.WriteString("// Partition-aware indexing macros\n")
+	sb.WriteString("#define PART_OFFSET(part) ((part) * K * NP)\n")
+	sb.WriteString("#define ELEM_OFFSET(part, elem) (PART_OFFSET(part) + (elem) * NP)\n")
+	sb.WriteString("#define NODE_IDX(part, elem, node) (ELEM_OFFSET(part, elem) + (node))\n")
 	sb.WriteString("\n")
 
 	// Face type constants
@@ -221,7 +248,7 @@ func (kp *KernelProgram) generateUtilityFunctions() string {
 // Uses element-blocked data layout (standard DG layout where nodes within an element are contiguous)
 func (kp *KernelProgram) generateMatMulFunction(matrixName string) string {
 	return fmt.Sprintf(`// Matrix multiplication using static %s
-// Data layout: element-blocked [elem0_node0, elem0_node1, ..., elem0_nodeNP-1, elem1_node0, ...]
+// Data layout: partition-blocked, element-blocked
 inline void matMul_%s_Large(const real_t* U, real_t* result, int K) {
     for (int elem = 0; elem < K; ++elem) {
         for (int i = 0; i < NP; ++i) {
@@ -291,73 +318,74 @@ func (kp *KernelProgram) AllocateKernelMemory() error {
 		intSize = 4
 	}
 
-	nodeCount := kp.Np * kp.NumElements
-	faceCount := 4 * kp.Nfp * kp.NumElements
+	// Total counts across all partitions
+	totalNodes := kp.NumPartitions * kp.ElementsPerPart * kp.Np
+	totalFaces := kp.NumPartitions * kp.ElementsPerPart * kp.Nfaces * kp.Nfp
 
-	// Solution arrays
+	// Solution arrays - partition-blocked
 	kp.memory["U"] = kp.device.Malloc(
-		int64(nodeCount*floatSize),
+		int64(totalNodes*floatSize),
 		nil,
 		nil,
 	)
 
-	// RHS array
+	// RHS array - partition-blocked
 	kp.memory["RHS"] = kp.device.Malloc(
-		int64(nodeCount*floatSize),
+		int64(totalNodes*floatSize),
 		nil,
 		nil,
 	)
 
-	// Geometric factors (stored separately for vectorization)
+	// Geometric factors (stored separately for vectorization) - partition-blocked
 	geoFactors := []string{"rx", "ry", "rz", "sx", "sy", "sz", "tx", "ty", "tz"}
 	for _, factor := range geoFactors {
 		kp.memory[factor] = kp.device.Malloc(
-			int64(nodeCount*floatSize),
+			int64(totalNodes*floatSize),
 			nil,
 			nil,
 		)
 	}
 
-	// Face data
+	// Face data - partition-blocked
 	kp.memory["faceM"] = kp.device.Malloc(
-		int64(faceCount*floatSize),
+		int64(totalFaces*floatSize),
 		nil,
 		nil,
 	)
 
 	kp.memory["faceP"] = kp.device.Malloc(
-		int64(faceCount*floatSize),
+		int64(totalFaces*floatSize),
 		nil,
 		nil,
 	)
 
-	// Face types (integer)
+	// Face types (integer) - partition-blocked
 	kp.memory["faceTypes"] = kp.device.Malloc(
-		int64(faceCount*intSize),
+		int64(totalFaces*intSize),
 		nil,
 		nil,
 	)
 
-	// Face normals
+	// Face normals - partition-blocked
 	faceNormals := []string{"nx", "ny", "nz"}
 	for _, normal := range faceNormals {
 		kp.memory[normal] = kp.device.Malloc(
-			int64(faceCount*floatSize),
+			int64(totalFaces*floatSize),
 			nil,
 			nil,
 		)
 	}
 
-	// Face scaling
+	// Face scaling - partition-blocked
 	kp.memory["Fscale"] = kp.device.Malloc(
-		int64(faceCount*floatSize),
+		int64(totalFaces*floatSize),
 		nil,
 		nil,
 	)
 
-	// Boundary condition data
+	// Boundary condition data - partition-blocked
 	kp.memory["bcData"] = kp.device.Malloc(
-		int64(faceCount*floatSize),
+		int64(totalFaces*floatSize),
 		nil,
 		nil,
 	)
@@ -372,12 +400,22 @@ func (kp *KernelProgram) RunKernel(name string, args ...interface{}) error {
 		return fmt.Errorf("kernel %s not found", name)
 	}
 
-	// Single kernel execution for entire partition
-	// No thread dimensions needed - kernel internally vectorizes
-	kernel.SetRunDims(
-		gocca.OCCADim{X: 1, Y: 1, Z: 1}, // Single execution
-		gocca.OCCADim{X: 1, Y: 1, Z: 1},
-	)
+	// Configure for partition-parallel execution
+	// Each partition runs on its own GPU block / CPU thread
+	outerDims := gocca.OCCADim{
+		X: uint64(kp.NumPartitions), // Partitions map to blocks
+		Y: 1,
+		Z: 1,
+	}
+
+	// Inner parallelism over nodes
+	innerDims := gocca.OCCADim{
+		X: uint64(kp.Np), // Nodes map to threads
+		Y: 1,
+		Z: 1,
+	}
+
+	kernel.SetRunDims(outerDims, innerDims)
 
 	return kernel.RunWithArgs(args...)
 }
