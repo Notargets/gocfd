@@ -143,9 +143,22 @@ func (kp *KernelProgram) AllocateArrays(specs []ArraySpec) error {
 		}
 		kp.pooledMemory[spec.Name+"_global"] = memory
 
-		// Step 3: Store offsets array
+		// Step 3: Store offsets array - convert to appropriate int type
 		offsetSize := int64(len(offsets)) * int64(kp.GetIntSize())
-		offsetMem := kp.device.Malloc(offsetSize, unsafe.Pointer(&offsets[0]), nil)
+		var offsetMem *gocca.OCCAMemory
+
+		if kp.GetIntSize() == 4 {
+			// Convert int64 offsets to int32 before storing
+			offsets32 := make([]int32, len(offsets))
+			for i, v := range offsets {
+				offsets32[i] = int32(v)
+			}
+			offsetMem = kp.device.Malloc(offsetSize, unsafe.Pointer(&offsets32[0]), nil)
+		} else {
+			// Store int64 offsets directly
+			offsetMem = kp.device.Malloc(offsetSize, unsafe.Pointer(&offsets[0]), nil)
+		}
+
 		if offsetMem == nil {
 			return fmt.Errorf("failed to allocate offsets for %s", spec.Name)
 		}
@@ -181,9 +194,26 @@ func (kp *KernelProgram) AllocateArrays(specs []ArraySpec) error {
 		}
 	}
 
-	// Allocate K array
+	// Allocate K array - same fix needed here
 	kSize := int64(len(kp.K)) * int64(kp.GetIntSize())
-	kMem := kp.device.Malloc(kSize, unsafe.Pointer(&kp.K[0]), nil)
+	var kMem *gocca.OCCAMemory
+
+	if kp.GetIntSize() == 4 {
+		// Convert int K values to int32
+		k32 := make([]int32, len(kp.K))
+		for i, v := range kp.K {
+			k32[i] = int32(v)
+		}
+		kMem = kp.device.Malloc(kSize, unsafe.Pointer(&k32[0]), nil)
+	} else {
+		// Convert int K values to int64
+		k64 := make([]int64, len(kp.K))
+		for i, v := range kp.K {
+			k64[i] = int64(v)
+		}
+		kMem = kp.device.Malloc(kSize, unsafe.Pointer(&k64[0]), nil)
+	}
+
 	if kMem == nil {
 		return fmt.Errorf("failed to allocate K array")
 	}
@@ -593,6 +623,17 @@ func CopyArrayToHost[T any](kp *KernelProgram, name string) ([]T, error) {
 			name, expectedSize, requestedSize)
 	}
 
+	// Calculate total logical elements
+	totalElements := 0
+	for _, k := range kp.K {
+		totalElements += k * metadata.elementsPerValue
+	}
+
+	// Handle empty array case early
+	if totalElements == 0 {
+		return make([]T, 0), nil
+	}
+
 	// Get memory and offsets
 	globalMem := kp.pooledMemory[name+"_global"]
 	offsetsMem := kp.pooledMemory[name+"_offsets"]
@@ -601,25 +642,22 @@ func CopyArrayToHost[T any](kp *KernelProgram, name string) ([]T, error) {
 		return nil, fmt.Errorf("memory not allocated for array %s", name)
 	}
 
-	// Get offsets
+	// Get offsets - fixed to handle int32 correctly
 	numOffsets := kp.NumPartitions + 1
 	offsets := make([]int64, numOffsets)
-	offsetSize := int64(numOffsets * kp.GetIntSize())
-	offsetsMem.CopyTo(unsafe.Pointer(&offsets[0]), offsetSize)
 
-	// Handle int32 offset case
 	if kp.GetIntSize() == 4 {
+		// For int32, copy to int32 array first, then convert
 		offsets32 := make([]int32, numOffsets)
+		offsetSize := int64(numOffsets * 4)
 		offsetsMem.CopyTo(unsafe.Pointer(&offsets32[0]), offsetSize)
 		for i, v := range offsets32 {
 			offsets[i] = int64(v)
 		}
-	}
-
-	// Calculate total logical elements
-	totalElements := 0
-	for _, k := range kp.K {
-		totalElements += k * metadata.elementsPerValue
+	} else {
+		// For int64, copy directly
+		offsetSize := int64(numOffsets * 8)
+		offsetsMem.CopyTo(unsafe.Pointer(&offsets[0]), offsetSize)
 	}
 
 	// Allocate result slice
@@ -628,6 +666,12 @@ func CopyArrayToHost[T any](kp *KernelProgram, name string) ([]T, error) {
 	// Copy data from device, skipping alignment padding
 	// First, get the entire aligned buffer
 	_, totalSize := kp.calculateAlignedOffsetsAndSize(metadata.spec)
+
+	// Check if buffer is empty
+	if totalSize == 0 {
+		return result, nil
+	}
+
 	tempBuffer := make([]T, totalSize/int64(requestedSize))
 	globalMem.CopyTo(unsafe.Pointer(&tempBuffer[0]), totalSize)
 
@@ -704,6 +748,14 @@ func CopyPartitionToHost[T any](kp *KernelProgram, name string, partitionID int)
 			name, expectedSize, requestedSize)
 	}
 
+	// Calculate partition size
+	partitionElements := kp.K[partitionID] * metadata.elementsPerValue
+
+	// Handle empty partition case early
+	if partitionElements == 0 {
+		return make([]T, 0), nil
+	}
+
 	// Get memory and offsets
 	globalMem := kp.pooledMemory[name+"_global"]
 	offsetsMem := kp.pooledMemory[name+"_offsets"]
@@ -712,23 +764,24 @@ func CopyPartitionToHost[T any](kp *KernelProgram, name string, partitionID int)
 		return nil, fmt.Errorf("memory not allocated for array %s", name)
 	}
 
-	// Get offsets
+	// Get offsets - fixed to handle int32 correctly
 	numOffsets := kp.NumPartitions + 1
 	offsets := make([]int64, numOffsets)
-	offsetSize := int64(numOffsets * kp.GetIntSize())
-	offsetsMem.CopyTo(unsafe.Pointer(&offsets[0]), offsetSize)
 
-	// Handle int32 offset case
 	if kp.GetIntSize() == 4 {
+		// For int32, copy to int32 array first, then convert
 		offsets32 := make([]int32, numOffsets)
+		offsetSize := int64(numOffsets * 4)
 		offsetsMem.CopyTo(unsafe.Pointer(&offsets32[0]), offsetSize)
 		for i, v := range offsets32 {
 			offsets[i] = int64(v)
 		}
+	} else {
+		// For int64, copy directly
+		offsetSize := int64(numOffsets * 8)
+		offsetsMem.CopyTo(unsafe.Pointer(&offsets[0]), offsetSize)
 	}
 
-	// Calculate partition size
-	partitionElements := kp.K[partitionID] * metadata.elementsPerValue
 	result := make([]T, partitionElements)
 
 	// Copy partition data via temporary buffer
