@@ -2,7 +2,7 @@
 
 ## Overview
 
-The KernelProgram system provides a high-level abstraction for generating and executing GPU/accelerator kernels for Discontinuous Galerkin (DG) methods using a **partition-parallel execution model**. The system divides large meshes into partitions that execute simultaneously on parallel hardware, with each partition processing its elements independently. A key innovation is the integration of the **M buffer** concept for efficient face data processing and inter-partition communication.
+The KernelProgram system provides a high-level abstraction for generating and executing GPU/accelerator kernels for Discontinuous Galerkin (DG) methods using a **partition-parallel execution model**. The system divides large meshes into partitions that execute simultaneously on parallel hardware within a shared memory architecture. A key innovation is the integration of the **M buffer** concept for efficient face data processing and inter-partition communication.
 
 ## Core Design Principles
 
@@ -12,7 +12,7 @@ The KernelProgram system provides a high-level abstraction for generating and ex
 4. **Tagged Alignment**: Different arrays use different alignment boundaries for performance
 5. **OCCA-Native Parallelism**: Partitions map directly to OCCA @outer annotations
 6. **M Buffer Architecture**: Face data organized in natural traversal order for sequential access
-7. **Face-Based Communication**: Efficient inter-partition data exchange through face buffers
+7. **Face-Based Communication**: Efficient inter-partition data exchange through face buffers in shared memory
 
 ## Execution Model
 
@@ -76,105 +76,113 @@ typedef enum {
 } FaceType;
 ```
 
-### Local P Indexing
+### Face Buffer Builder Integration
 
-For interior faces connecting elements within the same partition, precomputed indices map M positions to their corresponding P positions:
+The face_buffer_builder.go creates essential indexing structures:
 
-```c
-// For each interior M position, store where to find P in the same M buffer
-int* localPIndices;  // Size: number of interior faces
-int interiorCounter = 0;
-
-// During traversal:
-if (faceType[mIdx] == INTERIOR_FACE) {
-    real_t M = faceBuffer[mIdx];
-    real_t P = faceBuffer[localPIndices[interiorCounter++]];
-    // Compute flux...
-}
-```
-
-### Remote Buffer Exchange
-
-For faces connecting to elements in other partitions, a carefully orchestrated communication pattern ensures sequential access without indexing:
-
-**Key Principle**: The face buffer builder pre-computes all indexing. The ONLY memcpy is the MPI communication itself.
-
-**Phase 1: Build-time Index Generation (face_buffer_builder.go)**
 ```go
-// BuildFaceBuffer creates all indexing structures during mesh setup
 type FaceBuffer struct {
-// For interior faces within partition
-LocalPIndices []uint32  // P position in M buffer for each interior point
+    // Dimensions
+    Nfp             uint32 // Face points per face
+    Nfaces          uint32 // Faces per element (4 for tetrahedra)
+    K               uint32 // Number of elements in this partition
+    TotalFacePoints uint32 // Total M buffer size = Nfp * Nfaces * K
 
-// For remote faces to other partitions  
-RemoteSendIndices map[uint32][]uint32 // [partitionID] -> which M indices to send
-}
+    // Face classification
+    FaceTypes []FaceType // Type of each face point connection
 
-// The builder determines:
-// 1. LocalPIndices: Where to find P values for interior faces
-// 2. RemoteSendIndices: Which M values each neighbor needs as P values
-// Both are computed to match the natural traversal order
-```
+    // Local interior P indices
+    LocalPIndices []uint32 // P position in M buffer for each interior point
 
-**Phase 2: Direct MPI Communication**
-```c
-// THE ONLY MEMCPY: Direct MPI transfer from M buffer to receive buffers
-// No intermediate buffer assembly needed - MPI reads directly from M using precomputed indices
-
-// For each partition pair with connections:
-for (int neighbor = 0; neighbor < Npart; ++neighbor) {
-    if (hasConnection[part][neighbor]) {
-        // MPI sends M values directly using RemoteSendIndices
-        // These arrive in the receiver's natural traversal order
-        MPI_Send_Indexed(M_buffer + M_offset[part],
-                        remoteSendIndices[part][neighbor],
-                        sendCount[part][neighbor],
-                        destination: neighbor);
-    }
-}
-
-// Receive buffers are populated in natural traversal order
-MPI_Recv(recvBuffers[part][sender], recvCount[part][sender], sender);
-
-**Phase 3: Sequential Traversal During Flux Computation**
-```c
-// Each partition maintains Npart-1 counters for sequential buffer traversal
-int remoteCounters[NPART] = {0};  // One per potential neighbor
-
-// During the natural M array traversal
-for (int mIdx = 0; mIdx < totalFacePoints; ++mIdx) {
-    real_t M = M_buffer[mIdx];
-    real_t P;
-    
-    switch(faceTypes[mIdx]) {
-        case INTERIOR_FACE:
-            // Use precomputed local P index (from face_buffer_builder)
-            P = M_buffer[localPIndices[interiorCounter++]];
-            break;
-            
-        case REMOTE_FACE:
-            // Which partition has this face's P value?
-            int neighbor = faceNeighbor[mIdx];
-            
-            // Access the next P value from that partition's receive buffer
-            // NO INDEXING - pure sequential access via counter
-            P = recvBuffers[neighbor][remoteCounters[neighbor]++];
-            break;
-            
-        case BOUNDARY_FACE:
-            // Apply boundary condition
-            P = applyBC(M, bcType[mIdx]);
-            break;
-    }
-    
-    // Compute flux with M and P
+    // Remote partition send indices
+    RemoteSendIndices map[uint32][]uint32 // [partitionID] -> indices into M buffer
 }
 ```
+
+These structures enable:
+- **LocalPIndices**: Direct lookup of P values for interior faces without runtime computation
+- **RemoteSendIndices**: Identifies which M values to copy for neighboring partitions
+
+## OCCA Memory Management
+
+### Memory Allocation
+
+The system uses OCCA's device memory allocation API:
+
+```go
+func (kp *KernelProgram) AllocatePooledMemory() error {
+    // Calculate total sizes for each array type
+    for _, spec := range memoryLayout {
+        totalSize := 0
+        offsets := make([]int, kp.NumPartitions)
+        
+        for part := 0; part < kp.NumPartitions; part++ {
+            // Align offset to required boundary
+            totalSize = alignUp(totalSize, spec.Alignment)
+            offsets[part] = totalSize
+            
+            // Add this partition's data
+            K := kp.K[part]
+            partSize := spec.SizeFunc(K, kp.Np, kp.Nfp, kp.Nfaces)
+            totalSize += partSize
+        }
+        
+        // Allocate using OCCA API
+        memory := kp.device.Malloc(int64(totalSize), nil, nil)
+        kp.memory[spec.Name] = memory
+        
+        // Store offsets in device memory
+        offsetsMem := kp.device.Malloc(int64(kp.NumPartitions * 8), nil, nil)
+        offsetsMem.CopyFrom(unsafe.Pointer(&offsets[0]), int64(len(offsets)*8))
+        kp.memory[spec.Name + "_offsets"] = offsetsMem
+    }
+    
+    return nil
+}
+```
+
+### Alignment Strategy
+
+Different array types require different alignment boundaries:
+
+```go
+type AlignmentType int
+
+const (
+    NoAlignment      AlignmentType = 1       // Natural alignment
+    CacheLineAlign   AlignmentType = 64      // Prevent false sharing between partitions
+    WarpAlign        AlignmentType = 128     // GPU warp-aligned access patterns
+    PageAlign        AlignmentType = 4096    // OS page boundary
+    LargePageAlign   AlignmentType = 2097152 // 2MB large pages for huge datasets
+)
+```
+
+### Memory Specification
+
+```go
+var memoryLayout = []MemorySpec{
+    // Solution arrays - cache line aligned to prevent false sharing
+    {"U",          func(K, Np, _, _ int) int { return K * Np * 8 },           CacheLineAlign},
+    {"RHS",        func(K, Np, _, _ int) int { return K * Np * 8 },           CacheLineAlign},
+    
+    // Face buffers - warp aligned for coalesced GPU access
+    {"M_buffer",   func(K, _, Nfp, Nfaces int) int { return K * Nfaces * Nfp * 8 }, WarpAlign},
+    {"faceTypes",  func(K, _, Nfp, Nfaces int) int { return K * Nfaces * Nfp * 1 }, NoAlignment},
+    
+    // Communication buffers - page aligned for efficient memcpy
+    {"recvBuffer", func(K, _, Nfp, Nfaces int) int { return K * Nfaces * Nfp * 8 }, PageAlign},
+    
+    // Index arrays - no special alignment needed
+    {"localPIndices", func(K, _, Nfp, Nfaces int) int { return K * Nfaces * Nfp * 4 }, NoAlignment},
+    {"K",            func(_, _, _, _ int) int { return 8 }, NoAlignment},
+}
 ```
 
 ## OCCA Kernel Structure
 
-Kernels use partition-level parallelism with OCCA-compliant loop nesting:
+### OKL Kernel with Explicit Parallelism
+
+Kernels use OCCA's @outer/@inner parallelism model:
 
 ```c
 @kernel void computeRHS(
@@ -261,104 +269,78 @@ Kernels use partition-level parallelism with OCCA-compliant loop nesting:
 3. All loops over elements must be inside the `@inner` loop
 4. Multiple `@inner` loops are allowed but must have the same iteration count
 
-## Memory Management
+### Face Data Exchange Kernel
 
-### Alignment Strategy
+The exchange kernel performs indexed memcpy within shared memory:
 
-Different array types require different alignment boundaries for optimal performance:
-
-```go
-type AlignmentType int
-
-const (
-NoAlignment      AlignmentType = 1       // Natural alignment
-CacheLineAlign   AlignmentType = 64      // Prevent false sharing between partitions
-WarpAlign        AlignmentType = 128     // GPU warp-aligned access patterns
-PageAlign        AlignmentType = 4096    // OS page boundary
-LargePageAlign   AlignmentType = 2097152 // 2MB large pages for huge datasets
-)
-```
-
-### Memory Specification
-
-Each array specifies its size calculation and required alignment:
-
-```go
-type MemorySpec struct {
-    Name      string
-    SizeFunc  func(K, Np, Nfp, Nfaces int) int
-    Alignment AlignmentType
-}
-
-var memoryLayout = []MemorySpec{
-    // Solution arrays - cache line aligned to prevent false sharing
-    {"U",          func(K, Np, _, _ int) int { return K * Np * 8 },           CacheLineAlign},
-    {"RHS",        func(K, Np, _, _ int) int { return K * Np * 8 },           CacheLineAlign},
-    
-    // Face buffers - warp aligned for coalesced GPU access
-    {"M_buffer",   func(K, _, Nfp, Nfaces int) int { return K * Nfaces * Nfp * 8 }, WarpAlign},
-    {"faceTypes",  func(K, _, Nfp, Nfaces int) int { return K * Nfaces * Nfp * 1 }, NoAlignment},
-    
-    // Communication buffers - page aligned for efficient memcpy
-    {"sendBuffer", func(K, _, Nfp, Nfaces int) int { return K * Nfaces * Nfp * 8 }, PageAlign},
-    {"recvBuffer", func(K, _, Nfp, Nfaces int) int { return K * Nfaces * Nfp * 8 }, PageAlign},
-    
-    // Index arrays - no special alignment needed
-    {"localPIndices", func(K, _, Nfp, Nfaces int) int { return K * Nfaces * Nfp * 4 }, NoAlignment},
-    {"K",            func(_, _, _, _ int) int { return 8 }, NoAlignment},
-}
-```
-
-### Pooled Allocation
-
-Memory is allocated in large pools with proper alignment:
-
-```go
-func (kp *KernelProgram) AllocatePooledMemory() error {
-    for _, spec := range memoryLayout {
-        // Calculate total size across all partitions
-        totalSize := 0
-        offsets := make([]int, kp.NumPartitions)
+```c
+@kernel void exchangeFaceData(
+    const int Npart,
+    const real_t* M_buffer,              // Global M buffer (all partitions)
+    const int* M_offsets,                // Partition offsets
+    real_t* recvBuffers,                 // Receive buffers for each partition
+    const int* recv_offsets,             
+    const int** remoteSendIndices,       // Precomputed send patterns
+    const int* sendCounts                // How many values to send
+) {
+    // Each partition copies data it needs from other partitions
+    for (int recvPart = 0; recvPart < Npart; ++recvPart; @outer(0)) {
         
-        for part := 0; part < kp.NumPartitions; part++ {
-            // Align offset to required boundary
-            totalSize = alignUp(totalSize, spec.Alignment)
-            offsets[part] = totalSize
-            
-            // Add this partition's data
-            K := kp.K[part]
-            partSize := spec.SizeFunc(K, kp.Np, kp.Nfp, kp.Nfaces)
-            totalSize += partSize
+        // Copy from each sending partition
+        for (int sendPart = 0; sendPart < Npart; ++sendPart) {
+            if (sendCounts[sendPart][recvPart] > 0) {
+                const real_t* srcM = M_buffer + M_offsets[sendPart];
+                real_t* destBuf = recvBuffers + recv_offsets[recvPart] + 
+                                 getNeighborOffset(recvPart, sendPart);
+                const int* indices = remoteSendIndices[sendPart][recvPart];
+                int count = sendCounts[sendPart][recvPart];
+                
+                // Simple indexed memcpy with inner parallelism
+                for (int i = 0; i < count; ++i; @inner(0)) {
+                    destBuf[i] = srcM[indices[i]];
+                }
+            }
         }
-        
-        // Allocate single contiguous buffer
-        memory := kp.Device.Malloc(totalSize, spec.Alignment)
-        kp.pooledMemory[spec.Name] = memory
-        
-        // Store offsets for kernel use
-        offsetsMem := kp.Device.Malloc(kp.NumPartitions * 8)
-        offsetsMem.CopyFrom(offsets)
-        kp.pooledMemory[spec.Name + "_offsets"] = offsetsMem
+    }
+}
+```
+
+## Kernel Execution
+
+### Building Kernels
+
+```go
+func (kp *KernelProgram) BuildKernel(kernelSource, kernelName string) (*gocca.OCCAKernel, error) {
+    // Combine preamble with kernel source
+    fullSource := kp.kernelPreamble + "\n" + kernelSource
+    
+    // Build kernel using OCCA API
+    kernel, err := kp.device.BuildKernelFromString(fullSource, kernelName, nil)
+    if err != nil {
+        return nil, fmt.Errorf("failed to build kernel %s: %w", kernelName, err)
     }
     
-    return nil
+    kp.RegisterKernel(kernelName, kernel)
+    return kernel, nil
 }
 ```
 
-### Memory Layout Example
+### Running Kernels
 
-For 3 partitions with K=[100, 150, 120] elements and Np=20, Nfp=6:
+For OKL kernels, the parallelism is specified in the kernel source:
 
-```
-M_buffer (warp-aligned at 128 bytes):
-[Partition 0: 100*4*6*8 = 19200 bytes][pad 64 bytes][Partition 1: 150*4*6*8 = 28800 bytes][pad 0 bytes][Partition 2: 120*4*6*8 = 23040 bytes]
- ^                                                    ^                                                      ^
- offset[0] = 0                                        offset[1] = 19264                                    offset[2] = 48064
-
-recvBuffer (page aligned at 4096 bytes):
-[Partition 0: buffer][pad to 4KB][Partition 1: buffer][pad to 4KB][Partition 2: buffer]
- ^                                ^                                 ^
- offset[0] = 0                    offset[1] = 20480                offset[2] = 49152
+```go
+func (kp *KernelProgram) RunKernel(name string, args ...interface{}) error {
+    kernel, exists := kp.kernels[name]
+    if !exists {
+        return fmt.Errorf("kernel %s not found", name)
+    }
+    
+    // For OKL kernels, parallelism is controlled by @outer/@inner in kernel source
+    // For non-OKL kernels, use SetRunDims as shown in existing implementation
+    
+    return kernel.RunWithArgs(args...)
+}
 ```
 
 ## Code Generation
@@ -374,6 +356,7 @@ The kernel preamble includes essential definitions:
 #define NFP @Nfp@                 // Face nodes per element  
 #define NFACES 4                  // Faces per tetrahedral element
 #define NPART @NumPartitions@     // Total number of partitions
+#define MAX_NEIGHBORS 64          // Maximum possible neighbor partitions
 
 // Type definitions
 typedef @FloatType@ real_t;       // double or float
@@ -387,55 +370,27 @@ typedef enum {
 } FaceType;
 
 // Static matrices (embedded as constants)
-const real_t Dr[@Np@][@Np@] = { ... };
-const real_t Ds[@Np@][@Np@] = { ... };
-const real_t Dt[@Np@][@Np@] = { ... };
-const real_t LIFT[@Np@][@Nfp@*@Nfaces@] = { ... };
-
-// Note: No K definition - it varies per partition
+__constant__ real_t Dr[@Np@][@Np@] = { ... };
+__constant__ real_t Ds[@Np@][@Np@] = { ... };
+__constant__ real_t Dt[@Np@][@Np@] = { ... };
+__constant__ real_t LIFT[@Np@][@Nfp@*@Nfaces@] = { ... };
 ```
 
-## Kernel Execution
+## Communication Architecture
 
-### RunKernel Implementation
+The face buffer exchange system leverages shared memory for optimal performance:
 
-The kernel execution relies on the kernel's own parallelism specification:
+1. **Build-Time Index Generation**: face_buffer_builder.go creates:
+   - **LocalPIndices**: Maps each interior M position to its P position within the partition
+   - **RemoteSendIndices**: For each neighbor partition, lists which M values to copy
 
-```go
-func (kp *KernelProgram) RunKernel(name string, args ...interface{}) error {
-    kernel, exists := kp.kernels[name]
-    if !exists {
-        return fmt.Errorf("kernel %s not found", name)
-    }
-    
-    // Let the kernel control its own parallelism
-    // The @outer loop in the kernel specifies partition parallelism
-    
-    return kernel.RunWithArgs(args...)
-}
-```
+2. **Shared Memory Copy**: The exchangeFaceData kernel performs indexed memcpy from each partition's M buffer to receive buffers using precomputed indices.
 
-## Design Benefits
+3. **Natural Order Preservation**: RemoteSendIndices are ordered to match the receiving partition's traversal order, enabling sequential access.
 
-1. **Variable Partition Support**: Natural handling of non-uniform mesh partitions through K array
-2. **Single Allocation Per Array**: Avoids memory fragmentation, guarantees contiguity
-3. **Optimal Alignment**: Each array type gets appropriate alignment for its access pattern
-4. **OCCA Compliance**: Proper loop nesting without conflicting parallelism specifications
-5. **Clean Kernel Interface**: Simple base_pointer + offset[part] indexing
-6. **Sequential Memory Access**: M buffer design enables cache-friendly traversal patterns
-7. **Minimal Data Movement**: The ONLY operation is indexed memcpy within shared memory - no intermediate buffers needed
-8. **Pre-computed Indexing**: face_buffer_builder.go generates all indices at build time:
-   - LocalPIndices for interior face P lookups
-   - RemoteSendIndices for copying M values between partitions
-9. **Index-Free Runtime Access**: Received P values are consumed in natural traversal order using simple counters
-10. **Performance Optimizations**:
-   - Cache-line alignment prevents false sharing between partitions
-   - Memory alignment optimizes coalesced access for memcpy operations
-   - Warp alignment optimizes GPU coalesced access patterns
-   - Sequential access patterns enable vectorization
-   - No indirect memory access during flux computation
-   - Counter-based traversal eliminates all runtime index lookups
-   - Shared memory access avoids any network or bus communication
+4. **Sequential Runtime Access**: During flux computation:
+   - Interior P values: Look up using LocalPIndices[interiorCounter++]
+   - Remote P values: Access using recvBuffers[neighbor][remoteCounter[neighbor]++]
 
 ## Usage Example
 
@@ -443,10 +398,10 @@ func (kp *KernelProgram) RunKernel(name string, args ...interface{}) error {
 // Create kernel program with variable partitions
 partitionElementCounts := []int{102, 98, 105, 97, 103, ...} // From METIS
 kp := NewKernelProgram(device, Config{
-NumPartitions: 64,
-K:             partitionElementCounts,
-Order:         4,
-FloatType:     Float64,
+    NumPartitions: 64,
+    K:             partitionElementCounts,
+    Order:         4,
+    FloatType:     Float64,
 })
 
 // Generate static data and type definitions
@@ -456,53 +411,84 @@ kp.AddStaticMatrix("Dt", Dt)
 kp.GenerateKernelPreamble()
 
 // Build kernels
+kp.BuildKernel(exchangeFaceKernel, "exchangeFaceData")
 kp.BuildKernel(rhsKernelSource, "computeRHS")
-kp.BuildKernel(timeStepKernel, "updateSolution")
 
 // Allocate pooled memory with proper alignment
 kp.AllocatePooledMemory()
 
-// Build face buffers for each partition using face_buffer_builder.go
+// Build face buffers for each partition
 faceBuffers := make([]*FaceBuffer, nPart)
-for part := 0; part < nPart; part++ {
-fb, err := BuildFaceBuffer(elements[part])
-if err != nil {
-log.Fatal(err)
-}
-faceBuffers[part] = fb
+localPIndexArrays := make([]*gocca.OCCAMemory, nPart)
+remoteSendArrays := make(map[uint32][]*gocca.OCCAMemory)
 
-// Upload precomputed indices to device
-kp.SetMemory(fmt.Sprintf("localPIndices_%d", part), fb.LocalPIndices)
-kp.SetMemory(fmt.Sprintf("remoteSendIndices_%d", part), fb.RemoteSendIndices)
+for part := 0; part < nPart; part++ {
+    fb, err := BuildFaceBuffer(elements[part])
+    if err != nil {
+        log.Fatal(err)
+    }
+    faceBuffers[part] = fb
+    
+    // Upload LocalPIndices to device
+    localPMem := device.Malloc(int64(len(fb.LocalPIndices)*4), 
+                               unsafe.Pointer(&fb.LocalPIndices[0]), nil)
+    localPIndexArrays[part] = localPMem
+    
+    // Upload RemoteSendIndices for each neighbor
+    for neighborID, indices := range fb.RemoteSendIndices {
+        sendMem := device.Malloc(int64(len(indices)*4),
+                                unsafe.Pointer(&indices[0]), nil)
+        remoteSendArrays[neighborID] = append(remoteSendArrays[neighborID], sendMem)
+    }
+    
+    // Upload face types
+    faceTypesMem := device.Malloc(int64(len(fb.FaceTypes)), 
+                                 unsafe.Pointer(&fb.FaceTypes[0]), nil)
+    kp.SetMemory(fmt.Sprintf("faceTypes_%d", part), faceTypesMem)
 }
 
 // Time stepping loop
 for step := 0; step < nSteps; step++ {
-// THE ONLY MEMCPY: Copy M values between partitions using precomputed indices
-// This kernel performs indexed memcpy from M buffers to receive buffers
-// within shared memory - no MPI or network communication
-kp.RunKernel("exchangeFaceData",
-kp.NumPartitions,
-kp.GetMemory("M_buffer"), kp.GetMemory("M_offsets"),
-kp.GetMemory("recvBuffer"), kp.GetMemory("recvBuffer_offsets"),
-kp.GetMemory("remoteSendIndices"),
-kp.GetMemory("sendCounts"))
-
-// Compute RHS with purely sequential traversal
-// Interior P values use LocalPIndices (from face_buffer_builder)
-// Remote P values are accessed from receive buffers using counters (no indices)
-kp.RunKernel("computeRHS",
-kp.NumPartitions,
-kp.GetMemory("K"),
-kp.GetMemory("U"), kp.GetMemory("U_offsets"),
-kp.GetMemory("M_buffer"), kp.GetMemory("M_offsets"),
-kp.GetMemory("faceTypes"), kp.GetMemory("faceTypes_offsets"),
-kp.GetMemory("localPIndices"), kp.GetMemory("localP_offsets"),
-kp.GetMemory("recvBuffer"), kp.GetMemory("recvBuffer_offsets"),
-kp.GetMemory("RHS"), kp.GetMemory("RHS_offsets"))
-
-// Time integration...
+    // Phase 1: Copy M values between partitions using precomputed indices
+    kp.RunKernel("exchangeFaceData",
+        kp.NumPartitions,
+        kp.GetMemory("M_buffer"), kp.GetMemory("M_offsets"),
+        kp.GetMemory("recvBuffer"), kp.GetMemory("recvBuffer_offsets"),
+        remoteSendArrays,
+        sendCounts)
+    
+    // Phase 2: Compute RHS with purely sequential traversal
+    kp.RunKernel("computeRHS",
+        kp.NumPartitions,
+        kp.GetMemory("K"),
+        kp.GetMemory("U"), kp.GetMemory("U_offsets"),
+        kp.GetMemory("M_buffer"), kp.GetMemory("M_offsets"),
+        kp.GetMemory("faceTypes"), kp.GetMemory("faceTypes_offsets"),
+        localPIndexArrays, localPOffsets,
+        kp.GetMemory("recvBuffer"), kp.GetMemory("recvBuffer_offsets"),
+        kp.GetMemory("RHS"), kp.GetMemory("RHS_offsets"))
+    
+    // Time integration...
 }
 ```
 
-This design enables high-performance DG computations while maintaining code clarity and portability across different parallel backends. The M buffer architecture ensures optimal memory access patterns, while the face classification system enables efficient handling of boundaries and inter-partition communication.
+## Design Benefits
+
+1. **OCCA Compliance**: Uses standard OCCA memory allocation and kernel execution APIs
+2. **Variable Partition Support**: Natural handling of non-uniform mesh partitions through K array
+3. **Single Allocation Per Array**: Avoids memory fragmentation, uses OCCA's pooled allocation
+4. **Optimal Alignment**: Each array type gets appropriate alignment for its access pattern
+5. **OKL Parallelism**: Proper @outer/@inner loop nesting for GPU/CPU portability
+6. **Sequential Memory Access**: M buffer design enables cache-friendly traversal patterns
+7. **Minimal Data Movement**: Only indexed memcpy within shared memory - no network overhead
+8. **Pre-computed Indexing**: face_buffer_builder.go generates all indices at build time
+9. **Index-Free Runtime Access**: Received P values consumed in natural order using counters
+10. **Performance Optimizations**:
+   - Cache-line alignment prevents false sharing between partitions
+   - Memory alignment optimizes coalesced access for memcpy operations
+   - Warp alignment optimizes GPU coalesced access patterns
+   - Sequential access patterns enable vectorization
+   - No indirect memory access during flux computation
+   - Shared memory architecture eliminates communication overhead
+
+This design enables high-performance DG computations while maintaining code clarity and full compatibility with the OCCA framework.
