@@ -356,23 +356,21 @@ func TestKernelProgram_PartitionIndexing(t *testing.T) {
 
 	// Test kernel using partition indexing
 	kernelSource := `
-	@kernel void partitionTest(
-		const int Npart,
-		const int K,
-		real_t* data
-	) {
-		for (int part = 0; part < Npart; ++part; @outer(0)) {
-			for (int node = 0; node < NP; ++node; @inner(0)) {
-				for (int elem = 0; elem < K; ++elem) {
-					// Inline the indexing instead of using macro
-					int idx = (part * K * NP) + (elem * NP) + node;
-					data[idx] = part * 1000.0 + elem * 10.0 + node;
-				}
-			}
-		}
-	}
+@kernel void partitionTest(
+    const int Npart,
+    const int KK,
+    real_t* data
+) {
+    for (int part = 0; part < Npart; ++part; @outer(0)) {
+        for (int node = 0; node < NP; ++node; @inner(0)) {
+            for (int elem = 0; elem < KK; ++elem) {
+                int idx = (part * KK * NP) + (elem * NP) + node;
+                data[idx] = part * 1000.0 + elem * 10.0 + node;
+            }
+        }
+    }
+}
 	`
-
 	_, err := kp.BuildKernel(kernelSource, "partitionTest")
 	if err != nil {
 		t.Fatalf("Failed to build partition kernel: %v", err)
@@ -438,7 +436,7 @@ func TestKernelProgram_MatrixVectorProduct(t *testing.T) {
 			kernelSource := `
 			@kernel void applyDr(
 				const int Npart,
-				const int K,
+				const int KK,
 				const real_t* U,
 				real_t* dU
 			) {
@@ -448,7 +446,7 @@ func TestKernelProgram_MatrixVectorProduct(t *testing.T) {
 					for (int node = 0; node < NP; ++node; @inner(0)) {
 						// For this simple test, just apply within single partition
 						if (part == 0) {
-							matMul_Dr_Large(U, dU, K);
+							matMul_Dr_Large(U, dU, KK);
 						}
 					}
 				}
@@ -517,7 +515,7 @@ func TestKernelProgram_ChainedOperations(t *testing.T) {
 	// Complex kernel with index indirection and chained ops
 	kernelSource := `
 @kernel void chainedPattern(
-    const int K,
+    const int KK,
     const int_t* permutation,
     const real_t* input,
     real_t* temp1,
@@ -529,18 +527,18 @@ func TestKernelProgram_ChainedOperations(t *testing.T) {
         // Inner work over nodes
         for (int node = 0; node < NP; ++node; @inner(0)) {
             // Step 1: Apply matrix A
-            matMul_A_Large(input, temp1, K);
+            matMul_A_Large(input, temp1, KK);
             
             // Step 2: Permute using indices
-            for (int i = 0; i < NP*K; ++i) {
+            for (int i = 0; i < NP*KK; ++i) {
                 temp2[permutation[i]] = temp1[i];
             }
             
             // Step 3: Apply matrix B
-            matMul_B_Large(temp2, output, K);
+            matMul_B_Large(temp2, output, KK);
             
             // Step 4: Add signature pattern
-            for (int i = 0; i < NP*K; ++i) {
+            for (int i = 0; i < NP*KK; ++i) {
                 int mod_val = i % NP;
                 output[i] += (real_t)mod_val;
             }
@@ -698,15 +696,15 @@ func TestKernelProgram_MultiPartitionExecution(t *testing.T) {
 	kernelSource := `
 	@kernel void partitionSum(
 		const int Npart,
-		const int K,
+		const int KK,
 		real_t* data
 	) {
 		for (int part = 0; part < Npart; ++part; @outer(0)) {
 			for (int node = 0; node < NP; ++node; @inner(0)) {
 				// Sum pattern: each partition adds its ID to all its elements
-				for (int elem = 0; elem < K; ++elem) {
+				for (int elem = 0; elem < KK; ++elem) {
 					// Inline the indexing instead of using macro
-					int idx = (part * K * NP) + (elem * NP) + node;
+					int idx = (part * KK * NP) + (elem * NP) + node;
 					data[idx] = (real_t)part + (real_t)elem * 0.1 + (real_t)node * 0.01;
 				}
 			}
