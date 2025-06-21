@@ -12,7 +12,8 @@ import (
 type DataType int
 
 const (
-	Float32 DataType = iota
+	// Start from 1 to allow 0 to mean "unspecified"
+	Float32 DataType = iota + 1
 	Float64
 	Int32
 	Int64
