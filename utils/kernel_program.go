@@ -6,6 +6,7 @@ import (
 	"unsafe"
 
 	"github.com/notargets/gocca"
+	"gonum.org/v1/gonum/mat"
 )
 
 // DataType represents the precision of numerical data
@@ -55,7 +56,7 @@ type KernelProgram struct {
 	IntType   DataType // Int32 or Int64
 
 	// Static data to embed
-	StaticMatrices map[string]Matrix
+	StaticMatrices map[string]mat.Matrix // Changed from Matrix to mat.Matrix
 
 	// Array tracking for macro generation
 	allocatedArrays []string
@@ -111,7 +112,7 @@ func NewKernelProgram(device *gocca.OCCADevice, cfg Config) *KernelProgram {
 		K:               make([]int, len(cfg.K)),
 		FloatType:       cfg.FloatType,
 		IntType:         cfg.IntType,
-		StaticMatrices:  make(map[string]Matrix),
+		StaticMatrices:  make(map[string]mat.Matrix), // Changed from Matrix to mat.Matrix
 		allocatedArrays: []string{},
 		arrayMetadata:   make(map[string]arrayMetadata),
 		device:          device,
@@ -126,7 +127,7 @@ func NewKernelProgram(device *gocca.OCCADevice, cfg Config) *KernelProgram {
 }
 
 // AddStaticMatrix adds a matrix that will be compiled into kernels as static data
-func (kp *KernelProgram) AddStaticMatrix(name string, matrix Matrix) {
+func (kp *KernelProgram) AddStaticMatrix(name string, matrix mat.Matrix) { // Changed from Matrix to mat.Matrix
 	kp.StaticMatrices[name] = matrix
 }
 
@@ -334,7 +335,7 @@ func (kp *KernelProgram) generateStaticMatrices() string {
 }
 
 // formatStaticMatrix formats a single matrix as a static C array
-func (kp *KernelProgram) formatStaticMatrix(name string, m Matrix) string {
+func (kp *KernelProgram) formatStaticMatrix(name string, m mat.Matrix) string { // Changed from Matrix to mat.Matrix
 	rows, cols := m.Dims()
 	var sb strings.Builder
 
@@ -401,59 +402,32 @@ func (kp *KernelProgram) generateMatrixMacros() string {
 
 		// Determine if it's a square matrix
 		if rows == cols {
-			sb.WriteString(fmt.Sprintf(`#define MATMUL_%s(IN, OUT, K_VAL, NP) do { \
-    for (int i = 0; i < (NP); ++i) { \
-        for (int elem = 0; elem < (K_VAL); ++elem) { \
-            real_t sum = REAL_ZERO; \
-            for (int j = 0; j < (NP); ++j) { \
-                sum += %s[i][j] * (IN)[elem * (NP) + j]; \
-            } \
-            (OUT)[elem * (NP) + i] = sum; \
-        } \
-    } \
-} while(0)
-
-`, name, name))
+			// Square matrix macro (like differentiation matrices)
+			sb.WriteString(fmt.Sprintf("#define MATMUL_%s(IN, OUT, K_VAL, NP) do { \\\n", name))
+			sb.WriteString("    for (int i = 0; i < (NP); ++i) { \\\n")
+			sb.WriteString("        for (int elem = 0; elem < (K_VAL); ++elem) { \\\n")
+			sb.WriteString("            real_t sum = REAL_ZERO; \\\n")
+			sb.WriteString("            for (int j = 0; j < (NP); ++j) { \\\n")
+			sb.WriteString(fmt.Sprintf("                sum += %s[i][j] * (IN)[elem * (NP) + j]; \\\n", name))
+			sb.WriteString("            } \\\n")
+			sb.WriteString("            (OUT)[elem * (NP) + i] = sum; \\\n")
+			sb.WriteString("        } \\\n")
+			sb.WriteString("    } \\\n")
+			sb.WriteString("} while(0)\n\n")
 		} else {
-			// Rectangular matrix (like LIFT)
-			sb.WriteString(fmt.Sprintf(`#define MATMUL_%s(IN, OUT, K_VAL, ROWS, IN_COLS) do { \
-    for (int i = 0; i < (ROWS); ++i) { \
-        for (int elem = 0; elem < (K_VAL); ++elem) { \
-            real_t sum = REAL_ZERO; \
-            for (int j = 0; j < (IN_COLS); ++j) { \
-                sum += %s[i][j] * (IN)[elem * (IN_COLS) + j]; \
-            } \
-            (OUT)[elem * (ROWS) + i] = sum; \
-        } \
-    } \
-} while(0)
-
-`, name, name))
+			// Rectangular matrix macro (need to know input/output dimensions)
+			// For now, generate a comment explaining what's needed
+			sb.WriteString(fmt.Sprintf("// Note: %s is a %dx%d rectangular matrix\n", name, rows, cols))
+			sb.WriteString(fmt.Sprintf("// Macro generation requires knowledge of input dimensions\n\n"))
 		}
 	}
 
 	return sb.String()
 }
 
-// BuildKernel compiles a kernel from source with the generated preamble
+// BuildKernel compiles and registers a kernel with the program
 func (kp *KernelProgram) BuildKernel(kernelSource, kernelName string) (*gocca.OCCAKernel, error) {
-	if kp.device == nil {
-		return nil, fmt.Errorf("device is nil")
-	}
-
-	if !kp.device.IsInitialized() {
-		return nil, fmt.Errorf("device is not initialized")
-	}
-
-	if kernelName == "" {
-		return nil, fmt.Errorf("kernel name cannot be empty")
-	}
-
-	if kernelSource == "" {
-		return nil, fmt.Errorf("kernel source cannot be empty")
-	}
-
-	// Ensure preamble is generated
+	// Generate preamble if not already done
 	if kp.kernelPreamble == "" {
 		kp.GeneratePreamble()
 	}
@@ -593,104 +567,6 @@ func (kp *KernelProgram) Free() {
 	}
 }
 
-// CopyArrayToHost copies array data from device to host, removing alignment padding
-func CopyArrayToHost[T any](kp *KernelProgram, name string) ([]T, error) {
-	// Check if array exists
-	metadata, exists := kp.arrayMetadata[name]
-	if !exists {
-		return nil, fmt.Errorf("array %s not found", name)
-	}
-
-	// Verify type compatibility
-	var sample T
-	requestedSize := int(unsafe.Sizeof(sample))
-
-	// Determine expected size based on array's data type
-	expectedSize := 0
-	switch metadata.dataType {
-	case Float32:
-		expectedSize = 4
-	case Float64:
-		expectedSize = 8
-	case Int32:
-		expectedSize = 4
-	case Int64:
-		expectedSize = 8
-	}
-
-	if requestedSize != expectedSize {
-		return nil, fmt.Errorf("type mismatch: array %s has element size %d, requested type has size %d",
-			name, expectedSize, requestedSize)
-	}
-
-	// Calculate total logical elements
-	totalElements := 0
-	for _, k := range kp.K {
-		totalElements += k * metadata.elementsPerValue
-	}
-
-	// Handle empty array case early
-	if totalElements == 0 {
-		return make([]T, 0), nil
-	}
-
-	// Get memory and offsets
-	globalMem := kp.pooledMemory[name+"_global"]
-	offsetsMem := kp.pooledMemory[name+"_offsets"]
-
-	if globalMem == nil || offsetsMem == nil {
-		return nil, fmt.Errorf("memory not allocated for array %s", name)
-	}
-
-	// Get offsets - fixed to handle int32 correctly
-	numOffsets := kp.NumPartitions + 1
-	offsets := make([]int64, numOffsets)
-
-	if kp.GetIntSize() == 4 {
-		// For int32, copy to int32 array first, then convert
-		offsets32 := make([]int32, numOffsets)
-		offsetSize := int64(numOffsets * 4)
-		offsetsMem.CopyTo(unsafe.Pointer(&offsets32[0]), offsetSize)
-		for i, v := range offsets32 {
-			offsets[i] = int64(v)
-		}
-	} else {
-		// For int64, copy directly
-		offsetSize := int64(numOffsets * 8)
-		offsetsMem.CopyTo(unsafe.Pointer(&offsets[0]), offsetSize)
-	}
-
-	// Allocate result slice
-	result := make([]T, totalElements)
-
-	// Copy data from device, skipping alignment padding
-	// First, get the entire aligned buffer
-	_, totalSize := kp.calculateAlignedOffsetsAndSize(metadata.spec)
-
-	// Check if buffer is empty
-	if totalSize == 0 {
-		return result, nil
-	}
-
-	tempBuffer := make([]T, totalSize/int64(requestedSize))
-	globalMem.CopyTo(unsafe.Pointer(&tempBuffer[0]), totalSize)
-
-	// Copy each partition's data contiguously
-	destIdx := 0
-	for part := 0; part < kp.NumPartitions; part++ {
-		startIdx := offsets[part]
-		partitionElements := kp.K[part] * metadata.elementsPerValue
-
-		// Copy this partition's data
-		for i := 0; i < partitionElements; i++ {
-			result[destIdx] = tempBuffer[startIdx+int64(i)]
-			destIdx++
-		}
-	}
-
-	return result, nil
-}
-
 // GetArrayType returns the data type of an allocated array
 func (kp *KernelProgram) GetArrayType(name string) (DataType, error) {
 	metadata, exists := kp.arrayMetadata[name]
@@ -700,19 +576,87 @@ func (kp *KernelProgram) GetArrayType(name string) (DataType, error) {
 	return metadata.dataType, nil
 }
 
-// GetArrayLogicalSize returns the total number of elements (without padding)
+// GetArrayLogicalSize returns the number of logical elements in an array
 func (kp *KernelProgram) GetArrayLogicalSize(name string) (int, error) {
 	metadata, exists := kp.arrayMetadata[name]
 	if !exists {
 		return 0, fmt.Errorf("array %s not found", name)
 	}
 
-	totalElements := 0
-	for _, k := range kp.K {
-		totalElements += k * metadata.elementsPerValue
+	// Total elements = total elements across all partitions * elements per value
+	return kp.getTotalElements() * metadata.elementsPerValue, nil
+}
+
+// CopyArrayToHost copies array data from device to host, removing alignment padding
+func CopyArrayToHost[T any](kp *KernelProgram, name string) ([]T, error) {
+	// Check if array exists
+	metadata, exists := kp.arrayMetadata[name]
+	if !exists {
+		return nil, fmt.Errorf("array %s not found", name)
 	}
 
-	return totalElements, nil
+	// Verify type matches
+	var sample T
+	requestedType := getDataTypeFromSample(sample)
+	if requestedType != metadata.dataType {
+		return nil, fmt.Errorf("type mismatch: array is %v, requested %v",
+			metadata.dataType, requestedType)
+	}
+
+	// Get memory and offsets
+	memory := kp.GetMemory(name)
+	if memory == nil {
+		return nil, fmt.Errorf("memory for %s not found", name)
+	}
+
+	offsetsMem := kp.pooledMemory[name+"_offsets"]
+	if offsetsMem == nil {
+		return nil, fmt.Errorf("offsets for %s not found", name)
+	}
+
+	// Read offsets to determine actual data locations
+	numOffsets := kp.NumPartitions + 1
+	var offsets []int64
+
+	if kp.GetIntSize() == 4 {
+		offsets32 := make([]int32, numOffsets)
+		offsetsMem.CopyTo(unsafe.Pointer(&offsets32[0]), int64(numOffsets*4))
+		offsets = make([]int64, numOffsets)
+		for i, v := range offsets32 {
+			offsets[i] = int64(v)
+		}
+	} else {
+		offsets = make([]int64, numOffsets)
+		offsetsMem.CopyTo(unsafe.Pointer(&offsets[0]), int64(numOffsets*8))
+	}
+
+	// Calculate total logical elements
+	totalLogicalElements := kp.getTotalElements() * metadata.elementsPerValue
+
+	// Allocate result array
+	result := make([]T, totalLogicalElements)
+
+	// Determine element size
+	elementSize := int64(unsafe.Sizeof(sample))
+
+	// Read all data including padding
+	totalSize := offsets[kp.NumPartitions] * elementSize
+	tempData := make([]T, offsets[kp.NumPartitions])
+	memory.CopyTo(unsafe.Pointer(&tempData[0]), totalSize)
+
+	// Copy data partition by partition, skipping alignment padding
+	destIdx := 0
+	for part := 0; part < kp.NumPartitions; part++ {
+		startIdx := offsets[part]
+		partitionElements := kp.K[part] * metadata.elementsPerValue
+
+		for i := 0; i < partitionElements; i++ {
+			result[destIdx] = tempData[startIdx+int64(i)]
+			destIdx++
+		}
+	}
+
+	return result, nil
 }
 
 // CopyPartitionToHost copies a specific partition's data from device to host
@@ -727,25 +671,12 @@ func CopyPartitionToHost[T any](kp *KernelProgram, name string, partitionID int)
 		return nil, fmt.Errorf("array %s not found", name)
 	}
 
-	// Verify type compatibility
+	// Verify type matches
 	var sample T
-	requestedSize := int(unsafe.Sizeof(sample))
-
-	expectedSize := 0
-	switch metadata.dataType {
-	case Float32:
-		expectedSize = 4
-	case Float64:
-		expectedSize = 8
-	case Int32:
-		expectedSize = 4
-	case Int64:
-		expectedSize = 8
-	}
-
-	if requestedSize != expectedSize {
-		return nil, fmt.Errorf("type mismatch: array %s has element size %d, requested type has size %d",
-			name, expectedSize, requestedSize)
+	requestedType := getDataTypeFromSample(sample)
+	if requestedType != metadata.dataType {
+		return nil, fmt.Errorf("type mismatch: array is %v, requested %v",
+			metadata.dataType, requestedType)
 	}
 
 	// Calculate partition size
@@ -782,27 +713,38 @@ func CopyPartitionToHost[T any](kp *KernelProgram, name string, partitionID int)
 		offsetsMem.CopyTo(unsafe.Pointer(&offsets[0]), offsetSize)
 	}
 
+	// Allocate result array
 	result := make([]T, partitionElements)
 
-	// Copy partition data via temporary buffer
-	startOffset := offsets[partitionID]
-	endOffset := offsets[partitionID+1]
-	partitionSizeWithPadding := endOffset - startOffset
+	// Determine element size
+	elementSize := int64(unsafe.Sizeof(sample))
 
-	// Read the partition's portion including any padding
-	tempBuffer := make([]T, partitionSizeWithPadding)
-	bytesToCopy := partitionSizeWithPadding * int64(requestedSize)
-	byteOffset := startOffset * int64(requestedSize)
-	_, _, _ = tempBuffer, byteOffset, bytesToCopy
+	// Read all data including padding
+	totalSize := offsets[kp.NumPartitions] * elementSize
+	tempData := make([]T, offsets[kp.NumPartitions])
+	globalMem.CopyTo(unsafe.Pointer(&tempData[0]), totalSize)
 
-	// Get entire buffer and extract partition
-	_, totalSize := kp.calculateAlignedOffsetsAndSize(metadata.spec)
-	fullBuffer := make([]byte, totalSize)
-	globalMem.CopyTo(unsafe.Pointer(&fullBuffer[0]), totalSize)
-
-	// Extract just this partition's data
-	partitionBytes := fullBuffer[byteOffset : byteOffset+int64(partitionElements*requestedSize)]
-	copy((*[1 << 30]byte)(unsafe.Pointer(&result[0]))[:partitionElements*requestedSize], partitionBytes)
+	// Copy just this partition's data
+	startIdx := offsets[partitionID]
+	for i := 0; i < partitionElements; i++ {
+		result[i] = tempData[startIdx+int64(i)]
+	}
 
 	return result, nil
+}
+
+// Helper function to determine DataType from a sample value
+func getDataTypeFromSample(sample interface{}) DataType {
+	switch sample.(type) {
+	case float32:
+		return Float32
+	case float64:
+		return Float64
+	case int32:
+		return Int32
+	case int64:
+		return Int64
+	default:
+		return 0
+	}
 }
