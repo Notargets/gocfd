@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"strings"
+	"unsafe"
 
 	"github.com/notargets/gocca"
 )
@@ -17,45 +18,54 @@ const (
 	Int64
 )
 
-// KernelProgram manages code generation and execution for DG kernels
+// AlignmentType specifies memory alignment requirements
+type AlignmentType int
+
+const (
+	NoAlignment    AlignmentType = 1
+	CacheLineAlign AlignmentType = 64
+	WarpAlign      AlignmentType = 128
+	PageAlign      AlignmentType = 4096
+)
+
+// ArraySpec defines user requirements for array allocation
+type ArraySpec struct {
+	Name      string
+	Size      int64         // Total size in bytes
+	Alignment AlignmentType // Alignment requirement
+}
+
+// KernelProgram manages code generation and execution for partition-parallel kernels
 type KernelProgram struct {
-	// KernelProgram uses partition-blocked, element-blocked data layout:
-	// Data arrays are organized as [part0_elem0_node0, ..., part0_elem0_nodeNP-1,
-	//                               part0_elem1_node0, ..., part0_elemK-1_nodeNP-1,
-	//                               part1_elem0_node0, ..., partNpart-1_elemK-1_nodeNP-1]
-	// This enables partition-parallel execution on GPU blocks/CPU threads.
-
 	// Partition configuration
-	NumPartitions   int // Npart - number of partitions
-	ElementsPerPart int // K - elements per partition
+	NumPartitions int   // Number of partitions
+	K             []int // Variable elements per partition
 
-	// Element configuration
-	Order     int      // Polynomial order (N)
-	Np        int      // Number of nodes per element
-	Nfp       int      // Number of face points
-	Nfaces    int      // Number of faces per element (4 for tet)
-	FloatType DataType // Float32 or Float64 (default: Float64)
-	IntType   DataType // Int32 or Int64 (default: Int64)
+	// Type configuration
+	FloatType DataType // Float32 or Float64
+	IntType   DataType // Int32 or Int64
 
 	// Static data to embed
-	StaticMatrices map[string]Matrix // Dr, Ds, Dt, LIFT, etc.
+	StaticMatrices map[string]Matrix
+
+	// Array tracking for macro generation
+	allocatedArrays []string
 
 	// Generated code
-	kernelPreamble string // Generated static data and utilities
+	kernelPreamble string
 
 	// Runtime resources
-	device  *gocca.OCCADevice
-	kernels map[string]*gocca.OCCAKernel
-	memory  map[string]*gocca.OCCAMemory
+	device       *gocca.OCCADevice
+	kernels      map[string]*gocca.OCCAKernel
+	pooledMemory map[string]*gocca.OCCAMemory
 }
 
 // Config holds configuration for creating a KernelProgram
 type Config struct {
-	Order           int
-	NumPartitions   int // Number of partitions (default: 1)
-	ElementsPerPart int // Elements per partition
-	FloatType       DataType
-	IntType         DataType
+	NumPartitions int   // Number of partitions
+	K             []int // Elements per partition (variable)
+	FloatType     DataType
+	IntType       DataType
 }
 
 // NewKernelProgram creates a new KernelProgram with the given configuration
@@ -65,14 +75,19 @@ func NewKernelProgram(device *gocca.OCCADevice, cfg Config) *KernelProgram {
 		panic("device cannot be nil")
 	}
 
-	// Check if device is initialized
 	if !device.IsInitialized() {
 		panic("device is not initialized")
 	}
 
-	// Set defaults
+	// Validate partition configuration
+	if len(cfg.K) == 0 {
+		panic("K array cannot be empty")
+	}
+
 	if cfg.NumPartitions == 0 {
-		cfg.NumPartitions = 1 // Default to single partition
+		cfg.NumPartitions = len(cfg.K)
+	} else if cfg.NumPartitions != len(cfg.K) {
+		panic("NumPartitions must match length of K array")
 	}
 
 	// Set type defaults only if both are zero
@@ -81,24 +96,20 @@ func NewKernelProgram(device *gocca.OCCADevice, cfg Config) *KernelProgram {
 		cfg.IntType = Int64
 	}
 
-	// Calculate derived values
-	np := (cfg.Order + 1) * (cfg.Order + 2) * (cfg.Order + 3) / 6
-	nfp := (cfg.Order + 1) * (cfg.Order + 2) / 2
-
 	kp := &KernelProgram{
-		Order:           cfg.Order,
 		NumPartitions:   cfg.NumPartitions,
-		ElementsPerPart: cfg.ElementsPerPart,
-		Np:              np,
-		Nfp:             nfp,
-		Nfaces:          4, // Tetrahedral elements
+		K:               make([]int, len(cfg.K)),
 		FloatType:       cfg.FloatType,
 		IntType:         cfg.IntType,
 		StaticMatrices:  make(map[string]Matrix),
+		allocatedArrays: []string{},
 		device:          device,
 		kernels:         make(map[string]*gocca.OCCAKernel),
-		memory:          make(map[string]*gocca.OCCAMemory),
+		pooledMemory:    make(map[string]*gocca.OCCAMemory),
 	}
+
+	// Copy K values
+	copy(kp.K, cfg.K)
 
 	return kp
 }
@@ -108,8 +119,90 @@ func (kp *KernelProgram) AddStaticMatrix(name string, matrix Matrix) {
 	kp.StaticMatrices[name] = matrix
 }
 
-// GenerateKernelMain generates the kernel preamble with static data and utilities
-func (kp *KernelProgram) GenerateKernelMain() string {
+// AllocateArrays allocates device memory with user-specified requirements
+func (kp *KernelProgram) AllocateArrays(specs []ArraySpec) error {
+	for _, spec := range specs {
+		// Step 1: Calculate aligned offsets first
+		offsets, totalSize := kp.calculateAlignedOffsetsAndSize(spec)
+
+		// Step 2: Allocate global pool with exact calculated size
+		memory := kp.device.Malloc(totalSize, nil, nil)
+		if memory == nil {
+			return fmt.Errorf("failed to allocate %s", spec.Name)
+		}
+		kp.pooledMemory[spec.Name+"_global"] = memory
+
+		// Step 3: Store offsets array
+		offsetSize := int64(len(offsets)) * int64(kp.GetIntSize())
+		offsetMem := kp.device.Malloc(offsetSize, unsafe.Pointer(&offsets[0]), nil)
+		if offsetMem == nil {
+			return fmt.Errorf("failed to allocate offsets for %s", spec.Name)
+		}
+		kp.pooledMemory[spec.Name+"_offsets"] = offsetMem
+
+		// Track array name for macro generation
+		kp.allocatedArrays = append(kp.allocatedArrays, spec.Name)
+	}
+
+	// Allocate K array
+	kSize := int64(len(kp.K)) * int64(kp.GetIntSize())
+	kMem := kp.device.Malloc(kSize, unsafe.Pointer(&kp.K[0]), nil)
+	if kMem == nil {
+		return fmt.Errorf("failed to allocate K array")
+	}
+	kp.pooledMemory["K"] = kMem
+
+	return nil
+}
+
+// calculateAlignedOffsetsAndSize calculates partition offsets and total size needed
+func (kp *KernelProgram) calculateAlignedOffsetsAndSize(spec ArraySpec) ([]int64, int64) {
+	offsets := make([]int64, kp.NumPartitions+1)
+
+	// Calculate bytes per element based on spec size and total elements
+	totalElements := kp.getTotalElements()
+	bytesPerElement := spec.Size / int64(totalElements)
+
+	alignment := int64(spec.Alignment)
+	currentByteOffset := int64(0)
+
+	for i := 0; i < kp.NumPartitions; i++ {
+		// Align current offset
+		if currentByteOffset%alignment != 0 {
+			currentByteOffset = ((currentByteOffset + alignment - 1) / alignment) * alignment
+		}
+
+		// Store element offset (not byte offset)
+		offsets[i] = currentByteOffset / bytesPerElement
+
+		// Advance by partition data size
+		partitionBytes := int64(kp.K[i]) * bytesPerElement
+		currentByteOffset += partitionBytes
+	}
+
+	// Final offset for bounds checking
+	if currentByteOffset%alignment != 0 {
+		currentByteOffset = ((currentByteOffset + alignment - 1) / alignment) * alignment
+	}
+	offsets[kp.NumPartitions] = currentByteOffset / bytesPerElement
+
+	// Total size is the final byte offset
+	totalSize := currentByteOffset
+
+	return offsets, totalSize
+}
+
+// getTotalElements returns sum of all K values
+func (kp *KernelProgram) getTotalElements() int {
+	total := 0
+	for _, k := range kp.K {
+		total += k
+	}
+	return total
+}
+
+// GeneratePreamble generates the kernel preamble with static data and utilities
+func (kp *KernelProgram) GeneratePreamble() string {
 	var sb strings.Builder
 
 	// 1. Type definitions and constants
@@ -118,8 +211,11 @@ func (kp *KernelProgram) GenerateKernelMain() string {
 	// 2. Static matrix declarations
 	sb.WriteString(kp.generateStaticMatrices())
 
-	// 3. Utility functions
-	sb.WriteString(kp.generateUtilityFunctions())
+	// 3. Partition access macros
+	sb.WriteString(kp.generatePartitionMacros())
+
+	// 4. Matrix operation macros
+	sb.WriteString(kp.generateMatrixMacros())
 
 	kp.kernelPreamble = sb.String()
 	return kp.kernelPreamble
@@ -128,17 +224,6 @@ func (kp *KernelProgram) GenerateKernelMain() string {
 // generateTypeDefinitions creates type definitions based on precision settings
 func (kp *KernelProgram) generateTypeDefinitions() string {
 	var sb strings.Builder
-
-	// Constants
-	sb.WriteString(fmt.Sprintf("#define ORDER %d\n", kp.Order))
-	sb.WriteString(fmt.Sprintf("#define NP %d\n", kp.Np))
-	sb.WriteString(fmt.Sprintf("#define NFP %d\n", kp.Nfp))
-	sb.WriteString(fmt.Sprintf("#define NFACES %d\n", kp.Nfaces))
-
-	// Partition-aware constants
-	sb.WriteString(fmt.Sprintf("#define NPART %d\n", kp.NumPartitions))
-	sb.WriteString(fmt.Sprintf("#define K %d\n", kp.ElementsPerPart))
-	sb.WriteString("\n")
 
 	// Type definitions
 	floatTypeStr := "double"
@@ -159,24 +244,8 @@ func (kp *KernelProgram) generateTypeDefinitions() string {
 	sb.WriteString(fmt.Sprintf("#define REAL_ONE 1.0%s\n", floatSuffix))
 	sb.WriteString("\n")
 
-	// Partition indexing macros
-	sb.WriteString("// Partition-aware indexing macros\n")
-	sb.WriteString("#define PART_OFFSET(part) ((part) * K * NP)\n")
-	sb.WriteString("#define ELEM_OFFSET(part, elem) (PART_OFFSET(part) + (elem) * NP)\n")
-	sb.WriteString("#define NODE_IDX(part, elem, node) (ELEM_OFFSET(part, elem) + (node))\n")
-	sb.WriteString("\n")
-
-	// Face type constants
-	sb.WriteString("// Face types\n")
-	sb.WriteString("#define FACE_INTERIOR 0\n")
-	sb.WriteString("#define FACE_BOUNDARY 1\n")
-	sb.WriteString("\n")
-
-	// Boundary condition types
-	sb.WriteString("// Boundary condition types\n")
-	sb.WriteString("#define BC_WALL 1\n")
-	sb.WriteString("#define BC_INFLOW 2\n")
-	sb.WriteString("#define BC_OUTFLOW 3\n")
+	// Constants - these would typically be set based on the specific kernel needs
+	sb.WriteString(fmt.Sprintf("#define NPART %d\n", kp.NumPartitions))
 	sb.WriteString("\n")
 
 	return sb.String()
@@ -186,14 +255,14 @@ func (kp *KernelProgram) generateTypeDefinitions() string {
 func (kp *KernelProgram) generateStaticMatrices() string {
 	var sb strings.Builder
 
-	sb.WriteString("// Static matrices\n")
-
-	// Generate each matrix
-	for name, matrix := range kp.StaticMatrices {
-		sb.WriteString(kp.formatStaticMatrix(name, matrix))
+	if len(kp.StaticMatrices) > 0 {
+		sb.WriteString("// Static matrices\n")
+		for name, matrix := range kp.StaticMatrices {
+			sb.WriteString(kp.formatStaticMatrix(name, matrix))
+		}
+		sb.WriteString("\n")
 	}
 
-	sb.WriteString("\n")
 	return sb.String()
 }
 
@@ -202,13 +271,11 @@ func (kp *KernelProgram) formatStaticMatrix(name string, m Matrix) string {
 	rows, cols := m.Dims()
 	var sb strings.Builder
 
-	// Use appropriate type based on FloatType
 	typeStr := "double"
 	if kp.FloatType == Float32 {
 		typeStr = "float"
 	}
 
-	// Use const for OCCA (it will translate to __constant__ for GPU backends)
 	sb.WriteString(fmt.Sprintf("const %s %s[%d][%d] = {\n",
 		typeStr, name, rows, cols))
 
@@ -218,7 +285,6 @@ func (kp *KernelProgram) formatStaticMatrix(name string, m Matrix) string {
 			if j > 0 {
 				sb.WriteString(", ")
 			}
-			// Format the value
 			val := m.At(i, j)
 			if kp.FloatType == Float32 {
 				sb.WriteString(fmt.Sprintf("%.7ef", val))
@@ -237,175 +303,110 @@ func (kp *KernelProgram) formatStaticMatrix(name string, m Matrix) string {
 	return sb.String()
 }
 
-// generateUtilityFunctions creates utility functions for matrix operations
-func (kp *KernelProgram) generateUtilityFunctions() string {
+// generatePartitionMacros creates macros for partition data access
+func (kp *KernelProgram) generatePartitionMacros() string {
 	var sb strings.Builder
 
-	sb.WriteString("// Utility functions\n\n")
+	sb.WriteString("// Partition access macros\n")
 
-	// Matrix multiplication functions for each static matrix
-	for name := range kp.StaticMatrices {
-		sb.WriteString(kp.generateMatMulFunction(name))
+	// Generate macro for each allocated array
+	for _, arrayName := range kp.allocatedArrays {
+		sb.WriteString(fmt.Sprintf("#define %s_PART(part) (%s_global + %s_offsets[part])\n",
+			arrayName, arrayName, arrayName))
 	}
 
-	// Generic utilities
-	sb.WriteString(kp.generateGenericUtilities())
+	if len(kp.allocatedArrays) > 0 {
+		sb.WriteString("\n")
+	}
 
 	return sb.String()
 }
 
-// generateMatMulFunction creates a matrix multiplication function for a specific static matrix
-// Uses element-blocked data layout (standard DG layout where nodes within an element are contiguous)
-func (kp *KernelProgram) generateMatMulFunction(matrixName string) string {
-	return fmt.Sprintf(`// Matrix multiplication using static %s
-// Data layout: partition-blocked, element-blocked
-inline void matMul_%s_Large(const real_t* U, real_t* result, int K) {
-    for (int elem = 0; elem < K; ++elem) {
-        for (int i = 0; i < NP; ++i) {
-            real_t sum = REAL_ZERO;
-            #pragma unroll
-            for (int j = 0; j < NP; ++j) {
-                sum += %s[i][j] * U[elem*NP + j];
-            }
-            result[elem*NP + i] = sum;
-        }
-    }
+// generateMatrixMacros creates vectorizable matrix multiplication macros
+func (kp *KernelProgram) generateMatrixMacros() string {
+	var sb strings.Builder
+
+	sb.WriteString("// Vectorizable matrix multiplication macros\n")
+
+	// Generate macro for each static matrix
+	for name, matrix := range kp.StaticMatrices {
+		rows, cols := matrix.Dims()
+
+		// Determine if it's a square matrix
+		if rows == cols {
+			sb.WriteString(fmt.Sprintf(`#define MATMUL_%s(IN, OUT, K_VAL, NP) do { \
+    for (int i = 0; i < (NP); ++i) { \
+        for (int elem = 0; elem < (K_VAL); ++elem) { \
+            real_t sum = REAL_ZERO; \
+            for (int j = 0; j < (NP); ++j) { \
+                sum += %s[i][j] * (IN)[elem * (NP) + j]; \
+            } \
+            (OUT)[elem * (NP) + i] = sum; \
+        } \
+    } \
+} while(0)
+
+`, name, name))
+		} else {
+			// Rectangular matrix (like LIFT)
+			sb.WriteString(fmt.Sprintf(`#define MATMUL_%s(IN, OUT, K_VAL, ROWS, IN_COLS) do { \
+    for (int i = 0; i < (ROWS); ++i) { \
+        for (int elem = 0; elem < (K_VAL); ++elem) { \
+            real_t sum = REAL_ZERO; \
+            for (int j = 0; j < (IN_COLS); ++j) { \
+                sum += %s[i][j] * (IN)[elem * (IN_COLS) + j]; \
+            } \
+            (OUT)[elem * (ROWS) + i] = sum; \
+        } \
+    } \
+} while(0)
+
+`, name, name))
+		}
+	}
+
+	return sb.String()
 }
 
-`, matrixName, matrixName, matrixName)
-}
-
-// generateGenericUtilities creates general-purpose utility functions
-func (kp *KernelProgram) generateGenericUtilities() string {
-	return `// Generic matrix-vector multiplication
-inline void matVecMul(const real_t* mat, const real_t* vec, real_t* result, int M, int N) {
-    for (int i = 0; i < M; ++i) {
-        real_t sum = REAL_ZERO;
-        #pragma unroll
-        for (int j = 0; j < N; ++j) {
-            sum += mat[i*N + j] * vec[j];
-        }
-        result[i] = sum;
-    }
-}
-
-// Apply boundary condition
-inline real_t applyBC(int bcType, real_t M, real_t bcData,
-                     real_t nx, real_t ny, real_t nz) {
-    switch(bcType) {
-        case BC_WALL:
-            return -M;  // Reflection
-        case BC_INFLOW:
-            return bcData;  // Prescribed value
-        case BC_OUTFLOW:
-            return M;  // Zero gradient
-        default:
-            return M;
-    }
-}
-
-// Simple Riemann flux (Rusanov/Lax-Friedrichs)
-inline real_t riemannFlux(real_t M, real_t P, 
-                         real_t nx, real_t ny, real_t nz) {
-    real_t jump = P - M;
-    real_t wavespeed = REAL_ONE; // Simplified - would compute actual wave speed
-    return (real_t)0.5 * ((M + P) - wavespeed * jump);
-}
-
-`
-}
-
-// AllocateKernelMemory allocates device memory for runtime data
-func (kp *KernelProgram) AllocateKernelMemory() error {
-	// Check device is valid
+// BuildKernel compiles a kernel from source with the generated preamble
+func (kp *KernelProgram) BuildKernel(kernelSource, kernelName string) (*gocca.OCCAKernel, error) {
 	if kp.device == nil {
-		return fmt.Errorf("device is nil")
+		return nil, fmt.Errorf("device is nil")
 	}
 
-	// Get size based on precision
-	floatSize := 8 // Float64
-	if kp.FloatType == Float32 {
-		floatSize = 4
+	if !kp.device.IsInitialized() {
+		return nil, fmt.Errorf("device is not initialized")
 	}
 
-	intSize := 8 // Int64
-	if kp.IntType == Int32 {
-		intSize = 4
+	if kernelName == "" {
+		return nil, fmt.Errorf("kernel name cannot be empty")
 	}
 
-	// Total counts across all partitions
-	totalNodes := kp.NumPartitions * kp.ElementsPerPart * kp.Np
-	totalFaces := kp.NumPartitions * kp.ElementsPerPart * kp.Nfaces * kp.Nfp
-
-	// Solution arrays - partition-blocked
-	kp.memory["U"] = kp.device.Malloc(
-		int64(totalNodes*floatSize),
-		nil,
-		nil,
-	)
-
-	// RHS array - partition-blocked
-	kp.memory["RHS"] = kp.device.Malloc(
-		int64(totalNodes*floatSize),
-		nil,
-		nil,
-	)
-
-	// Geometric factors (stored separately for vectorization) - partition-blocked
-	geoFactors := []string{"rx", "ry", "rz", "sx", "sy", "sz", "tx", "ty", "tz"}
-	for _, factor := range geoFactors {
-		kp.memory[factor] = kp.device.Malloc(
-			int64(totalNodes*floatSize),
-			nil,
-			nil,
-		)
+	if kernelSource == "" {
+		return nil, fmt.Errorf("kernel source cannot be empty")
 	}
 
-	// Face data - partition-blocked
-	kp.memory["faceM"] = kp.device.Malloc(
-		int64(totalFaces*floatSize),
-		nil,
-		nil,
-	)
-
-	kp.memory["faceP"] = kp.device.Malloc(
-		int64(totalFaces*floatSize),
-		nil,
-		nil,
-	)
-
-	// Face types (integer) - partition-blocked
-	kp.memory["faceTypes"] = kp.device.Malloc(
-		int64(totalFaces*intSize),
-		nil,
-		nil,
-	)
-
-	// Face normals - partition-blocked
-	faceNormals := []string{"nx", "ny", "nz"}
-	for _, normal := range faceNormals {
-		kp.memory[normal] = kp.device.Malloc(
-			int64(totalFaces*floatSize),
-			nil,
-			nil,
-		)
+	// Ensure preamble is generated
+	if kp.kernelPreamble == "" {
+		kp.GeneratePreamble()
 	}
 
-	// Face scaling - partition-blocked
-	kp.memory["Fscale"] = kp.device.Malloc(
-		int64(totalFaces*floatSize),
-		nil,
-		nil,
-	)
+	// Combine preamble with kernel source
+	fullSource := kp.kernelPreamble + "\n" + kernelSource
 
-	// Boundary condition data - partition-blocked
-	kp.memory["bcData"] = kp.device.Malloc(
-		int64(totalFaces*floatSize),
-		nil,
-		nil,
-	)
+	// Build kernel
+	kernel, err := kp.device.BuildKernelFromString(fullSource, kernelName, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build kernel %s: %w", kernelName, err)
+	}
 
-	return nil
+	// Register if build succeeded
+	if kernel != nil {
+		kp.kernels[kernelName] = kernel
+		return kernel, nil
+	}
+
+	return nil, fmt.Errorf("kernel build returned nil for %s", kernelName)
 }
 
 // RunKernel executes a registered kernel with the given arguments
@@ -416,33 +417,80 @@ func (kp *KernelProgram) RunKernel(name string, args ...interface{}) error {
 	}
 
 	// Configure for partition-parallel execution
-	// Each partition runs on its own GPU block / CPU thread
 	outerDims := gocca.OCCADim{
-		X: uint64(kp.NumPartitions), // Partitions map to blocks
+		X: uint64(kp.NumPartitions),
 		Y: 1,
 		Z: 1,
 	}
 
-	// Inner parallelism over nodes
+	// Inner dimensions would be set based on the specific kernel requirements
+	// For now, use a default
 	innerDims := gocca.OCCADim{
-		X: uint64(kp.Np), // Nodes map to threads
+		X: 32, // Default work group size
 		Y: 1,
 		Z: 1,
 	}
 
 	kernel.SetRunDims(outerDims, innerDims)
 
-	return kernel.RunWithArgs(args...)
+	// Expand args to include renamed arrays
+	expandedArgs := kp.expandKernelArgs(args)
+
+	return kernel.RunWithArgs(expandedArgs...)
+}
+
+// expandKernelArgs transforms user array names to kernel parameter names
+func (kp *KernelProgram) expandKernelArgs(args []interface{}) []interface{} {
+	expanded := []interface{}{}
+
+	// Always pass K array first
+	expanded = append(expanded, kp.pooledMemory["K"])
+
+	// Process remaining arguments
+	for _, arg := range args {
+		switch v := arg.(type) {
+		case string:
+			// Check if this is an allocated array name
+			if kp.isAllocatedArray(v) {
+				// Add both _global and _offsets
+				expanded = append(expanded, kp.pooledMemory[v+"_global"])
+				expanded = append(expanded, kp.pooledMemory[v+"_offsets"])
+			} else {
+				// Not an array name, pass as-is
+				expanded = append(expanded, arg)
+			}
+		default:
+			// Pass through non-string arguments
+			expanded = append(expanded, arg)
+		}
+	}
+
+	return expanded
+}
+
+// isAllocatedArray checks if a name corresponds to an allocated array
+func (kp *KernelProgram) isAllocatedArray(name string) bool {
+	for _, arrayName := range kp.allocatedArrays {
+		if arrayName == name {
+			return true
+		}
+	}
+	return false
 }
 
 // GetMemory returns a device memory handle by name
 func (kp *KernelProgram) GetMemory(name string) *gocca.OCCAMemory {
-	return kp.memory[name]
-}
+	// First check if it's a direct memory name
+	if mem, exists := kp.pooledMemory[name]; exists {
+		return mem
+	}
 
-// GetKernelPreamble returns the generated preamble (useful for debugging)
-func (kp *KernelProgram) GetKernelPreamble() string {
-	return kp.kernelPreamble
+	// Check if it's an allocated array (return the _global version)
+	if kp.isAllocatedArray(name) {
+		return kp.pooledMemory[name+"_global"]
+	}
+
+	return nil
 }
 
 // GetFloatSize returns the size in bytes of the float type
@@ -463,70 +511,17 @@ func (kp *KernelProgram) GetIntSize() int {
 
 // Free releases all allocated resources
 func (kp *KernelProgram) Free() {
-	// Free kernels safely
+	// Free kernels
 	for _, kernel := range kp.kernels {
 		if kernel != nil {
 			kernel.Free()
 		}
 	}
 
-	// Free memory safely
-	for _, mem := range kp.memory {
+	// Free memory
+	for _, mem := range kp.pooledMemory {
 		if mem != nil {
 			mem.Free()
 		}
 	}
-}
-
-// BuildKernel compiles a kernel from source with the generated preamble
-func (kp *KernelProgram) BuildKernel(kernelSource, kernelName string) (*gocca.OCCAKernel, error) {
-	// Check device is valid
-	if kp.device == nil {
-		return nil, fmt.Errorf("device is nil")
-	}
-
-	// Check if device is initialized
-	if !kp.device.IsInitialized() {
-		return nil, fmt.Errorf("device is not initialized")
-	}
-
-	// Validate kernel name
-	if kernelName == "" {
-		return nil, fmt.Errorf("kernel name cannot be empty")
-	}
-
-	// Validate kernel source
-	if kernelSource == "" {
-		return nil, fmt.Errorf("kernel source cannot be empty")
-	}
-
-	// Ensure preamble is generated
-	if kp.kernelPreamble == "" {
-		kp.GenerateKernelMain()
-	}
-
-	// Combine preamble with kernel source
-	fullSource := kp.kernelPreamble + "\n" + kernelSource
-
-	// Build kernel
-	kernel, err := kp.device.BuildKernelFromString(fullSource, kernelName, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build kernel %s: %w", kernelName, err)
-	}
-
-	// Only register if build succeeded
-	if kernel != nil {
-		kp.RegisterKernel(kernelName, kernel)
-		return kernel, nil
-	}
-
-	return nil, fmt.Errorf("kernel build returned nil for %s", kernelName)
-}
-
-// RegisterKernel adds a compiled kernel to the program
-func (kp *KernelProgram) RegisterKernel(name string, kernel *gocca.OCCAKernel) {
-	if kernel == nil {
-		return
-	}
-	kp.kernels[name] = kernel
 }

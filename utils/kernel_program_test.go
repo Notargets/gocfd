@@ -10,746 +10,457 @@ import (
 	"github.com/notargets/gocca"
 )
 
-// Test 1: Creation and Configuration (Fundamental)
-func TestKernelProgram_Creation(t *testing.T) {
-	// Test basic object creation with different orders
-	for _, order := range []int{1, 2, 3, 4} {
-		t.Run(fmt.Sprintf("Order_%d", order), func(t *testing.T) {
-			device := createTestDevice(t)
-			defer device.Free()
-
-			kp := NewKernelProgram(device, Config{
-				Order:           order,
-				NumPartitions:   1,
-				ElementsPerPart: 10,
-				// Don't set types - let them default
-			})
-			defer kp.Free()
-
-			// Validate Np calculation
-			expectedNp := (order + 1) * (order + 2) * (order + 3) / 6
-			if kp.Np != expectedNp {
-				t.Errorf("Order %d: Expected Np=%d, got %d",
-					order, expectedNp, kp.Np)
-			}
-
-			// Validate Nfp calculation
-			expectedNfp := (order + 1) * (order + 2) / 2
-			if kp.Nfp != expectedNfp {
-				t.Errorf("Order %d: Expected Nfp=%d, got %d",
-					order, expectedNfp, kp.Nfp)
-			}
-
-			// Verify default types
-			if kp.FloatType != Float64 {
-				t.Errorf("Expected default FloatType=Float64, got %v", kp.FloatType)
-			}
-			if kp.IntType != Int64 {
-				t.Errorf("Expected default IntType=Int64, got %v", kp.IntType)
-			}
-
-			// Verify default partition count
-			if kp.NumPartitions != 1 {
-				t.Errorf("Expected default NumPartitions=1, got %d", kp.NumPartitions)
-			}
-		})
-	}
-}
-
-// Test partition configurations
-func TestKernelProgram_PartitionConfigurations(t *testing.T) {
+// Test 1: Creation with Variable Partition Sizes
+func TestKernelProgram_VariablePartitions(t *testing.T) {
 	device := createTestDevice(t)
 	defer device.Free()
 
 	testCases := []struct {
-		name            string
-		numPartitions   int
-		elementsPerPart int
+		name string
+		k    []int
 	}{
-		{"SinglePartition", 0, 100}, // 0 should default to 1
-		{"TwoPartitions", 2, 50},
-		{"EightPartitions", 8, 25},
-		{"ManyPartitions", 64, 10},
+		{"SinglePartition", []int{100}},
+		{"EqualPartitions", []int{50, 50}},
+		{"VariablePartitions", []int{30, 70, 45, 55}},
+		{"ManyPartitions", []int{10, 20, 15, 25, 30, 35, 40, 45}},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			kp := NewKernelProgram(device, Config{
-				Order:           3,
-				NumPartitions:   tc.numPartitions,
-				ElementsPerPart: tc.elementsPerPart,
+				K:         tc.k,
+				FloatType: Float64,
+				IntType:   Int64,
 			})
 			defer kp.Free()
 
-			expectedPartitions := tc.numPartitions
-			if expectedPartitions == 0 {
-				expectedPartitions = 1 // Default
+			if kp.NumPartitions != len(tc.k) {
+				t.Errorf("Expected NumPartitions=%d, got %d", len(tc.k), kp.NumPartitions)
 			}
 
-			if kp.NumPartitions != expectedPartitions {
-				t.Errorf("Expected NumPartitions=%d, got %d",
-					expectedPartitions, kp.NumPartitions)
-			}
-
-			if kp.ElementsPerPart != tc.elementsPerPart {
-				t.Errorf("Expected ElementsPerPart=%d, got %d",
-					tc.elementsPerPart, kp.ElementsPerPart)
-			}
-		})
-	}
-}
-
-// Test 2: Static Matrix Code Generation (Build Systematically)
-func TestKernelProgram_TypeDefaults(t *testing.T) {
-	device := createTestDevice(t)
-	defer device.Free()
-
-	// Test 1: Both unset (should get defaults)
-	kp1 := NewKernelProgram(device, Config{
-		Order:           1,
-		ElementsPerPart: 1,
-	})
-	defer kp1.Free()
-
-	if kp1.FloatType != Float64 {
-		t.Errorf("Test 1: Expected FloatType=Float64(%d), got %d", Float64, kp1.FloatType)
-	}
-	if kp1.IntType != Int64 {
-		t.Errorf("Test 1: Expected IntType=Int64(%d), got %d", Int64, kp1.IntType)
-	}
-
-	// Test 2: Explicit Float32 and Int32
-	kp2 := NewKernelProgram(device, Config{
-		Order:           1,
-		ElementsPerPart: 1,
-		FloatType:       Float32,
-		IntType:         Int32,
-	})
-	defer kp2.Free()
-
-	if kp2.FloatType != Float32 {
-		t.Errorf("Test 2: Expected FloatType=Float32(%d), got %d", Float32, kp2.FloatType)
-	}
-	if kp2.IntType != Int32 {
-		t.Errorf("Test 2: Expected IntType=Int32(%d), got %d", Int32, kp2.IntType)
-	}
-
-	// Test 3: Explicit Float64 and Int64
-	kp3 := NewKernelProgram(device, Config{
-		Order:           1,
-		ElementsPerPart: 1,
-		FloatType:       Float64,
-		IntType:         Int64,
-	})
-	defer kp3.Free()
-
-	if kp3.FloatType != Float64 {
-		t.Errorf("Test 3: Expected FloatType=Float64(%d), got %d", Float64, kp3.FloatType)
-	}
-	if kp3.IntType != Int64 {
-		t.Errorf("Test 3: Expected IntType=Int64(%d), got %d", Int64, kp3.IntType)
-	}
-}
-
-func TestKernelProgram_StaticMatrixGeneration(t *testing.T) {
-	device := createTestDevice(t)
-	defer device.Free()
-
-	kp := NewKernelProgram(device, Config{
-		Order:           2,
-		ElementsPerPart: 5,
-		FloatType:       Float64,
-	})
-	defer kp.Free()
-
-	// Create a simple 3x3 identity matrix
-	identity := NewMatrix(3, 3, []float64{
-		1.0, 0.0, 0.0,
-		0.0, 1.0, 0.0,
-		0.0, 0.0, 1.0,
-	})
-
-	kp.AddStaticMatrix("TestMatrix", identity)
-	preamble := kp.GenerateKernelMain()
-
-	// Check basic structure
-	if !strings.Contains(preamble, "const double TestMatrix[3][3]") {
-		t.Error("Preamble missing TestMatrix declaration")
-	}
-
-	// Check type definitions
-	if !strings.Contains(preamble, "typedef double real_t") {
-		t.Error("Preamble missing real_t typedef")
-	}
-
-	// Check constants
-	if !strings.Contains(preamble, "#define NP") {
-		t.Error("Preamble missing NP definition")
-	}
-
-	// Check partition-aware constants
-	if !strings.Contains(preamble, "#define NPART") {
-		t.Error("Preamble missing NPART definition")
-	}
-	if !strings.Contains(preamble, "#define K ") {
-		t.Error("Preamble missing K (ElementsPerPart) definition")
-	}
-
-	// Check indexing macros
-	if !strings.Contains(preamble, "#define NODE_IDX") {
-		t.Error("Preamble missing NODE_IDX macro")
-	}
-}
-
-// Test partition-aware memory allocation
-func TestKernelProgram_PartitionMemoryAllocation(t *testing.T) {
-	device := createTestDevice(t)
-	defer device.Free()
-
-	testCases := []struct {
-		name            string
-		numPartitions   int
-		elementsPerPart int
-		order           int
-	}{
-		{"SinglePartition", 1, 100, 3},
-		{"TwoPartitions", 2, 50, 3},
-		{"EightPartitions", 8, 25, 3},
-		{"ManyPartitions", 64, 10, 3},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			kp := NewKernelProgram(device, Config{
-				Order:           tc.order,
-				NumPartitions:   tc.numPartitions,
-				ElementsPerPart: tc.elementsPerPart,
-				FloatType:       Float64,
-			})
-			defer kp.Free()
-
-			err := kp.AllocateKernelMemory()
-			if err != nil {
-				t.Fatalf("Failed to allocate memory: %v", err)
-			}
-
-			// Verify total allocated size
-			expectedNodes := tc.numPartitions * tc.elementsPerPart * kp.Np
-
-			// Test that memory is correctly sized by copying data
-			testData := make([]float64, expectedNodes)
-			for i := range testData {
-				testData[i] = float64(i)
-			}
-
-			kp.GetMemory("U").CopyFrom(unsafe.Pointer(&testData[0]),
-				int64(expectedNodes*8))
-
-			// Copy back and verify
-			result := make([]float64, expectedNodes)
-			kp.GetMemory("U").CopyTo(unsafe.Pointer(&result[0]),
-				int64(expectedNodes*8))
-
-			for i := range result {
-				if result[i] != testData[i] {
-					t.Errorf("Memory test failed at index %d: expected %f, got %f",
-						i, testData[i], result[i])
-					break
+			for i, kval := range tc.k {
+				if kp.K[i] != kval {
+					t.Errorf("K[%d]: expected %d, got %d", i, kval, kp.K[i])
 				}
 			}
 		})
 	}
 }
 
-// Test 3: Index-Based Kernel (Specific Property Testing)
-func TestKernelProgram_SimpleIndexKernel(t *testing.T) {
+// Test 2: Array Allocation with Alignment
+func TestKernelProgram_ArrayAllocation(t *testing.T) {
 	device := createTestDevice(t)
 	defer device.Free()
 
 	kp := NewKernelProgram(device, Config{
-		Order:           1,
-		NumPartitions:   1,
-		ElementsPerPart: 10,
-		FloatType:       Float64,
+		K:         []int{10, 20, 15},
+		FloatType: Float64,
+		IntType:   Int64,
 	})
 	defer kp.Free()
 
-	// Generate preamble
-	kp.GenerateKernelMain()
+	// Define arrays with different alignments
+	specs := []ArraySpec{
+		{Name: "U", Size: 45 * 8 * 20, Alignment: CacheLineAlign}, // 45 elements * 8 bytes * 20 nodes
+		{Name: "RHS", Size: 45 * 8 * 20, Alignment: NoAlignment},
+		{Name: "workspace", Size: 1024 * 8, Alignment: PageAlign},
+	}
 
-	// Create simple kernel that uses indices to set pattern
-	kernelSource := `
-	@kernel void indexPattern(
-		const int N,
-		const int_t* indices,
-		real_t* data
-	) {
-		// Single outer loop iteration
-		for (int block = 0; block < 1; ++block; @outer(0)) {
-			// Inner loop does the actual work
-			for (int i = 0; i < N; ++i; @inner(0)) {
-				int idx = indices[i];
-				real_t value = i * 2.0;
-				data[idx] = value;
+	err := kp.AllocateArrays(specs)
+	if err != nil {
+		t.Fatalf("Failed to allocate arrays: %v", err)
+	}
+
+	// Verify allocations
+	for _, spec := range specs {
+		// Check _global allocation
+		if kp.GetMemory(spec.Name) == nil {
+			t.Errorf("Array %s_global not allocated", spec.Name)
+		}
+
+		// Check _offsets allocation
+		if kp.pooledMemory[spec.Name+"_offsets"] == nil {
+			t.Errorf("Array %s_offsets not allocated", spec.Name)
+		}
+
+		// Verify array is tracked
+		found := false
+		for _, name := range kp.allocatedArrays {
+			if name == spec.Name {
+				found = true
+				break
 			}
 		}
-	}
-	`
-
-	_, err := kp.BuildKernel(kernelSource, "indexPattern")
-	if err != nil {
-		t.Fatalf("Failed to build kernel: %v", err)
-	}
-
-	// Create test data
-	N := 10
-	indices := []int64{9, 8, 7, 6, 5, 4, 3, 2, 1, 0} // Reverse order
-	data := make([]float64, N)
-
-	// Allocate device memory
-	indicesMem := device.Malloc(int64(N*8), unsafe.Pointer(&indices[0]), nil)
-	dataMem := device.Malloc(int64(N*8), unsafe.Pointer(&data[0]), nil)
-	defer indicesMem.Free()
-	defer dataMem.Free()
-
-	// Execute kernel (note: RunKernel will set partition dims, but this kernel ignores them)
-	err = kp.RunKernel("indexPattern", N, indicesMem, dataMem)
-	if err != nil {
-		t.Fatalf("Kernel execution failed: %v", err)
-	}
-
-	// Copy back and validate
-	dataMem.CopyTo(unsafe.Pointer(&data[0]), int64(N*8))
-
-	// Expected pattern: data[9]=0, data[8]=2, data[7]=4, etc.
-	for i := 0; i < N; i++ {
-		expected := float64((N - 1 - i) * 2)
-		if math.Abs(data[i]-expected) > 1e-10 {
-			t.Errorf("data[%d]: expected %.1f, got %.1f",
-				i, expected, data[i])
+		if !found {
+			t.Errorf("Array %s not tracked in allocatedArrays", spec.Name)
 		}
+	}
+
+	// Verify K array is allocated
+	if kp.pooledMemory["K"] == nil {
+		t.Error("K array not allocated")
 	}
 }
 
-// Test partition indexing macros
-func TestKernelProgram_PartitionIndexing(t *testing.T) {
+// Test 3: Partition Access Macro Generation
+func TestKernelProgram_PartitionMacros(t *testing.T) {
 	device := createTestDevice(t)
 	defer device.Free()
 
 	kp := NewKernelProgram(device, Config{
-		Order:           2,
-		NumPartitions:   4,
-		ElementsPerPart: 10,
-		FloatType:       Float64,
+		K: []int{5, 10, 7},
 	})
 	defer kp.Free()
 
-	preamble := kp.GenerateKernelMain()
+	// Add static matrix
+	kp.AddStaticMatrix("Dr", createTestMatrix(4, 4))
 
-	// Check for partition-aware constants
-	if !strings.Contains(preamble, "#define NPART 4") {
-		t.Error("Preamble missing NPART definition with correct value")
+	// Allocate arrays
+	specs := []ArraySpec{
+		{Name: "U", Size: 22 * 8 * 4, Alignment: NoAlignment},
+		{Name: "RHS", Size: 22 * 8 * 4, Alignment: NoAlignment},
 	}
-	if !strings.Contains(preamble, "#define K 10") {
-		t.Error("Preamble missing K (ElementsPerPart) definition with correct value")
+	kp.AllocateArrays(specs)
+
+	preamble := kp.GeneratePreamble()
+
+	// Check partition access macros
+	if !strings.Contains(preamble, "#define U_PART(part) (U_global + U_offsets[part])") {
+		t.Error("Missing U_PART macro")
+	}
+	if !strings.Contains(preamble, "#define RHS_PART(part) (RHS_global + RHS_offsets[part])") {
+		t.Error("Missing RHS_PART macro")
 	}
 
-	// Test kernel using partition indexing
+	// Check vectorizable matrix macro
+	if !strings.Contains(preamble, "#define MATMUL_Dr(IN, OUT, K_VAL, NP)") {
+		t.Error("Missing MATMUL_Dr macro")
+	}
+
+	// Check NPART constant
+	if !strings.Contains(preamble, "#define NPART 3") {
+		t.Error("Missing or incorrect NPART definition")
+	}
+}
+
+// Test 4: Variable Partition Kernel Execution
+func TestKernelProgram_VariablePartitionExecution(t *testing.T) {
+	device := createTestDevice(t)
+	defer device.Free()
+
+	// Variable sized partitions
+	k := []int{5, 8, 3, 10}
+	np := 4 // nodes per element
+
+	kp := NewKernelProgram(device, Config{
+		K:         k,
+		FloatType: Float64,
+		IntType:   Int64,
+	})
+	defer kp.Free()
+
+	// Calculate total size
+	totalElements := 0
+	for _, kval := range k {
+		totalElements += kval
+	}
+	totalNodes := totalElements * np
+
+	// Allocate arrays
+	specs := []ArraySpec{
+		{Name: "data", Size: int64(totalNodes * 8), Alignment: CacheLineAlign},
+	}
+	err := kp.AllocateArrays(specs)
+	if err != nil {
+		t.Fatalf("Failed to allocate arrays: %v", err)
+	}
+
+	kp.GeneratePreamble()
+
+	// Kernel that fills each partition with its ID
 	kernelSource := `
-@kernel void partitionTest(
-    const int Npart,
-    const int KK,
-    real_t* data
+@kernel void fillPartitions(
+    const int_t* K,
+    real_t* data_global,
+    const int_t* data_offsets
 ) {
-    for (int part = 0; part < Npart; ++part; @outer(0)) {
-        for (int node = 0; node < NP; ++node; @inner(0)) {
-            for (int elem = 0; elem < KK; ++elem) {
-                int idx = (part * KK * NP) + (elem * NP) + node;
-                data[idx] = part * 1000.0 + elem * 10.0 + node;
-            }
-        }
-    }
-}
-	`
-	_, err := kp.BuildKernel(kernelSource, "partitionTest")
-	if err != nil {
-		t.Fatalf("Failed to build partition kernel: %v", err)
-	}
-
-	// Allocate and test
-	err = kp.AllocateKernelMemory()
-	if err != nil {
-		t.Fatalf("Failed to allocate memory: %v", err)
-	}
-
-	// Execute with partition dimensions
-	err = kp.RunKernel("partitionTest",
-		kp.NumPartitions, kp.ElementsPerPart, kp.GetMemory("U"))
-	if err != nil {
-		t.Fatalf("Kernel execution failed: %v", err)
-	}
-
-	// Verify partition-based pattern
-	totalNodes := kp.NumPartitions * kp.ElementsPerPart * kp.Np
-	result := make([]float64, totalNodes)
-	kp.GetMemory("U").CopyTo(unsafe.Pointer(&result[0]), int64(totalNodes*8))
-
-	// Check pattern
-	for part := 0; part < kp.NumPartitions; part++ {
-		for elem := 0; elem < kp.ElementsPerPart; elem++ {
-			for node := 0; node < kp.Np; node++ {
-				idx := part*kp.ElementsPerPart*kp.Np + elem*kp.Np + node
-				expected := float64(part*1000 + elem*10 + node)
-				if math.Abs(result[idx]-expected) > 1e-10 {
-					t.Errorf("Partition %d, elem %d, node %d: expected %.0f, got %.0f",
-						part, elem, node, expected, result[idx])
-				}
-			}
-		}
-	}
-}
-
-// Test 4: Matrix-Vector Product (Mathematical Exactness)
-func TestKernelProgram_MatrixVectorProduct(t *testing.T) {
-	device := createTestDevice(t)
-	defer device.Free()
-
-	// Test progressive orders
-	for _, order := range []int{1, 2, 3} {
-		t.Run(fmt.Sprintf("Order_%d", order), func(t *testing.T) {
-			np := (order + 1) * (order + 2) * (order + 3) / 6
-
-			kp := NewKernelProgram(device, Config{
-				Order:           order,
-				NumPartitions:   1,
-				ElementsPerPart: 1,
-				FloatType:       Float64,
-			})
-			defer kp.Free()
-
-			// Create test differentiation matrix
-			Dr := createTestDrMatrix(order, np)
-			kp.AddStaticMatrix("Dr", Dr)
-			kp.GenerateKernelMain()
-
-			// Partition-aware kernel that applies Dr
-			kernelSource := `
-			@kernel void applyDr(
-				const int Npart,
-				const int KK,
-				const real_t* U,
-				real_t* dU
-			) {
-				// Partition parallel execution
-				for (int part = 0; part < Npart; ++part; @outer(0)) {
-					// Apply Dr within this partition
-					for (int node = 0; node < NP; ++node; @inner(0)) {
-						// For this simple test, just apply within single partition
-						if (part == 0) {
-							matMul_Dr_Large(U, dU, KK);
-						}
-					}
-				}
-			}
-			`
-
-			_, err := kp.BuildKernel(kernelSource, "applyDr")
-			if err != nil {
-				t.Fatalf("Failed to build kernel: %v", err)
-			}
-
-			// Test with polynomial that Dr should differentiate exactly
-			U := createPolynomialData(order, np)
-			expected := computeExpectedDerivative(Dr, U, np)
-
-			// Allocate and copy
-			err = kp.AllocateKernelMemory()
-			if err != nil {
-				t.Fatalf("Failed to allocate memory: %v", err)
-			}
-
-			kp.GetMemory("U").CopyFrom(unsafe.Pointer(&U[0]), int64(len(U)*8))
-
-			// Execute
-			err = kp.RunKernel("applyDr",
-				kp.NumPartitions,
-				kp.ElementsPerPart,
-				kp.GetMemory("U"),
-				kp.GetMemory("RHS"))
-			if err != nil {
-				t.Fatalf("Kernel execution failed: %v", err)
-			}
-
-			// Validate
-			result := make([]float64, np)
-			kp.GetMemory("RHS").CopyTo(unsafe.Pointer(&result[0]), int64(len(result)*8))
-
-			for i := 0; i < np; i++ {
-				if math.Abs(result[i]-expected[i]) > 1e-10 {
-					t.Errorf("Order %d, node %d: expected %.6e, got %.6e",
-						order, i, expected[i], result[i])
-				}
-			}
-		})
-	}
-}
-
-// Test 5: Chained Operations with Known Pattern (Complex Validation)
-func TestKernelProgram_ChainedOperations(t *testing.T) {
-	device := createTestDevice(t)
-	defer device.Free()
-
-	kp := NewKernelProgram(device, Config{
-		Order:           2,
-		NumPartitions:   1,
-		ElementsPerPart: 5,
-		FloatType:       Float64,
-	})
-	defer kp.Free()
-
-	// Add multiple matrices
-	kp.AddStaticMatrix("A", createPatternMatrix(kp.Np, 2.0))
-	kp.AddStaticMatrix("B", createPatternMatrix(kp.Np, 3.0))
-	kp.GenerateKernelMain()
-
-	// Complex kernel with index indirection and chained ops
-	kernelSource := `
-@kernel void chainedPattern(
-    const int KK,
-    const int_t* permutation,
-    const real_t* input,
-    real_t* temp1,
-    real_t* temp2,
-    real_t* output
-) {
-    // Single partition execution for this test
-    for (int part = 0; part < 1; ++part; @outer(0)) {
-        // Inner work over nodes
-        for (int node = 0; node < NP; ++node; @inner(0)) {
-            // Step 1: Apply matrix A
-            matMul_A_Large(input, temp1, KK);
+    for (int part = 0; part < NPART; ++part; @outer) {
+        for (int i = 0; i < 32; ++i; @inner) {
+            // Get partition data pointer
+            real_t* data = data_PART(part);
+            int k_part = K[part];
             
-            // Step 2: Permute using indices
-            for (int i = 0; i < NP*KK; ++i) {
-                temp2[permutation[i]] = temp1[i];
-            }
-            
-            // Step 3: Apply matrix B
-            matMul_B_Large(temp2, output, KK);
-            
-            // Step 4: Add signature pattern
-            for (int i = 0; i < NP*KK; ++i) {
-                int mod_val = i % NP;
-                output[i] += (real_t)mod_val;
+            // Fill all elements in this partition
+            for (int elem = 0; elem < k_part; ++elem) {
+                for (int node = 0; node < 4; ++node) {
+                    int idx = elem * 4 + node;
+                    if (i == 0) {  // Only first thread writes
+                        data[idx] = (real_t)part;
+                    }
+                }
             }
         }
     }
 }
 `
 
-	_, err := kp.BuildKernel(kernelSource, "chainedPattern")
+	_, err = kp.BuildKernel(kernelSource, "fillPartitions")
 	if err != nil {
 		t.Fatalf("Failed to build kernel: %v", err)
 	}
 
-	// Create permutation that reverses within each element
-	perm := createElementWiseReversePermutation(kp.Np, kp.ElementsPerPart)
-
-	// Create input with known pattern
-	input := createCheckerboardPattern(kp.Np, kp.ElementsPerPart)
-
-	// Allocate all memory
-	err = kp.AllocateKernelMemory()
-	if err != nil {
-		t.Fatalf("Failed to allocate memory: %v", err)
-	}
-
-	// Additional allocations
-	size := kp.Np * kp.ElementsPerPart
-	permMem := device.Malloc(int64(size*8), unsafe.Pointer(&perm[0]), nil)
-	temp1Mem := device.Malloc(int64(size*8), nil, nil)
-	temp2Mem := device.Malloc(int64(size*8), nil, nil)
-	defer permMem.Free()
-	defer temp1Mem.Free()
-	defer temp2Mem.Free()
-
-	kp.GetMemory("U").CopyFrom(unsafe.Pointer(&input[0]), int64(len(input)*8))
-
-	// Execute
-	err = kp.RunKernel("chainedPattern",
-		kp.ElementsPerPart,
-		permMem,
-		kp.GetMemory("U"),
-		temp1Mem,
-		temp2Mem,
-		kp.GetMemory("RHS"),
-	)
-	if err != nil {
-		t.Fatalf("Kernel execution failed: %v", err)
-	}
-
-	// Validate complex pattern
-	result := make([]float64, len(input))
-	kp.GetMemory("RHS").CopyTo(unsafe.Pointer(&result[0]), int64(len(result)*8))
-
-	// Compute expected result on host
-	expected := computeChainedResult(input, perm,
-		kp.StaticMatrices["A"], kp.StaticMatrices["B"],
-		kp.Np, kp.ElementsPerPart)
-
-	maxError := 0.0
-	for i := range result {
-		error := math.Abs(result[i] - expected[i])
-		if error > maxError {
-			maxError = error
-		}
-	}
-
-	if maxError > 1e-10 {
-		t.Errorf("Maximum error %.6e exceeds tolerance", maxError)
-		// Print first few differences for debugging
-		for i := 0; i < min(10, len(result)); i++ {
-			t.Logf("result[%d] = %.6e, expected = %.6e, diff = %.6e",
-				i, result[i], expected[i], result[i]-expected[i])
-		}
-	}
-}
-
-// Test 6: Memory Allocation Sizes (Detailed Coverage)
-func TestKernelProgram_MemoryAllocation(t *testing.T) {
-	device := createTestDevice(t)
-	defer device.Free()
-
-	// Test both Float32 and Float64
-	configs := []struct {
-		name      string
-		floatType DataType
-		intType   DataType
-		floatSize int
-		intSize   int
-	}{
-		{"Float64_Int64", Float64, Int64, 8, 8},
-		{"Float32_Int32", Float32, Int32, 4, 4},
-	}
-
-	for _, cfg := range configs {
-		t.Run(cfg.name, func(t *testing.T) {
-			kp := NewKernelProgram(device, Config{
-				Order:           3,
-				NumPartitions:   2,
-				ElementsPerPart: 50,
-				FloatType:       cfg.floatType,
-				IntType:         cfg.intType,
-			})
-			defer kp.Free()
-
-			// Verify size methods
-			if kp.GetFloatSize() != cfg.floatSize {
-				t.Errorf("Expected float size %d, got %d",
-					cfg.floatSize, kp.GetFloatSize())
-			}
-			if kp.GetIntSize() != cfg.intSize {
-				t.Errorf("Expected int size %d, got %d",
-					cfg.intSize, kp.GetIntSize())
-			}
-
-			// Allocate memory
-			err := kp.AllocateKernelMemory()
-			if err != nil {
-				t.Fatalf("Failed to allocate memory: %v", err)
-			}
-
-			// Verify all allocations exist
-			expectedArrays := []string{
-				"U", "RHS",
-				"rx", "ry", "rz", "sx", "sy", "sz", "tx", "ty", "tz",
-				"faceM", "faceP", "faceTypes",
-				"nx", "ny", "nz",
-				"Fscale", "bcData",
-			}
-
-			for _, name := range expectedArrays {
-				if kp.GetMemory(name) == nil {
-					t.Errorf("Memory allocation '%s' not found", name)
-				}
-			}
-		})
-	}
-}
-
-// Test multi-partition kernel execution
-func TestKernelProgram_MultiPartitionExecution(t *testing.T) {
-	device := createTestDevice(t)
-	defer device.Free()
-
-	kp := NewKernelProgram(device, Config{
-		Order:           1,
-		NumPartitions:   8,
-		ElementsPerPart: 4,
-		FloatType:       Float64,
-	})
-	defer kp.Free()
-
-	kp.GenerateKernelMain()
-
-	// Kernel that demonstrates partition-parallel execution
-	kernelSource := `
-	@kernel void partitionSum(
-		const int Npart,
-		const int KK,
-		real_t* data
-	) {
-		for (int part = 0; part < Npart; ++part; @outer(0)) {
-			for (int node = 0; node < NP; ++node; @inner(0)) {
-				// Sum pattern: each partition adds its ID to all its elements
-				for (int elem = 0; elem < KK; ++elem) {
-					// Inline the indexing instead of using macro
-					int idx = (part * KK * NP) + (elem * NP) + node;
-					data[idx] = (real_t)part + (real_t)elem * 0.1 + (real_t)node * 0.01;
-				}
-			}
-		}
-	}
-	`
-
-	_, err := kp.BuildKernel(kernelSource, "partitionSum")
-	if err != nil {
-		t.Fatalf("Failed to build kernel: %v", err)
-	}
-
-	err = kp.AllocateKernelMemory()
-	if err != nil {
-		t.Fatalf("Failed to allocate memory: %v", err)
-	}
-
-	// Execute
-	err = kp.RunKernel("partitionSum",
-		kp.NumPartitions, kp.ElementsPerPart, kp.GetMemory("U"))
+	// Execute kernel
+	err = kp.RunKernel("fillPartitions", "data")
 	if err != nil {
 		t.Fatalf("Kernel execution failed: %v", err)
 	}
 
 	// Verify results
-	totalNodes := kp.NumPartitions * kp.ElementsPerPart * kp.Np
 	result := make([]float64, totalNodes)
-	kp.GetMemory("U").CopyTo(unsafe.Pointer(&result[0]), int64(totalNodes*8))
+	kp.GetMemory("data").CopyTo(unsafe.Pointer(&result[0]), int64(totalNodes*8))
 
-	// Check each partition has correct values
-	for part := 0; part < kp.NumPartitions; part++ {
-		for elem := 0; elem < kp.ElementsPerPart; elem++ {
-			for node := 0; node < kp.Np; node++ {
-				idx := part*kp.ElementsPerPart*kp.Np + elem*kp.Np + node
-				expected := float64(part) + float64(elem)*0.1 + float64(node)*0.01
+	idx := 0
+	for part := 0; part < len(k); part++ {
+		for elem := 0; elem < k[part]; elem++ {
+			for node := 0; node < np; node++ {
+				expected := float64(part)
 				if math.Abs(result[idx]-expected) > 1e-10 {
 					t.Errorf("Part %d, elem %d, node %d: expected %f, got %f",
 						part, elem, node, expected, result[idx])
 				}
+				idx++
 			}
 		}
 	}
 }
 
-// Helper functions for test data generation
+// Test 5: Matrix Operations with Variable K
+func TestKernelProgram_MatrixOperations(t *testing.T) {
+	device := createTestDevice(t)
+	defer device.Free()
+
+	k := []int{2, 3} // Variable elements per partition
+	np := 4
+
+	kp := NewKernelProgram(device, Config{
+		K:         k,
+		FloatType: Float64,
+		IntType:   Int64,
+	})
+	defer kp.Free()
+
+	// Add differentiation matrix
+	Dr := createIdentityMatrix(np)
+	kp.AddStaticMatrix("Dr", Dr)
+
+	totalElements := 5
+	totalNodes := totalElements * np
+
+	// Allocate arrays
+	specs := []ArraySpec{
+		{Name: "U", Size: int64(totalNodes * 8), Alignment: NoAlignment},
+		{Name: "dU", Size: int64(totalNodes * 8), Alignment: NoAlignment},
+	}
+	err := kp.AllocateArrays(specs)
+	if err != nil {
+		t.Fatalf("Failed to allocate arrays: %v", err)
+	}
+
+	kp.GeneratePreamble()
+
+	// Kernel using vectorizable macro
+	kernelSource := `
+@kernel void applyDr(
+    const int_t* K,
+    const real_t* U_global,
+    const int_t* U_offsets,
+    real_t* dU_global,
+    const int_t* dU_offsets
+) {
+    for (int part = 0; part < NPART; ++part; @outer) {
+        for (int tid = 0; tid < 32; ++tid; @inner) {
+            if (tid == 0) {  // Single thread does the work
+                const real_t* U = U_PART(part);
+                real_t* dU = dU_PART(part);
+                int k_part = K[part];
+                
+                // Apply differentiation matrix using macro
+                MATMUL_Dr(U, dU, k_part, 4);
+            }
+        }
+    }
+}
+`
+
+	_, err = kp.BuildKernel(kernelSource, "applyDr")
+	if err != nil {
+		t.Fatalf("Failed to build kernel: %v", err)
+	}
+
+	// Create input data
+	input := make([]float64, totalNodes)
+	for i := range input {
+		input[i] = float64(i)
+	}
+	kp.GetMemory("U").CopyFrom(unsafe.Pointer(&input[0]), int64(totalNodes*8))
+
+	// Execute
+	err = kp.RunKernel("applyDr", "U", "dU")
+	if err != nil {
+		t.Fatalf("Kernel execution failed: %v", err)
+	}
+
+	// Verify (identity matrix should copy input)
+	result := make([]float64, totalNodes)
+	kp.GetMemory("dU").CopyTo(unsafe.Pointer(&result[0]), int64(totalNodes*8))
+
+	for i := range result {
+		if math.Abs(result[i]-input[i]) > 1e-10 {
+			t.Errorf("Index %d: expected %f, got %f", i, input[i], result[i])
+		}
+	}
+}
+
+// Test 6: Incremental Partition Testing
+func TestKernelProgram_IncrementalPartitions(t *testing.T) {
+	device := createTestDevice(t)
+	defer device.Free()
+
+	// Test partition counts from 1 to 6
+	for numParts := 1; numParts <= 6; numParts++ {
+		t.Run(fmt.Sprintf("%dPartitions", numParts), func(t *testing.T) {
+			// Create K array with variable sizes
+			k := make([]int, numParts)
+			totalElems := 24
+			for i := 0; i < numParts; i++ {
+				k[i] = totalElems / numParts
+				if i < totalElems%numParts {
+					k[i]++
+				}
+			}
+
+			kp := NewKernelProgram(device, Config{
+				K:         k,
+				FloatType: Float64,
+				IntType:   Int64,
+			})
+			defer kp.Free()
+
+			// Verify total elements preserved
+			sum := 0
+			for _, kval := range kp.K {
+				sum += kval
+			}
+			if sum != totalElems {
+				t.Errorf("Total elements %d != %d", sum, totalElems)
+			}
+
+			// Test simple allocation
+			specs := []ArraySpec{
+				{Name: "test", Size: int64(totalElems * 8), Alignment: NoAlignment},
+			}
+			err := kp.AllocateArrays(specs)
+			if err != nil {
+				t.Errorf("Failed to allocate for %d partitions: %v", numParts, err)
+			}
+		})
+	}
+}
+
+// Test 7: Type Configuration
+func TestKernelProgram_TypeConfiguration(t *testing.T) {
+	device := createTestDevice(t)
+	defer device.Free()
+
+	configs := []struct {
+		name      string
+		floatType DataType
+		intType   DataType
+		floatStr  string
+		intStr    string
+	}{
+		{"Float64_Int64", Float64, Int64, "double", "long"},
+		{"Float32_Int32", Float32, Int32, "float", "int"},
+		{"Float32_Int64", Float32, Int64, "float", "long"},
+		{"Float64_Int32", Float64, Int32, "double", "int"},
+	}
+
+	for _, cfg := range configs {
+		t.Run(cfg.name, func(t *testing.T) {
+			kp := NewKernelProgram(device, Config{
+				K:         []int{10},
+				FloatType: cfg.floatType,
+				IntType:   cfg.intType,
+			})
+			defer kp.Free()
+
+			preamble := kp.GeneratePreamble()
+
+			// Check type definitions
+			if !strings.Contains(preamble, fmt.Sprintf("typedef %s real_t", cfg.floatStr)) {
+				t.Errorf("Missing or incorrect real_t typedef for %s", cfg.floatStr)
+			}
+			if !strings.Contains(preamble, fmt.Sprintf("typedef %s int_t", cfg.intStr)) {
+				t.Errorf("Missing or incorrect int_t typedef for %s", cfg.intStr)
+			}
+
+			// Check size methods
+			expectedFloatSize := 8
+			if cfg.floatType == Float32 {
+				expectedFloatSize = 4
+			}
+			if kp.GetFloatSize() != expectedFloatSize {
+				t.Errorf("Expected float size %d, got %d", expectedFloatSize, kp.GetFloatSize())
+			}
+
+			expectedIntSize := 8
+			if cfg.intType == Int32 {
+				expectedIntSize = 4
+			}
+			if kp.GetIntSize() != expectedIntSize {
+				t.Errorf("Expected int size %d, got %d", expectedIntSize, kp.GetIntSize())
+			}
+		})
+	}
+}
+
+// Test 8: Error Handling
+func TestKernelProgram_ErrorHandling(t *testing.T) {
+	device := createTestDevice(t)
+	defer device.Free()
+
+	t.Run("EmptyK", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic for empty K array")
+			}
+		}()
+		NewKernelProgram(device, Config{K: []int{}})
+	})
+
+	t.Run("NilDevice", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic for nil device")
+			}
+		}()
+		NewKernelProgram(nil, Config{K: []int{10}})
+	})
+
+	t.Run("MismatchedNumPartitions", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic for mismatched NumPartitions")
+			}
+		}()
+		NewKernelProgram(device, Config{
+			NumPartitions: 3,
+			K:             []int{10, 20}, // Only 2 elements
+		})
+	})
+}
+
+// Helper functions
 func createTestDevice(t *testing.T) *gocca.OCCADevice {
 	device, err := gocca.NewDevice(`{"mode": "Serial"}`)
 	if err != nil {
@@ -758,122 +469,18 @@ func createTestDevice(t *testing.T) *gocca.OCCADevice {
 	return device
 }
 
-func createTestDrMatrix(order, np int) Matrix {
-	// Create a simple differentiation matrix for testing
-	// This is not a real Dr matrix, just for testing matrix operations
-	data := make([]float64, np*np)
-	for i := 0; i < np; i++ {
-		for j := 0; j < np; j++ {
-			if i == j {
-				data[i*np+j] = -1.0
-			} else if j == i+1 {
-				data[i*np+j] = 1.0
-			}
-		}
-	}
-	return NewMatrix(np, np, data)
-}
-
-func createPolynomialData(order, np int) []float64 {
-	// Create polynomial test data
-	data := make([]float64, np)
-	for i := 0; i < np; i++ {
-		x := float64(i) / float64(np-1)
-		data[i] = x * x // Simple quadratic
-	}
-	return data
-}
-
-func computeExpectedDerivative(Dr Matrix, U []float64, np int) []float64 {
-	// Compute Dr * U
-	result := make([]float64, np)
-	for i := 0; i < np; i++ {
-		sum := 0.0
-		for j := 0; j < np; j++ {
-			sum += Dr.At(i, j) * U[j]
-		}
-		result[i] = sum
-	}
-	return result
-}
-
-func createPatternMatrix(np int, scale float64) Matrix {
-	// Create a pattern matrix for testing
-	data := make([]float64, np*np)
-	for i := 0; i < np; i++ {
-		for j := 0; j < np; j++ {
-			data[i*np+j] = scale * float64(i+j) / float64(np)
-		}
-	}
-	return NewMatrix(np, np, data)
-}
-
-func createElementWiseReversePermutation(np, numElements int) []int64 {
-	perm := make([]int64, np*numElements)
-	for elem := 0; elem < numElements; elem++ {
-		for i := 0; i < np; i++ {
-			srcIdx := elem*np + i
-			dstIdx := elem*np + (np - 1 - i)
-			perm[srcIdx] = int64(dstIdx)
-		}
-	}
-	return perm
-}
-
-func createCheckerboardPattern(np, numElements int) []float64 {
-	data := make([]float64, np*numElements)
+func createTestMatrix(rows, cols int) Matrix {
+	data := make([]float64, rows*cols)
 	for i := range data {
-		if i%2 == 0 {
-			data[i] = 1.0
-		} else {
-			data[i] = -1.0
-		}
+		data[i] = float64(i)
 	}
-	return data
+	return NewMatrix(rows, cols, data)
 }
 
-func computeChainedResult(input []float64, perm []int64, A, B Matrix, np, numElements int) []float64 {
-	// Step 1: Apply matrix A
-	temp1 := make([]float64, len(input))
-	for elem := 0; elem < numElements; elem++ {
-		for i := 0; i < np; i++ {
-			sum := 0.0
-			for j := 0; j < np; j++ {
-				sum += A.At(i, j) * input[elem*np+j]
-			}
-			temp1[elem*np+i] = sum
-		}
+func createIdentityMatrix(n int) Matrix {
+	data := make([]float64, n*n)
+	for i := 0; i < n; i++ {
+		data[i*n+i] = 1.0
 	}
-
-	// Step 2: Permute
-	temp2 := make([]float64, len(input))
-	for i := range temp1 {
-		temp2[perm[i]] = temp1[i]
-	}
-
-	// Step 3: Apply matrix B
-	result := make([]float64, len(input))
-	for elem := 0; elem < numElements; elem++ {
-		for i := 0; i < np; i++ {
-			sum := 0.0
-			for j := 0; j < np; j++ {
-				sum += B.At(i, j) * temp2[elem*np+j]
-			}
-			result[elem*np+i] = sum
-		}
-	}
-
-	// Step 4: Add signature pattern
-	for i := range result {
-		result[i] += float64(i % np)
-	}
-
-	return result
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
+	return NewMatrix(n, n, data)
 }
