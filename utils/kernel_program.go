@@ -60,6 +60,16 @@ type Config struct {
 
 // NewKernelProgram creates a new KernelProgram with the given configuration
 func NewKernelProgram(device *gocca.OCCADevice, cfg Config) *KernelProgram {
+	// Validate device
+	if device == nil {
+		panic("device cannot be nil")
+	}
+
+	// Check if device is initialized
+	if !device.IsInitialized() {
+		panic("device is not initialized")
+	}
+
 	// Set defaults
 	if cfg.NumPartitions == 0 {
 		cfg.NumPartitions = 1 // Default to single partition
@@ -307,6 +317,11 @@ inline real_t riemannFlux(real_t M, real_t P,
 
 // AllocateKernelMemory allocates device memory for runtime data
 func (kp *KernelProgram) AllocateKernelMemory() error {
+	// Check device is valid
+	if kp.device == nil {
+		return fmt.Errorf("device is nil")
+	}
+
 	// Get size based on precision
 	floatSize := 8 // Float64
 	if kp.FloatType == Float32 {
@@ -465,6 +480,26 @@ func (kp *KernelProgram) Free() {
 
 // BuildKernel compiles a kernel from source with the generated preamble
 func (kp *KernelProgram) BuildKernel(kernelSource, kernelName string) (*gocca.OCCAKernel, error) {
+	// Check device is valid
+	if kp.device == nil {
+		return nil, fmt.Errorf("device is nil")
+	}
+
+	// Check if device is initialized
+	if !kp.device.IsInitialized() {
+		return nil, fmt.Errorf("device is not initialized")
+	}
+
+	// Validate kernel name
+	if kernelName == "" {
+		return nil, fmt.Errorf("kernel name cannot be empty")
+	}
+
+	// Validate kernel source
+	if kernelSource == "" {
+		return nil, fmt.Errorf("kernel source cannot be empty")
+	}
+
 	// Ensure preamble is generated
 	if kp.kernelPreamble == "" {
 		kp.GenerateKernelMain()

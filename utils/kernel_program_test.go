@@ -362,9 +362,10 @@ func TestKernelProgram_PartitionIndexing(t *testing.T) {
 		real_t* data
 	) {
 		for (int part = 0; part < Npart; ++part; @outer(0)) {
-			for (int elem = 0; elem < K; ++elem) {
-				for (int node = 0; node < NP; ++node; @inner(0)) {
-					int idx = NODE_IDX(part, elem, node);
+			for (int node = 0; node < NP; ++node; @inner(0)) {
+				for (int elem = 0; elem < K; ++elem) {
+					// Inline the indexing instead of using macro
+					int idx = (part * K * NP) + (elem * NP) + node;
 					data[idx] = part * 1000.0 + elem * 10.0 + node;
 				}
 			}
@@ -704,7 +705,8 @@ func TestKernelProgram_MultiPartitionExecution(t *testing.T) {
 			for (int node = 0; node < NP; ++node; @inner(0)) {
 				// Sum pattern: each partition adds its ID to all its elements
 				for (int elem = 0; elem < K; ++elem) {
-					int idx = NODE_IDX(part, elem, node);
+					// Inline the indexing instead of using macro
+					int idx = (part * K * NP) + (elem * NP) + node;
 					data[idx] = (real_t)part + (real_t)elem * 0.1 + (real_t)node * 0.01;
 				}
 			}
