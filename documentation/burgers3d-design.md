@@ -128,6 +128,12 @@ kp.AddStaticMatrix("LIFT", el.LIFT)
 
 ### Step 5: Calculate Memory Requirements and Allocate Arrays
 
+Note: The derivative arrays (ur, us, ut) and flux_correction are allocated as device memory rather than local kernel arrays to:
+
+- Avoid stack overflow issues with large temporary arrays
+- Enable reuse across multiple kernel calls
+- Maintain consistent memory access patterns using partition macros
+
 ```go
 // Calculate sizes
 Np := el.Np
@@ -187,6 +193,34 @@ arrays := []kernel_program.ArraySpec{
         Alignment: kernel_program.CacheLineAlign,
     },
     // ... rhs2, rhs3, rhs4
+    
+    // Derivative arrays for Dr, Ds, Dt operations
+    {
+        Name:      "ur",
+        Size:      int64(totalSolutionNodes * 8),
+        DataType:  kernel_program.Float64,
+        Alignment: kernel_program.CacheLineAlign,
+    },
+    {
+        Name:      "us",
+        Size:      int64(totalSolutionNodes * 8),
+        DataType:  kernel_program.Float64,
+        Alignment: kernel_program.CacheLineAlign,
+    },
+    {
+        Name:      "ut",
+        Size:      int64(totalSolutionNodes * 8),
+        DataType:  kernel_program.Float64,
+        Alignment: kernel_program.CacheLineAlign,
+    },
+    
+    // Flux correction array for LIFT operation
+    {
+        Name:      "flux_correction",
+        Size:      int64(totalFaceNodes * 8),
+        DataType:  kernel_program.Float64,
+        Alignment: kernel_program.CacheLineAlign,
+    },
     
     // Normal vectors for surface integrals
     {
@@ -298,6 +332,10 @@ if totalPIndices > 0 {
 
 ### Step 8: Define Kernels
 
+Note: The order of array parameters in kernel signatures must match the order passed to `RunKernel`. Each array requires both `arrayName_global` and `arrayName_offsets` parameters in sequence.
+
+The LIFT matrix multiplication requires a MATMUL_LIFT_ADD macro that accumulates to the output rather than replacing it. If KernelProgram doesn’t currently support accumulating matrix multiplies, this functionality needs to be added.
+
 ```go
 // Volume RHS kernel - computes flux divergence
 volumeKernelCode := `
@@ -307,6 +345,9 @@ volumeKernelCode := `
 @kernel void volumeRHS3D(
     const int_t* K,
     const real_t* u_global, const int_t* u_offsets,
+    const real_t* ur_global, const int_t* ur_offsets,
+    const real_t* us_global, const int_t* us_offsets,
+    const real_t* ut_global, const int_t* ut_offsets,
     const real_t* Rx_global, const int_t* Rx_offsets,
     const real_t* Ry_global, const int_t* Ry_offsets,
     const real_t* Rz_global, const int_t* Rz_offsets,
@@ -321,6 +362,9 @@ volumeKernelCode := `
     for (int part = 0; part < NPART; ++part; @outer) {
         // Get partition data pointers
         const real_t* u = u_PART(part);
+        real_t* ur = ur_PART(part);
+        real_t* us = us_PART(part);
+        real_t* ut = ut_PART(part);
         const real_t* Rx = Rx_PART(part);
         const real_t* Ry = Ry_PART(part);
         const real_t* Rz = Rz_PART(part);
@@ -335,13 +379,9 @@ volumeKernelCode := `
         int k_part = K[part];
         
         // Apply differentiation matrices
-        real_t ur[NP * KpartMax];
-        real_t us[NP * KpartMax];
-        real_t ut[NP * KpartMax];
-        
-        MATMUL_Dr(u, ur, k_part, KpartMax, NP);
-        MATMUL_Ds(u, us, k_part, KpartMax, NP);
-        MATMUL_Dt(u, ut, k_part, KpartMax, NP);
+        MATMUL_Dr(u, ur, k_part, NP);
+        MATMUL_Ds(u, us, k_part, NP);
+        MATMUL_Dt(u, ut, k_part, NP);
         
         // Compute flux derivatives
         for (int elem = 0; elem < KpartMax; ++elem; @inner) {
@@ -417,6 +457,7 @@ fluxCorrectionKernelCode := `
     const real_t* nz_global, const int_t* nz_offsets,
     const real_t* Fscale_global, const int_t* Fscale_offsets,
     const int_t* P_indices_global, const int_t* P_indices_offsets,
+    real_t* flux_correction_global, const int_t* flux_correction_offsets,
     real_t* rhs_global, const int_t* rhs_offsets
 ) {
     for (int part = 0; part < NPART; ++part; @outer) {
@@ -426,6 +467,7 @@ fluxCorrectionKernelCode := `
         const real_t* nz = nz_PART(part);
         const real_t* Fscale = Fscale_PART(part);
         const int_t* P_indices = P_indices_PART(part);
+        real_t* flux_correction = flux_correction_PART(part);
         real_t* rhs = rhs_PART(part);
         
         int k_part = K[part];
@@ -433,8 +475,6 @@ fluxCorrectionKernelCode := `
         // Compute flux corrections at faces
         for (int elem = 0; elem < KpartMax; ++elem; @inner) {
             if (elem < k_part) {
-                real_t flux_correction[NFP * 4];
-                
                 for (int f = 0; f < 4; ++f) {
                     for (int i = 0; i < NFP; ++i) {
                         int fid = elem * NFP * 4 + f * NFP + i;
@@ -461,20 +501,17 @@ fluxCorrectionKernelCode := `
                                           (Hnum - HM)*nz[fid];
                         
                         // Scale by face Jacobian
-                        flux_correction[f * NFP + i] = flux_jump * Fscale[fid];
+                        flux_correction[elem * NFP * 4 + f * NFP + i] = flux_jump * Fscale[fid];
                     }
-                }
-                
-                // Apply LIFT matrix to get volume contribution
-                for (int i = 0; i < NP; ++i) {
-                    real_t lift_contribution = 0.0;
-                    for (int j = 0; j < NFP * 4; ++j) {
-                        lift_contribution += LIFT[i][j] * flux_correction[j];
-                    }
-                    @atomic rhs[elem * NP + i] += lift_contribution;
                 }
             }
         }
+        
+        // Apply LIFT matrix to get volume contribution
+        // LIFT is [Np x Nfp*4], flux_correction is [Nfp*4 x K]
+        // Result accumulates to rhs [Np x K]
+        // Note: This requires MATMUL_LIFT_ADD which adds to output rather than replacing
+        MATMUL_LIFT_ADD(flux_correction, rhs, k_part, NP);
     }
 }
 `
@@ -523,11 +560,11 @@ for step := 0; step < numSteps; step++ {
         // 3. Compute volume RHS (flux divergence)
         rhsName := fmt.Sprintf("rhs%d", stage)
         err = kp.RunKernel("volumeRHS3D", 
-            "u", "Rx", "Ry", "Rz", "Sx", "Sy", "Sz", "Tx", "Ty", "Tz", rhsName)
+            "u", "ur", "us", "ut", "Rx", "Ry", "Rz", "Sx", "Sy", "Sz", "Tx", "Ty", "Tz", rhsName)
         
         // 4. Compute flux corrections and apply LIFT
         err = kp.RunKernel("fluxCorrection3D",
-            "M", "nx", "ny", "nz", "Fscale", "P_indices", rhsName)
+            "M", "nx", "ny", "nz", "Fscale", "P_indices", "flux_correction", rhsName)
         
         // 5. Update solution (implement as kernel)
         updateSolution(kp, stage, dt, a, c)
@@ -625,13 +662,16 @@ func buildUpdateKernel(kp *kernel_program.KernelProgram, stage int, a [][]float6
 
 - Arrays are allocated as contiguous blocks with automatic offset management
 - KernelProgram handles partition access through generated macros
+- Derivative arrays (ur, us, ut) allocated as device memory to avoid stack issues
 - Alignment ensures optimal memory access patterns
 
 ### 2. Kernel Design
 
 - All kernels follow OCCA’s @outer/@inner pattern
 - Matrix operations use generated macros containing @inner loops
-- Atomic operations handle race conditions in LIFT application
+- MATMUL_* macros take only (IN, OUT, K_VAL, NP) - matrix dimensions are embedded
+- MATMUL_LIFT_ADD is needed to accumulate flux contributions to RHS (if not available in KernelProgram, needs to be added)
+- Flux correction array allocated as device memory to avoid stack issues
 
 ### 3. Partition Parallelism
 
