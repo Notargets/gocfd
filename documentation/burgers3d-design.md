@@ -1,14 +1,14 @@
-# 3D Inviscid Burger’s Equation Solver Implementation Guide
+# 3D Inviscid Burger's Equation Solver Implementation Guide
 
 ## Overview
 
-This document describes the implementation of a 3D inviscid Burger’s equation solver using discontinuous Galerkin (DG) methods in conservation form. The solver combines `kernel_program.go` from gocca with the tetrahedra package from gocfd to create a partition-parallel solver supporting both OpenMP and CUDA execution.
+This document describes the implementation of a 3D inviscid Burger's equation solver using discontinuous Galerkin (DG) methods in conservation form. The solver combines `kernel_program.go` from gocca with the tetrahedra package from gocfd to create a partition-parallel solver supporting both OpenMP and CUDA execution.
 
 The conservation form approach with flux corrections serves as a testbed for the numerical methods and infrastructure that will be used in a subsequent Navier-Stokes equations solver.
 
 ## Mathematical Formulation
 
-The 3D inviscid Burger’s equation in conservation form:
+The 3D inviscid Burger's equation in conservation form:
 
 ```
 ∂u/∂t + ∂F/∂x + ∂G/∂y + ∂H/∂z = 0
@@ -76,9 +76,9 @@ el, err := tetelement.NewElement3D(order, meshFile)
 // Initialize gocca device
 var device *gocca.OCCADevice
 if useCUDA {
-    device = gocca.DeviceFromString("mode: 'CUDA', device_id: 0")
+device = gocca.DeviceFromString("mode: 'CUDA', device_id: 0")
 } else {
-    device = gocca.DeviceFromString("mode: 'OpenMP'")
+device = gocca.DeviceFromString("mode: 'OpenMP'")
 }
 defer device.Free()
 ```
@@ -86,11 +86,24 @@ defer device.Free()
 ### Step 3: Extract Partition Information
 
 ```go
-// Get partition data from split mesh
-numPartitions := len(el.Split)
-K := make([]int, numPartitions)
-for i, partEl := range el.Split {
-    K[i] = partEl.K
+// Handle both partitioned and non-partitioned meshes
+var numPartitions int
+var K []int
+var workingElements []*tetelement.Element3D
+
+if el.Split != nil {
+    // Partitioned mesh
+    numPartitions = len(el.Split)
+    K = make([]int, numPartitions)
+    workingElements = el.Split
+    for i, partEl := range el.Split {
+        K[i] = partEl.K
+    }
+} else {
+    // Non-partitioned mesh - treat as single partition
+    numPartitions = 1
+    K = []int{el.K}
+    workingElements = []*tetelement.Element3D{el}
 }
 
 // Verify CUDA limits
@@ -202,7 +215,7 @@ arrays := []kernel_program.ArraySpec{
         Alignment: kernel_program.CacheLineAlign,
     },
     {
-        Name:      "us",
+        Name:      "us", 
         Size:      int64(totalSolutionNodes * 8),
         DataType:  kernel_program.Float64,
         Alignment: kernel_program.CacheLineAlign,
@@ -214,7 +227,7 @@ arrays := []kernel_program.ArraySpec{
         Alignment: kernel_program.CacheLineAlign,
     },
     
-    // Flux correction array for LIFT operation
+    // Flux correction array
     {
         Name:      "flux_correction",
         Size:      int64(totalFaceNodes * 8),
@@ -222,7 +235,7 @@ arrays := []kernel_program.ArraySpec{
         Alignment: kernel_program.CacheLineAlign,
     },
     
-    // Normal vectors for surface integrals
+    // Face geometry arrays
     {
         Name:      "nx",
         Size:      int64(totalFaceNodes * 8),
@@ -241,11 +254,17 @@ arrays := []kernel_program.ArraySpec{
         DataType:  kernel_program.Float64,
         Alignment: kernel_program.CacheLineAlign,
     },
-    // Fscale for surface integrals
     {
         Name:      "Fscale",
         Size:      int64(totalFaceNodes * 8),
         DataType:  kernel_program.Float64,
+        Alignment: kernel_program.CacheLineAlign,
+    },
+    // P_indices for neighbor connectivity
+    {
+        Name:      "P_indices",
+        Size:      int64(totalFaceNodes * 8), // int64 size
+        DataType:  kernel_program.INT64,
         Alignment: kernel_program.CacheLineAlign,
     },
 }
@@ -253,101 +272,80 @@ arrays := []kernel_program.ArraySpec{
 // Allocate all arrays
 err = kp.AllocateArrays(arrays)
 if err != nil {
-    log.Fatal("Failed to allocate arrays:", err)
+    log.Fatalf("Failed to allocate arrays: %v", err)
 }
 ```
 
-### Step 6: Copy Geometric Factors to Device
+### Step 6: Initialize Arrays from Split Mesh
 
 ```go
-// Helper function to copy partition data to device
-func copyPartitionDataToDevice(kp *kernel_program.KernelProgram, 
-                               arrayName string, 
-                               partitions []*tetelement.Element3D,
-                               getData func(*tetelement.Element3D) utils.Matrix) {
-    mem := kp.GetMemory(arrayName)
-    
-    offset := 0
-    for _, partEl := range partitions {
-        matrix := getData(partEl)
-        size := matrix.Len() * 8  // 8 bytes per float64
-        
-        // Copy matrix data
-        mem.CopyFromWithOffset(unsafe.Pointer(matrix.DataP), int64(size), int64(offset))
-        offset += size
+// Helper to pack partition data
+func packPartitionData(elements []*tetelement.Element3D, field func(el *tetelement.Element3D) []float64) []float64 {
+    var packed []float64
+    for _, partEl := range elements {
+        packed = append(packed, field(partEl)...)
     }
+    return packed
 }
 
-// Copy all geometric factors
-copyPartitionDataToDevice(kp, "Rx", el.Split, func(e *tetelement.Element3D) utils.Matrix { return e.Rx })
-copyPartitionDataToDevice(kp, "Ry", el.Split, func(e *tetelement.Element3D) utils.Matrix { return e.Ry })
-// ... repeat for all geometric factors
-
-// Copy normal vectors and Fscale
-copyPartitionDataToDevice(kp, "nx", el.Split, func(e *tetelement.Element3D) utils.Matrix { return e.Nx })
-copyPartitionDataToDevice(kp, "ny", el.Split, func(e *tetelement.Element3D) utils.Matrix { return e.Ny })
-copyPartitionDataToDevice(kp, "nz", el.Split, func(e *tetelement.Element3D) utils.Matrix { return e.Nz })
-copyPartitionDataToDevice(kp, "Fscale", el.Split, func(e *tetelement.Element3D) utils.Matrix { return e.Fscale })
-```
-
-### Step 7: Build Face Exchange P Indices
-
-```go
-// Build face buffers for each partition
-faceBuffers := make([]*facebuffer.FaceBuffer, numPartitions)
-totalPIndices := 0
-
-for p, partEl := range el.Split {
-    fb, err := facebuffer.BuildFaceBuffer(partEl)
-    if err != nil {
-        log.Fatal(err)
-    }
-    faceBuffers[p] = fb
-    totalPIndices += len(fb.LocalPIndices)
-}
-
-// Allocate P indices array if needed
-if totalPIndices > 0 {
-    err = kp.AllocateArrays([]kernel_program.ArraySpec{
-        {
-            Name:      "P_indices",
-            Size:      int64(totalPIndices * 4), // 4 bytes per int32
-            DataType:  kernel_program.INT32,
-            Alignment: kernel_program.NoAlignment,
-        },
-    })
-    
-    // Copy P indices to device
-    mem := kp.GetMemory("P_indices")
-    offset := 0
-    for _, fb := range faceBuffers {
-        if len(fb.LocalPIndices) > 0 {
-            size := len(fb.LocalPIndices) * 4
-            mem.CopyFromWithOffset(unsafe.Pointer(&fb.LocalPIndices[0]), int64(size), int64(offset))
-            offset += size
+// Initialize solution with test function
+initialU := make([]float64, totalSolutionNodes)
+idx := 0
+for _, partEl := range workingElements {
+    for k := 0; k < partEl.K; k++ {
+        for n := 0; n < partEl.Np; n++ {
+            x := partEl.X.DataP[k*partEl.Np + n]
+            y := partEl.Y.DataP[k*partEl.Np + n]
+            z := partEl.Z.DataP[k*partEl.Np + n]
+            // Gaussian pulse initial condition
+            initialU[idx] = math.Exp(-10 * (x*x + y*y + z*z))
+            idx++
         }
     }
 }
+
+// Copy arrays to device
+kp.CopyArrayToDevice("u", initialU)
+kp.CopyArrayToDevice("Rx", packPartitionData(workingElements, func(e *tetelement.Element3D) []float64 { return e.Rx.DataP }))
+kp.CopyArrayToDevice("Ry", packPartitionData(workingElements, func(e *tetelement.Element3D) []float64 { return e.Ry.DataP }))
+// ... repeat for all geometric factors and face arrays
 ```
 
-### Step 8: Define Kernels
-
-Note: The order of array parameters in kernel signatures must match the order passed to `RunKernel`. Each array requires both `arrayName_global` and `arrayName_offsets` parameters in sequence.
-
-The LIFT matrix multiplication requires a MATMUL_LIFT_ADD macro that accumulates to the output rather than replacing it. If KernelProgram doesn’t currently support accumulating matrix multiplies, this functionality needs to be added.
+### Step 7: Create Face Exchange Buffers
 
 ```go
-// Volume RHS kernel - computes flux divergence
+// Structure to manage face exchanges between partitions
+type FaceBuffer struct {
+    sendBuffer []float64
+    recvBuffer []float64
+    sendMap    []int  // indices to extract from M
+    recvMap    []int  // indices to place in P_buffer
+    neighbor   int    // partition ID
+}
+
+// Build face exchange maps from EToE across partitions
+faceBuffers := buildFaceExchangeBuffers(workingElements)
+```
+
+### Step 8: Build Computational Kernels
+
+Note the updated macro API:
+- MATMUL_* macros now take (IN, OUT, K_VAL) parameters only
+- Matrix dimensions are automatically inferred from the static matrix dimensions
+- The @inner loop is contained within the macro
+- MATMUL_ADD_* variants accumulate to output (needed for flux corrections)
+
+```go
+// Volume RHS kernel
 volumeKernelCode := `
 #define NP ` + fmt.Sprintf("%d", Np) + `
-#define NFP ` + fmt.Sprintf("%d", Nfp) + `
 
 @kernel void volumeRHS3D(
     const int_t* K,
     const real_t* u_global, const int_t* u_offsets,
-    const real_t* ur_global, const int_t* ur_offsets,
-    const real_t* us_global, const int_t* us_offsets,
-    const real_t* ut_global, const int_t* ut_offsets,
+    real_t* ur_global, const int_t* ur_offsets,
+    real_t* us_global, const int_t* us_offsets,
+    real_t* ut_global, const int_t* ut_offsets,
     const real_t* Rx_global, const int_t* Rx_offsets,
     const real_t* Ry_global, const int_t* Ry_offsets,
     const real_t* Rz_global, const int_t* Rz_offsets,
@@ -360,7 +358,6 @@ volumeKernelCode := `
     real_t* rhs_global, const int_t* rhs_offsets
 ) {
     for (int part = 0; part < NPART; ++part; @outer) {
-        // Get partition data pointers
         const real_t* u = u_PART(part);
         real_t* ur = ur_PART(part);
         real_t* us = us_PART(part);
@@ -379,11 +376,13 @@ volumeKernelCode := `
         int k_part = K[part];
         
         // Apply differentiation matrices
-        MATMUL_Dr(u, ur, k_part, NP);
-        MATMUL_Ds(u, us, k_part, NP);
-        MATMUL_Dt(u, ut, k_part, NP);
+        // The macro contains the @inner loop
+        MATMUL_Dr(u, ur, k_part);
+        MATMUL_Ds(u, us, k_part);
+        MATMUL_Dt(u, ut, k_part);
         
-        // Compute flux derivatives
+        // Compute flux divergence
+        // This loop can be @inner since it's element-independent
         for (int elem = 0; elem < KpartMax; ++elem; @inner) {
             if (elem < k_part) {
                 for (int i = 0; i < NP; ++i) {
@@ -510,8 +509,7 @@ fluxCorrectionKernelCode := `
         // Apply LIFT matrix to get volume contribution
         // LIFT is [Np x Nfp*4], flux_correction is [Nfp*4 x K]
         // Result accumulates to rhs [Np x K]
-        // Note: This requires MATMUL_LIFT_ADD which adds to output rather than replacing
-        MATMUL_LIFT_ADD(flux_correction, rhs, k_part, NP);
+        MATMUL_ADD_LIFT(flux_correction, rhs, k_part);
     }
 }
 `
@@ -536,10 +534,18 @@ a := [][]float64{
 }
 
 // Copy VmapM to device once (static data)
-vmapMData := make([]int32, Nfp*4)
-for f := 0; f < 4; f++ {
-    for i := 0; i < Nfp; i++ {
-        vmapMData[f*Nfp + i] = int32(el.Fmask[f][i])
+// VmapM maps face nodes to volume nodes
+vmapMData := make([]int32, totalFaceNodes)
+idx = 0
+for _, partEl := range workingElements {
+    for k := 0; k < partEl.K; k++ {
+        for f := 0; f < 4; f++ {
+            for i := 0; i < partEl.Nfp; i++ {
+                // VmapM maps face node to volume node
+                vmapMData[idx] = int32(partEl.VmapM[k*4*partEl.Nfp + f*partEl.Nfp + i])
+                idx++
+            }
+        }
     }
 }
 vmapMDevice := device.Malloc(int64(len(vmapMData)*4), unsafe.Pointer(&vmapMData[0]))
@@ -566,97 +572,38 @@ for step := 0; step < numSteps; step++ {
         err = kp.RunKernel("fluxCorrection3D",
             "M", "nx", "ny", "nz", "Fscale", "P_indices", "flux_correction", rhsName)
         
-        // 5. Update solution (implement as kernel)
-        updateSolution(kp, stage, dt, a, c)
+        // 5. RK update (stage-specific linear combination)
+        if stage == 0 {
+            // u = u + dt * a[stage][0] * rhs0
+            kp.RunKernel("rkUpdate", "u", "rhs0", dt*a[stage][0])
+        } else {
+            // u = weighted sum of previous stages
+            // Implementation depends on stage
+        }
     }
     
     // Monitor solution
     if step % 100 == 0 {
-        maxU := computeMaximum(kp, "u")
-        fmt.Printf("Step %d: max(u) = %g\n", step, maxU)
+        u_host, _ := kp.CopyArrayToHost("u")
+        fmt.Printf("Step %d: max|u| = %e\n", step, maxAbs(u_host))
     }
 }
 ```
 
-### Step 10: Helper Functions
+### Step 10: Post-Processing
 
 ```go
-// Exchange partition boundary data
-func exchangePartitionBoundaries(kp *kernel_program.KernelProgram, 
-                                faceBuffers []*facebuffer.FaceBuffer) {
-    // For each partition, copy remote face data
-    for p, fb := range faceBuffers {
-        for remotePartID, indices := range fb.RemoteSendIndices {
-            // Copy from partition p to remotePartID
-            // This requires MPI or similar for distributed memory
-            // For shared memory, direct copy between M buffers
-        }
-    }
+// Copy solution back to host
+finalU, err := kp.CopyArrayToHost("u")
+if err != nil {
+    log.Fatalf("Failed to copy solution: %v", err)
 }
 
-// Compute maximum value (for monitoring)
-func computeMaximum(kp *kernel_program.KernelProgram, arrayName string) float64 {
-    data, _ := kernel_program.CopyArrayToHost[float64](kp, arrayName)
-    maxVal := data[0]
-    for _, v := range data {
-        if v > maxVal {
-            maxVal = v
-        }
-    }
-    return maxVal
-}
-
-// Update solution kernel
-func buildUpdateKernel(kp *kernel_program.KernelProgram, stage int, a [][]float64) {
-    code := fmt.Sprintf(`
-    @kernel void updateStage%d(
-        const int_t* K,
-        real_t* u_global, const int_t* u_offsets,
-        const real_t* u0_global, const int_t* u0_offsets,
-    `, stage)
-    
-    // Add RHS arrays used in this stage
-    for s := 0; s <= stage; s++ {
-        code += fmt.Sprintf(`    const real_t* rhs%d_global, const int_t* rhs%d_offsets,
-    `, s, s)
-    }
-    
-    code += fmt.Sprintf(`    const real_t dt
-    ) {
-        for (int part = 0; part < NPART; ++part; @outer) {
-            real_t* u = u_PART(part);
-            const real_t* u0 = u0_PART(part);
-            `)
-    
-    // Add RHS pointers
-    for s := 0; s <= stage; s++ {
-        code += fmt.Sprintf(`const real_t* rhs%d = rhs%d_PART(part);
-            `, s, s)
-    }
-    
-    code += `
-            int k_part = K[part];
-            
-            for (int i = 0; i < k_part * NP; ++i; @inner) {
-                u[i] = u0[i]`
-    
-    // Add RHS contributions
-    for s := 0; s <= stage; s++ {
-        if a[stage][s] > 0 {
-            code += fmt.Sprintf(` + dt * %g * rhs%d[i]`, a[stage][s], s)
-        }
-    }
-    
-    code += `;
-            }
-        }
-    }`
-    
-    kp.BuildKernel(fmt.Sprintf("updateStage%d", stage), code)
-}
+// Unpack from partition format to element format
+// Write VTK output using existing Element3D methods
 ```
 
-## Key Implementation Details
+## Key Implementation Notes
 
 ### 1. Memory Layout
 
@@ -667,10 +614,10 @@ func buildUpdateKernel(kp *kernel_program.KernelProgram, stage int, a [][]float6
 
 ### 2. Kernel Design
 
-- All kernels follow OCCA’s @outer/@inner pattern
+- All kernels follow OCCA's @outer/@inner pattern
 - Matrix operations use generated macros containing @inner loops
-- MATMUL_* macros take only (IN, OUT, K_VAL, NP) - matrix dimensions are embedded
-- MATMUL_LIFT_ADD is needed to accumulate flux contributions to RHS (if not available in KernelProgram, needs to be added)
+- MATMUL_* macros take only (IN, OUT, K_VAL) - matrix dimensions are embedded
+- MATMUL_ADD_* variants accumulate to output (needed for flux corrections)
 - Flux correction array allocated as device memory to avoid stack issues
 
 ### 3. Partition Parallelism
@@ -698,27 +645,30 @@ func buildUpdateKernel(kp *kernel_program.KernelProgram, stage int, a [][]float6
 Following the Unit Testing Principles:
 
 1. **Start with fundamentals**: Test single element, then single partition
-1. **Build systematically**: Add partitions incrementally
-1. **Specific properties**: Verify conservation, convergence rates
-1. **Detailed coverage**: Test boundary conditions, parallel exchange
+2. **Build systematically**: Add partitions incrementally
+3. **Specific properties**: Verify conservation, convergence rates
+4. **Detailed coverage**: Test boundary conditions, parallel exchange
 
 ### Test Cases
 
 1. **Single Element Tests**
-- Constant solution preservation
-- Linear advection accuracy
-- Conservation properties
-1. **Multi-Partition Tests**
-- Partition boundary continuity
-- Load balancing verification
-- Parallel efficiency
-1. **Convergence Tests**
-- Smooth solution: O(N+1) convergence
-- Discontinuous solution: shock capturing
-1. **Benchmark Problems**
-- 3D advection of Gaussian pulse
-- Shock formation from smooth initial data
-- Interaction of multiple shocks
+    - Constant solution preservation
+    - Linear advection accuracy
+    - Conservation properties
+
+2. **Multi-Partition Tests**
+    - Partition boundary continuity
+    - Load balancing verification
+    - Parallel efficiency
+
+3. **Convergence Tests**
+    - Smooth solution: O(N+1) convergence
+    - Discontinuous solution: shock capturing
+
+4. **Benchmark Problems**
+    - 3D advection of Gaussian pulse
+    - Shock formation from smooth initial data
+    - Interaction of multiple shocks
 
 ## Error Handling
 
@@ -730,12 +680,12 @@ Following the Unit Testing Principles:
 
 ## Extensions to Navier-Stokes
 
-This Burger’s equation solver demonstrates key capabilities needed for Navier-Stokes:
+This Burger's equation solver demonstrates key capabilities needed for Navier-Stokes:
 
 1. **Flux Formulation**: The conservation form with flux derivatives directly extends to the convective terms in Navier-Stokes
-1. **Face Corrections**: The flux correction approach handles discontinuous solutions needed for compressible flows
-1. **Partition Parallel**: The infrastructure supports the computational intensity of 3D Navier-Stokes
-1. **Geometric Flexibility**: Unstructured tetrahedral meshes handle complex geometries
+2. **Face Corrections**: The flux correction approach handles discontinuous solutions needed for compressible flows
+3. **Partition Parallel**: The infrastructure supports the computational intensity of 3D Navier-Stokes
+4. **Geometric Flexibility**: Unstructured tetrahedral meshes handle complex geometries
 
 The main additions for Navier-Stokes will be:
 
@@ -744,9 +694,155 @@ The main additions for Navier-Stokes will be:
 - Boundary condition variety (wall, inflow, outflow)
 - Shock capturing and limiting strategies
 
+## Boundary Condition Implementation
+
+The solver supports wall and farfield boundary conditions through the flux computation. Boundary conditions are implemented in the flux correction kernel by modifying how the neighbor value uP is determined.
+
+### Boundary Condition Mapping
+
+```go
+// Build BC mapping during initialization
+// BCMaps contains face-to-BC-type mapping from mesh
+bcTypes := make([]int32, totalFaceNodes)
+idx := 0
+for _, partEl := range workingElements {
+    for k := 0; k < partEl.K; k++ {
+        for f := 0; f < 4; f++ {
+            for i := 0; i < partEl.Nfp; i++ {
+                faceIdx := k*4*partEl.Nfp + f*partEl.Nfp + i
+                
+                // Check if this is a boundary face
+                if partEl.EToE[k][f] == k { // Self-connected = boundary
+                    // Get BC type from mesh
+                    bcTypes[idx] = int32(partEl.GetFaceBCType(k, f))
+                } else {
+                    bcTypes[idx] = BC_NONE // Internal face
+                }
+                idx++
+            }
+        }
+    }
+}
+
+// Copy to device
+bcTypesDevice := device.Malloc(int64(len(bcTypes)*4), unsafe.Pointer(&bcTypes[0]))
+defer bcTypesDevice.Free()
+```
+
+### Updated Flux Correction Kernel with BCs
+
+```c
+// Add BC type constants
+#define BC_NONE 0
+#define BC_WALL 1
+#define BC_FARFIELD 2
+
+@kernel void fluxCorrection3D(
+    const int_t* K,
+    const real_t* M_global, const int_t* M_offsets,
+    const real_t* nx_global, const int_t* nx_offsets,
+    const real_t* ny_global, const int_t* ny_offsets,
+    const real_t* nz_global, const int_t* nz_offsets,
+    const real_t* Fscale_global, const int_t* Fscale_offsets,
+    const int_t* P_indices_global, const int_t* P_indices_offsets,
+    const int_t* BC_types_global, const int_t* BC_types_offsets,
+    real_t* flux_correction_global, const int_t* flux_correction_offsets,
+    real_t* rhs_global, const int_t* rhs_offsets
+) {
+    for (int part = 0; part < NPART; ++part; @outer) {
+        const real_t* M = M_PART(part);
+        const real_t* nx = nx_PART(part);
+        const real_t* ny = ny_PART(part);
+        const real_t* nz = nz_PART(part);
+        const real_t* Fscale = Fscale_PART(part);
+        const int_t* P_indices = P_indices_PART(part);
+        const int_t* BC_types = BC_types_PART(part);
+        real_t* flux_correction = flux_correction_PART(part);
+        real_t* rhs = rhs_PART(part);
+        
+        int k_part = K[part];
+        
+        // Compute flux corrections at faces
+        for (int elem = 0; elem < KpartMax; ++elem; @inner) {
+            if (elem < k_part) {
+                for (int f = 0; f < 4; ++f) {
+                    for (int i = 0; i < NFP; ++i) {
+                        int fid = elem * NFP * 4 + f * NFP + i;
+                        real_t uM = M[fid];
+                        real_t uP;
+                        
+                        // Get boundary condition type
+                        int bc_type = BC_types[fid];
+                        
+                        if (bc_type == BC_NONE) {
+                            // Internal face - get neighbor value
+                            int p_idx = P_indices[fid];
+                            uP = (p_idx >= 0) ? M[p_idx] : uM;
+                        } else if (bc_type == BC_WALL) {
+                            // Wall BC: no penetration for inviscid flow
+                            // For scalar Burger's, we can use reflection
+                            uP = -uM;
+                        } else if (bc_type == BC_FARFIELD) {
+                            // Farfield BC: Riemann invariant
+                            // For outflow (u·n > 0): extrapolate from interior
+                            // For inflow (u·n < 0): use farfield value
+                            real_t un = uM * 1.0; // Simplified for scalar
+                            if (un > 0) {
+                                uP = uM; // Outflow: extrapolate
+                            } else {
+                                uP = 0.0; // Inflow: farfield value (customize as needed)
+                            }
+                        } else {
+                            // Default: treat as wall
+                            uP = -uM;
+                        }
+                        
+                        // Local flux (conservation form)
+                        real_t FM = 0.5 * uM * uM;
+                        real_t FP = 0.5 * uP * uP;
+                        
+                        // Numerical flux (Lax-Friedrichs)
+                        real_t alpha = fmax(fabs(uM), fabs(uP));
+                        real_t Fnum = 0.5 * (FM + FP - alpha*(uP - uM));
+                        
+                        // For scalar Burger's, flux is same in all directions
+                        real_t Gnum = Fnum;
+                        real_t Hnum = Fnum;
+                        
+                        // Normal flux: (F* - F)·n̂
+                        real_t flux_jump = (Fnum - FM)*nx[fid] + 
+                                          (Gnum - FM)*ny[fid] + 
+                                          (Hnum - FM)*nz[fid];
+                        
+                        // Scale by face Jacobian
+                        flux_correction[elem * NFP * 4 + f * NFP + i] = flux_jump * Fscale[fid];
+                    }
+                }
+            }
+        }
+        
+        // Apply LIFT matrix to get volume contribution
+        MATMUL_ADD_LIFT(flux_correction, rhs, k_part);
+    }
+}
+```
+
+### Boundary Condition Notes
+
+1. **Wall BC**: For inviscid Burger's equation, we use reflection (uP = -uM) which enforces zero normal flux at the wall.
+
+2. **Farfield BC**: Uses characteristic analysis:
+    - For outflow (u·n > 0): Information travels out, so we extrapolate from interior
+    - For inflow (u·n < 0): Information comes from outside, so we impose farfield value
+
+3. **Extension to Navier-Stokes**:
+    - Wall BC will need to enforce no-slip (u=v=w=0) for viscous terms
+    - Farfield BC will use Riemann invariants for the full system
+    - Additional BC types (inlet, outlet, symmetry) can be added similarly
+
 ## References
 
-- Hesthaven & Warburton, “Nodal Discontinuous Galerkin Methods”
-- Spiteri & Ruuth, “Optimal Strong-Stability-Preserving Runge-Kutta Methods”
+- Hesthaven & Warburton, "Nodal Discontinuous Galerkin Methods"
+- Spiteri & Ruuth, "Optimal Strong-Stability-Preserving Runge-Kutta Methods"
 - GOCCA documentation for kernel programming patterns
-- KernelProgram User’s Guide for array management
+- KernelProgram User's Guide for array management
