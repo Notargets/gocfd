@@ -652,23 +652,23 @@ Following the Unit Testing Principles:
 ### Test Cases
 
 1. **Single Element Tests**
-    - Constant solution preservation
-    - Linear advection accuracy
-    - Conservation properties
+   - Constant solution preservation
+   - Linear advection accuracy
+   - Conservation properties
 
 2. **Multi-Partition Tests**
-    - Partition boundary continuity
-    - Load balancing verification
-    - Parallel efficiency
+   - Partition boundary continuity
+   - Load balancing verification
+   - Parallel efficiency
 
 3. **Convergence Tests**
-    - Smooth solution: O(N+1) convergence
-    - Discontinuous solution: shock capturing
+   - Smooth solution: O(N+1) convergence
+   - Discontinuous solution: shock capturing
 
 4. **Benchmark Problems**
-    - 3D advection of Gaussian pulse
-    - Shock formation from smooth initial data
-    - Interaction of multiple shocks
+   - 3D advection of Gaussian pulse
+   - Shock formation from smooth initial data
+   - Interaction of multiple shocks
 
 ## Error Handling
 
@@ -779,9 +779,11 @@ defer bcTypesDevice.Free()
                             int p_idx = P_indices[fid];
                             uP = (p_idx >= 0) ? M[p_idx] : uM;
                         } else if (bc_type == BC_WALL) {
-                            // Wall BC: no penetration for inviscid flow
-                            // For scalar Burger's, we can use reflection
-                            uP = -uM;
+                            // Wall BC: zero normal flux condition
+                            // For zero flux, the numerical flux f* must equal fM
+                            // so that (f* - fM)·n̂ = 0
+                            // This is achieved by setting uP = uM (not -uM!)
+                            uP = uM;
                         } else if (bc_type == BC_FARFIELD) {
                             // Farfield BC: Riemann invariant
                             // For outflow (u·n > 0): extrapolate from interior
@@ -794,7 +796,7 @@ defer bcTypesDevice.Free()
                             }
                         } else {
                             // Default: treat as wall
-                            uP = -uM;
+                            uP = uM;
                         }
                         
                         // Local flux (conservation form)
@@ -829,16 +831,16 @@ defer bcTypesDevice.Free()
 
 ### Boundary Condition Notes
 
-1. **Wall BC**: For inviscid Burger's equation, we use reflection (uP = -uM) which enforces zero normal flux at the wall.
+1. **Wall BC**: For the wall boundary condition, we enforce zero normal flux: `F·n̂ = 0`. In the DG formulation, this means the numerical flux `f*` must equal the local flux `fM` so that the flux correction `(f* - fM)·n̂ = 0`. This is achieved by setting `uP = uM`, which makes the Lax-Friedrichs flux reduce to `f* = fM`.
 
 2. **Farfield BC**: Uses characteristic analysis:
-    - For outflow (u·n > 0): Information travels out, so we extrapolate from interior
-    - For inflow (u·n < 0): Information comes from outside, so we impose farfield value
+   - For outflow (u·n > 0): Information travels out, so we extrapolate from interior (uP = uM)
+   - For inflow (u·n < 0): Information comes from outside, so we impose farfield value
 
 3. **Extension to Navier-Stokes**:
-    - Wall BC will need to enforce no-slip (u=v=w=0) for viscous terms
-    - Farfield BC will use Riemann invariants for the full system
-    - Additional BC types (inlet, outlet, symmetry) can be added similarly
+   - Wall BC will additionally need to enforce no-slip (u=v=w=0) for viscous terms
+   - Farfield BC will use Riemann invariants for the full system of equations
+   - Additional BC types (inlet, outlet, symmetry) can be added by specifying appropriate values for the primitive variables
 
 ## References
 
