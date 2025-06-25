@@ -89,9 +89,9 @@ el, err := tetelement.NewElement3D(order, meshFile)
 // Initialize gocca device
 var device *gocca.OCCADevice
 if useCUDA {
-    device = gocca.DeviceFromString("mode: 'CUDA', device_id: 0")
+device = gocca.DeviceFromString("mode: 'CUDA', device_id: 0")
 } else {
-    device = gocca.DeviceFromString("mode: 'OpenMP'")
+device = gocca.DeviceFromString("mode: 'OpenMP'")
 }
 defer device.Free()
 ```
@@ -105,31 +105,31 @@ var K []int
 var workingElements []*tetelement.Element3D
 
 if el.Split != nil {
-    // Partitioned mesh
-    numPartitions = len(el.Split)
-    K = make([]int, numPartitions)
-    workingElements = el.Split
-    for i, partEl := range el.Split {
-        K[i] = partEl.K
-    }
+// Partitioned mesh
+numPartitions = len(el.Split)
+K = make([]int, numPartitions)
+workingElements = el.Split
+for i, partEl := range el.Split {
+K[i] = partEl.K
+}
 } else {
-    // Non-partitioned mesh - treat as single partition
-    numPartitions = 1
-    K = []int{el.K}
-    workingElements = []*tetelement.Element3D{el}
+// Non-partitioned mesh - treat as single partition
+numPartitions = 1
+K = []int{el.K}
+workingElements = []*tetelement.Element3D{el}
 }
 
 // Verify CUDA limits
 if device.Mode() == "CUDA" {
-    kpartMax := 0
-    for _, k := range K {
-        if k > kpartMax {
-            kpartMax = k
-        }
-    }
-    if kpartMax > 1024 {
-        log.Fatal("CUDA @inner limit exceeded: max partition size is 1024")
-    }
+kpartMax := 0
+for _, k := range K {
+if k > kpartMax {
+kpartMax = k
+}
+}
+if kpartMax > 1024 {
+log.Fatal("CUDA @inner limit exceeded: max partition size is 1024")
+}
 }
 ```
 
@@ -138,9 +138,9 @@ if device.Mode() == "CUDA" {
 ```go
 // Initialize kernel program
 kp := kernel_program.NewKernelProgram(device, kernel_program.Config{
-    K:         K,
-    FloatType: kernel_program.Float64,
-    IntType:   kernel_program.INT64,
+K:         K,
+FloatType: kernel_program.Float64,
+IntType:   kernel_program.INT64,
 })
 
 // Add static matrices from Element3D (reference element)
@@ -154,11 +154,7 @@ kp.AddStaticMatrix("LIFT", el.LIFT)
 
 ### Step 5: Calculate Memory Requirements and Allocate Arrays
 
-Note: The derivative arrays (ur, us, ut) and flux_correction are allocated as device memory rather than local kernel arrays to:
-
-- Avoid stack overflow issues with large temporary arrays
-- Enable reuse across multiple kernel calls
-- Maintain consistent memory access patterns using partition macros
+The derivative arrays (ur, us, ut, etc.) and flux arrays are allocated as device memory to avoid stack overflow issues with large temporary arrays and enable reuse across multiple kernel calls.
 
 ```go
 // Calculate sizes
@@ -397,11 +393,7 @@ faceBuffers := buildFaceExchangeBuffers(workingElements)
 
 ### Step 8: Build Computational Kernels
 
-Note the updated macro API:
-- MATMUL_* macros now take (IN, OUT, K_VAL) parameters only
-- Matrix dimensions are automatically inferred from the static matrix dimensions
-- The @inner loop is contained within the macro
-- MATMUL_ADD_* variants accumulate to output (needed for flux corrections)
+The matrix multiplication macros take (IN, OUT, K_VAL) parameters. Matrix dimensions are automatically inferred from the static matrix dimensions. The @inner loop is contained within the macro. MATMUL_ADD_* variants accumulate to output for flux corrections.
 
 ```go
 // Volume RHS kernel for vector Burger's equation
