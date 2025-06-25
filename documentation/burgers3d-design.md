@@ -2,29 +2,42 @@
 
 ## Overview
 
-This document describes the implementation of a 3D inviscid Burger's equation solver using discontinuous Galerkin (DG) methods in conservation form. The solver combines `kernel_program.go` from gocca with the tetrahedra package from gocfd to create a partition-parallel solver supporting both OpenMP and CUDA execution.
+This document describes the implementation of a 3D vector inviscid Burger's equation solver using discontinuous Galerkin (DG) methods in conservation form. The solver combines `kernel_program.go` from gocca with the tetrahedra package from gocfd to create a partition-parallel solver supporting both OpenMP and CUDA execution.
 
 The conservation form approach with flux corrections serves as a testbed for the numerical methods and infrastructure that will be used in a subsequent Navier-Stokes equations solver.
 
 ## Mathematical Formulation
 
-The 3D inviscid Burger's equation in conservation form:
+The 3D vector inviscid Burger's equation in non-conservative form:
 
 ```
-∂u/∂t + ∂F/∂x + ∂G/∂y + ∂H/∂z = 0
+∂u/∂t + (u·∇)u = 0
 
-where:
-F = u²/2
-G = u²/2  
-H = u²/2
+where u = (u, v, w) is the velocity vector
+```
+
+In conservation form, this becomes three coupled equations:
+
+```
+∂u/∂t + ∂(u²)/∂x + ∂(uv)/∂y + ∂(uw)/∂z = 0
+∂v/∂t + ∂(uv)/∂x + ∂(v²)/∂y + ∂(vw)/∂z = 0
+∂w/∂t + ∂(uw)/∂x + ∂(vw)/∂y + ∂(w²)/∂z = 0
+```
+
+The flux tensor is:
+```
+F = [u², uv, uw]ᵀ    (x-direction fluxes)
+G = [uv, v², vw]ᵀ    (y-direction fluxes)
+H = [uw, vw, w²]ᵀ    (z-direction fluxes)
 ```
 
 In the DG formulation:
 
 ```
-∂u/∂t = -∇·F^v + LIFT * (F* - F)·n̂
+∂q/∂t = -∇·F^v + LIFT * (F* - F)·n̂
 
 where:
+- q = (u, v, w) is the solution vector
 - F^v is the volume flux contribution
 - F* is the numerical flux at faces
 - F is the local flux at faces
@@ -76,9 +89,9 @@ el, err := tetelement.NewElement3D(order, meshFile)
 // Initialize gocca device
 var device *gocca.OCCADevice
 if useCUDA {
-device = gocca.DeviceFromString("mode: 'CUDA', device_id: 0")
+    device = gocca.DeviceFromString("mode: 'CUDA', device_id: 0")
 } else {
-device = gocca.DeviceFromString("mode: 'OpenMP'")
+    device = gocca.DeviceFromString("mode: 'OpenMP'")
 }
 defer device.Free()
 ```
@@ -156,24 +169,48 @@ totalFaceNodes := 0
 totalGeometricFactors := 0
 
 for _, k := range K {
-    totalSolutionNodes += Np * k
-    totalFaceNodes += Nfp * 4 * k  // 4 faces per tet
+    totalSolutionNodes += Np * k * 3  // 3 components (u, v, w)
+    totalFaceNodes += Nfp * 4 * k * 3  // 4 faces per tet, 3 components
     totalGeometricFactors += Np * k
 }
 
 // Define array specifications
 arrays := []kernel_program.ArraySpec{
-    // Solution array
+    // Solution arrays - 3 components
     {
         Name:      "u",
         Size:      int64(totalSolutionNodes * 8), // 8 bytes per float64
         DataType:  kernel_program.Float64,
         Alignment: kernel_program.CacheLineAlign,
     },
-    // M buffer for face data
     {
-        Name:      "M",
-        Size:      int64(totalFaceNodes * 8),
+        Name:      "v",
+        Size:      int64(totalSolutionNodes/3 * 8), // Single component size
+        DataType:  kernel_program.Float64,
+        Alignment: kernel_program.CacheLineAlign,
+    },
+    {
+        Name:      "w",
+        Size:      int64(totalSolutionNodes/3 * 8),
+        DataType:  kernel_program.Float64,
+        Alignment: kernel_program.CacheLineAlign,
+    },
+    // M buffer for face data - 3 components
+    {
+        Name:      "Mu",
+        Size:      int64(totalFaceNodes/3 * 8),
+        DataType:  kernel_program.Float64,
+        Alignment: kernel_program.CacheLineAlign,
+    },
+    {
+        Name:      "Mv",
+        Size:      int64(totalFaceNodes/3 * 8),
+        DataType:  kernel_program.Float64,
+        Alignment: kernel_program.CacheLineAlign,
+    },
+    {
+        Name:      "Mw",
+        Size:      int64(totalFaceNodes/3 * 8),
         DataType:  kernel_program.Float64,
         Alignment: kernel_program.CacheLineAlign,
     },
@@ -192,45 +229,64 @@ arrays := []kernel_program.ArraySpec{
     },
     // ... repeat for Rz, Sx, Sy, Sz, Tx, Ty, Tz, J
     
-    // RHS arrays for RK5SSP4 (5 stages)
+    // RHS arrays for RK5SSP4 (5 stages) - 3 components each
     {
-        Name:      "rhs0",
-        Size:      int64(totalSolutionNodes * 8),
+        Name:      "rhsu0",
+        Size:      int64(totalSolutionNodes/3 * 8),
         DataType:  kernel_program.Float64,
         Alignment: kernel_program.CacheLineAlign,
     },
     {
-        Name:      "rhs1",
-        Size:      int64(totalSolutionNodes * 8),
+        Name:      "rhsv0",
+        Size:      int64(totalSolutionNodes/3 * 8),
         DataType:  kernel_program.Float64,
         Alignment: kernel_program.CacheLineAlign,
     },
-    // ... rhs2, rhs3, rhs4
+    {
+        Name:      "rhsw0",
+        Size:      int64(totalSolutionNodes/3 * 8),
+        DataType:  kernel_program.Float64,
+        Alignment: kernel_program.CacheLineAlign,
+    },
+    // ... repeat for stages 1-4
     
     // Derivative arrays for Dr, Ds, Dt operations
     {
         Name:      "ur",
-        Size:      int64(totalSolutionNodes * 8),
+        Size:      int64(totalSolutionNodes/3 * 8),
         DataType:  kernel_program.Float64,
         Alignment: kernel_program.CacheLineAlign,
     },
     {
         Name:      "us", 
-        Size:      int64(totalSolutionNodes * 8),
+        Size:      int64(totalSolutionNodes/3 * 8),
         DataType:  kernel_program.Float64,
         Alignment: kernel_program.CacheLineAlign,
     },
     {
         Name:      "ut",
-        Size:      int64(totalSolutionNodes * 8),
+        Size:      int64(totalSolutionNodes/3 * 8),
         DataType:  kernel_program.Float64,
         Alignment: kernel_program.CacheLineAlign,
     },
+    // ... repeat for vr, vs, vt, wr, ws, wt
     
-    // Flux correction array
+    // Flux correction arrays
     {
-        Name:      "flux_correction",
-        Size:      int64(totalFaceNodes * 8),
+        Name:      "flux_u",
+        Size:      int64(totalFaceNodes/3 * 8),
+        DataType:  kernel_program.Float64,
+        Alignment: kernel_program.CacheLineAlign,
+    },
+    {
+        Name:      "flux_v",
+        Size:      int64(totalFaceNodes/3 * 8),
+        DataType:  kernel_program.Float64,
+        Alignment: kernel_program.CacheLineAlign,
+    },
+    {
+        Name:      "flux_w",
+        Size:      int64(totalFaceNodes/3 * 8),
         DataType:  kernel_program.Float64,
         Alignment: kernel_program.CacheLineAlign,
     },
@@ -289,7 +345,9 @@ func packPartitionData(elements []*tetelement.Element3D, field func(el *teteleme
 }
 
 // Initialize solution with test function
-initialU := make([]float64, totalSolutionNodes)
+initialU := make([]float64, totalSolutionNodes/3)
+initialV := make([]float64, totalSolutionNodes/3)
+initialW := make([]float64, totalSolutionNodes/3)
 idx := 0
 for _, partEl := range workingElements {
     for k := 0; k < partEl.K; k++ {
@@ -297,8 +355,16 @@ for _, partEl := range workingElements {
             x := partEl.X.DataP[k*partEl.Np + n]
             y := partEl.Y.DataP[k*partEl.Np + n]
             z := partEl.Z.DataP[k*partEl.Np + n]
-            // Gaussian pulse initial condition
-            initialU[idx] = math.Exp(-10 * (x*x + y*y + z*z))
+            // Example: rotating vortex initial condition
+            r := math.Sqrt(x*x + y*y)
+            if r > 0 {
+                initialU[idx] = -y/r * math.Exp(-10 * (r*r + z*z))
+                initialV[idx] = x/r * math.Exp(-10 * (r*r + z*z))
+            } else {
+                initialU[idx] = 0
+                initialV[idx] = 0
+            }
+            initialW[idx] = 0
             idx++
         }
     }
@@ -306,6 +372,8 @@ for _, partEl := range workingElements {
 
 // Copy arrays to device
 kp.CopyArrayToDevice("u", initialU)
+kp.CopyArrayToDevice("v", initialV)
+kp.CopyArrayToDevice("w", initialW)
 kp.CopyArrayToDevice("Rx", packPartitionData(workingElements, func(e *tetelement.Element3D) []float64 { return e.Rx.DataP }))
 kp.CopyArrayToDevice("Ry", packPartitionData(workingElements, func(e *tetelement.Element3D) []float64 { return e.Ry.DataP }))
 // ... repeat for all geometric factors and face arrays
@@ -336,16 +404,24 @@ Note the updated macro API:
 - MATMUL_ADD_* variants accumulate to output (needed for flux corrections)
 
 ```go
-// Volume RHS kernel
+// Volume RHS kernel for vector Burger's equation
 volumeKernelCode := `
 #define NP ` + fmt.Sprintf("%d", Np) + `
 
 @kernel void volumeRHS3D(
     const int_t* K,
     const real_t* u_global, const int_t* u_offsets,
+    const real_t* v_global, const int_t* v_offsets,
+    const real_t* w_global, const int_t* w_offsets,
     real_t* ur_global, const int_t* ur_offsets,
     real_t* us_global, const int_t* us_offsets,
     real_t* ut_global, const int_t* ut_offsets,
+    real_t* vr_global, const int_t* vr_offsets,
+    real_t* vs_global, const int_t* vs_offsets,
+    real_t* vt_global, const int_t* vt_offsets,
+    real_t* wr_global, const int_t* wr_offsets,
+    real_t* ws_global, const int_t* ws_offsets,
+    real_t* wt_global, const int_t* wt_offsets,
     const real_t* Rx_global, const int_t* Rx_offsets,
     const real_t* Ry_global, const int_t* Ry_offsets,
     const real_t* Rz_global, const int_t* Rz_offsets,
@@ -355,13 +431,23 @@ volumeKernelCode := `
     const real_t* Tx_global, const int_t* Tx_offsets,
     const real_t* Ty_global, const int_t* Ty_offsets,
     const real_t* Tz_global, const int_t* Tz_offsets,
-    real_t* rhs_global, const int_t* rhs_offsets
+    real_t* rhsu_global, const int_t* rhsu_offsets,
+    real_t* rhsv_global, const int_t* rhsv_offsets,
+    real_t* rhsw_global, const int_t* rhsw_offsets
 ) {
     for (int part = 0; part < NPART; ++part; @outer) {
         const real_t* u = u_PART(part);
+        const real_t* v = v_PART(part);
+        const real_t* w = w_PART(part);
         real_t* ur = ur_PART(part);
         real_t* us = us_PART(part);
         real_t* ut = ut_PART(part);
+        real_t* vr = vr_PART(part);
+        real_t* vs = vs_PART(part);
+        real_t* vt = vt_PART(part);
+        real_t* wr = wr_PART(part);
+        real_t* ws = ws_PART(part);
+        real_t* wt = wt_PART(part);
         const real_t* Rx = Rx_PART(part);
         const real_t* Ry = Ry_PART(part);
         const real_t* Rz = Rz_PART(part);
@@ -371,39 +457,69 @@ volumeKernelCode := `
         const real_t* Tx = Tx_PART(part);
         const real_t* Ty = Ty_PART(part);
         const real_t* Tz = Tz_PART(part);
-        real_t* rhs = rhs_PART(part);
+        real_t* rhsu = rhsu_PART(part);
+        real_t* rhsv = rhsv_PART(part);
+        real_t* rhsw = rhsw_PART(part);
         
         int k_part = K[part];
         
         // Apply differentiation matrices
-        // The macro contains the @inner loop
         MATMUL_Dr(u, ur, k_part);
         MATMUL_Ds(u, us, k_part);
         MATMUL_Dt(u, ut, k_part);
         
-        // Compute flux divergence
-        // This loop can be @inner since it's element-independent
+        MATMUL_Dr(v, vr, k_part);
+        MATMUL_Ds(v, vs, k_part);
+        MATMUL_Dt(v, vt, k_part);
+        
+        MATMUL_Dr(w, wr, k_part);
+        MATMUL_Ds(w, ws, k_part);
+        MATMUL_Dt(w, wt, k_part);
+        
+        // Compute flux divergence for vector Burger's equation
         for (int elem = 0; elem < KpartMax; ++elem; @inner) {
             if (elem < k_part) {
                 for (int i = 0; i < NP; ++i) {
                     int gid = elem * NP + i;
                     
-                    // Get solution value
+                    // Get velocity components
                     real_t u_local = u[gid];
-                    real_t flux = 0.5 * u_local * u_local;
+                    real_t v_local = v[gid];
+                    real_t w_local = w[gid];
                     
-                    // Compute flux derivatives using chain rule
-                    // dF/dx = dF/du * du/dx = u * ux
+                    // Compute physical derivatives
                     real_t ux = Rx[gid]*ur[gid] + Sx[gid]*us[gid] + Tx[gid]*ut[gid];
                     real_t uy = Ry[gid]*ur[gid] + Sy[gid]*us[gid] + Ty[gid]*ut[gid];
                     real_t uz = Rz[gid]*ur[gid] + Sz[gid]*us[gid] + Tz[gid]*ut[gid];
                     
-                    real_t dFdx = u_local * ux;
-                    real_t dGdy = u_local * uy;
-                    real_t dHdz = u_local * uz;
+                    real_t vx = Rx[gid]*vr[gid] + Sx[gid]*vs[gid] + Tx[gid]*vt[gid];
+                    real_t vy = Ry[gid]*vr[gid] + Sy[gid]*vs[gid] + Ty[gid]*vt[gid];
+                    real_t vz = Rz[gid]*vr[gid] + Sz[gid]*vs[gid] + Tz[gid]*vt[gid];
                     
-                    // Volume contribution: -div(F)
-                    rhs[gid] = -(dFdx + dGdy + dHdz);
+                    real_t wx = Rx[gid]*wr[gid] + Sx[gid]*ws[gid] + Tx[gid]*wt[gid];
+                    real_t wy = Ry[gid]*wr[gid] + Sy[gid]*ws[gid] + Ty[gid]*wt[gid];
+                    real_t wz = Rz[gid]*wr[gid] + Sz[gid]*ws[gid] + Tz[gid]*wt[gid];
+                    
+                    // Flux derivatives: ∇·F where F = u⊗u
+                    // For u: ∂(u²)/∂x + ∂(uv)/∂y + ∂(uw)/∂z
+                    real_t dFudx = 2*u_local*ux;
+                    real_t dGudy = u_local*vy + v_local*uy;
+                    real_t dHudz = u_local*wz + w_local*uz;
+                    
+                    // For v: ∂(uv)/∂x + ∂(v²)/∂y + ∂(vw)/∂z
+                    real_t dFvdx = u_local*vx + v_local*ux;
+                    real_t dGvdy = 2*v_local*vy;
+                    real_t dHvdz = v_local*wz + w_local*vz;
+                    
+                    // For w: ∂(uw)/∂x + ∂(vw)/∂y + ∂(w²)/∂z
+                    real_t dFwdx = u_local*wx + w_local*ux;
+                    real_t dGwdy = v_local*wy + w_local*vy;
+                    real_t dHwdz = 2*w_local*wz;
+                    
+                    // Volume contribution: -∇·F
+                    rhsu[gid] = -(dFudx + dGudy + dHudz);
+                    rhsv[gid] = -(dFvdx + dGvdy + dHvdz);
+                    rhsw[gid] = -(dFwdx + dGwdy + dHwdz);
                 }
             }
         }
@@ -411,7 +527,7 @@ volumeKernelCode := `
 }
 `
 
-// Extract face values kernel
+// Extract face values kernel - now for 3 components
 extractFaceKernelCode := `
 #define NP ` + fmt.Sprintf("%d", Np) + `
 #define NFP ` + fmt.Sprintf("%d", Nfp) + `
@@ -419,12 +535,20 @@ extractFaceKernelCode := `
 @kernel void extractFaceValues(
     const int_t* K,
     const real_t* u_global, const int_t* u_offsets,
-    real_t* M_global, const int_t* M_offsets,
+    const real_t* v_global, const int_t* v_offsets,
+    const real_t* w_global, const int_t* w_offsets,
+    real_t* Mu_global, const int_t* Mu_offsets,
+    real_t* Mv_global, const int_t* Mv_offsets,
+    real_t* Mw_global, const int_t* Mw_offsets,
     const int_t* VmapM
 ) {
     for (int part = 0; part < NPART; ++part; @outer) {
         const real_t* u = u_PART(part);
-        real_t* M = M_PART(part);
+        const real_t* v = v_PART(part);
+        const real_t* w = w_PART(part);
+        real_t* Mu = Mu_PART(part);
+        real_t* Mv = Mv_PART(part);
+        real_t* Mw = Mw_PART(part);
         int k_part = K[part];
         
         // Extract values at face nodes
@@ -434,7 +558,9 @@ extractFaceKernelCode := `
                     for (int i = 0; i < NFP; ++i) {
                         int fid = elem * NFP * 4 + f * NFP + i;
                         int vid = VmapM[f * NFP + i] + elem * NP;
-                        M[fid] = u[vid];
+                        Mu[fid] = u[vid];
+                        Mv[fid] = v[vid];
+                        Mw[fid] = w[vid];
                     }
                 }
             }
@@ -555,22 +681,28 @@ defer vmapMDevice.Free()
 for step := 0; step < numSteps; step++ {
     // RK5SSP4 stages
     for stage := 0; stage < 5; stage++ {
-        // 1. Extract face values to M buffer
+        // 1. Extract face values to M buffers
         err = kp.RunKernelWithExtra("extractFaceValues", 
             []interface{}{vmapMDevice}, 
-            "u", "M")
+            "u", "v", "w", "Mu", "Mv", "Mw")
         
-        // 2. Exchange partition boundaries
+        // 2. Exchange partition boundaries (for all components)
         exchangePartitionBoundaries(kp, faceBuffers)
         
         // 3. Compute volume RHS (flux divergence)
-        rhsName := fmt.Sprintf("rhs%d", stage)
+        rhsuName := fmt.Sprintf("rhsu%d", stage)
+        rhsvName := fmt.Sprintf("rhsv%d", stage)
+        rhswName := fmt.Sprintf("rhsw%d", stage)
         err = kp.RunKernel("volumeRHS3D", 
-            "u", "ur", "us", "ut", "Rx", "Ry", "Rz", "Sx", "Sy", "Sz", "Tx", "Ty", "Tz", rhsName)
+            "u", "v", "w", 
+            "ur", "us", "ut", "vr", "vs", "vt", "wr", "ws", "wt",
+            "Rx", "Ry", "Rz", "Sx", "Sy", "Sz", "Tx", "Ty", "Tz", 
+            rhsuName, rhsvName, rhswName)
         
         // 4. Compute flux corrections and apply LIFT
         err = kp.RunKernel("fluxCorrection3D",
-            "M", "nx", "ny", "nz", "Fscale", "P_indices", "flux_correction", rhsName)
+            "Mu", "Mv", "Mw", "nx", "ny", "nz", "Fscale", "P_indices", "BC_types",
+            "flux_u", "flux_v", "flux_w", rhsuName, rhsvName, rhswName)
         
         // 5. RK update (stage-specific linear combination)
         if stage == 0 {
@@ -628,9 +760,9 @@ if err != nil {
 
 ### 4. Numerical Methods
 
-- Conservation form with flux formulation (F = u²/2)
+- Conservation form with flux tensor formulation (F = **u** ⊗ **u**)
 - Lax-Friedrichs numerical flux for stability
-- Flux corrections computed as (F* - F)·n̂
+- Wall BC: reflection of normal velocity component to enforce **u**·**n̂** = 0
 - LIFT matrix maps face corrections to volume contributions
 
 ### 5. Performance Considerations
@@ -652,9 +784,9 @@ Following the Unit Testing Principles:
 ### Test Cases
 
 1. **Single Element Tests**
-   - Constant solution preservation
+   - Constant velocity field preservation (if **u** = const, then ∂**u**/∂t = 0)
    - Linear advection accuracy
-   - Conservation properties
+   - Divergence-free fields preservation
 
 2. **Multi-Partition Tests**
    - Partition boundary continuity
@@ -666,9 +798,9 @@ Following the Unit Testing Principles:
    - Discontinuous solution: shock capturing
 
 4. **Benchmark Problems**
-   - 3D advection of Gaussian pulse
-   - Shock formation from smooth initial data
-   - Interaction of multiple shocks
+   - 3D Taylor-Green vortex decay
+   - Collision of vortex rings
+   - Interaction of multiple vortices
 
 ## Error Handling
 
@@ -831,16 +963,16 @@ defer bcTypesDevice.Free()
 
 ### Boundary Condition Notes
 
-1. **Wall BC**: For the wall boundary condition, we enforce zero normal flux: `F·n̂ = 0`. In the DG formulation, this means the numerical flux `f*` must equal the local flux `fM` so that the flux correction `(f* - fM)·n̂ = 0`. This is achieved by setting `uP = uM`, which makes the Lax-Friedrichs flux reduce to `f* = fM`.
+1. **Wall BC**: For the vector Burger's equation, the wall boundary condition enforces **u**·**n̂** = 0 (no flow through the wall). This is implemented by reflecting the normal component of velocity: **u**P = **u**M - 2(**u**M·**n̂**)**n̂**. This ensures that the numerical flux has zero normal component at the wall.
 
-2. **Farfield BC**: Uses characteristic analysis:
-   - For outflow (u·n > 0): Information travels out, so we extrapolate from interior (uP = uM)
-   - For inflow (u·n < 0): Information comes from outside, so we impose farfield value
+2. **Farfield BC**: Uses characteristic analysis based on the normal velocity:
+   - For outflow (**u**·**n̂** > 0): Information travels out, so we extrapolate from interior
+   - For inflow (**u**·**n̂** < 0): Information comes from outside, so we impose farfield values
 
 3. **Extension to Navier-Stokes**:
-   - Wall BC will additionally need to enforce no-slip (u=v=w=0) for viscous terms
-   - Farfield BC will use Riemann invariants for the full system of equations
-   - Additional BC types (inlet, outlet, symmetry) can be added by specifying appropriate values for the primitive variables
+   - Wall BC will additionally need to enforce no-slip (**u** = 0) for viscous terms
+   - Farfield BC will use Riemann invariants for the full system of equations (density, momentum, energy)
+   - The flux tensor structure (F = **u** ⊗ **u**) extends naturally to the convective terms in Navier-Stokes
 
 ## References
 
