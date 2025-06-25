@@ -105,31 +105,31 @@ var K []int
 var workingElements []*tetelement.Element3D
 
 if el.Split != nil {
-// Partitioned mesh
-numPartitions = len(el.Split)
-K = make([]int, numPartitions)
-workingElements = el.Split
-for i, partEl := range el.Split {
-K[i] = partEl.K
-}
+    // Partitioned mesh
+    numPartitions = len(el.Split)
+    K = make([]int, numPartitions)
+    workingElements = el.Split
+    for i, partEl := range el.Split {
+        K[i] = partEl.K
+    }
 } else {
-// Non-partitioned mesh - treat as single partition
-numPartitions = 1
-K = []int{el.K}
-workingElements = []*tetelement.Element3D{el}
+    // Non-partitioned mesh - treat as single partition
+    numPartitions = 1
+    K = []int{el.K}
+    workingElements = []*tetelement.Element3D{el}
 }
 
 // Verify CUDA limits
 if device.Mode() == "CUDA" {
-kpartMax := 0
-for _, k := range K {
-if k > kpartMax {
-kpartMax = k
-}
-}
-if kpartMax > 1024 {
-log.Fatal("CUDA @inner limit exceeded: max partition size is 1024")
-}
+    kpartMax := 0
+    for _, k := range K {
+        if k > kpartMax {
+            kpartMax = k
+        }
+    }
+    if kpartMax > 1024 {
+        log.Fatal("CUDA @inner limit exceeded: max partition size is 1024")
+    }
 }
 ```
 
@@ -138,9 +138,9 @@ log.Fatal("CUDA @inner limit exceeded: max partition size is 1024")
 ```go
 // Initialize kernel program
 kp := kernel_program.NewKernelProgram(device, kernel_program.Config{
-K:         K,
-FloatType: kernel_program.Float64,
-IntType:   kernel_program.INT64,
+    K:         K,
+    FloatType: kernel_program.Float64,
+    IntType:   kernel_program.INT64,
 })
 
 // Add static matrices from Element3D (reference element)
@@ -955,7 +955,7 @@ defer bcTypesDevice.Free()
 
 ### Boundary Condition Notes
 
-1. **Wall BC**: For the vector Burger's equation, the wall boundary condition enforces **u**·**n̂** = 0 (no flow through the wall). This is implemented by reflecting the normal component of velocity: **u**P = **u**M - 2(**u**M·**n̂**)**n̂**. This ensures that the numerical flux has zero normal component at the wall.
+1. **Wall BC**: For the vector Burger's equation, the wall boundary condition enforces zero normal flux: **F**·**n̂** = 0. Since **F** = **u** ⊗ **u**, we have **F**·**n̂** = **u**(**u**·**n̂**). The flux correction at the wall is simply -**F**M·**n̂**, which removes the normal component of the flux.
 
 2. **Farfield BC**: Uses characteristic analysis based on the normal velocity:
    - For outflow (**u**·**n̂** > 0): Information travels out, so we extrapolate from interior
