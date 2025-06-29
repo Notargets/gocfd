@@ -52,7 +52,7 @@ func Simplex3DPSingle(a, b, c float64, i, j, k int) float64 {
 }
 
 // GradSimplex3DP computes gradients of 3D orthonormal polynomial
-// Returns the derivatives with respect to r, s, and t coordinates
+// Returns the derivatives with respect to R, S, and T coordinates
 func GradSimplex3DP(r, s, t []float64, id, jd, kd int) (dmodedr, dmodeds, dmodedt []float64) {
 	n := len(r)
 	dmodedr = make([]float64, n)
@@ -80,7 +80,7 @@ func GradSimplex3DP(r, s, t []float64, id, jd, kd int) (dmodedr, dmodeds, dmoded
 		bi := b[i]
 		ci := c[i]
 
-		// r-derivative
+		// R-derivative
 		V3Dr := dfa[i] * gb[i] * hc[i]
 		if id > 0 {
 			V3Dr *= math.Pow(0.5*(1.0-bi), float64(id-1))
@@ -89,7 +89,7 @@ func GradSimplex3DP(r, s, t []float64, id, jd, kd int) (dmodedr, dmodeds, dmoded
 			V3Dr *= math.Pow(0.5*(1.0-ci), float64(id+jd-1))
 		}
 
-		// s-derivative
+		// S-derivative
 		V3Ds := 0.5 * (1.0 + ai) * V3Dr
 		tmp := dgb[i] * math.Pow(0.5*(1.0-bi), float64(id))
 		if id > 0 {
@@ -101,7 +101,7 @@ func GradSimplex3DP(r, s, t []float64, id, jd, kd int) (dmodedr, dmodeds, dmoded
 		tmp = fa[i] * tmp * hc[i]
 		V3Ds += tmp
 
-		// t-derivative
+		// T-derivative
 		V3Dt := 0.5*(1.0+ai)*V3Dr + 0.5*(1.0+bi)*tmp
 		tmp2 := dhc[i] * math.Pow(0.5*(1.0-ci), float64(id+jd))
 		if id+jd > 0 {

@@ -85,7 +85,7 @@ func TestSimplex3DPNormalization(t *testing.T) {
 	nPoints := 10
 	r := make([]float64, nPoints)
 	s := make([]float64, nPoints)
-	tt := make([]float64, nPoints) // avoid conflict with t
+	tt := make([]float64, nPoints) // avoid conflict with T
 
 	// Create random points in the reference tetrahedron
 	for i := 0; i < nPoints; i++ {
@@ -135,9 +135,9 @@ func TestGradSimplex3DP(t *testing.T) {
 		i, j, k int
 	}{
 		{0, 0, 0}, // constant
-		{1, 0, 0}, // linear in r
-		{0, 1, 0}, // linear in s
-		{0, 0, 1}, // linear in t
+		{1, 0, 0}, // linear in R
+		{0, 1, 0}, // linear in S
+		{0, 0, 1}, // linear in T
 		{2, 0, 0}, // quadratic
 		{1, 1, 0}, // mixed
 		{1, 0, 1}, // mixed
@@ -149,7 +149,7 @@ func TestGradSimplex3DP(t *testing.T) {
 			dr, ds, dt := GradSimplex3DP(r, s, tt, tc.i, tc.j, tc.k)
 
 			// Compute finite difference approximations
-			// r-derivative
+			// R-derivative
 			rp := []float64{r[0] + h}
 			rm := []float64{r[0] - h}
 			ap, bp, cp := RSTtoABC(rp, s, tt)
@@ -158,7 +158,7 @@ func TestGradSimplex3DP(t *testing.T) {
 			Pm := Simplex3DP(am, bm, cm, tc.i, tc.j, tc.k)
 			dr_fd := (Pp[0] - Pm[0]) / (2 * h)
 
-			// s-derivative
+			// S-derivative
 			sp := []float64{s[0] + h}
 			sm := []float64{s[0] - h}
 			ap, bp, cp = RSTtoABC(r, sp, tt)
@@ -167,7 +167,7 @@ func TestGradSimplex3DP(t *testing.T) {
 			Pm = Simplex3DP(am, bm, cm, tc.i, tc.j, tc.k)
 			ds_fd := (Pp[0] - Pm[0]) / (2 * h)
 
-			// t-derivative
+			// T-derivative
 			tp := []float64{tt[0] + h}
 			tm := []float64{tt[0] - h}
 			ap, bp, cp = RSTtoABC(r, s, tp)

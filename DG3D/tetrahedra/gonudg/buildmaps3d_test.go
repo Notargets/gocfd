@@ -124,7 +124,7 @@ func TestBuildMaps3D_TwoTets_SharedFaceGeometry(t *testing.T) {
 
 			// Test 3: Verify face normal consistency
 			// Mathematical property: Shared face normals should be opposite
-			// (This would require normals to be computed, which they aren't in BuildMaps3D)
+			// (This would require normals to be computed, which they aren'T in BuildMaps3D)
 
 			// Test 4: Verify no node is both boundary and interior
 			// Mathematical property: A node cannot be simultaneously on boundary and interior
@@ -167,10 +167,10 @@ func TestBuildMaps3D_CubeMesh_ConnectivityProperties(t *testing.T) {
 // Helper function: Test face node constraints
 func testFaceNodeConstraints(t *testing.T, dg *DG3D, tolerance float64) {
 	// Face constraints for reference tetrahedron:
-	// Face 0: t = -1
-	// Face 1: s = -1
-	// Face 2: r+s+t = -1
-	// Face 3: r = -1
+	// Face 0: T = -1
+	// Face 1: S = -1
+	// Face 2: R+S+T = -1
+	// Face 3: R = -1
 
 	for f := 0; f < dg.Nfaces; f++ {
 		for i := 0; i < dg.Nfp; i++ {
@@ -178,26 +178,26 @@ func testFaceNodeConstraints(t *testing.T, dg *DG3D, tolerance float64) {
 			volIdx := dg.VmapM[faceIdx]
 			localIdx := volIdx % dg.Np
 
-			rCoord := dg.r[localIdx]
-			sCoord := dg.s[localIdx]
-			tCoord := dg.t[localIdx]
+			rCoord := dg.R[localIdx]
+			sCoord := dg.S[localIdx]
+			tCoord := dg.T[localIdx]
 
 			switch f {
-			case 0: // t = -1
+			case 0: // T = -1
 				if math.Abs(tCoord+1.0) > tolerance {
-					t.Errorf("Face 0 node %d: t = %f, expected -1", i, tCoord)
+					t.Errorf("Face 0 node %d: T = %f, expected -1", i, tCoord)
 				}
-			case 1: // s = -1
+			case 1: // S = -1
 				if math.Abs(sCoord+1.0) > tolerance {
-					t.Errorf("Face 1 node %d: s = %f, expected -1", i, sCoord)
+					t.Errorf("Face 1 node %d: S = %f, expected -1", i, sCoord)
 				}
-			case 2: // r+s+t = -1
+			case 2: // R+S+T = -1
 				if math.Abs(rCoord+sCoord+tCoord+1.0) > tolerance {
-					t.Errorf("Face 2 node %d: r+s+t = %f, expected -1", i, rCoord+sCoord+tCoord)
+					t.Errorf("Face 2 node %d: R+S+T = %f, expected -1", i, rCoord+sCoord+tCoord)
 				}
-			case 3: // r = -1
+			case 3: // R = -1
 				if math.Abs(rCoord+1.0) > tolerance {
-					t.Errorf("Face 3 node %d: r = %f, expected -1", i, rCoord)
+					t.Errorf("Face 3 node %d: R = %f, expected -1", i, rCoord)
 				}
 			}
 		}

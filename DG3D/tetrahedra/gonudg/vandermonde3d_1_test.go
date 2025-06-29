@@ -151,18 +151,18 @@ func TestDmatrices3DPolynomialDifferentiation(t *testing.T) {
 						}
 
 						// Compute derivatives using matrices
-						// Note: These are derivatives w.r.t. (r,s,t), not (X,Y,Z)
+						// Note: These are derivatives w.R.T. (R,S,T), not (X,Y,Z)
 						// We need to transform using chain rule
 						dfdr := Dr.Mul(fVec.ToMatrix())
 						dfds := Ds.Mul(fVec.ToMatrix())
 						dfdt := Dt.Mul(fVec.ToMatrix())
 
 						// For physical derivatives, we need:
-						// ∂f/∂X = ∂f/∂r * ∂r/∂X + ∂f/∂s * ∂s/∂X + ∂f/∂t * ∂t/∂X
+						// ∂f/∂X = ∂f/∂R * ∂R/∂X + ∂f/∂S * ∂S/∂X + ∂f/∂T * ∂T/∂X
 						// For a regular tetrahedron, the transformation is:
-						// X = -r/2 - s/2 - t/2 + 1/2
-						// Y = s*√3/2 - t*√3/6 + √3/6
-						// Z = t*√(2/3) + 1/(2√6)
+						// X = -R/2 - S/2 - T/2 + 1/2
+						// Y = S*√3/2 - T*√3/6 + √3/6
+						// Z = T*√(2/3) + 1/(2√6)
 
 						// For simplicity, test reference derivative accuracy
 						// Test at a few sample points
@@ -332,8 +332,8 @@ func TestDerivativeMatrixConsistency(t *testing.T) {
 			}
 
 			// Test 2: Commutation of mixed derivatives (if we had second derivatives)
-			// This would test that ∂²f/∂r∂s = ∂²f/∂s∂r
-			// Skipped as we don't have second derivative matrices
+			// This would test that ∂²f/∂R∂S = ∂²f/∂S∂R
+			// Skipped as we don'T have second derivative matrices
 		})
 	}
 }

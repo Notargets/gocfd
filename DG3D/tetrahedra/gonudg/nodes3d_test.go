@@ -235,8 +235,8 @@ func TestCombinedFixes(t *testing.T) {
 			for i := 0; i < len(r); i++ {
 				sum := r[i] + s[i] + tt[i]
 				if sum > -1.0+1e-10 {
-					t.Errorf("EquiNodes3D(p=%d): node %d violates constraint r+s+t<=-1: "+
-						"r=%f, s=%f, t=%f, sum=%f", p, i, r[i], s[i], tt[i], sum)
+					t.Errorf("EquiNodes3D(p=%d): node %d violates constraint R+S+T<=-1: "+
+						"R=%f, S=%f, T=%f, sum=%f", p, i, r[i], s[i], tt[i], sum)
 				}
 			}
 
@@ -348,10 +348,10 @@ func TestCombinedFixes(t *testing.T) {
 
 // TestRSTtoABCFormula tests the actual formula implementation
 func TestRSTtoABCFormula(t *testing.T) {
-	// Check if there's a bug in RSTtoABC by implementing it manually
+	// Check if there'S a bug in RSTtoABC by implementing it manually
 	fmt.Println("\nManual calculation vs RSTtoABC:")
 
-	// Node 8: r=-1, s=0, tt=0
+	// Node 8: R=-1, S=0, tt=0
 	r, s, tt := -1.0, 0.0, 0.0
 
 	// Manual calculation
@@ -375,11 +375,11 @@ func TestRSTtoABCFormula(t *testing.T) {
 	// Function calculation
 	a_func, b_func, c_func := RSTtoABCSingle(r, s, tt)
 
-	fmt.Printf("Node 8: r=%.1f, s=%.1f, tt=%.1f\n", r, s, tt)
+	fmt.Printf("Node 8: R=%.1f, S=%.1f, tt=%.1f\n", r, s, tt)
 	fmt.Printf("Manual: a=%.3f, b=%.3f, c=%.3f\n", a_manual, b_manual, c_manual)
 	fmt.Printf("Function: a=%.3f, b=%.3f, c=%.3f\n", a_func, b_func, c_func)
 
 	if math.Abs(b_manual-b_func) > 1e-10 {
-		fmt.Println("\nERROR: Function doesn't match manual calculation!")
+		fmt.Println("\nERROR: Function doesn'T match manual calculation!")
 	}
 }

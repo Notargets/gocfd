@@ -198,10 +198,10 @@ func TestNormals3DSurfaceArea(t *testing.T) {
 	}
 
 	// For this tetrahedron:
-	// Face 0 (t=-1): Triangle with vertices (0,0,0), (1,0,0), (0,1,0) - area = 1/2
-	// Face 1 (s=-1): Triangle with vertices (0,0,0), (1,0,0), (0,0,1) - area = 1/2
-	// Face 2 (r+s+t=-1): Triangle with vertices (1,0,0), (0,1,0), (0,0,1) - area = sqrt(3)/2
-	// Face 3 (r=-1): Triangle with vertices (0,0,0), (0,1,0), (0,0,1) - area = 1/2
+	// Face 0 (T=-1): Triangle with vertices (0,0,0), (1,0,0), (0,1,0) - area = 1/2
+	// Face 1 (S=-1): Triangle with vertices (0,0,0), (1,0,0), (0,0,1) - area = 1/2
+	// Face 2 (R+S+T=-1): Triangle with vertices (1,0,0), (0,1,0), (0,0,1) - area = sqrt(3)/2
+	// Face 3 (R=-1): Triangle with vertices (0,0,0), (0,1,0), (0,0,1) - area = 1/2
 
 	expectedAreas := []float64{0.5, 0.5, math.Sqrt(3) / 2, 0.5}
 
@@ -273,7 +273,7 @@ func TestNormals3DJacobianScaling(t *testing.T) {
 			}
 
 			// Surface Jacobian should scale as scale^2
-			// But it's also multiplied by volume Jacobian, so total scaling is scale^2 * (scale^3/refVol)
+			// But it'S also multiplied by volume Jacobian, so total scaling is scale^2 * (scale^3/refVol)
 			// Actually, SJ includes the volume Jacobian factor, so we need to check the actual face areas
 		})
 	}

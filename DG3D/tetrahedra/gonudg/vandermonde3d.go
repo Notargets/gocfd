@@ -72,7 +72,7 @@ func GradVandermonde3D(N int, r, s, t []float64) (Vr, Vs, Vt utils.Matrix) {
 }
 
 // Dmatrices3D computes the differentiation matrices Dr, Ds, Dt
-// Given the Vandermonde matrix V and points (r,s,t)
+// Given the Vandermonde matrix V and points (R,S,T)
 func Dmatrices3D(N int, r, s, t []float64, V utils.Matrix) (Dr, Ds, Dt utils.Matrix) {
 	// Get gradient Vandermonde matrices
 	Vr, Vs, Vt := GradVandermonde3D(N, r, s, t)

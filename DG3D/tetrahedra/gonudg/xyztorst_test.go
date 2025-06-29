@@ -47,13 +47,13 @@ func TestXYZtoRST(t *testing.T) {
 			r, s, tt := XYZtoRST(X, Y, Z)
 
 			if math.Abs(r[0]-tc.wantR) > tol {
-				t.Errorf("r = %v, want %v", r[0], tc.wantR)
+				t.Errorf("R = %v, want %v", r[0], tc.wantR)
 			}
 			if math.Abs(s[0]-tc.wantS) > tol {
-				t.Errorf("s = %v, want %v", s[0], tc.wantS)
+				t.Errorf("S = %v, want %v", s[0], tc.wantS)
 			}
 			if math.Abs(tt[0]-tc.wantT) > tol {
-				t.Errorf("t = %v, want %v", tt[0], tc.wantT)
+				t.Errorf("T = %v, want %v", tt[0], tc.wantT)
 			}
 		})
 	}
@@ -89,13 +89,13 @@ func TestRSTtoXYZ(t *testing.T) {
 
 			// Check round trip
 			if math.Abs(rBack[0]-tc.r) > tol {
-				t.Errorf("Round trip failed for r: got %v, want %v", rBack[0], tc.r)
+				t.Errorf("Round trip failed for R: got %v, want %v", rBack[0], tc.r)
 			}
 			if math.Abs(sBack[0]-tc.s) > tol {
-				t.Errorf("Round trip failed for s: got %v, want %v", sBack[0], tc.s)
+				t.Errorf("Round trip failed for S: got %v, want %v", sBack[0], tc.s)
 			}
 			if math.Abs(tBack[0]-tc.t) > tol {
-				t.Errorf("Round trip failed for t: got %v, want %v", tBack[0], tc.t)
+				t.Errorf("Round trip failed for T: got %v, want %v", tBack[0], tc.t)
 			}
 		})
 	}

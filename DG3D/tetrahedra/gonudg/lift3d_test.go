@@ -98,14 +98,14 @@ func TestLift3DDiagnostics(t *testing.T) {
 	}
 
 	// Check that nodes are within reference tetrahedron
-	for i := 0; i < len(dg.r); i++ {
-		if dg.r[i] < -1.0-1e-10 || dg.r[i] > 1.0+1e-10 ||
-			dg.s[i] < -1.0-1e-10 || dg.s[i] > 1.0+1e-10 ||
-			dg.t[i] < -1.0-1e-10 || dg.t[i] > 1.0+1e-10 {
-			t.Errorf("Node %d outside [-1,1]: r=%g, s=%g, t=%g", i, dg.r[i], dg.s[i], dg.t[i])
+	for i := 0; i < len(dg.R); i++ {
+		if dg.R[i] < -1.0-1e-10 || dg.R[i] > 1.0+1e-10 ||
+			dg.S[i] < -1.0-1e-10 || dg.S[i] > 1.0+1e-10 ||
+			dg.T[i] < -1.0-1e-10 || dg.T[i] > 1.0+1e-10 {
+			t.Errorf("Node %d outside [-1,1]: R=%g, S=%g, T=%g", i, dg.R[i], dg.S[i], dg.T[i])
 		}
-		if dg.r[i]+dg.s[i]+dg.t[i] > 1.0+1e-10 {
-			t.Errorf("Node %d outside tetrahedron: r+s+t=%g", i, dg.r[i]+dg.s[i]+dg.t[i])
+		if dg.R[i]+dg.S[i]+dg.T[i] > 1.0+1e-10 {
+			t.Errorf("Node %d outside tetrahedron: R+S+T=%g", i, dg.R[i]+dg.S[i]+dg.T[i])
 		}
 	}
 
@@ -120,21 +120,21 @@ func TestLift3DDiagnostics(t *testing.T) {
 		// Check that face nodes satisfy face constraint
 		for _, idx := range dg.Fmask[face] {
 			switch face {
-			case 0: // t = -1
-				if math.Abs(1.0+dg.t[idx]) > 1e-7 {
-					t.Errorf("Face 0 node %d: t=%g, not -1", idx, dg.t[idx])
+			case 0: // T = -1
+				if math.Abs(1.0+dg.T[idx]) > 1e-7 {
+					t.Errorf("Face 0 node %d: T=%g, not -1", idx, dg.T[idx])
 				}
-			case 1: // s = -1
-				if math.Abs(1.0+dg.s[idx]) > 1e-7 {
-					t.Errorf("Face 1 node %d: s=%g, not -1", idx, dg.s[idx])
+			case 1: // S = -1
+				if math.Abs(1.0+dg.S[idx]) > 1e-7 {
+					t.Errorf("Face 1 node %d: S=%g, not -1", idx, dg.S[idx])
 				}
-			case 2: // r+s+t = -1
-				if math.Abs(1.0+dg.r[idx]+dg.s[idx]+dg.t[idx]) > 1e-7 {
-					t.Errorf("Face 2 node %d: r+s+t=%g, not -1", idx, dg.r[idx]+dg.s[idx]+dg.t[idx])
+			case 2: // R+S+T = -1
+				if math.Abs(1.0+dg.R[idx]+dg.S[idx]+dg.T[idx]) > 1e-7 {
+					t.Errorf("Face 2 node %d: R+S+T=%g, not -1", idx, dg.R[idx]+dg.S[idx]+dg.T[idx])
 				}
-			case 3: // r = -1
-				if math.Abs(1.0+dg.r[idx]) > 1e-7 {
-					t.Errorf("Face 3 node %d: r=%g, not -1", idx, dg.r[idx])
+			case 3: // R = -1
+				if math.Abs(1.0+dg.R[idx]) > 1e-7 {
+					t.Errorf("Face 3 node %d: R=%g, not -1", idx, dg.R[idx])
 				}
 			}
 		}

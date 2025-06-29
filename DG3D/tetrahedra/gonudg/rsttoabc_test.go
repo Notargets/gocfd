@@ -61,7 +61,7 @@ func TestRSTtoABC(t *testing.T) {
 		// Test actual degenerate cases with VALID points
 		{
 			name: "degenerate_s_plus_t_zero_valid",
-			r:    0.5, s: -0.75, t: -0.75, // r+s+t = -1, s+t = -1.5
+			r:    0.5, s: -0.75, t: -0.75, // R+S+T = -1, S+T = -1.5
 			wantA: 1.0, wantB: -5.0 / 7.0, wantC: -0.75, // b = -5/7 ≈ -0.714
 			tol: 1e-14,
 		},
@@ -89,7 +89,7 @@ func TestRSTtoABC(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// First verify the point is valid
 			if !isValidRST(tc.r, tc.s, tc.t) {
-				t.Errorf("Test point (r,s,t)=(%v,%v,%v) is outside reference tetrahedron", tc.r, tc.s, tc.t)
+				t.Errorf("Test point (R,S,T)=(%v,%v,%v) is outside reference tetrahedron", tc.r, tc.s, tc.t)
 				return
 			}
 
@@ -123,14 +123,14 @@ func TestRSTtoABC(t *testing.T) {
 	}
 }
 
-// Helper function to check if (r,s,t) is inside the reference tetrahedron
+// Helper function to check if (R,S,T) is inside the reference tetrahedron
 // The reference tetrahedron has vertices at:
 // v1: (-1, -1, -1)
 // v2: ( 1, -1, -1)
 // v3: (-1,  1, -1)
 // v4: (-1, -1,  1)
 // Using barycentric coordinates, a point is inside if:
-// λ₁ = -(1+r+s+t)/2, λ₂ = (1+r)/2, λ₃ = (1+s)/2, λ₄ = (1+t)/2
+// λ₁ = -(1+R+S+T)/2, λ₂ = (1+R)/2, λ₃ = (1+S)/2, λ₄ = (1+T)/2
 // with all λᵢ ≥ 0 and Σλᵢ = 1
 func isValidRST(r, s, t float64) bool {
 	const tol = 1e-10
@@ -141,7 +141,7 @@ func isValidRST(r, s, t float64) bool {
 	}
 
 	// Check the constraint from λ₁ ≥ 0
-	// λ₁ = -(1+r+s+t)/2 ≥ 0 means 1+r+s+t ≤ 0, or r+s+t ≤ -1
+	// λ₁ = -(1+R+S+T)/2 ≥ 0 means 1+R+S+T ≤ 0, or R+S+T ≤ -1
 	if r+s+t > -1+tol {
 		return false
 	}
@@ -200,7 +200,7 @@ func TestRSTtoABCFix(t *testing.T) {
 			status = "FAIL"
 		}
 
-		fmt.Printf("%s: (r,s,t)=(%.1f,%.1f,%.1f) -> (a,b,c)=(%.1f,%.1f,%.1f) [%s]\n",
+		fmt.Printf("%s: (R,S,T)=(%.1f,%.1f,%.1f) -> (a,b,c)=(%.1f,%.1f,%.1f) [%s]\n",
 			tc.name, tc.r, tc.s, tc.t, a, b, c, status)
 
 		if !passed {
@@ -360,7 +360,7 @@ func TestVandermonde3DWithAllFixes(t *testing.T) {
 			Vinv := V.InverseWithCheck()
 			fmt.Printf("  Matrix inverted successfully!\n")
 
-			// Verify it's a good inverse
+			// Verify it'S a good inverse
 			I := V.Mul(Vinv)
 			sumCols := I.SumCols()
 			var sum float64

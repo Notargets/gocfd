@@ -9,7 +9,7 @@ func TestJacobiPSpecificValuesCorrected(t *testing.T) {
 	// Test specific values calculated from the Hesthaven & Warburton orthonormal Jacobi polynomial formula
 	// Source: The expected values are computed using the formula from:
 	// - Hesthaven & Warburton "Nodal Discontinuous Galerkin Methods" (2007)
-	// - MATLAB implementation JacobiP.m from the book's accompanying code
+	// - MATLAB implementation JacobiP.m from the book'S accompanying code
 	// - C++ implementation JacobiP.cpp in this project
 	//
 	// Formula: gamma0 = 2^(α+β+1)/(α+β+1) * Γ(α+1) * Γ(β+1) / Γ(α+β+1)

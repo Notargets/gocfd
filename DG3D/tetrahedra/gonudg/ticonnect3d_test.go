@@ -343,7 +343,7 @@ func testConnectivityProperties(t *testing.T, EToE, EToF [][]int) {
 	// Property 1: Every element has exactly 4 faces
 	for elem := 0; elem < K; elem++ {
 		if len(EToE[elem]) != 4 || len(EToF[elem]) != 4 {
-			t.Errorf("Element %d doesn't have 4 faces", elem)
+			t.Errorf("Element %d doesn'T have 4 faces", elem)
 		}
 	}
 

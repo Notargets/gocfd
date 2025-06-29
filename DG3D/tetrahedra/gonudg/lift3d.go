@@ -21,36 +21,36 @@ func (dg *DG3D) Lift3D() error {
 		var faceR, faceS utils.Vector
 
 		switch face {
-		case 0: // Face 1: t = -1, use (r, s)
+		case 0: // Face 1: T = -1, use (R, S)
 			faceR = utils.NewVector(len(dg.Fmask[face]))
 			faceS = utils.NewVector(len(dg.Fmask[face]))
 			for i, idx := range dg.Fmask[face] {
-				faceR.Set(i, dg.r[idx])
-				faceS.Set(i, dg.s[idx])
+				faceR.Set(i, dg.R[idx])
+				faceS.Set(i, dg.S[idx])
 			}
 
-		case 1: // Face 2: s = -1, use (r, t)
+		case 1: // Face 2: S = -1, use (R, T)
 			faceR = utils.NewVector(len(dg.Fmask[face]))
 			faceS = utils.NewVector(len(dg.Fmask[face]))
 			for i, idx := range dg.Fmask[face] {
-				faceR.Set(i, dg.r[idx])
-				faceS.Set(i, dg.t[idx])
+				faceR.Set(i, dg.R[idx])
+				faceS.Set(i, dg.T[idx])
 			}
 
-		case 2: // Face 3: r+s+t = -1, use (s, t)
+		case 2: // Face 3: R+S+T = -1, use (S, T)
 			faceR = utils.NewVector(len(dg.Fmask[face]))
 			faceS = utils.NewVector(len(dg.Fmask[face]))
 			for i, idx := range dg.Fmask[face] {
-				faceR.Set(i, dg.s[idx])
-				faceS.Set(i, dg.t[idx])
+				faceR.Set(i, dg.S[idx])
+				faceS.Set(i, dg.T[idx])
 			}
 
-		case 3: // Face 4: r = -1, use (s, t)
+		case 3: // Face 4: R = -1, use (S, T)
 			faceR = utils.NewVector(len(dg.Fmask[face]))
 			faceS = utils.NewVector(len(dg.Fmask[face]))
 			for i, idx := range dg.Fmask[face] {
-				faceR.Set(i, dg.s[idx])
-				faceS.Set(i, dg.t[idx])
+				faceR.Set(i, dg.S[idx])
+				faceS.Set(i, dg.T[idx])
 			}
 		}
 

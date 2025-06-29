@@ -3,7 +3,7 @@ package gonudg
 import "math"
 
 // XYZtoRST transfers from (X,Y,Z) in equilateral tetrahedron
-// to (r,s,t) coordinates in standard tetrahedron
+// to (R,S,T) coordinates in standard tetrahedron
 // This is the 0-based index version of the C++ xyztorst function
 func XYZtoRST(X, Y, Z []float64) (r, s, t []float64) {
 	sqrt3 := math.Sqrt(3.0)
@@ -58,7 +58,7 @@ func XYZtoRST(X, Y, Z []float64) (r, s, t []float64) {
 			Z[n] - offset[2],
 		}
 
-		// [r,s,t] = A^{-1} * rhs
+		// [R,S,T] = A^{-1} * rhs
 		r[n] = Ainv[0][0]*rhs[0] + Ainv[0][1]*rhs[1] + Ainv[0][2]*rhs[2]
 		s[n] = Ainv[1][0]*rhs[0] + Ainv[1][1]*rhs[1] + Ainv[1][2]*rhs[2]
 		t[n] = Ainv[2][0]*rhs[0] + Ainv[2][1]*rhs[1] + Ainv[2][2]*rhs[2]
@@ -67,7 +67,7 @@ func XYZtoRST(X, Y, Z []float64) (r, s, t []float64) {
 	return r, s, t
 }
 
-// RSTtoXYZ is the inverse transformation from (r,s,t) to (X,Y,Z)
+// RSTtoXYZ is the inverse transformation from (R,S,T) to (X,Y,Z)
 // in the equilateral tetrahedron
 func RSTtoXYZ(r, s, t []float64) (X, Y, Z []float64) {
 	sqrt3 := math.Sqrt(3.0)
@@ -87,7 +87,7 @@ func RSTtoXYZ(r, s, t []float64) (X, Y, Z []float64) {
 
 	// Transform each point using barycentric coordinates
 	// The transformation is:
-	// [X,Y,Z] = 0.5*(-(1+r+s+t)*v1 + (1+r)*v2 + (1+s)*v3 + (1+t)*v4)
+	// [X,Y,Z] = 0.5*(-(1+R+S+T)*v1 + (1+R)*v2 + (1+S)*v3 + (1+T)*v4)
 	for n := 0; n < Nc; n++ {
 		coeff1 := 0.5 * (-(1.0 + r[n] + s[n] + t[n]))
 		coeff2 := 0.5 * (1.0 + r[n])

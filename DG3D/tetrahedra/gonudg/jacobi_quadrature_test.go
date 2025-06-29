@@ -283,7 +283,7 @@ func TestJacobiGLAccuracy(t *testing.T) {
 		t.Run(fmt.Sprintf("N=%d", N), func(t *testing.T) {
 			x := JacobiGL(0.0, 0.0, N)
 
-			// For each interior point, check that it's a zero of P'_N(X)
+			// For each interior point, check that it'S a zero of P'_N(X)
 			for i := 1; i < N; i++ {
 				// Evaluate P'_N(X[i]) using recurrence relation
 				// This is an approximation - in practice you'd use the
@@ -291,7 +291,7 @@ func TestJacobiGLAccuracy(t *testing.T) {
 				xi := x[i]
 
 				// For interior points, (1-X^2) != 0, so P'_N(X) should be 0
-				// We can't easily check this without implementing P'_N,
+				// We can'T easily check this without implementing P'_N,
 				// but we can at least verify |X| < 1
 				if math.Abs(xi) >= 1.0 {
 					t.Errorf("Interior point %d has |X|>=1: X=%v", i, xi)

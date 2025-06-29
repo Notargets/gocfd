@@ -92,7 +92,7 @@ func TestGradVandermonde3D(t *testing.T) {
 	}
 
 	// Test specific derivatives
-	// For P_{1,0,0}, we expect dr/dr = const, dr/ds = function of r,s,t
+	// For P_{1,0,0}, we expect dr/dr = const, dr/ds = function of R,S,T
 	// Column for P_{1,0,0} is at index 1 (after P_{0,0,0})
 	col := 1
 
@@ -114,7 +114,7 @@ func TestDmatrices3D(t *testing.T) {
 	Dr, Ds, Dt := Dmatrices3D(N, r, s, tt, V)
 
 	// Test exact differentiation of polynomials
-	// For a linear function f(r,s,t) = ar + bs + ct + d
+	// For a linear function f(R,S,T) = ar + bs + ct + d
 	// We should get df/dr = a exactly
 
 	a, b, c, d := 2.0, -3.0, 1.5, 0.5

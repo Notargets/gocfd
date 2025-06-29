@@ -25,7 +25,7 @@ type DG3D struct {
 	NODETOL float64 // Node tolerance
 
 	// Node coordinates in reference element
-	r, s, t []float64
+	R, S, T []float64
 
 	// Physical coordinates
 	X, Y, Z utils.Matrix // [Np][K] matrices
@@ -107,15 +107,15 @@ func (dg *DG3D) StartUp3D() error {
 
 	// Compute nodal set
 	x1, y1, z1 := Nodes3D(dg.N)
-	dg.r, dg.s, dg.t = XYZtoRST(x1, y1, z1)
+	dg.R, dg.S, dg.T = XYZtoRST(x1, y1, z1)
 
 	// Build reference element matrices
-	dg.V = Vandermonde3D(dg.N, dg.r, dg.s, dg.t)
+	dg.V = Vandermonde3D(dg.N, dg.R, dg.S, dg.T)
 	dg.Vinv = dg.V.InverseWithCheck()
 	dg.MassMatrix = dg.Vinv.Transpose().Mul(dg.Vinv)
 
 	// Build differentiation matrices
-	dg.Dr, dg.Ds, dg.Dt = Dmatrices3D(dg.N, dg.r, dg.s, dg.t, dg.V)
+	dg.Dr, dg.Ds, dg.Dt = Dmatrices3D(dg.N, dg.R, dg.S, dg.T, dg.V)
 
 	// Build coordinates of all the nodes
 	dg.X = utils.NewMatrix(dg.Np, dg.K)
@@ -130,20 +130,20 @@ func (dg *DG3D) StartUp3D() error {
 		vd := dg.EToV[k][3]
 
 		for i := 0; i < dg.Np; i++ {
-			dg.X.Set(i, k, 0.5*(-(1.0+dg.r[i]+dg.s[i]+dg.t[i])*dg.VX[va]+
-				(1.0+dg.r[i])*dg.VX[vb]+
-				(1.0+dg.s[i])*dg.VX[vc]+
-				(1.0+dg.t[i])*dg.VX[vd]))
+			dg.X.Set(i, k, 0.5*(-(1.0+dg.R[i]+dg.S[i]+dg.T[i])*dg.VX[va]+
+				(1.0+dg.R[i])*dg.VX[vb]+
+				(1.0+dg.S[i])*dg.VX[vc]+
+				(1.0+dg.T[i])*dg.VX[vd]))
 
-			dg.Y.Set(i, k, 0.5*(-(1.0+dg.r[i]+dg.s[i]+dg.t[i])*dg.VY[va]+
-				(1.0+dg.r[i])*dg.VY[vb]+
-				(1.0+dg.s[i])*dg.VY[vc]+
-				(1.0+dg.t[i])*dg.VY[vd]))
+			dg.Y.Set(i, k, 0.5*(-(1.0+dg.R[i]+dg.S[i]+dg.T[i])*dg.VY[va]+
+				(1.0+dg.R[i])*dg.VY[vb]+
+				(1.0+dg.S[i])*dg.VY[vc]+
+				(1.0+dg.T[i])*dg.VY[vd]))
 
-			dg.Z.Set(i, k, 0.5*(-(1.0+dg.r[i]+dg.s[i]+dg.t[i])*dg.VZ[va]+
-				(1.0+dg.r[i])*dg.VZ[vb]+
-				(1.0+dg.s[i])*dg.VZ[vc]+
-				(1.0+dg.t[i])*dg.VZ[vd]))
+			dg.Z.Set(i, k, 0.5*(-(1.0+dg.R[i]+dg.S[i]+dg.T[i])*dg.VZ[va]+
+				(1.0+dg.R[i])*dg.VZ[vb]+
+				(1.0+dg.S[i])*dg.VZ[vc]+
+				(1.0+dg.T[i])*dg.VZ[vd]))
 		}
 	}
 
@@ -182,30 +182,30 @@ func (dg *DG3D) StartUp3D() error {
 func (dg *DG3D) BuildFmask() {
 	dg.Fmask = make([][]int, 4)
 
-	// Face 1: t = -1
+	// Face 1: T = -1
 	for i := 0; i < dg.Np; i++ {
-		if math.Abs(1.0+dg.t[i]) < dg.NODETOL {
+		if math.Abs(1.0+dg.T[i]) < dg.NODETOL {
 			dg.Fmask[0] = append(dg.Fmask[0], i)
 		}
 	}
 
-	// Face 2: s = -1
+	// Face 2: S = -1
 	for i := 0; i < dg.Np; i++ {
-		if math.Abs(1.0+dg.s[i]) < dg.NODETOL {
+		if math.Abs(1.0+dg.S[i]) < dg.NODETOL {
 			dg.Fmask[1] = append(dg.Fmask[1], i)
 		}
 	}
 
-	// Face 3: r+s+t = -1
+	// Face 3: R+S+T = -1
 	for i := 0; i < dg.Np; i++ {
-		if math.Abs(1.0+dg.r[i]+dg.s[i]+dg.t[i]) < dg.NODETOL {
+		if math.Abs(1.0+dg.R[i]+dg.S[i]+dg.T[i]) < dg.NODETOL {
 			dg.Fmask[2] = append(dg.Fmask[2], i)
 		}
 	}
 
-	// Face 4: r = -1
+	// Face 4: R = -1
 	for i := 0; i < dg.Np; i++ {
-		if math.Abs(1.0+dg.r[i]) < dg.NODETOL {
+		if math.Abs(1.0+dg.R[i]) < dg.NODETOL {
 			dg.Fmask[3] = append(dg.Fmask[3], i)
 		}
 	}
@@ -252,7 +252,7 @@ func (dg *DG3D) ComputeWeakOperators() {
 	VVTinv := VVT.InverseWithCheck()
 
 	// Get gradient Vandermonde matrices
-	Vr, Vs, Vt := GradVandermonde3D(dg.N, dg.r, dg.s, dg.t)
+	Vr, Vs, Vt := GradVandermonde3D(dg.N, dg.R, dg.S, dg.T)
 
 	// Drw = (V*Vr^T)/(V*V^T), etc.
 	dg.Drw = dg.V.Mul(Vr.Transpose()).Mul(VVTinv)

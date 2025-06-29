@@ -2,7 +2,7 @@ package gonudg
 
 import "math"
 
-// RSTtoABC transfers from (r,s,t) to (a,b,c) coordinates in tetrahedron
+// RSTtoABC transfers from (R,S,T) to (a,b,c) coordinates in tetrahedron
 // This matches the C++ implementation exactly - no special cases
 func RSTtoABC(r, s, t []float64) (a, b, c []float64) {
 	Np := len(r)
@@ -33,7 +33,7 @@ func RSTtoABC(r, s, t []float64) (a, b, c []float64) {
 	return
 }
 
-// RSTtoABCSingle transfers a single point from (r,s,t) to (a,b,c) coordinates
+// RSTtoABCSingle transfers a single point from (R,S,T) to (a,b,c) coordinates
 func RSTtoABCSingle(r, s, t float64) (a, b, c float64) {
 	const tol = 1e-12
 
@@ -77,7 +77,7 @@ func isTetrahedronVertex(r, s, t float64) bool {
 	return false
 }
 
-// ABCtoRST is the inverse transformation from (a,b,c) to (r,s,t) coordinates
+// ABCtoRST is the inverse transformation from (a,b,c) to (R,S,T) coordinates
 func ABCtoRST(a, b, c []float64) (r, s, t []float64) {
 	Np := len(a)
 	r = make([]float64, Np)
@@ -100,7 +100,7 @@ func ABCtoRSTSingle(a, b, c float64) (r, s, t float64) {
 	return
 }
 
-// IsValidRST checks if (r,s,t) coordinates are within the reference tetrahedron
+// IsValidRST checks if (R,S,T) coordinates are within the reference tetrahedron
 func IsValidRST(r, s, t float64) bool {
 	const tol = 1e-10
 	return r >= -1-tol && s >= -1-tol && t >= -1-tol && r+s+t <= -1+tol

@@ -93,7 +93,7 @@ func (dg *DG3D) Normals3D() error {
 	dg.SJ = utils.NewMatrix(Nfp*Nfaces, K)
 
 	// Build normals for each face
-	// Face 1: t = -1, normal = -[Tx, Ty, Tz]
+	// Face 1: T = -1, normal = -[Tx, Ty, Tz]
 	for k := 0; k < K; k++ {
 		for i := 0; i < Nfp; i++ {
 			vid := dg.Fmask[0][i] // volume node index
@@ -105,7 +105,7 @@ func (dg *DG3D) Normals3D() error {
 		}
 	}
 
-	// Face 2: s = -1, normal = -[Sx, Sy, Sz]
+	// Face 2: S = -1, normal = -[Sx, Sy, Sz]
 	for k := 0; k < K; k++ {
 		for i := 0; i < Nfp; i++ {
 			vid := dg.Fmask[1][i]
@@ -117,7 +117,7 @@ func (dg *DG3D) Normals3D() error {
 		}
 	}
 
-	// Face 3: r+s+t = -1, normal = [Rx+Sx+Tx, Ry+Sy+Ty, Rz+Sz+Tz]
+	// Face 3: R+S+T = -1, normal = [Rx+Sx+Tx, Ry+Sy+Ty, Rz+Sz+Tz]
 	for k := 0; k < K; k++ {
 		for i := 0; i < Nfp; i++ {
 			vid := dg.Fmask[2][i]
@@ -129,7 +129,7 @@ func (dg *DG3D) Normals3D() error {
 		}
 	}
 
-	// Face 4: r = -1, normal = -[Rx, Ry, Rz]
+	// Face 4: R = -1, normal = -[Rx, Ry, Rz]
 	for k := 0; k < K; k++ {
 		for i := 0; i < Nfp; i++ {
 			vid := dg.Fmask[3][i]
