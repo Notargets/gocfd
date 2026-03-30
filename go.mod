@@ -1,8 +1,6 @@
 module github.com/notargets/gocfd
 
-go 1.24.2
-
-toolchain go1.24.4
+go 1.25.0
 
 require (
 	github.com/ghodss/yaml v1.0.0
@@ -10,7 +8,6 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/notargets/avs v0.0.8-0.20250301163939-3d7704630871
 	github.com/notargets/go-metis v0.0.0-20250613231942-b5c31423c384
-	github.com/notargets/gocca v0.9.1
 	github.com/pradeep-pyro/triangle v0.0.0-20181224021403-536c46311a99
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/viper v1.7.0
@@ -40,10 +37,10 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.2.0 // indirect
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c // indirect
-	golang.org/x/image v0.26.0 // indirect
-	golang.org/x/sys v0.32.0 // indirect
-	golang.org/x/text v0.24.0 // indirect
-	golang.org/x/tools v0.32.0 // indirect
+	golang.org/x/image v0.38.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
+	golang.org/x/text v0.35.0 // indirect
+	golang.org/x/tools v0.42.0 // indirect
 	gopkg.in/ini.v1 v1.57.0 // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
